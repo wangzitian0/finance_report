@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import * as currency from "@/lib/currency";
 import { TransactionTable } from "@/components/review/TransactionTable";
@@ -8,10 +8,32 @@ describe("TransactionTable", () => {
     const onEdit = vi.fn();
     const onSave = vi.fn();
     const onDiscard = vi.fn();
+    const originalMatchMedia = window.matchMedia;
 
     beforeEach(() => {
         vi.clearAllMocks();
     });
+
+    afterEach(() => {
+        Object.defineProperty(window, "matchMedia", {
+            configurable: true,
+            writable: true,
+            value: originalMatchMedia,
+        });
+    });
+
+    function mockMobileViewport() {
+        Object.defineProperty(window, "matchMedia", {
+            configurable: true,
+            writable: true,
+            value: vi.fn().mockImplementation((query: string) => ({
+                matches: true,
+                media: query,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            })),
+        });
+    }
 
     const sample: BankStatementTransaction[] = [
         {
@@ -27,6 +49,68 @@ describe("TransactionTable", () => {
             status: "pending",
         },
     ];
+
+    it("AC16.26.1 renders editable mobile transaction cards with save and discard actions", async () => {
+        mockMobileViewport();
+        type PendingEdit = Partial<{ description: string; amount: string; direction: string; txn_date: string }>;
+        const pending: Map<string, PendingEdit> = new Map();
+        pending.set("t1", { description: "Coffee Shop" });
+
+        render(
+            <TransactionTable
+                transactions={sample}
+                currency="SGD"
+                onEdit={onEdit}
+                pendingEdits={pending}
+                onSave={onSave}
+                onDiscard={onDiscard}
+                actionLoading={false}
+            />
+        );
+
+        expect(await screen.findByTestId("stage1-mobile-transaction-card-t1")).toBeInTheDocument();
+
+        const description = screen.getByLabelText("Description for t1");
+        fireEvent.change(description, { target: { value: "Coffee mobile edit" } });
+        expect(onEdit).toHaveBeenCalledWith("t1", "description", "Coffee mobile edit");
+
+        fireEvent.change(screen.getByLabelText("Date for t1"), { target: { value: "2024-01-11" } });
+        expect(onEdit).toHaveBeenCalledWith("t1", "txn_date", "2024-01-11");
+
+        fireEvent.change(screen.getByLabelText("Direction for t1"), { target: { value: "IN" } });
+        expect(onEdit).toHaveBeenCalledWith("t1", "direction", "IN");
+
+        fireEvent.change(screen.getByLabelText("Amount for t1"), { target: { value: "4.25" } });
+        expect(onEdit).toHaveBeenCalledWith("t1", "amount", "4.25");
+
+        fireEvent.click(screen.getByRole("button", { name: /Save Edits/ }));
+        expect(onSave).toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("button", { name: /Discard/ }));
+        expect(onDiscard).toHaveBeenCalled();
+    });
+
+    it("keeps the desktop table when matchMedia is unavailable", () => {
+        Object.defineProperty(window, "matchMedia", {
+            configurable: true,
+            writable: true,
+            value: undefined,
+        });
+
+        render(
+            <TransactionTable
+                transactions={sample}
+                currency="SGD"
+                onEdit={onEdit}
+                pendingEdits={new Map()}
+                onSave={onSave}
+                onDiscard={onDiscard}
+                actionLoading={false}
+            />
+        );
+
+        expect(screen.queryByTestId("stage1-mobile-transaction-card-t1")).not.toBeInTheDocument();
+        expect(screen.getByText("Coffee")).toBeInTheDocument();
+    });
 
     it("renders rows and shows Save/Discard when pending edits exist", () => {
         type PendingEdit = Partial<{ description: string; amount: string; direction: string; txn_date: string }>;

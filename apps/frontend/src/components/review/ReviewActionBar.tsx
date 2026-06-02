@@ -14,7 +14,7 @@ export function ReviewActionBar({
     balanceValid
 }: ReviewActionBarProps) {
     return (
-        <div className="flex items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
             <button
                 type="button"
                 onClick={onReject}

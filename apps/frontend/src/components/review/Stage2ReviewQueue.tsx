@@ -72,6 +72,7 @@ export function Stage2ReviewQueue() {
 
     const [filteredChecks, setFilteredChecks] = useState<ConsistencyCheck[] | null>(null);
     const [filtering, setFiltering] = useState(false);
+    const [isMobileLayout, setIsMobileLayout] = useState(false);
     const resolveTitleId = useId();
     const runIdMatch = pathname.match(/^\/review\/run\/([^/?#]+)/);
     const runId = runIdMatch ? decodeURIComponent(runIdMatch[1]) : null;
@@ -107,6 +108,18 @@ export function Stage2ReviewQueue() {
     useEffect(() => {
         fetchProcessingSummary();
     }, [fetchProcessingSummary]);
+
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+            return;
+        }
+
+        const media = window.matchMedia("(max-width: 767px)");
+        const updateMobileLayout = () => setIsMobileLayout(media.matches);
+        updateMobileLayout();
+        media.addEventListener("change", updateMobileLayout);
+        return () => media.removeEventListener("change", updateMobileLayout);
+    }, []);
 
     const updateUrlParams = useCallback(() => {
         const params = new URLSearchParams();
@@ -600,7 +613,69 @@ export function Stage2ReviewQueue() {
                         <div className="p-8 text-center text-muted">No pending matches</div>
                     ) : (
                         <>
-                            <div className="overflow-auto max-h-[400px]">
+                            {isMobileLayout && (
+                                <div data-testid="stage2-mobile-match-list" className="divide-y divide-[var(--border)] md:hidden">
+                                    {matchesFilteredByScore.map((match) => (
+                                        <article
+                                            key={match.id}
+                                            data-testid={`stage2-mobile-match-card-${match.id}`}
+                                            className="space-y-4 p-4"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <input
+                                                    type="checkbox"
+                                                    aria-label={`Select match ${match.id}`}
+                                                    checked={selectedMatches.has(match.id)}
+                                                    onChange={() => toggleMatch(match.id)}
+                                                    className="mt-1 rounded"
+                                                />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-medium uppercase text-muted">Description</p>
+                                                            <p className="mt-1 break-words text-sm font-medium">
+                                                                {match.description || "—"}
+                                                            </p>
+                                                        </div>
+                                                        <span
+                                                            className={`flex-shrink-0 text-sm font-semibold ${
+                                                                match.match_score >= 85
+                                                                    ? "text-[var(--success)]"
+                                                                    : match.match_score >= 60
+                                                                      ? "text-[var(--warning)]"
+                                                                      : "text-[var(--error)]"
+                                                            }`}
+                                                        >
+                                                            {match.match_score}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                                        <div>
+                                                            <p className="text-xs font-medium uppercase text-muted">Amount</p>
+                                                            <p className="mt-1 font-semibold">
+                                                                {match.amount != null ? formatAmount(match.amount, 2) : "—"}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-medium uppercase text-muted">Date</p>
+                                                            <p className="mt-1 text-muted">
+                                                                {match.txn_date ? formatDateDisplay(match.txn_date) : "—"}
+                                                            </p>
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <p className="text-xs font-medium uppercase text-muted">Status</p>
+                                                            <span className="badge badge-warning mt-1">{match.status}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="hidden max-h-[400px] overflow-auto md:block">
                                 <table className="w-full text-sm">
                                     <thead className="sticky top-0 bg-[var(--background)]">
                                         <tr className="border-b border-[var(--border)]">
@@ -669,9 +744,9 @@ export function Stage2ReviewQueue() {
                                 </table>
                             </div>
 
-                            <div className="p-4 border-t border-[var(--border)] flex items-center justify-between">
+                            <div className="flex flex-col gap-3 border-t border-[var(--border)] p-4 sm:flex-row sm:items-center sm:justify-between">
                                 <span className="text-sm text-muted">{selectedMatches.size} selected</span>
-                                <div className="flex items-center gap-2">
+                                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                                     <button
                                         type="button"
                                         onClick={handleBatchReject}

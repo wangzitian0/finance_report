@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const COLD_ROUTE_TIMEOUT_MS = 10_000;
+
 const baseEntry = {
   id: "entry-mobile",
   entry_date: "2026-06-01",
@@ -168,7 +170,7 @@ test.beforeEach(async ({ page }) => {
 
 test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async ({ page }) => {
   await gotoReady(page, "/review/ai-suggestions");
-  await expect(page.getByTestId("ai-suggestions-mobile-list")).toBeVisible();
+  await expect(page.getByTestId("ai-suggestions-mobile-list")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
   await page.getByLabel("Open navigation menu").click();
   await expect(page.getByRole("dialog", { name: "Finance Report" })).toBeVisible();
@@ -177,7 +179,7 @@ test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async
 
   await gotoReady(page, "/journal");
   await page.getByText("Mobile review sample entry").click();
-  await expect(page.getByTestId("journal-lines-mobile")).toBeVisible();
+  await expect(page.getByTestId("journal-lines-mobile")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
 });
 
@@ -185,7 +187,7 @@ test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ p
   await gotoReady(page, "/review/ai-suggestions");
 
   const card = page.getByTestId("ai-suggestion-mobile-card-suggestion-mobile");
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expect(card.getByText("Long mobile transaction description")).toBeVisible();
   await expect(card.getByLabel("Corrected value")).toBeVisible();
   await expect(card.getByRole("button", { name: "Accept", exact: true })).toBeVisible();
@@ -197,7 +199,7 @@ test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ p
 test("AC16.26.1 stage 1 mobile review exposes editable transaction cards and completion actions", async ({ page }) => {
   await gotoReady(page, "/statements/stmt-mobile/review");
 
-  await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible();
+  await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expect(page.getByLabel("Description for txn-mobile-1")).toBeVisible();
   await expect(page.getByLabel("Amount for txn-mobile-1")).toBeVisible();
   await expect(page.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
@@ -213,7 +215,7 @@ test("AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch ac
   await gotoReady(page, "/reconciliation/review-queue");
 
   const card = page.getByTestId("stage2-mobile-match-card-match-mobile-1");
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expect(card.getByText("Long reconciliation match needing mobile approval")).toBeVisible();
   await card.getByRole("checkbox", { name: "Select match match-mobile-1" }).check();
   await expect(page.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
@@ -226,6 +228,31 @@ test("AC16.26.3 stage 2 run review preserves mobile approval gate and match work
 
   await expect(page.getByText("Run approval gate")).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve Run", exact: true })).toBeVisible();
-  await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible();
+  await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
+});
+
+test.describe("375px mobile review proof", () => {
+  test.use({
+    viewport: { width: 375, height: 812 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px", async ({ page }) => {
+    await gotoReady(page, "/statements/stmt-mobile/review");
+    await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
+    await expectNoDocumentHorizontalScroll(page);
+
+    await gotoReady(page, "/reconciliation/review-queue");
+    await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(page.getByRole("button", { name: "Approve Selected", exact: true })).toBeVisible();
+    await expectNoDocumentHorizontalScroll(page);
+
+    await gotoReady(page, "/review/run/run-mobile-1");
+    await expect(page.getByRole("button", { name: "Approve Run", exact: true })).toBeVisible();
+    await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expectNoDocumentHorizontalScroll(page);
+  });
 });
