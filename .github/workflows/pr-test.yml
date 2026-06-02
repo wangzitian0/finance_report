@@ -216,12 +216,13 @@ jobs:
           MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
           echo "🚀 Starting E2E Pipeline for $APP_URL"
+          mkdir -p test-results
 
           echo "--- Phase 1: Smoke Check (Shell) ---"
           bash tools/smoke_test.sh "$APP_URL" staging
 
           echo "--- Phase 2: Core Flow Validation (Python, no real AI/OCR) ---"
-          pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results.xml
+          pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/pr-preview-e2e.xml
 
           echo "✅ E2E Pipeline passed!"
 
@@ -242,6 +243,43 @@ jobs:
             --api-key "$DOKPLOY_API_KEY"
 
           echo "Check logs for E2E failure details."
+
+      - name: Write PR preview context
+        if: ${{ always() }}
+        env:
+          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "PR Preview Context"
+            echo "=================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "pr_number=${{ needs.setup.outputs.pr_number }}"
+            echo "compose_name=${{ needs.setup.outputs.compose_name }}"
+            echo "compose_id=${{ steps.deploy.outputs.compose_id }}"
+            echo "branch=${BRANCH_NAME}"
+            echo "app_url=${APP_URL}"
+            echo "deploy_outcome=${{ steps.deploy.outcome }}"
+            echo "e2e_outcome=${{ steps.e2e_tests.outcome }}"
+            echo "strict_e2e_gates=true"
+            echo "marker=(smoke or e2e) and not llm"
+          } > ci-context/pr-preview-context.txt
+
+      - name: Upload PR preview test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-preview-test-context
+          path: |
+            test-results/
+            ci-context/pr-preview-context.txt
+          retention-days: 14
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -361,6 +399,32 @@ jobs:
           done
 
           echo "GHCR cleanup complete"
+
+      - name: Write PR preview cleanup context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "PR Preview Cleanup Context"
+            echo "=========================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "pr_number=${{ needs.setup.outputs.pr_number }}"
+            echo "compose_name=${{ needs.setup.outputs.compose_name }}"
+            echo "cleanup_action=closed-pr-cleanup"
+          } > ci-context/pr-preview-cleanup-context.txt
+
+      - name: Upload PR preview cleanup context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-preview-cleanup-context
+          path: ci-context/pr-preview-cleanup-context.txt
+          retention-days: 14
 
       - name: Comment cleanup notice
         uses: actions/github-script@v7

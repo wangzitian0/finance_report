@@ -118,6 +118,24 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "coverage/coveralls-unified.lcov" in workflow
     assert "coverage/coveralls-backend.lcov" in workflow
     assert "coverage/coveralls-frontend.lcov" in workflow
+    assert "Write coverage debug context" in workflow
+    assert "Upload unified coverage context" in workflow
+    assert "unified-coverage-context" in workflow
+    assert "coverage/coverage-context.txt" in workflow
+    assert "event_name=${{ github.event_name }}" in workflow
+    assert "run_attempt=${{ github.run_attempt }}" in workflow
+    assert "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml" in workflow
+    assert "backend-shard-${{ matrix.shard }}-test-context" in workflow
+    assert "backend-integration-test-context" in workflow
+    assert "backend-tier1-e2e-test-context" in workflow
+    assert (
+        "--reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml"
+        in workflow
+    )
+    assert "--reporter=line,html" in workflow
+    assert "frontend-test-context" in workflow
+    assert "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md" in workflow
+    assert "Gate Status" in workflow
     global_permissions = workflow.split("env:", 1)[0]
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
@@ -141,6 +159,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "trivial placeholder assertions" in ci_cd
     assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
     assert "coverage gate summary" in ci_cd
+    assert "CI observability artifacts" in ci_cd
     assert "Coverage scope is deny-list based within each governed source root" in ci_cd
     assert "strip branch records before upload" in ci_cd
     assert "not behavioral coverage" in traceability
@@ -236,6 +255,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
         for error in errors
     )
     assert any("coverage gate summary" in error for error in errors)
+    assert any("CI observability artifacts" in error for error in errors)
     assert any("New `apps/*/src`" in error for error in errors)
     assert any("not behavioral coverage" in error for error in errors)
 

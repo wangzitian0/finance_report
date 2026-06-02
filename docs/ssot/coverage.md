@@ -40,6 +40,13 @@ committed no-regression floors are generated facts. Read
 `unified-coverage.json`, CI artifacts, or Coveralls for current values; do not
 copy those numbers into prose docs.
 
+**Debug context ownership**: The `unified-coverage` CI job uploads a
+`unified-coverage-context` coverage context artifact on every run, including
+failed coverage gates. That artifact is the authoritative diagnostic package
+for coverage count drift: it contains the merged component LCOV inputs, the
+current `unified-coverage.json`, and `coverage/coverage-context.txt` with the
+GitHub event, commit, run attempt, toolchain versions, and input file hashes.
+
 ---
 
 ## Components
@@ -128,6 +135,7 @@ jobs:
     # Runs: python tools/calculate_unified_coverage.py
     # Runs: python tools/check_coverage_policy.py
     # Fails if coverage drops below baseline (no-regression gate); no fixed minimum threshold
+    # Uploads unified-coverage-context with all raw line-count inputs
     # Builds repository-root-relative, line-only backend + frontend + common + tools LCOV for Coveralls
 ```
 
@@ -141,6 +149,8 @@ jobs:
 4. Reports unified percentage and exits 1 if coverage dropped below baseline
 5. Lists file-level low coverage from the same component LCOV files when run
    with `--list-low-files`
+6. Writes the current `unified-coverage.json` before failing on a regression,
+   so CI artifacts retain the exact raw line-count inputs that failed the gate
 
 File-level coverage audits must use the same LCOV inputs as the unified gate,
 not `coverage.py report` text output or stale component-local artifacts:
@@ -163,6 +173,11 @@ The CI workflow uses baseline comparison to prevent coverage regressions. There 
 
 - **Rationale**: No-regression is the primary gate; coverage must not drop from the committed baseline.
 - **External reporting**: Coveralls remains enabled for historical visibility, but local deterministic gates decide whether CI fails. Coveralls status contexts are not required checks and CI does not publish synthetic GitHub statuses for them. External Coveralls failures must not fail CI or block post-merge staging.
+- **Coverage context artifact**: CI uploads `unified-coverage-context` with
+  `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`,
+  `coverage/tools.lcov`, `unified-coverage.json`, and
+  `coverage/coverage-context.txt`. Use this artifact to identify the exact
+  source file and line input behind any coverage count difference.
 - **Coveralls role**: Coveralls is not the merge gate. It is used for badges,
   trend analysis, and external reporting only; repository CI decides mergeability
   through deterministic local jobs.

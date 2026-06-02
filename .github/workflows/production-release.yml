@@ -139,6 +139,32 @@ jobs:
           echo "✅ Release ${{ steps.version.outputs.tag }} built"
           echo "Deploy: Actions → Production Release → Run workflow"
 
+      - name: Write production release build context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Production Release Build Context"
+            echo "================================"
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "tag=${{ steps.version.outputs.tag }}"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+          } > ci-context/production-release-build-context.txt
+
+      - name: Upload production release build context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-build-context
+          path: ci-context/production-release-build-context.txt
+          retention-days: 14
+
   dry-run:
     name: Production Release Dry Run
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
@@ -244,6 +270,33 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Production mutation skipped"
 
+      - name: Write production dry-run context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Production Release Dry-run Context"
+            echo "=================================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "tag=${{ steps.version.outputs.tag }}"
+            echo "production_mutation_skipped=true"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+          } > ci-context/production-dry-run-context.txt
+
+      - name: Upload production dry-run context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dry-run-context
+          path: ci-context/production-dry-run-context.txt
+          retention-days: 14
+
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry_run }}
     runs-on: ubuntu-latest
@@ -321,10 +374,44 @@ jobs:
         uses: ./.github/actions/setup-e2e-tests
 
       - name: Production Read-only E2E Smoke
+        id: production_readonly_e2e
         env:
           APP_URL: https://report.zitian.party
           FRONTEND_URL: https://report.zitian.party
           TEST_ENV: production
           PROD_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
           PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
-        run: pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe"
+        run: |
+          mkdir -p test-results
+          pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe" --junit-xml=test-results/production-readonly-e2e.xml
+
+      - name: Write production deploy context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Production Deploy Context"
+            echo "========================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "tag=${{ steps.version.outputs.tag }}"
+            echo "app_url=https://report.zitian.party"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+            echo "production_readonly_e2e_outcome=${{ steps.production_readonly_e2e.outcome }}"
+            echo "marker=prod_safe"
+          } > ci-context/production-deploy-context.txt
+
+      - name: Upload production deploy test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deploy-test-context
+          path: |
+            test-results/
+            ci-context/production-deploy-context.txt
+          retention-days: 14

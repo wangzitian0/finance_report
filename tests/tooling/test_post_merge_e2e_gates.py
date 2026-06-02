@@ -303,6 +303,61 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
     assert "deployment-level inputs" in observability
 
 
+def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
+    """AC8.13.76: CI and deploy gates upload replayable status context."""
+    ci = read(".github/workflows/ci.yml")
+    pr_preview = read(".github/workflows/pr-test.yml")
+    staging = read(".github/workflows/staging-deploy.yml")
+    manual_ai = read(".github/workflows/staging-ai-ocr-gate.yml")
+    production = read(".github/workflows/production-release.yml")
+    cleanup = read(".github/workflows/pr-preview-cleanup.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    for token in (
+        "backend-shard-${{ matrix.shard }}-test-context",
+        "backend-integration-test-context",
+        "backend-tier1-e2e-test-context",
+        "frontend-test-context",
+        "AC-TRACEABILITY-CONTEXT.md",
+    ):
+        assert token in ci
+    assert "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml" in ci
+    assert "--junit-xml=test-results/backend-integration.xml" in ci
+    assert "--junit-xml=test-results/backend-tier1-e2e.xml" in ci
+    assert "test-results/vitest-junit.xml" in ci
+    assert "apps/frontend/playwright-report/" in ci
+    assert "if: ${{ always() }}" in ci.split("Upload backend shard test context", 1)[0]
+
+    assert "pr-preview-test-context" in pr_preview
+    assert "test-results/pr-preview-e2e.xml" in pr_preview
+    assert "ci-context/pr-preview-context.txt" in pr_preview
+    assert "deploy_outcome=${{ steps.deploy.outcome }}" in pr_preview
+    assert "e2e_outcome=${{ steps.e2e_tests.outcome }}" in pr_preview
+
+    assert "staging-deploy-test-context" in staging
+    assert "test-results/staging-core-e2e.xml" in staging
+    assert "ci-context/staging-deploy-context.txt" in staging
+    assert "staging-ai-ocr-test-context" in staging
+    assert "test-results/staging-ai-ocr-version.xml" in staging
+    assert "test-results/staging-ai-ocr-gate.xml" in staging
+    assert "primary_model=${STAGING_E2E_PRIMARY_MODEL}" in staging
+
+    assert "staging-ai-ocr-test-context" in manual_ai
+    assert "ci-context/staging-ai-ocr-context.txt" in manual_ai
+    assert "test-results/staging-ai-ocr-gate.xml" in manual_ai
+
+    assert "production-release-build-context" in production
+    assert "production-dry-run-context" in production
+    assert "production-deploy-test-context" in production
+    assert "test-results/production-readonly-e2e.xml" in production
+
+    assert "pr-preview-scheduled-cleanup-context" in cleanup
+    assert "cleanup_action=reconcile" in cleanup
+
+    assert "CI observability artifacts" in ci_cd
+    assert "Step summaries remain human-readable status pages" in ci_cd
+
+
 def test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run() -> None:
     """AC8.13.51: Staging deploy is triggered by successful main CI workflow_run."""
     workflow = read(".github/workflows/staging-deploy.yml")
@@ -937,6 +992,33 @@ def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
     assert "continue-on-error: true" in summary_block
     assert "Authoritative coverage gate" in summary_block
     assert "reporting-only" in summary_block
+
+
+def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
+    """AC8.13.75: Unified coverage preserves line-level debug inputs."""
+    workflow = read(".github/workflows/ci.yml")
+    coverage = read("docs/ssot/coverage.md")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
+        "  ac-traceability:", 1
+    )[0]
+    upload_block = unified_coverage_block.split(
+        "- name: Upload unified coverage context", 1
+    )[1].split("# Note: baseline auto-push removed", 1)[0]
+
+    assert "Write coverage debug context" in unified_coverage_block
+    assert "if: ${{ always() }}" in upload_block
+    assert "name: unified-coverage-context" in upload_block
+    assert "coverage/backend.lcov" in upload_block
+    assert "coverage/frontend.lcov" in upload_block
+    assert "coverage/common.lcov" in upload_block
+    assert "coverage/tools.lcov" in upload_block
+    assert "coverage/coverage-context.txt" in upload_block
+    assert "unified-coverage.json" in upload_block
+    assert "coverage context artifact" in coverage
+    assert "unified-coverage-context" in coverage
+    assert "raw line-count inputs" in ci_cd
 
 
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:

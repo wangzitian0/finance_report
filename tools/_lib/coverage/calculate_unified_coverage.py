@@ -346,6 +346,46 @@ def _format_regression_error(
     return "\n".join(lines)
 
 
+def _format_line_ratio(data: dict) -> str:
+    covered = int(data.get("covered_lines", 0))
+    total = int(data.get("total_lines", 0))
+    percent = float(data.get("coverage_percent", 0))
+    return f"{covered}/{total} ({percent:.2f}%)"
+
+
+def print_baseline_comparison(
+    *,
+    current_unified: dict,
+    baseline: dict,
+) -> None:
+    """Print raw line counts used by the no-regression comparison."""
+    print("\n" + "=" * 60)
+    print("BASELINE COMPARISON")
+    print("=" * 60)
+    print(
+        "   unified: "
+        f"current={_format_line_ratio(current_unified)} "
+        f"baseline={_format_line_ratio(baseline)}"
+    )
+
+    current_breakdown = current_unified.get("breakdown", {})
+    baseline_breakdown = baseline.get("breakdown", {})
+    for component_name in ("backend", "frontend", "common", "tools"):
+        if component_name not in current_breakdown or component_name not in baseline_breakdown:
+            continue
+        print(
+            f"   {component_name}: "
+            f"current={_format_line_ratio(current_breakdown[component_name])} "
+            f"baseline={_format_line_ratio(baseline_breakdown[component_name])}"
+        )
+
+
+def write_unified_coverage(unified: dict, output_path: Path) -> None:
+    with open(output_path, "w") as f:
+        json.dump(unified, f, indent=2)
+    print(f"\n📄 Report saved to: {output_path}")
+
+
 def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Calculate unified LCOV coverage.")
     parser.add_argument(
@@ -413,10 +453,13 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
         baseline_file = "unified-coverage.json"
     baseline_path = ROOT_DIR / baseline_file
 
+    regression_error = ""
     try:
         if baseline_path.exists():
             with open(baseline_path, "r") as f:
                 baseline = json.load(f)
+
+            print_baseline_comparison(current_unified=unified, baseline=baseline)
 
             # Compare each component against baseline
             baseline_breakdown = baseline.get("breakdown", {})
@@ -456,16 +499,13 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
                     )
 
             if regressions:
-                print(
-                    _format_regression_error(
-                        baseline_path=baseline_path,
-                        regressions=regressions,
-                    ),
-                    file=sys.stderr,
+                regression_error = _format_regression_error(
+                    baseline_path=baseline_path,
+                    regressions=regressions,
                 )
-                sys.exit(1)
 
-            print("✅ No regression: all coverage at or above baseline")
+            if not regression_error:
+                print("✅ No regression: all coverage at or above baseline")
         else:
             print(f"⚠️  Baseline file not found: {baseline_path}", file=sys.stderr)
             print("⚠️  Continuing with coverage threshold check...", file=sys.stderr)
@@ -488,11 +528,14 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     print(f"   Coverage: {unified['coverage_percent']}%")
     print("\n" + "-" * 60)
 
-    # Write output JSON
+    # Write output JSON before exiting on regressions so CI artifacts can show
+    # the exact raw line counts that failed the gate.
     output_path = ROOT_DIR / "unified-coverage.json"
-    with open(output_path, "w") as f:
-        json.dump(unified, f, indent=2)
-    print(f"\n📄 Report saved to: {output_path}")
+    write_unified_coverage(unified, output_path)
+
+    if regression_error:
+        print(regression_error, file=sys.stderr)
+        sys.exit(1)
 
     # Exit with appropriate code (safety net after baseline check)
     threshold = int(os.environ.get("COVERAGE_THRESHOLD", "0"))

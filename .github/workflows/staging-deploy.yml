@@ -285,6 +285,7 @@ jobs:
         uses: ./.github/actions/setup-e2e-tests
 
       - name: End-to-End Tests
+        id: staging_e2e_tests
         timeout-minutes: 22
         env:
           APP_URL: https://report-staging.zitian.party
@@ -318,6 +319,7 @@ jobs:
           }
 
           echo "🚀 Starting E2E Pipeline for $APP_URL"
+          mkdir -p test-results
           
           run_timed_phase "Phase 1: Smoke Check (Shell)" \
             bash tools/smoke_test.sh "$APP_URL" staging
@@ -325,9 +327,47 @@ jobs:
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.
           run_timed_phase "Phase 2: Core Flow Validation (Python)" \
-            pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4
+            pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/staging-core-e2e.xml
 
           echo "✅ Staging deploy health gate passed!"
+
+      - name: Write staging deploy context
+        if: ${{ always() }}
+        env:
+          APP_URL: https://report-staging.zitian.party
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Staging Deploy Context"
+            echo "======================"
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "target_short_sha=${{ steps.get_sha.outputs.short_sha }}"
+            echo "app_url=${APP_URL}"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
+            echo "staging_before_healthy=${{ steps.staging_before.outputs.healthy }}"
+            echo "staging_before_sha=${{ steps.staging_before.outputs.staging_sha }}"
+            echo "backend_image_build_required=${{ steps.backend_image.outputs.build_required }}"
+            echo "frontend_image_build_required=${{ steps.frontend_image.outputs.build_required }}"
+            echo "staging_e2e_outcome=${{ steps.staging_e2e_tests.outcome }}"
+            echo "strict_e2e_gates=true"
+            echo "marker=(smoke or e2e) and not llm"
+          } > ci-context/staging-deploy-context.txt
+
+      - name: Upload staging deploy test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-deploy-test-context
+          path: |
+            test-results/
+            ci-context/staging-deploy-context.txt
+          retention-days: 14
 
   ai-ocr-gate:
     name: Staging AI/OCR Gate
@@ -350,6 +390,7 @@ jobs:
         uses: ./.github/actions/setup-e2e-tests
 
       - name: Run Staging AI/OCR Gate
+        id: staging_ai_ocr_tests
         timeout-minutes: 22
         env:
           EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}
@@ -437,11 +478,12 @@ jobs:
 
           echo "Starting Staging AI/OCR Gate for $APP_URL"
           echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+          mkdir -p test-results
           write_staging_audit_inventory
 
           version_status=0
           run_timed_phase "Staging AI/OCR Version Check" \
-            pytest tests/e2e/test_version_check.py -v -m "smoke" || version_status=$?
+            pytest tests/e2e/test_version_check.py -v -m "smoke" --junit-xml=test-results/staging-ai-ocr-version.xml || version_status=$?
           if [ "$version_status" -ne 0 ]; then
             write_staging_audit_result "$version_status"
             exit "$version_status"
@@ -454,13 +496,48 @@ jobs:
               tests/e2e/test_brokerage_upload_to_portfolio_value.py \
               tests/e2e/test_four_asset_net_worth_golden_path.py \
               tests/e2e/test_statement_upload_e2e.py \
-              -v -m "llm" || gate_status=$?
+              -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
           write_staging_audit_result "$gate_status"
           if [ "$gate_status" -ne 0 ]; then
             exit "$gate_status"
           fi
 
           echo "Staging AI/OCR Gate passed."
+
+      - name: Write staging AI/OCR context
+        if: ${{ always() }}
+        env:
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Staging AI/OCR Context"
+            echo "======================"
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "expected_sha=${EXPECTED_SHA}"
+            echo "app_url=${APP_URL}"
+            echo "primary_model=${STAGING_E2E_PRIMARY_MODEL}"
+            echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
+            echo "vision_model=${STAGING_E2E_VISION_MODEL}"
+            echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outcome }}"
+            echo "strict_e2e_gates=true"
+            echo "marker=llm"
+          } > ci-context/staging-ai-ocr-context.txt
+
+      - name: Upload staging AI/OCR test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-ai-ocr-test-context
+          path: |
+            test-results/
+            ci-context/staging-ai-ocr-context.txt
+          retention-days: 14
 
   post-merge-summary:
     name: Post-merge Timing Summary
