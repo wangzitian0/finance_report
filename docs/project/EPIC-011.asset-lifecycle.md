@@ -2088,24 +2088,25 @@ must supply report-ready schedules for salary, dividends, ESOP/RSU, restricted
 holdings, vesting/unlock dates, valuation basis, and liquid-versus-restricted
 net worth treatment.
 
-For #521 closure, this EPIC should be sequenced as:
+For #521 closure, this EPIC sequence is:
 
 1. Consume the package section contract from `#570`.
 2. Finalize annualized income and long-term compensation schedule data
    (`#566`, done via `GET /api/reports/package/annualized-income-schedule`).
-3. Land supporting explanation assets:
+3. Prove the annualized income and long-term compensation schedule in the
+   implemented `#565` post-merge package proof.
+4. Land supporting explanation assets for the broader package:
    - report notes (`#571`)
    - traceability appendix (`#572`)
-4. Provide deterministic fixture inputs for the package proof (`#573`).
-5. Extend the implemented `#565` post-merge package proof once these schedules
-   are report-ready.
+5. Provide deterministic fixture inputs for the remaining package completeness
+   proof (`#573`).
 
 `#570`, `#571`, and `#572` are shared package prerequisites with EPIC-005;
-`#566` and `#573` are specifically the issue chain to close
-`annualized-income-long-term` in `docs/ssot/critical-proof-matrix.yaml`.
-`#566` supplies the report-ready schedule contract; `#573` remains responsible
-for the representative fixture and E2E proof needed before that macro can move
-from `partial` to `covered`.
+`#566` supplies the report-ready schedule contract and the `#565` package E2E
+now proves `annualized-income-long-term` in
+`docs/ssot/critical-proof-matrix.yaml`. `#573` remains responsible for the
+representative fixture expansion needed before the overall
+`personal-financial-report-package` macro can move from `partial` to `covered`.
 
 ### Acceptance Criteria — Report Package Annualized Income Schedule
 

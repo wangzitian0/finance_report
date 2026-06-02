@@ -321,10 +321,11 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
     AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3
-    AC17.10.1 AC17.10.2:
+    AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2:
     one complete fresh-user report package with bank data, brokerage import,
-    investment performance schedule, manual valuation, restricted notes, and
-    source traceability.
+    investment performance schedule, annualized income and restricted
+    compensation schedule, manual valuation, restricted notes, and source
+    traceability.
     """
     page = authenticated_page_unique
     fixture_rows = _read_fixture_rows()
@@ -551,6 +552,39 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert schedules_by_ticker[ESOP_SOURCE] == ESOP_NOTES
         assert schedules_by_ticker[RSU_SOURCE] == RSU_NOTES
         assert schedules_by_ticker[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
+
+        annualized_response = await client.get(
+            _api_url(
+                f"/reports/package/annualized-income-schedule?as_of_date={fixture_period_end.isoformat()}"
+            )
+        )
+        assert annualized_response.status_code == 200, (
+            f"annualized income schedule failed: {annualized_response.status_code} {annualized_response.text}"
+        )
+        annualized = annualized_response.json()
+        assert annualized["section_id"] == "annualized_income_long_term"
+        assert annualized["as_of_date"] == fixture_period_end.isoformat()
+        assert annualized["trailing_period_days"] == 365
+        assert _money(annualized["income"]["annualized_total"]) == _money(expected["income"])
+        assert annualized["income"]["currency"] == "SGD"
+        assert annualized["income"]["calculation_basis"] == (
+            "posted_or_reconciled_income_journal_lines_trailing_12_months"
+        )
+        assert _money(annualized["restricted_fair_value_total"]) == (
+            ESOP_VALUE + RSU_VALUE + STOCK_OPTIONS_VALUE
+        )
+        assert annualized["net_worth_treatment"]["liquid_net_worth_default"] == (
+            "exclude_restricted_holdings"
+        )
+        annualized_holdings = {holding["ticker"]: holding for holding in annualized["restricted_holdings"]}
+        assert annualized_holdings[ESOP_SOURCE]["vesting_schedule"] == ESOP_NOTES
+        assert annualized_holdings[RSU_SOURCE]["vesting_schedule"] == RSU_NOTES
+        assert annualized_holdings[STOCK_OPTIONS_SOURCE]["vesting_schedule"] == STOCK_OPTIONS_NOTES
+        assert {holding["compensation_type"] for holding in annualized_holdings.values()} == {
+            "esop",
+            "rsu",
+            "stock_options",
+        }
 
         manual_components_exclusive = await client.get(
             _api_url(

@@ -114,6 +114,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.2.4 | Decimal precision maintained | `test_decimal_precision()` | `accounting/test_accounting.py` | P0 |
 | AC2.2.5 | FX rate required for non-base currency | `test_fx_rate_required_for_non_base_currency()` | `accounting/test_accounting.py` | P0 |
 | AC2.2.6 | Unbalanced post attempt fails | `test_post_unbalanced_entry_rejected()` | `accounting/test_accounting_integration.py` | P0 |
+| AC2.2.7 | Balance validation treats omitted currency as base currency | `test_missing_currency_balances_as_base_currency()` | `accounting/test_accounting.py` | P0 |
 
 ### AC2.3: Journal Entry Posting & Voiding
 
