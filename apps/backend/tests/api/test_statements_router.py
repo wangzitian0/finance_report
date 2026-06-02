@@ -33,6 +33,7 @@ from src.models.statement import (
     BankStatementStatus,
     BankStatementTransaction,
     BankStatementTransactionStatus,
+    Stage1Status,
 )
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
@@ -46,6 +47,10 @@ from src.services import (
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.services.statement_parsing import handle_parse_failure
+from src.services.statement_posting import (
+    is_high_confidence_auto_approve_candidate,
+    try_auto_approve_high_confidence_statement,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -142,6 +147,23 @@ def build_statement(user_id, file_hash: str, confidence_score: int) -> BankState
         confidence_score=confidence_score,
         balance_validated=True,
     )
+
+
+async def test_is_high_confidence_auto_approve_candidate_requires_all_guards(test_user):
+    statement = build_statement(test_user.id, "hash_candidate_true", 85)
+    statement.status = BankStatementStatus.APPROVED
+    assert is_high_confidence_auto_approve_candidate(statement) is True
+
+    statement.confidence_score = 84
+    assert is_high_confidence_auto_approve_candidate(statement) is False
+
+    statement.confidence_score = 90
+    statement.balance_validated = False
+    assert is_high_confidence_auto_approve_candidate(statement) is False
+
+    statement.balance_validated = True
+    statement.status = BankStatementStatus.PARSED
+    assert is_high_confidence_auto_approve_candidate(statement) is False
 
 
 async def create_statement_account(db, user_id, name: str = "DBS Statement Account") -> Account:
@@ -1558,6 +1580,8 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     statement = build_statement(test_user.id, "hash_s1_auto_map", 90)
     statement.status = BankStatementStatus.PARSED
     statement.account_id = None
+    statement.period_start = date(2025, 2, 1)
+    statement.period_end = date(2025, 2, 28)
     statement.closing_balance = Decimal("120.00")
     db.add(statement)
     await db.flush()
@@ -1565,7 +1589,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
 
     txn = BankStatementTransaction(
         statement_id=statement_id,
-        txn_date=date(2025, 1, 5),
+        txn_date=date(2025, 2, 5),
         description="Salary",
         amount=Decimal("20.00"),
         direction="IN",
@@ -1591,6 +1615,304 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     )
     entry = entry_result.scalar_one()
     assert any(line.account_id == bank_account_id for line in entry.lines)
+
+
+async def test_auto_approve_high_confidence_statement_creates_posted_entries(db, test_user):
+    """AC3.3.1: High-confidence, balance-valid, uniquely mapped statements auto-approve and post."""
+    bank_account = await create_statement_account(db, test_user.id, "DBS Auto Approval")
+    statement = build_statement(test_user.id, "hash_s1_high_confidence_auto", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 8),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+    txn_id = txn.id
+    await db.commit()
+
+    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    assert created_count == 1
+
+    await db.refresh(statement)
+    assert statement.status == BankStatementStatus.APPROVED
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.source_id == txn_id)
+    )
+    assert entry_result.scalar_one().status == JournalEntryStatus.POSTED
+
+
+async def test_auto_approve_high_confidence_statement_returns_zero_for_non_candidate(db, test_user):
+    statement = build_statement(test_user.id, "hash_s1_high_confidence_non_candidate", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.closing_balance = Decimal("100.00")
+    db.add(statement)
+    await db.commit()
+
+    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+
+    assert created_count == 0
+
+
+async def test_auto_approve_high_confidence_statement_falls_back_to_pending_review_on_guard_failure(db, test_user):
+    """AC3.3.1: Unsafe high-confidence statements remain reviewable instead of failing parsing."""
+    statement = build_statement(test_user.id, "hash_s1_high_confidence_guard_failure", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement.id,
+            txn_date=date(2025, 1, 8),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+
+    assert created_count == 0
+    await db.refresh(statement)
+    assert statement.status == BankStatementStatus.PARSED
+    assert statement.stage1_status == Stage1Status.PENDING_REVIEW
+    assert "Account mapping required" in (statement.validation_error or "")
+
+
+async def test_approve_statement_stage1_promotes_existing_statement_entries_without_reposting(db, test_user):
+    bank_account = await create_statement_account(db, test_user.id, "DBS Existing Entry Promotion")
+    statement = build_statement(test_user.id, "hash_s1_existing_entry_promotion", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 8),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+
+    existing_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Existing parsed entry",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        source_id=txn.id,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(existing_entry)
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+
+    assert result.journal_entries_created == 0
+    await db.refresh(existing_entry)
+    assert existing_entry.source_type == JournalEntrySourceType.USER_CONFIRMED
+
+    entries_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.source_id == txn.id)
+    )
+    assert len(entries_result.scalars().all()) == 1
+
+
+async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping(db, test_user):
+    """AC3.6.5: Stage 1 posting cannot auto-map from an unconfirmed prior statement."""
+    user_id = test_user.id
+    bank_account = await create_statement_account(db, user_id, "DBS Unconfirmed Prior")
+
+    prior = build_statement(user_id, "hash_s1_prior_unconfirmed", 95)
+    prior.status = BankStatementStatus.PARSED
+    prior.account_id = bank_account.id
+    db.add(prior)
+    await db.flush()
+
+    statement = build_statement(user_id, "hash_s1_unconfirmed_prior_target", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement.id,
+            txn_date=date(2025, 1, 8),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "No confirmed account matches" in str(exc.value.detail)
+
+
+async def test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting(db, test_user):
+    """AC3.6.6: Stage 1 posting blocks duplicate or overlapping account/currency periods."""
+    user_id = test_user.id
+    bank_account = await create_statement_account(db, user_id, "DBS Period Guard")
+
+    prior = build_statement(user_id, "hash_s1_prior_period", 95)
+    prior.status = BankStatementStatus.APPROVED
+    prior.account_id = bank_account.id
+    prior.period_start = date(2025, 1, 1)
+    prior.period_end = date(2025, 1, 31)
+    db.add(prior)
+    await db.flush()
+
+    statement = build_statement(user_id, "hash_s1_period_overlap", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
+    statement.period_start = date(2025, 1, 15)
+    statement.period_end = date(2025, 2, 15)
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement.id,
+            txn_date=date(2025, 1, 20),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Statement period overlaps" in str(exc.value.detail)
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+    )
+    assert entry_result.scalars().all() == []
+
+
+async def test_approve_statement_stage1_blocks_missing_statement_period_before_posting(db, test_user):
+    user_id = test_user.id
+    bank_account = await create_statement_account(db, user_id, "DBS Missing Period Guard")
+
+    statement = build_statement(user_id, "hash_s1_missing_period", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
+    statement.period_start = None
+    statement.period_end = date(2025, 1, 31)
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement.id,
+            txn_date=date(2025, 1, 20),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Statement period required" in str(exc.value.detail)
+
+
+async def test_approve_statement_stage1_blocks_invalid_statement_period_before_posting(db, test_user):
+    user_id = test_user.id
+    bank_account = await create_statement_account(db, user_id, "DBS Invalid Period Guard")
+
+    statement = build_statement(user_id, "hash_s1_invalid_period", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
+    statement.period_start = date(2025, 2, 1)
+    statement.period_end = date(2025, 1, 31)
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement.id,
+            txn_date=date(2025, 1, 20),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Statement period is invalid" in str(exc.value.detail)
+
+
+async def test_approve_statement_stage1_blocks_missing_statement_currency_before_posting(db, test_user):
+    user_id = test_user.id
+    bank_account = await create_statement_account(db, user_id, "DBS Missing Currency Guard")
+
+    statement = build_statement(user_id, "hash_s1_missing_currency", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
+    statement.currency = ""
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement.id,
+            txn_date=date(2025, 1, 20),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Statement currency required" in str(exc.value.detail)
 
 
 async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(db, test_user):

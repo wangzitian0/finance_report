@@ -155,7 +155,7 @@ class TestExtractionServiceFlow:
                 file_content=csv_file.read_bytes(),
             )
 
-            assert stmt.status == BankStatementStatus.PARSED  # High confidence as it validates
+            assert stmt.status == BankStatementStatus.PARSED  # Medium confidence requires review
             assert len(events) == 0
 
     @pytest.mark.asyncio

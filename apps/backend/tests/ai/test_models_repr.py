@@ -83,7 +83,7 @@ def test_validation_route_by_threshold():
     from src.models.statement import BankStatementStatus
     from src.services.validation import route_by_threshold
 
-    assert route_by_threshold(85, True) == BankStatementStatus.PARSED
+    assert route_by_threshold(85, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(60, True) == BankStatementStatus.PARSED
     assert route_by_threshold(50, False) == BankStatementStatus.UPLOADED
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED

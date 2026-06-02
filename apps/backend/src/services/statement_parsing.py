@@ -16,6 +16,7 @@ from src.logger import get_logger
 from src.models import BankStatement, BankStatementStatus
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
+from src.services.statement_posting import try_auto_approve_high_confidence_statement
 
 if TYPE_CHECKING:
     pass
@@ -448,6 +449,8 @@ async def parse_statement_background(
             statement.status = parsed_statement.status
 
             await update_progress(100)
+            auto_posted_count = await try_auto_approve_high_confidence_statement(session, statement.id, user_id)
+            await session.commit()
             await import_brokerage_payload_if_present(
                 statement=statement,
                 db=session,
@@ -468,6 +471,7 @@ async def parse_statement_background(
                 progress=100,
                 duration_ms=round(duration * 1000, 2),
                 transactions_count=len(transactions),
+                auto_posted_count=auto_posted_count,
             )
         except Exception as exc:
             logger.exception(

@@ -188,11 +188,15 @@ async def get_pending_stage1_review(
     limit: int = 50,
     offset: int = 0,
 ) -> list[BankStatement]:
+    pending_review_filter = or_(
+        BankStatement.stage1_status == Stage1Status.PENDING_REVIEW,
+        and_(BankStatement.confidence_score >= 60, BankStatement.confidence_score < 85),
+    )
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.PARSED)
-        .where(or_(BankStatement.stage1_status.is_(None), BankStatement.stage1_status == Stage1Status.PENDING_REVIEW))
+        .where(pending_review_filter)
         .order_by(BankStatement.created_at.desc())
         .limit(limit)
         .offset(offset)
