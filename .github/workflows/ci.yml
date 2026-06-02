@@ -180,6 +180,7 @@ jobs:
           ENABLE_STORAGE_SWEEP: "false"
         run: |
           cd apps/backend
+          mkdir -p test-results
           uv run pytest -n auto -v \
             -m "not slow and not e2e and not integration" \
             --splits 6 \
@@ -189,14 +190,26 @@ jobs:
             --cov-report=term-missing \
             --cov-branch \
             --cov-fail-under=0 \
-            --dist worksteal
+            --dist worksteal \
+            --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml
 
       - name: Upload coverage artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage-backend-${{ matrix.shard }}
           path: apps/backend/coverage-backend-${{ matrix.shard }}.lcov
-          retention-days: 1
+          retention-days: 14
+
+      - name: Upload backend shard test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-shard-${{ matrix.shard }}-test-context
+          path: |
+            apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml
+            apps/backend/coverage-backend-${{ matrix.shard }}.lcov
+          retention-days: 14
 
   backend-integration:
     name: Backend Integration Tests
@@ -261,10 +274,20 @@ jobs:
           ENABLE_STORAGE_SWEEP: "false"
         run: |
           cd apps/backend
+          mkdir -p test-results
           uv run pytest -n auto -v \
             --override-ini addopts="" \
             -m "integration" \
-            --dist worksteal
+            --dist worksteal \
+            --junit-xml=test-results/backend-integration.xml
+
+      - name: Upload backend integration test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-test-context
+          path: apps/backend/test-results/backend-integration.xml
+          retention-days: 14
 
       - name: Stage Contribution Summary (Behavioral proof only)
         if: always()
@@ -360,11 +383,21 @@ jobs:
           ENABLE_STORAGE_SWEEP: "false"
         run: |
           cd apps/backend
+          mkdir -p test-results
           uv run pytest -v \
             --override-ini addopts="" \
             tests/e2e/test_core_journeys.py \
             -m "e2e and not slow and not integration and not perf" \
-            --maxfail=1
+            --maxfail=1 \
+            --junit-xml=test-results/backend-tier1-e2e.xml
+
+      - name: Upload backend Tier-1 E2E test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-tier1-e2e-test-context
+          path: apps/backend/test-results/backend-tier1-e2e.xml
+          retention-days: 14
 
       - name: Stage Contribution Summary (Behavioral proof only)
         if: always()
@@ -431,7 +464,9 @@ jobs:
         run: moon run :build
 
       - name: Run Frontend Tests
-        run: npm run test:coverage
+        run: |
+          mkdir -p test-results
+          npm run test:coverage -- --reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml
         working-directory: apps/frontend
 
       - name: Install Frontend Playwright Browser
@@ -439,15 +474,27 @@ jobs:
         working-directory: apps/frontend
 
       - name: Run Frontend Playwright Tests
-        run: npm run test:e2e -- --reporter=line
+        run: npm run test:e2e -- --reporter=line,html
         working-directory: apps/frontend
 
       - name: Upload frontend coverage
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage-frontend
           path: apps/frontend/coverage/lcov.info
-          retention-days: 1
+          retention-days: 14
+
+      - name: Upload frontend test context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-context
+          path: |
+            apps/frontend/test-results/
+            apps/frontend/playwright-report/
+            apps/frontend/coverage/lcov.info
+          retention-days: 14
 
   container-images:
     name: Build Staging Images
@@ -571,6 +618,58 @@ jobs:
         run: |
           uv run python tools/calculate_unified_coverage.py
 
+      - name: Write coverage debug context
+        if: ${{ always() }}
+        run: |
+          mkdir -p coverage
+          {
+            echo "Coverage Debug Context"
+            echo "======================"
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo ""
+            echo "Toolchain"
+            echo "---------"
+            python --version
+            uv --version
+            uv run --with coverage --with pytest --with pytest-cov python -c "import coverage, pytest, pytest_cov; print(f'coverage=={coverage.__version__}'); print(f'pytest=={pytest.__version__}'); print(f'pytest-cov=={pytest_cov.__version__}')"
+            echo ""
+            echo "Coverage Inputs"
+            echo "---------------"
+            for file in \
+              coverage/backend.lcov \
+              coverage/frontend.lcov \
+              coverage/common.lcov \
+              coverage/tools.lcov \
+              unified-coverage.json; do
+              if [ -f "$file" ]; then
+                bytes=$(wc -c < "$file" | tr -d ' ')
+                sha=$(shasum -a 256 "$file" | awk '{print $1}')
+                echo "$file bytes=$bytes sha256=$sha"
+              else
+                echo "$file missing"
+              fi
+            done
+          } > coverage/coverage-context.txt
+
+      - name: Upload unified coverage context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-coverage-context
+          path: |
+            coverage/backend.lcov
+            coverage/frontend.lcov
+            coverage/common.lcov
+            coverage/tools.lcov
+            coverage/coverage-context.txt
+            unified-coverage.json
+          retention-days: 14
+
 
       # Note: baseline auto-push removed — branch protection requires PRs.
       # Update unified-coverage.json manually via PR when raising the threshold.
@@ -627,13 +726,44 @@ jobs:
 
       - name: AC Traceability Check
         run: |
+          set +e
           uv run --with pyyaml python tools/generate_ac_registry.py --check
+          registry_status=$?
           uv run --with pyyaml python tools/check_ac_traceability.py
+          ac_status=$?
           uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md"
+          e2e_status=$?
           uv run --with pyyaml python tools/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
+          critical_status=$?
           uv run --with pyyaml python tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
+          audit_status=$?
+          set -e
+
+          {
+            echo "AC Traceability Context"
+            echo "======================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo ""
+            echo "Gate Status"
+            echo "-----------"
+            echo "generate_ac_registry=$registry_status"
+            echo "check_ac_traceability=$ac_status"
+            echo "check_e2e_epic_traceability=$e2e_status"
+            echo "check_critical_proof_matrix=$critical_status"
+            echo "build_ac_traceability=$audit_status"
+          } > "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md"
+
+          if [ "$registry_status" -ne 0 ] || [ "$ac_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$critical_status" -ne 0 ] || [ "$audit_status" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Upload AC traceability audit
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ac-test-traceability-audit
@@ -641,6 +771,7 @@ jobs:
             ${{ runner.temp }}/AC-TEST-TRACEABILITY-AUDIT.md
             ${{ runner.temp }}/E2E-EPIC-TRACEABILITY.md
             ${{ runner.temp }}/CRITICAL-PROOF-MATRIX.md
+            ${{ runner.temp }}/AC-TRACEABILITY-CONTEXT.md
           retention-days: 14
 
   finish:

@@ -678,6 +678,14 @@ class TestBaselineComparison:
         captured = capfd.readouterr()
         assert "82.0" in captured.err
         assert "83.15" in captured.err
+        assert "BASELINE COMPARISON" in captured.out
+        assert (
+            "unified: current=8200/10000 (82.00%) "
+            "baseline=8315/10000 (83.15%)"
+        ) in captured.out
+        current_report = json.loads((tmp_path / "unified-coverage.json").read_text())
+        assert current_report["covered_lines"] == 8200
+        assert current_report["total_lines"] == 10000
 
     def test_regression_output_lists_component_deltas_and_sources(
         self, tmp_path, monkeypatch, capfd

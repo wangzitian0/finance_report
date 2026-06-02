@@ -47,3 +47,29 @@ jobs:
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY" \
             ${DRY_RUN:+"$DRY_RUN"}
+
+      - name: Write scheduled preview cleanup context
+        if: ${{ always() }}
+        run: |
+          mkdir -p ci-context
+          {
+            echo "Scheduled PR Preview Cleanup Context"
+            echo "===================================="
+            echo "repository=${{ github.repository }}"
+            echo "event_name=${{ github.event_name }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=${{ github.sha }}"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "environment_id=${{ env.TEST_ENV_ID }}"
+            echo "dry_run=${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}"
+            echo "cleanup_action=reconcile"
+          } > ci-context/pr-preview-scheduled-cleanup-context.txt
+
+      - name: Upload scheduled preview cleanup context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-preview-scheduled-cleanup-context
+          path: ci-context/pr-preview-scheduled-cleanup-context.txt
+          retention-days: 14
