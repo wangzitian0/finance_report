@@ -32,6 +32,7 @@ from src.services.reconciliation import (
     _candidate_is_better,
     _find_normal_candidates,
     calculate_match_score,
+    entry_bank_side_amount,
     entry_total_amount,
     execute_matching,
     extract_merchant_tokens,
@@ -75,6 +76,16 @@ def test_entry_total_amount():
         ]
     )
     assert entry_total_amount(entry) == Decimal("150.00")
+
+
+def test_entry_bank_side_amount_missing_direction_falls_back_to_debit_total():
+    entry = JournalEntry(
+        lines=[
+            JournalLine(direction=Direction.DEBIT, amount=Decimal("150.00")),
+            JournalLine(direction=Direction.CREDIT, amount=Decimal("150.00")),
+        ]
+    )
+    assert entry_bank_side_amount(entry, None) == Decimal("150.00")
 
 
 def test_is_entry_balanced():

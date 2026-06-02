@@ -25,6 +25,7 @@ export interface JournalLine {
     direction: "DEBIT" | "CREDIT";
     amount: number;
     currency: string;
+    fx_rate?: number | null;
 }
 
 export interface JournalEntry {

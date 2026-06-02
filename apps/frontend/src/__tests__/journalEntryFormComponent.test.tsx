@@ -30,14 +30,55 @@ describe("JournalEntryForm", () => {
     render(<JournalEntryForm isOpen onClose={onClose} onSuccess={onSuccess} />)
 
     expect(await screen.findAllByRole("option", { name: "1000 - Cash" })).toHaveLength(2)
-    expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
+    expect(screen.getByText("✓ Balanced in SGD")).toBeInTheDocument()
 
     const amountInputs = screen.getAllByPlaceholderText("0.00")
     fireEvent.change(amountInputs[0], { target: { value: "100" } })
-    expect(screen.getByText("⚠ Unbalanced")).toBeInTheDocument()
+    expect(screen.getByText("⚠ Unbalanced or missing FX")).toBeInTheDocument()
 
     fireEvent.change(amountInputs[1], { target: { value: "100" } })
-    expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
+    expect(screen.getByText("✓ Balanced in SGD")).toBeInTheDocument()
+  })
+
+  it("AC2.12.1 balances multi-currency lines using SGD base amounts", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [
+          { id: "a1", name: "USD Bank", code: "1010", type: "ASSET", currency: "USD", is_active: true, balance: 0 },
+          { id: "a2", name: "Owner Equity", code: "3000", type: "EQUITY", currency: "SGD", is_active: true, balance: 0 },
+        ],
+      })
+      .mockResolvedValueOnce({ id: "je-fx" })
+
+    const { container } = render(<JournalEntryForm isOpen onClose={onClose} onSuccess={onSuccess} />)
+
+    await screen.findAllByRole("option", { name: "1010 - USD Bank" })
+    fireEvent.change(screen.getByPlaceholderText("Description"), { target: { value: "USD capital" } })
+
+    const lineSelects = screen.getAllByRole("combobox")
+    fireEvent.change(lineSelects[0], { target: { value: "a1" } })
+    fireEvent.change(lineSelects[2], { target: { value: "a2" } })
+
+    fireEvent.change(screen.getByLabelText("Line 1 amount"), { target: { value: "100" } })
+    fireEvent.change(screen.getByLabelText("Line 1 currency"), { target: { value: "USD" } })
+    expect(screen.getByText("⚠ Unbalanced or missing FX")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Line 1 FX rate"), { target: { value: "1.35" } })
+    fireEvent.change(screen.getByLabelText("Line 2 amount"), { target: { value: "135" } })
+    expect(screen.getByText("✓ Balanced in SGD")).toBeInTheDocument()
+
+    fireEvent.submit(container.querySelector("form") as HTMLFormElement)
+
+    await waitFor(() => {
+      const createCall = mockedApiFetch.mock.calls.find((call) => call[0] === "/api/journal-entries")
+      expect(createCall).toBeDefined()
+      const request = createCall?.[1] as { method: string; body: string }
+      const body = JSON.parse(request.body)
+      expect(body.lines).toEqual([
+        { account_id: "a1", direction: "DEBIT", amount: "100.00", currency: "USD", fx_rate: "1.350000" },
+        { account_id: "a2", direction: "CREDIT", amount: "135.00", currency: "SGD" },
+      ])
+    })
   })
 
   it("AC16.21.6 supports add and remove line interactions", async () => {
@@ -58,6 +99,17 @@ describe("JournalEntryForm", () => {
     fireEvent.click(removeButtons[0] as HTMLButtonElement)
 
     expect(screen.getAllByPlaceholderText("0.00")).toHaveLength(2)
+  })
+
+  it("AC16.21.6 handles account option load failures", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("accounts unavailable"))
+
+    render(<JournalEntryForm isOpen onClose={onClose} onSuccess={onSuccess} />)
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("option", { name: "Select Account" })).toHaveLength(2)
+    })
+    expect(screen.queryByRole("option", { name: "1000 - Cash" })).not.toBeInTheDocument()
   })
 
   it("AC16.21.5 submits create-draft payload with normalized amounts", async () => {

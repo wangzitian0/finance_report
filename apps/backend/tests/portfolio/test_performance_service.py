@@ -12,9 +12,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
-from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.layer2 import TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
-from src.models.portfolio import DividendIncome
+from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.services.performance import (
     InsufficientDataError,
     XIRRCalculationError,
@@ -38,22 +38,42 @@ async def investment_account(db: AsyncSession, test_user):
     return account
 
 
+def _buy_transaction(
+    *,
+    user_id,
+    transaction_date: date,
+    asset_identifier: str,
+    gross_amount: Decimal,
+    quantity: Decimal = Decimal("1"),
+) -> InvestmentTransaction:
+    return InvestmentTransaction(
+        user_id=user_id,
+        transaction_date=transaction_date,
+        transaction_type=InvestmentTransactionType.BUY,
+        asset_identifier=asset_identifier,
+        quantity=quantity,
+        unit_price=gross_amount / quantity,
+        gross_amount=gross_amount,
+        fees=Decimal("0.00"),
+        currency="SGD",
+        cost_basis=gross_amount,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+
+
 @pytest.fixture
 async def portfolio_with_transactions(db: AsyncSession, test_user, investment_account):
     """Create a portfolio with realistic transaction history."""
     from src.models.layer2 import AtomicPosition
 
-    # Initial deposit (3 months ago)
+    # Initial buy (3 months ago)
     deposit_date = date.today() - timedelta(days=90)
-    deposit = AtomicTransaction(
+    deposit = _buy_transaction(
         user_id=test_user.id,
-        txn_date=deposit_date,
-        amount=Decimal("10000.00"),
-        currency="SGD",
-        direction=TransactionDirection.IN,
-        description="Initial deposit",
-        source_documents={},
-        dedup_hash=f"deposit_{deposit_date}",
+        transaction_date=deposit_date,
+        asset_identifier="AAPL",
+        gross_amount=Decimal("10000.00"),
+        quantity=Decimal("100"),
     )
     db.add(deposit)
 
@@ -106,17 +126,14 @@ async def portfolio_with_transactions(db: AsyncSession, test_user, investment_ac
     )
     db.add(early_atomic)
 
-    # Additional deposit (1 month ago)
+    # Additional buy (1 month ago)
     recent_deposit_date = date.today() - timedelta(days=30)
-    recent_deposit = AtomicTransaction(
+    recent_deposit = _buy_transaction(
         user_id=test_user.id,
-        txn_date=recent_deposit_date,
-        amount=Decimal("5000.00"),
-        currency="SGD",
-        direction=TransactionDirection.IN,
-        description="Additional deposit",
-        source_documents={},
-        dedup_hash=f"deposit_{recent_deposit_date}",
+        transaction_date=recent_deposit_date,
+        asset_identifier="AAPL",
+        gross_amount=Decimal("5000.00"),
+        quantity=Decimal("50"),
     )
     db.add(recent_deposit)
 
@@ -157,19 +174,16 @@ async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_w
 @pytest.mark.asyncio
 async def test_AC5_6_1_xirr_matches_single_year_excel_case(db: AsyncSession, test_user, investment_account):
     """AC5.6.1: XIRR is within 0.01 percentage points of a one-year Excel case."""
-    from src.models.layer2 import AtomicPosition, AtomicTransaction
+    from src.models.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=365)
     db.add(
-        AtomicTransaction(
+        _buy_transaction(
             user_id=test_user.id,
-            txn_date=start,
-            amount=Decimal("10000.00"),
-            currency="SGD",
-            direction=TransactionDirection.IN,
-            description="one-year XIRR deposit",
-            source_documents={},
-            dedup_hash="ac5_6_1_xirr_deposit",
+            transaction_date=start,
+            asset_identifier="XIRR10",
+            gross_amount=Decimal("10000.00"),
+            quantity=Decimal("100"),
         )
     )
     db.add(
@@ -420,19 +434,16 @@ async def test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow(
     investment_account,
 ):
     """AC5.6.6: MWR matches XIRR for a single cash-flow portfolio."""
-    from src.models.layer2 import AtomicPosition, AtomicTransaction
+    from src.models.layer2 import AtomicPosition
 
     start = date.today() - timedelta(days=365)
     db.add(
-        AtomicTransaction(
+        _buy_transaction(
             user_id=test_user.id,
-            txn_date=start,
-            amount=Decimal("10000.00"),
-            currency="SGD",
-            direction=TransactionDirection.IN,
-            description="single cashflow",
-            source_documents={},
-            dedup_hash="ac5_6_6_mwr_deposit",
+            transaction_date=start,
+            asset_identifier="MWR",
+            gross_amount=Decimal("10000.00"),
+            quantity=Decimal("100"),
         )
     )
     db.add(
@@ -530,18 +541,14 @@ async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investmen
 
     Verify that extreme gain scenarios either produce a very high XIRR or raise InsufficientDataError.
     """
-    from src.models.layer2 import AtomicPosition, AtomicTransaction
+    from src.models.layer2 import AtomicPosition
 
     # Create scenario with extreme values that might cause convergence issues
-    deposit = AtomicTransaction(
+    deposit = _buy_transaction(
         user_id=test_user.id,
-        txn_date=date.today() - timedelta(days=365),
-        amount=Decimal("1.00"),  # Very small initial
-        currency="SGD",
-        direction=TransactionDirection.IN,
-        description="Tiny deposit for convergence test",
-        source_documents={},
-        dedup_hash="tiny_deposit",
+        transaction_date=date.today() - timedelta(days=365),
+        asset_identifier="MOON",
+        gross_amount=Decimal("1.00"),
     )
     db.add(deposit)
 
@@ -649,18 +656,14 @@ async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, invest
 
     Verify that monkeypatching _xirr_newton to always raise causes XIRRCalculationError.
     """
-    from src.models.layer2 import AtomicPosition, AtomicTransaction
+    from src.models.layer2 import AtomicPosition
     from src.services.performance import XIRRCalculationError
 
-    deposit = AtomicTransaction(
+    deposit = _buy_transaction(
         user_id=test_user.id,
-        txn_date=date.today() - timedelta(days=30),
-        amount=Decimal("10000.00"),
-        currency="SGD",
-        direction=TransactionDirection.IN,
-        description="deposit",
-        source_documents={},
-        dedup_hash="xirr_error_deposit",
+        transaction_date=date.today() - timedelta(days=30),
+        asset_identifier="ERR",
+        gross_amount=Decimal("10000.00"),
     )
     db.add(deposit)
 

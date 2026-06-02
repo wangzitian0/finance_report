@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.config import settings
 from src.models.journal import Direction, JournalEntrySourceType, JournalEntryStatus
 from src.schemas.base import BaseResponse, ListResponse
 from src.services.confidence_tier import ConfidenceTier
@@ -62,9 +63,18 @@ class JournalEntryCreate(JournalEntryBase):
 
     @model_validator(mode="after")
     def validate_balanced(self) -> "JournalEntryCreate":
-        """Validate that debits equal credits."""
-        total_debit = sum(line.amount for line in self.lines if line.direction == Direction.DEBIT)
-        total_credit = sum(line.amount for line in self.lines if line.direction == Direction.CREDIT)
+        """Validate that debits equal credits after base-currency conversion."""
+        base_currency = settings.base_currency.upper()
+
+        def base_amount(line: JournalLineCreate) -> Decimal:
+            if line.currency.upper() == base_currency:
+                return line.amount
+            if line.fx_rate is None:
+                raise ValueError(f"fx_rate required for currency {line.currency} (base {base_currency})")
+            return line.amount * line.fx_rate
+
+        total_debit = sum(base_amount(line) for line in self.lines if line.direction == Direction.DEBIT)
+        total_credit = sum(base_amount(line) for line in self.lines if line.direction == Direction.CREDIT)
 
         if abs(total_debit - total_credit) > Decimal("0.01"):
             raise ValueError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")

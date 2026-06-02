@@ -126,10 +126,39 @@ describe("JournalEntryDetailsModal", () => {
 
     expect(within(debitCard).getByText("assets:cash:mobile")).toBeInTheDocument()
     expect(within(debitCard).getByText("DEBIT")).toBeInTheDocument()
-    expect(within(debitCard).getByText(/1,234\.56/)).toBeInTheDocument()
+    expect(within(debitCard).getAllByText(/1,234\.56/)).toHaveLength(2)
     expect(within(debitCard).getByText("SGD")).toBeInTheDocument()
+    expect(within(debitCard).getByText("FX Rate")).toBeInTheDocument()
+    expect(within(debitCard).getByText("SGD Base")).toBeInTheDocument()
     expect(within(creditCard).getByText("income:salary:mobile")).toBeInTheDocument()
     expect(within(creditCard).getByText("CREDIT")).toBeInTheDocument()
+  })
+
+  it("AC2.12.1 journal entry details display FX-converted base amounts", () => {
+    const lines: JournalLine[] = [
+      { id: "line-usd", account_id: "assets:usd", direction: "DEBIT", amount: 100, currency: "USD", fx_rate: 1.35 },
+      { id: "line-missing-fx", account_id: "income:fx", direction: "CREDIT", amount: 100, currency: "USD" },
+    ]
+    const entry: JournalEntry = {
+      id: "je-fx-detail",
+      entry_date: "2026-06-01",
+      memo: "FX detail entry",
+      source_type: "manual_adjustment",
+      status: "posted",
+      lines,
+      created_at: "2026-06-01T08:00:00Z",
+    }
+
+    render(<JournalEntryDetailsModal entry={entry} isOpen onClose={vi.fn()} />)
+
+    const mobileLines = screen.getByTestId("journal-lines-mobile")
+    const usdCard = within(mobileLines).getByTestId("journal-line-mobile-line-usd")
+    const missingFxCard = within(mobileLines).getByTestId("journal-line-mobile-line-missing-fx")
+
+    expect(within(usdCard).getByText("1.350000")).toBeInTheDocument()
+    expect(within(usdCard).getByText(/135\.00/)).toBeInTheDocument()
+    expect(within(missingFxCard).getByText("1.000000")).toBeInTheDocument()
+    expect(within(missingFxCard).getByText(/^SGD\s*0\.00$/)).toBeInTheDocument()
   })
 
   it("handles different statuses rendering badge variants", () => {

@@ -373,8 +373,8 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
         {
             "category": "Operating",
             "subcategory": "Dining",
-            "amount": Decimal("200.00"),
-            "description": "Inflow - Dining",
+            "amount": Decimal("-200.00"),
+            "description": "Outflow - Dining",
         },
     ]
     assert cash_flow["investing"] == []
@@ -393,7 +393,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
         },
     ]
     assert cash_flow["summary"] == {
-        "operating_activities": Decimal("700.00"),
+        "operating_activities": Decimal("300.00"),
         "investing_activities": Decimal("0.00"),
         "financing_activities": Decimal("1300.00"),
         "net_cash_flow": Decimal("1600.00"),
@@ -1035,7 +1035,7 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     assert "beginning_cash" in summary
     assert "ending_cash" in summary
     assert summary == {
-        "operating_activities": Decimal("3500.00"),
+        "operating_activities": Decimal("2500.00"),
         "investing_activities": Decimal("0.00"),
         "financing_activities": Decimal("5000.00"),
         "net_cash_flow": Decimal("7500.00"),

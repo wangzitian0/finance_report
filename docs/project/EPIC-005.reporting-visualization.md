@@ -184,6 +184,13 @@ personal financial-report package.
 | AC5.9.3 | Frontend personal package page renders the contract section IDs and labels from the API contract | `AC5.9.3 renders personal package contract sections from API` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 | AC5.9.4 | Frontend/export contract surfaces stable export format and CSV columns for package consumers | `AC5.9.4 renders export contract metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P1 |
 
+### AC5.10: Financial Statement Logic Audit Fixes
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.10.1 | Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances | `test_AC5_10_1_cash_flow_uses_cumulative_cash_balances()` | `reporting/test_financial_logic_audit.py` | P0 |
+| AC5.10.2 | Cash-flow operating, investing, and financing totals preserve inflow/outflow signs | `test_AC5_10_2_cash_flow_activity_totals_preserve_signs()` | `reporting/test_financial_logic_audit.py` | P0 |
+
 **Traceability Result**:
 - Total AC IDs: 23
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)

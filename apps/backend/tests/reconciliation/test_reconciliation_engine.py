@@ -18,6 +18,7 @@ from src.models import (
     BankTransactionStatus,
     ConfidenceLevel,
     Direction,
+    FxRate,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
@@ -607,6 +608,15 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
         opening_balance=Decimal("0.00"),
         closing_balance=Decimal("0.00"),
     )
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.350000"),
+            rate_date=date(2024, 4, 10),
+            source="test",
+        )
+    )
     db.add(statement)
     await db.flush()
 
@@ -625,11 +635,50 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     entry = await create_entry_from_txn(db, txn, user_id=user_id)
     assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
     assert all(line.currency == "USD" for line in entry.lines)
+    assert all(line.fx_rate == Decimal("1.350000") for line in entry.lines)
 
     result = await db.execute(
         select(Account).where(Account.name == "Income - Uncategorized").where(Account.user_id == user_id)
     )
     assert result.scalar_one_or_none() is not None
+
+
+async def test_create_entry_from_txn_requires_fx_rate_for_foreign_statement_currency(
+    db: AsyncSession,
+) -> None:
+    """Foreign-currency statement auto-entry creation must not invent FX rates."""
+    user_id = uuid4()
+    statement = Statement(
+        user_id=user_id,
+        account_id=None,
+        file_path="statements/missing-fx.pdf",
+        file_hash="hash_missing_fx" + str(uuid4()),
+        original_filename="missing-fx.pdf",
+        institution="Test Bank",
+        account_last4="3333",
+        currency="USD",
+        period_start=date(2024, 4, 11),
+        period_end=date(2024, 4, 11),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
+    )
+    db.add(statement)
+    await db.flush()
+
+    txn = AccountEvent(
+        statement_id=statement.id,
+        txn_date=date(2024, 4, 11),
+        description="Client deposit without FX",
+        amount=Decimal("250.00"),
+        direction="IN",
+        status=BankTransactionStatus.PENDING,
+        confidence=ConfidenceLevel.HIGH,
+    )
+    db.add(txn)
+    await db.commit()
+
+    with pytest.raises(ValueError, match="FX rate required to create USD journal entry"):
+        await create_entry_from_txn(db, txn, user_id=user_id)
 
 
 async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None:

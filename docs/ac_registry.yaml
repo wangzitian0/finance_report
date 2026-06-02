@@ -454,6 +454,11 @@ groups:
         description: ~~retired historical registry placeholder~~
         status: deprecated
         mandatory: false
+      - id: AC2.12.2
+        epic: 2
+        epic_name: double-entry-core
+        description: Accounting equation verification uses base-currency converted account balances
+        mandatory: true
       - id: AC2.12.5
         epic: 2
         description: ~~retired historical registry placeholder~~
@@ -983,6 +988,12 @@ groups:
         description: Archive baseline benchmark residual is explicitly owned by EPIC-004 until synthetic accuracy and performance
           proof exist
         mandatory: true
+    AC4.9:
+      - id: AC4.9.1
+        epic: 4
+        epic_name: reconciliation-engine
+        description: Reconciliation amount scoring uses the bank/cash account line, not total entry debits
+        mandatory: true
   AC5:
     AC5.1:
       - id: AC5.1.1
@@ -1205,6 +1216,17 @@ groups:
         epic: 5
         epic_name: reporting-visualization
         description: Frontend/export contract surfaces stable export format and CSV columns for package consumers
+        mandatory: true
+    AC5.10:
+      - id: AC5.10.1
+        epic: 5
+        epic_name: reporting-visualization
+        description: Cash-flow statement beginning cash, ending cash, and net cash flow use cumulative cash balances
+        mandatory: true
+      - id: AC5.10.2
+        epic: 5
+        epic_name: reporting-visualization
+        description: Cash-flow operating, investing, and financing totals preserve inflow/outflow signs
         mandatory: true
   AC6:
     AC6.1:
@@ -4383,6 +4405,23 @@ groups:
         epic: 17
         epic_name: portfolio-management
         description: Investment performance XIRR solver does not convert monetary Decimal cash flows to float
+        mandatory: true
+    AC17.11:
+      - id: AC17.11.1
+        epic: 17
+        epic_name: portfolio-management
+        description: Portfolio XIRR and MWR use investment transactions only, excluding unrelated bank atomic transactions
+        mandatory: true
+      - id: AC17.11.2
+        epic: 17
+        epic_name: portfolio-management
+        description: Portfolio summary YTD realized P&L and dividend income are converted to presentation currency before
+          aggregation
+        mandatory: true
+      - id: AC17.11.3
+        epic: 17
+        epic_name: portfolio-management
+        description: Portfolio TWR excludes unrelated bank atomic transactions from period cash-flow adjustment
         mandatory: true
   AC18:
     AC18.1:

@@ -149,6 +149,14 @@ def calculate_match_score(
     )
 ```
 
+Amount matching uses the bank/cash side of each candidate journal entry:
+
+- Statement `IN` transactions match asset debit lines.
+- Statement `OUT` transactions match asset credit lines.
+- If no bank/cash-side asset line is available, scoring falls back to the entry debit total for backward compatibility.
+
+This prevents split entries, clearing lines, tax lines, and payable/receivable lines from inflating the transaction amount used for bank reconciliation.
+
 ### Versioning & Audit Trail
 
 - `ReconciliationMatch` records are immutable; corrections create a new version.
@@ -185,11 +193,13 @@ Activated via `ENABLE_4_LAYER_READ=true`:
 - **Pattern C**: Cross-period matches extend date tolerance to ±7 days
 - **Pattern D**: Review queue updates use row-level locking and increment `version` to prevent concurrent overwrites
 - **Pattern E (Performance)**: Matching engine must pre-fetch candidates for the entire statement period and cache historical pattern scores to avoid N+1 database queries.
+- **Pattern F**: Amount scoring must compare the statement amount to bank/cash-side asset lines, not the whole journal entry debit total.
 
 ### ⛔ Prohibited Patterns
 
 - **Anti-pattern A**: **NEVER** mark as matched without scoring
 - **Anti-pattern B**: **NEVER** delete rejected match records (preserve audit trail)
+- **Anti-pattern C**: **NEVER** use non-bank split lines to inflate the amount matched to a bank statement transaction.
 
 ---
 

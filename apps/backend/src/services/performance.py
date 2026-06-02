@@ -9,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.logger import get_logger
-from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.portfolio import DividendIncome
+from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.services import fx
 
 logger = get_logger(__name__)
@@ -119,28 +119,28 @@ async def calculate_xirr(
     dates: list[date] = []
     amounts: list[Decimal] = []
 
-    # Get all transactions up to as_of_date
-    query = select(AtomicTransaction).where(
-        AtomicTransaction.user_id == user_id,
-        AtomicTransaction.txn_date <= as_of_date,
+    # Get investment cash flows up to as_of_date. Bank atomic transactions are
+    # general ledger cash movements and must not contaminate portfolio returns.
+    query = select(InvestmentTransaction).where(
+        InvestmentTransaction.user_id == user_id,
+        InvestmentTransaction.transaction_date <= as_of_date,
     )
     result = await db.execute(query)
     transactions = result.scalars().all()
 
     # Convert transactions to cash flows using XIRR convention:
-    # IN (deposits/purchases) = negative (investor cash outflow)
-    # OUT (withdrawals/sales) = positive (investor cash inflow)
+    # BUY = negative investor cash outflow; SELL/DIVIDEND = positive inflow.
     for txn in transactions:
         amount_base = await fx.convert_amount(
             db,
-            txn.amount,
+            txn.gross_amount,
             txn.currency,
             settings.base_currency,
-            txn.txn_date,
+            txn.transaction_date,
         )
-        sign = 1 if txn.direction == TransactionDirection.OUT else -1
-        cash_flows.append((txn.txn_date, amount_base * sign))
-        dates.append(txn.txn_date)
+        sign = -1 if txn.transaction_type == InvestmentTransactionType.BUY else 1
+        cash_flows.append((txn.transaction_date, amount_base * sign))
+        dates.append(txn.transaction_date)
         amounts.append(amount_base * sign)
 
     # Get current position value as final cash flow (positive = portfolio value)
@@ -316,12 +316,13 @@ async def calculate_time_weighted_return(
     start_value = await _get_portfolio_value(db, user_id, period_start)
     end_value = await _get_portfolio_value(db, user_id, period_end)
 
-    # Get net cash flows during period
-    query = select(AtomicTransaction).where(
-        AtomicTransaction.user_id == user_id,
+    # Get net investment cash flows during period. Positive values are money
+    # added to the portfolio; negative values are money withdrawn.
+    query = select(InvestmentTransaction).where(
+        InvestmentTransaction.user_id == user_id,
         and_(
-            AtomicTransaction.txn_date > period_start,
-            AtomicTransaction.txn_date <= period_end,
+            InvestmentTransaction.transaction_date > period_start,
+            InvestmentTransaction.transaction_date <= period_end,
         ),
     )
     result = await db.execute(query)
@@ -331,13 +332,12 @@ async def calculate_time_weighted_return(
     for txn in transactions:
         amount_base = await fx.convert_amount(
             db,
-            txn.amount,
+            txn.gross_amount,
             txn.currency,
             settings.base_currency,
-            txn.txn_date,
+            txn.transaction_date,
         )
-        # For TWR: IN = positive (money added to portfolio), OUT = negative (money withdrawn)
-        sign = -1 if txn.direction == TransactionDirection.OUT else 1
+        sign = 1 if txn.transaction_type == InvestmentTransactionType.BUY else -1
         net_cash_flow += amount_base * sign
 
     if start_value == Decimal("0"):

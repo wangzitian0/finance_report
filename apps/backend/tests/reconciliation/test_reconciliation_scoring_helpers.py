@@ -244,6 +244,32 @@ class TestFindNormalCandidates:
 
         assert results == []
 
+    def test_find_normal_candidates_three_entry_combination(self) -> None:
+        """Three balanced entries can match one bank transaction."""
+        txn = _make_txn(
+            description="Vendor ABC combined settlement",
+            amount=Decimal("300.00"),
+            direction="OUT",
+            txn_date=date(2024, 1, 1),
+        )
+        entries = [
+            _make_entry(memo="Vendor ABC part 1", amount=Decimal("100.00")),
+            _make_entry(memo="Vendor ABC part 2", amount=Decimal("100.00")),
+            _make_entry(memo="Vendor ABC part 3", amount=Decimal("100.00")),
+        ]
+
+        results = _find_normal_candidates(
+            pending_txns=[txn],
+            atomic_txns=entries,
+            pattern_scores={"vendor": 90.0},
+            config=DEFAULT_CONFIG,
+        )
+
+        assert len(results) == 1
+        _, candidate = results[0]
+        assert len(candidate.journal_entry_ids) == 3
+        assert candidate.breakdown["multi_entry"] == 2
+
 
 class TestFindManyToOneCandidates:
     """[AC12.18.7.2] _find_many_to_one_candidates groups batch transactions."""
