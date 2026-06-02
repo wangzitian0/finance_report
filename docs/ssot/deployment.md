@@ -178,7 +178,7 @@ entrypoint:
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
-| Stuck "Waiting for secrets" | Vault token expired | `invoke vault.setup-tokens --project=finance_report` |
+| Stuck "Waiting for secrets" | Vault token expired | `DEPLOY_ENV=staging invoke vault.setup-tokens --project=finance_report --service=app` from infra2 |
 | 6 min timeout | Migration failed | Check SigNoz for CHECKPOINT-2 errors |
 | "Image not found" | Tag not built | `git push origin v1.2.3` to trigger build |
 | 502 Bad Gateway | Backend crashed | Check CHECKPOINT-3 in SigNoz logs |
@@ -189,20 +189,26 @@ entrypoint:
 
 | Property | Value |
 |----------|-------|
-| Token TTL | 768 hours (~32 days) |
+| Token period | 168 hours (7 days), renewable by vault-agent |
 | Secrets file path | `/secrets/.env` |
 | Staleness threshold | 1 hour (bootloader warning) |
 
-**Regenerate tokens** (when expired):
+`VAULT_APP_TOKEN` is owned by infra2. Finance Report deploys only preflight the
+Dokploy token and must not receive `VAULT_ROOT_TOKEN`.
+
+**Repair app token** (when expired):
 
 ```bash
 # From local machine with infra2 repo
 cd /path/to/infra2
-invoke vault.setup-tokens --project=finance_report
-
-# Restart vault-agent to pick up new token
-ssh root@$VPS_HOST "docker restart finance_report-vault-agent-staging"
+export VAULT_ROOT_TOKEN="$(op read 'op://Infra2/dexluuvzg5paff3cltmtnlnosm/Token')"
+DEPLOY_ENV=staging invoke vault.setup-tokens --project=finance_report --service=app
 ```
+
+The infra2 task updates the matching Dokploy compose env, triggers redeploy,
+tracks the new accessor, and revokes the previous accessor after a successful
+Dokploy update. For database sidecars use `--service=postgres` or
+`--service=redis`.
 
 **Monitoring**: Bootloader `_check_vault_secrets()` runs in FULL mode and reports:
 1. Missing secrets file → Warning with regeneration instructions

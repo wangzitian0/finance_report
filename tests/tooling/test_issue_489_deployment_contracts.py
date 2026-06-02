@@ -99,7 +99,7 @@ def test_postgres_and_redis_iac_services_have_vault_gated_runtime_contracts() ->
             "deployer": "PostgresDeployer",
             "image": "postgres:16-alpine",
             "secret_key": "POSTGRES_PASSWORD",
-            "policy_path": "secret/data/finance_report/+/postgres",
+            "policy_path": "secret/data/finance_report/{{env}}/postgres",
             "health_token": "pg_isready -U postgres -d finance_report",
             "data_path": "/data/finance_report/postgres",
             "port": 5432,
@@ -109,7 +109,7 @@ def test_postgres_and_redis_iac_services_have_vault_gated_runtime_contracts() ->
             "deployer": "RedisDeployer",
             "image": "redis:alpine",
             "secret_key": "PASSWORD",
-            "policy_path": "secret/data/finance_report/+/redis",
+            "policy_path": "secret/data/finance_report/{{env}}/redis",
             "health_token": 'redis-cli -a "$$PASSWORD" ping',
             "data_path": "/data/finance_report/redis",
             "port": 6379,
@@ -232,9 +232,10 @@ def test_app_iac_wires_vault_secrets_health_and_traefik_routes() -> None:
     assert "printf" in app_template
 
     paths = policy_paths(app_dir / "vault-policy.hcl")
-    assert "secret/data/finance_report/+/app" in paths
-    assert "secret/data/finance_report/+/postgres" in paths
-    assert "secret/data/finance_report/+/redis" in paths
+    assert "secret/data/finance_report/{{env}}/app" in paths
+    assert "secret/data/finance_report/{{env}}/postgres" in paths
+    assert "secret/data/finance_report/{{env}}/redis" in paths
+    assert not any("/+/" in path for path in paths)
     assert "auth/token/lookup-self" in paths
 
     attrs = class_attrs(app_dir / "deploy.py", "AppDeployer")
@@ -287,7 +288,9 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "EXPECTED_SHA: ${{ github.sha }}" in readiness_block
     assert 'expected_sha = os.environ["EXPECTED_SHA"]' in readiness_block
     assert 'payload.get("git_sha") or payload.get("version")' in readiness_block
-    assert "Existing deployment is still serving; waiting for rollout" in readiness_block
+    assert (
+        "Existing deployment is still serving; waiting for rollout" in readiness_block
+    )
     assert 'url = os.environ["APP_URL"] + "/api/health"' in workflow
     assert "bash tools/smoke_test.sh" in workflow
     assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm"' in workflow

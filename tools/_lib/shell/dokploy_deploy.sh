@@ -81,7 +81,11 @@ fi
 current_env=$(safe_jq '.env // empty' "$env_response" "environment fetch") || exit 1
 
 mask_secrets "$current_env"
-verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800
+vault_repair_env="production"
+if [[ "$APP_URL" == *"-staging"* ]]; then
+  vault_repair_env="staging"
+fi
+verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800 "$vault_repair_env"
 
 new_env="$current_env"
 new_env=$(update_env_var "$new_env" "IMAGE_TAG" "$IMAGE_TAG")

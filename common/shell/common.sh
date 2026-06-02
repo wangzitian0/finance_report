@@ -301,10 +301,23 @@ mask_secrets() {
 
 # Verify a Dokploy-provided VAULT_APP_TOKEN before triggering deployment.
 # This catches expired tokens before compose redeploy turns into a route-level 404.
+print_vault_app_token_repair_hint() {
+  local repair_env="${1:-staging}"
+
+  {
+    echo "Repair VAULT_APP_TOKEN from infra2:"
+    echo "  cd /path/to/infra2"
+    echo "  export VAULT_ROOT_TOKEN=\"\$(op read 'op://Infra2/dexluuvzg5paff3cltmtnlnosm/Token')\""
+    echo "  DEPLOY_ENV=${repair_env} invoke vault.setup-tokens --project=finance_report --service=app"
+    echo "Do not add VAULT_ROOT_TOKEN to GitHub Actions; finance_report deploy only preflights the token."
+  } >&2
+}
+
 verify_vault_app_token() {
   local env_content="$1"
   local context="${2:-Vault token preflight}"
   local min_ttl_seconds="${3:-86400}"
+  local repair_env="${4:-staging}"
   local token=""
   local vault_addr=""
   local lookup_file
@@ -322,6 +335,7 @@ verify_vault_app_token() {
 
   if [[ -z "$token" ]]; then
     echo "ERROR: $context failed: VAULT_APP_TOKEN is missing" >&2
+    print_vault_app_token_repair_hint "$repair_env"
     return 1
   fi
 
@@ -348,6 +362,7 @@ verify_vault_app_token() {
 
   if ! check_http_code "$http_code" "200" "$context" 2>/dev/null; then
     echo "ERROR: $context failed: VAULT_APP_TOKEN is invalid or expired (HTTP $http_code)" >&2
+    print_vault_app_token_repair_hint "$repair_env"
     rm -f "$lookup_file" "$error_file"
     return 1
   fi
@@ -365,11 +380,13 @@ verify_vault_app_token() {
 
   if [[ "$renewable" != "true" ]]; then
     echo "ERROR: $context failed: VAULT_APP_TOKEN is not renewable" >&2
+    print_vault_app_token_repair_hint "$repair_env"
     return 1
   fi
 
   if ! [[ "$ttl" =~ ^[0-9]+$ ]] || (( ttl < min_ttl_seconds )); then
     echo "ERROR: $context failed: VAULT_APP_TOKEN ttl ${ttl}s is below required ${min_ttl_seconds}s" >&2
+    print_vault_app_token_repair_hint "$repair_env"
     return 1
   fi
 

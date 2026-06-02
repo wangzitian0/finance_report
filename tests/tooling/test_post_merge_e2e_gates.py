@@ -46,7 +46,9 @@ def test_AC8_13_50_critical_proof_e2e_files_are_epic_owned() -> None:
     }
     assert [path for path in proof_files if path not in epic_rows] == []
     assert {
-        path: [ac_id for ac_id in ac_ids if not row_covers_ac_id(epic_rows[path], ac_id)]
+        path: [
+            ac_id for ac_id in ac_ids if not row_covers_ac_id(epic_rows[path], ac_id)
+        ]
         for path, ac_ids in proof_files.items()
         if any(not row_covers_ac_id(epic_rows[path], ac_id) for ac_id in ac_ids)
     } == {}
@@ -57,7 +59,10 @@ def test_AC8_13_50_product_e2e_files_are_epic_owned() -> None:
     epic = read("docs/project/EPIC-008.testing-strategy.md")
     product_e2e_files = sorted(
         path.relative_to(ROOT).as_posix()
-        for root in [ROOT / "tests" / "e2e", ROOT / "apps" / "backend" / "tests" / "e2e"]
+        for root in [
+            ROOT / "tests" / "e2e",
+            ROOT / "apps" / "backend" / "tests" / "e2e",
+        ]
         for path in root.glob("test_*.py")
     )
 
@@ -143,9 +148,15 @@ def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     assert "VAULT_APP_TOKEN is not renewable" in common
     assert "ttl ${ttl}s is below required" in common
     assert (
-        'verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800'
+        "DEPLOY_ENV=${repair_env} invoke vault.setup-tokens --project=finance_report --service=app"
+        in common
+    )
+    assert "Do not add VAULT_ROOT_TOKEN to GitHub Actions" in common
+    assert (
+        'verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800 "$vault_repair_env"'
         in deploy_script
     )
+    assert 'vault_repair_env="staging"' in deploy_script
     assert deploy_script.index("verify_vault_app_token") < deploy_script.index(
         'dokploy_api_call "POST" "compose.update"'
     )
@@ -842,7 +853,10 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
 
     assert "needs: [changes, backend-integration, backend-e2e-tier1]" in backend_block
     assert "needs: [changes, lint]" not in backend_block
-    assert "needs: [changes, backend-integration, backend-e2e-tier1, lint]" not in backend_block
+    assert (
+        "needs: [changes, backend-integration, backend-e2e-tier1, lint]"
+        not in backend_block
+    )
     assert "needs: [lint]" not in traceability_block
     assert "run in parallel with lint" in ci_cd
 
@@ -853,9 +867,9 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
     pyproject = read("apps/backend/pyproject.toml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
-        "  frontend:", 1
-    )[0]
+    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split("  frontend:", 1)[
+        0
+    ]
 
     assert "tests/e2e/test_core_journeys.py" in tier1_block
     assert "tests/e2e/test_auth_flows.py" not in tier1_block
@@ -937,13 +951,11 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     )
     assert (
         "tools/strip_lcov_branches.py coverage/backend.lcov "
-        "coverage/coveralls-backend.lcov"
-        in workflow
+        "coverage/coveralls-backend.lcov" in workflow
     )
     assert (
         "tools/strip_lcov_branches.py coverage/frontend.lcov "
-        "coverage/coveralls-frontend.lcov"
-        in workflow
+        "coverage/coveralls-frontend.lcov" in workflow
     )
     assert "file: coverage/coveralls-unified.lcov" in workflow
     assert "file: coverage/coveralls-backend.lcov" in workflow
@@ -1036,7 +1048,9 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
     lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
 
-    assert "PR preview Dokploy API responses are parsed for required fields only" in ci_cd
+    assert (
+        "PR preview Dokploy API responses are parsed for required fields only" in ci_cd
+    )
     assert "Deploy preview lifecycle" in preview
     assert "Cleanup preview lifecycle" in preview
     assert "Rollback on E2E Failure" in preview
@@ -1065,7 +1079,7 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
         "- name: Setup E2E Tests", 1
     )[0]
 
-    assert 'IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}' in deploy_block
+    assert "IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}" in deploy_block
     assert "bash tools/dokploy_deploy.sh" in deploy_block
     assert "bash tools/health_check.sh" in deploy_block
     assert deploy_block.index("bash tools/dokploy_deploy.sh") < deploy_block.index(
@@ -1073,7 +1087,10 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     )
     assert '"https://report-staging.zitian.party/api/health"' in deploy_block
     assert '"$IMAGE_TAG"' in deploy_block
-    assert "actual_sha=$(echo \"$health_response\" | jq -r '.git_sha // .version // \"\"')" in health_check
+    assert (
+        'actual_sha=$(echo "$health_response" | jq -r \'.git_sha // .version // ""\')'
+        in health_check
+    )
     assert "Git SHA Mismatch" in health_check
     assert "exit 1" in health_check
 
