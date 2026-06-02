@@ -50,6 +50,24 @@ Shows how cash moves in and out:
 !!! info "Status"
     Cash flow statement is planned for Phase 2.
 
+### Investment Performance
+
+The personal financial-report package includes an `investment_performance`
+report section once the EPIC-017 schedule is implemented. The section consumes:
+
+`GET /api/portfolio/performance/report-schedule`
+
+```bash
+curl "https://report.zitian.party/api/portfolio/performance/report-schedule?period_start=2026-01-01&period_end=2026-12-31&as_of_date=2026-12-31&currency=SGD"
+```
+
+The report section is designed to show XIRR, time-weighted return,
+money-weighted return, realized P&L, unrealized P&L, dividend income, dividend
+yield, holdings, allocation, data freshness, `source_links`, and `notes`.
+Those fields let the package explain how investment-performance values were
+calculated and how they trace back to brokerage statements, market prices, and
+ledger/report output.
+
 ## Dashboard Widgets
 
 ### Account Balances
