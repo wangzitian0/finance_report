@@ -42,7 +42,7 @@ outcomes:
 
   - id: investment-performance
     question: "How are my investments performing?"
-    status: partial
+    status: covered
     owner_epics:
       - EPIC-005
       - EPIC-008
@@ -50,7 +50,8 @@ outcomes:
     proof_ids:
       - brokerage-pdf-to-portfolio-value
       - market-data-provider-price-path
-    issue: "#521"
+      - personal-financial-report-package-post-merge
+    issue: "#596"
 
   - id: annualized-income-long-term
     question: "What is my annualized income across salary, ESOP, dividends, and other long-term components?"
@@ -174,7 +175,10 @@ proofs:
       - AC5.1.4
       - AC5.2.3
       - AC5.3.1
+      - AC5.8.1
       - AC11.8.3
       - AC11.9.1
       - AC11.9.2
       - AC11.9.3
+      - AC17.10.1
+      - AC17.10.2

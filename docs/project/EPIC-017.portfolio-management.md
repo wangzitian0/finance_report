@@ -388,24 +388,26 @@ the compact entry-point version of this matrix.
 
 ### Personal Report Package Dependency
 
-[#564](https://github.com/wangzitian0/finance_report/issues/564) owns the
+[#564](https://github.com/wangzitian0/finance_report/issues/564) delivered the
 investment performance schedule proof path needed by the personal
 financial-report package tracked in
 [#563](https://github.com/wangzitian0/finance_report/issues/563). This EPIC
-must supply holdings, cost basis, realized and unrealized P&L, dividends,
-allocation, and as-of valuation schedules in a form that EPIC-005 can assemble
-into the generated package.
+supplies holdings, cost basis, realized and unrealized P&L, dividends,
+allocation, and as-of valuation schedules in a form that EPIC-005 consumes as
+the `investment_performance` section.
+[#596](https://github.com/wangzitian0/finance_report/issues/596) owns the
+proof-status promotion after #594.
 
 For #521 closure, this EPIC should be sequenced as:
 
 1. Consume the package section contract from `#570`.
-2. Finalize the investment-performance inputs and schedule (`#564`).
+2. Done: finalize the investment-performance inputs and schedule (`#564`).
 3. Land supporting explanation assets:
    - report notes (`#571`)
    - traceability appendix (`#572`)
 4. Provide deterministic fixture inputs for the package proof (`#573`).
-5. Extend the implemented `#565` post-merge package proof once the investment
-   schedule is report-ready.
+5. Done: extend the implemented `#565` post-merge package proof with the
+   report-ready investment schedule (`AC5.8.1`, `AC17.10.1`, `AC17.10.2`).
 
 The post-merge proof test is owned by EPIC-008.
 
