@@ -373,8 +373,8 @@ jobs:
             All temporary resources for this PR have been released:
 
             - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
-            - **Docker Volumes**: Cleaned (postgres_data, minio_data)
             - **GHCR Images**: Deleted (backend:pr-${{ needs.setup.outputs.pr_number }}, frontend:pr-${{ needs.setup.outputs.pr_number }})
+            - **Host Docker leftovers**: Managed by the Dokploy host hygiene schedule
 
             _Cleanup completed successfully._`;
 

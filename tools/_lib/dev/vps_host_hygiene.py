@@ -87,13 +87,24 @@ def build_hygiene_script(
             "  is_recent_pr() {",
             '    printf "%s\\n" "$recent_prs" | grep -qx "$1"',
             "  }",
+            "  parse_utc_epoch() {",
+            '    timestamp="$1"',
+            '    if [ -z "$timestamp" ]; then',
+            "      return 1",
+            "    fi",
+            '    date -u -d "$timestamp" +%s 2>/dev/null',
+            "  }",
             "  should_delete_pr_resource() {",
             '    pr_number="$1"',
             '    created_at="$2"',
             '    if is_recent_pr "$pr_number"; then',
             "      return 1",
             "    fi",
-            '    created_epoch="$(date -u -d "$created_at" +%s 2>/dev/null || echo 0)"',
+            '    created_epoch="$(parse_utc_epoch "$created_at" || true)"',
+            '    if [ -z "$created_epoch" ]; then',
+            '      echo "::warning::Skipping deletion because timestamp is missing or unparseable for PR ${pr_number}"',
+            "      return 1",
+            "    fi",
             '    [ "$created_epoch" -lt "$cutoff_epoch" ]',
             "  }",
             "  docker ps -a --format '{{.Names}}' | "
@@ -106,7 +117,7 @@ def build_hygiene_script(
             (
                 '      echo "[dry-run] docker rm -f ${container_name}"'
                 if dry_run
-                else '      docker rm -f "$container_name"'
+                else '      docker rm -f "$container_name" || true'
             ),
             "    fi",
             "  done",
@@ -141,7 +152,11 @@ def build_hygiene_script(
             '    status="$(docker inspect --format "{{.State.Status}}" "$non_preview_container" 2>/dev/null || echo "")"',
             '    case "$status" in exited|created|dead) ;; *) continue ;; esac',
             '    created_at="$(docker inspect --format "{{.Created}}" "$non_preview_container" 2>/dev/null || echo "")"',
-            '    created_epoch="$(date -u -d "$created_at" +%s 2>/dev/null || echo 0)"',
+            '    created_epoch="$(parse_utc_epoch "$created_at" || true)"',
+            '    if [ -z "$created_epoch" ]; then',
+            '      echo "::warning::Skipping deletion because timestamp is missing or unparseable for container ${non_preview_container}"',
+            "      continue",
+            "    fi",
             '    if [ "$created_epoch" -lt "$container_cutoff_epoch" ]; then',
             (
                 '      echo "[dry-run] docker rm -f ${non_preview_container}"'
@@ -247,12 +262,15 @@ def build_schedule_payload(
     timezone: str = DEFAULT_TIMEZONE,
     enabled: bool = True,
     schedule_id: str = "",
+    pr_preview_max_age_days: int = 3,
+    pr_preview_keep_recent: int = 3,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "name": name,
         "description": (
             "Finance Report VPS host hygiene. Keeps PR preview resources created "
-            "within 3 days or among the most recent 3 PRs; prunes older host garbage."
+            f"within {pr_preview_max_age_days} days or among the most recent "
+            f"{pr_preview_keep_recent} PRs; prunes older host garbage."
         ),
         "cronExpression": cron_expression,
         "shellType": "bash",
@@ -311,6 +329,8 @@ def ensure_dokploy_schedule(
     cron_expression: str,
     timezone: str,
     enabled: bool,
+    pr_preview_max_age_days: int = 3,
+    pr_preview_keep_recent: int = 3,
 ) -> str:
     schedule_id = find_schedule_id_by_name(config, server_id=server_id, name=name)
     payload = build_schedule_payload(
@@ -321,6 +341,8 @@ def ensure_dokploy_schedule(
         timezone=timezone,
         enabled=enabled,
         schedule_id=schedule_id or "",
+        pr_preview_max_age_days=pr_preview_max_age_days,
+        pr_preview_keep_recent=pr_preview_keep_recent,
     )
     endpoint = "schedule.update" if schedule_id else "schedule.create"
     body = dokploy_api_call(config, "POST", endpoint, payload=payload)
@@ -386,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
                     cron_expression=args.cron_expression,
                     timezone=args.timezone,
                     enabled=not args.disabled,
+                    pr_preview_max_age_days=args.pr_preview_max_age_days,
+                    pr_preview_keep_recent=args.pr_preview_keep_recent,
                 ),
                 indent=2,
                 sort_keys=True,
@@ -405,6 +429,8 @@ def main(argv: list[str] | None = None) -> int:
             cron_expression=args.cron_expression,
             timezone=args.timezone,
             enabled=not args.disabled,
+            pr_preview_max_age_days=args.pr_preview_max_age_days,
+            pr_preview_keep_recent=args.pr_preview_keep_recent,
         )
         return 0
 
