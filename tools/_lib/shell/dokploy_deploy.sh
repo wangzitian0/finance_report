@@ -90,6 +90,7 @@ new_env=$(update_env_var "$new_env" "NEXT_PUBLIC_APP_URL" "$APP_URL")
 new_env=$(update_env_var "$new_env" "COMPOSE_PROFILES" "app")
 new_env=$(update_env_var "$new_env" "TRAEFIK_ENABLE" "true")
 new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" "deploy-${IMAGE_TAG}-$(date +%s)")
+IAC_CONFIG_HASH_VALUE=$(env_value "$new_env" "IAC_CONFIG_HASH")
 
 if [[ -n "${DEPLOY_PRIMARY_MODEL_OVERRIDE:-}" ]]; then
   new_env=$(update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE")
@@ -114,10 +115,25 @@ else
 fi
 new_env=$(update_env_var "$new_env" "INTERNAL_DOMAIN" "zitian.party")
 
+expected_effective_env=$(printf "%s\n" \
+  "IMAGE_TAG=$IMAGE_TAG" \
+  "GIT_COMMIT_SHA=$IMAGE_TAG" \
+  "IAC_CONFIG_HASH=$IAC_CONFIG_HASH_VALUE" \
+  "ENV_SUFFIX=$(env_value "$new_env" "ENV_SUFFIX")" \
+  "COMPOSE_PROFILES=app")
+
 payload=$(safe_jq_build --arg id "$COMPOSE_ID" --arg env "$new_env" '{composeId: $id, env: $env}') || exit 1
 dokploy_api_call "POST" "compose.update" "$payload" "$update_response_file" "Environment update"
 
 echo "Environment updated to use image tag: $IMAGE_TAG"
+
+dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Effective environment verification"
+effective_response=$(cat "$response_file")
+effective_env=$(safe_jq '.env // empty' "$effective_response" "effective environment fetch") || exit 1
+render_allowlisted_env_diff "$expected_effective_env" "$effective_env" || {
+  echo "ERROR: Effective Dokploy environment does not match expected deployment values" >&2
+  exit 1
+}
 
 deploy_payload=$(safe_jq_build --arg id "$COMPOSE_ID" '{composeId: $id}') || exit 1
 dokploy_api_call "POST" "compose.deploy" "$deploy_payload" "$deploy_response_file" "Deployment trigger"

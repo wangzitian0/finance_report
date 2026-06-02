@@ -78,7 +78,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.35**: AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions.
 - **AC8.13.36**: Main CI builds SHA-tagged staging images and post-merge staging reuses them after CI workflow success.
 - **AC8.13.37**: AC traceability fails mandatory ACs that are covered only by `_ac_stubs`.
-- **AC8.13.38**: Scheduled PR preview cleanup removes stale closed-PR VPS resources and bounded host garbage while preserving open PR previews and persistent data volumes.
+- **AC8.13.38**: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
 - **AC8.13.39**: Runtime and container versions stay aligned across local, CI, and Docker environments.
 - **AC8.13.40**: PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images.
 - **AC8.13.41**: Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings.
@@ -110,6 +110,10 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.68**: E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs without E2E owners.
 - **AC8.13.69**: Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide.
 - **AC8.13.70**: E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots.
+- **AC8.13.71**: One lifecycle tool owns PR preview deploy, stop, cleanup, reconciliation, and stable metadata.
+- **AC8.13.72**: Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs.
+- **AC8.13.73**: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
+- **AC8.13.74**: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `docs/analysis/test-ac-coverage-report.md`,
@@ -429,7 +433,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `tests/tooling/` | P1 |
 | AC8.13.36 | Main CI builds SHA-tagged staging images and post-merge staging reuses them after CI workflow success | `test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `tests/tooling/test_check_ac_traceability.py` | P0 |
-| AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources and bounded host garbage while preserving open PR previews and persistent data volumes | `test_AC8_13_38_*` | `tests/tooling/test_cleanup_pr_preview_resources.py` | P0 |
+| AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews | `test_AC8_13_38_*` | `tests/tooling/test_cleanup_pr_preview_resources.py` | P0 |
 | AC8.13.39 | Runtime and container versions stay aligned across local, CI, and Docker environments | `test_AC8_13_39_*` | `tests/tooling/test_toolchain_contract.py` | P0 |
 | AC8.13.40 | PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images | `test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.41 | Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings | `test_*critical_proof_matrix*` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
@@ -462,6 +466,10 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.68 | E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs without E2E owners | `test_AC8_13_68_*` | `tests/tooling/test_check_e2e_epic_traceability.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.69 | Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide | `test_namespaced_infra_uses_ephemeral_host_ports` | `apps/backend/tests/unit/infra/test_test_lifecycle.py` | P0 |
 | AC8.13.70 | E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots | `test_AC8_13_70_*` | `tests/tooling/test_check_e2e_epic_traceability.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.71 | One lifecycle tool owns PR preview deploy, stop, cleanup, reconciliation, and stable metadata | `test_AC8_13_71_*` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.72 | Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs | `test_AC8_13_72_*` | `tests/tooling/test_dokploy_redaction.py`, `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.73 | VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage | `test_AC8_13_73_*` | `tests/tooling/test_vps_host_hygiene.py` | P0 |
+| AC8.13.74 | Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene | `test_AC8_13_74_*` | `tests/tooling/test_pr_preview_lifecycle.py`, `tests/tooling/test_vps_host_hygiene.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

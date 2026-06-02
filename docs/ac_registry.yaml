@@ -2180,6 +2180,26 @@ groups:
         epic_name: testing-strategy
         description: E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots.
         mandatory: true
+      - id: AC8.13.71
+        epic: 8
+        epic_name: testing-strategy
+        description: One lifecycle tool owns PR preview deploy, stop, cleanup, reconciliation, and stable metadata.
+        mandatory: true
+      - id: AC8.13.72
+        epic: 8
+        epic_name: testing-strategy
+        description: Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs.
+        mandatory: true
+      - id: AC8.13.73
+        epic: 8
+        epic_name: testing-strategy
+        description: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
+        mandatory: true
+      - id: AC8.13.74
+        epic: 8
+        epic_name: testing-strategy
+        description: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

@@ -18,6 +18,10 @@ concurrency:
   group: pr-preview-cleanup
   cancel-in-progress: false
 
+env:
+  DOKPLOY_API_URL: https://cloud.zitian.party/api
+  TEST_ENV_ID: -fzh5EGJN74I1AjNEpVUr
+
 permissions:
   contents: read
   pull-requests: read
@@ -49,18 +53,16 @@ jobs:
       - name: Remove stale preview resources
         env:
           GH_TOKEN: ${{ github.token }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '--dry-run' || '' }}
         run: |
-          python tools/cleanup_pr_preview_resources.py \
+          python tools/pr_preview_lifecycle.py \
+            --action reconcile \
+            --pr-number 0 \
+            --compose-name reconcile \
+            --environment-id "${{ env.TEST_ENV_ID }}" \
+            --api-url "${{ env.DOKPLOY_API_URL }}" \
+            --api-key "$DOKPLOY_API_KEY" \
             --host cloud.zitian.party \
             --ssh-key ~/.ssh/vps_key \
-            --container-prune-until 24h \
-            --builder-prune-until 24h \
-            --image-prune-until 168h \
-            --network-prune-until 168h \
-            --journal-vacuum-time 14d \
-            --journal-vacuum-size 1G \
-            --docker-log-truncate-size-mib 100 \
-            --disk-warning-percent 85 \
-            --disk-error-percent 95 \
             ${DRY_RUN:+"$DRY_RUN"}

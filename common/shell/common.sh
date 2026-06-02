@@ -134,6 +134,59 @@ validate_health_response() {
   return 0
 }
 
+safe_dokploy_message() {
+  local response_file="$1"
+  if [[ -s "$response_file" ]]; then
+    jq -r '.message // .error // .status // "unavailable"' "$response_file" 2>/dev/null | head -c 160
+  else
+    printf "unavailable"
+  fi
+}
+
+print_dokploy_error() {
+  local context="$1"
+  local endpoint="$2"
+  local http_code="$3"
+  local response_file="$4"
+
+  echo "ERROR: $context returned HTTP $http_code" >&2
+  echo "endpoint: $endpoint" >&2
+  echo "safe_message: $(safe_dokploy_message "$response_file")" >&2
+  echo "raw_body_printed: false" >&2
+}
+
+env_value() {
+  local env_content="$1"
+  local key="$2"
+  printf "%s\n" "$env_content" | awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; found=1 } END { if (!found) exit 0 }'
+}
+
+render_allowlisted_env_diff() {
+  local expected_env="$1"
+  local actual_env="$2"
+  local failed=0
+  local key expected actual
+
+  echo "Effective deploy env diff"
+  for key in IMAGE_TAG GIT_COMMIT_SHA IAC_CONFIG_HASH ENV_SUFFIX COMPOSE_PROFILES; do
+    expected="$(env_value "$expected_env" "$key")"
+    actual="$(env_value "$actual_env" "$key")"
+    if [[ "$expected" == "$actual" ]]; then
+      echo "$key: match"
+    else
+      echo "$key: expected=$expected actual=$actual"
+      failed=1
+    fi
+  done
+  if [[ "$failed" -eq 0 ]]; then
+    echo "result: match"
+  else
+    echo "result: mismatch"
+  fi
+  echo "raw_env_printed: false"
+  return "$failed"
+}
+
 # Call Dokploy API with comprehensive error handling
 # Fixes: CRITICAL-4 (pipe errors hidden), CRITICAL-7 (HTTP comparison)
 #
@@ -159,18 +212,30 @@ dokploy_api_call() {
   local error_file
   error_file=$(mktemp)
   register_cleanup "$error_file"
+
+  local curl_config_file
+  curl_config_file=$(mktemp)
+  register_cleanup "$curl_config_file"
+  printf 'header = "x-api-key: %s"\n' "$DOKPLOY_API_KEY" > "$curl_config_file"
+
+  local data_file=""
+  if [[ -n "$data" ]]; then
+    data_file=$(mktemp)
+    register_cleanup "$data_file"
+    printf "%s" "$data" > "$data_file"
+  fi
   
   local curl_args=(
     -s
     -o "$output_file"
     -w "%{http_code}"
-    -H "x-api-key: $DOKPLOY_API_KEY"
+    --config "$curl_config_file"
   )
   
   if [[ "$method" == "POST" ]]; then
     curl_args+=(-X POST -H "Content-Type: application/json")
-    if [[ -n "$data" ]]; then
-      curl_args+=(-d "$data")
+    if [[ -n "$data_file" ]]; then
+      curl_args+=(--data-binary "@$data_file")
     fi
   fi
   
@@ -189,8 +254,7 @@ dokploy_api_call() {
   
   # Validate HTTP status code
   if ! check_http_code "$http_code" "200" "$error_context"; then
-    echo "Response body:" >&2
-    cat "$output_file" >&2
+    print_dokploy_error "$error_context" "$endpoint" "$http_code" "$output_file"
     return 1
   fi
   
