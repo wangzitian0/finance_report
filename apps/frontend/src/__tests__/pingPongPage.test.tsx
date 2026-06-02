@@ -54,4 +54,18 @@ describe("PingPongPage", () => {
 
     await waitFor(() => expect(screen.getByText("PING")).toBeInTheDocument())
   })
+
+  it("AC16.12.10 surfaces toggle errors", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({ state: "ping", toggle_count: 0, updated_at: null })
+      .mockRejectedValueOnce(new Error("toggle failed"))
+
+    render(<PingPongPage />)
+
+    await waitFor(() => expect(screen.getByText("PING")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Toggle State" }))
+
+    await waitFor(() => expect(screen.getByText("toggle failed")).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+  })
 })
