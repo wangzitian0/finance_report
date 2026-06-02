@@ -73,9 +73,9 @@ export default function AccountsPage() {
     }, {} as Record<string, Account[]>);
 
     return (
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
             {/* Header */}
-            <div className="page-header flex items-center justify-between">
+            <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="page-title">Accounts</h1>
                     <p className="page-description">Manage your chart of accounts</p>
@@ -89,7 +89,7 @@ export default function AccountsPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-6 bg-[var(--background-muted)] p-1 rounded-lg w-fit">
+            <div className="mb-6 flex w-full flex-wrap gap-1 rounded-lg bg-[var(--background-muted)] p-1 sm:w-fit">
                 {ACCOUNT_TYPES.map((type) => (
                     <button
                         key={type}
@@ -153,21 +153,23 @@ export default function AccountsPage() {
                                 {typeAccounts.map((account) => (
                                     <div 
                                         key={account.id} 
-                                        className="px-6 py-3 flex items-center justify-between hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
+                                        data-testid={`account-row-${account.id}`}
+                                        className="flex cursor-pointer flex-col gap-3 px-4 py-4 transition-colors hover:bg-[var(--background-muted)]/50 sm:flex-row sm:items-center sm:justify-between sm:px-6"
                                         onClick={() => setSelectedAccount(account)}
                                     >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-medium">{account.name}</span>
+                                        <div data-account-field="identity" className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="break-words font-medium">{account.name}</span>
                                                 {account.code && <span className="text-xs text-muted font-mono">{account.code}</span>}
                                                 {!account.is_active && <span className="badge badge-muted">Inactive</span>}
                                             </div>
-                                            {account.description && <p className="text-xs text-muted truncate">{account.description}</p>}
+                                            {account.description && <p className="break-words text-xs text-muted sm:truncate">{account.description}</p>}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="text-right mr-2">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
+                                            <div data-account-field="balance" className="text-left sm:mr-2 sm:text-right">
                                                 <div className="font-semibold">{formatCurrencyLocale(account.balance ?? 0, account.currency)}</div>
                                             </div>
+                                            <div data-account-field="actions" className="flex items-center gap-2">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setEditingAccount(account); setIsModalOpen(true); }}
                                                 className="btn-ghost p-2 hover:text-[var(--accent)]"
@@ -187,6 +189,7 @@ export default function AccountsPage() {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
                                             </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
