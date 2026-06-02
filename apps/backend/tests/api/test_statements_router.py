@@ -1541,8 +1541,9 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):
     """AC3.6.1: Unique prior mapping no longer auto applies; explicit mapping is required."""
+    user_id = test_user.id
     bank_account = Account(
-        user_id=test_user.id,
+        user_id=user_id,
         name="DBS Confirmed Account",
         type=AccountType.ASSET,
         currency="SGD",
@@ -1550,13 +1551,13 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     db.add(bank_account)
     await db.flush()
 
-    prior = build_statement(test_user.id, "hash_s1_prior_confirmed", 95)
+    prior = build_statement(user_id, "hash_s1_prior_confirmed", 95)
     prior.status = BankStatementStatus.APPROVED
     prior.account_id = bank_account.id
     db.add(prior)
     await db.flush()
 
-    statement = build_statement(test_user.id, "hash_s1_auto_map", 90)
+    statement = build_statement(user_id, "hash_s1_auto_map", 90)
     statement.status = BankStatementStatus.PARSED
     statement.account_id = None
     statement.closing_balance = Decimal("120.00")
@@ -1577,7 +1578,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     await db.commit()
 
     with pytest.raises(HTTPException) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Account mapping required" in str(exc.value.detail)
@@ -1587,7 +1588,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
 
     entry_result = await db.execute(
         select(JournalEntry)
-        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == txn_id)
     )
@@ -1817,8 +1818,9 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
 
 async def test_approve_statement_stage1_blocks_unresolved_consistency_checks(db, test_user):
     """AC16.22.3: Stage 1 approval blocked if statement has unresolved checks."""
+    user_id = test_user.id
     bank_account = Account(
-        user_id=test_user.id,
+        user_id=user_id,
         name="DBS Edit Check Account",
         type=AccountType.ASSET,
         currency="SGD",
@@ -1826,7 +1828,7 @@ async def test_approve_statement_stage1_blocks_unresolved_consistency_checks(db,
     db.add(bank_account)
     await db.flush()
 
-    statement = build_statement(test_user.id, "hash_s1_unresolved_checks", 90)
+    statement = build_statement(user_id, "hash_s1_unresolved_checks", 90)
     statement.status = BankStatementStatus.PARSED
     statement.account_id = bank_account.id
     statement.closing_balance = Decimal("120.00")
@@ -1846,7 +1848,7 @@ async def test_approve_statement_stage1_blocks_unresolved_consistency_checks(db,
 
     db.add(
         ConsistencyCheck(
-            user_id=test_user.id,
+            user_id=user_id,
             check_type=CheckType.DUPLICATE,
             status=CheckStatus.PENDING,
             related_txn_ids=[str(txn.id)],
@@ -1857,14 +1859,14 @@ async def test_approve_statement_stage1_blocks_unresolved_consistency_checks(db,
     await db.commit()
 
     with pytest.raises(HTTPException) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "unresolved consistency checks" in str(exc.value.detail)
 
     entry_result = await db.execute(
         select(JournalEntry)
-        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
     )
     assert entry_result.scalars().all() == []

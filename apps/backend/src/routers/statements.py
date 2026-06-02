@@ -176,9 +176,7 @@ async def _auto_create_posted_entries_for_statement(
     transfer_txn_ids = {match.bank_txn_id for match in transfer_match_result.scalars().all() if match.journal_entry_ids}
 
     txns_to_post = [
-        txn
-        for txn in statement_transactions
-        if txn.id not in existing_entry_txn_ids and txn.id not in transfer_txn_ids
+        txn for txn in statement_transactions if txn.id not in existing_entry_txn_ids and txn.id not in transfer_txn_ids
     ]
     if not txns_to_post:
         return 0
@@ -237,11 +235,7 @@ async def _assert_no_unresolved_checks_for_statement(
         select(ConsistencyCheck.id)
         .where(ConsistencyCheck.user_id == user_id)
         .where(ConsistencyCheck.status == CheckStatus.PENDING)
-        .where(
-            or_(
-                *[ConsistencyCheck.related_txn_ids.contains([txn_id]) for txn_id in sorted(txn_ids)]
-            )
-        )
+        .where(or_(*[ConsistencyCheck.related_txn_ids.contains([txn_id]) for txn_id in sorted(txn_ids)]))
         .limit(1)
     )
     if pending_checks_result.scalar_one_or_none():

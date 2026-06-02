@@ -239,16 +239,17 @@ fallback account. Before Stage 1 approval creates posted journal entries, the
 statement must resolve to a user-owned asset account by one of these paths:
 
 1. The statement already has an explicit `account_id` selected by the user.
-2. A previous confirmed statement for the same user has exactly one account
-   matching `institution`, `account_last4`, and `currency`.
-3. The user explicitly confirms first-upload account creation during Stage 1
+2. The user explicitly confirms first-upload account creation during Stage 1
    approval; the created asset account is bound to the statement before posted
    journal entries are created.
 
-If no confident match exists, or multiple accounts match the same metadata, the
-approval flow must block posting with a clear account-mapping action item. Draft
-candidate entries may still use legacy defaults in manual workflows, but posted
-entries cannot silently use `Bank - Main`.
+Prior confirmed statements with matching `institution`, `account_last4`, and
+`currency` may be shown as account candidates, but they must not silently bind
+the statement during posting. If no explicit mapping or explicit account-create
+confirmation exists, the approval flow must block posting with a clear
+account-mapping action item. Draft candidate entries may still use legacy
+defaults in manual workflows, but posted entries cannot silently use
+`Bank - Main`.
 
 ## Account Coverage Contract
 

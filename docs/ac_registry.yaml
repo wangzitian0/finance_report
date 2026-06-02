@@ -669,7 +669,7 @@ groups:
       - id: AC3.6.1
         epic: 3
         epic_name: statement-parsing
-        description: Unique Prior Mapping
+        description: Prior statement metadata is advisory only; Stage 1 posting requires explicit account mapping
         mandatory: true
       - id: AC3.6.2
         epic: 3
