@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 import structlog
 from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
@@ -19,8 +19,6 @@ from src.database import create_session_maker_from_db
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import (
-    Account,
-    AccountType,
     BankStatement,
     BankStatementStatus,
     BankStatementTransaction,
@@ -30,7 +28,6 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
-from src.models.consistency_check import CheckStatus, ConsistencyCheck
 from src.schemas import (
     BankStatementListResponse,
     BankStatementResponse,
@@ -53,6 +50,12 @@ from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
+from src.services.stage1_posting_guard import (
+    Stage1PostingContext,
+    create_statement_account_from_confirmation,
+    load_stage1_posting_context,
+    require_statement_posting_account,
+)
 from src.services.statement_parsing import parse_statement_background
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
@@ -139,10 +142,11 @@ async def _queue_statement_reparse(
 
 async def _auto_create_posted_entries_for_statement(
     db: DbSession,
-    statement: BankStatement,
+    context: Stage1PostingContext,
     user_id: UUID,
-    statement_transactions: list[BankStatementTransaction],
 ) -> int:
+    statement = context.statement
+    statement_transactions = context.transactions
     txn_ids = [txn.id for txn in statement_transactions]
     if not txn_ids:
         return 0
@@ -178,7 +182,7 @@ async def _auto_create_posted_entries_for_statement(
     if not txns_to_post:
         return 0
 
-    preloaded_bank_account = await _resolve_statement_posting_account(db, statement, user_id)
+    preloaded_bank_account = await require_statement_posting_account(db, statement=statement, user_id=user_id)
 
     for txn in txns_to_post:
         await create_entry_from_txn(
@@ -192,97 +196,6 @@ async def _auto_create_posted_entries_for_statement(
         )
 
     return len(txns_to_post)
-
-
-async def _resolve_statement_posting_account(
-    db: DbSession,
-    statement: BankStatement,
-    user_id: UUID,
-) -> Account:
-    """Resolve the asset account for automatic posting.
-
-    Posting is only allowed when the statement is explicitly mapped to an
-    account to avoid implicit/guessed account attribution.
-    """
-    if statement.account_id:
-        account_result = await db.execute(
-            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
-        )
-        account = account_result.scalar_one_or_none()
-        if account:
-            return account
-        raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
-    raise ValueError("Account mapping required before posting. Confirm the target account before posting.")
-
-
-async def _assert_no_unresolved_checks_for_statement(
-    db: DbSession,
-    user_id: UUID,
-    statement_transactions: list[BankStatementTransaction],
-) -> None:
-    """Ensure statement-related unresolved checks are resolved before Stage 1 approval."""
-    txn_ids = {str(txn.id) for txn in statement_transactions}
-    if not txn_ids:
-        return
-
-    pending_checks_result = await db.execute(
-        select(ConsistencyCheck.id)
-        .where(ConsistencyCheck.user_id == user_id)
-        .where(ConsistencyCheck.status == CheckStatus.PENDING)
-        .where(or_(*[ConsistencyCheck.related_txn_ids.contains([txn_id]) for txn_id in sorted(txn_ids)]))
-        .limit(1)
-    )
-    if pending_checks_result.scalar_one_or_none():
-        raise ValueError("Cannot approve statement while there are unresolved consistency checks for this statement.")
-
-
-async def _prepare_stage1_posting_context(
-    db: DbSession,
-    user_id: UUID,
-    statement: BankStatement,
-) -> list[BankStatementTransaction]:
-    """Load transactions and enforce Stage 1 approval guards shared by approval paths."""
-    txn_result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.statement_id == statement.id)
-    )
-    statement_transactions = list(txn_result.scalars().all())
-    await _assert_no_unresolved_checks_for_statement(db, user_id, statement_transactions)
-    return statement_transactions
-
-
-async def _create_statement_account_from_confirmation(
-    db: DbSession,
-    statement: BankStatement,
-    user_id: UUID,
-) -> Account:
-    """Create and bind a statement account after explicit Stage 1 user confirmation."""
-    if statement.account_id:
-        account_result = await db.execute(
-            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
-        )
-        account = account_result.scalar_one_or_none()
-        if account:
-            return account
-        raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
-
-    currency = (statement.currency or "SGD").strip().upper()
-    institution = (statement.institution or "").strip()
-    account_name = institution or "Statement Account"
-    if statement.account_last4:
-        account_name = f"{account_name} *{statement.account_last4.strip()}"
-
-    account = Account(
-        user_id=user_id,
-        name=account_name,
-        type=AccountType.ASSET,
-        currency=currency,
-        description=f"Created from confirmed statement import {statement.original_filename}",
-    )
-    db.add(account)
-    await db.flush()
-    statement.account_id = account.id
-    await db.flush()
-    return account
 
 
 # --- Helper functions ---
@@ -927,9 +840,9 @@ async def approve_statement_stage1(
     try:
         statement = await approve_statement_svc(db, statement_id, user_id)
         if request and request.create_account_if_missing and not statement.account_id:
-            await _create_statement_account_from_confirmation(db, statement, user_id)
-        statement_transactions = await _prepare_stage1_posting_context(db, user_id, statement)
-        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id, statement_transactions)
+            await create_statement_account_from_confirmation(db, statement=statement, user_id=user_id)
+        posting_context = await load_stage1_posting_context(db, user_id=user_id, statement=statement)
+        created_count = await _auto_create_posted_entries_for_statement(db, posting_context, user_id)
         await db.commit()
     except ValueError as e:
         await db.rollback()
@@ -985,8 +898,8 @@ async def edit_and_approve_statement(
     edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
         statement = await edit_and_approve(db, statement_id, user_id, edits_data)
-        statement_transactions = await _prepare_stage1_posting_context(db, user_id, statement)
-        created_count = await _auto_create_posted_entries_for_statement(db, statement, user_id, statement_transactions)
+        posting_context = await load_stage1_posting_context(db, user_id=user_id, statement=statement)
+        created_count = await _auto_create_posted_entries_for_statement(db, posting_context, user_id)
         await db.commit()
     except ValueError as e:
         await db.rollback()

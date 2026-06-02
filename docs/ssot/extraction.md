@@ -251,6 +251,21 @@ account-mapping action item. Draft candidate entries may still use legacy
 defaults in manual workflows, but posted entries cannot silently use
 `Bank - Main`.
 
+### Stage 1 Posting Guard Contract
+
+`apps/backend/src/services/stage1_posting_guard.py` owns this contract. Router
+approval paths may call it, but must not duplicate or bypass the guard rules.
+
+| Condition before posted journal entries are created | Result | User/API detail | Primary test proof |
+|---|---|---|---|
+| `statement.account_id` points to an account owned by the approving user | Allow posting | n/a | `test_approve_statement_stage1_creates_posted_entries` |
+| No explicit `statement.account_id`, even when prior statements have matching metadata | Block posting | `Account mapping required before posting. Confirm the target account before posting.` | `test_stage1_posting_guard_blocks_prior_confirmed_metadata_without_explicit_mapping` |
+| No explicit `statement.account_id` and first-upload metadata is incomplete | Block posting | `Account mapping required before posting. Confirm the target account before posting.` | `test_stage1_posting_guard_blocks_missing_metadata_without_fallback` |
+| No explicit `statement.account_id` and prior metadata points to multiple candidates | Block posting | `Account mapping required before posting. Confirm the target account before posting.` | `test_stage1_posting_guard_blocks_ambiguous_metadata_without_explicit_mapping` |
+| `statement.account_id` is stale or belongs to another user | Block posting | `Statement account mapping is invalid. Confirm the target account before posting.` | `test_stage1_posting_guard_blocks_invalid_explicit_mapping` |
+| User explicitly requests first-upload account creation during Stage 1 approval | Create asset account, bind it to the statement, then allow posting | n/a | `test_stage1_posting_guard_creates_account_with_explicit_confirmation` |
+| Any statement transaction has a pending consistency check | Block both approve and edit+approve | `Cannot approve statement while there are unresolved consistency checks for this statement.` | `test_stage1_posting_guard_blocks_approve_with_unresolved_consistency_checks`, `test_stage1_posting_guard_blocks_edit_approve_with_unresolved_consistency_checks` |
+
 ## Account Coverage Contract
 
 Approved statements are the only source for account-level statement coverage.

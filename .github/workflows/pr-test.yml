@@ -123,6 +123,54 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Validate PR preview environment
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
+          VPS_HOST: cloud.zitian.party
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          require_nonempty() {
+            local name="$1"
+            local value="${!name:-}"
+            if [ -z "$value" ]; then
+              echo "::error::$name is required before PR preview deploy, storage preflight, and E2E tasks."
+              exit 1
+            fi
+          }
+
+          require_nonempty DOKPLOY_API_KEY
+          require_nonempty VPS_SSH_KEY
+          require_nonempty DOKPLOY_API_URL
+          require_nonempty VPS_HOST
+          require_nonempty PR_NUMBER
+
+          case "$DOKPLOY_API_URL" in
+            https://*) ;;
+            *)
+              echo "::error::DOKPLOY_API_URL must use https://"
+              exit 1
+              ;;
+          esac
+
+          if ! printf '%s' "$VPS_SSH_KEY" | grep -qE 'BEGIN (OPENSSH|RSA|EC) PRIVATE KEY'; then
+            echo "::error::VPS_SSH_KEY must be an SSH private key."
+            exit 1
+          fi
+
+          if ! printf '%s' "$VPS_HOST" | grep -qE '^[A-Za-z0-9.-]+$'; then
+            echo "::error::VPS_HOST contains invalid characters."
+            exit 1
+          fi
+
+          if ! printf '%s' "$PR_NUMBER" | grep -qE '^[0-9]+$'; then
+            echo "::error::PR_NUMBER must be numeric."
+            exit 1
+          fi
+
       - name: Deploy preview lifecycle
         id: deploy
         env:
@@ -192,6 +240,50 @@ jobs:
 
           print("::error::API not ready with expected git_sha after all attempts")
           sys.exit(1)
+          EOF
+
+      - name: Storage Capacity Preflight
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: cloud.zitian.party
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "::error::VPS_SSH_KEY is required for PR preview storage preflight."
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          echo "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          trap 'rm -f ~/.ssh/vps_key' EXIT
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=accept-new root@"$VPS_HOST" \
+            "PR_NUMBER='$PR_NUMBER' bash -s" <<'EOF'
+          set -euo pipefail
+          min_available_kb=$((2 * 1024 * 1024))
+
+          host_available_kb=$(df -Pk / | awk 'NR==2 {print $4}')
+          echo "Host root available: ${host_available_kb}KB"
+          if [ "$host_available_kb" -lt "$min_available_kb" ]; then
+            echo "::error::PR preview host has less than 2GiB available on /"
+            exit 1
+          fi
+
+          minio_container="finance-report-minio-pr-${PR_NUMBER}"
+          if ! docker ps --format '{{.Names}}' | grep -qx "$minio_container"; then
+            echo "::error::MinIO preview container $minio_container is not running"
+            exit 1
+          fi
+
+          minio_available_kb=$(docker exec "$minio_container" sh -c "df -Pk /data | awk 'NR==2 {print \$4}'")
+          echo "MinIO /data available: ${minio_available_kb}KB"
+          if [ "$minio_available_kb" -lt "$min_available_kb" ]; then
+            echo "::error::PR preview MinIO data volume has less than 2GiB available"
+            exit 1
+          fi
           EOF
 
       - name: Setup E2E Tests
@@ -307,6 +399,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate PR preview cleanup environment
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          for name in DOKPLOY_API_KEY VPS_SSH_KEY PR_NUMBER; do
+            value="${!name:-}"
+            if [ -z "$value" ]; then
+              echo "::error::$name is required before PR preview cleanup tasks."
+              exit 1
+            fi
+          done
+
+          if ! printf '%s' "$VPS_SSH_KEY" | grep -qE 'BEGIN (OPENSSH|RSA|EC) PRIVATE KEY'; then
+            echo "::error::VPS_SSH_KEY must be an SSH private key."
+            exit 1
+          fi
+
+          if ! printf '%s' "$PR_NUMBER" | grep -qE '^[0-9]+$'; then
+            echo "::error::PR_NUMBER must be numeric."
+            exit 1
+          fi
 
       - name: Cleanup preview lifecycle
         env:

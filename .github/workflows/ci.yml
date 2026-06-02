@@ -575,6 +575,7 @@ jobs:
           uv run python tools/strip_lcov_branches.py coverage/frontend.lcov coverage/coveralls-frontend.lcov
 
       - name: Upload unified coverage to Coveralls
+        if: github.event_name != 'pull_request'
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
@@ -583,6 +584,7 @@ jobs:
           base-path: .
 
       - name: Upload backend to Coveralls (per-flag)
+        if: github.event_name != 'pull_request'
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
@@ -590,6 +592,7 @@ jobs:
           flag-name: backend
           base-path: apps/backend
       - name: Upload frontend to Coveralls (per-flag)
+        if: github.event_name != 'pull_request'
         # Note: hashFiles() evaluates at plan time before steps run; use always() + action handles missing file
         uses: coverallsapp/github-action@v2
         continue-on-error: true

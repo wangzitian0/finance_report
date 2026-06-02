@@ -162,10 +162,10 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 ### AC3.6: Statement-Account Mapping Hardening
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.6.1 | Prior statement metadata is advisory only; Stage 1 posting requires explicit account mapping | `test_approve_statement_stage1_requires_explicit_mapping_despite_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
-| AC3.6.2 | No Silent Fallback Posting | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
-| AC3.6.3 | Ambiguous Mapping Blocked | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
-| AC3.6.4 | Explicit First-Upload Account Creation | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
+| AC3.6.1 | Prior statement metadata is advisory only; Stage 1 posting requires explicit account mapping | `test_stage1_posting_guard_blocks_prior_confirmed_metadata_without_explicit_mapping` | `api/test_statements_router.py` | P0 |
+| AC3.6.2 | No Silent Fallback Posting | `test_stage1_posting_guard_blocks_unmapped_statement_without_fallback`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
+| AC3.6.3 | Ambiguous Mapping Blocked | `test_stage1_posting_guard_blocks_ambiguous_metadata_without_explicit_mapping` | `api/test_statements_router.py` | P0 |
+| AC3.6.4 | Explicit First-Upload Account Creation | `test_stage1_posting_guard_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
 
 ### AC3.7: Account Statement Coverage
 | ID | Test Case | Test Function | File | Priority |
@@ -210,7 +210,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | **Balance validation 100% enforced** | `test_balance_valid`, `test_balance_invalid` | 🔴 Critical |
 | **Confidence score routing enforced** | `test_high_confidence`, `test_medium_confidence` | 🔴 Critical |
 | **Parsing errors not persisted** | `test_extraction_error_not_persisted` | 🔴 Critical |
-| **Statement account confirmed before posting** | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | 🔴 Critical |
+| **Statement account confirmed before posting** | `test_stage1_posting_guard_blocks_unmapped_statement_without_fallback`, `test_stage1_posting_guard_creates_account_with_explicit_confirmation` | 🔴 Critical |
 | **Account coverage visible before dashboard completion** | `test_account_coverage_reports_missing_overlapping_and_duplicate_ranges`, `test_account_coverage_detects_adjacent_opening_balance_mismatch` | Required |
 | Support PDF format (DBS/POSB, CMB, Maybank) | `test_dbs_fixture_has_valid_structure` | Required |
 | Support CSV format (Wise/fintech, generic) | `test_csv_parsing.py` suite | Required |

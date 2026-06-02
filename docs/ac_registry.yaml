@@ -2213,6 +2213,11 @@ groups:
         description: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary
           writes fail.
         mandatory: true
+      - id: AC8.13.76
+        epic: 8
+        epic_name: testing-strategy
+        description: PR preview storage capacity preflight validates required environment before E2E uploads.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

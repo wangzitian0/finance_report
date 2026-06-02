@@ -869,7 +869,7 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
-    """AC8.13.27: PR CI reports to Coveralls without external status blocking."""
+    """AC8.13.27: PR CI does not let Coveralls external statuses affect mergeability."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     coverage = read("docs/ssot/coverage.md")
@@ -882,8 +882,8 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
         "  ac-traceability:", 1
     )[0]
 
-    assert "github.event_name == 'push'" not in unified_block
-    assert "github.event_name == 'push'" not in frontend_block
+    assert "github.event_name != 'pull_request'" in unified_block
+    assert "github.event_name != 'pull_request'" in frontend_block
     global_permissions = workflow.split("env:", 1)[0]
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
@@ -899,8 +899,8 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "Write coverage gate summary" in workflow
     assert "Authoritative coverage gate" in workflow
     assert "external comparison baseline" in workflow
-    assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
     assert "coverage gate summary" in ci_cd
+    assert "PR CI does not upload to Coveralls" in ci_cd
     assert "Coveralls contexts are not required checks" in ci_cd
     assert "coverage/coveralls" in ci_cd
     assert "Coveralls - unified" in ci_cd
@@ -1076,6 +1076,43 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "actual_sha=$(echo \"$health_response\" | jq -r '.git_sha // .version // \"\"')" in health_check
     assert "Git SHA Mismatch" in health_check
     assert "exit 1" in health_check
+
+
+def test_AC8_13_76_pr_preview_validates_preflight_env_before_e2e_uploads() -> None:
+    """AC8.13.76: PR preview validates env before storage/upload-heavy E2E paths."""
+    preview = read(".github/workflows/pr-test.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    validation_block = preview.split("- name: Validate PR preview environment", 1)[1].split(
+        "- name: Deploy preview lifecycle", 1
+    )[0]
+    preflight_block = preview.split("- name: Storage Capacity Preflight", 1)[1].split(
+        "- name: Setup E2E Tests", 1
+    )[0]
+
+    assert preview.index("- name: Validate PR preview environment") < preview.index(
+        "- name: Deploy preview lifecycle"
+    )
+    assert preview.index("- name: Wait for API readiness") < preview.index(
+        "- name: Storage Capacity Preflight"
+    )
+    assert preview.index("- name: Storage Capacity Preflight") < preview.index(
+        "- name: End-to-End Tests"
+    )
+    assert "DOKPLOY_API_KEY is required before PR preview deploy" in validation_block
+    assert "VPS_SSH_KEY is required before PR preview deploy" in validation_block
+    assert "DOKPLOY_API_URL must use https://" in validation_block
+    assert "VPS_SSH_KEY must be an SSH private key" in validation_block
+    assert "PR_NUMBER must be numeric" in validation_block
+    assert "VPS_SSH_KEY is required for PR preview storage preflight" in preflight_block
+    assert "skipping host and MinIO capacity preflight" not in preflight_block
+    assert "df -Pk /" in preflight_block
+    assert "finance-report-minio-pr-${PR_NUMBER}" in preflight_block
+    assert "df -Pk /data" in preflight_block
+    assert "less than 2GiB" in preflight_block
+    assert "PR preview environment validation runs before Dokploy deploy" in ci_cd
+    assert "missing preview secrets are configuration failures" in ci_cd
+    assert "PR preview storage capacity preflight" in ci_cd
 
 
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:

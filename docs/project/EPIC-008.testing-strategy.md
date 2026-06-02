@@ -67,7 +67,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.24**: AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report.
 - **AC8.13.25**: Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready.
 - **AC8.13.26**: CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift.
-- **AC8.13.27**: Coveralls uploads and asynchronous Coveralls commit statuses remain non-required reporting signals while local deterministic coverage gates decide CI pass/fail.
+- **AC8.13.27**: PR CI skips Coveralls uploads while non-PR Coveralls reporting remains non-required and local deterministic coverage gates decide CI pass/fail.
 - **AC8.13.28**: Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E.
 - **AC8.13.29**: Stage 1 review auto-posts journal entries from the deterministic fixture.
 - **AC8.13.30**: Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state.
@@ -115,6 +115,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.73**: VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage.
 - **AC8.13.74**: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
 - **AC8.13.75**: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail.
+- **AC8.13.76**: PR preview storage capacity preflight validates required environment before E2E uploads.
 
 ### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
 
@@ -451,7 +452,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.25 | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready | `test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.26 | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift | `test_AC8_13_26_*` | `tests/tooling/` | P0 |
-| AC8.13.27 | Coveralls uploads and asynchronous Coveralls commit statuses remain non-required reporting signals while local deterministic coverage gates decide CI pass/fail | `test_AC8_13_27_*` | `tests/tooling/` | P0 |
+| AC8.13.27 | PR CI skips Coveralls uploads while non-PR Coveralls reporting remains non-required and local deterministic coverage gates decide CI pass/fail | `test_AC8_13_27_*` | `tests/tooling/` | P0 |
 | AC8.13.28 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.29 | Stage 1 review auto-posts journal entries from the deterministic fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.30 | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
@@ -499,6 +500,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.73 | VPS host hygiene is a credential-free local systemd timer for generic Docker and journal garbage | `test_AC8_13_73_*` | `tests/tooling/test_vps_host_hygiene.py` | P0 |
 | AC8.13.74 | Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene | `test_AC8_13_74_*` | `tests/tooling/test_pr_preview_lifecycle.py`, `tests/tooling/test_vps_host_hygiene.py` | P0 |
 | AC8.13.75 | Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail | `test_AC8_13_75_coverage_gate_summary_is_nonblocking` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
+| AC8.13.76 | PR preview storage capacity preflight validates required environment before E2E uploads | `test_AC8_13_76_pr_preview_validates_preflight_env_before_e2e_uploads` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

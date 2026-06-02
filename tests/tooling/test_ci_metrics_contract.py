@@ -139,9 +139,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "README EPIC map drift" in ci_cd
     assert "unclassified E2E-like assets outside declared roots" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
-    assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
     assert "coverage gate summary" in ci_cd
     assert "Coverage scope is deny-list based within each governed source root" in ci_cd
+    assert "PR CI does not upload to Coveralls" in ci_cd
     assert "strip branch records before upload" in ci_cd
     assert "not behavioral coverage" in traceability
     assert "placeholder assertions" in traceability
@@ -231,11 +231,8 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("AC traceability is a reference metric" in error for error in errors)
     assert any("README EPIC map drift" in error for error in errors)
     assert any("unclassified E2E-like assets" in error for error in errors)
-    assert any(
-        "Coveralls uploads are reporting-only and do not block CI pass/fail" in error
-        for error in errors
-    )
     assert any("coverage gate summary" in error for error in errors)
+    assert any("PR CI does not upload to Coveralls" in error for error in errors)
     assert any("New `apps/*/src`" in error for error in errors)
     assert any("not behavioral coverage" in error for error in errors)
 
@@ -256,6 +253,7 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
                 "shard: [1, 2, 3, 4, 5, 6]",
                 "--splits 6",
                 "Upload unified coverage to Coveralls",
+                "github.event_name != 'pull_request'",
                 "Upload backend to Coveralls (per-flag)",
                 "Upload frontend to Coveralls (per-flag)",
                 "Write coverage gate summary",
@@ -287,9 +285,9 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
         "README EPIC map drift\n"
         "unclassified E2E-like assets outside declared roots\n"
         "trivial placeholder assertions\n"
-        "Coveralls uploads are reporting-only and do not block CI pass/fail\n"
         "coverage gate summary\n"
         "Coverage scope is deny-list based within each governed source root\n"
+        "PR CI does not upload to Coveralls\n"
         "New `apps/*/src`\n"
         "strip branch records before upload\n",
     )

@@ -26,9 +26,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from src.models import Account, AccountType, User
+from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.statement import (
     BankStatement,
     BankStatementStatus,
@@ -1539,7 +1539,11 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
     assert all(any(line.account_id == bank_account_id for line in entry.lines) for entry in entries)
 
 
-async def test_approve_statement_stage1_requires_explicit_mapping_despite_prior_confirmed_account(db, test_user):
+# Stage 1 posting guard matrix:
+# - Explicit statement.account_id owned by the user is required before posting.
+# - Prior statement metadata remains advisory and never fills account_id implicitly.
+# - Pending consistency checks block both approve and edit+approve.
+async def test_stage1_posting_guard_blocks_prior_confirmed_metadata_without_explicit_mapping(db, test_user):
     """AC3.6.1: Unique prior mapping no longer auto applies; explicit mapping is required."""
     user_id = test_user.id
     bank_account = Account(
@@ -1595,7 +1599,7 @@ async def test_approve_statement_stage1_requires_explicit_mapping_despite_prior_
     assert entry_result.scalar_one_or_none() is None
 
 
-async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(db, test_user):
+async def test_stage1_posting_guard_blocks_unmapped_statement_without_fallback(db, test_user):
     """AC3.6.2: Stage 1 posting blocks first uploads without an explicit account mapping."""
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_unmapped", 90)
@@ -1636,7 +1640,7 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     assert fallback_result.scalar_one_or_none() is None
 
 
-async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test_user):
+async def test_stage1_posting_guard_blocks_missing_metadata_without_fallback(db, test_user):
     """AC3.6.2: Stage 1 posting blocks unmapped statements with incomplete account metadata."""
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_missing_account_metadata", 90)
@@ -1666,7 +1670,7 @@ async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test
     assert "Account mapping required" in str(exc.value.detail)
 
 
-async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(db, test_user):
+async def test_stage1_posting_guard_blocks_invalid_explicit_mapping(db, test_user):
     """AC3.6.2: Stage 1 posting blocks stale statement account references."""
     from uuid import uuid4
 
@@ -1706,7 +1710,7 @@ async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(
     assert "Statement account mapping is invalid" in str(exc.value.detail)
 
 
-async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(db, test_user):
+async def test_stage1_posting_guard_creates_account_with_explicit_confirmation(db, test_user):
     """AC3.6.4: First upload approval can explicitly create and bind a statement account."""
     user_id = test_user.id
     statement = build_statement(user_id, "hash_s1_confirm_create_account", 90)
@@ -1763,7 +1767,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     assert fallback_result.scalar_one_or_none() is None
 
 
-async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, test_user):
+async def test_stage1_posting_guard_blocks_ambiguous_metadata_without_explicit_mapping(db, test_user):
     """AC3.6.3: Stage 1 posting blocks ambiguous statement-account metadata matches."""
     user_id = test_user.id
     first_account = Account(
@@ -1816,7 +1820,7 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
     assert "Account mapping required" in str(exc.value.detail)
 
 
-async def test_approve_statement_stage1_blocks_unresolved_consistency_checks(db, test_user):
+async def test_stage1_posting_guard_blocks_approve_with_unresolved_consistency_checks(db, test_user):
     """AC16.22.3: Stage 1 approval blocked if statement has unresolved checks."""
     user_id = test_user.id
     bank_account = Account(
@@ -2093,7 +2097,7 @@ async def test_edit_and_approve_statement_success(db, test_user):
     assert result.status == BankStatementStatus.APPROVED
 
 
-async def test_edit_and_approve_statement_blocks_unresolved_consistency_checks(db, test_user):
+async def test_stage1_posting_guard_blocks_edit_approve_with_unresolved_consistency_checks(db, test_user):
     """AC16.22.3: Edit+approve blocked if statement has unresolved checks."""
     from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
 
