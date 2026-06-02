@@ -41,6 +41,17 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     assert env["COMPOSE_PROFILES"] == "infra,app"
 
 
+def test_AC8_13_71_dash_prefixed_environment_id_is_accepted() -> None:
+    lifecycle = lifecycle_module()
+
+    argv = lifecycle.normalize_dash_prefixed_values(
+        ["--action", "deploy", "--environment-id", "-fzh5EGJN74I1AjNEpVUr"]
+    )
+
+    assert "--environment-id=-fzh5EGJN74I1AjNEpVUr" in argv
+    assert "-fzh5EGJN74I1AjNEpVUr" not in argv
+
+
 def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
     lifecycle = lifecycle_module()
 

@@ -60,7 +60,7 @@ jobs:
             --action reconcile \
             --pr-number 0 \
             --compose-name reconcile \
-            --environment-id "${{ env.TEST_ENV_ID }}" \
+            --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY" \
             --host cloud.zitian.party \

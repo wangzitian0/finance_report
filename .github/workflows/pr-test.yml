@@ -133,7 +133,7 @@ jobs:
             --action deploy \
             --pr-number "${{ needs.setup.outputs.pr_number }}" \
             --compose-name "${{ needs.setup.outputs.compose_name }}" \
-            --environment-id "${{ env.TEST_ENV_ID }}" \
+            --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY" \
             --github-integration-id "${{ env.GITHUB_INTEGRATION_ID }}" \
@@ -223,7 +223,7 @@ jobs:
             --pr-number "${{ needs.setup.outputs.pr_number }}" \
             --compose-name "${{ needs.setup.outputs.compose_name }}" \
             --compose-id "${{ steps.deploy.outputs.compose_id }}" \
-            --environment-id "${{ env.TEST_ENV_ID }}" \
+            --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY"
 
@@ -312,7 +312,7 @@ jobs:
             --action cleanup \
             --pr-number "${{ needs.setup.outputs.pr_number }}" \
             --compose-name "${{ needs.setup.outputs.compose_name }}" \
-            --environment-id "${{ env.TEST_ENV_ID }}" \
+            --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY" \
             --host cloud.zitian.party \

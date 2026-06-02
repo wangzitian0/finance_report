@@ -554,7 +554,23 @@ def main_from_args(args: argparse.Namespace) -> int:
     raise ValueError(f"Unsupported action: {args.action}")
 
 
+def normalize_dash_prefixed_values(argv: list[str]) -> list[str]:
+    normalized: list[str] = []
+    index = 0
+    value_options = {"--environment-id"}
+    while index < len(argv):
+        current = argv[index]
+        if current in value_options and index + 1 < len(argv):
+            normalized.append(f"{current}={argv[index + 1]}")
+            index += 2
+            continue
+        normalized.append(current)
+        index += 1
+    return normalized
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = normalize_dash_prefixed_values(list(argv) if argv is not None else sys.argv[1:])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--action", choices=["deploy", "delete", "cleanup", "reconcile"], required=True
