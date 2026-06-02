@@ -426,7 +426,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, backend, frontend, container-images, lint, unified-coverage, ac-traceability]"
+        "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, unified-coverage, ac-traceability]"
         in workflow
     )
     assert (
@@ -840,8 +840,9 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
         "  finish:", 1
     )[0]
 
-    assert "needs: [changes]" in backend_block
+    assert "needs: [changes, backend-integration, backend-e2e-tier1]" in backend_block
     assert "needs: [changes, lint]" not in backend_block
+    assert "needs: [changes, backend-integration, backend-e2e-tier1, lint]" not in backend_block
     assert "needs: [lint]" not in traceability_block
     assert "run in parallel with lint" in ci_cd
 
