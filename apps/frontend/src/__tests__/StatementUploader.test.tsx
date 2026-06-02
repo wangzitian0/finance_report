@@ -277,7 +277,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     });
     localStorage.setItem("statement_model_v1", "obsolete-model");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const removeSpy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+    const removeSpy = vi.spyOn(localStorage, "removeItem").mockImplementation(() => {
       throw new Error("remove blocked");
     });
 
