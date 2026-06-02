@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import configparser
+import importlib
 import re
 from pathlib import Path
 
@@ -258,21 +259,27 @@ def test_app_iac_wires_vault_secrets_health_and_traefik_routes() -> None:
 
 def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: PR preview deploy verifies runtime health, API, domain, and storage upload paths."""
+    lifecycle = importlib.import_module("tools._lib.dev.pr_preview_lifecycle")
     workflow = read(".github/workflows/pr-test.yml")
     smoke = read("tools/_lib/shell/smoke_test.sh")
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
     assert "name: Deploy Test Environment" in workflow
-    assert 'echo "COMPOSE_PROFILES=infra,app"' in workflow
-    assert 'echo "DB_HOST=finance-report-db-pr-$PR_NUMBER"' in workflow
-    assert 'echo "S3_HOST=finance-report-minio-pr-$PR_NUMBER"' in workflow
-    assert (
-        'echo "S3_ENDPOINT=http://finance-report-minio-pr-$PR_NUMBER:9000"' in workflow
+    preview_env = lifecycle.build_preview_env(
+        pr_number=489,
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="wangzitian0/finance_report",
+        internal_domain="zitian.party",
     )
+    assert preview_env["COMPOSE_PROFILES"] == "infra,app"
+    assert preview_env["DB_HOST"] == "finance-report-db-pr-489"
+    assert preview_env["S3_HOST"] == "finance-report-minio-pr-489"
+    assert preview_env["S3_ENDPOINT"] == "http://finance-report-minio-pr-489:9000"
     assert 'echo "S3_BUCKET=statements"' in workflow or "S3_BUCKET:-statements" in read(
         "docker-compose.yml"
     )
-    assert "Poll Deployment Status" in workflow
+    assert "Wait for API readiness" in workflow
     assert 'url = os.environ["APP_URL"] + "/api/health"' in workflow
     assert "bash tools/smoke_test.sh" in workflow
     assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm"' in workflow
