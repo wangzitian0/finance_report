@@ -94,6 +94,9 @@ document-level horizontal scrolling.
 
 **Applied In:**
 - `app/(main)/review/ai-suggestions/page.tsx`
+- `app/(main)/statements/[id]/review/page.tsx`
+- `components/review/Stage2ReviewQueue.tsx`
+- `components/review/TransactionTable.tsx`
 - `components/journal/JournalEntryDetailsModal.tsx`
 - `playwright/mobile-ux.spec.ts`
 
