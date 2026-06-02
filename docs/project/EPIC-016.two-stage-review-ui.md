@@ -786,6 +786,21 @@ delivery status table.
 - [x] **AC16.24.3** Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved
 - **AC16.24.4** - Stage 2 batch approval routes accepted matches through the ledger-safe acceptance path, creating missing journal entries or reconciling referenced entries without duplicating entries on retry
 
+### Acceptance Criteria — Feature (group 28, frontend UI system primitives)
+
+Issue [#612](https://github.com/wangzitian0/finance_report/issues/612)
+tracks the first frontend UI-system hardening slice. EPIC-016 owns this
+because the review workflow depends on consistent dense application controls,
+status states, and accessible icon actions across the authenticated frontend.
+This group is intentionally conservative: it creates a React-level primitive
+layer while preserving the existing visual language and leaving the deeper token
+and visual-regression follow-ups to issues #613 and #614.
+
+- [x] **AC16.28.1** Shared React UI primitives live under `apps/frontend/src/components/ui/` and cover button, icon button, badge, alert, empty state, loading state, and page header usage without requiring page-local class recipes
+- [x] **AC16.28.2** Icon-only actions require an accessible label through the primitive API and representative account/statement delete-edit actions use those labels
+- [x] **AC16.28.3** At least two representative frontend pages are migrated to the primitive layer without changing their existing workflows or API calls
+- [x] **AC16.28.4** Primitive component tests cover variants, accessibility-facing props, and the migrated loading/error/empty states
+
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 
 - [x] **AC16.11.32** Vitest harness for Stage 1 split components — shared `renderReviewComponent()` helper in `apps/frontend/src/__tests__/helpers/`

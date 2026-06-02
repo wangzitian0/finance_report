@@ -27,6 +27,9 @@ The app uses a **left sidebar tabbed workspace** layout (similar to Dokploy/Arc)
 - **AppShell** - Root layout wrapper with sidebar + workspace tabs
 - **Sidebar** - Collapsible left navigation (256px expanded, 64px collapsed)
 - **WorkspaceTabs** - Top tab bar tracking open pages (persisted to localStorage)
+- **UI primitives** - Shared controls and states exported from `src/components/ui`
+  (`Button`, `IconButton`, `Badge`, `Alert`, `EmptyState`, `LoadingState`,
+  `PageHeader`)
 
 ## Key Pages
 

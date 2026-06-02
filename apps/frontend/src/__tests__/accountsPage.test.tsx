@@ -176,6 +176,19 @@ describe("AccountsPage", () => {
     expect(screen.getByText("Edit:Cash")).toBeInTheDocument()
   })
 
+  it("AC16.28.2 AC16.28.3 exposes account row icon actions with accessible labels", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      total: 1,
+    } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
+    expect(screen.getByRole("button", { name: "Edit Account" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Delete Account" })).toBeInTheDocument()
+  })
+
   it("AC16.15.8 Add Account button opens create modal", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
