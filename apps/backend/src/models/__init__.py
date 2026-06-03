@@ -47,7 +47,13 @@ from src.models.statement import (
     Stage1Status,
 )
 from src.models.user import AiFeedback, User
-from src.models.workflow import WorkflowEvent, WorkflowEventFamily, WorkflowEventSeverity, WorkflowEventStatus
+from src.models.workflow import (
+    WorkflowEvent,
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+)
 
 # Alias for SSOT compatibility (account_events table / statements table naming)
 AccountEvent = BankStatementTransaction
@@ -118,4 +124,5 @@ __all__ = [
     "WorkflowEventFamily",
     "WorkflowEventSeverity",
     "WorkflowEventStatus",
+    "WorkflowReportImpact",
 ]

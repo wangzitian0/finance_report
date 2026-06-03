@@ -6,7 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import BankStatement
-from src.models.workflow import WorkflowEvent, WorkflowEventFamily, WorkflowEventSeverity, WorkflowEventStatus
+from src.models.workflow import (
+    WorkflowEvent,
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+)
 from src.schemas.workflow import WorkflowEventCreate
 
 
@@ -66,6 +72,9 @@ async def derive_uploaded_statement_event(
     user_id: UUID,
 ) -> WorkflowEvent:
     """Upsert the initial uploaded-statement workflow event."""
+    if statement.user_id != user_id:
+        raise ValueError("statement.user_id must match user_id")
+
     family = WorkflowEventFamily.SOURCE_UPLOADED
     payload = WorkflowEventCreate(
         occurred_at=statement.created_at,
@@ -76,7 +85,7 @@ async def derive_uploaded_statement_event(
         source_type="bank_statement",
         source_id=statement.id,
         action_href=f"/statements/{statement.id}",
-        report_impact="processing",
+        report_impact=WorkflowReportImpact.PROCESSING,
         dedupe_key=build_workflow_dedupe_key(
             family=family,
             source_type="bank_statement",

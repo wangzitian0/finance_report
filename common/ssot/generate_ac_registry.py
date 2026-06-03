@@ -91,7 +91,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str] | None:
         if not match:
             return None
         desc = _clean_description(cells[1] if len(cells) > 1 else "")
-        return match.group(1), int(match.group(2)), desc[:120]
+        return match.group(1), int(match.group(2)), desc
 
     match = re.match(
         r"^(?:[-*]\s*)?(?:\*\*)?(AC(\d+)\.(\d+)\.(\d+))(?:\*\*)?\s*[:|-]\s*(.+)$",
@@ -103,7 +103,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str] | None:
     ac_id = match.group(1)
     ac_epic = int(match.group(2))
     desc = _clean_description(match.group(5))
-    return ac_id, ac_epic, desc[:120]
+    return ac_id, ac_epic, desc
 
 
 def _require_yaml() -> None:

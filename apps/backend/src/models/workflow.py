@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID
 
-from sqlalchemy import DateTime, Enum as SQLEnum, Index, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Enum as SQLEnum, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,12 +49,26 @@ class WorkflowEventStatus(str, Enum):
     ARCHIVED = "archived"
 
 
+class WorkflowReportImpact(str, Enum):
+    """Impact of the event on report readiness."""
+
+    NONE = "none"
+    PROCESSING = "processing"
+    READY = "ready"
+    BLOCKED = "blocked"
+    STALE = "stale"
+
+
 class WorkflowEvent(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """User-facing workflow event projection for upload-to-report state."""
 
     __tablename__ = "workflow_events"
     __table_args__ = (
         UniqueConstraint("user_id", "dedupe_key", name="uq_workflow_events_user_dedupe_key"),
+        CheckConstraint(
+            "action_href LIKE '/%' AND action_href NOT LIKE '//%' AND action_href NOT LIKE '%://%'",
+            name="ck_workflow_events_action_href_internal",
+        ),
         Index("idx_workflow_events_user_status_occurred", "user_id", "status", "occurred_at"),
         Index("idx_workflow_events_user_severity_occurred", "user_id", "severity", "occurred_at"),
         Index("idx_workflow_events_user_family_occurred", "user_id", "family", "occurred_at"),
@@ -96,5 +110,13 @@ class WorkflowEvent(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     action_href: Mapped[str] = mapped_column(String(500), nullable=False)
-    report_impact: Mapped[str] = mapped_column(String(50), nullable=False, default="none")
+    report_impact: Mapped[WorkflowReportImpact] = mapped_column(
+        SQLEnum(
+            WorkflowReportImpact,
+            name="workflow_report_impact_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=WorkflowReportImpact.NONE,
+    )
     dedupe_key: Mapped[str] = mapped_column(String(255), nullable=False)

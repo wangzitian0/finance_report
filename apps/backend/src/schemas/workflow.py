@@ -5,7 +5,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.models.workflow import WorkflowEventFamily, WorkflowEventSeverity, WorkflowEventStatus
+from src.models.workflow import (
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+)
 
 
 def _validate_internal_action_href(value: str) -> str:
@@ -24,7 +29,7 @@ class WorkflowEventCreate(BaseModel):
     source_type: str = Field(min_length=1, max_length=50)
     source_id: UUID
     action_href: str = Field(min_length=1, max_length=500)
-    report_impact: str = Field(min_length=1, max_length=50)
+    report_impact: WorkflowReportImpact
     dedupe_key: str = Field(min_length=1, max_length=255)
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -54,7 +59,7 @@ class WorkflowEventResponse(BaseModel):
     source_type: str
     source_id: UUID
     action_href: str
-    report_impact: str
+    report_impact: WorkflowReportImpact
     dedupe_key: str
     created_at: datetime
     updated_at: datetime

@@ -18,7 +18,7 @@
 | Event model | `apps/backend/src/models/workflow.py` |
 | Event schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/services/workflow_events.py` |
-| Database migration | `apps/backend/migrations/versions/0021_add_workflow_events.py` |
+| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_event_contract.py` |
 | Contract tests | `apps/backend/tests/workflow/test_workflow_events.py` |
 
 ---
@@ -136,12 +136,15 @@ Required database rules:
 - `INDEX(user_id, severity, occurred_at)`
 - `INDEX(user_id, family, occurred_at)`
 - `INDEX(user_id, source_type, source_id)`
+- `CHECK(action_href)` only allows internal relative routes: starts with `/`,
+  does not start with `//`, and does not contain `://`.
 
 All database enum types must have explicit names:
 
 - `workflow_event_family_enum`
 - `workflow_event_severity_enum`
 - `workflow_event_status_enum`
+- `workflow_report_impact_enum`
 
 ---
 

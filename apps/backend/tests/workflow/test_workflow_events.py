@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -16,6 +17,7 @@ from src.models.workflow import (
     WorkflowEventFamily,
     WorkflowEventSeverity,
     WorkflowEventStatus,
+    WorkflowReportImpact,
 )
 from src.schemas.workflow import WorkflowEventCreate, WorkflowEventResponse
 from src.services.workflow_events import (
@@ -48,12 +50,19 @@ def test_AC19_1_2_workflow_event_model_contract() -> None:
         table.c.family.type.name,
         table.c.severity.type.name,
         table.c.status.type.name,
+        table.c.report_impact.type.name,
     }
     assert enum_names == {
         "workflow_event_family_enum",
         "workflow_event_severity_enum",
         "workflow_event_status_enum",
+        "workflow_report_impact_enum",
     }
+
+    check_constraints = {
+        constraint.name for constraint in table.constraints if constraint.__class__.__name__ == "CheckConstraint"
+    }
+    assert "ck_workflow_events_action_href_internal" in check_constraints
 
     unique_constraints = {
         tuple(constraint.columns.keys()): constraint.name
@@ -98,11 +107,12 @@ def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
         source_type="bank_statement",
         source_id=uuid4(),
         action_href="/statements/123",
-        report_impact="processing",
+        report_impact=WorkflowReportImpact.PROCESSING,
         dedupe_key="bank-statement:123:source.uploaded",
         occurred_at=datetime.now(UTC),
     )
     assert valid.action_href == "/statements/123"
+    assert valid.report_impact == WorkflowReportImpact.PROCESSING
 
     for href in ("https://example.com/review", "//example.com/review", "javascript:alert(1)", "statements/123"):
         with pytest.raises(ValidationError):
@@ -114,10 +124,45 @@ def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
                 source_type="bank_statement",
                 source_id=uuid4(),
                 action_href=href,
-                report_impact="processing",
+                report_impact=WorkflowReportImpact.PROCESSING,
                 dedupe_key=f"bad:{href}",
                 occurred_at=datetime.now(UTC),
             )
+
+    with pytest.raises(ValidationError):
+        WorkflowEventCreate(
+            family=WorkflowEventFamily.REPORT_READY,
+            severity=WorkflowEventSeverity.SUCCESS,
+            title="Report ready",
+            summary="The report can be opened.",
+            source_type="report",
+            source_id=uuid4(),
+            action_href="/reports/current",
+            report_impact="published",
+            dedupe_key="report:current:report.ready",
+            occurred_at=datetime.now(UTC),
+        )
+
+    with pytest.raises(ValidationError):
+        WorkflowEventResponse.model_validate(
+            SimpleNamespace(
+                id=uuid4(),
+                user_id=uuid4(),
+                occurred_at=datetime.now(UTC),
+                family=WorkflowEventFamily.REPORT_READY,
+                severity=WorkflowEventSeverity.SUCCESS,
+                status=WorkflowEventStatus.UNREAD,
+                title="Report ready",
+                summary="The report can be opened.",
+                source_type="report",
+                source_id=uuid4(),
+                action_href="/reports/current",
+                report_impact="published",
+                dedupe_key="report:current:report.ready",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
 
 
 @pytest.mark.asyncio
@@ -143,7 +188,7 @@ async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, tes
     assert first.severity == WorkflowEventSeverity.INFO
     assert first.status == WorkflowEventStatus.UNREAD
     assert first.action_href == f"/statements/{statement.id}"
-    assert first.report_impact == "processing"
+    assert first.report_impact == WorkflowReportImpact.PROCESSING
 
     count = await db.scalar(select(func.count(WorkflowEvent.id)).where(WorkflowEvent.user_id == test_user.id))
     assert count == 1
@@ -156,6 +201,20 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
     db.add(other_user)
     await db.flush()
 
+    statement = BankStatement(
+        user_id=test_user.id,
+        file_path="statements/owned.csv",
+        file_hash="b" * 64,
+        original_filename="owned.csv",
+        institution="Demo Bank",
+        status=BankStatementStatus.UPLOADED,
+    )
+    db.add(statement)
+    await db.flush()
+
+    with pytest.raises(ValueError, match="statement.user_id must match user_id"):
+        await derive_uploaded_statement_event(db, statement, user_id=other_user.id)
+
     event = await upsert_workflow_event(
         db,
         user_id=test_user.id,
@@ -167,7 +226,7 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
             source_type="bank_statement",
             source_id=uuid4(),
             action_href="/review",
-            report_impact="blocked",
+            report_impact=WorkflowReportImpact.BLOCKED,
             dedupe_key="bank-statement:review-required:test",
             occurred_at=datetime.now(UTC),
         ),
