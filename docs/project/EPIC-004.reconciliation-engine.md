@@ -167,6 +167,14 @@ Automatically match bank transactions with journal entries, implementing intelli
 | AC4.9.3 | Auto-posted statement entries satisfy the same posting invariants as regular journal posting | `test_create_entry_from_txn_auto_post_rejects_inactive_statement_account` | `api/test_statements_router.py` | P0 |
 | AC4.9.4 | Stage 2 review queue confidence tier is derived from the actual reconciliation score | `test_get_stage2_review_queue_with_pending_match`, `test_ac4_9_4_derive_reconciliation_score_tier` | `api/test_statements_router.py`, `services/test_confidence_tier.py` | P1 |
 
+### AC4.10: Reconciliation Accuracy Audit Harness
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC4.10.1 | Deterministic reconciliation audit harness emits JSON and Markdown reports with accuracy, false-positive, false-negative, review-routing, unmatched, and runtime metrics | `test_AC4_10_1_reconciliation_audit_report_schema_and_outputs` | `tests/tooling/test_reconciliation_audit.py` | P0 |
+| AC4.10.2 | Audit diagnostics list intentional false positives or wrong auto-accepts with expected-vs-actual route, entry IDs, score, and failure type | `test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive` | `tests/tooling/test_reconciliation_audit.py` | P0 |
+| AC4.10.3 | CI uploads reconciliation audit JSON/Markdown as a non-gating artifact before the dataset is promoted to a hard gate | `test_AC4_10_3_ci_uploads_reconciliation_audit_as_non_gating_artifact` | `tests/tooling/test_reconciliation_audit.py` | P1 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
@@ -234,8 +242,10 @@ Automatically match bank transactions with journal entries, implementing intelli
       100-transaction manual false-positive audit, and 10,000-transaction
       benchmark evidence before the `>=95%`, `<0.5%`, `<2%`, and `<10s`
       targets can be treated as measured production-quality metrics. This is
-      owned by AC4.8.1 until converted into behavioral benchmark proof.
-      Current traceability review uses
+      tracked by [#665](https://github.com/wangzitian0/finance_report/issues/665).
+      AC4.8.1 keeps ownership of the residual, and AC4.10.1-AC4.10.2 add the
+      executable audit harness path: `python tools/reconciliation_audit.py
+      --stdout`. Current traceability review also uses
       `python tools/analyze_test_ac_coverage.py --stdout` and
       `python tools/check_ac_traceability.py`.
 

@@ -1,81 +1,109 @@
-"""Services package."""
+"""Lazy service package exports.
 
-from src.services import account_service
-from src.services.account_service import (
-    AccountNotFoundError,
-    AccountServiceError,
-    create_account,
-    get_account,
-    list_accounts,
-    update_account,
-)
-from src.services.accounting import (
-    AccountingError,
-    ValidationError,
-    calculate_account_balance,
-    calculate_account_balances,
-    create_journal_entry,
-    post_journal_entry,
-    validate_fx_rates,
-    validate_journal_balance,
-    verify_accounting_equation,
-    void_journal_entry,
-)
-from src.services.ai_advisor import AIAdvisorError, AIAdvisorService
-from src.services.extraction import ExtractionError, ExtractionService
-from src.services.fx import (
-    FxRateError,
-    convert_amount,
-    convert_to_base,
-    get_average_rate,
-    get_exchange_rate,
-)
-from src.services.reconciliation import execute_matching, load_reconciliation_config
-from src.services.reporting import (
-    ReportError,
-    generate_balance_sheet,
-    generate_cash_flow,
-    generate_income_statement,
-    get_account_trend,
-    get_category_breakdown,
-)
-from src.services.storage import StorageError, StorageService
+Importing one service submodule must not eagerly import every backend service.
+Tooling tests and small audit CLIs intentionally run with a reduced dependency
+set, so package-level compatibility exports are resolved on demand.
+"""
 
-__all__ = [
-    "AIAdvisorError",
-    "AIAdvisorService",
-    "AccountNotFoundError",
-    "AccountServiceError",
-    "AccountingError",
-    "ExtractionError",
-    "ExtractionService",
-    "FxRateError",
-    "ReportError",
-    "StorageError",
-    "StorageService",
-    "ValidationError",
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
+
+_SUBMODULES = {
     "account_service",
-    "calculate_account_balance",
-    "calculate_account_balances",
-    "convert_amount",
-    "convert_to_base",
-    "create_account",
-    "create_journal_entry",
-    "execute_matching",
-    "generate_balance_sheet",
-    "generate_cash_flow",
-    "generate_income_statement",
-    "get_account",
-    "get_account_trend",
-    "get_average_rate",
-    "get_category_breakdown",
-    "get_exchange_rate",
-    "list_accounts",
-    "load_reconciliation_config",
-    "post_journal_entry",
-    "update_account",
-    "validate_fx_rates",
-    "validate_journal_balance",
-    "verify_accounting_equation",
-    "void_journal_entry",
-]
+    "accounting",
+    "ai_advisor",
+    "allocation",
+    "anomaly",
+    "assets",
+    "brokerage_positions",
+    "classification",
+    "confidence_tier",
+    "consistency_checks",
+    "correction_service",
+    "deduplication",
+    "extraction",
+    "fx",
+    "fx_revaluation",
+    "investment_accounting",
+    "market_data",
+    "market_data_scheduler",
+    "openrouter_models",
+    "openrouter_streaming",
+    "performance",
+    "pii_redaction",
+    "portfolio",
+    "processing_account",
+    "reconciliation",
+    "reconciliation_audit",
+    "report_readiness",
+    "reporting",
+    "reporting_snapshot",
+    "review_queue",
+    "source_type_priority",
+    "statement_parsing",
+    "statement_parsing_supervisor",
+    "statement_posting",
+    "statement_validation",
+    "storage",
+    "storage_sweep",
+    "validation",
+    "workflow_events",
+}
+
+_EXPORTS: dict[str, tuple[str, str]] = {
+    "AIAdvisorError": ("ai_advisor", "AIAdvisorError"),
+    "AIAdvisorService": ("ai_advisor", "AIAdvisorService"),
+    "AccountNotFoundError": ("account_service", "AccountNotFoundError"),
+    "AccountServiceError": ("account_service", "AccountServiceError"),
+    "AccountingError": ("accounting", "AccountingError"),
+    "ExtractionError": ("extraction", "ExtractionError"),
+    "ExtractionService": ("extraction", "ExtractionService"),
+    "FxRateError": ("fx", "FxRateError"),
+    "ReportError": ("reporting", "ReportError"),
+    "StorageError": ("storage", "StorageError"),
+    "StorageService": ("storage", "StorageService"),
+    "ValidationError": ("accounting", "ValidationError"),
+    "calculate_account_balance": ("accounting", "calculate_account_balance"),
+    "calculate_account_balances": ("accounting", "calculate_account_balances"),
+    "convert_amount": ("fx", "convert_amount"),
+    "convert_to_base": ("fx", "convert_to_base"),
+    "create_account": ("account_service", "create_account"),
+    "create_journal_entry": ("accounting", "create_journal_entry"),
+    "execute_matching": ("reconciliation", "execute_matching"),
+    "generate_balance_sheet": ("reporting", "generate_balance_sheet"),
+    "generate_cash_flow": ("reporting", "generate_cash_flow"),
+    "generate_income_statement": ("reporting", "generate_income_statement"),
+    "get_account": ("account_service", "get_account"),
+    "get_account_trend": ("reporting", "get_account_trend"),
+    "get_average_rate": ("fx", "get_average_rate"),
+    "get_category_breakdown": ("reporting", "get_category_breakdown"),
+    "get_exchange_rate": ("fx", "get_exchange_rate"),
+    "list_accounts": ("account_service", "list_accounts"),
+    "load_reconciliation_config": ("reconciliation", "load_reconciliation_config"),
+    "post_journal_entry": ("accounting", "post_journal_entry"),
+    "update_account": ("account_service", "update_account"),
+    "validate_fx_rates": ("accounting", "validate_fx_rates"),
+    "validate_journal_balance": ("accounting", "validate_journal_balance"),
+    "verify_accounting_equation": ("accounting", "verify_accounting_equation"),
+    "void_journal_entry": ("accounting", "void_journal_entry"),
+}
+
+__all__ = sorted(_SUBMODULES | set(_EXPORTS))
+
+
+def __getattr__(name: str) -> Any:
+    if name in _SUBMODULES:
+        module = import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+
+    if name in _EXPORTS:
+        module_name, attr_name = _EXPORTS[name]
+        module = import_module(f"{__name__}.{module_name}")
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

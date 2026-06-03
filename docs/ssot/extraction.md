@@ -225,6 +225,28 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 - **`account_last4` sanitization**: `_sanitize_account_last4()` strips non-alphanumeric characters
   and takes the last 4, preventing `StringDataRightTruncationError` from the VARCHAR(4) column.
 
+## Audit-Failed Case Registry
+
+LLM/OCR is the polymorphic extraction layer for statement formats. The system
+does not expand deterministic parser rules just because one provider output or
+source layout fails audit. Instead, failed cases are captured in
+[`extraction-audit-failed-cases.yaml`](./extraction-audit-failed-cases.yaml)
+with sanitized evidence and one of the approved failure categories:
+
+- `parse_schema_failure`
+- `balance_mismatch`
+- `low_confidence`
+- `ambiguous_account_mapping`
+- `model_timeout`
+- `provider_shape_changed`
+- `unsupported_layout`
+- `user_review_rejected`
+
+Real source documents, PII, credentials, and full raw statements must not be
+committed. A registry case can drive later prompt tuning, model selection,
+review workflow changes, or parser work only after a separate EPIC -> AC -> test
+slice is registered.
+
 ## Model Selection
 
 - **Default**: Uses `OCR_MODEL=glm-4.6v` on the vision OCR path. Dedicated layout parsing is used only when `OCR_MODEL` differs from `VISION_MODEL`.

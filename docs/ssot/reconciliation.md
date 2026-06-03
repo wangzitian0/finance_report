@@ -233,6 +233,27 @@ Activated via `ENABLE_4_LAYER_READ=true`:
 | Tolerance match score 60-84 | `test_execute_matching_pending_review_and_unmatched` | ✅ Done |
 | One-to-many match | `test_one_to_many` | ⏳ Pending |
 | Cross-period match | `test_cross_period` | ⏳ Pending |
+| Deterministic accuracy audit harness | `python tools/reconciliation_audit.py --stdout` and `tests/tooling/test_reconciliation_audit.py` | ✅ Initial harness |
+
+### Accuracy Audit Harness
+
+EPIC-004 production-quality claims require an audit-grade expected-vs-actual
+run, not only individual scoring examples. The harness in
+`apps/backend/src/services/reconciliation_audit.py` builds deterministic golden
+scenarios for exact matches, similar matches, unrelated transactions,
+review-band routing, transfer-shaped transactions, many-to-one settlement,
+one-to-many fee splits, and cross-period timing. The command
+`python tools/reconciliation_audit.py --stdout` emits:
+
+- `artifacts/reconciliation-audit/reconciliation-audit.json`
+- `artifacts/reconciliation-audit/reconciliation-audit.md`
+
+Reports include accuracy, false-positive, false-negative, review-routing,
+unmatched, per-scenario score breakdown, and deterministic 10,000-transaction
+pair-scoring benchmark metrics. This is the initial proof path for
+[#665](https://github.com/wangzitian0/finance_report/issues/665); it can be
+promoted from manual/post-merge use to CI gating after the dataset and
+performance thresholds stabilize.
 
 ---
 

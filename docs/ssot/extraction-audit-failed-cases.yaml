@@ -1,0 +1,34 @@
+version: "1.0"
+kind: extraction_audit_failed_case_registry
+owner_epic: EPIC-003
+purpose: >
+  Track statement parsing cases that fail audit or validation without expanding
+  deterministic parser scope. LLM/OCR remains the polymorphic extraction layer;
+  this registry preserves reviewable evidence for later prompt, model, or
+  workflow tuning.
+
+policy:
+  real_documents_committed: false
+  parser_expansion_allowed_from_registry: false
+  required_fields:
+    - case_id
+    - source_type
+    - failure_category
+    - sanitized_evidence
+    - review_status
+  allowed_failure_categories:
+    - parse_schema_failure
+    - balance_mismatch
+    - low_confidence
+    - ambiguous_account_mapping
+    - model_timeout
+    - provider_shape_changed
+    - unsupported_layout
+    - user_review_rejected
+  allowed_review_statuses:
+    - open
+    - reproduced
+    - mitigated
+    - accepted_limitation
+
+cases: []
