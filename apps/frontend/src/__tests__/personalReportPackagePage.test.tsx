@@ -27,7 +27,7 @@ const contract = {
     { section_id: "investment_performance", label: "Investment Performance", owner_epic: "EPIC-017", source_endpoint: "/api/portfolio/performance/report-schedule", status: "ready" },
     { section_id: "annualized_income_long_term", label: "Annualized Income & Long-Term Compensation", owner_epic: "EPIC-011", source_endpoint: "/api/reports/package/annualized-income-schedule", status: "ready" },
     { section_id: "notes", label: "Notes & Disclosures", owner_epic: "EPIC-005", source_endpoint: "/api/reports/package/notes", status: "ready" },
-    { section_id: "traceability_appendix", label: "Traceability Appendix", owner_epic: "EPIC-018", source_endpoint: "/api/reports/package/traceability", status: "planned" },
+    { section_id: "traceability_appendix", label: "Traceability Appendix", owner_epic: "EPIC-018", source_endpoint: "/api/reports/package/traceability", status: "ready" },
   ],
   export_contract: {
     formats: ["json", "csv"],
@@ -104,11 +104,68 @@ const packageNotes = {
   ],
 }
 
+const traceabilityAppendix = {
+  section_id: "traceability_appendix",
+  label: "Traceability Appendix",
+  status: "ready",
+  lines: [
+    {
+      line_id: "balance_sheet.total_assets",
+      section_id: "balance_sheet",
+      label: "Total Assets",
+      amount_field: "total_assets",
+      currency_field: "currency",
+      source_state: "posted_reconciled_journal_lines_and_manual_valuations",
+      source_anchor: {
+        state: "available",
+        source_types: ["bank_statement", "manual_valuation_snapshot"],
+        identifier_fields: ["statement_transaction_ids", "manual_valuation_snapshot_ids"],
+      },
+      ledger_anchor: {
+        state: "available",
+        entry_statuses: ["posted", "reconciled"],
+        identifier_fields: ["journal_entry_ids", "journal_line_ids"],
+      },
+      review_state: "trusted_or_explicit_manual_input",
+      confidence_tier: "TRUSTED",
+    },
+    {
+      line_id: "notes.non_compliance_statement",
+      section_id: "notes",
+      label: "Package Non-Compliance Statement",
+      amount_field: null,
+      currency_field: null,
+      source_state: "package_contract",
+      source_anchor: {
+        state: "available",
+        source_types: ["package_contract"],
+        identifier_fields: ["note_id"],
+      },
+      ledger_anchor: {
+        state: "not_applicable",
+        entry_statuses: [],
+        identifier_fields: [],
+      },
+      review_state: "not_applicable",
+      confidence_tier: "UNAVAILABLE",
+    },
+  ],
+  completeness_warnings: [
+    {
+      code: "manual_only_source",
+      label: "Manual-only source coverage",
+      applies_to_sections: ["balance_sheet", "annualized_income_long_term"],
+      state: "explicit_manual_input_required",
+    },
+  ],
+}
+
 function mockPackageApi() {
   mockedApiFetch.mockImplementation((path: string) => {
     if (path === "/api/reports/package/contract") return Promise.resolve(contract)
     if (path === "/api/reports/package/annualized-income-schedule") return Promise.resolve(annualizedSchedule)
     if (path === "/api/reports/package/notes") return Promise.resolve(packageNotes)
+    if (path === "/api/reports/package/traceability") return Promise.resolve(traceabilityAppendix)
     return Promise.reject(new Error(`Unexpected path ${path}`))
   })
 }
@@ -169,5 +226,22 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("Valuation Basis")).toBeInTheDocument()
     expect(screen.getByText("manual_valuation_snapshots")).toBeInTheDocument()
     expect(screen.getByText("This personal management report is not a regulated filing, not legal advice, and not tax advice.")).toBeInTheDocument()
+  })
+
+  it("AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata", async () => {
+    mockPackageApi()
+
+    render(<PersonalReportPackagePage />)
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/package/traceability"))
+    expect(screen.getAllByText("Traceability Appendix").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText("balance_sheet.total_assets")).toBeInTheDocument()
+    expect(screen.getByText("posted_reconciled_journal_lines_and_manual_valuations")).toBeInTheDocument()
+    expect(screen.getByText("bank_statement, manual_valuation_snapshot")).toBeInTheDocument()
+    expect(screen.getByText("posted, reconciled")).toBeInTheDocument()
+    expect(screen.getByText("trusted_or_explicit_manual_input")).toBeInTheDocument()
+    expect(screen.getByText("TRUSTED")).toBeInTheDocument()
+    expect(screen.getByText("manual_only_source")).toBeInTheDocument()
+    expect(screen.getByText("explicit_manual_input_required")).toBeInTheDocument()
   })
 })

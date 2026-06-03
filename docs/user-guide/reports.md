@@ -37,6 +37,23 @@ ESOP/RSU/stock-option manual valuation snapshots with valuation basis,
 vesting/unlock metadata, and the default net-worth treatment that excludes
 restricted holdings from liquid net worth.
 
+Notes and disclosures endpoint:
+
+```bash
+curl "https://report.zitian.party/api/reports/package/notes"
+```
+
+Traceability appendix endpoint:
+
+```bash
+curl "https://report.zitian.party/api/reports/package/traceability"
+```
+
+The traceability appendix maps package lines to source anchors, ledger anchors,
+review state, confidence tier, and completeness warnings. Trusted totals must
+carry source and ledger anchors, while explicit manual inputs and non-ledger
+disclosures must say why ledger anchoring is not applicable.
+
 ### Balance Sheet
 
 Shows your financial position at a point in time:
