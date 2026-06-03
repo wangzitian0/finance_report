@@ -15,8 +15,7 @@ const buttonClasses: Record<ButtonVariant, string> = {
   primary: "btn-primary",
   secondary: "btn-secondary",
   ghost: "btn-ghost",
-  danger:
-    "px-4 py-2 rounded-md bg-[var(--error)] text-white font-medium hover:bg-[var(--error)]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+  danger: "btn-danger",
 };
 
 export function Button({
@@ -60,7 +59,7 @@ export function IconButton({
   );
 }
 
-type BadgeVariant = "primary" | "success" | "warning" | "error" | "muted";
+export type BadgeVariant = "primary" | "success" | "warning" | "error" | "info" | "muted";
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
@@ -71,6 +70,7 @@ const badgeClasses: Record<BadgeVariant, string> = {
   success: "badge-success",
   warning: "badge-warning",
   error: "badge-error",
+  info: "badge-info",
   muted: "badge-muted",
 };
 

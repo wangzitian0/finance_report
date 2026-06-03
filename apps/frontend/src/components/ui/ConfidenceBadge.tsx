@@ -1,16 +1,18 @@
 import type { HTMLAttributes } from "react";
 
+import { Badge, type BadgeVariant } from "@/components/ui";
+
 export type ConfidenceTier = "TRUSTED" | "HIGH" | "MEDIUM" | "LOW";
 
 interface ConfidenceBadgeProps extends Pick<HTMLAttributes<HTMLSpanElement>, "className"> {
   tier: ConfidenceTier;
 }
 
-const TIER_STYLES: Record<ConfidenceTier, string> = {
-  TRUSTED: "bg-green-100 text-green-800",
-  HIGH: "bg-blue-100 text-blue-800",
-  MEDIUM: "bg-amber-100 text-amber-800",
-  LOW: "bg-gray-100 text-gray-700",
+const TIER_VARIANTS: Record<ConfidenceTier, BadgeVariant> = {
+  TRUSTED: "success",
+  HIGH: "info",
+  MEDIUM: "warning",
+  LOW: "muted",
 };
 
 const TOOLTIP =
@@ -18,11 +20,12 @@ const TOOLTIP =
 
 export default function ConfidenceBadge({ tier, className }: ConfidenceBadgeProps) {
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${TIER_STYLES[tier]} ${className ?? ""}`}
+    <Badge
+      variant={TIER_VARIANTS[tier]}
+      className={`rounded-pill font-semibold ${className ?? ""}`}
       title={TOOLTIP}
     >
       {tier}
-    </span>
+    </Badge>
   );
 }

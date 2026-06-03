@@ -30,6 +30,9 @@ The app uses a **left sidebar tabbed workspace** layout (similar to Dokploy/Arc)
 - **UI primitives** - Shared controls and states exported from `src/components/ui`
   (`Button`, `IconButton`, `Badge`, `Alert`, `EmptyState`, `LoadingState`,
   `PageHeader`)
+- **Design tokens** - CSS-variable theme values are mapped through
+  `tailwind.config.ts` for semantic surface, content, accent, status, chart,
+  radius, elevation, layer, motion, spacing, and typography classes
 
 ## Key Pages
 

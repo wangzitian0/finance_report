@@ -39,15 +39,80 @@ We use CSS variables for theming to avoid flash of unstyled content (FOUC) and s
 Always use CSS variables instead of hardcoded hex values or Tailwind utilities that don't map to variables.
 ```css
 /* Good */
-bg-[var(--background-card)]
-text-[var(--muted-foreground)]
+bg-surface-card
+text-content-muted
 
 /* Avoid */
 bg-white
 text-gray-500
 ```
 
-## 4. UI Primitives
+## 4. Design Tokens
+
+The frontend token contract is defined in two layers:
+
+- `apps/frontend/src/app/globals.css` owns the CSS variables for light and dark
+  themes.
+- `apps/frontend/tailwind.config.ts` maps those variables into Tailwind token
+  names so components can use semantic classes instead of hardcoded palette
+  utilities.
+
+### Token Families
+
+- **Surface and content colors**: `surface`, `surface-card`, `surface-muted`,
+  `content`, `content-muted`, and `content-inverse`.
+- **Action colors**: `accent`, `accent-hover`, and `accent-muted`.
+- **Status colors**: `status-success`, `status-warning`, `status-error`, and
+  `status-info`, each with a muted background token.
+- **Chart colors**: `chart-1` through `chart-5`, plus `chart-trend-start` and
+  `chart-trend-end`.
+- **Typography**: `text-caption`, `text-body`, and `text-title` are the
+  application scale for dense operational surfaces.
+- **Spacing**: `page`, `panel`, and `control` tokens define recurring layout
+  rhythm.
+- **Radius**: `rounded-control`, `rounded-panel`, and `rounded-pill` are the
+  supported control, card/panel, and pill shapes.
+- **Elevation**: `shadow-card`, `shadow-floating`, and `shadow-focus`.
+- **Layers**: `z-drawer`, `z-overlay`, `z-modal`, and `z-toast`.
+- **Motion**: `duration-fast`, `duration-standard`, `duration-slow`,
+  `ease-standard`, and `ease-emphasized`.
+
+### Rules
+
+- Prefer Tailwind token classes such as `bg-surface-card`, `text-content-muted`,
+  `bg-status-success-muted`, and `rounded-control` over fixed palette classes
+  such as `bg-green-100`, `text-gray-700`, or `rounded-xl`.
+- Use semantic primitives (`Badge`, `Alert`, `Button`, `IconButton`) before
+  adding one-off status recipes in pages.
+- Status and confidence UI must use `badge-*`, `alert-*`, or another
+  token-backed primitive class so light and dark themes share the same contract.
+- New chart components must consume the `chart-*` palette instead of choosing
+  local hues.
+- New overlay/modal/sheet surfaces should use the layer tokens rather than local
+  z-index numbers.
+
+### Page-Local Visual Decisions
+
+- Login uses the accent gradient for the primary submit action because it is the
+  only public entry surface and intentionally has a stronger brand cue than the
+  authenticated application shell. The gradient endpoints still come from
+  `--accent` and `--accent-hover`.
+- Dashboard cards and chart panels use the shared `card` class, tokenized
+  radius, and `shadow-card`. Metric labels may keep uppercase caption treatment
+  for scanability, but color, elevation, and radius must remain token-backed.
+- Modal and sheet backdrops may use the shared overlay token because they need
+  predictable contrast across light and dark themes.
+- Any future page-local gradient, shadow, or radius choice must be documented in
+  this section or replaced with an existing token.
+
+### Applied In
+
+- `tailwind.config.ts`
+- `app/globals.css`
+- `components/ui/ConfidenceBadge.tsx`
+- `src/__tests__/designTokens.test.tsx`
+
+## 5. UI Primitives
 
 Frontend application controls use a small React primitive layer in
 `apps/frontend/src/components/ui/index.tsx`. New page code should prefer these
@@ -72,8 +137,8 @@ primitives over repeating page-local class recipes.
   surfaces before adding page-local markup.
 - Use `framed={false}` for states rendered inside an existing card so the UI
   does not create nested cards.
-- Preserve existing CSS variable usage. The primitive layer does not replace the
-  design-token follow-up tracked by issue #613.
+- Preserve the design-token contract. Primitive variants should map to token
+  classes rather than hardcoded palette utilities.
 - Component tests must reference the owning AC IDs when primitives gain new
   behavior or variants.
 
@@ -85,7 +150,7 @@ primitives over repeating page-local class recipes.
 - `src/__tests__/accountsPage.test.tsx`
 - `src/__tests__/statementsPage.test.tsx`
 
-## 5. API Integration
+## 6. API Integration
 
 All API calls must go through the centralized `apiFetch` or `apiUpload` utility in `lib/api.ts`.
 
@@ -94,7 +159,7 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
 - **Authorization**: The utility automatically injects the `Bearer <token>` header from local storage.
 - **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
 
-## 6. Monetary Amounts
+## 7. Monetary Amounts
 
 Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/currency.ts`.
 
@@ -104,7 +169,7 @@ Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/
 - Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons.
 - Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
 
-## 7. Responsive Navigation
+## 8. Responsive Navigation
 
 Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as the route source of truth.
 
@@ -114,7 +179,7 @@ Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as
 - Mobile must not render desktop workspace tabs; phone navigation uses the drawer only.
 - Do not create separate reduced mobile menus that hide core routes.
 
-## 8. Mobile Review Surfaces
+## 9. Mobile Review Surfaces
 
 Review and journal workflows must be usable at phone widths without relying on
 document-level horizontal scrolling.
@@ -145,7 +210,7 @@ document-level horizontal scrolling.
 - `components/journal/JournalEntryDetailsModal.tsx`
 - `playwright/mobile-ux.spec.ts`
 
-## 9. App Metadata & PWA Head Tags
+## 10. App Metadata & PWA Head Tags
 
 Root app metadata lives in `app/layout.tsx`.
 
@@ -155,13 +220,13 @@ Root app metadata lives in `app/layout.tsx`.
 - Use `appleWebApp` for iOS web-app capability metadata; do not duplicate
   `apple-mobile-web-app-capable` in `metadata.other`.
 
-## 10. Security & Authentication
+## 11. Security & Authentication
 
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
 - **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
 - **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
 
-## 11. Shared Types
+## 12. Shared Types
 
 To avoid duplication, shared interfaces are defined in `src/lib/types.ts`.
 
@@ -179,7 +244,7 @@ import { Account, AccountListResponse } from "@/lib/types";
 // components/accounts/AccountFormModal.tsx
 ```
 
-## 12. Brokerage Import Completion Path
+## 13. Brokerage Import Completion Path
 
 After a brokerage PDF is uploaded and parsed, users must be able to see the import status and navigate to their portfolio.
 
@@ -210,7 +275,7 @@ Upload PDF → Parsing (polling) → parsed/approved status
 - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5
 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
 
-## 13. Dashboard First-Run Onboarding
+## 14. Dashboard First-Run Onboarding
 
 The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
 

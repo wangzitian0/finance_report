@@ -801,6 +801,20 @@ and visual-regression follow-ups to issues #613 and #614.
 - [x] **AC16.28.3** At least two representative frontend pages are migrated to the primitive layer without changing their existing workflows or API calls
 - [x] **AC16.28.4** Primitive component tests cover variants, accessibility-facing props, and the migrated loading/error/empty states
 
+### Acceptance Criteria — Feature (group 29, frontend design tokens)
+
+Issue [#613](https://github.com/wangzitian0/finance_report/issues/613)
+tracks the second frontend UI-system hardening slice. It expands the existing
+CSS-variable theme into an explicit design-token contract so authenticated
+review, account, report, and AI surfaces can share semantic colors, spacing,
+radius, elevation, z-index, motion, and chart palette decisions without
+hardcoded Tailwind palette drift.
+
+- [x] **AC16.29.1** Tailwind theme extension maps frontend CSS-variable tokens for semantic color, radius, shadow/elevation, z-index, motion, typography, and chart palette usage
+- [x] **AC16.29.2** Frontend CSS and SSOT document the design-token model, including token usage rules and intentional page-local visual choices such as login/dashboard gradients, shadows, and radius
+- [x] **AC16.29.3** Confidence and status UI components use semantic token-backed primitives instead of hardcoded Tailwind palette utilities across all confidence/status variants
+- [x] **AC16.29.4** Frontend tests cover the token configuration contract and at least one tokenized semantic component across multiple variants
+
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 
 - [x] **AC16.11.32** Vitest harness for Stage 1 split components — shared `renderReviewComponent()` helper in `apps/frontend/src/__tests__/helpers/`
