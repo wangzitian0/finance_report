@@ -148,6 +148,14 @@ concepts:
       - docs/ssot/reconciliation.md
       - docs/ssot/processing_account.md
 
+  workflow_events:
+    owner: docs/ssot/workflow-events.md
+    description: User-facing upload-to-report workflow event read model.
+    cross_refs:
+      - docs/project/EPIC-019.event-driven-upload-to-report-ux.md
+      - docs/ssot/confirmation-workflow.md
+      - docs/ssot/reporting.md
+
   # ── Observability ──────────────────────────────────────────────────────
   observability_logging:
     owner: docs/ssot/observability.md

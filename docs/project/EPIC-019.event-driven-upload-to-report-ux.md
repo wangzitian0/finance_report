@@ -286,6 +286,18 @@ users and debugging workflows still have full access to accounting details.
 This order avoids a cosmetic navigation reshuffle before the underlying
 workflow state exists.
 
+## Acceptance Criteria
+
+### AC19.1 — Product Workflow Event Model
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.1.1 | Workflow event SSOT defines event families, severity/actionability, lifecycle states, dedupe rules, internal action links, indexes, and relationship to audit logs | `test_AC19_1_1_workflow_event_ssot_registers_manifest_owner` | P0 |
+| AC19.1.2 | Backend model defines a user-scoped `workflow_events` read model with explicit enum names, lifecycle status, `UNIQUE(user_id, dedupe_key)`, and badge/inbox read indexes | `test_AC19_1_2_workflow_event_model_contract` | P0 |
+| AC19.1.3 | Pydantic schemas validate the workflow event contract and reject external `action_href` values | `test_AC19_1_3_workflow_event_schema_rejects_external_action_href` | P0 |
+| AC19.1.4 | Workflow event service deterministically upserts a derived event from existing statement/upload state without duplicating on rerun | `test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic` | P0 |
+| AC19.1.5 | Workflow event reads and lifecycle changes are user isolated | `test_AC19_1_5_workflow_event_lifecycle_is_user_isolated` | P0 |
+
 ## How To Build It
 
 ### Backend

@@ -96,6 +96,12 @@ from src.schemas.user import (
     UserResponse,
     UserUpdate,
 )
+from src.schemas.workflow import (
+    WorkflowEventCreate,
+    WorkflowEventResponse,
+    WorkflowEventStatusUpdate,
+    WorkflowReportImpact,
+)
 
 from .extraction import (
     BankStatementListResponse,
@@ -205,4 +211,8 @@ __all__ = [
     "UserResponse",
     "UserUpdate",
     "VoidJournalEntryRequest",
+    "WorkflowEventCreate",
+    "WorkflowEventResponse",
+    "WorkflowEventStatusUpdate",
+    "WorkflowReportImpact",
 ]

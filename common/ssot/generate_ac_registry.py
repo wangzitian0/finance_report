@@ -26,7 +26,7 @@ OUTPUT_INFRA = "docs/infra_registry.yaml"
 OUTPUT = OUTPUT_FEATURE
 
 # EPIC classification: which EPICs are feature vs infra
-FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18}
+FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19}
 INFRA_EPICS = {7, 9, 10, 12, 14}
 
 # EPIC-016 sub-classification: these AC16.XX.x groups route to infra
@@ -51,6 +51,7 @@ EPIC_NAMES: dict[int, str] = {
     16: "two-stage-review-ui",
     17: "portfolio-management",
     18: "ai-driven-pipeline",
+    19: "event-driven-upload-to-report-ux",
 }
 
 
@@ -90,7 +91,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str] | None:
         if not match:
             return None
         desc = _clean_description(cells[1] if len(cells) > 1 else "")
-        return match.group(1), int(match.group(2)), desc[:120]
+        return match.group(1), int(match.group(2)), desc
 
     match = re.match(
         r"^(?:[-*]\s*)?(?:\*\*)?(AC(\d+)\.(\d+)\.(\d+))(?:\*\*)?\s*[:|-]\s*(.+)$",
@@ -102,7 +103,7 @@ def _extract_ac_definition(line: str) -> tuple[str, int, str] | None:
     ac_id = match.group(1)
     ac_epic = int(match.group(2))
     desc = _clean_description(match.group(5))
-    return ac_id, ac_epic, desc[:120]
+    return ac_id, ac_epic, desc
 
 
 def _require_yaml() -> None:
