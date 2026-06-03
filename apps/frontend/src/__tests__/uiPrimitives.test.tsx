@@ -28,7 +28,7 @@ describe("UI primitives", () => {
     expect(screen.getByRole("button", { name: "Create" })).toHaveClass("btn-primary")
     expect(screen.getByRole("button", { name: "Cancel" })).toHaveClass("btn-secondary")
     expect(screen.getByRole("button", { name: "Quiet" })).toHaveClass("btn-ghost")
-    expect(screen.getByRole("button", { name: "Delete" })).toHaveClass("bg-[var(--error)]")
+    expect(screen.getByRole("button", { name: "Delete" })).toHaveClass("btn-danger")
     expect(screen.getByText("Posted")).toHaveClass("badge-success")
   })
 
