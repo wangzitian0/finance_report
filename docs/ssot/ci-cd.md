@@ -12,10 +12,14 @@
 The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job dependency order:
 
 ```
-changes (classify-changes) → backend-integration + backend-e2e-tier1 → backend shards + frontend → unified-coverage → finish
-               ↘ tooling-coverage ───────────────────────────────────────────↗
-               ↘ lint ───────────────────────────────────────────────────────↗
-               ↘ ac-traceability ────────────────────────────────────────────↗
+changes (classify-changes) → backend shards ───────┐
+               ↘ frontend ─────────────────────────┼→ unified-coverage → finish
+               ↘ tooling-coverage ─────────────────┘                      ↑
+               ↘ backend-integration ──────────────────────────────────────┤
+               ↘ backend-e2e-tier1 ────────────────────────────────────────┤
+               ↘ container-images ─────────────────────────────────────────┤
+               ↘ lint ─────────────────────────────────────────────────────┤
+               ↘ ac-traceability ──────────────────────────────────────────┘
 ```
 
 ### Job Details
@@ -24,11 +28,11 @@ changes (classify-changes) → backend-integration + backend-e2e-tier1 → backe
 |-----|---------|--------------|
 | **changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
 | **lint** | Static analysis (backend `src tests` ruff check + format check, frontend lint) + manifest/doc/CI metrics contract checks | None (first job) |
-| **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes, backend-integration, backend-e2e-tier1]` |
+| **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
 | **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override | `needs: [changes]` |
-| **frontend** | Frontend build + Vitest + Playwright tests when heavy CI is required | `needs: [changes, backend-integration, backend-e2e-tier1]` |
-| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes, backend-integration, backend-e2e-tier1]` |
+| **frontend** | Frontend build + Vitest + Playwright tests when heavy CI is required | `needs: [changes]` |
+| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes]` |
 | **tooling-coverage** | Run root tooling tests with common/tools coverage and upload LCOV inputs | `needs: [changes]` |
 | **unified-coverage** | Merge backend, frontend, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, update Coveralls when heavy CI is required | `needs: [changes, backend, frontend, tooling-coverage]` |
 | **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | None |
@@ -40,7 +44,7 @@ changes (classify-changes) → backend-integration + backend-e2e-tier1 → backe
 2. **Change Classification**: Lightweight documentation, issue-template, markdown, and `.github/workflows/docs.yml` changes skip backend, frontend, and unified coverage. Runtime, test, tooling, CI, dependency, and coverage-policy changes run the full heavy path.
 3. **Stable Required Checks**: Heavy jobs are skipped through job-level conditions rather than removing the workflow, so required check names remain visible and mergeable.
 4. **AC Traceability Always Runs**: AC traceability is separate from unified coverage so docs-only AC/EPIC changes still get traceability validation. The job first runs `tools/generate_ac_registry.py --check` to ensure EPIC-defined ACs are registered without rewriting historical registry descriptions, then runs `tools/check_ac_traceability.py` as the fail-closed gate, then runs `tools/check_e2e_epic_traceability.py` to ensure product E2E root test functions carry function-level EPIC IDs, every project EPIC has product E2E ownership, the README EPIC map matches project EPIC files, and unclassified E2E-like assets outside declared roots fail CI, then runs `tools/check_critical_proof_matrix.py` to validate the small core proof matrix, then generates `AC-TEST-TRACEABILITY-AUDIT.md` into `$RUNNER_TEMP`; the audit is uploaded as a CI artifact together with the critical proof matrix report. The audit distinguishes CI-executed real test references from `_ac_stubs`, trivial placeholder assertions, pure `pass`, pure skipped tests, and real references that live only in non-required execution stages. `docs/ssot/test-execution-matrix.yaml` owns the path-to-stage mapping. CI fails on mandatory AC coverage that is missing, placeholder-only, stub-only, or real-only outside CI-required stages; full-strikethrough deprecated ACs are excluded from the mandatory gate. The macro gate fails README/matrix/owner-EPIC drift, E2E/EPIC ownership drift, and broad/reference-only critical proof anchors. The generated audit is uploaded as a CI artifact; checked-in archive copies were retired to reduce merge conflicts.
-5. **Backend stages are explicit and split**: Backend fast-path remains shard stage (`backend`) with `-m "not slow and not e2e and not integration"`. Integration (`backend-integration`) and API E2E (`backend-e2e-tier1`) are explicit behavior-only jobs and run before the heavier shard/frontend/image stages.
+5. **Backend stages are explicit and split**: Backend fast-path remains shard stage (`backend`) with `-m "not slow and not e2e and not integration"`. Fast feedback jobs start after `changes` only: backend shards, frontend build/test, image build validation, tooling coverage, lint, and AC traceability run in parallel with lint and do not wait for behavior-only backend gates. Behavior-only backend gates run in parallel as explicit `backend-integration` and `backend-e2e-tier1` stages and are aggregated by `finish`.
 6. **Coverage Debug Context Is Always Uploaded**: The `tooling-coverage` job uploads `coverage-tooling` with `coverage/common.lcov` and `coverage/tools.lcov`; the `unified-coverage` job downloads that artifact and uploads `unified-coverage-context` on success and failure. The unified artifact contains `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov`, the current `unified-coverage.json`, and `coverage/coverage-context.txt` with raw line-count inputs, commit/event/run metadata, toolchain versions, and input hashes. Coverage regressions must be diagnosed from these artifacts before treating a percentage delta as nondeterminism.
 7. **CI Observability Artifacts Are Failure-Path Owned**: Backend shard, backend integration, backend Tier-1 E2E, frontend Vitest, frontend Playwright, tooling/common coverage, AC traceability, PR preview, staging, manual AI/OCR, production release, and scheduled cleanup gates publish CI observability artifacts with `if: always()`. These artifacts include JUnit XML where pytest or Vitest/Playwright can produce it, raw coverage/report inputs where relevant, and a small context file with repository/event/ref/SHA/run metadata plus target environment/version fields. Step summaries remain human-readable status pages; artifacts are the replayable evidence for both success and failure.
 8. **Coveralls Is Main-Only Reporting**: Pull requests do not call Coveralls and therefore do not publish external Coveralls status contexts. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/calculate_unified_coverage.py`) aggregated by `finish`. Main pushes upload only the unified line-only LCOV report to Coveralls for badge and trend reporting after the local coverage gate passes. Backend/frontend per-flag Coveralls uploads are intentionally absent so a single commit has one reporting denominator.
@@ -55,7 +59,7 @@ changes (classify-changes) → backend-integration + backend-e2e-tier1 → backe
 
 | Stage | Current execution | Scope in CI | Coverage effect | Left-move action |
 |---|---|---|---|---|
-| Unit (fast/shard) | `backend` job, 6 shards after integration/Tier-1 gates pass | `-m "not slow and not e2e and not integration"` | Feeds unified line coverage (backend component) | Keep as deterministic base and expand shards if needed |
+| Unit (fast/shard) | `backend` job, 6 shards immediately after change classification | `-m "not slow and not e2e and not integration"` | Feeds unified line coverage (backend component) | Keep as deterministic base and expand shards if needed |
 | Integration (backend marker) | `backend-integration` job (`-m "integration"`) | `apps/backend/tests/**/*` marker-scoped integration suites with service-backed env | Not part of unified line baseline yet | Add sharding when count growth justifies it; keep explicit marker gate in CI |
 | Tooling/common contracts | `tooling-coverage` job | `tests/tooling/` with `--cov=common --cov=tools` | Feeds unified line coverage (common/tools components) | Keep parallel to app tests so tooling failures and LCOV inputs are independently visible |
 | Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
@@ -176,7 +180,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes. App test-only and app Markdown changes still run CI and AC gates without consuming a Dokploy preview slot.
 - Automatic staging deploys are scoped to runtime app, deploy, root E2E, dependency, Dockerfile/config, staging workflow, toolchain, or infra-submodule changes. App test-only changes, documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or tooling documentation changes from being hidden by a global `*.md` skip.
-- Backend shards and AC traceability run in parallel with lint once change classification has finished, so lint remains visible without delaying independent test work.
+- Backend shards, frontend build/test, image build validation, tooling coverage, integration, Tier-1 API E2E, lint, and AC traceability run in parallel once change classification has finished. Left-side deterministic failures are visible without waiting for behavior-only backend gates.
 - 6-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 6 --group N`
 - Tooling/common coverage runs in parallel as `tooling-coverage`; `unified-coverage` downloads `coverage-tooling` and merges backend, frontend, common, and tools LCOV inputs post-run.

@@ -123,6 +123,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.83**: Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs.
 - **AC8.13.84**: Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline.
 - **AC8.13.85**: Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix.
+- **AC8.13.86**: CI fast feedback jobs start after change classification without waiting for behavior-only backend gates.
 
 ### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
 
