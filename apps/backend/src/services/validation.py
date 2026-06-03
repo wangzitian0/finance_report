@@ -212,7 +212,7 @@ def route_by_threshold(score: int, balance_valid: bool) -> BankStatementStatus:
     if not balance_valid:
         return BankStatementStatus.UPLOADED
     if score >= 85:
-        return BankStatementStatus.PARSED
+        return BankStatementStatus.APPROVED
     if score >= 60:
         return BankStatementStatus.PARSED
     return BankStatementStatus.UPLOADED

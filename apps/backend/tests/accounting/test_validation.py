@@ -57,7 +57,7 @@ def test_compute_confidence_score_with_missing_fields():
 
 def test_route_by_threshold():
     """Routing uses thresholds and balance validity."""
-    assert route_by_threshold(90, True) == BankStatementStatus.PARSED
+    assert route_by_threshold(90, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(70, True) == BankStatementStatus.PARSED
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED
     assert route_by_threshold(90, False) == BankStatementStatus.UPLOADED

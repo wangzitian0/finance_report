@@ -408,7 +408,7 @@ class TestConfidenceRouting:
     def test_high_confidence_auto_accept(self):
         """Confidence >= 85 with valid balance should auto-accept."""
         status = route_by_threshold(90, balance_valid=True)
-        assert status == BankStatementStatus.PARSED
+        assert status == BankStatementStatus.APPROVED
 
     def test_medium_confidence_review(self):
         """Confidence 60-84 should require review."""

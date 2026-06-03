@@ -701,6 +701,16 @@ groups:
         epic_name: statement-parsing
         description: Explicit First-Upload Account Creation
         mandatory: true
+      - id: AC3.6.5
+        epic: 3
+        epic_name: statement-parsing
+        description: Prior Mapping Requires Confirmed Statement
+        mandatory: true
+      - id: AC3.6.6
+        epic: 3
+        epic_name: statement-parsing
+        description: Source Period Unique Before Posting
+        mandatory: true
     AC3.7:
       - id: AC3.7.1
         epic: 3

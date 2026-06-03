@@ -12,6 +12,14 @@ from src.models.statement import Stage1Status
 BALANCE_TOLERANCE = Decimal("0.001")
 
 
+def pending_stage1_review_filter():
+    """Return the shared Stage 1 pending-review predicate for PARSED statements."""
+    return or_(
+        BankStatement.stage1_status == Stage1Status.PENDING_REVIEW,
+        BankStatement.stage1_status.is_(None),
+    )
+
+
 async def validate_balance_chain(
     db: AsyncSession,
     statement_id: UUID,
@@ -192,7 +200,7 @@ async def get_pending_stage1_review(
         select(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.PARSED)
-        .where(or_(BankStatement.stage1_status.is_(None), BankStatement.stage1_status == Stage1Status.PENDING_REVIEW))
+        .where(pending_stage1_review_filter())
         .order_by(BankStatement.created_at.desc())
         .limit(limit)
         .offset(offset)
