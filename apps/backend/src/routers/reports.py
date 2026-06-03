@@ -363,6 +363,7 @@ async def balance_sheet(
             error=str(exc),
         )
         raise_bad_request(str(exc), cause=exc)
+    await db.commit()
     return BalanceSheetResponse(**report)
 
 
@@ -397,6 +398,7 @@ async def income_statement(
             error=str(exc),
         )
         raise_bad_request(str(exc), cause=exc)
+    await db.commit()
     return IncomeStatementResponse(**report)
 
 
@@ -427,6 +429,7 @@ async def cash_flow(
             error=str(exc),
         )
         raise_bad_request(str(exc), cause=exc)
+    await db.commit()
     return CashFlowResponse(**report)
 
 
@@ -457,6 +460,7 @@ async def account_trend(
             error=str(exc),
         )
         raise_bad_request(str(exc), cause=exc)
+    await db.commit()
     return AccountTrendResponse(**report)
 
 
@@ -490,6 +494,7 @@ async def net_worth_timeseries(
             error=str(exc),
         )
         raise_bad_request(str(exc), cause=exc)
+    await db.commit()
     return NetWorthTimeSeriesResponse(**report)
 
 
@@ -521,6 +526,7 @@ async def category_breakdown(
             error=str(exc),
         )
         raise_bad_request(str(exc), cause=exc)
+    await db.commit()
     return CategoryBreakdownResponse(**report)
 
 
@@ -590,6 +596,7 @@ async def export_report(
         )
         raise_bad_request(str(exc), cause=exc)
 
+    await db.commit()
     content = output.getvalue()
     output.close()
     return StreamingResponse(

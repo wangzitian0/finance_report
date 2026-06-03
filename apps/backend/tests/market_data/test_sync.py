@@ -663,7 +663,7 @@ async def test_persist_stock_price_reraises_integrity_error_without_concurrent_r
         def add(self, _row: object) -> None:
             return None
 
-        async def commit(self) -> None:
+        async def flush(self) -> None:
             raise IntegrityError("insert", {}, Exception("duplicate"))
 
         async def rollback(self) -> None:
@@ -698,14 +698,14 @@ async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.M
         updated_at = datetime(2026, 1, 4, tzinfo=UTC)
 
     class FakeDb:
-        commits = 0
+        flushes = 0
 
         def add(self, _row: object) -> None:
             return None
 
-        async def commit(self) -> None:
-            self.commits += 1
-            if self.commits == 1:
+        async def flush(self) -> None:
+            self.flushes += 1
+            if self.flushes == 1:
                 raise IntegrityError("insert", {}, Exception("duplicate"))
 
         async def rollback(self) -> None:
@@ -732,7 +732,7 @@ async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.M
         now=observed_now,
     )
 
-    assert db.commits == 2
+    assert db.flushes == 2
     assert state.last_success_at == observed_now
     assert state.last_success_date == date(2026, 1, 6)
 

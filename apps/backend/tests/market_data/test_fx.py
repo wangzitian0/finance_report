@@ -227,7 +227,7 @@ async def test_persist_fx_rate_handles_concurrent_insert():
         def add(self, value):
             self.added = value
 
-        async def commit(self):
+        async def flush(self):
             raise IntegrityError("insert fx", {}, Exception("duplicate"))
 
         async def rollback(self):
@@ -266,7 +266,7 @@ async def test_persist_fx_rate_reraises_integrity_error_without_concurrent_rate(
         def add(self, _value):
             return None
 
-        async def commit(self):
+        async def flush(self):
             raise IntegrityError("insert fx", {}, Exception("duplicate"))
 
         async def rollback(self):

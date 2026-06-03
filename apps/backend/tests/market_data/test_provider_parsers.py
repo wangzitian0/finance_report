@@ -269,7 +269,7 @@ async def test_persist_stock_price_returns_concurrent_row_after_integrity_error(
         def add(self, _row: object) -> None:
             return None
 
-        async def commit(self) -> None:
+        async def flush(self) -> None:
             raise IntegrityError("insert", {}, Exception("duplicate"))
 
         async def rollback(self) -> None:

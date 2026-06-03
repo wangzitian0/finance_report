@@ -471,7 +471,7 @@ async def _persist_fx_rate(db: AsyncSession, observation: FxRateObservation) -> 
         )
     )
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError:
         await db.rollback()
         concurrent = await _load_stored_rate_on_date(db, base, quote, observation.rate_date)
@@ -671,7 +671,7 @@ async def _upsert_sync_state(
         state.last_observation_date = last_observation_date
         state.updated_at = observed_now
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError:
         await db.rollback()
         concurrent = await _load_sync_state(db, kind, scope)
@@ -681,7 +681,7 @@ async def _upsert_sync_state(
         concurrent.last_success_date = last_success_date
         concurrent.last_observation_date = last_observation_date
         concurrent.updated_at = observed_now
-        await db.commit()
+        await db.flush()
 
 
 async def _persist_stock_price(db: AsyncSession, observation: StockPriceObservation) -> Decimal:
@@ -703,7 +703,7 @@ async def _persist_stock_price(db: AsyncSession, observation: StockPriceObservat
         )
     )
     try:
-        await db.commit()
+        await db.flush()
     except IntegrityError:
         await db.rollback()
         concurrent = await _load_stored_stock_price_on_date(db, symbol, observation.price_date)

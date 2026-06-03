@@ -871,6 +871,24 @@ groups:
         epic_name: foundation-libs
         description: UUID auto-serialization structlog processor remains EPIC-012 P2 backlog until implemented
         mandatory: true
+    AC12.26:
+      - id: AC12.26.1
+        epic: 12
+        epic_name: foundation-libs
+        description: Service modules only call commit() in documented background-task or streaming-response transaction-boundary
+          exceptions
+        mandatory: true
+      - id: AC12.26.2
+        epic: 12
+        epic_name: foundation-libs
+        description: Market-data persistence helpers use flush() so router/report/scheduler boundaries can roll back or commit
+          atomically
+        mandatory: true
+      - id: AC12.26.3
+        epic: 12
+        epic_name: foundation-libs
+        description: Market-data HTTP sync endpoints finalize service writes at the router boundary
+        mandatory: true
   AC14:
     AC14.1:
       - id: AC14.1.1

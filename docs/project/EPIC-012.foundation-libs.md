@@ -318,13 +318,21 @@ This EPIC addresses technical debt in the foundational libraries that all module
 |----|-----------|---------------|------|----------|
 | AC12.25.1 | UUID auto-serialization structlog processor remains EPIC-012 P2 backlog until implemented | `test_AC12_25_1_uuid_logging_residual_is_epic_owned` | `tests/tooling/test_archive_residual_epic_ownership.py` | P2 |
 
+### AC12.26: Transaction Boundary Ownership
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.26.1 | Service modules only call `commit()` in documented background-task or streaming-response transaction-boundary exceptions | `test_service_commit_calls_are_documented_boundary_exceptions` | `infra/test_transaction_boundaries.py` | P0 |
+| AC12.26.2 | Market-data persistence helpers use `flush()` so router/report/scheduler boundaries can roll back or commit atomically | `test_market_data_fx_persistence_is_rollbackable_until_boundary_commit` | `infra/test_transaction_boundaries.py` | P0 |
+| AC12.26.3 | Market-data HTTP sync endpoints finalize service writes at the router boundary | `test_market_data_sync_endpoint_commits_service_writes_at_router_boundary` | `infra/test_transaction_boundaries.py` | P0 |
+
 ## 📊 Progress Tracking
 
 | Phase | Task | Status | PR |
 |-------|------|--------|-----|
 | 0 | Audit & Documentation | ✅ Complete | This EPIC |
 | 1 | Distributed Tracing (H1) | ✅ Complete | Pending |
-| 2 | Transaction Boundaries (H2) | ⏳ Pending | - |
+| 2 | Transaction Boundaries (H2) | ⏳ In progress | AC12.26 |
 | 3 | Connection Pool Config (M1) | ✅ Complete | This PR |
 | 4 | Exception Hierarchy (M2) | ✅ Complete | This PR |
 | 5 | Rate Limiting (M3) | ✅ Complete | This PR |
