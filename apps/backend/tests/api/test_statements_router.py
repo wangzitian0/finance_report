@@ -554,7 +554,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
 
 async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC3.5.10: Review queue filters by confidence and supports approve/reject."""
+    """AC3.5.10: Review queue includes reviewable parsed statements and supports approve/reject."""
     contents = [b"review-70", b"review-90"]
     scores = [70, 90]
     score_by_hash = {
@@ -603,12 +603,11 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     await wait_for_background_tasks()
 
     pending = await statements_router.list_pending_review(db=db, user_id=test_user.id)
-    assert pending.total == 1
-    # Pending list should contain only the lower-confidence statement.
-    assert pending.items[0].id == created_ids[0]
+    assert pending.total == 2
+    assert {item.id for item in pending.items} == set(created_ids)
 
     # Test approve
-    statement_id = pending.items[0].id
+    statement_id = created_ids[0]
 
     approved = await statements_router.approve_statement(
         statement_id=statement_id,
