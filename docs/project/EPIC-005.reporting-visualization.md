@@ -219,8 +219,24 @@ claim statutory filing compliance.
 | AC5.12.3 | Frontend personal package page renders notes and disclosure basis from the notes endpoint | `AC5.12.3 renders package notes and disclosure basis` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 | AC5.12.4 | Post-merge package proof asserts notes endpoint, required note IDs, and non-compliance wording | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
 
+### AC5.13: Personal Report Package Traceability Appendix
+
+Issue [#572](https://github.com/wangzitian0/finance_report/issues/572)
+supplies the package-specific source-ledger-report traceability appendix. The
+appendix does not replace the existing report calculations; it exposes the
+traceability anchors, explicit unavailable/not-applicable states, review state,
+confidence tier, and completeness warning taxonomy that package consumers need
+to audit each report line.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.13.1 | Package traceability endpoint returns source-to-ledger anchors per report line | `test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.13.2 | Traceability appendix exposes explicit completeness states where anchors are unavailable | `test_AC5_13_2_package_traceability_declares_completeness_warnings` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.13.3 | Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.13.4 | Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
+
 **Traceability Result**:
-- Total AC IDs: 29
+- Total AC IDs: 33
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
 - Requirements with implemented test references: 100%
 - Test files: 8
@@ -327,7 +343,8 @@ Remaining blocker breakdown after the #565 post-merge proof:
   `GET /api/reports/package/notes` without claiming regulated filing
   compliance.
 - [#572](https://github.com/wangzitian0/finance_report/issues/572) defines the
-  source-ledger-report traceability appendix for package output.
+  source-ledger-report traceability appendix for package output through
+  `GET /api/reports/package/traceability`.
 - [#573](https://github.com/wangzitian0/finance_report/issues/573) supplies the
   representative fixture contract used to expand the package E2E beyond the
   current #565 guard.
@@ -346,13 +363,13 @@ Closure status:
 4. Done: deliver the annualized income and long-term compensation schedule
    input consumed by this package (#566).
 5. Done: deliver notes/disclosures for the package output shape (#571).
-6. Deliver the traceability appendix for the package output shape (#572).
+6. Done: deliver the traceability appendix for the package output shape (#572).
 7. Build deterministic fixture coverage (#573) against the same contract and
    schedules, then extend the #565 guard as those package sections become
    report-ready.
 
-The macro outcome remains `partial` until the traceability appendix (#572) and
-representative fixture coverage (#573) close.
+The macro outcome remains `partial` until representative fixture coverage
+(#573) closes.
 
 ## 📄 Owned Documentation Surfaces
 

@@ -1281,6 +1281,27 @@ groups:
         epic_name: reporting-visualization
         description: Post-merge package proof asserts notes endpoint, required note IDs, and non-compliance wording
         mandatory: true
+    AC5.13:
+      - id: AC5.13.1
+        epic: 5
+        epic_name: reporting-visualization
+        description: Package traceability endpoint returns source-to-ledger anchors per report line
+        mandatory: true
+      - id: AC5.13.2
+        epic: 5
+        epic_name: reporting-visualization
+        description: Traceability appendix exposes explicit completeness states where anchors are unavailable
+        mandatory: true
+      - id: AC5.13.3
+        epic: 5
+        epic_name: reporting-visualization
+        description: Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix
+        mandatory: true
+      - id: AC5.13.4
+        epic: 5
+        epic_name: reporting-visualization
+        description: Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs
+        mandatory: true
   AC6:
     AC6.1:
       - id: AC6.1.1
@@ -4079,8 +4100,8 @@ groups:
       - id: AC16.29.2
         epic: 16
         epic_name: two-stage-review-ui
-        description: Frontend CSS and SSOT document the design-token model, including token usage rules and intentional
-          page-local visual choices such as login/dashboard gradients, shadows, and radius.
+        description: Frontend CSS and SSOT document the design-token model, including token usage rules and intentional page-local
+          visual choices such as login/dashboard gradients, shadows, and radius.
         mandatory: true
       - id: AC16.29.3
         epic: 16

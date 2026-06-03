@@ -38,6 +38,7 @@ from src.schemas import (
     NetWorthTimeSeriesResponse,
     PersonalReportPackageContractResponse,
     PersonalReportPackageNotesResponse,
+    PersonalReportPackageTraceabilityResponse,
     TrendPeriod,
 )
 from src.services.market_data import ensure_market_data_fresh
@@ -204,8 +205,8 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
             "owner_epic": "EPIC-018",
             "period_type": "package",
             "source_endpoint": "/api/reports/package/traceability",
-            "status": "planned",
-            "blocking_issue": "#572",
+            "status": "ready",
+            "blocking_issue": None,
             "decimal_total_fields": [],
         },
     ],
@@ -312,6 +313,221 @@ PERSONAL_REPORT_PACKAGE_NOTES: dict = {
     ],
 }
 
+PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
+    "section_id": "traceability_appendix",
+    "label": "Traceability Appendix",
+    "status": "ready",
+    "lines": [
+        {
+            "line_id": "balance_sheet.total_assets",
+            "section_id": "balance_sheet",
+            "label": "Total Assets",
+            "amount_field": "total_assets",
+            "currency_field": "currency",
+            "source_state": "posted_reconciled_journal_lines_and_manual_valuations",
+            "source_anchor": {
+                "state": "available",
+                "source_types": [
+                    "bank_statement",
+                    "brokerage_import",
+                    "manual_valuation_snapshot",
+                ],
+                "identifier_fields": [
+                    "statement_transaction_ids",
+                    "brokerage_statement_ids",
+                    "manual_valuation_snapshot_ids",
+                ],
+            },
+            "ledger_anchor": {
+                "state": "available",
+                "entry_statuses": ["posted", "reconciled"],
+                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
+            },
+            "review_state": "trusted_or_explicit_manual_input",
+            "confidence_tier": "TRUSTED",
+        },
+        {
+            "line_id": "income_statement.total_income",
+            "section_id": "income_statement",
+            "label": "Total Income",
+            "amount_field": "total_income",
+            "currency_field": "currency",
+            "source_state": "posted_reconciled_income_journal_lines",
+            "source_anchor": {
+                "state": "available",
+                "source_types": ["bank_statement", "manual_journal_entry"],
+                "identifier_fields": ["statement_transaction_ids", "journal_entry_source_ids"],
+            },
+            "ledger_anchor": {
+                "state": "available",
+                "entry_statuses": ["posted", "reconciled"],
+                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
+            },
+            "review_state": "trusted_or_reviewed",
+            "confidence_tier": "TRUSTED",
+        },
+        {
+            "line_id": "income_statement.total_expenses",
+            "section_id": "income_statement",
+            "label": "Total Expenses",
+            "amount_field": "total_expenses",
+            "currency_field": "currency",
+            "source_state": "posted_reconciled_expense_journal_lines",
+            "source_anchor": {
+                "state": "available",
+                "source_types": ["bank_statement", "manual_journal_entry"],
+                "identifier_fields": ["statement_transaction_ids", "journal_entry_source_ids"],
+            },
+            "ledger_anchor": {
+                "state": "available",
+                "entry_statuses": ["posted", "reconciled"],
+                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
+            },
+            "review_state": "trusted_or_reviewed",
+            "confidence_tier": "TRUSTED",
+        },
+        {
+            "line_id": "cash_flow.net_cash_flow",
+            "section_id": "cash_flow",
+            "label": "Net Cash Flow",
+            "amount_field": "summary.net_cash_flow",
+            "currency_field": "currency",
+            "source_state": "cash_bank_journal_lines",
+            "source_anchor": {
+                "state": "available",
+                "source_types": ["bank_statement", "manual_journal_entry"],
+                "identifier_fields": ["statement_transaction_ids", "journal_entry_source_ids"],
+            },
+            "ledger_anchor": {
+                "state": "available",
+                "entry_statuses": ["posted", "reconciled"],
+                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
+            },
+            "review_state": "trusted_or_reviewed",
+            "confidence_tier": "TRUSTED",
+        },
+        {
+            "line_id": "investment_performance.market_value",
+            "section_id": "investment_performance",
+            "label": "Investment Market Value",
+            "amount_field": "holdings.market_value",
+            "currency_field": "currency",
+            "source_state": "brokerage_imports_market_data_and_ledger_cost_basis",
+            "source_anchor": {
+                "state": "available",
+                "source_types": ["brokerage_import", "market_data_price", "journal_entry"],
+                "identifier_fields": ["brokerage_statement_ids", "price_source_ids", "ledger_entry_ids"],
+            },
+            "ledger_anchor": {
+                "state": "available",
+                "entry_statuses": ["posted", "reconciled"],
+                "identifier_fields": ["ledger_entry_ids", "journal_line_ids"],
+            },
+            "review_state": "market_data_fresh_or_disclosed_stale",
+            "confidence_tier": "HIGH",
+        },
+        {
+            "line_id": "annualized_income_long_term.annualized_total",
+            "section_id": "annualized_income_long_term",
+            "label": "Annualized Total Income",
+            "amount_field": "income.annualized_total",
+            "currency_field": "income.currency",
+            "source_state": "posted_reconciled_income_journal_lines_trailing_12_months",
+            "source_anchor": {
+                "state": "available",
+                "source_types": ["bank_statement", "manual_journal_entry"],
+                "identifier_fields": ["journal_entry_source_ids", "statement_transaction_ids"],
+            },
+            "ledger_anchor": {
+                "state": "available",
+                "entry_statuses": ["posted", "reconciled"],
+                "identifier_fields": ["journal_entry_ids", "journal_line_ids"],
+            },
+            "review_state": "trusted_or_reviewed",
+            "confidence_tier": "TRUSTED",
+        },
+        {
+            "line_id": "annualized_income_long_term.restricted_fair_value_total",
+            "section_id": "annualized_income_long_term",
+            "label": "Restricted Fair Value Total",
+            "amount_field": "restricted_fair_value_total",
+            "currency_field": "restricted_fair_value_total_currency",
+            "source_state": "manual_valuation_snapshots",
+            "source_anchor": {
+                "state": "available",
+                "source_types": ["manual_valuation_snapshot"],
+                "identifier_fields": ["manual_valuation_snapshot_ids"],
+            },
+            "ledger_anchor": {
+                "state": "not_applicable",
+                "entry_statuses": [],
+                "identifier_fields": [],
+                "unavailable_reason": "Restricted compensation is disclosed as explicit manual valuation input, not posted ledger cash.",
+            },
+            "review_state": "explicit_manual_input",
+            "confidence_tier": "MEDIUM",
+        },
+        {
+            "line_id": "notes.non_compliance_statement",
+            "section_id": "notes",
+            "label": "Package Non-Compliance Statement",
+            "amount_field": None,
+            "currency_field": None,
+            "source_state": "package_contract",
+            "source_anchor": {
+                "state": "available",
+                "source_types": ["package_contract"],
+                "identifier_fields": ["note_id"],
+            },
+            "ledger_anchor": {
+                "state": "not_applicable",
+                "entry_statuses": [],
+                "identifier_fields": [],
+                "unavailable_reason": "Disclosure wording is not a ledger-derived amount.",
+            },
+            "review_state": "not_applicable",
+            "confidence_tier": "UNAVAILABLE",
+        },
+    ],
+    "completeness_warnings": [
+        {
+            "code": "missing_source_anchor",
+            "label": "Missing source anchor",
+            "applies_to_sections": ["balance_sheet", "income_statement", "cash_flow"],
+            "state": "fail_package_proof_for_trusted_totals",
+            "remediation": "Expose statement transaction, document, or explicit manual-input identifiers before treating totals as trusted.",
+        },
+        {
+            "code": "manual_only_source",
+            "label": "Manual-only source coverage",
+            "applies_to_sections": ["balance_sheet", "annualized_income_long_term"],
+            "state": "explicit_manual_input_required",
+            "remediation": "Keep manual valuation snapshot identifiers and valuation basis visible in the appendix.",
+        },
+        {
+            "code": "stale_market_data",
+            "label": "Stale market data",
+            "applies_to_sections": ["investment_performance", "balance_sheet"],
+            "state": "disclose_stale_or_refresh_required",
+            "remediation": "Use schedule freshness flags and refresh market data when provider prices are stale.",
+        },
+        {
+            "code": "duplicate_source_coverage",
+            "label": "Duplicate source coverage",
+            "applies_to_sections": ["balance_sheet", "cash_flow"],
+            "state": "exclude_or_disclose_duplicate_source",
+            "remediation": "Preserve duplicate detection and reconciliation state so the same source is not counted twice.",
+        },
+        {
+            "code": "overlapping_statement_period",
+            "label": "Overlapping statement period",
+            "applies_to_sections": ["income_statement", "cash_flow"],
+            "state": "review_required_before_trusted_total",
+            "remediation": "Surface overlapping bank statement periods and keep affected totals out of trusted proof until reviewed.",
+        },
+    ],
+}
+
 
 def _annualized_income_bucket(account_name: str) -> str | None:
     normalized = account_name.casefold()
@@ -334,6 +550,12 @@ def personal_report_package_contract() -> PersonalReportPackageContractResponse:
 def personal_report_package_notes() -> PersonalReportPackageNotesResponse:
     """Return package-level notes and disclosures."""
     return PersonalReportPackageNotesResponse(**PERSONAL_REPORT_PACKAGE_NOTES)
+
+
+@router.get("/package/traceability", response_model=PersonalReportPackageTraceabilityResponse)
+def personal_report_package_traceability() -> PersonalReportPackageTraceabilityResponse:
+    """Return the package-level source-ledger-report traceability appendix."""
+    return PersonalReportPackageTraceabilityResponse(**PERSONAL_REPORT_PACKAGE_TRACEABILITY)
 
 
 @router.get("/package/annualized-income-schedule", response_model=AnnualizedIncomeScheduleResponse)

@@ -195,6 +195,43 @@ export interface PersonalReportPackageNotesResponse {
     non_compliance_statement: string;
 }
 
+export interface PersonalReportPackageTraceabilityAnchor {
+    state: string;
+    source_types?: string[];
+    entry_statuses?: string[];
+    identifier_fields?: string[];
+    unavailable_reason?: string | null;
+}
+
+export interface PersonalReportPackageTraceabilityLine {
+    line_id: string;
+    section_id: string;
+    label: string;
+    amount_field?: string | null;
+    currency_field?: string | null;
+    source_state: string;
+    source_anchor: PersonalReportPackageTraceabilityAnchor;
+    ledger_anchor: PersonalReportPackageTraceabilityAnchor;
+    review_state: string;
+    confidence_tier: string;
+}
+
+export interface PersonalReportPackageCompletenessWarning {
+    code: string;
+    label: string;
+    applies_to_sections: string[];
+    state: string;
+    remediation?: string | null;
+}
+
+export interface PersonalReportPackageTraceabilityResponse {
+    section_id: string;
+    label: string;
+    status: string;
+    lines: PersonalReportPackageTraceabilityLine[];
+    completeness_warnings: PersonalReportPackageCompletenessWarning[];
+}
+
 export interface AnnualizedIncomeScheduleIncome {
     annualized_salary: number | string;
     annualized_bonus: number | string;

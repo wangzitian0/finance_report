@@ -320,8 +320,8 @@ async def _create_manual_snapshot(
 async def test_personal_financial_report_package_post_merge_journey(authenticated_page_unique: Page) -> None:
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
-    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3
-    AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2:
+    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC5.13.4
+    AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3 AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2:
     one complete fresh-user report package with bank data, brokerage import,
     investment performance schedule, annualized income and restricted
     compensation schedule, manual valuation, restricted notes, and source
@@ -606,6 +606,34 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert "not tax advice" in package_notes["non_compliance_statement"]
         assert "US GAAP compliant" not in package_notes["non_compliance_statement"]
         assert "HKEX filing" not in package_notes["non_compliance_statement"]
+
+        traceability_response = await client.get(_api_url("/reports/package/traceability"))
+        assert traceability_response.status_code == 200, (
+            f"package traceability failed: {traceability_response.status_code} {traceability_response.text}"
+        )
+        traceability = traceability_response.json()
+        assert traceability["section_id"] == "traceability_appendix"
+        assert traceability["status"] == "ready"
+        traceability_lines = {line["line_id"]: line for line in traceability["lines"]}
+        trusted_total_line_ids = {
+            "balance_sheet.total_assets",
+            "income_statement.total_income",
+            "income_statement.total_expenses",
+            "cash_flow.net_cash_flow",
+            "annualized_income_long_term.annualized_total",
+        }
+        assert trusted_total_line_ids <= set(traceability_lines)
+        for line_id in trusted_total_line_ids:
+            line = traceability_lines[line_id]
+            assert line["source_anchor"]["state"] == "available"
+            assert line["ledger_anchor"]["state"] == "available"
+            assert line["ledger_anchor"]["entry_statuses"] == ["posted", "reconciled"]
+            assert line["confidence_tier"] == "TRUSTED"
+        assert traceability_lines["annualized_income_long_term.restricted_fair_value_total"]["ledger_anchor"][
+            "state"
+        ] == "not_applicable"
+        warning_codes = {warning["code"] for warning in traceability["completeness_warnings"]}
+        assert {"missing_source_anchor", "manual_only_source", "stale_market_data"} <= warning_codes
 
         manual_components_exclusive = await client.get(
             _api_url(

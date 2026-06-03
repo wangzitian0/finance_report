@@ -2,7 +2,11 @@
 
 import pytest
 
-from src.routers.reports import personal_report_package_contract, personal_report_package_notes
+from src.routers.reports import (
+    personal_report_package_contract,
+    personal_report_package_notes,
+    personal_report_package_traceability,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -34,7 +38,8 @@ def test_AC5_9_1_package_contract_endpoint_defines_required_sections():
     assert sections["investment_performance"]["owner_epic"] == "EPIC-017"
     assert sections["notes"]["status"] == "ready"
     assert sections["notes"]["blocking_issue"] is None
-    assert sections["traceability_appendix"]["blocking_issue"] == "#572"
+    assert sections["traceability_appendix"]["status"] == "ready"
+    assert sections["traceability_appendix"]["blocking_issue"] is None
 
 
 def test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics():
@@ -124,3 +129,54 @@ def test_AC5_12_2_package_contract_marks_notes_ready():
     assert section["status"] == "ready"
     assert section["blocking_issue"] is None
     assert section["source_endpoint"] == "/api/reports/package/notes"
+
+
+def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
+    """AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
+    response = personal_report_package_traceability()
+    payload = response.model_dump(mode="json")
+
+    assert payload["section_id"] == "traceability_appendix"
+    assert payload["status"] == "ready"
+    lines = {line["line_id"]: line for line in payload["lines"]}
+    assert {
+        "balance_sheet.total_assets",
+        "income_statement.total_income",
+        "cash_flow.net_cash_flow",
+        "investment_performance.market_value",
+        "annualized_income_long_term.restricted_fair_value_total",
+    } <= set(lines)
+
+    total_assets = lines["balance_sheet.total_assets"]
+    assert total_assets["section_id"] == "balance_sheet"
+    assert total_assets["source_state"] == "posted_reconciled_journal_lines_and_manual_valuations"
+    assert total_assets["ledger_anchor"]["entry_statuses"] == ["posted", "reconciled"]
+    assert "manual_valuation_snapshot_ids" in total_assets["source_anchor"]["identifier_fields"]
+    assert total_assets["review_state"] == "trusted_or_explicit_manual_input"
+    assert total_assets["confidence_tier"] == "TRUSTED"
+
+
+def test_AC5_13_2_package_traceability_declares_completeness_warnings():
+    """AC5.13.2: Traceability appendix exposes explicit completeness states where anchors are unavailable."""
+    response = personal_report_package_traceability()
+    payload = response.model_dump(mode="json")
+
+    lines = {line["line_id"]: line for line in payload["lines"]}
+    assert lines["notes.non_compliance_statement"]["source_state"] == "package_contract"
+    assert lines["notes.non_compliance_statement"]["ledger_anchor"]["state"] == "not_applicable"
+    assert lines["notes.non_compliance_statement"]["confidence_tier"] == "UNAVAILABLE"
+
+    warning_codes = {warning["code"] for warning in payload["completeness_warnings"]}
+    assert {
+        "missing_source_anchor",
+        "manual_only_source",
+        "stale_market_data",
+        "duplicate_source_coverage",
+        "overlapping_statement_period",
+    } <= warning_codes
+
+    for line in payload["lines"]:
+        assert line["source_anchor"]["state"] in {"available", "not_applicable", "unavailable"}
+        assert line["ledger_anchor"]["state"] in {"available", "not_applicable", "unavailable"}
+        assert line["review_state"]
+        assert line["confidence_tier"] in {"TRUSTED", "HIGH", "MEDIUM", "LOW", "UNAVAILABLE"}

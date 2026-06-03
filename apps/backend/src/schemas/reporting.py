@@ -232,6 +232,51 @@ class PersonalReportPackageNotesResponse(BaseModel):
     non_compliance_statement: str
 
 
+class PersonalReportPackageTraceabilityAnchor(BaseModel):
+    """Source or ledger anchor metadata for one package report line."""
+
+    state: str
+    source_types: list[str] = Field(default_factory=list)
+    entry_statuses: list[str] = Field(default_factory=list)
+    identifier_fields: list[str] = Field(default_factory=list)
+    unavailable_reason: str | None = None
+
+
+class PersonalReportPackageTraceabilityLine(BaseModel):
+    """Traceability metadata for one personal report package line."""
+
+    line_id: str
+    section_id: str
+    label: str
+    amount_field: str | None = None
+    currency_field: str | None = None
+    source_state: str
+    source_anchor: PersonalReportPackageTraceabilityAnchor
+    ledger_anchor: PersonalReportPackageTraceabilityAnchor
+    review_state: str
+    confidence_tier: str
+
+
+class PersonalReportPackageCompletenessWarning(BaseModel):
+    """Potential completeness risk disclosed by the traceability appendix."""
+
+    code: str
+    label: str
+    applies_to_sections: list[str]
+    state: str
+    remediation: str | None = None
+
+
+class PersonalReportPackageTraceabilityResponse(BaseModel):
+    """Package-level source-ledger-report traceability appendix."""
+
+    section_id: str
+    label: str
+    status: str
+    lines: list[PersonalReportPackageTraceabilityLine]
+    completeness_warnings: list[PersonalReportPackageCompletenessWarning]
+
+
 class AnnualizedIncomeScheduleIncome(BaseModel):
     """Trailing income totals for the personal report package."""
 

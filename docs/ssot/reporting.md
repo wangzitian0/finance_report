@@ -210,7 +210,7 @@ Required section IDs:
 | `investment_performance` | EPIC-017 | `/api/portfolio/performance/report-schedule` | ready |
 | `annualized_income_long_term` | EPIC-011 | `/api/reports/package/annualized-income-schedule` | ready |
 | `notes` | EPIC-005 | `/api/reports/package/notes` | ready |
-| `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | planned by #572 |
+| `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | ready |
 
 Annualized income and long-term compensation schedule:
 
@@ -253,6 +253,42 @@ Note ownership:
 | `investment-market-data` | EPIC-017 | `brokerage_imports_and_market_data` |
 | `source-confidence-review` | EPIC-018 | `reviewed_journal_and_statement_links` |
 | `restricted-asset-treatment` | EPIC-011 | `manual_valuation_snapshots` |
+
+Traceability appendix:
+
+- Endpoint: `GET /api/reports/package/traceability`
+- Status: `ready`.
+- The appendix is package-specific. It extends the existing
+  `source-ledger-report-traceability` proof path without duplicating report
+  calculations or changing ledger totals.
+- Each appendix line maps one package section/line to source and ledger
+  anchors:
+  - `line_id`, `section_id`, `label`
+  - optional `amount_field` and `currency_field` pointing back to the source
+    report payload
+  - `source_state`
+  - `source_anchor` with `state`, source types, and identifier fields
+  - `ledger_anchor` with `state`, entry statuses, and identifier fields
+  - `review_state`
+  - `confidence_tier`
+- Anchor `state` must be explicit: `available`, `unavailable`, or
+  `not_applicable`. Missing anchors are not an acceptable representation for
+  trusted totals.
+- Trusted package totals must expose source and ledger anchors unless the line
+  is an explicit manual input, such as restricted compensation fair value from
+  manual valuation snapshots.
+- Non-ledger disclosures, such as the non-compliance statement, use
+  `ledger_anchor.state=not_applicable`.
+
+Completeness warning taxonomy:
+
+| Code | Purpose |
+|---|---|
+| `missing_source_anchor` | Trusted totals cannot be treated as auditable until a source anchor or explicit manual input exists |
+| `manual_only_source` | Manual valuation rows require visible manual snapshot identifiers and basis |
+| `stale_market_data` | Investment values require freshness disclosure or refreshed provider data |
+| `duplicate_source_coverage` | Duplicate source coverage must be excluded or reviewed before totals are trusted |
+| `overlapping_statement_period` | Overlapping period coverage requires review before period totals are trusted |
 
 Export contract:
 

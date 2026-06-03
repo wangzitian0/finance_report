@@ -28,10 +28,11 @@ The personal financial-report package tracked by
 EPIC for source confidence, extraction provenance, review status, and
 source-to-ledger-to-report traceability notes. AI remains a parsing and
 explanation layer; deterministic ledger and reporting logic remain the source
-of record. The package traceability appendix is tracked by
-[#572](https://github.com/wangzitian0/finance_report/issues/572), and the
-representative E2E fixture that must include confidence/review provenance is
-tracked by [#573](https://github.com/wangzitian0/finance_report/issues/573).
+of record. The package traceability appendix is delivered by
+[#572](https://github.com/wangzitian0/finance_report/issues/572) through
+`GET /api/reports/package/traceability`; the representative E2E fixture that
+must include confidence/review provenance is tracked by
+[#573](https://github.com/wangzitian0/finance_report/issues/573).
 
 **Current Pipeline (Before)**:
 ```
@@ -300,6 +301,27 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AI reconciliation improvement | +5% match rate in 60-84 range | Compare match rates with flag on/off |
 | Feedback loop effectiveness | Accuracy improves 5%+ after 50 corrections | Track accuracy over time per user |
 | API cost per extraction | < $0.01 increase | Monitor OpenRouter billing (category field adds ~50 tokens) |
+
+---
+
+## Personal Package Traceability Appendix
+
+Issue [#572](https://github.com/wangzitian0/finance_report/issues/572) is the
+EPIC-018-owned appendix surface for the personal financial-report package. It
+keeps AI as provenance and explanation metadata only: report amounts still come
+from deterministic ledger/reporting services, while the appendix exposes source
+anchors, ledger anchors, review state, confidence tier, and completeness
+warnings for package consumers.
+
+Owned endpoint:
+`GET /api/reports/package/traceability`
+
+The appendix must disclose explicit `available`, `unavailable`, or
+`not_applicable` anchor states instead of relying on missing fields. Trusted
+report totals fail the package proof unless they have source and ledger anchors
+or an explicit manual-input state, and existing
+`source-ledger-report-traceability` macro proof ownership remains extended
+rather than duplicated.
 
 ---
 
