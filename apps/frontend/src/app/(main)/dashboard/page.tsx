@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Landmark, FileText, BookOpen } from "lucide-react";
 import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
-import { WorkflowStatusFeedPanel } from "@/components/workflow/WorkflowNotifications";
+import { UploadToReportHomePanel } from "@/components/workflow/WorkflowNotifications";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
@@ -229,62 +229,50 @@ export default function DashboardPage() {
     ];
   }, [isCoreFlowComplete, onboardingStatus]);
 
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[60vh]">
-        <div className="text-center text-muted">
-          <div className="inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-          <p className="text-sm">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="card p-8 text-center max-w-lg mx-auto">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-semibold mb-2">Unable to Load Dashboard</h1>
-          <p className="text-muted mb-4 text-sm">{error}</p>
-          <div className="grid gap-3 sm:grid-cols-3 mb-6">
-            <Link href="/accounts" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
-              <Landmark className="w-8 h-8 mx-auto mb-1 text-[var(--accent)]" aria-hidden="true" />
-              <span className="text-sm font-medium">Accounts</span>
-            </Link>
-            <Link href="/statements" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
-              <FileText className="w-8 h-8 mx-auto mb-1 text-[var(--accent)]" aria-hidden="true" />
-              <span className="text-sm font-medium">Statements</span>
-            </Link>
-            <Link href="/journal" className="card p-4 hover:border-[var(--accent)] transition-colors text-center">
-              <BookOpen className="w-8 h-8 mx-auto mb-1 text-[var(--accent)]" aria-hidden="true" />
-              <span className="text-sm font-medium">Journal</span>
-            </Link>
-          </div>
-          <button onClick={fetchData} className="btn-secondary">Retry Connection</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-description">Track net assets, cash momentum, and reconciliation risk</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/reports/balance-sheet" className="btn-secondary text-sm">Balance Sheet</Link>
-          <Link href="/reports/income-statement" className="btn-secondary text-sm">Income Statement</Link>
-        </div>
+      <div className="mb-6">
+        <UploadToReportHomePanel />
       </div>
 
+      <section className="mb-6" aria-label="Dashboard analytics">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Financial analytics</h2>
+            <p className="text-sm text-muted">Secondary metrics, charts, and reconciliation details</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/reports/balance-sheet" className="btn-secondary text-sm">Balance Sheet</Link>
+            <Link href="/reports/income-statement" className="btn-secondary text-sm">Income Statement</Link>
+          </div>
+        </div>
+
+        {loading && (
+          <div className="card p-5" role="status" aria-label="Dashboard analytics loading">
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              Loading dashboard analytics...
+            </div>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="card p-5" role="alert" aria-label="Dashboard analytics unavailable">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="font-semibold">Dashboard analytics unavailable</h3>
+                <p className="mt-1 text-sm text-muted">{error}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={fetchData} className="btn-secondary text-sm">Retry analytics</button>
+                <Link href="/statements/upload" className="btn-primary text-sm">Upload statements</Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
       {showOnboarding && (
         <section className="card p-5 mb-6 border-[var(--accent)]/40" aria-label="Getting started">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -314,10 +302,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-
-      <div className="mb-6">
-        <WorkflowStatusFeedPanel />
-      </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
@@ -560,6 +544,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }

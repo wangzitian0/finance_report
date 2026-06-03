@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import type { ReactNode } from "react"
+import type { AnchorHTMLAttributes, ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   WorkflowNotificationCenter,
   WorkflowEventsPageContent,
+  UploadToReportHome,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
 import {
@@ -19,8 +20,8 @@ import type {
 } from "@/lib/types"
 
 vi.mock("next/link", () => ({
-  default: ({ href, children, className }: { href: string; children: ReactNode; className?: string }) => (
-    <a href={href} className={className}>
+  default: ({ href, children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode }) => (
+    <a href={href} {...props}>
       {children}
     </a>
   ),
@@ -185,6 +186,84 @@ describe("workflow notification surfaces", () => {
     rerender(<WorkflowStatusFeed status={statusEmpty} events={[]} />)
     expect(screen.getByText("No action required")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/statements/upload")
+  })
+
+  it("AC19.4.2 renders the upload-to-report home as the first workflow entry surface", () => {
+    render(<UploadToReportHome status={statusNeedsAction} events={workflowEvents.items} />)
+
+    expect(screen.getByRole("region", { name: "Upload-to-report home" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Upload to report" })).toBeInTheDocument()
+    expect(screen.getByText("Review the required action so automation can continue.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /^Review required$/i })).toHaveAttribute("href", "/review")
+    expect(screen.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports")
+    expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Action required" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
+    expect(screen.getByText("2 routine events")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Archive/i })).not.toBeInTheDocument()
+  })
+
+  it("AC19.4.3 keeps the upload-first CTA and quiet state aligned to workflow next action", () => {
+    render(<UploadToReportHome status={statusEmpty} events={[]} />)
+
+    expect(screen.getByText("Upload files to start the automated reporting workflow.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Upload statements/i })).toHaveAttribute("href", "/statements/upload")
+    expect(screen.getAllByText("Report none")[0]).toBeInTheDocument()
+    expect(screen.getByText("0 blockers")).toBeInTheDocument()
+    expect(screen.getByText("No action required")).toBeInTheDocument()
+    expect(screen.getByText("0 routine events")).toBeInTheDocument()
+  })
+
+  it("AC19.4.4 exposes ready, processing, and stale report readiness states above analytics", () => {
+    const { rerender } = render(
+      <UploadToReportHome
+        status={{
+          primary_state: "ready",
+          next_action: { type: "open_report", count: 0, href: "/reports" },
+          report_readiness: { state: "ready", blocking_count: 0, href: "/reports" },
+          event_counts: { unread: 0, action_required: 0, blocked: 0 },
+        }}
+        events={workflowEvents.items.slice(2)}
+      />,
+    )
+
+    expect(screen.getByText("Reports are ready to inspect.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Open reports/i })).toHaveAttribute("href", "/reports")
+    expect(screen.getAllByText("Report ready")[0]).toBeInTheDocument()
+
+    rerender(
+      <UploadToReportHome
+        status={{
+          primary_state: "processing",
+          next_action: { type: "wait", count: 0, href: "/events" },
+          report_readiness: { state: "processing", blocking_count: 0, href: "/reports" },
+          event_counts: { unread: 1, action_required: 0, blocked: 0 },
+        }}
+        events={[workflowEvents.items[3]]}
+      />,
+    )
+
+    expect(screen.getByText("Automation is processing uploaded source files.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /View processing/i })).toHaveAttribute("href", "/events")
+    expect(screen.getAllByText("Report processing")[0]).toBeInTheDocument()
+
+    rerender(
+      <UploadToReportHome
+        status={{
+          primary_state: "blocked",
+          next_action: { type: "resolve_blocker", count: 1, href: "/reconciliation/unmatched" },
+          report_readiness: { state: "stale", blocking_count: 1, href: "/reports" },
+          event_counts: { unread: 1, action_required: 0, blocked: 1 },
+        }}
+        events={[workflowEvents.items[0]]}
+      />,
+    )
+
+    expect(screen.getByText("A blocker is holding report readiness.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Resolve blocker/i })).toHaveAttribute("href", "/reconciliation/unmatched")
+    expect(screen.getAllByText("Report stale")[0]).toBeInTheDocument()
+    expect(screen.getByText("1 blocker")).toBeInTheDocument()
   })
 
   it("AC19.3.5 renders the events page loading and unavailable states", async () => {

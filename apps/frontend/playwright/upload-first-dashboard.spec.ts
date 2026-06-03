@@ -6,71 +6,54 @@ const workflowStatus = {
   primary_state: "needs_action",
   next_action: { type: "review_required", count: 1, href: "/review" },
   report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
-  event_counts: { unread: 2, action_required: 1, blocked: 1 },
+  event_counts: { unread: 2, action_required: 1, blocked: 0 },
 };
 
 const workflowEvents = {
-  total: 3,
+  total: 2,
   items: [
     {
-      id: "workflow-blocked",
-      user_id: "workflow-user",
+      id: "upload-home-review",
+      user_id: "upload-home-user",
       occurred_at: "2026-06-03T08:00:00Z",
-      family: "reconciliation.blocked",
-      severity: "blocked",
-      status: "unread",
-      title: "Reconciliation blocked",
-      summary: "Match two transactions before reports can be trusted.",
-      source_type: "reconciliation",
-      source_id: "source-blocked",
-      action_href: "/reconciliation/unmatched",
-      report_impact: "blocked",
-      dedupe_key: "workflow:blocker",
-      created_at: "2026-06-03T08:00:00Z",
-      updated_at: "2026-06-03T08:00:00Z",
-    },
-    {
-      id: "workflow-review",
-      user_id: "workflow-user",
-      occurred_at: "2026-06-03T07:00:00Z",
       family: "review.required",
       severity: "action_required",
       status: "unread",
       title: "Review required",
-      summary: "Confirm one low-confidence statement extraction.",
+      summary: "Confirm one low-confidence extraction before reports are ready.",
       source_type: "bank_statement",
-      source_id: "source-review",
+      source_id: "statement-review",
       action_href: "/review",
       report_impact: "blocked",
-      dedupe_key: "workflow:review",
-      created_at: "2026-06-03T07:00:00Z",
-      updated_at: "2026-06-03T07:00:00Z",
+      dedupe_key: "upload-home:review",
+      created_at: "2026-06-03T08:00:00Z",
+      updated_at: "2026-06-03T08:00:00Z",
     },
     {
-      id: "workflow-success",
-      user_id: "workflow-user",
-      occurred_at: "2026-06-03T06:00:00Z",
+      id: "upload-home-posted",
+      user_id: "upload-home-user",
+      occurred_at: "2026-06-03T07:00:00Z",
       family: "ledger.auto_posted",
       severity: "success",
       status: "read",
       title: "Safe entries posted",
       summary: "Automation posted high-confidence entries.",
       source_type: "journal",
-      source_id: "source-success",
+      source_id: "journal-posted",
       action_href: "/journal",
       report_impact: "ready",
-      dedupe_key: "workflow:success",
-      created_at: "2026-06-03T06:00:00Z",
-      updated_at: "2026-06-03T06:00:00Z",
+      dedupe_key: "upload-home:posted",
+      created_at: "2026-06-03T07:00:00Z",
+      updated_at: "2026-06-03T07:00:00Z",
     },
   ],
 };
 
-async function installWorkflowMocks(page: Page) {
+async function installDashboardMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "workflow-smoke-token");
-    localStorage.setItem("finance_user_id", "workflow-user");
-    localStorage.setItem("finance_user_email", "workflow@example.com");
+    localStorage.setItem("finance_access_token", "upload-home-token");
+    localStorage.setItem("finance_user_id", "upload-home-user");
+    localStorage.setItem("finance_user_email", "upload-home@example.com");
   });
 
   await page.route("**/api/**", async (route) => {
@@ -81,18 +64,10 @@ async function installWorkflowMocks(page: Page) {
       body = workflowStatus;
     } else if (path === "/api/workflow/events") {
       body = workflowEvents;
-    } else if (path.startsWith("/api/workflow/events/")) {
-      body = workflowEvents.items[0];
-    } else if (path === "/api/accounts") {
-      body = { items: [{ id: "cash", name: "Cash", type: "ASSET", currency: "SGD", is_active: true }], total: 1 };
+    } else if (path === "/api/accounts" || path === "/api/statements" || path.startsWith("/api/journal-entries")) {
+      body = { items: [], total: 0 };
     } else if (path === "/api/accounts/processing/summary") {
       body = { pending_count: 0, pending_total: "0.00", current_balance: "0.00", currency: "SGD", oldest_pending_date: null };
-    } else if (path === "/api/statements") {
-      body = { items: [{ id: "statement", status: "approved" }], total: 1 };
-    } else if (path === "/api/statements/pending-review") {
-      body = { items: [{ id: "statement" }], total: 1 };
-    } else if (path === "/api/statements/stage2/queue") {
-      body = { pending_matches: [], consistency_checks: [], has_unresolved_checks: false };
     } else if (path.startsWith("/api/reports/balance-sheet")) {
       body = {
         as_of_date: "2026-06-03",
@@ -118,8 +93,6 @@ async function installWorkflowMocks(page: Page) {
       body = { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} };
     } else if (path === "/api/reconciliation/unmatched") {
       body = { items: [], total: 0 };
-    } else if (path.startsWith("/api/journal-entries")) {
-      body = { items: [], total: 0 };
     }
 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -137,28 +110,28 @@ async function expectNoDocumentHorizontalScroll(page: Page) {
   expect(metrics.scrollX).toBe(0);
 }
 
-test.describe("AC19.3.7 workflow notification smoke", () => {
+test.describe("AC19.4.7 upload-first dashboard smoke", () => {
   for (const scenario of [
-    { name: "desktop", viewport: { width: 1440, height: 1000 }, isMobile: false },
-    { name: "mobile", viewport: { width: 390, height: 844 }, isMobile: true },
+    { name: "desktop", viewport: { width: 1440, height: 1000 } },
+    { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
-    test(`${scenario.name} shows workflow badge, inbox, and dashboard status feed`, async ({ page }) => {
+    test(`${scenario.name} renders upload-to-report home before secondary analytics`, async ({ page }) => {
       await page.setViewportSize(scenario.viewport);
-      await installWorkflowMocks(page);
+      await installDashboardMocks(page);
 
       await page.goto("/dashboard", { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: "Workflow status" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(page.getByRole("link", { name: "Review required", exact: true })).toHaveAttribute("href", "/review");
 
-      await page.getByRole("button", { name: /Workflow events/i }).click();
-      const dialog = page.getByRole("dialog", { name: "Workflow events" });
-      await expect(dialog).toBeVisible();
-      await expect(dialog.getByRole("heading", { name: "Blocked", exact: true })).toBeVisible();
-      await expect(dialog.getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
-        "href",
-        "/reconciliation/unmatched",
-      );
+      const uploadHome = page.getByLabel("Upload-to-report home");
+      await expect(uploadHome.getByRole("heading", { name: "Upload to report" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+      await expect(uploadHome.getByRole("link", { name: "Review required", exact: true })).toHaveAttribute("href", "/review");
+      await expect(uploadHome.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports");
+      await expect(uploadHome.getByRole("heading", { name: "Routine automation" })).toBeVisible();
 
+      const homeBox = await uploadHome.boundingBox();
+      const analyticsBox = await page.getByLabel("Dashboard analytics").boundingBox();
+      expect(homeBox).not.toBeNull();
+      expect(analyticsBox).not.toBeNull();
+      expect(homeBox!.y).toBeLessThan(analyticsBox!.y);
       await expectNoDocumentHorizontalScroll(page);
     });
   }
