@@ -1,6 +1,7 @@
 """Schemas for user-facing workflow events."""
 
 from datetime import UTC, datetime
+from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -45,6 +46,80 @@ class WorkflowEventStatusUpdate(BaseModel):
     status: WorkflowEventStatus
 
 
+class WorkflowPrimaryState(str, Enum):
+    """Compact upload-to-report state for primary UI surfaces."""
+
+    EMPTY = "empty"
+    PROCESSING = "processing"
+    NEEDS_ACTION = "needs_action"
+    BLOCKED = "blocked"
+    READY = "ready"
+
+
+class WorkflowNextActionType(str, Enum):
+    """Primary next action exposed by the workflow status endpoint."""
+
+    UPLOAD = "upload"
+    WAIT = "wait"
+    REVIEW_REQUIRED = "review_required"
+    RESOLVE_BLOCKER = "resolve_blocker"
+    OPEN_REPORT = "open_report"
+    NONE = "none"
+
+
+class WorkflowReportReadinessState(str, Enum):
+    """Compact report readiness summary for upload/report surfaces."""
+
+    NONE = "none"
+    PROCESSING = "processing"
+    READY = "ready"
+    BLOCKED = "blocked"
+    STALE = "stale"
+
+
+class WorkflowNextActionResponse(BaseModel):
+    """Next user action derived from current workflow events."""
+
+    type: WorkflowNextActionType
+    count: int = Field(ge=0)
+    href: str
+
+    @field_validator("href")
+    @classmethod
+    def validate_href(cls, value: str) -> str:
+        return _validate_internal_action_href(value)
+
+
+class WorkflowReportReadinessResponse(BaseModel):
+    """Report readiness summary derived from workflow event impacts."""
+
+    state: WorkflowReportReadinessState
+    blocking_count: int = Field(ge=0)
+    href: str
+
+    @field_validator("href")
+    @classmethod
+    def validate_href(cls, value: str) -> str:
+        return _validate_internal_action_href(value)
+
+
+class WorkflowEventCountsResponse(BaseModel):
+    """Header and inbox counters that do not require loading the full event list."""
+
+    unread: int = Field(ge=0)
+    action_required: int = Field(ge=0)
+    blocked: int = Field(ge=0)
+
+
+class WorkflowStatusResponse(BaseModel):
+    """Compact user-scoped workflow status response."""
+
+    primary_state: WorkflowPrimaryState
+    next_action: WorkflowNextActionResponse
+    report_readiness: WorkflowReportReadinessResponse
+    event_counts: WorkflowEventCountsResponse
+
+
 class WorkflowEventResponse(BaseModel):
     """User-facing workflow event response contract."""
 
@@ -65,3 +140,10 @@ class WorkflowEventResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class WorkflowEventListResponse(BaseModel):
+    """Bounded workflow event list response."""
+
+    items: list[WorkflowEventResponse]
+    total: int = Field(ge=0)

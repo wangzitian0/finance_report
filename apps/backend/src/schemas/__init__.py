@@ -97,10 +97,18 @@ from src.schemas.user import (
     UserUpdate,
 )
 from src.schemas.workflow import (
+    WorkflowEventCountsResponse,
     WorkflowEventCreate,
+    WorkflowEventListResponse,
     WorkflowEventResponse,
     WorkflowEventStatusUpdate,
+    WorkflowNextActionResponse,
+    WorkflowNextActionType,
+    WorkflowPrimaryState,
     WorkflowReportImpact,
+    WorkflowReportReadinessResponse,
+    WorkflowReportReadinessState,
+    WorkflowStatusResponse,
 )
 
 from .extraction import (
@@ -212,7 +220,15 @@ __all__ = [
     "UserUpdate",
     "VoidJournalEntryRequest",
     "WorkflowEventCreate",
+    "WorkflowEventCountsResponse",
+    "WorkflowEventListResponse",
     "WorkflowEventResponse",
     "WorkflowEventStatusUpdate",
+    "WorkflowNextActionResponse",
+    "WorkflowNextActionType",
+    "WorkflowPrimaryState",
     "WorkflowReportImpact",
+    "WorkflowReportReadinessResponse",
+    "WorkflowReportReadinessState",
+    "WorkflowStatusResponse",
 ]

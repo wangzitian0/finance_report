@@ -18,8 +18,9 @@
 | Event model | `apps/backend/src/models/workflow.py` |
 | Event schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/services/workflow_events.py` |
+| Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py` |
+| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py` |
 
 ---
 
@@ -203,12 +204,45 @@ list. They should use compact status/count APIs owned by #636.
 Event inbox and status feed views may use paginated event lists. Default lists
 must be user-scoped, ordered by recent `occurred_at`, and bounded by a limit.
 
+The compact workflow API is:
+
+```text
+GET /workflow/status
+GET /workflow/events
+PATCH /workflow/events/{event_id}
+```
+
+`GET /workflow/status` returns:
+
+- `primary_state`: `empty`, `processing`, `needs_action`, `blocked`, or
+  `ready`.
+- `next_action`: `upload`, `wait`, `review_required`, `resolve_blocker`,
+  `open_report`, or `none`, plus a count and internal route.
+- `report_readiness`: `none`, `processing`, `ready`, `blocked`, or `stale`,
+  plus a blocking count and `/reports` route.
+- `event_counts`: unread, action-required, and blocked counts.
+
+Primary state priority is:
+
+```text
+blocked > needs_action > processing > ready > empty
+```
+
+`GET /workflow/events` returns `{ items, total }`. It excludes archived events
+by default, supports a `status` filter when archived events are explicitly
+requested, and enforces a bounded `limit`.
+
+`PATCH /workflow/events/{event_id}` updates only the authenticated user's event
+lifecycle state. Missing or non-owned events return `404`.
+
 ---
 
 ## 10. Initial Derivation
 
 The first implementation derives `source.uploaded` from `BankStatement` upload
-state. This proves the contract without introducing a full workflow API or UI.
+state. Workflow status and event reads run this deterministic sync before
+returning data. Repeated reads must not duplicate events or reset read/archive
+lifecycle state.
 
 Future slices may add deterministic derivation for:
 

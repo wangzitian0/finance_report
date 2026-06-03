@@ -132,10 +132,13 @@ inbox, and report readiness without forcing every page to duplicate logic.
 Initial API shape:
 
 ```text
-GET /api/workflow/status
-GET /api/workflow/events
-PATCH /api/workflow/events/{id}
+GET /workflow/status
+GET /workflow/events
+PATCH /workflow/events/{id}
 ```
+
+Frontend callers use the existing `/api/*` proxy convention, so #637 should
+call `/api/workflow/status` and `/api/workflow/events` through `lib/api.ts`.
 
 Representative status payload:
 
@@ -297,6 +300,17 @@ workflow state exists.
 | AC19.1.3 | Pydantic schemas validate the workflow event contract and reject external `action_href` values | `test_AC19_1_3_workflow_event_schema_rejects_external_action_href` | P0 |
 | AC19.1.4 | Workflow event service deterministically upserts a derived event from existing statement/upload state without duplicating on rerun | `test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic` | P0 |
 | AC19.1.5 | Workflow event reads and lifecycle changes are user isolated | `test_AC19_1_5_workflow_event_lifecycle_is_user_isolated` | P0 |
+
+### AC19.2 — Workflow Status API
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.2.1 | Workflow status schemas define stable primary state, next action, report readiness, and event count response contracts for later UI consumers | `test_AC19_2_1_workflow_status_schema_contract` | P0 |
+| AC19.2.2 | `GET /workflow/status` returns user-scoped empty, processing, needs-action, blocked, and ready summaries with deterministic priority rules | `test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries` | P0 |
+| AC19.2.3 | `GET /workflow/events` returns bounded, user-scoped, deduplicated events, excludes archived events by default, and supports status filtering | `test_AC19_2_3_workflow_events_endpoint_lists_bounded_user_events` | P0 |
+| AC19.2.4 | `PATCH /workflow/events/{id}` updates only the authenticated user's event lifecycle and returns 404 for missing or non-owned events | `test_AC19_2_4_workflow_event_patch_is_user_scoped` | P0 |
+| AC19.2.5 | Status and events reads run deterministic derived sync without duplicating events or resetting read/archive lifecycle state | `test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_reset` | P0 |
+| AC19.2.6 | Workflow API router is mounted and documented in the workflow-events SSOT as the compact read path for later UI slices | `test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path` | P0 |
 
 ## How To Build It
 

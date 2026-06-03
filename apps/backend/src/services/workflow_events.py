@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import BankStatement
@@ -13,7 +13,18 @@ from src.models.workflow import (
     WorkflowEventStatus,
     WorkflowReportImpact,
 )
-from src.schemas.workflow import WorkflowEventCreate
+from src.schemas.workflow import (
+    WorkflowEventCountsResponse,
+    WorkflowEventCreate,
+    WorkflowEventListResponse,
+    WorkflowEventResponse,
+    WorkflowNextActionResponse,
+    WorkflowNextActionType,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessResponse,
+    WorkflowReportReadinessState,
+    WorkflowStatusResponse,
+)
 
 
 def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, source_id: UUID) -> str:
@@ -95,20 +106,187 @@ async def derive_uploaded_statement_event(
     return await upsert_workflow_event(db, user_id=user_id, payload=payload)
 
 
+async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> None:
+    """Derive deterministic workflow events from existing user-owned records."""
+    existing_uploaded_event = (
+        select(WorkflowEvent.id)
+        .where(WorkflowEvent.user_id == user_id)
+        .where(WorkflowEvent.source_type == "bank_statement")
+        .where(WorkflowEvent.source_id == BankStatement.id)
+        .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
+        .exists()
+    )
+    result = await db.execute(
+        select(BankStatement)
+        .where(BankStatement.user_id == user_id)
+        .where(~existing_uploaded_event)
+        .order_by(BankStatement.created_at.asc())
+    )
+    for statement in result.scalars().all():
+        await derive_uploaded_statement_event(db, statement, user_id=user_id)
+
+
 async def list_workflow_events(
     db: AsyncSession,
     *,
     user_id: UUID,
     status: WorkflowEventStatus | None = None,
     limit: int = 50,
+    include_archived: bool = False,
 ) -> list[WorkflowEvent]:
     """List user-scoped workflow events for inbox/status consumers."""
     stmt = select(WorkflowEvent).where(WorkflowEvent.user_id == user_id)
     if status is not None:
         stmt = stmt.where(WorkflowEvent.status == status)
+    elif not include_archived:
+        stmt = stmt.where(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
     stmt = stmt.order_by(WorkflowEvent.occurred_at.desc(), WorkflowEvent.created_at.desc()).limit(limit)
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def list_workflow_events_response(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    status: WorkflowEventStatus | None = None,
+    limit: int = 50,
+) -> WorkflowEventListResponse:
+    """Return a bounded event list plus total count for the same filter."""
+    await sync_workflow_events_for_user(db, user_id=user_id)
+
+    filters = [WorkflowEvent.user_id == user_id]
+    if status is not None:
+        filters.append(WorkflowEvent.status == status)
+    else:
+        filters.append(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
+
+    total = await db.scalar(select(func.count(WorkflowEvent.id)).where(*filters))
+    events = await list_workflow_events(
+        db,
+        user_id=user_id,
+        status=status,
+        limit=limit,
+        include_archived=False,
+    )
+    return WorkflowEventListResponse(
+        items=[WorkflowEventResponse.model_validate(event) for event in events],
+        total=int(total or 0),
+    )
+
+
+async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowStatusResponse:
+    """Return the compact workflow status for primary UI surfaces."""
+    await sync_workflow_events_for_user(db, user_id=user_id)
+
+    active_filters = [WorkflowEvent.user_id == user_id, WorkflowEvent.status != WorkflowEventStatus.ARCHIVED]
+
+    async def count_where(*filters: object) -> int:
+        value = await db.scalar(select(func.count(WorkflowEvent.id)).where(*active_filters, *filters))
+        return int(value or 0)
+
+    async def representative_event(*filters: object) -> WorkflowEvent | None:
+        result = await db.execute(
+            select(WorkflowEvent)
+            .where(*active_filters, *filters)
+            .order_by(WorkflowEvent.occurred_at.desc(), WorkflowEvent.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    active_count = await count_where()
+    unread_count = await count_where(WorkflowEvent.status == WorkflowEventStatus.UNREAD)
+    action_required_count = await count_where(WorkflowEvent.severity == WorkflowEventSeverity.ACTION_REQUIRED)
+    blocked_count = await count_where(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
+    processing_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.PROCESSING)
+    ready_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.READY)
+    stale_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.STALE)
+    report_blocking_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.BLOCKED)
+
+    if blocked_count:
+        blocked_event = await representative_event(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
+        primary_state = WorkflowPrimaryState.BLOCKED
+        next_action = WorkflowNextActionResponse(
+            type=WorkflowNextActionType.RESOLVE_BLOCKER,
+            count=blocked_count,
+            href=blocked_event.action_href if blocked_event else "/reports",
+        )
+    elif action_required_count:
+        action_required_event = await representative_event(
+            WorkflowEvent.severity == WorkflowEventSeverity.ACTION_REQUIRED
+        )
+        primary_state = WorkflowPrimaryState.NEEDS_ACTION
+        next_action = WorkflowNextActionResponse(
+            type=WorkflowNextActionType.REVIEW_REQUIRED,
+            count=action_required_count,
+            href=action_required_event.action_href if action_required_event else "/review",
+        )
+    elif processing_count:
+        primary_state = WorkflowPrimaryState.PROCESSING
+        next_action = WorkflowNextActionResponse(
+            type=WorkflowNextActionType.WAIT,
+            count=processing_count,
+            href="/statements",
+        )
+    elif ready_count:
+        primary_state = WorkflowPrimaryState.READY
+        next_action = WorkflowNextActionResponse(
+            type=WorkflowNextActionType.OPEN_REPORT,
+            count=ready_count,
+            href="/reports",
+        )
+    elif active_count:
+        primary_state = WorkflowPrimaryState.READY
+        next_action = WorkflowNextActionResponse(type=WorkflowNextActionType.NONE, count=0, href="/events")
+    else:
+        primary_state = WorkflowPrimaryState.EMPTY
+        next_action = WorkflowNextActionResponse(
+            type=WorkflowNextActionType.UPLOAD,
+            count=0,
+            href="/statements/upload",
+        )
+
+    if report_blocking_count:
+        readiness = WorkflowReportReadinessResponse(
+            state=WorkflowReportReadinessState.BLOCKED,
+            blocking_count=report_blocking_count,
+            href="/reports",
+        )
+    elif processing_count:
+        readiness = WorkflowReportReadinessResponse(
+            state=WorkflowReportReadinessState.PROCESSING,
+            blocking_count=0,
+            href="/reports",
+        )
+    elif stale_count:
+        readiness = WorkflowReportReadinessResponse(
+            state=WorkflowReportReadinessState.STALE,
+            blocking_count=0,
+            href="/reports",
+        )
+    elif ready_count:
+        readiness = WorkflowReportReadinessResponse(
+            state=WorkflowReportReadinessState.READY,
+            blocking_count=0,
+            href="/reports",
+        )
+    else:
+        readiness = WorkflowReportReadinessResponse(
+            state=WorkflowReportReadinessState.NONE,
+            blocking_count=0,
+            href="/reports",
+        )
+
+    return WorkflowStatusResponse(
+        primary_state=primary_state,
+        next_action=next_action,
+        report_readiness=readiness,
+        event_counts=WorkflowEventCountsResponse(
+            unread=unread_count,
+            action_required=action_required_count,
+            blocked=blocked_count,
+        ),
+    )
 
 
 async def update_workflow_event_status(
