@@ -70,6 +70,7 @@ contracts is tracked in
 | [source-type-priority.md](./source-type-priority.md) | `source-type-priority` | Trust hierarchy rationale; priority should migrate to code/common |
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Review lifecycle rationale; state machine should migrate to code/common |
 | [processing_account.md](./processing_account.md) | `processing_account` | In-transit funds model and proof references |
+| [workflow-events.md](./workflow-events.md) | `workflow-events` | User-facing upload-to-report workflow event read model |
 
 ## Proof Reports
 
