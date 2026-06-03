@@ -610,6 +610,19 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "lightweight documentation" in environments.lower()
 
 
+def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
+    """AC8.13.16: JavaScript actions are validated against the Node 24 runtime before migration."""
+    workflow_paths = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    assert workflow_paths
+    for workflow_path in workflow_paths:
+        workflow = workflow_path.read_text(encoding="utf-8")
+        assert 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' in workflow, workflow_path.name
+
+    ci_cd = read("docs/ssot/ci-cd.md")
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in ci_cd
+    assert "GitHub JavaScript action runtime is explicitly validated on Node 24" in ci_cd
+
+
 def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     """AC8.13.17: AC traceability checks registry generation before audit output."""
     workflow = read(".github/workflows/ci.yml")

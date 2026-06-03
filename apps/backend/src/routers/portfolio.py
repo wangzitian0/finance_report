@@ -12,7 +12,13 @@ from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.market_data import StockPrice
-from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType, MarketDataOverride
+from src.models.portfolio import (
+    DividendIncome,
+    InvestmentTransaction,
+    InvestmentTransactionType,
+    MarketDataOverride,
+    PriceSource,
+)
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -100,6 +106,39 @@ def _source_document_links(source_documents: object) -> list[str]:
 
 def _freshness_link(asset_identifier: str, source_kind: str, source_id: object, evidence_date: date) -> str:
     return f"price_source:{source_kind}:{asset_identifier}:{source_id}:{evidence_date.isoformat()}"
+
+
+async def _report_preparation_holdings(
+    db: DbSession,
+    user_id: CurrentUserId,
+    as_of_date: date,
+) -> list[HoldingResponse]:
+    """Load current holdings only when post-period manual prices evidence report preparation."""
+    override_result = await db.execute(
+        select(MarketDataOverride)
+        .where(MarketDataOverride.user_id == user_id)
+        .where(MarketDataOverride.source == PriceSource.MANUAL)
+        .where(MarketDataOverride.price_date > as_of_date)
+        .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+    )
+    override_assets = {override.asset_identifier for override in override_result.scalars().all()}
+    if not override_assets:
+        return []
+
+    try:
+        current_holdings = await _portfolio_service.get_holdings(
+            db=db,
+            user_id=user_id,
+            include_disposed=True,
+        )
+    except (PortfolioNotFoundError, AssetNotFoundError):
+        return []
+
+    return [
+        holding
+        for holding in current_holdings
+        if holding.asset_identifier in override_assets and holding.status == PositionStatus.ACTIVE
+    ]
 
 
 @router.post("/brokerage/import", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
@@ -437,9 +476,13 @@ async def get_investment_performance_report_schedule(
 
     notes: list[str] = [
         "Cost basis uses the holding-level cost-basis method where available.",
-        "Market values use the latest available brokerage or market-data snapshot on or before the as-of date.",
+        (
+            "Market values use the latest available brokerage or market-data snapshot on or before the as-of date; "
+            "report-preparation overrides after the as-of date are disclosed when they evidence active holdings."
+        ),
     ]
 
+    used_report_preparation_evidence = False
     try:
         holdings = list(
             await _portfolio_service.get_holdings(
@@ -451,7 +494,17 @@ async def get_investment_performance_report_schedule(
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
         holdings = []
-        notes.append("No portfolio holdings were available for the requested as-of date.")
+
+    if not holdings:
+        holdings = await _report_preparation_holdings(db=db, user_id=user_id, as_of_date=as_of_date)
+        used_report_preparation_evidence = bool(holdings)
+        if used_report_preparation_evidence:
+            notes.append(
+                "No holdings snapshot existed on or before the as-of date; the schedule used active holdings "
+                "with post-period manual market-data overrides as report-preparation evidence."
+            )
+        else:
+            notes.append("No portfolio holdings were available for the requested as-of date.")
 
     asset_identifiers = [holding.asset_identifier for holding in holdings]
     cost_basis_by_asset: dict[str, Decimal] = {}
@@ -565,12 +618,42 @@ async def get_investment_performance_report_schedule(
                     count=row.count,
                 )
             )
+    if used_report_preparation_evidence and not allocation_rows and holding_rows:
+        total_market_value = sum((row.market_value for row in holding_rows), Decimal("0.00"))
+        for dimension, attribute, fallback_category in [
+            ("sector", "sector", "Unclassified"),
+            ("geography", "geography", "Unclassified"),
+            ("asset_class", "asset_type", "Unclassified"),
+        ]:
+            grouped: dict[str, tuple[Decimal, int]] = {}
+            for holding, row in zip(holdings, holding_rows, strict=True):
+                category = getattr(holding, attribute) or fallback_category
+                current_value, current_count = grouped.get(category, (Decimal("0.00"), 0))
+                grouped[category] = (current_value + row.market_value, current_count + 1)
+            for category, (value, count) in grouped.items():
+                percentage = Decimal("0.00")
+                if total_market_value:
+                    percentage = (value / total_market_value * Decimal("100")).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                allocation_rows.append(
+                    InvestmentPerformanceAllocationRow(
+                        dimension=dimension,
+                        category=category,
+                        value=_money(value),
+                        percentage=percentage,
+                        count=count,
+                    )
+                )
+        notes.append("Allocation rows use report-preparation holdings when as-of allocation snapshots are unavailable.")
 
+    latest_atomic_query = select(AtomicPosition).where(AtomicPosition.user_id == user_id)
+    if used_report_preparation_evidence and asset_identifiers:
+        latest_atomic_query = latest_atomic_query.where(AtomicPosition.asset_identifier.in_(asset_identifiers))
+    else:
+        latest_atomic_query = latest_atomic_query.where(AtomicPosition.snapshot_date <= as_of_date)
     latest_atomic_result = await db.execute(
-        select(AtomicPosition)
-        .where(AtomicPosition.user_id == user_id)
-        .where(AtomicPosition.snapshot_date <= as_of_date)
-        .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
+        latest_atomic_query.order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
     )
     atomics = list(latest_atomic_result.scalars().all())
     latest_atomic_by_asset: dict[str, AtomicPosition] = {}
@@ -579,13 +662,26 @@ async def get_investment_performance_report_schedule(
         for link in _source_document_links(atomic.source_documents):
             source_links.add(link)
 
-    latest_override_result = await db.execute(
+    latest_override_query = (
         select(MarketDataOverride)
         .where(MarketDataOverride.user_id == user_id)
         .where(MarketDataOverride.price_date <= as_of_date)
-        .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+    )
+    latest_override_result = await db.execute(
+        latest_override_query.order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
     )
     overrides = list(latest_override_result.scalars().all())
+    if asset_identifiers:
+        report_preparation_override_result = await db.execute(
+            select(MarketDataOverride)
+            .where(MarketDataOverride.user_id == user_id)
+            .where(MarketDataOverride.asset_identifier.in_(asset_identifiers))
+            .where(MarketDataOverride.source == PriceSource.MANUAL)
+            .where(MarketDataOverride.price_date > as_of_date)
+            .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+        )
+        overrides.extend(report_preparation_override_result.scalars().all())
+        overrides.sort(key=lambda override: override.price_date, reverse=True)
     latest_override = overrides[0] if overrides else None
     latest_override_by_asset: dict[str, MarketDataOverride] = {}
     for override in overrides:

@@ -180,6 +180,14 @@ The schedule must not mutate ledger state. It assembles existing portfolio,
 market-data, dividend, and journal-entry facts into a reporting payload that can
 be exported or embedded by EPIC-005.
 
+If no holding snapshot exists on or before `as_of_date`, the schedule may use
+active current holdings only when the same asset has a manual market-data
+override dated after `as_of_date`. The response must disclose that
+report-preparation evidence in `notes`, expose the override in
+`data_freshness.manual_override_basis`, and include a `market_data_override`
+source link. This fallback is report-only evidence and must not mutate ledger
+state or weaken historical portfolio holding queries.
+
 ### 2.6 Annualized Income Dashboard Summary
 
 Endpoint:

@@ -568,6 +568,78 @@ async def test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_s
 
 
 @pytest.mark.asyncio
+async def test_AC17_10_1_report_schedule_uses_manual_override_after_period_end(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC17.10.1 AC17.10.2: Report-preparation overrides can evidence active holdings after period end."""
+    period_start = date(2026, 5, 2)
+    period_end = date(2026, 5, 19)
+    override_date = date(2026, 5, 31)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="FULLERTON_SGD_MMF",
+        quantity=Decimal("100"),
+        cost_basis=Decimal("1000.00"),
+        currency="SGD",
+        acquisition_date=period_start,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=override_date,
+        asset_identifier="FULLERTON_SGD_MMF",
+        broker="Moomoo",
+        quantity=Decimal("100"),
+        market_value=Decimal("1250.00"),
+        currency="SGD",
+        sector="Cash",
+        geography="SG",
+        asset_type="mutual_fund",
+        dedup_hash="fullerton_future_snapshot",
+        source_documents=[{"doc_id": "brokerage-doc-fullerton", "doc_type": "brokerage_statement"}],
+    )
+    db.add_all([position, atomic])
+    await db.commit()
+
+    price_response = await client.post(
+        "/portfolio/prices/update",
+        json={
+            "updates": [
+                {
+                    "asset_identifier": "FULLERTON_SGD_MMF",
+                    "price": "12.50",
+                    "currency": "SGD",
+                    "price_date": override_date.isoformat(),
+                }
+            ]
+        },
+    )
+    assert price_response.status_code == 200
+    assert price_response.json()["updated_count"] == 1
+
+    response = await client.get(
+        "/portfolio/performance/report-schedule"
+        f"?period_start={period_start.isoformat()}"
+        f"&period_end={period_end.isoformat()}"
+        f"&as_of_date={period_end.isoformat()}&currency=SGD"
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["holdings"][0]["asset_identifier"] == "FULLERTON_SGD_MMF"
+    assert data["holdings"][0]["market_value"] == "1250.00"
+    assert {row["dimension"] for row in data["allocation"]} == {"asset_class", "geography", "sector"}
+    assert data["data_freshness"]["latest_price_date"] == override_date.isoformat()
+    assert data["data_freshness"]["manual_override_basis"] == (f"FULLERTON_SGD_MMF:{override_date.isoformat()}")
+    assert any(link.startswith("price_source:market_data_override:FULLERTON_SGD_MMF:") for link in data["source_links"])
+
+
+@pytest.mark.asyncio
 async def test_get_sector_allocation_empty(client: AsyncClient):
     """AC17.6.7: GET /portfolio/allocation/sector on empty portfolio returns [].
 
