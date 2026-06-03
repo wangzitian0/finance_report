@@ -347,8 +347,8 @@ Remaining blocker breakdown after the #565 post-merge proof:
   source-ledger-report traceability appendix for package output through
   `GET /api/reports/package/traceability`.
 - [#573](https://github.com/wangzitian0/finance_report/issues/573) supplies the
-  representative fixture contract used to expand the package E2E beyond the
-  current #565 guard.
+  representative fixture contract consumed by the package E2E for exact
+  Decimal expected outputs.
 
 Closure status:
 
@@ -365,12 +365,12 @@ Closure status:
    input consumed by this package (#566).
 5. Done: deliver notes/disclosures for the package output shape (#571).
 6. Done: deliver the traceability appendix for the package output shape (#572).
-7. Build deterministic fixture coverage (#573) against the same contract and
-   schedules, then extend the #565 guard as those package sections become
-   report-ready.
+7. Done: build deterministic fixture coverage (#573) against the same contract
+   and schedules, and extend the #565 guard to consume the representative
+   fixture contract.
 
-The macro outcome remains `partial` until representative fixture coverage
-(#573) closes.
+The macro outcome is `covered` in `docs/ssot/critical-proof-matrix.yaml` once
+the representative fixture coverage (#573) is merged.
 
 ## 📄 Owned Documentation Surfaces
 
