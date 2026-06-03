@@ -41,10 +41,12 @@ from src.schemas import (
     NetWorthTimeSeriesResponse,
     PersonalReportPackageContractResponse,
     PersonalReportPackageNotesResponse,
+    PersonalReportPackageReadinessResponse,
     PersonalReportPackageTraceabilityResponse,
     TrendPeriod,
 )
 from src.services.market_data import ensure_market_data_fresh
+from src.services.report_readiness import get_personal_report_package_readiness
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -721,6 +723,16 @@ def _annualized_income_bucket(account_name: str) -> str | None:
 def personal_report_package_contract() -> PersonalReportPackageContractResponse:
     """Return the stable package-level API/export contract."""
     return PersonalReportPackageContractResponse(**PERSONAL_REPORT_PACKAGE_CONTRACT)
+
+
+@router.get("/package/readiness", response_model=PersonalReportPackageReadinessResponse)
+async def personal_report_package_readiness(
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> PersonalReportPackageReadinessResponse:
+    """Return deterministic readiness and blocker state for the personal package."""
+    payload = await get_personal_report_package_readiness(db, user_id)
+    return PersonalReportPackageReadinessResponse(**payload)
 
 
 @router.get("/package/notes", response_model=PersonalReportPackageNotesResponse)

@@ -177,6 +177,27 @@ export interface PersonalReportPackageContractResponse {
     };
 }
 
+export interface PersonalReportPackageReadinessBlocker {
+    code: string;
+    label: string;
+    severity: string;
+    count: number;
+    reason: string;
+    action_href: string;
+}
+
+export interface PersonalReportPackageReadinessResponse {
+    package_id: string;
+    state: "ready" | "processing" | "blocked" | "draft" | "generated" | "stale";
+    label: string;
+    action_href: string;
+    blocking_count: number;
+    blockers: PersonalReportPackageReadinessBlocker[];
+    source_summary: Record<string, number>;
+    generated_at?: string | null;
+    stale_since?: string | null;
+}
+
 export interface PersonalReportPackageNote {
     note_id: string;
     label: string;

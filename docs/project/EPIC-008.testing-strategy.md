@@ -640,7 +640,7 @@ finance_report AC coverage.
      4. Representative fixture contract: [#573](https://github.com/wangzitian0/finance_report/issues/573)
    - **Prerequisite fixture**: [#573](https://github.com/wangzitian0/finance_report/issues/573) owns the representative fresh-user fixture contract: bank cash, income/expense activity, brokerage holdings, market prices, dividends, manual valuation, liability, restricted holdings, reviewed sources, exact expected totals, notes, and traceability anchors.
    - **Contract dependencies**: [#570](https://github.com/wangzitian0/finance_report/issues/570) owns section/API shape, [#571](https://github.com/wangzitian0/finance_report/issues/571) owns notes/disclosures, and [#572](https://github.com/wangzitian0/finance_report/issues/572) owns the traceability appendix.
-   - **Closure rule**: Covered. `personal-financial-report-package` points to `personal-financial-report-package-post-merge`, which now consumes the representative fixture contract and carries AC8.13.83-AC8.13.85 in `docs/ssot/critical-proof-matrix.yaml`. Follow-up #649 hardens the same proof with AC8.13.87-AC8.13.88 for pinned brokerage, dividend, market-price, and dynamic traceability identifier assertions.
+   - **Closure rule**: Covered. `personal-financial-report-package` points to `personal-financial-report-package-post-merge`, which now consumes the representative fixture contract and carries AC8.13.83-AC8.13.85 in `docs/ssot/critical-proof-matrix.yaml`. #649 hardened the same proof with AC8.13.87-AC8.13.88 for pinned brokerage, dividend, market-price, and dynamic traceability identifier assertions.
 
 1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
    - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)

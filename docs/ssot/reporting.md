@@ -212,6 +212,48 @@ Required section IDs:
 | `notes` | EPIC-005 | `/api/reports/package/notes` | ready |
 | `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | ready |
 
+Package readiness:
+
+- Endpoint: `GET /api/reports/package/readiness`
+- Owner: EPIC-019 Slice 5 (#639).
+- Purpose: return the user-scoped readiness state and blocker links before the
+  report package renders output. This endpoint is the package-owned fact source;
+  workflow summary APIs may aggregate it but must not duplicate its derivation.
+- Response contract:
+  - `package_id`: always `personal-financial-report-package`
+  - `state`: one of `draft`, `processing`, `blocked`, `ready`, `generated`, or
+    `stale`
+  - `label` and `action_href`: primary UI state and next action
+  - `blocking_count`: sum of blocker record counts
+  - `blockers`: ordered actionable blockers with `code`, `label`, `severity`,
+    `count`, `reason`, and internal `action_href`
+  - `source_summary`: counts of source records used to derive readiness
+  - `generated_at`: latest package report snapshot timestamp, when available
+  - `stale_since`: newest source timestamp when generated output is stale
+- State priority:
+  1. `draft`: no report-supporting inputs exist.
+  2. `processing`: statements are uploaded or parsing and there are no blockers.
+  3. `blocked`: one or more blockers exist.
+  4. `stale`: a latest report snapshot exists, but source records changed after
+     that snapshot.
+  5. `generated`: a latest report snapshot exists and is not stale.
+  6. `ready`: report-supporting inputs exist, no blockers exist, and no latest
+     package snapshot has been generated yet.
+- Required blocker codes:
+  - `failed_parsing`: rejected statement parsing.
+  - `pending_review`: source review is pending.
+  - `balance_mismatch`: statement balance validation failed or has an
+    unresolved validation error.
+  - `reconciliation_blocked`: reconciliation match is pending review.
+  - `consistency_check_blocked`: duplicate, transfer-pair, or anomaly check is
+    pending.
+  - `processing_account_unresolved`: Processing account balance does not net to
+    zero.
+  - `missing_source_coverage`: active asset or liability account lacks approved
+    statement coverage or explicit source anchoring.
+- The readiness derivation must be read-only. Opening the reports page must not
+  create Processing accounts or other readiness artifacts.
+
 Annualized income and long-term compensation schedule:
 
 - Endpoint: `GET /api/reports/package/annualized-income-schedule`

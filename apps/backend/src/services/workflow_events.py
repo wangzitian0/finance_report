@@ -25,6 +25,22 @@ from src.schemas.workflow import (
     WorkflowReportReadinessState,
     WorkflowStatusResponse,
 )
+from src.services.report_readiness import get_personal_report_package_readiness
+
+
+def _collapse_package_readiness_state(state: str) -> WorkflowReportReadinessState:
+    """Collapse package readiness into the compact workflow vocabulary."""
+    if state == "draft":
+        return WorkflowReportReadinessState.NONE
+    if state == "processing":
+        return WorkflowReportReadinessState.PROCESSING
+    if state == "blocked":
+        return WorkflowReportReadinessState.BLOCKED
+    if state in {"ready", "generated"}:
+        return WorkflowReportReadinessState.READY
+    if state == "stale":
+        return WorkflowReportReadinessState.STALE
+    return WorkflowReportReadinessState.NONE
 
 
 def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, source_id: UUID) -> str:
@@ -178,6 +194,9 @@ async def list_workflow_events_response(
 async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowStatusResponse:
     """Return the compact workflow status for primary UI surfaces."""
     await sync_workflow_events_for_user(db, user_id=user_id)
+    package_readiness = await get_personal_report_package_readiness(db, user_id=user_id)
+    package_readiness_state = _collapse_package_readiness_state(str(package_readiness["state"]))
+    package_blocking_count = int(package_readiness["blocking_count"])
 
     active_filters = [WorkflowEvent.user_id == user_id, WorkflowEvent.status != WorkflowEventStatus.ARCHIVED]
 
@@ -200,16 +219,14 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
     blocked_count = await count_where(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
     processing_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.PROCESSING)
     ready_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.READY)
-    stale_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.STALE)
-    report_blocking_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.BLOCKED)
 
-    if blocked_count:
+    if blocked_count or package_readiness_state == WorkflowReportReadinessState.BLOCKED:
         blocked_event = await representative_event(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
         primary_state = WorkflowPrimaryState.BLOCKED
         next_action = WorkflowNextActionResponse(
             type=WorkflowNextActionType.RESOLVE_BLOCKER,
-            count=blocked_count,
-            href=blocked_event.action_href if blocked_event else "/reports",
+            count=max(blocked_count, package_blocking_count),
+            href=blocked_event.action_href if blocked_event else str(package_readiness["action_href"]),
         )
     elif action_required_count:
         action_required_event = await representative_event(
@@ -221,18 +238,21 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
             count=action_required_count,
             href=action_required_event.action_href if action_required_event else "/review",
         )
-    elif processing_count:
+    elif processing_count or package_readiness_state == WorkflowReportReadinessState.PROCESSING:
         primary_state = WorkflowPrimaryState.PROCESSING
         next_action = WorkflowNextActionResponse(
             type=WorkflowNextActionType.WAIT,
-            count=processing_count,
+            count=max(processing_count, 1),
             href="/statements",
         )
-    elif ready_count:
+    elif ready_count or package_readiness_state in {
+        WorkflowReportReadinessState.READY,
+        WorkflowReportReadinessState.STALE,
+    }:
         primary_state = WorkflowPrimaryState.READY
         next_action = WorkflowNextActionResponse(
             type=WorkflowNextActionType.OPEN_REPORT,
-            count=ready_count,
+            count=max(ready_count, 1),
             href="/reports",
         )
     elif active_count:
@@ -246,36 +266,11 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
             href="/statements/upload",
         )
 
-    if report_blocking_count:
-        readiness = WorkflowReportReadinessResponse(
-            state=WorkflowReportReadinessState.BLOCKED,
-            blocking_count=report_blocking_count,
-            href="/reports",
-        )
-    elif processing_count:
-        readiness = WorkflowReportReadinessResponse(
-            state=WorkflowReportReadinessState.PROCESSING,
-            blocking_count=0,
-            href="/reports",
-        )
-    elif stale_count:
-        readiness = WorkflowReportReadinessResponse(
-            state=WorkflowReportReadinessState.STALE,
-            blocking_count=0,
-            href="/reports",
-        )
-    elif ready_count:
-        readiness = WorkflowReportReadinessResponse(
-            state=WorkflowReportReadinessState.READY,
-            blocking_count=0,
-            href="/reports",
-        )
-    else:
-        readiness = WorkflowReportReadinessResponse(
-            state=WorkflowReportReadinessState.NONE,
-            blocking_count=0,
-            href="/reports",
-        )
+    readiness = WorkflowReportReadinessResponse(
+        state=package_readiness_state,
+        blocking_count=package_blocking_count,
+        href="/reports",
+    )
 
     return WorkflowStatusResponse(
         primary_state=primary_state,
