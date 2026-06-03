@@ -25,42 +25,12 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from playwright.async_api import Page, expect
-
 from conftest import fail_or_skip_ai_ocr_gate
+from personal_report_package_fixture import PERSONAL_REPORT_PACKAGE_FIXTURE
+from playwright.async_api import Page, expect
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS: int = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
-
-FIXTURE_PATH: Path = (
-    Path(__file__).resolve().parents[2]
-    / "tests"
-    / "e2e"
-    / "fixtures"
-    / "vision_hard_gate_statement.csv"
-)
-BANK_INSTITUTION = "Personal Report Package Bank"
-BROKERAGE_SOURCE = "moomoo"
-BROKERAGE_INSTITUTION = "Moomoo Personal Package"
-
-PROPERTY_VALUE = Decimal("1100000.00")
-MORTGAGE_BALANCE = Decimal("360000.00")
-ESOP_VALUE = Decimal("85000.00")
-RSU_VALUE = Decimal("42000.00")
-STOCK_OPTIONS_VALUE = Decimal("29000.00")
-
-PROPERTY_SOURCE = "Family Home"
-MORTGAGE_SOURCE = "Home Loan"
-ESOP_SOURCE = "ACME ESOP"
-RSU_SOURCE = "ACME RSU"
-STOCK_OPTIONS_SOURCE = "ACME Options"
-ESOP_NOTES = "ESOP vesting starts over 4 years"
-RSU_NOTES = "RSU vesting 25% annually"
-STOCK_OPTIONS_NOTES = "Stock options cliff vest at 3 years"
-PROPERTY_NOTES = "Independent appraisal report reference A-12"
-MORTGAGE_NOTES = "Loan reference 2026-01"
-
-
 
 def _api_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}/api{path}"
@@ -72,32 +42,6 @@ def _get_url(path: str) -> str:
 
 def _money(value: object) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"))
-
-
-def _read_fixture_rows() -> list[dict[str, str]]:
-    assert FIXTURE_PATH.exists(), f"fixture missing: {FIXTURE_PATH}"
-    with FIXTURE_PATH.open(newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
-    assert rows, f"fixture has no rows: {FIXTURE_PATH}"
-    return rows
-
-
-def _fixture_period(rows: list[dict[str, str]]) -> tuple[date, date]:
-    dates = sorted(date.fromisoformat(row["Date"]) for row in rows)
-    assert dates, "fixture period is empty"
-    return dates[0], dates[-1]
-
-
-def _fixture_totals(rows: list[dict[str, str]]) -> dict[str, object]:
-    amounts = [_money(row["Amount"]) for row in rows]
-    total_income = sum((amount for amount in amounts if amount > 0), Decimal("0.00"))
-    total_expenses = sum((-amount for amount in amounts if amount < 0), Decimal("0.00"))
-    return {
-        "transaction_count": len(rows),
-        "income": total_income,
-        "expenses": total_expenses,
-        "net_income": total_income - total_expenses,
-    }
 
 
 async def _auth_headers(page: Page) -> dict[str, str]:
@@ -197,7 +141,7 @@ def _get_pdf_path(source: str) -> Path:
 
 def _unique_pdf_copy(src: Path) -> Path:
     tmp = Path(tempfile.mkdtemp())
-    suffix = int((time() * 1000)) % 1_000_000
+    suffix = int(time() * 1000) % 1_000_000
     dest = tmp / f"{src.stem}_{suffix}{src.suffix}"
     shutil.copy2(src, dest)
     with dest.open("ab") as fh:
@@ -317,10 +261,14 @@ async def _create_manual_snapshot(
 @pytest.mark.tier3
 @pytest.mark.critical
 @pytest.mark.llm
-async def test_personal_financial_report_package_post_merge_journey(authenticated_page_unique: Page) -> None:
+async def test_personal_financial_report_package_post_merge_journey(
+    authenticated_page_unique: Page,
+    tmp_path: Path,
+) -> None:
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
     AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC5.13.4
+    AC8.13.83 AC8.13.84 AC8.13.85 AC8.13.86
     AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3 AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2:
     one complete fresh-user report package with bank data, brokerage import,
     investment performance schedule, annualized income and restricted
@@ -328,20 +276,28 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
     traceability.
     """
     page = authenticated_page_unique
-    fixture_rows = _read_fixture_rows()
-    fixture_period_start, fixture_period_end = _fixture_period(fixture_rows)
-    expected = _fixture_totals(fixture_rows)
+    fixture = PERSONAL_REPORT_PACKAGE_FIXTURE
+    bank_fixture_path = fixture.write_bank_csv(tmp_path)
+    fixture_period_start = fixture.period_start
+    fixture_period_end = fixture.period_end
 
     headers = await _auth_headers(page)
 
     async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
-        bank_statement_id = await _upload_bank_csv(client, FIXTURE_PATH, institution=BANK_INSTITUTION)
+        contract_response = await client.get(_api_url("/reports/package/contract"))
+        assert contract_response.status_code == 200, (
+            f"package contract failed: {contract_response.status_code} {contract_response.text}"
+        )
+        contract_sections = {section["section_id"] for section in contract_response.json()["sections"]}
+        assert fixture.required_sections <= contract_sections
+
+        bank_statement_id = await _upload_bank_csv(client, bank_fixture_path, institution=fixture.institution)
         parsed_bank = await _wait_for_parsed_statement(
             client,
             bank_statement_id,
             gate_name="bank CSV",
         )
-        assert len(parsed_bank.get("transactions") or []) == expected["transaction_count"]
+        assert len(parsed_bank.get("transactions") or []) == fixture.transaction_count
 
         approve_response = await client.post(
             _api_url(f"/statements/{bank_statement_id}/review/approve"),
@@ -351,15 +307,15 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             f"bank stage 1 approve failed: {approve_response.status_code} {approve_response.text}"
         )
         approve_payload = approve_response.json()
-        assert approve_payload["journal_entries_created"] == expected["transaction_count"]
+        assert approve_payload["journal_entries_created"] == fixture.transaction_count
 
         journal_response = await client.get(_api_url("/journal-entries?limit=20"))
         assert journal_response.status_code == 200, (
             f"journal entry check failed: {journal_response.status_code} {journal_response.text}"
         )
         journal_payload = journal_response.json()
-        assert journal_payload["total"] == expected["transaction_count"]
-        assert len(journal_payload["items"]) == expected["transaction_count"]
+        assert journal_payload["total"] == fixture.transaction_count
+        assert len(journal_payload["items"]) == fixture.transaction_count
         _assert_traceability(parsed_bank["transactions"], journal_payload["items"])
 
         first_reconciliation = await client.post(
@@ -370,8 +326,8 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             f"first reconciliation failed: {first_reconciliation.status_code} {first_reconciliation.text}"
         )
         assert first_reconciliation.json() == {
-            "matches_created": expected["transaction_count"],
-            "auto_accepted": expected["transaction_count"],
+            "matches_created": fixture.transaction_count,
+            "auto_accepted": fixture.transaction_count,
             "pending_review": 0,
             "unmatched": 0,
         }
@@ -401,8 +357,8 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         model = await _default_image_model(client)
         brokerage_statement_id = await _upload_brokerage_pdf(
             client,
-            source=BROKERAGE_SOURCE,
-            institution=BROKERAGE_INSTITUTION,
+            source=fixture.brokerage_source,
+            institution=fixture.brokerage_institution,
             model=model,
         )
         parsed_brokerage = await _wait_for_parsed_statement(
@@ -437,7 +393,7 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
                 "/portfolio/performance/report-schedule"
                 f"?period_start={fixture_period_start.isoformat()}"
                 f"&period_end={fixture_period_end.isoformat()}"
-                f"&as_of_date={fixture_period_end.isoformat()}&currency=SGD"
+                f"&as_of_date={fixture_period_end.isoformat()}&currency={fixture.currency}"
             )
         )
         assert schedule_response.status_code == 200, (
@@ -447,7 +403,7 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert schedule["period_start"] == fixture_period_start.isoformat()
         assert schedule["period_end"] == fixture_period_end.isoformat()
         assert schedule["as_of_date"] == fixture_period_end.isoformat()
-        assert schedule["currency"] == "SGD"
+        assert schedule["currency"] == fixture.currency
         assert schedule["holdings"], f"investment schedule has no holdings: {schedule}"
         assert _money(schedule["unrealized_pnl"]) >= Decimal("0.00")
         assert "data_freshness" in schedule
@@ -460,43 +416,43 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
         property_snapshot = await _create_manual_snapshot(
             client,
-            component_type="property_value",
+            component_type=fixture.property_value.component_type,
             as_of_date=fixture_period_end,
-            value=PROPERTY_VALUE,
-            source=PROPERTY_SOURCE,
-            notes=PROPERTY_NOTES,
+            value=fixture.property_value.value,
+            source=fixture.property_value.source,
+            notes=fixture.property_value.notes,
         )
         mortgage_snapshot = await _create_manual_snapshot(
             client,
-            component_type="mortgage_balance",
+            component_type=fixture.mortgage_balance.component_type,
             as_of_date=fixture_period_end,
-            value=MORTGAGE_BALANCE,
-            source=MORTGAGE_SOURCE,
-            notes=MORTGAGE_NOTES,
+            value=fixture.mortgage_balance.value,
+            source=fixture.mortgage_balance.source,
+            notes=fixture.mortgage_balance.notes,
         )
         esop_snapshot = await _create_manual_snapshot(
             client,
-            component_type="esop",
+            component_type=fixture.esop.component_type,
             as_of_date=fixture_period_end,
-            value=ESOP_VALUE,
-            source=ESOP_SOURCE,
-            notes=ESOP_NOTES,
+            value=fixture.esop.value,
+            source=fixture.esop.source,
+            notes=fixture.esop.notes,
         )
         rsu_snapshot = await _create_manual_snapshot(
             client,
-            component_type="rsu",
+            component_type=fixture.rsu.component_type,
             as_of_date=fixture_period_end,
-            value=RSU_VALUE,
-            source=RSU_SOURCE,
-            notes=RSU_NOTES,
+            value=fixture.rsu.value,
+            source=fixture.rsu.source,
+            notes=fixture.rsu.notes,
         )
         stock_options_snapshot = await _create_manual_snapshot(
             client,
-            component_type="stock_options",
+            component_type=fixture.stock_options.component_type,
             as_of_date=fixture_period_end,
-            value=STOCK_OPTIONS_VALUE,
-            source=STOCK_OPTIONS_SOURCE,
-            notes=STOCK_OPTIONS_NOTES,
+            value=fixture.stock_options.value,
+            source=fixture.stock_options.source,
+            notes=fixture.stock_options.notes,
         )
 
         assert property_snapshot["liquidity_class"] == "illiquid"
@@ -518,11 +474,17 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         values_by_type_source = {
             (item["component_type"], item["source"]): _money(item["value"]) for item in manual_components["items"]
         }
-        assert values_by_type_source[("property_value", PROPERTY_SOURCE)] == PROPERTY_VALUE
-        assert values_by_type_source[("mortgage_balance", MORTGAGE_SOURCE)] == MORTGAGE_BALANCE
-        assert values_by_type_source[("esop", ESOP_SOURCE)] == ESOP_VALUE
-        assert values_by_type_source[("rsu", RSU_SOURCE)] == RSU_VALUE
-        assert values_by_type_source[("stock_options", STOCK_OPTIONS_SOURCE)] == STOCK_OPTIONS_VALUE
+        assert values_by_type_source[(fixture.property_value.component_type, fixture.property_value.source)] == (
+            fixture.property_value.value
+        )
+        assert values_by_type_source[(fixture.mortgage_balance.component_type, fixture.mortgage_balance.source)] == (
+            fixture.mortgage_balance.value
+        )
+        assert values_by_type_source[(fixture.esop.component_type, fixture.esop.source)] == fixture.esop.value
+        assert values_by_type_source[(fixture.rsu.component_type, fixture.rsu.source)] == fixture.rsu.value
+        assert values_by_type_source[(fixture.stock_options.component_type, fixture.stock_options.source)] == (
+            fixture.stock_options.value
+        )
 
         snapshots_response = await client.get(
             f"/assets/valuation-snapshots?as_of_date={fixture_period_end.isoformat()}"
@@ -532,9 +494,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         )
         snapshots = snapshots_response.json()["items"]
         notes_by_source = {snapshot["source"]: snapshot["notes"] for snapshot in snapshots}
-        assert notes_by_source[ESOP_SOURCE] == ESOP_NOTES
-        assert notes_by_source[RSU_SOURCE] == RSU_NOTES
-        assert notes_by_source[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
+        assert notes_by_source[fixture.esop.source] == fixture.esop.notes
+        assert notes_by_source[fixture.rsu.source] == fixture.rsu.notes
+        assert notes_by_source[fixture.stock_options.source] == fixture.stock_options.notes
 
         restricted_response = await client.get(
             f"/assets/restricted?as_of_date={fixture_period_end.isoformat()}"
@@ -544,14 +506,14 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         )
         restricted_holdings = restricted_response.json()
         assert {item["ticker"] for item in restricted_holdings} == {
-            ESOP_SOURCE,
-            RSU_SOURCE,
-            STOCK_OPTIONS_SOURCE,
+            fixture.esop.source,
+            fixture.rsu.source,
+            fixture.stock_options.source,
         }
         schedules_by_ticker = {item["ticker"]: item["vesting_schedule"] for item in restricted_holdings}
-        assert schedules_by_ticker[ESOP_SOURCE] == ESOP_NOTES
-        assert schedules_by_ticker[RSU_SOURCE] == RSU_NOTES
-        assert schedules_by_ticker[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
+        assert schedules_by_ticker[fixture.esop.source] == fixture.esop.notes
+        assert schedules_by_ticker[fixture.rsu.source] == fixture.rsu.notes
+        assert schedules_by_ticker[fixture.stock_options.source] == fixture.stock_options.notes
 
         annualized_response = await client.get(
             _api_url(
@@ -565,21 +527,19 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert annualized["section_id"] == "annualized_income_long_term"
         assert annualized["as_of_date"] == fixture_period_end.isoformat()
         assert annualized["trailing_period_days"] == 365
-        assert _money(annualized["income"]["annualized_total"]) == _money(expected["income"])
-        assert annualized["income"]["currency"] == "SGD"
+        assert _money(annualized["income"]["annualized_total"]) == fixture.income
+        assert annualized["income"]["currency"] == fixture.currency
         assert annualized["income"]["calculation_basis"] == (
             "posted_or_reconciled_income_journal_lines_trailing_12_months"
         )
-        assert _money(annualized["restricted_fair_value_total"]) == (
-            ESOP_VALUE + RSU_VALUE + STOCK_OPTIONS_VALUE
-        )
+        assert _money(annualized["restricted_fair_value_total"]) == fixture.restricted_fair_value_total
         assert annualized["net_worth_treatment"]["liquid_net_worth_default"] == (
             "exclude_restricted_holdings"
         )
         annualized_holdings = {holding["ticker"]: holding for holding in annualized["restricted_holdings"]}
-        assert annualized_holdings[ESOP_SOURCE]["vesting_schedule"] == ESOP_NOTES
-        assert annualized_holdings[RSU_SOURCE]["vesting_schedule"] == RSU_NOTES
-        assert annualized_holdings[STOCK_OPTIONS_SOURCE]["vesting_schedule"] == STOCK_OPTIONS_NOTES
+        assert annualized_holdings[fixture.esop.source]["vesting_schedule"] == fixture.esop.notes
+        assert annualized_holdings[fixture.rsu.source]["vesting_schedule"] == fixture.rsu.notes
+        assert annualized_holdings[fixture.stock_options.source]["vesting_schedule"] == fixture.stock_options.notes
         assert {holding["compensation_type"] for holding in annualized_holdings.values()} == {
             "esop",
             "rsu",
@@ -593,21 +553,21 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         package_notes = notes_response.json()
         assert package_notes["section_id"] == "notes"
         package_note_ids = {note["note_id"] for note in package_notes["notes"]}
-        assert {
-            "basis-of-preparation",
-            "reporting-period-and-currency",
-            "valuation-basis",
-            "investment-market-data",
-            "source-confidence-review",
-            "restricted-asset-treatment",
-        } <= package_note_ids
+        assert fixture.required_note_ids <= package_note_ids
         assert "not a regulated filing" in package_notes["non_compliance_statement"]
         assert "not legal advice" in package_notes["non_compliance_statement"]
         assert "not tax advice" in package_notes["non_compliance_statement"]
         assert "US GAAP compliant" not in package_notes["non_compliance_statement"]
         assert "HKEX filing" not in package_notes["non_compliance_statement"]
 
-        traceability_response = await client.get(_api_url("/reports/package/traceability"))
+        traceability_response = await client.get(
+            _api_url(
+                "/reports/package/traceability"
+                f"?start_date={fixture_period_start.isoformat()}"
+                f"&end_date={fixture_period_end.isoformat()}"
+                f"&as_of_date={fixture_period_end.isoformat()}"
+            )
+        )
         assert traceability_response.status_code == 200, (
             f"package traceability failed: {traceability_response.status_code} {traceability_response.text}"
         )
@@ -615,6 +575,7 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert traceability["section_id"] == "traceability_appendix"
         assert traceability["status"] == "ready"
         traceability_lines = {line["line_id"]: line for line in traceability["lines"]}
+        assert fixture.required_traceability_lines <= set(traceability_lines)
         trusted_total_line_ids = {
             "balance_sheet.total_assets",
             "income_statement.total_income",
@@ -628,12 +589,17 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             assert line["source_anchor"]["state"] == "available"
             assert line["ledger_anchor"]["state"] == "available"
             assert line["ledger_anchor"]["entry_statuses"] == ["posted", "reconciled"]
+            assert line["source_anchor"]["identifiers"]
+            assert line["ledger_anchor"]["identifiers"]
             assert line["confidence_tier"] == "TRUSTED"
         assert traceability_lines["annualized_income_long_term.restricted_fair_value_total"]["ledger_anchor"][
             "state"
         ] == "not_applicable"
+        assert traceability_lines["annualized_income_long_term.restricted_fair_value_total"]["source_anchor"][
+            "identifiers"
+        ]
         warning_codes = {warning["code"] for warning in traceability["completeness_warnings"]}
-        assert {"missing_source_anchor", "manual_only_source", "stale_market_data"} <= warning_codes
+        assert fixture.required_traceability_warnings <= warning_codes
 
         manual_components_exclusive = await client.get(
             _api_url(
@@ -647,23 +613,14 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         sources_exclusive = {
             (item["component_type"], item["source"]) for item in manual_components_exclusive_payload["items"]
         }
-        assert ("esop", ESOP_SOURCE) not in sources_exclusive
-        assert ("rsu", RSU_SOURCE) not in sources_exclusive
-        assert ("stock_options", STOCK_OPTIONS_SOURCE) not in sources_exclusive
+        assert (fixture.esop.component_type, fixture.esop.source) not in sources_exclusive
+        assert (fixture.rsu.component_type, fixture.rsu.source) not in sources_exclusive
+        assert (fixture.stock_options.component_type, fixture.stock_options.source) not in sources_exclusive
 
-        expected_bank_cash = _money(expected["income"]) - _money(expected["expenses"])
-        expected_assets = (
-            brokerage_value
-            + PROPERTY_VALUE
-            + ESOP_VALUE
-            + RSU_VALUE
-            + STOCK_OPTIONS_VALUE
-            + expected_bank_cash
-        ).quantize(Decimal("0.01"))
-        expected_liabilities = MORTGAGE_BALANCE
-        expected_net_worth_adjustment = (
-            PROPERTY_VALUE + ESOP_VALUE + RSU_VALUE + STOCK_OPTIONS_VALUE - MORTGAGE_BALANCE
-        ).quantize(Decimal("0.01"))
+        expected_bank_cash = fixture.bank_cash
+        expected_assets = fixture.total_assets(brokerage_value)
+        expected_liabilities = fixture.mortgage_liability
+        expected_net_worth_adjustment = fixture.net_worth_adjustment_gain_loss
 
         assert _money(manual_components["total_assets"]) == expected_assets
         assert _money(manual_components["total_liabilities"]) == expected_liabilities
@@ -671,7 +628,8 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
         balance_payload = await client.get(
             _api_url(
-                f"/reports/balance-sheet?as_of_date={fixture_period_end.isoformat()}&currency=SGD&include_restricted=true"
+                f"/reports/balance-sheet?as_of_date={fixture_period_end.isoformat()}"
+                f"&currency={fixture.currency}&include_restricted=true"
             )
         )
         assert balance_payload.status_code == 200, (
@@ -689,27 +647,29 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
         income_payload = await client.get(
             _api_url(
-                f"/reports/income-statement?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
+                f"/reports/income-statement?start_date={fixture_period_start.isoformat()}"
+                f"&end_date={fixture_period_end.isoformat()}&currency={fixture.currency}"
             )
         )
         assert income_payload.status_code == 200, (
             f"income statement failed: {income_payload.status_code} {income_payload.text}"
         )
         income = income_payload.json()
-        assert _money(income["total_income"]) == expected["income"]
-        assert _money(income["total_expenses"]) == expected["expenses"]
-        assert _money(income["net_income"]) == expected["net_income"]
+        assert _money(income["total_income"]) == fixture.income
+        assert _money(income["total_expenses"]) == fixture.expenses
+        assert _money(income["net_income"]) == fixture.net_income
 
         cash_flow_payload = await client.get(
             _api_url(
-                f"/reports/cash-flow?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
+                f"/reports/cash-flow?start_date={fixture_period_start.isoformat()}"
+                f"&end_date={fixture_period_end.isoformat()}&currency={fixture.currency}"
             )
         )
         assert cash_flow_payload.status_code == 200, (
             f"cash flow failed: {cash_flow_payload.status_code} {cash_flow_payload.text}"
         )
         cash_flow = cash_flow_payload.json()
-        assert _money(cash_flow["summary"]["net_cash_flow"]) == _money(expected["net_income"])
+        assert _money(cash_flow["summary"]["net_cash_flow"]) == fixture.net_income
         assert _money(cash_flow["summary"]["beginning_cash"]) == Decimal("0.00")
         assert _money(cash_flow["summary"]["ending_cash"]) == _money(expected_bank_cash)
 
@@ -719,7 +679,7 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
                 "report_type": "balance-sheet",
                 "format": "csv",
                 "as_of_date": fixture_period_end.isoformat(),
-                "currency": "SGD",
+                "currency": fixture.currency,
             },
         )
         assert bs_export.status_code == 200, f"balance-sheet export failed: {bs_export.status_code} {bs_export.text}"
@@ -738,7 +698,7 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
                 "format": "csv",
                 "start_date": fixture_period_start.isoformat(),
                 "end_date": fixture_period_end.isoformat(),
-                "currency": "SGD",
+                "currency": fixture.currency,
             },
         )
         assert income_export.status_code == 200, (
@@ -755,7 +715,7 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
     await page.goto(
         _get_url(
-            f"/reports/balance-sheet?as_of_date={fixture_period_end.isoformat()}&currency=SGD"
+            f"/reports/balance-sheet?as_of_date={fixture_period_end.isoformat()}&currency={fixture.currency}"
         )
     )
     await page.wait_for_load_state("networkidle")
@@ -763,7 +723,8 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
     await page.goto(
         _get_url(
-            f"/reports/income-statement?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
+            f"/reports/income-statement?start_date={fixture_period_start.isoformat()}"
+            f"&end_date={fixture_period_end.isoformat()}&currency={fixture.currency}"
         )
     )
     await page.wait_for_load_state("networkidle")
@@ -771,7 +732,8 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
     await page.goto(
         _get_url(
-            f"/reports/cash-flow?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
+            f"/reports/cash-flow?start_date={fixture_period_start.isoformat()}"
+            f"&end_date={fixture_period_end.isoformat()}&currency={fixture.currency}"
         )
     )
     await page.wait_for_load_state("networkidle")

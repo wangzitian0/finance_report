@@ -106,6 +106,10 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.80**: AC coverage analysis supports no-write and stale-report check modes for local verification.
 - **AC8.13.81**: Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values.
 - **AC8.13.60**: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk.
+- **AC8.13.83**: Representative package fixture exposes exact Decimal expected outputs.
+- **AC8.13.84**: Fixture covers required sections, notes, traceability lines, and warnings.
+- **AC8.13.85**: Traceability appendix returns concrete source, ledger, and manual IDs.
+- **AC8.13.86**: Critical package E2E consumes the fixture and fails on package drift.
 - **AC8.13.61**: Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability.
 - **AC8.13.62**: Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope.
 - **AC8.13.64**: Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy.
@@ -512,6 +516,10 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.80 | AC coverage analysis supports no-write and stale-report check modes for local verification | `test_AC8_13_80_*` | `tests/tooling/test_analyze_test_ac_coverage.py` | P0 |
 | AC8.13.81 | Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values | `test_AC8_13_81_*` | `tests/tooling/test_lint_doc_consistency.py` | P1 |
 | AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.12.3`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC8.13.83 | Representative package fixture exposes exact Decimal expected outputs | `test_AC8_13_83_personal_report_package_fixture_has_exact_decimal_expected_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+| AC8.13.84 | Fixture covers required sections, notes, traceability lines, and warnings | `test_AC8_13_84_personal_report_package_fixture_covers_required_package_sections`, `test_personal_financial_report_package_post_merge_journey` | `tests/tooling/test_personal_report_package_fixture_contract.py`, `tests/e2e/test_personal_financial_report_package.py` | P0 |
+| AC8.13.85 | Traceability appendix returns concrete source, ledger, and manual IDs | `test_AC8_13_85_package_traceability_returns_dynamic_identifiers`, `test_personal_financial_report_package_post_merge_journey` | `apps/backend/tests/api/test_personal_report_package_contract.py`, `tests/e2e/test_personal_financial_report_package.py` | P0 |
+| AC8.13.86 | Critical package E2E consumes the fixture and fails on package drift | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -626,9 +634,9 @@ finance_report AC coverage.
      2. Package content inputs: [#564](https://github.com/wangzitian0/finance_report/issues/564), [#566](https://github.com/wangzitian0/finance_report/issues/566)
      3. Explanatory output layers: [#571](https://github.com/wangzitian0/finance_report/issues/571), [#572](https://github.com/wangzitian0/finance_report/issues/572)
      4. Representative fixture contract: [#573](https://github.com/wangzitian0/finance_report/issues/573)
-   - **Prerequisite fixture**: [#573](https://github.com/wangzitian0/finance_report/issues/573) owns the representative fresh-user fixture contract: bank cash, income/expense activity, brokerage holdings, market prices, dividends, manual valuation, liability, restricted holdings, reviewed sources, exact expected totals, notes, and traceability anchors.
+   - **Representative fixture**: [#573](https://github.com/wangzitian0/finance_report/issues/573) owns the representative fresh-user fixture contract: bank cash, income/expense activity, brokerage holdings, market prices, dividends, manual valuation, liability, restricted holdings, reviewed sources, exact expected totals, notes, and traceability anchors.
    - **Contract dependencies**: [#570](https://github.com/wangzitian0/finance_report/issues/570) owns section/API shape, [#571](https://github.com/wangzitian0/finance_report/issues/571) owns notes/disclosures, and [#572](https://github.com/wangzitian0/finance_report/issues/572) owns the traceability appendix.
-   - **Closure rule**: Partial. `personal-financial-report-package` points to `personal-financial-report-package-post-merge` as its baseline proof, and remains `partial` in `docs/ssot/critical-proof-matrix.yaml` until #573 closes.
+   - **Closure rule**: Covered. `personal-financial-report-package` points to `personal-financial-report-package-post-merge`, and the #573 fixture contract expands the baseline proof into representative exact-output package coverage.
 
 1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
    - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)

@@ -2369,6 +2369,26 @@ groups:
         description: Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and
           desktop local table clipping.
         mandatory: true
+      - id: AC8.13.83
+        epic: 8
+        epic_name: testing-strategy
+        description: Representative package fixture exposes exact Decimal expected outputs.
+        mandatory: true
+      - id: AC8.13.84
+        epic: 8
+        epic_name: testing-strategy
+        description: Fixture covers required sections, notes, traceability lines, and warnings.
+        mandatory: true
+      - id: AC8.13.85
+        epic: 8
+        epic_name: testing-strategy
+        description: Traceability appendix returns concrete source, ledger, and manual IDs.
+        mandatory: true
+      - id: AC8.13.86
+        epic: 8
+        epic_name: testing-strategy
+        description: Critical package E2E consumes the fixture and fails on package drift.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
@@ -4119,32 +4139,33 @@ groups:
       - id: AC16.30.1
         epic: 16
         epic_name: two-stage-review-ui
-        description: IconButton keeps its required label as the authoritative accessible name so callers cannot override or remove
-          it through passthrough props.
+        description: IconButton keeps its required label as the authoritative accessible name so callers cannot override or
+          remove it through passthrough props.
         mandatory: true
       - id: AC16.30.2
         epic: 16
         epic_name: two-stage-review-ui
-        description: The design-token follow-ups from issues 612 and 613 are resolved; border tokens are documented, core recipes
-          use border-border, alert variants use semantic status token classes, and SSOT examples use accurate fence language.
+        description: The design-token follow-ups from issues 612 and 613 are resolved; border tokens are documented, core
+          recipes use border-border, alert variants use semantic status token classes, and SSOT examples use accurate fence
+          language.
         mandatory: true
       - id: AC16.30.3
         epic: 16
         epic_name: two-stage-review-ui
-        description: WorkspaceTabs uses one coherent navigation/list semantic model with aria-current for the active route while
-          preserving keyboard navigation between open workspace pages.
+        description: WorkspaceTabs uses one coherent navigation/list semantic model with aria-current for the active route
+          while preserving keyboard navigation between open workspace pages.
         mandatory: true
       - id: AC16.30.4
         epic: 16
         epic_name: two-stage-review-ui
-        description: Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and icon-only
-          controls.
+        description: Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and
+          icon-only controls.
         mandatory: true
       - id: AC16.30.5
         epic: 16
         epic_name: two-stage-review-ui
-        description: Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and review
-          pages with stable visual anchors and nonblank screenshots.
+        description: Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and
+          review pages with stable visual anchors and nonblank screenshots.
         mandatory: true
       - id: AC16.30.6
         epic: 16

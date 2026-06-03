@@ -1,7 +1,24 @@
 """Personal report package API contract coverage."""
 
-import pytest
+from datetime import date
+from decimal import Decimal
 
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models import (
+    Account,
+    AccountType,
+    BankStatement,
+    BankStatementStatus,
+    BankStatementTransaction,
+    Direction,
+    JournalEntry,
+    JournalEntrySourceType,
+    JournalEntryStatus,
+    JournalLine,
+)
+from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.routers.reports import (
     personal_report_package_contract,
     personal_report_package_notes,
@@ -131,9 +148,10 @@ def test_AC5_12_2_package_contract_marks_notes_ready():
     assert section["source_endpoint"] == "/api/reports/package/notes"
 
 
-def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
+@pytest.mark.asyncio
+async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
     """AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
-    response = personal_report_package_traceability()
+    response = await personal_report_package_traceability()
     payload = response.model_dump(mode="json")
 
     assert payload["section_id"] == "traceability_appendix"
@@ -156,9 +174,10 @@ def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
     assert total_assets["confidence_tier"] == "TRUSTED"
 
 
-def test_AC5_13_2_package_traceability_declares_completeness_warnings():
+@pytest.mark.asyncio
+async def test_AC5_13_2_package_traceability_declares_completeness_warnings():
     """AC5.13.2: Traceability appendix exposes explicit completeness states where anchors are unavailable."""
-    response = personal_report_package_traceability()
+    response = await personal_report_package_traceability()
     payload = response.model_dump(mode="json")
 
     lines = {line["line_id"]: line for line in payload["lines"]}
@@ -180,3 +199,106 @@ def test_AC5_13_2_package_traceability_declares_completeness_warnings():
         assert line["ledger_anchor"]["state"] in {"available", "not_applicable", "unavailable"}
         assert line["review_state"]
         assert line["confidence_tier"] in {"TRUSTED", "HIGH", "MEDIUM", "LOW", "UNAVAILABLE"}
+
+
+@pytest.mark.asyncio
+async def test_AC8_13_85_package_traceability_returns_dynamic_identifiers(
+    client,
+    db: AsyncSession,
+    test_user,
+):
+    """AC8.13.85: Package traceability anchors include concrete source, ledger, and manual IDs."""
+    bank_account = Account(user_id=test_user.id, name="Package Bank", type=AccountType.ASSET, currency="SGD")
+    income_account = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([bank_account, income_account])
+    await db.flush()
+
+    statement = BankStatement(
+        user_id=test_user.id,
+        account_id=bank_account.id,
+        file_path="/tmp/package_fixture.csv",
+        file_hash="package-fixture-hash",
+        original_filename="package_fixture.csv",
+        institution="Package Fixture Bank",
+        account_last4="1234",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("1000.00"),
+        status=BankStatementStatus.APPROVED,
+        balance_validated=True,
+    )
+    db.add(statement)
+    await db.flush()
+
+    transaction = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2026, 5, 2),
+        description="Package salary",
+        amount=Decimal("1000.00"),
+        direction="IN",
+        currency="SGD",
+    )
+    db.add(transaction)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 5, 2),
+        memo="Package salary",
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        source_id=transaction.id,
+        status=JournalEntryStatus.RECONCILED,
+    )
+    db.add(entry)
+    await db.flush()
+    bank_line = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=bank_account.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("1000.00"),
+        currency="SGD",
+    )
+    income_line = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=income_account.id,
+        direction=Direction.CREDIT,
+        amount=Decimal("1000.00"),
+        currency="SGD",
+    )
+    restricted_snapshot = ManualValuationSnapshot(
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.RSU,
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        as_of_date=date(2026, 5, 31),
+        value=Decimal("42000.00"),
+        currency="SGD",
+        source="ACME RSU",
+        notes="RSU vesting 25% annually",
+    )
+    db.add_all([bank_line, income_line, restricted_snapshot])
+    await db.commit()
+
+    response = await client.get(
+        "/reports/package/traceability",
+        params={
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-31",
+            "as_of_date": "2026-05-31",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    lines = {line["line_id"]: line for line in payload["lines"]}
+    total_income = lines["income_statement.total_income"]
+    assert str(statement.id) in total_income["source_anchor"]["identifiers"]
+    assert str(transaction.id) in total_income["source_anchor"]["identifiers"]
+    assert str(entry.id) in total_income["ledger_anchor"]["identifiers"]
+    assert str(bank_line.id) in total_income["ledger_anchor"]["identifiers"]
+    assert str(income_line.id) in total_income["ledger_anchor"]["identifiers"]
+
+    restricted = lines["annualized_income_long_term.restricted_fair_value_total"]
+    assert str(restricted_snapshot.id) in restricted["source_anchor"]["identifiers"]
+    assert restricted["ledger_anchor"]["state"] == "not_applicable"
