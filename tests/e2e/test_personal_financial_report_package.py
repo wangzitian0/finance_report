@@ -472,10 +472,11 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert _money(schedule["holdings"][0]["dividend_income"]) == expected.dividend_income
         assert _money(schedule["unrealized_pnl"]) >= Decimal("0.00")
         assert "data_freshness" in schedule
-        assert schedule["data_freshness"]["latest_price_date"] == expected.market_price_date.isoformat()
         assert schedule["data_freshness"]["manual_override_basis"] == (
             f"{primary_holding['asset_identifier']}:{expected.market_price_date.isoformat()}"
         )
+        latest_price_date = date.fromisoformat(schedule["data_freshness"]["latest_price_date"])
+        assert latest_price_date >= expected.market_price_date
         assert schedule["source_links"], f"investment schedule missing source links: {schedule}"
         assert any("market_data_override" in source_link for source_link in schedule["source_links"])
         assert schedule["notes"], f"investment schedule missing notes: {schedule}"

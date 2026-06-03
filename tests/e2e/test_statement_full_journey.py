@@ -150,11 +150,11 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
 
     # === AC8.13.2: Poll until "parsed" status badge appears in the list ===
     # The list page polls via TanStack Query every 3 s — we wait up to PARSING_TIMEOUT_MS.
-    statement_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
+    statement_row = page.locator(f'a[href="/statements/{statement_id}"]')
     await expect(statement_row).to_be_visible(timeout=15_000)
 
-    parsed_badge = page.locator("a").filter(has_text=INSTITUTION_LABEL).locator("span.badge", has_text="parsed")
-    rejected_badge = page.locator("a").filter(has_text=INSTITUTION_LABEL).locator("span.badge", has_text="rejected")
+    parsed_badge = statement_row.locator("span.badge", has_text="parsed")
+    rejected_badge = statement_row.locator("span.badge", has_text="rejected")
     # Poll the statement API by ID until parsed, but fail fast with the stored
     # validation error if the AI/OCR provider rejects parsing.
     # This avoids waiting the full PARSING_TIMEOUT_MS when the AI service fails.
@@ -211,7 +211,7 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
 
     await page.goto(_get_url("/statements"))
     await expect(page).to_have_url(re.compile(r"/statements$"), timeout=15_000)
-    approved_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
+    approved_row = page.locator(f'a[href="/statements/{statement_id}"]')
     await expect(approved_row).to_be_visible(timeout=15_000)
     await expect(approved_row.locator("span.badge", has_text="approved")).to_be_visible(timeout=15_000)
 

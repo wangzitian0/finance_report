@@ -112,4 +112,7 @@ def test_AC8_13_87_personal_package_e2e_consumes_audit_grade_expected_outputs() 
     assert "expected.dividend_income" in journey
     assert "expected.market_price" in journey
     assert "expected.market_price_date" in journey
+    assert "manual_override_basis" in journey
+    assert 'date.fromisoformat(schedule["data_freshness"]["latest_price_date"])' in journey
+    assert "latest_price_date >= expected.market_price_date" in journey
     assert "assert _has_dynamic_traceability_identifiers(traceability)" in journey

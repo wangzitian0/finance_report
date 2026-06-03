@@ -136,6 +136,7 @@ jobs:
       contents: read
       packages: write
     outputs:
+      commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}
       commit_sha: ${{ steps.get_sha.outputs.short_sha }}
     
 
@@ -149,7 +150,9 @@ jobs:
       - name: Get Commit SHA
         id: get_sha
         run: |
+          full_sha=$(git rev-parse HEAD)
           short_sha=$(git rev-parse --short HEAD)
+          echo "full_sha=$full_sha" >> "$GITHUB_OUTPUT"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"
 
@@ -386,6 +389,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
 
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests
