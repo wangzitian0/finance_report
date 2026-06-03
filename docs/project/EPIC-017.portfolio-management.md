@@ -201,6 +201,7 @@ freshness metadata, and source links.
 | AC17.10.3 | Investment performance schedule source links preserve brokerage statement, price source, ledger, transaction source, and report-section anchors | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P0 |
 | AC17.10.4 | Investment performance schedule data freshness marks the schedule stale when any holding lacks current as-of-date price evidence | `test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_stale` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P0 |
 | AC17.10.5 | Investment performance XIRR solver does not convert monetary Decimal cash flows to float | `test_AC17_10_5_xirr_solver_does_not_float_monetary_cashflows` | `apps/backend/tests/portfolio/test_performance_service.py` | P0 |
+| AC17.10.6 | Investment performance schedule converts mixed-currency cost basis, market value, realized P&L, and dividend income into presentation currency before aggregation | `test_AC17_10_6_investment_performance_schedule_converts_mixed_currency_amounts` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P0 |
 
 ### AC17.11: Portfolio Financial Logic Audit Fixes
 

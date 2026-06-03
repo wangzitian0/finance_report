@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -30,6 +31,7 @@ from src.models import (
     ReportSnapshot,
     Stage1Status,
 )
+from src.services.fx import FxRateError, convert_amount
 
 PACKAGE_ID = "personal-financial-report-package"
 
@@ -62,27 +64,36 @@ async def _max_updated_at(db: AsyncSession, statement) -> datetime | None:
 
 async def _processing_account_balance(db: AsyncSession, user_id: UUID) -> Decimal:
     result = await db.execute(
-        select(Account.id).where(
+        select(Account).where(
             Account.user_id == user_id,
             Account.is_system == True,  # noqa: E712
             Account.code == "1199",
         )
     )
-    processing_account_id = result.scalar_one_or_none()
-    if processing_account_id is None:
+    processing_account = result.scalar_one_or_none()
+    if processing_account is None:
         return Decimal("0.00")
 
     result = await db.execute(
-        select(JournalLine.direction, JournalLine.amount)
+        select(JournalLine.direction, JournalLine.amount, JournalLine.currency, JournalEntry.entry_date)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(JournalLine.account_id == processing_account_id)
+        .where(JournalLine.account_id == processing_account.id)
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
     )
-    return sum(
-        (amount if direction == Direction.DEBIT else -amount for direction, amount in result.all()),
-        start=Decimal("0.00"),
-    )
+    target_currency = settings.base_currency.strip().upper()
+    total = Decimal("0.00")
+    for direction, amount, source_currency, entry_date in result.all():
+        signed_amount = amount if direction == Direction.DEBIT else -amount
+        total += await convert_amount(
+            db,
+            amount=signed_amount,
+            currency=source_currency or processing_account.currency or target_currency,
+            target_currency=target_currency,
+            rate_date=entry_date,
+            lazy_load=True,
+        )
+    return total
 
 
 async def get_personal_report_package_readiness(db: AsyncSession, user_id: UUID) -> dict:
@@ -241,17 +252,29 @@ async def get_personal_report_package_readiness(db: AsyncSession, user_id: UUID)
             )
         )
 
-    processing_balance = (await _processing_account_balance(db, user_id)).quantize(Decimal("0.01"))
-    if processing_balance != Decimal("0.00"):
+    try:
+        processing_balance = (await _processing_account_balance(db, user_id)).quantize(Decimal("0.01"))
+    except FxRateError as exc:
         blockers.append(
             _blocker(
                 "processing_account_unresolved",
                 "Processing account unresolved",
                 1,
-                f"Processing account balance is {processing_balance}; in-transit transfer legs must net to zero.",
+                f"Processing account balance cannot be converted to {settings.base_currency.strip().upper()}: {exc}",
                 "/accounts/processing",
             )
         )
+    else:
+        if processing_balance != Decimal("0.00"):
+            blockers.append(
+                _blocker(
+                    "processing_account_unresolved",
+                    "Processing account unresolved",
+                    1,
+                    f"Processing account balance is {processing_balance} {settings.base_currency.strip().upper()}; in-transit transfer legs must net to zero.",
+                    "/accounts/processing",
+                )
+            )
 
     approved_statement_accounts = select(BankStatement.account_id).where(
         BankStatement.user_id == user_id,

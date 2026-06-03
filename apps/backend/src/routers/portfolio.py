@@ -468,6 +468,7 @@ async def get_investment_performance_report_schedule(
     if as_of_date < period_end:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="as_of_date must be >= period_end")
 
+    currency = currency.strip().upper()
     if currency != "SGD":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -507,16 +508,27 @@ async def get_investment_performance_report_schedule(
             notes.append("No portfolio holdings were available for the requested as-of date.")
 
     asset_identifiers = [holding.asset_identifier for holding in holdings]
-    cost_basis_by_asset: dict[str, Decimal] = {}
+    position_by_asset: dict[str, ManagedPosition] = {}
     if asset_identifiers:
         position_result = await db.execute(
             select(ManagedPosition)
             .where(ManagedPosition.user_id == user_id)
             .where(ManagedPosition.asset_identifier.in_(asset_identifiers))
         )
-        cost_basis_by_asset = {
-            position.asset_identifier: position.cost_basis for position in position_result.scalars().all()
-        }
+        position_by_asset = {position.asset_identifier: position for position in position_result.scalars().all()}
+
+    async def _schedule_amount(amount: Decimal, source_currency: str, rate_date: date) -> Decimal:
+        try:
+            return await convert_amount(
+                db,
+                amount,
+                source_currency,
+                currency,
+                rate_date,
+                lazy_load=True,
+            )
+        except FxRateError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     async def _metric_or_note(metric_name: str, calculation):
         try:
@@ -559,8 +571,13 @@ async def get_investment_performance_report_schedule(
     realized_by_asset: dict[str, Decimal] = {}
     source_links: set[str] = {"report_section:investment_performance"}
     for txn in realized_result.scalars().all():
-        realized_by_asset[txn.asset_identifier] = realized_by_asset.get(txn.asset_identifier, Decimal("0.00")) + (
-            txn.realized_pnl or Decimal("0.00")
+        realized_pnl = await _schedule_amount(
+            txn.realized_pnl or Decimal("0.00"),
+            txn.currency,
+            txn.transaction_date,
+        )
+        realized_by_asset[txn.asset_identifier] = (
+            realized_by_asset.get(txn.asset_identifier, Decimal("0.00")) + realized_pnl
         )
         if txn.journal_entry_id:
             source_links.add(f"journal_entry:{txn.journal_entry_id}")
@@ -577,17 +594,24 @@ async def get_investment_performance_report_schedule(
     )
     dividend_by_asset: dict[str, Decimal] = {}
     for dividend, position in dividend_result.all():
+        dividend_amount = await _schedule_amount(dividend.amount, dividend.currency, dividend.payment_date)
         dividend_by_asset[position.asset_identifier] = (
             dividend_by_asset.get(
                 position.asset_identifier,
                 Decimal("0.00"),
             )
-            + dividend.amount
+            + dividend_amount
         )
 
     holding_rows: list[InvestmentPerformanceHoldingRow] = []
     for holding in holdings:
-        cost_basis = _money(cost_basis_by_asset.get(holding.asset_identifier, holding.cost_basis))
+        position = position_by_asset.get(holding.asset_identifier)
+        if position is None:
+            cost_basis = _money(holding.cost_basis)
+        else:
+            cost_basis = _money(
+                await _schedule_amount(position.cost_basis, position.currency, position.acquisition_date)
+            )
         market_value = _money(holding.market_value)
         holding_rows.append(
             InvestmentPerformanceHoldingRow(
