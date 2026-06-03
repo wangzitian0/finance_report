@@ -92,11 +92,12 @@ jobs:
               echo "  - tests/e2e/test_statement_full_journey.py"
               echo "  - tests/e2e/test_brokerage_upload_to_portfolio_value.py"
               echo "  - tests/e2e/test_four_asset_net_worth_golden_path.py"
+              echo "  - tests/e2e/test_personal_financial_report_package.py"
               echo "  - tests/e2e/test_statement_upload_e2e.py"
-              echo "- Expected uploads: 7"
-              echo "- Expected parse completions: 7"
-              echo "- Expected brokerage imports: 3"
-              echo "- Expected report verifications: 1"
+              echo "- Expected uploads: 9"
+              echo "- Expected parse completions: 9"
+              echo "- Expected brokerage imports: 4"
+              echo "- Expected report verifications: 2"
               echo "- Expected failures: 0"
             } | tee -a "$GITHUB_STEP_SUMMARY"
           }
@@ -109,10 +110,10 @@ jobs:
             local verified_report_verifications="unknown"
             local verified_failures="1+"
             if [ "$status" = "0" ]; then
-              verified_uploads="7"
-              verified_parse_completions="7"
-              verified_brokerage_imports="3"
-              verified_report_verifications="1"
+              verified_uploads="9"
+              verified_parse_completions="9"
+              verified_brokerage_imports="4"
+              verified_report_verifications="2"
               verified_failures="0"
             fi
             {
@@ -155,6 +156,7 @@ jobs:
               tests/e2e/test_statement_full_journey.py \
               tests/e2e/test_brokerage_upload_to_portfolio_value.py \
               tests/e2e/test_four_asset_net_worth_golden_path.py \
+              tests/e2e/test_personal_financial_report_package.py \
               tests/e2e/test_statement_upload_e2e.py \
               -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
           write_staging_audit_result "$gate_status"

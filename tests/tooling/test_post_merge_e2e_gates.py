@@ -10,6 +10,18 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def critical_post_merge_llm_proof_files() -> list[str]:
+    matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    return sorted(
+        {
+            proof["file"]
+            for proof in matrix["proofs"]
+            if proof["ci_tier"] == "post_merge_environment"
+            and "llm" in proof["required_markers"]
+        }
+    )
+
+
 def row_covers_ac_id(row: str, ac_id: str) -> bool:
     if ac_id in row:
         return True
@@ -227,6 +239,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "test_statement_full_journey.py" in deploy_workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in deploy_workflow
     assert "test_four_asset_net_worth_golden_path.py" in deploy_workflow
+    assert "test_personal_financial_report_package.py" in deploy_workflow
     assert "test_statement_upload_e2e.py" in deploy_workflow
     assert '-v -m "llm"' in deploy_workflow
     assert (
@@ -248,6 +261,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "test_statement_full_journey.py" in ai_workflow
     assert "test_brokerage_upload_to_portfolio_value.py" in ai_workflow
     assert "test_four_asset_net_worth_golden_path.py" in ai_workflow
+    assert "test_personal_financial_report_package.py" in ai_workflow
     assert "test_statement_upload_e2e.py" in ai_workflow
     assert '-v -m "llm"' in ai_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
@@ -274,10 +288,10 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
             "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
             in workflow
         )
-        assert "- Expected uploads: 7" in workflow
-        assert "- Expected parse completions: 7" in workflow
-        assert "- Expected brokerage imports: 3" in workflow
-        assert "- Expected report verifications: 1" in workflow
+        assert "- Expected uploads: 9" in workflow
+        assert "- Expected parse completions: 9" in workflow
+        assert "- Expected brokerage imports: 4" in workflow
+        assert "- Expected report verifications: 2" in workflow
         assert "- Expected failures: 0" in workflow
         assert "- Uploads verified: ${verified_uploads}" in workflow
         assert "- Parse completions verified: ${verified_parse_completions}" in workflow
@@ -290,6 +304,7 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
         assert "tests/e2e/test_statement_full_journey.py" in workflow
         assert "tests/e2e/test_brokerage_upload_to_portfolio_value.py" in workflow
         assert "tests/e2e/test_four_asset_net_worth_golden_path.py" in workflow
+        assert "tests/e2e/test_personal_financial_report_package.py" in workflow
         assert "tests/e2e/test_statement_upload_e2e.py" in workflow
         assert "GITHUB_STEP_SUMMARY" in workflow
 
@@ -301,6 +316,25 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
     )
     assert "Staging Audit Replay Contract" in observability
     assert "deployment-level inputs" in observability
+
+
+def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
+    """AC8.13.50: Critical LLM post-merge proofs are executed by AI/OCR gates."""
+    proof_files = critical_post_merge_llm_proof_files()
+    assert proof_files == [
+        "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+        "tests/e2e/test_four_asset_net_worth_golden_path.py",
+        "tests/e2e/test_personal_financial_report_package.py",
+        "tests/e2e/test_statement_full_journey.py",
+    ]
+
+    for workflow_path in (
+        ".github/workflows/staging-deploy.yml",
+        ".github/workflows/staging-ai-ocr-gate.yml",
+    ):
+        workflow = read(workflow_path)
+        missing = [proof_file for proof_file in proof_files if proof_file not in workflow]
+        assert missing == []
 
 
 def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
