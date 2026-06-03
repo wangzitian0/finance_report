@@ -89,3 +89,27 @@ def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contra
         "AC8.13.84",
         "AC8.13.85",
     } <= set(proof["ac_ids"])
+
+
+def test_AC8_13_86_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs() -> None:
+    """AC8.13.87: Audit-grade package fixture pins investment expected outputs."""
+    fixture = REPRESENTATIVE_PACKAGE_FIXTURE
+    expected = fixture.expected_outputs
+
+    assert expected.brokerage_market_value == Decimal("1250.50")
+    assert expected.brokerage_position_count == 1
+    assert expected.dividend_income == Decimal("88.25")
+    assert expected.market_price == Decimal("12.50")
+    assert expected.market_price_date.isoformat() == "2026-05-31"
+
+
+def test_AC8_13_87_personal_package_e2e_consumes_audit_grade_expected_outputs() -> None:
+    """AC8.13.88: Package E2E consumes audit-grade expected outputs from the fixture."""
+    journey = read("tests/e2e/test_personal_financial_report_package.py")
+
+    assert "expected.brokerage_market_value" in journey
+    assert "expected.brokerage_position_count" in journey
+    assert "expected.dividend_income" in journey
+    assert "expected.market_price" in journey
+    assert "expected.market_price_date" in journey
+    assert "assert _has_dynamic_traceability_identifiers(traceability)" in journey

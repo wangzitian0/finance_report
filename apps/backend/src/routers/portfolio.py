@@ -64,6 +64,12 @@ class PriceUpdateBatchRequest(BaseModel):
     updates: list[PriceUpdateRequest]
 
 
+class DividendCreateRequest(BaseModel):
+    payment_date: date
+    amount: Decimal = Field(decimal_places=2, gt=0)
+    currency: str = Field(min_length=3, max_length=3)
+
+
 def _money(value: Decimal) -> Decimal:
     return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
@@ -248,6 +254,44 @@ async def get_holding_dividends(
         )
         for dividend in result.scalars().all()
     ]
+
+
+@router.post("/{ticker}/dividends", response_model=DividendEventResponse, status_code=status.HTTP_201_CREATED)
+async def create_holding_dividend(
+    ticker: str,
+    request: DividendCreateRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> DividendEventResponse:
+    """Record dividend income for an existing current-user holding."""
+    position = await db.scalar(
+        select(ManagedPosition)
+        .where(ManagedPosition.user_id == user_id)
+        .where(ManagedPosition.asset_identifier == ticker)
+        .where(ManagedPosition.status == PositionStatus.ACTIVE)
+        .order_by(ManagedPosition.created_at.desc())
+    )
+    if position is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Holding not found")
+
+    dividend = DividendIncome(
+        user_id=user_id,
+        position_id=position.id,
+        payment_date=request.payment_date,
+        amount=request.amount,
+        currency=request.currency.upper(),
+    )
+    db.add(dividend)
+    await db.commit()
+    await db.refresh(dividend)
+    return DividendEventResponse(
+        id=dividend.id,
+        ex_date=dividend.payment_date,
+        pay_date=dividend.payment_date,
+        amount=dividend.amount,
+        currency=dividend.currency,
+        reinvested=False,
+    )
 
 
 @router.get("/{ticker}/realized", response_model=list[RealizedLotResponse])

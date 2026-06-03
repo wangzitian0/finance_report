@@ -1322,6 +1322,12 @@ groups:
         epic_name: reporting-visualization
         description: Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs
         mandatory: true
+      - id: AC5.13.5
+        epic: 5
+        epic_name: reporting-visualization
+        description: Package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user
+          anchors
+        mandatory: true
   AC6:
     AC6.1:
       - id: AC6.1.1
@@ -2393,7 +2399,8 @@ groups:
         epic: 8
         epic_name: testing-strategy
         description: Personal report package representative fixture contract defines bank cash, income and expense activity,
-          brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs.
+          brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors,
+          and exact Decimal expected outputs.
         mandatory: true
       - id: AC8.13.84
         epic: 8
@@ -2411,6 +2418,18 @@ groups:
         epic: 8
         epic_name: testing-strategy
         description: CI fast feedback jobs start after change classification without waiting for behavior-only backend gates.
+        mandatory: true
+      - id: AC8.13.87
+        epic: 8
+        epic_name: testing-strategy
+        description: Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs
+          as Decimal-safe aud
+        mandatory: true
+      - id: AC8.13.88
+        epic: 8
+        epic_name: testing-strategy
+        description: Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and
+          traceability iden
         mandatory: true
   AC11:
     AC11.1:
@@ -3999,7 +4018,8 @@ groups:
       - id: AC16.22.7
         epic: 16
         epic_name: two-stage-review-ui
-        description: Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies
+        description: Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented
+          policies
         mandatory: true
     AC16.23:
       - id: AC16.23.1
@@ -4178,32 +4198,33 @@ groups:
       - id: AC16.30.1
         epic: 16
         epic_name: two-stage-review-ui
-        description: IconButton keeps its required label as the authoritative accessible name so callers cannot override or remove
-          it through passthrough props.
+        description: IconButton keeps its required label as the authoritative accessible name so callers cannot override or
+          remove it through passthrough props.
         mandatory: true
       - id: AC16.30.2
         epic: 16
         epic_name: two-stage-review-ui
-        description: The design-token follow-ups from issues 612 and 613 are resolved; border tokens are documented, core recipes
-          use border-border, alert variants use semantic status token classes, and SSOT examples use accurate fence language.
+        description: The design-token follow-ups from issues 612 and 613 are resolved; border tokens are documented, core
+          recipes use border-border, alert variants use semantic status token classes, and SSOT examples use accurate fence
+          language.
         mandatory: true
       - id: AC16.30.3
         epic: 16
         epic_name: two-stage-review-ui
-        description: WorkspaceTabs uses one coherent navigation/list semantic model with aria-current for the active route while
-          preserving keyboard navigation between open workspace pages.
+        description: WorkspaceTabs uses one coherent navigation/list semantic model with aria-current for the active route
+          while preserving keyboard navigation between open workspace pages.
         mandatory: true
       - id: AC16.30.4
         epic: 16
         epic_name: two-stage-review-ui
-        description: Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and icon-only
-          controls.
+        description: Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and
+          icon-only controls.
         mandatory: true
       - id: AC16.30.5
         epic: 16
         epic_name: two-stage-review-ui
-        description: Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and review
-          pages with stable visual anchors and nonblank screenshots.
+        description: Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and
+          review pages with stable visual anchors and nonblank screenshots.
         mandatory: true
       - id: AC16.30.6
         epic: 16
