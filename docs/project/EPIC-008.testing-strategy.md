@@ -59,78 +59,8 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - The AC coverage rate is generated from registry and test references; it is not
   a line-coverage percentage and not a replacement for CI pass/fail status.
 - CI source coverage uses the shared coverage policy in `common/coverage/policy.py`. New backend, frontend, common, and tools modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
-- **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
-- **AC8.13.16**: CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache.
-- **AC8.13.17**: AC registry generation writes small generated indexes and materializes entries from EPIC docs plus explicit overrides.
-- **AC8.13.18**: Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets.
-- **AC8.13.19**: Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics.
-- **AC8.13.20**: CI change classification is covered by multi-commit and markdown edge-case regression tests.
-- **AC8.13.21**: Provider-backed post-merge AI/OCR gate runs only after a successful main CI `workflow_run`.
-- **AC8.13.22**: Staging deploy starts from successful main CI `workflow_run` before building or deploying.
-- **AC8.13.23**: Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit.
-- **AC8.13.24**: AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report.
-- **AC8.13.25**: Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready.
-- **AC8.13.26**: CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift.
-- **AC8.13.27**: Pull requests do not publish Coveralls status contexts; main-only Coveralls reporting remains separate from local deterministic coverage gates.
-- **AC8.13.28**: Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E.
-- **AC8.13.29**: Stage 1 review auto-posts journal entries from the deterministic fixture.
-- **AC8.13.30**: Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state.
-- **AC8.13.31**: Processing Account summary and pending page stay visible and correct for the cleared run.
-- **AC8.13.32**: Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture.
-- **AC8.13.33**: Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates.
-- **AC8.13.34**: CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary.
-- **AC8.13.35**: AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions.
-- **AC8.13.36**: Main CI builds SHA-tagged staging images and post-merge staging reuses them after CI workflow success.
-- **AC8.13.37**: AC traceability fails mandatory ACs that are covered only by `_ac_stubs`.
-- **AC8.13.38**: Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews.
-- **AC8.13.39**: Runtime and container versions stay aligned across local, CI, and Docker environments.
-- **AC8.13.40**: PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images.
-- **AC8.13.41**: Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings.
-- **AC8.13.42**: Four-asset as-of net worth golden path runs as a critical fresh-user post-merge E2E.
-- **AC8.13.43**: Failed main CI workflow_run reports current staging state without deploying.
-- **AC8.13.44**: Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics.
-- **AC8.13.45**: Local verification entry points fail on the same backend format errors and route `make test` through the root Moon test command without hashing the infra submodule gitlink as a file input.
-- **AC8.13.46**: PR preview non-LLM E2E uses the same strict, parallel gate shape as staging non-LLM E2E.
-- **AC8.13.47**: Remaining delivery-engine optimizations are captured in a tracked project recommendation note.
-- **AC8.13.48**: Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%.
-- **AC8.13.49**: Staging AI/OCR gates publish audit input inventory and replay summary fields.
-- **AC8.13.50**: Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors.
-- **AC8.13.51**: Automatic staging deploy uses successful main CI `workflow_run`, with no in-job CI polling.
-- **AC8.13.52**: Production release dry-run validates release prerequisites and image builds without production mutation.
-- **AC8.13.53**: Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points and tool-owned implementations live in `tools/`.
-- **AC8.13.54**: Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift.
-- **AC8.13.55**: Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes.
-- **AC8.13.56**: Coverage command entry points run from `tools/`; the shared policy stays in `common/coverage/policy.py`, and command implementations live under `tools/_lib/coverage/`.
-- **AC8.13.57**: SSOT and AC command entry points run from `tools/` while shared implementations live under `common/ssot/`.
-- **AC8.13.58**: CI and toolchain command entry points run from `tools/`; reusable contracts stay under `common/ci/`, while report and shell command implementations live under `tools/_lib/`.
-- **AC8.13.59**: Config validation command entry points run from `tools/` while shared implementations live under `common/config/`.
-- **AC8.13.77**: Registry-to-EPIC consistency fails active stub or orphan AC entries instead of silently excluding them.
-- **AC8.13.78**: Mandatory AC traceability requires at least one real proof file that is mapped to a CI-required execution stage.
-- **AC8.13.79**: Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E.
-- **AC8.13.80**: AC coverage analysis supports no-write and stale-report check modes for local verification.
-- **AC8.13.81**: Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values.
-- **AC8.13.60**: Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk.
-- **AC8.13.61**: Visual regression residual is explicitly owned by EPIC-008 as a P3 future testing capability.
-- **AC8.13.62**: Test observability residuals are explicitly owned by EPIC-008 with current replacements and future dashboard/notification/trend scope.
-- **AC8.13.64**: Production release verifies DB, S3, API, frontend, and SigNoz health before completing deploy.
-- **AC8.13.65**: Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane.
-- **AC8.13.66**: Coveralls uploads strip branch counters so external percentages track the line-only unified coverage gate.
-- **AC8.13.67**: Production release preserves deployed version metadata from image build through Dokploy runtime health.
-- **AC8.13.68**: E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or project EPICs without E2E owners.
-- **AC8.13.69**: Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide.
-- **AC8.13.70**: E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots.
-- **AC8.13.71**: One lifecycle tool owns PR preview deploy, stop, cleanup, reconciliation, and stable metadata.
-- **AC8.13.72**: Dokploy deploy diagnostics redact raw responses and log only allowlisted effective environment diffs.
-- **AC8.13.73**: VPS host hygiene is a Dokploy server schedule that prunes generic Docker and journal garbage while keeping PR preview resources from the last 3 days or the most recent 3 PRs.
-- **AC8.13.74**: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
-- **AC8.13.75**: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail.
-- **AC8.13.83**: Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs.
-- **AC8.13.84**: Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline.
-- **AC8.13.85**: Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix.
-- **AC8.13.86**: CI fast feedback jobs start after change classification without waiting for behavior-only backend gates.
-- **AC8.13.87**: Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures.
-- **AC8.13.88**: Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs.
-- **AC8.13.89**: PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy.
+  The AC8.13.x requirement definitions and proof mappings are maintained in
+  the Test Cases table below, not duplicated in this strategy overview.
 
 ### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
 
@@ -375,6 +305,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.32 | Dashboard, balance sheet, income statement, and cash-flow totals exactly match the deterministic upload fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.33 | Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates | `test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.34 | CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary | `test_AC8_13_34_*` | `tests/tooling/` | P1 |
+| AC8.13.35 | AC traceability reporting distinguishes real test references from `_ac_stubs` and trivial placeholder assertions | `test_classifies_placeholder_assertion`, `test_classifies_pure_pass_ac_file_as_placeholder`, `test_classifies_ac_stub_directory`, `test_placeholder_and_stub_refs_do_not_count_as_real_coverage` | `tests/tooling/test_check_ac_traceability.py` | P0 |
 | AC8.13.36 | Main CI builds SHA-tagged staging images and post-merge staging reuses them after CI workflow success | `test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.37 | AC traceability fails mandatory ACs that are covered only by `_ac_stubs` | `test_returns_one_with_stub_only` | `tests/tooling/test_check_ac_traceability.py` | P0 |
 | AC8.13.38 | Scheduled PR preview cleanup removes stale closed-PR VPS resources while preserving open PR previews | `test_AC8_13_38_*` | `tests/tooling/test_cleanup_pr_preview_resources.py` | P0 |
@@ -425,6 +356,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.83 | Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs | `test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.84 | Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline | `test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.85 | Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix | `test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+| AC8.13.86 | CI fast feedback jobs start after change classification without waiting for behavior-only backend gates | `test_AC8_13_86_*` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.87 | Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures | `test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.88 | Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs | `test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.89 | PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy | `test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
