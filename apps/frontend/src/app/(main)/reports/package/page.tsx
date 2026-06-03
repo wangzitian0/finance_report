@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
-import type { AnnualizedIncomeScheduleResponse, PersonalReportPackageContractResponse } from "@/lib/types";
+import type {
+    AnnualizedIncomeScheduleResponse,
+    PersonalReportPackageContractResponse,
+    PersonalReportPackageNotesResponse,
+} from "@/lib/types";
 
 function formatScheduleCurrency(value: number | string, currency: string): string {
     return formatCurrencyLocale(value, currency, "en-US", { maximumFractionDigits: 0 }).replace(/\u00a0/g, " ");
@@ -13,6 +17,7 @@ function formatScheduleCurrency(value: number | string, currency: string): strin
 export default function PersonalReportPackagePage() {
     const [contract, setContract] = useState<PersonalReportPackageContractResponse | null>(null);
     const [annualizedSchedule, setAnnualizedSchedule] = useState<AnnualizedIncomeScheduleResponse | null>(null);
+    const [packageNotes, setPackageNotes] = useState<PersonalReportPackageNotesResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -21,11 +26,13 @@ export default function PersonalReportPackagePage() {
         Promise.all([
             apiFetch<PersonalReportPackageContractResponse>("/api/reports/package/contract"),
             apiFetch<AnnualizedIncomeScheduleResponse>("/api/reports/package/annualized-income-schedule"),
+            apiFetch<PersonalReportPackageNotesResponse>("/api/reports/package/notes"),
         ])
-            .then(([contractData, scheduleData]) => {
+            .then(([contractData, scheduleData, notesData]) => {
                 if (!isMounted) return;
                 setContract(contractData);
                 setAnnualizedSchedule(scheduleData);
+                setPackageNotes(notesData);
             })
             .catch((err) => {
                 if (isMounted) setError(err instanceof Error ? err.message : "Failed to load package data.");
@@ -40,7 +47,7 @@ export default function PersonalReportPackagePage() {
         return <div className="p-6 text-[var(--error)]">{error}</div>;
     }
 
-    if (!contract || !annualizedSchedule) {
+    if (!contract || !annualizedSchedule || !packageNotes) {
         return <div className="p-6 text-muted">Loading package contract...</div>;
     }
 
@@ -170,6 +177,41 @@ export default function PersonalReportPackagePage() {
                             ))}
                         </ul>
                     </div>
+                </div>
+            </section>
+
+            <section className="card p-5 mb-6">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <p className="text-xs font-mono text-muted">{packageNotes.section_id}</p>
+                        <h2 className="font-semibold mt-1">{packageNotes.label}</h2>
+                    </div>
+                    <span className="badge badge-muted">{packageNotes.status}</span>
+                </div>
+                <p className="mt-4 text-sm text-muted">{packageNotes.non_compliance_statement}</p>
+                <div className="mt-5 grid lg:grid-cols-2 gap-4">
+                    {packageNotes.notes.map((note) => (
+                        <article key={note.note_id} className="border border-[var(--border)] rounded p-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="font-medium">{note.label}</p>
+                                    <p className="text-xs font-mono text-muted mt-1">{note.note_id}</p>
+                                </div>
+                                <span className="badge badge-muted">{note.owner_epic}</span>
+                            </div>
+                            <p className="mt-3 text-sm text-muted">{note.disclosure}</p>
+                            <dl className="mt-3 space-y-1 text-xs">
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted">Basis</dt>
+                                    <dd className="font-mono text-right">{note.basis}</dd>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted">Source</dt>
+                                    <dd className="font-mono text-right">{note.source_state}</dd>
+                                </div>
+                            </dl>
+                        </article>
+                    ))}
                 </div>
             </section>
 

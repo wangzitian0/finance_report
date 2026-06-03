@@ -71,6 +71,8 @@ from src.schemas.reporting import (
     NetWorthTimeSeriesResponse,
     PersonalReportPackageContractResponse,
     PersonalReportPackageExportContract,
+    PersonalReportPackageNote,
+    PersonalReportPackageNotesResponse,
     PersonalReportPackageSectionContract,
     TrendPeriod,
 )
@@ -164,6 +166,8 @@ __all__ = [
     "NetWorthTimeSeriesResponse",
     "PersonalReportPackageContractResponse",
     "PersonalReportPackageExportContract",
+    "PersonalReportPackageNote",
+    "PersonalReportPackageNotesResponse",
     "PersonalReportPackageSectionContract",
     "ParsedStatementPreview",
     "PingStateResponse",

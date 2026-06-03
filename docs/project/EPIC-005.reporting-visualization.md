@@ -203,8 +203,24 @@ AC5.9. Supporting calculations remain owned by EPIC-011.
 | AC5.11.1 | Package contract marks `annualized_income_long_term` as ready and points to the schedule endpoint | `test_AC5_11_1_package_contract_marks_annualized_schedule_ready` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.11.2 | Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint | `AC5.11.2 renders annualized income schedule values and restricted treatment` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
+### AC5.12: Personal Report Package Notes and Disclosure Basis
+
+Issue [#571](https://github.com/wangzitian0/finance_report/issues/571)
+supplies the package notes and disclosures for the personal financial-report
+package. Notes identify methods, periods, currencies, source states, valuation
+basis, data freshness, restricted-asset treatment, and explicit non-compliance
+wording. The notes use standards-inspired disclosure discipline but do not
+claim statutory filing compliance.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.12.1 | Package notes endpoint returns required note IDs, owner EPICs, source states, and non-compliance wording | `test_AC5_12_1_package_notes_endpoint_returns_required_note_taxonomy` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.12.2 | Package contract marks `notes` as ready and points to the notes endpoint | `test_AC5_12_2_package_contract_marks_notes_ready` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.12.3 | Frontend personal package page renders notes and disclosure basis from the notes endpoint | `AC5.12.3 renders package notes and disclosure basis` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.12.4 | Post-merge package proof asserts notes endpoint, required note IDs, and non-compliance wording | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
+
 **Traceability Result**:
-- Total AC IDs: 25
+- Total AC IDs: 29
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
 - Requirements with implemented test references: 100%
 - Test files: 8
@@ -307,8 +323,9 @@ Remaining blocker breakdown after the #565 post-merge proof:
   annualized income and long-term compensation schedule input from EPIC-011
   through `GET /api/reports/package/annualized-income-schedule`.
 - [#571](https://github.com/wangzitian0/finance_report/issues/571) codifies the
-  standards-inspired note and disclosure taxonomy without claiming regulated
-  filing compliance.
+  standards-inspired note and disclosure taxonomy through
+  `GET /api/reports/package/notes` without claiming regulated filing
+  compliance.
 - [#572](https://github.com/wangzitian0/finance_report/issues/572) defines the
   source-ledger-report traceability appendix for package output.
 - [#573](https://github.com/wangzitian0/finance_report/issues/573) supplies the
@@ -328,14 +345,14 @@ Closure status:
    package (#564, promoted by #596).
 4. Done: deliver the annualized income and long-term compensation schedule
    input consumed by this package (#566).
-5. Deliver explanation outputs for the package output shape: notes/disclosures
-   (#571) and traceability appendix (#572).
-6. Build deterministic fixture coverage (#573) against the same contract and
+5. Done: deliver notes/disclosures for the package output shape (#571).
+6. Deliver the traceability appendix for the package output shape (#572).
+7. Build deterministic fixture coverage (#573) against the same contract and
    schedules, then extend the #565 guard as those package sections become
    report-ready.
 
-The macro outcome remains `partial` until notes/disclosures (#571),
-traceability appendix (#572), and representative fixture coverage (#573) close.
+The macro outcome remains `partial` until the traceability appendix (#572) and
+representative fixture coverage (#573) close.
 
 ## 📄 Owned Documentation Surfaces
 

@@ -209,7 +209,7 @@ Required section IDs:
 | `cash_flow` | EPIC-005 | `/api/reports/cash-flow` | ready |
 | `investment_performance` | EPIC-017 | `/api/portfolio/performance/report-schedule` | ready |
 | `annualized_income_long_term` | EPIC-011 | `/api/reports/package/annualized-income-schedule` | ready |
-| `notes` | EPIC-005 | `/api/reports/package/notes` | planned by #571 |
+| `notes` | EPIC-005 | `/api/reports/package/notes` | ready |
 | `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | planned by #572 |
 
 Annualized income and long-term compensation schedule:
@@ -226,6 +226,33 @@ Annualized income and long-term compensation schedule:
   only included through the balance-sheet restricted toggle.
 - Decimal fields serialize as strings; restricted fair-value totals are reported
   in the schedule currency and do not imply cross-currency conversion.
+
+Notes and disclosures:
+
+- Endpoint: `GET /api/reports/package/notes`
+- Status: `ready`.
+- Required note IDs: `basis-of-preparation`,
+  `reporting-period-and-currency`, `valuation-basis`,
+  `investment-market-data`, `source-confidence-review`, and
+  `restricted-asset-treatment`.
+- Each note carries an owning EPIC, method basis, source state, applicable
+  package sections, and disclosure text.
+- The package-level non-compliance statement must say the report is not a
+  regulated filing, not an audit opinion, not legal advice, and not tax advice.
+- Standards-inspired accounting and listed-company references are used only as
+  coverage and disclosure discipline. The notes must not imply regulated
+  filing compliance.
+
+Note ownership:
+
+| Note ID | Owner | Source state |
+|---|---|---|
+| `basis-of-preparation` | EPIC-005 | `package_contract` |
+| `reporting-period-and-currency` | EPIC-005 | `request_parameters` |
+| `valuation-basis` | EPIC-011 | `manual_valuation_snapshots` |
+| `investment-market-data` | EPIC-017 | `brokerage_imports_and_market_data` |
+| `source-confidence-review` | EPIC-018 | `reviewed_journal_and_statement_links` |
+| `restricted-asset-treatment` | EPIC-011 | `manual_valuation_snapshots` |
 
 Export contract:
 

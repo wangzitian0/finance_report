@@ -320,7 +320,7 @@ async def _create_manual_snapshot(
 async def test_personal_financial_report_package_post_merge_journey(authenticated_page_unique: Page) -> None:
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
-    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3
+    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3
     AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2:
     one complete fresh-user report package with bank data, brokerage import,
     investment performance schedule, annualized income and restricted
@@ -585,6 +585,27 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             "rsu",
             "stock_options",
         }
+
+        notes_response = await client.get(_api_url("/reports/package/notes"))
+        assert notes_response.status_code == 200, (
+            f"package notes failed: {notes_response.status_code} {notes_response.text}"
+        )
+        package_notes = notes_response.json()
+        assert package_notes["section_id"] == "notes"
+        package_note_ids = {note["note_id"] for note in package_notes["notes"]}
+        assert {
+            "basis-of-preparation",
+            "reporting-period-and-currency",
+            "valuation-basis",
+            "investment-market-data",
+            "source-confidence-review",
+            "restricted-asset-treatment",
+        } <= package_note_ids
+        assert "not a regulated filing" in package_notes["non_compliance_statement"]
+        assert "not legal advice" in package_notes["non_compliance_statement"]
+        assert "not tax advice" in package_notes["non_compliance_statement"]
+        assert "US GAAP compliant" not in package_notes["non_compliance_statement"]
+        assert "HKEX filing" not in package_notes["non_compliance_statement"]
 
         manual_components_exclusive = await client.get(
             _api_url(

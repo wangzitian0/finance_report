@@ -1250,6 +1250,27 @@ groups:
         description: Frontend personal package page renders annualized income totals and restricted treatment from the schedule
           endpoint
         mandatory: true
+    AC5.12:
+      - id: AC5.12.1
+        epic: 5
+        epic_name: reporting-visualization
+        description: Package notes endpoint returns required note IDs, owner EPICs, source states, and non-compliance wording
+        mandatory: true
+      - id: AC5.12.2
+        epic: 5
+        epic_name: reporting-visualization
+        description: Package contract marks notes as ready and points to the notes endpoint
+        mandatory: true
+      - id: AC5.12.3
+        epic: 5
+        epic_name: reporting-visualization
+        description: Frontend personal package page renders notes and disclosure basis from the notes endpoint
+        mandatory: true
+      - id: AC5.12.4
+        epic: 5
+        epic_name: reporting-visualization
+        description: Post-merge package proof asserts notes endpoint, required note IDs, and non-compliance wording
+        mandatory: true
   AC6:
     AC6.1:
       - id: AC6.1.1
@@ -4017,8 +4038,8 @@ groups:
       - id: AC16.28.1
         epic: 16
         epic_name: two-stage-review-ui
-        description: Shared React UI primitives live under apps/frontend/src/components/ui and cover button, icon button, badge,
-          alert, empty state, loading state, and page header usage without requiring page-local class recipes.
+        description: Shared React UI primitives live under apps/frontend/src/components/ui and cover button, icon button,
+          badge, alert, empty state, loading state, and page header usage without requiring page-local class recipes.
         mandatory: true
       - id: AC16.28.2
         epic: 16
@@ -4029,8 +4050,8 @@ groups:
       - id: AC16.28.3
         epic: 16
         epic_name: two-stage-review-ui
-        description: At least two representative frontend pages are migrated to the primitive layer without changing their existing
-          workflows or API calls.
+        description: At least two representative frontend pages are migrated to the primitive layer without changing their
+          existing workflows or API calls.
         mandatory: true
       - id: AC16.28.4
         epic: 16

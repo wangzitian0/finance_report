@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-06-02 14:37:18 UTC by `tools/analyze_test_ac_coverage.py`
+> Generated: 2026-06-03 04:08:32 UTC by `tools/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)
@@ -17,10 +17,10 @@
 
 | Metric | Count |
 |---|---:|
-| Registered ACs | 1094 |
-| Active ACs | 934 |
+| Registered ACs | 1102 |
+| Active ACs | 942 |
 | Deprecated ACs excluded from coverage gate | 160 |
-| Covered by real test candidates | 934 (100.0%) |
+| Covered by real test candidates | 942 (100.0%) |
 | Placeholder-only assertions | 0 |
 | Stub-only placeholders (`_ac_stubs`) | 0 |
 | Active registered but untested | 0 |
@@ -32,11 +32,11 @@
 
 | Source | Files scanned | Unique AC refs (real) | Unique AC refs (placeholder) | Unique AC refs (stub) |
 |---|---:|---:|---:|---:|
-| backend | 178 | 696 | 0 | 0 |
-| frontend | 81 | 207 | 0 | 0 |
+| backend | 178 | 698 | 0 | 0 |
+| frontend | 82 | 212 | 0 | 0 |
 | frontend_playwright | 2 | 11 | 0 | 0 |
-| tooling_tests | 53 | 257 | 0 | 0 |
-| e2e | 13 | 59 | 0 | 0 |
+| tooling_tests | 53 | 258 | 0 | 0 |
+| e2e | 13 | 60 | 0 | 0 |
 
 ## Coverage by EPIC
 
@@ -46,7 +46,7 @@
 | EPIC-002 | double-entry-core | 62 | 15 | 47 | 0 | 0 | 0 | 100.0% |
 | EPIC-003 | statement-parsing | 60 | 20 | 40 | 0 | 0 | 0 | 100.0% |
 | EPIC-004 | reconciliation-engine | 41 | 21 | 20 | 0 | 0 | 0 | 100.0% |
-| EPIC-005 | reporting-visualization | 46 | 11 | 35 | 0 | 0 | 0 | 100.0% |
+| EPIC-005 | reporting-visualization | 50 | 11 | 39 | 0 | 0 | 0 | 100.0% |
 | EPIC-006 | ai-advisor | 63 | 8 | 55 | 0 | 0 | 0 | 100.0% |
 | EPIC-007 | deployment | 39 | 0 | 39 | 0 | 0 | 0 | 100.0% |
 | EPIC-008 | testing-strategy | 139 | 6 | 133 | 0 | 0 | 0 | 100.0% |
@@ -57,7 +57,7 @@
 | EPIC-013 | statement-parsing-v2 | 60 | 2 | 58 | 0 | 0 | 0 | 100.0% |
 | EPIC-014 | ttd-transformation | 6 | 0 | 6 | 0 | 0 | 0 | 100.0% |
 | EPIC-015 | processing-account | 31 | 0 | 31 | 0 | 0 | 0 | 100.0% |
-| EPIC-016 | two-stage-review-ui | 227 | 24 | 203 | 0 | 0 | 0 | 100.0% |
+| EPIC-016 | two-stage-review-ui | 231 | 24 | 207 | 0 | 0 | 0 | 100.0% |
 | EPIC-017 | portfolio-management | 91 | 43 | 48 | 0 | 0 | 0 | 100.0% |
 | EPIC-018 | ai-driven-pipeline | 24 | 0 | 24 | 0 | 0 | 0 | 100.0% |
 

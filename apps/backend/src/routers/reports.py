@@ -37,6 +37,7 @@ from src.schemas import (
     NetWorthGranularity,
     NetWorthTimeSeriesResponse,
     PersonalReportPackageContractResponse,
+    PersonalReportPackageNotesResponse,
     TrendPeriod,
 )
 from src.services.market_data import ensure_market_data_fresh
@@ -193,8 +194,8 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
             "owner_epic": "EPIC-005",
             "period_type": "package",
             "source_endpoint": "/api/reports/package/notes",
-            "status": "planned",
-            "blocking_issue": "#571",
+            "status": "ready",
+            "blocking_issue": None,
             "decimal_total_fields": [],
         },
         {
@@ -214,6 +215,103 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
     },
 }
 
+PERSONAL_REPORT_PACKAGE_NOTES: dict = {
+    "section_id": "notes",
+    "label": "Notes & Disclosures",
+    "status": "ready",
+    "non_compliance_statement": (
+        "This personal management report is not a regulated filing, not an audit opinion, "
+        "not legal advice, and not tax advice. Accounting and listed-company reporting "
+        "references are used only as coverage and disclosure discipline."
+    ),
+    "notes": [
+        {
+            "note_id": "basis-of-preparation",
+            "label": "Basis of Preparation",
+            "owner_epic": "EPIC-005",
+            "basis": "personal_management_report_package_contract",
+            "source_state": "package_contract",
+            "applies_to_sections": [
+                "balance_sheet",
+                "income_statement",
+                "cash_flow",
+                "investment_performance",
+                "annualized_income_long_term",
+            ],
+            "disclosure": (
+                "The package assembles personal finance statements and schedules for management use. "
+                "It does not assert compliance with a statutory accounting framework."
+            ),
+        },
+        {
+            "note_id": "reporting-period-and-currency",
+            "label": "Reporting Period and Currency",
+            "owner_epic": "EPIC-005",
+            "basis": "package_period_semantics",
+            "source_state": "request_parameters",
+            "applies_to_sections": [
+                "balance_sheet",
+                "income_statement",
+                "cash_flow",
+                "investment_performance",
+                "annualized_income_long_term",
+            ],
+            "disclosure": (
+                "Period sections use start and end dates; point-in-time sections use as-of dates. "
+                "Currency values serialize Decimal amounts as strings."
+            ),
+        },
+        {
+            "note_id": "valuation-basis",
+            "label": "Valuation Basis",
+            "owner_epic": "EPIC-011",
+            "basis": "manual_valuation_component_rules",
+            "source_state": "manual_valuation_snapshots",
+            "applies_to_sections": ["balance_sheet", "annualized_income_long_term"],
+            "disclosure": (
+                "Manual valuation snapshots supply property, liability, and restricted compensation "
+                "values as of the selected reporting date."
+            ),
+        },
+        {
+            "note_id": "investment-market-data",
+            "label": "Investment Market Data",
+            "owner_epic": "EPIC-017",
+            "basis": "investment_performance_schedule",
+            "source_state": "brokerage_imports_and_market_data",
+            "applies_to_sections": ["investment_performance", "balance_sheet"],
+            "disclosure": (
+                "Portfolio metrics depend on imported brokerage positions, available prices, "
+                "dividend facts, and the schedule data-freshness flags."
+            ),
+        },
+        {
+            "note_id": "source-confidence-review",
+            "label": "Source Confidence and Review",
+            "owner_epic": "EPIC-018",
+            "basis": "trusted_or_reviewed_source_state",
+            "source_state": "reviewed_journal_and_statement_links",
+            "applies_to_sections": ["balance_sheet", "income_statement", "cash_flow"],
+            "disclosure": (
+                "Report totals depend on posted or reconciled journal entries and reviewed source "
+                "documents; unresolved extraction or reconciliation checks remain outside trusted totals."
+            ),
+        },
+        {
+            "note_id": "restricted-asset-treatment",
+            "label": "Restricted Asset Treatment",
+            "owner_epic": "EPIC-011",
+            "basis": "restricted_compensation_liquidity_policy",
+            "source_state": "manual_valuation_snapshots",
+            "applies_to_sections": ["balance_sheet", "annualized_income_long_term"],
+            "disclosure": (
+                "Restricted ESOP, RSU, and stock option values are excluded from liquid net worth by "
+                "default and shown separately in the long-term compensation schedule."
+            ),
+        },
+    ],
+}
+
 
 def _annualized_income_bucket(account_name: str) -> str | None:
     normalized = account_name.casefold()
@@ -230,6 +328,12 @@ def _annualized_income_bucket(account_name: str) -> str | None:
 def personal_report_package_contract() -> PersonalReportPackageContractResponse:
     """Return the stable package-level API/export contract."""
     return PersonalReportPackageContractResponse(**PERSONAL_REPORT_PACKAGE_CONTRACT)
+
+
+@router.get("/package/notes", response_model=PersonalReportPackageNotesResponse)
+def personal_report_package_notes() -> PersonalReportPackageNotesResponse:
+    """Return package-level notes and disclosures."""
+    return PersonalReportPackageNotesResponse(**PERSONAL_REPORT_PACKAGE_NOTES)
 
 
 @router.get("/package/annualized-income-schedule", response_model=AnnualizedIncomeScheduleResponse)

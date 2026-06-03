@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.routers.reports import personal_report_package_contract
+from src.routers.reports import personal_report_package_contract, personal_report_package_notes
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +32,8 @@ def test_AC5_9_1_package_contract_endpoint_defines_required_sections():
     assert sections["balance_sheet"]["label"] == "Balance Sheet"
     assert sections["balance_sheet"]["source_endpoint"] == "/api/reports/balance-sheet"
     assert sections["investment_performance"]["owner_epic"] == "EPIC-017"
-    assert sections["notes"]["blocking_issue"] == "#571"
+    assert sections["notes"]["status"] == "ready"
+    assert sections["notes"]["blocking_issue"] is None
     assert sections["traceability_appendix"]["blocking_issue"] == "#572"
 
 
@@ -82,3 +83,44 @@ def test_AC5_11_1_package_contract_marks_annualized_schedule_ready():
     assert section["status"] == "ready"
     assert section["blocking_issue"] is None
     assert section["source_endpoint"] == "/api/reports/package/annualized-income-schedule"
+
+
+def test_AC5_12_1_package_notes_endpoint_returns_required_note_taxonomy():
+    """AC5.12.1: Package notes endpoint returns standards-inspired disclosure notes."""
+    response = personal_report_package_notes()
+    payload = response.model_dump(mode="json")
+
+    assert payload["section_id"] == "notes"
+    assert payload["status"] == "ready"
+    assert "not a regulated filing" in payload["non_compliance_statement"]
+    assert "not legal advice" in payload["non_compliance_statement"]
+    assert "not tax advice" in payload["non_compliance_statement"]
+
+    notes = {note["note_id"]: note for note in payload["notes"]}
+    assert list(notes) == [
+        "basis-of-preparation",
+        "reporting-period-and-currency",
+        "valuation-basis",
+        "investment-market-data",
+        "source-confidence-review",
+        "restricted-asset-treatment",
+    ]
+    assert notes["basis-of-preparation"]["owner_epic"] == "EPIC-005"
+    assert notes["valuation-basis"]["owner_epic"] == "EPIC-011"
+    assert notes["investment-market-data"]["owner_epic"] == "EPIC-017"
+    assert notes["source-confidence-review"]["owner_epic"] == "EPIC-018"
+    assert notes["basis-of-preparation"]["source_state"] == "package_contract"
+    assert notes["valuation-basis"]["source_state"] == "manual_valuation_snapshots"
+    assert "US GAAP compliant" not in payload["non_compliance_statement"]
+    assert "HKEX filing" not in payload["non_compliance_statement"]
+
+
+def test_AC5_12_2_package_contract_marks_notes_ready():
+    """AC5.12.2: Package contract marks notes ready and points to the notes endpoint."""
+    response = personal_report_package_contract()
+    payload = response.model_dump(mode="json")
+
+    section = {section["section_id"]: section for section in payload["sections"]}["notes"]
+    assert section["status"] == "ready"
+    assert section["blocking_issue"] is None
+    assert section["source_endpoint"] == "/api/reports/package/notes"
