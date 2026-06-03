@@ -947,14 +947,16 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
         not in backend_block
     )
     assert "needs: [lint]" not in traceability_block
-    assert "run in parallel with lint" in ci_cd
+    assert "Standalone lint and AC traceability start immediately" in ci_cd
+    assert "without waiting for behavior-only backend gates" in ci_cd
 
 
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
-    """AC8.13.86: CI fast feedback jobs start after change classification only."""
+    """AC8.13.86: CI fast feedback jobs preserve actual workflow dependency semantics."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
+    lint_block = workflow.split("  lint:", 1)[1].split("  backend:", 1)[0]
     backend_block = workflow.split("  backend:", 1)[1].split(
         "  backend-integration:", 1
     )[0]
@@ -964,13 +966,19 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     image_block = workflow.split("  container-images:", 1)[1].split(
         "  tooling-coverage:", 1
     )[0]
+    traceability_block = workflow.split("  ac-traceability:", 1)[1].split(
+        "  finish:", 1
+    )[0]
 
     for block in (backend_block, frontend_block, image_block):
         assert "needs: [changes]" in block
         assert "backend-integration" not in block.split("steps:", 1)[0]
         assert "backend-e2e-tier1" not in block.split("steps:", 1)[0]
 
-    assert "Fast feedback jobs start after `changes` only" in ci_cd
+    assert "needs:" not in lint_block.split("steps:", 1)[0]
+    assert "needs:" not in traceability_block.split("steps:", 1)[0]
+    assert "Standalone gates start immediately" in ci_cd
+    assert "Changes-dependent fast feedback jobs start after `changes` only" in ci_cd
     assert "Behavior-only backend gates run in parallel" in ci_cd
 
 
