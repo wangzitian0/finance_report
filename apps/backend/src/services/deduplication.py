@@ -225,6 +225,7 @@ class DeduplicationService:
         file_hash: str,
         original_filename: str,
         document_type: DocumentType,
+        extraction_metadata: dict[str, Any] | None = None,
     ) -> UploadedDocument:
         """Create Layer 1 document metadata record.
 
@@ -236,6 +237,7 @@ class DeduplicationService:
             file_hash=file_hash,
             original_filename=original_filename,
             document_type=document_type,
+            extraction_metadata=extraction_metadata,
         )
         db.add(doc)
         await db.flush()
@@ -259,6 +261,8 @@ async def dual_write_layer2(
     original_filename: str,
     institution: str,
     transactions: list[BankStatementTransaction],
+    document_type: DocumentType | None = None,
+    extraction_metadata: dict[str, Any] | None = None,
 ) -> None:
     """Write parsed data to Layer 1/2 tables (Phase 2 dual write).
 
@@ -280,7 +284,7 @@ async def dual_write_layer2(
         "uob": DocumentType.BANK_STATEMENT,
         "posb": DocumentType.BANK_STATEMENT,
     }
-    doc_type = doc_type_map.get(institution.lower(), DocumentType.BANK_STATEMENT)
+    doc_type = document_type or doc_type_map.get(institution.lower(), DocumentType.BANK_STATEMENT)
 
     try:
         uploaded_doc = await dedup_service.create_uploaded_document(
@@ -290,6 +294,7 @@ async def dual_write_layer2(
             file_hash=file_hash,
             original_filename=original_filename,
             document_type=doc_type,
+            extraction_metadata=extraction_metadata,
         )
 
         layer2_count = 0

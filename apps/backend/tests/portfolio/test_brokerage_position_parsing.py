@@ -9,7 +9,12 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel
+from src.models import (
+    BankStatement,
+    BankStatementStatus,
+    BankStatementTransaction,
+    ConfidenceLevel,
+)
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import ManagedPosition
 from src.routers.statements import _brokerage_payload_from_statement
@@ -395,6 +400,62 @@ async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client
     )
     statement_id = statement.id
     db.add(statement)
+    await db.commit()
+
+    response = await client.post(f"/statements/{statement_id}/brokerage/import")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["broker"] == "Moomoo"
+    assert data["parsed_positions"] == 1
+    assert data["created_atomic_positions"] == 1
+    assert data["reconcile_created"] == 1
+
+    positions = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
+    assert len(positions) == 1
+    assert positions[0].asset_identifier == "Fullerton SGD Money Market Fund"
+    assert positions[0].market_value == Decimal("1250.50")
+
+
+@pytest.mark.asyncio
+async def test_statement_scoped_brokerage_import_uses_persisted_extraction_positions(client, db, test_user):
+    """AC8.13.10/AC17.4.7: Statement import recovers structured OCR positions from metadata."""
+    file_hash = "issue-653-moomoo-structured"
+    statement = BankStatement(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="statements/moomoo/structured.pdf",
+        file_hash=file_hash,
+        original_filename="moomoo-structured.pdf",
+        institution="Moomoo",
+        account_last4="1582",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        opening_balance=None,
+        closing_balance=None,
+        status=BankStatementStatus.PARSED,
+        confidence_score=95,
+        balance_validated=False,
+        extraction_metadata={
+            "extraction_payload": {
+                "institution": "Moomoo",
+                "statement": {"period_end": "2026-05-31", "currency": "SGD"},
+                "positions": [
+                    {
+                        "symbol": "Fullerton SGD Money Market Fund",
+                        "quantity": "1",
+                        "market_value": "1250.50",
+                        "currency": "SGD",
+                        "asset_type": "money_market",
+                    }
+                ],
+            }
+        },
+        transactions=[],
+    )
+    db.add(statement)
+    statement_id = statement.id
     await db.commit()
 
     response = await client.post(f"/statements/{statement_id}/brokerage/import")

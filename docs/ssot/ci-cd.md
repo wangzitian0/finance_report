@@ -81,6 +81,13 @@ Coverage regression detection is enforced locally against
 `unified-coverage.json`; Coveralls remains main-only reporting and does not
 decide CI pass/fail.
 
+CI concurrency is deliberately different for PRs and `main`. Pull request runs
+share a PR ref-scoped concurrency group and cancel superseded in-progress runs
+to keep author feedback current. Pushes to `main` use a SHA-scoped concurrency
+group, so rapid consecutive merges do not cancel or replace a pending main CI
+run for an earlier merge commit. `workflow_dispatch` uses the run ID to keep
+manual validations independent.
+
 Lightweight changes do not repeat the heavy path on either PRs or `main`.
 Lightweight means all changed files are limited to documentation, markdown,
 issue templates, or `.github/workflows/docs.yml`. Other workflow changes are not

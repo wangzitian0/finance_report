@@ -168,7 +168,8 @@ Parsing priority:
 4. For Interactive Brokers, consume structured position rows from CSV/PDF extraction payloads.
 
 Import entry points:
-- Automatic: successful statement background parsing inspects the structured extraction payload. If it contains brokerage `positions`, `holdings`, or `securities`, or if broker detection recognizes the filename/institution/content, the parser calls `BrokeragePositionImportService` with the current statement ID as `source_document_id`.
+- Automatic: successful statement background parsing stores brokerage OCR output in `BankStatement.extraction_metadata`, inspects the structured extraction payload, and imports positions when it contains brokerage `positions`, `holdings`, or `securities`, or when broker detection recognizes the filename/institution/content. The parser calls `BrokeragePositionImportService` with the current statement ID as `source_document_id`.
+- Statement-scoped manual: `POST /statements/{id}/brokerage/import` first reads the persisted `BankStatement.extraction_metadata` payload, then falls back to Layer 1 `UploadedDocument.extraction_metadata`, and finally reconstructs cash events from parsed statement transactions. This keeps structured holdings importable even when a brokerage PDF has no bank-style transaction rows.
 - Manual/API: `POST /portfolio/brokerage/import` remains available for parsed payload backfills and tests.
 
 Import behavior:

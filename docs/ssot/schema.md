@@ -362,6 +362,7 @@ Statement header table for imported statements.
 | confidence_score | INT |  | Extraction confidence (nullable while parsing) |
 | balance_validated | BOOLEAN |  | Balance check result (nullable while parsing) |
 | validation_error | TEXT | | Validation notes |
+| extraction_metadata | JSONB | | Durable parser handoff metadata, including structured brokerage OCR positions used by statement-scoped imports |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 

@@ -15,7 +15,7 @@ import httpx
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel
+from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel, DocumentType
 from src.prompts import get_parsing_prompt
 from src.services.brokerage_positions import looks_like_brokerage_payload
 from src.services.deduplication import DeduplicationService, dual_write_layer2
@@ -379,6 +379,8 @@ class ExtractionService:
                 ),
             )
             statement._extracted_payload = extracted
+            if is_brokerage_payload:
+                statement.extraction_metadata = {"extraction_payload": extracted}
 
             transactions = []
             net_transactions = Decimal("0.00")
@@ -509,6 +511,10 @@ class ExtractionService:
                     original_filename=original_filename or (file_path.name if file_path else "unknown"),
                     institution=final_institution,
                     transactions=transactions,
+                    document_type=(
+                        DocumentType.BROKERAGE_STATEMENT if is_brokerage_payload else DocumentType.BANK_STATEMENT
+                    ),
+                    extraction_metadata={"extraction_payload": extracted} if is_brokerage_payload else None,
                 )
 
             return statement, transactions

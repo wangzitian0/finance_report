@@ -167,6 +167,7 @@ async def test_parse_document_preserves_brokerage_payload_for_background_import(
     assert statement.opening_balance is None
     assert statement.closing_balance is None
     assert statement._extracted_payload == payload
+    assert statement.extraction_metadata == {"extraction_payload": payload}
 
 
 @pytest.mark.asyncio
