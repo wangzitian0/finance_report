@@ -2037,8 +2037,8 @@ groups:
       - id: AC8.13.27
         epic: 8
         epic_name: testing-strategy
-        description: Coveralls uploads and asynchronous Coveralls commit statuses remain non-required reporting signals while
-          local deterministic coverage gates decide CI pass/fail.
+        description: Pull requests do not publish Coveralls status contexts; main-only Coveralls reporting remains separate
+          from local deterministic coverage gates.
         mandatory: true
       - id: AC8.13.28
         epic: 8

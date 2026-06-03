@@ -21,12 +21,27 @@ LIGHTWEIGHT_PREFIXES = (
 )
 
 PR_PREVIEW_EXACT = {
+    "apps/backend/Dockerfile",
+    "apps/backend/alembic.ini",
+    "apps/backend/pyproject.toml",
+    "apps/backend/uv.lock",
+    "apps/frontend/Dockerfile",
+    "apps/frontend/next.config.mjs",
+    "apps/frontend/package-lock.json",
+    "apps/frontend/package.json",
+    "apps/frontend/postcss.config.mjs",
+    "apps/frontend/tailwind.config.ts",
+    "apps/frontend/tsconfig.json",
     "docker-compose.yml",
     "tools/smoke_test.sh",
 }
 PR_PREVIEW_PREFIXES = (
-    "apps/backend/",
-    "apps/frontend/",
+    "apps/backend/config/",
+    "apps/backend/migrations/",
+    "apps/backend/scripts/",
+    "apps/backend/src/",
+    "apps/frontend/public/",
+    "apps/frontend/src/",
     ".github/actions/setup-e2e-tests/",
     "tools/_lib/pdf_fixtures/",
     "tests/e2e/",
@@ -38,6 +53,17 @@ STAGING_EXACT = {
     ".github/workflows/staging-ai-ocr-gate.yml",
     ".node-version",
     ".python-version",
+    "apps/backend/Dockerfile",
+    "apps/backend/alembic.ini",
+    "apps/backend/pyproject.toml",
+    "apps/backend/uv.lock",
+    "apps/frontend/Dockerfile",
+    "apps/frontend/next.config.mjs",
+    "apps/frontend/package-lock.json",
+    "apps/frontend/package.json",
+    "apps/frontend/postcss.config.mjs",
+    "apps/frontend/tailwind.config.ts",
+    "apps/frontend/tsconfig.json",
     "docker-compose.yml",
     "tools/check_ghcr_image_tag.sh",
     "tools/dokploy_deploy.sh",
@@ -47,8 +73,12 @@ STAGING_EXACT = {
     "repo",
 }
 STAGING_PREFIXES = (
-    "apps/backend/",
-    "apps/frontend/",
+    "apps/backend/config/",
+    "apps/backend/migrations/",
+    "apps/backend/scripts/",
+    "apps/backend/src/",
+    "apps/frontend/public/",
+    "apps/frontend/src/",
     ".github/actions/setup-e2e-tests/",
     "repo/",
     "tools/_lib/pdf_fixtures/",
@@ -81,10 +111,27 @@ def is_lightweight(path: str) -> bool:
     return normalized.startswith(LIGHTWEIGHT_PREFIXES)
 
 
+def _is_app_test_or_doc_path(path: str) -> bool:
+    if not path.startswith(("apps/backend/", "apps/frontend/")):
+        return False
+
+    file_name = path.rsplit("/", maxsplit=1)[-1]
+    suffix = file_name.rsplit(".", maxsplit=1)[-1].lower()
+    stem_parts = file_name.split(".")
+
+    if suffix in {"md", "mdx"}:
+        return True
+    if "/tests/" in path or "/__tests__/" in path:
+        return True
+    return len(stem_parts) >= 3 and stem_parts[-2] in {"test", "spec"}
+
+
 def is_pr_preview_relevant(path: str) -> bool:
     normalized = normalize_path(path)
     if normalized in PR_PREVIEW_EXACT:
         return True
+    if _is_app_test_or_doc_path(normalized):
+        return False
     return normalized.startswith(PR_PREVIEW_PREFIXES)
 
 
@@ -92,6 +139,8 @@ def is_staging_relevant(path: str) -> bool:
     normalized = normalize_path(path)
     if normalized in STAGING_EXACT:
         return True
+    if _is_app_test_or_doc_path(normalized):
+        return False
     return normalized.startswith(STAGING_PREFIXES)
 
 

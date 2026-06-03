@@ -94,8 +94,8 @@ jobs:
       - name: Run Lint
         run: |
           cd apps/backend
-          uv run ruff check src/
-          uv run ruff format src/ --check
+          uv run ruff check src tests
+          uv run ruff format src tests --check
       - name: Install frontend dependencies
         run: npm ci
         working-directory: apps/frontend
@@ -111,6 +111,9 @@ jobs:
       - name: SSOT Manifest Check
         run: |
           uv run --with pyyaml python tools/check_manifest.py
+      - name: CI Metrics Contract Check
+        run: |
+          uv run python tools/check_ci_metrics_contract.py
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
@@ -549,9 +552,53 @@ jobs:
             NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
 
+  tooling-coverage:
+    name: Tooling/Common Coverage
+    needs: [changes]
+    if: needs.changes.outputs.heavy_required == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run tooling tests with coverage
+        run: |
+          mkdir -p coverage
+          printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n' > /tmp/tooling-coveragerc
+          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest tests/tooling/ \
+            --cov=common \
+            --cov=tools \
+            --cov-config=/tmp/tooling-coveragerc \
+            --cov-report= \
+            -x -q
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
+
+      - name: Upload tooling coverage context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-tooling
+          path: |
+            coverage/common.lcov
+            coverage/tools.lcov
+          retention-days: 14
+
   unified-coverage:
     name: Calculate Unified Coverage
-    needs: [changes, backend, frontend]
+    needs: [changes, backend, frontend, tooling-coverage]
     if: needs.changes.outputs.heavy_required == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -583,6 +630,12 @@ jobs:
           name: coverage-frontend
           path: coverage-frontend
 
+      - name: Download tooling coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-tooling
+          path: coverage-tooling
+
       - name: Merge coverage reports
         run: |
           mkdir -p coverage
@@ -596,20 +649,16 @@ jobs:
           else
             echo "No frontend coverage found"
           fi
-      - name: Run tooling tests with coverage
-        run: |
-          printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n' > /tmp/tooling-coveragerc
-          uv run --with pytest --with pytest-cov --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with sqlalchemy --with asyncpg --with pdfplumber --with reportlab pytest tests/tooling/ \
-            --cov=common \
-            --cov=tools \
-            --cov-config=/tmp/tooling-coveragerc \
-            --cov-report= \
-            -x -q
-          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
-          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
-      - name: Check CI metrics contract
-        run: |
-          uv run python tools/check_ci_metrics_contract.py
+          if [ -f coverage-tooling/common.lcov ]; then
+            cp coverage-tooling/common.lcov coverage/common.lcov
+          else
+            echo "No common coverage found"
+          fi
+          if [ -f coverage-tooling/tools.lcov ]; then
+            cp coverage-tooling/tools.lcov coverage/tools.lcov
+          else
+            echo "No tools coverage found"
+          fi
       - name: Audit coverage policy
         run: |
           uv run python tools/check_coverage_policy.py
@@ -676,34 +725,18 @@ jobs:
 
 
       - name: Build line-only Coveralls LCOV
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           uv run python tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches
-          uv run python tools/strip_lcov_branches.py coverage/backend.lcov coverage/coveralls-backend.lcov
-          uv run python tools/strip_lcov_branches.py coverage/frontend.lcov coverage/coveralls-frontend.lcov
 
-      - name: Upload unified coverage to Coveralls
+      - name: Upload main unified coverage to Coveralls
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
           file: coverage/coveralls-unified.lcov
           flag-name: unified
           base-path: .
-
-      - name: Upload backend to Coveralls (per-flag)
-        uses: coverallsapp/github-action@v2
-        continue-on-error: true
-        with:
-          file: coverage/coveralls-backend.lcov
-          flag-name: backend
-          base-path: apps/backend
-      - name: Upload frontend to Coveralls (per-flag)
-        # Note: hashFiles() evaluates at plan time before steps run; use always() + action handles missing file
-        uses: coverallsapp/github-action@v2
-        continue-on-error: true
-        with:
-          file: coverage/coveralls-frontend.lcov
-          flag-name: frontend
-          base-path: apps/frontend
 
   ac-traceability:
     name: AC Traceability Check
@@ -775,7 +808,7 @@ jobs:
           retention-days: 14
 
   finish:
-    needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, unified-coverage, ac-traceability]
+    needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -793,6 +826,7 @@ jobs:
         | backend-integration | not included in unified coverage | yes (marker 'integration') |
         | backend-e2e-tier1 | not included in unified coverage | yes (marker 'e2e') |
         | frontend | contributes to unified line coverage baseline | yes |
+        | tooling-coverage | contributes common/tools to unified line coverage baseline | yes (tooling contracts) |
         EOF
 
     - name: Write CI timing summary
@@ -815,8 +849,8 @@ jobs:
           echo "## Coverage Gate"
           echo ""
           echo "- Authoritative coverage gate: \`Calculate Unified Coverage\` plus \`finish\`."
-          echo "- Coveralls contexts (\`coverage/coveralls\`, \`Coveralls - unified\`, \`Coveralls - backend\`, \`Coveralls - frontend\`) are reporting-only."
-          echo "- Coveralls may show a different external comparison baseline; merge readiness follows \`finish\`."
+          echo "- Pull requests do not publish Coveralls status contexts; main pushes upload unified line coverage for badge/trend reporting only."
+          echo "- Merge readiness follows \`finish\` and the committed \`unified-coverage.json\` baseline."
         } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Check job status
@@ -827,6 +861,7 @@ jobs:
         echo "Backend: ${{ needs.backend.result }}"
         echo "Frontend: ${{ needs.frontend.result }}"
         echo "Staging Images: ${{ needs.container-images.result }}"
+        echo "Tooling/Common Coverage: ${{ needs.tooling-coverage.result }}"
         echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
         echo "Lint: ${{ needs.lint.result }}"
         echo "AC Traceability: ${{ needs.ac-traceability.result }}"
@@ -857,6 +892,10 @@ jobs:
           fi
           if [[ "${{ needs.frontend.result }}" != "success" ]]; then
             echo "::error::Frontend build/tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.tooling-coverage.result }}" != "success" ]]; then
+            echo "::error::Tooling/common coverage failed"
             exit 1
           fi
           if [[ "${{ needs.unified-coverage.result }}" != "success" ]]; then

@@ -62,12 +62,12 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 
 `tools/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
 
-`tools/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
+`tools/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading the main-branch unified report to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
 
 Coveralls upload LCOV files are line-only. CI strips `BRDA:`, `BRF:`, and
-`BRH:` records before upload so Coveralls percentages track the same line
-coverage metric as `tools/calculate_unified_coverage.py`. Branch coverage may
-still be collected by test tools, but it is not part of the unified coverage
+`BRH:` records before main-branch upload so Coveralls percentages track the same
+line coverage metric as `tools/calculate_unified_coverage.py`. Branch coverage
+may still be collected by test tools, but it is not part of the unified coverage
 gate or Coveralls reporting percentage.
 
 ### Backend Coverage
@@ -86,8 +86,8 @@ gate or Coveralls reporting percentage.
 - **Tool**: vitest with v8 coverage provider
 - **Config**: `apps/frontend/vitest.config.ts`
 - **Output**: `apps/frontend/coverage/lcov.info` (copied to `coverage/frontend.lcov` in CI)
-- **LCOV paths**: `SF:` entries are relative to `apps/frontend` (for example, `src/app/page.tsx`); Coveralls uploads must use `base-path: apps/frontend`.
-- **Coveralls upload**: frontend/unified Coveralls uploads run on PRs and `main` pushes for reporting visibility; local deterministic gates remain the only CI pass/fail authority. Coveralls contexts such as `coverage/coveralls`, `coverage/coveralls (push)`, `Coveralls - unified`, and future `coverage/coveralls ...` or `Coveralls...` contexts are external reporting signals only. CI uploads line-only LCOV files so Coveralls does not blend branch counters into the unified percentage, and CI does not require Coveralls contexts for mergeability.
+- **LCOV paths**: `SF:` entries are relative to `apps/frontend` (for example, `src/app/page.tsx`); the unified Coveralls report rewrites them to repository-root-relative paths.
+- **Coveralls upload**: PR CI does not call Coveralls and cannot publish external Coveralls status contexts. Main pushes upload one unified line-only LCOV report after the local deterministic gate passes, for badge and trend reporting only.
 - **Key config**: `include: ['src/**/*.{ts,tsx}']` plus the shared policy audit ensures source files appear in LCOV consistently.
 - **Excluded**:
   - `**/tests/**`, `**/__tests__/**`
@@ -367,14 +367,12 @@ policy before CI can pass.
   current CI artifact.
 - `tools/check_coverage_policy.py` must fail when eligible source files are
   missing from LCOV or when unexpected files appear in LCOV.
-- Coveralls badge and contexts are reporting-only. The authoritative coverage
-  gate is the local CI calculation against `unified-coverage.json`, aggregated
-  by `finish`.
+- Coveralls badge is reporting-only. The authoritative coverage gate is the
+  local CI calculation against `unified-coverage.json`, aggregated by `finish`.
 - The authoritative coverage gate is the deterministic local CI calculation;
-  Coveralls is an external reporting baseline only.
+  Coveralls is a main-branch external reporting baseline only.
 - Coveralls receives line-only LCOV files so its coverage percentage should
-  track the local line metric, but Coveralls may still report a different
-  external comparison baseline.
+  track the local line metric for main-branch trend reporting.
 
 ---
 
