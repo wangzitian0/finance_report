@@ -158,6 +158,16 @@ class ClassificationService:
                     break
 
             if matched_rule:
+                existing_result = await db.execute(
+                    select(TransactionClassification)
+                    .where(TransactionClassification.atomic_txn_id == txn.id)
+                    .where(TransactionClassification.rule_version_id == matched_rule.id)
+                )
+                existing_classification = existing_result.scalar_one_or_none()
+                if existing_classification:
+                    results.append(existing_classification)
+                    continue
+
                 classification = TransactionClassification(
                     atomic_txn_id=txn.id,
                     rule_version_id=matched_rule.id,
