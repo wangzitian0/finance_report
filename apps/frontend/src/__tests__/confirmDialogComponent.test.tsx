@@ -34,7 +34,7 @@ describe("ConfirmDialog component", () => {
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
-  it("AC16.19.8 handles escape and backdrop cancellation", () => {
+  it("AC16.19.8 AC16.30.4 handles escape and backdrop cancellation", () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
 
@@ -51,7 +51,7 @@ describe("ConfirmDialog component", () => {
     expect(onCancel).toHaveBeenCalledTimes(2)
   })
 
-  it("AC16.19.16 renders dialog with ARIA attributes", () => {
+  it("AC16.19.16 AC16.30.4 renders dialog with ARIA attributes", () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
 
@@ -124,7 +124,7 @@ describe("ConfirmDialog component", () => {
     expect(screen.getByText("Extra info")).toBeInTheDocument()
   })
 
-  it("AC16.19.17 traps focus with Tab and Shift+Tab", () => {
+  it("AC16.19.17 AC16.30.4 traps focus with Tab and Shift+Tab", () => {
     render(
       <ConfirmDialog isOpen title="Focus" message="Trap" showInput onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )

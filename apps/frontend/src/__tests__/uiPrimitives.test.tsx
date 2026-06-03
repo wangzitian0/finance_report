@@ -40,6 +40,20 @@ describe("UI primitives", () => {
     expect(button).toHaveAttribute("title", "Edit account")
   })
 
+  it("AC16.30.1 AC16.30.4 keeps IconButton label authoritative over passthrough props", () => {
+    render(
+      <IconButton
+        icon={Pencil}
+        label="Edit account"
+        {...({ "aria-label": "Wrong label" } as Record<string, string>)}
+      />,
+    )
+
+    const button = screen.getByRole("button", { name: "Edit account" })
+    expect(button).toHaveAttribute("aria-label", "Edit account")
+    expect(screen.queryByRole("button", { name: "Wrong label" })).not.toBeInTheDocument()
+  })
+
   it("AC16.28.1 AC16.28.4 renders shared alert, empty, loading, and page header states", () => {
     render(
       <div>

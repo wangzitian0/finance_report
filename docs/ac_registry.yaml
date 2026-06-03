@@ -4063,6 +4063,43 @@ groups:
         description: Frontend tests cover the token configuration contract and at least one tokenized semantic component across
           multiple variants.
         mandatory: true
+    AC16.30:
+      - id: AC16.30.1
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: IconButton keeps its required label as the authoritative accessible name so callers cannot override or remove
+          it through passthrough props.
+        mandatory: true
+      - id: AC16.30.2
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: The design-token follow-ups from issues 612 and 613 are resolved; border tokens are documented, core recipes
+          use border-border, alert variants use semantic status token classes, and SSOT examples use accurate fence language.
+        mandatory: true
+      - id: AC16.30.3
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: WorkspaceTabs uses one coherent navigation/list semantic model with aria-current for the active route while
+          preserving keyboard navigation between open workspace pages.
+        mandatory: true
+      - id: AC16.30.4
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and icon-only
+          controls.
+        mandatory: true
+      - id: AC16.30.5
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and review
+          pages with stable visual anchors and nonblank screenshots.
+        mandatory: true
+      - id: AC16.30.6
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Frontend SSOT documents the accessibility and visual-verification workflow required for future UI-system
+          changes.
+        mandatory: true
   AC17:
     AC17.1:
       - id: AC17.1.1

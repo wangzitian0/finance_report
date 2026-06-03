@@ -24,7 +24,7 @@ function AppShellContent({ children }: AppShellProps) {
                     isCollapsed ? "md:ml-16" : "md:ml-64"
                 }`}
             >
-                <div className="flex min-w-0 items-center border-b border-[var(--border)] md:block md:border-none">
+                <div className="flex min-w-0 items-center border-b border-border md:block md:border-none">
                     <MobileNav />
                     <div className="hidden md:block min-w-0">
                         <WorkspaceTabs />

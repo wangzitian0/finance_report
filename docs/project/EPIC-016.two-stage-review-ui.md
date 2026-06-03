@@ -815,6 +815,22 @@ hardcoded Tailwind palette drift.
 - [x] **AC16.29.3** Confidence and status UI components use semantic token-backed primitives instead of hardcoded Tailwind palette utilities across all confidence/status variants
 - [x] **AC16.29.4** Frontend tests cover the token configuration contract and at least one tokenized semantic component across multiple variants
 
+### Acceptance Criteria — Feature (group 30, frontend verification hardening)
+
+Issue [#614](https://github.com/wangzitian0/finance_report/issues/614)
+tracks the final frontend UI-system hardening slice for EPIC-016. It closes
+the actionable follow-ups from issues #612 and #613, strengthens semantic
+navigation and accessibility coverage, and adds representative visual smoke
+coverage so future review, account, statement, and shell changes cannot bypass
+the shared UI-system contract.
+
+- [x] **AC16.30.1** `IconButton` keeps its required `label` as the authoritative accessible name so callers cannot override or remove it through passthrough props
+- [x] **AC16.30.2** The design-token follow-ups from issues #612 and #613 are resolved: border tokens are documented, core recipes use `border-border`, alert variants use semantic status token classes, and SSOT examples use accurate fence language
+- [x] **AC16.30.3** `WorkspaceTabs` uses one coherent navigation/list semantic model with `aria-current` for the active route while preserving keyboard navigation between open workspace pages
+- [x] **AC16.30.4** Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and icon-only controls
+- [x] **AC16.30.5** Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and review pages with stable visual anchors and nonblank screenshots
+- [x] **AC16.30.6** Frontend SSOT documents the accessibility and visual-verification workflow required for future UI-system changes
+
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 
 - [x] **AC16.11.32** Vitest harness for Stage 1 split components — shared `renderReviewComponent()` helper in `apps/frontend/src/__tests__/helpers/`

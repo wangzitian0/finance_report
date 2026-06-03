@@ -37,7 +37,7 @@ We use CSS variables for theming to avoid flash of unstyled content (FOUC) and s
 
 **Usage:**
 Always use CSS variables instead of hardcoded hex values or Tailwind utilities that don't map to variables.
-```css
+```text
 /* Good */
 bg-surface-card
 text-content-muted
@@ -61,6 +61,9 @@ The frontend token contract is defined in two layers:
 
 - **Surface and content colors**: `surface`, `surface-card`, `surface-muted`,
   `content`, `content-muted`, and `content-inverse`.
+- **Border colors**: `border` and `border-hover`. Use `border-border` for
+  standard outlines and dividers instead of arbitrary `border-[var(--border)]`
+  recipes.
 - **Action colors**: `accent`, `accent-hover`, and `accent-muted`.
 - **Status colors**: `status-success`, `status-warning`, `status-error`, and
   `status-info`, each with a muted background token.
@@ -80,8 +83,8 @@ The frontend token contract is defined in two layers:
 ### Rules
 
 - Prefer Tailwind token classes such as `bg-surface-card`, `text-content-muted`,
-  `bg-status-success-muted`, and `rounded-control` over fixed palette classes
-  such as `bg-green-100`, `text-gray-700`, or `rounded-xl`.
+  `border-border`, `bg-status-success-muted`, and `rounded-control` over fixed
+  palette classes such as `bg-green-100`, `text-gray-700`, or `rounded-xl`.
 - Use semantic primitives (`Badge`, `Alert`, `Button`, `IconButton`) before
   adding one-off status recipes in pages.
 - Status and confidence UI must use `badge-*`, `alert-*`, or another
@@ -141,11 +144,31 @@ primitives over repeating page-local class recipes.
   classes rather than hardcoded palette utilities.
 - Component tests must reference the owning AC IDs when primitives gain new
   behavior or variants.
+- Icon-only primitives own their accessible names. Callers must pass the
+  required semantic label and must not override it through passthrough props.
+
+### Accessibility and Visual Verification
+
+Every UI-system change must leave both semantic and visual proof in the same PR.
+
+- Dialog, sheet, toast, tab/navigation, and icon-only control changes need
+  component tests for keyboard behavior, landmark/role semantics, accessible
+  names, and live-region behavior where relevant.
+- Route switchers that navigate pages must use navigation/list semantics with
+  `aria-current`; only use ARIA tabs when focus stays in one page and the
+  rendered tab panels are controlled by the tablist.
+- Future visual smoke coverage should include representative desktop and mobile
+  routes, assert stable visible anchors, capture a nonblank screenshot, and keep
+  document-level horizontal overflow at zero.
+- Broader pixel-regression baselines may be added later, but they do not replace
+  the required Playwright smoke path for app shell, accounts, statements, and
+  review surfaces.
 
 ### Applied In
 
 - `app/(main)/accounts/page.tsx`
 - `app/(main)/statements/page.tsx`
+- `playwright/ui-visual-smoke.spec.ts`
 - `src/__tests__/uiPrimitives.test.tsx`
 - `src/__tests__/accountsPage.test.tsx`
 - `src/__tests__/statementsPage.test.tsx`

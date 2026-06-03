@@ -45,17 +45,21 @@ export function WorkspaceTabs() {
 
     if (tabs.length === 0) {
         return (
-            <div className="h-11 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center px-3">
+            <nav aria-label="Open workspace tabs" className="h-11 bg-surface-card border-b border-border flex items-center px-3">
                 <span className="text-xs font-medium text-muted uppercase tracking-wider mr-3">Open Tabs</span>
                 <span className="text-muted text-sm">No tabs open</span>
-            </div>
+            </nav>
         );
     }
 
     return (
-        <div className="h-11 min-w-0 bg-[var(--background-card)] border-b border-[var(--border)] flex items-center overflow-x-auto">
-            <span className="text-xs font-medium text-muted uppercase tracking-wider px-3 flex-shrink-0 border-r border-[var(--border)] h-full flex items-center mr-1">Open Tabs</span>
-            <div role="tablist" onKeyDown={handleKeyDown} className="flex items-center gap-0.5 px-2">
+        <nav
+            aria-label="Open workspace tabs"
+            onKeyDown={handleKeyDown}
+            className="h-11 min-w-0 bg-surface-card border-b border-border flex items-center overflow-x-auto"
+        >
+            <span className="text-xs font-medium text-muted uppercase tracking-wider px-3 flex-shrink-0 border-r border-border h-full flex items-center mr-1">Open Tabs</span>
+            <ol className="flex items-center gap-0.5 px-2">
                 {tabs.map((tab) => (
                     <TabItem
                         key={tab.id}
@@ -65,8 +69,8 @@ export function WorkspaceTabs() {
                         onClick={() => setActiveTab(tab.id)}
                     />
                 ))}
-            </div>
-        </div>
+            </ol>
+        </nav>
     );
 }
 
@@ -82,31 +86,31 @@ function TabItem({ tab, isActive, onClose, onClick }: TabItemProps) {
     const IconComponent = config.Icon;
 
     return (
-        <div
-            role="tab"
-            aria-selected={isActive}
-            tabIndex={isActive ? 0 : -1}
+        <li
             className={`
-        group flex items-center gap-1.5 px-3 py-2.5 rounded-md min-h-[44px]
-        transition-colors cursor-pointer select-none text-sm
-        ${isActive
-                    ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-                    : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+                group flex min-h-[44px] items-center gap-1.5 rounded-md text-sm transition-colors
+                ${isActive
+                    ? "bg-accent-muted text-accent"
+                    : "text-muted hover:bg-surface-muted hover:text-content"
                 }
-      `}
-            onClick={onClick}
+            `}
         >
-            <Link href={tab.href} className="flex items-center gap-1.5">
+            <Link
+                href={tab.href}
+                aria-current={isActive ? "page" : undefined}
+                className="flex min-h-[44px] items-center gap-1.5 px-3 py-2.5"
+                onClick={onClick}
+            >
                 <IconComponent className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
                 <span className="font-medium max-w-[100px] truncate">{tab.label}</span>
             </Link>
             <button
-                onClick={(e) => { e.stopPropagation(); onClose(); }}
-                className={`p-2 -m-1 rounded hover:bg-[var(--background-muted)] transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                onClick={onClose}
+                className={`p-2 mr-1 rounded hover:bg-surface-muted transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                 aria-label={`Close ${tab.label} tab`}
             >
                 <X className="w-3 h-3" aria-hidden="true" />
             </button>
-        </div>
+        </li>
     );
 }
