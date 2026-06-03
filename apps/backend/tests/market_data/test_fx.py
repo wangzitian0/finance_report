@@ -214,6 +214,13 @@ async def test_persist_fx_rate_handles_concurrent_insert():
         def one_or_none(self):
             return self._row
 
+    class NestedTransaction:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc_info):
+            return False
+
     class FakeSession:
         def __init__(self):
             self.execute_calls = 0
@@ -227,11 +234,14 @@ async def test_persist_fx_rate_handles_concurrent_insert():
         def add(self, value):
             self.added = value
 
-        async def commit(self):
+        async def flush(self):
             raise IntegrityError("insert fx", {}, Exception("duplicate"))
 
         async def rollback(self):
             self.rolled_back = True
+
+        def begin_nested(self):
+            return NestedTransaction()
 
     session = FakeSession()
 
@@ -247,7 +257,7 @@ async def test_persist_fx_rate_handles_concurrent_insert():
     )
 
     assert result == Decimal("0.173500")
-    assert session.rolled_back is True
+    assert session.rolled_back is False
     assert session.added is not None
 
 
@@ -259,6 +269,13 @@ async def test_persist_fx_rate_reraises_integrity_error_without_concurrent_rate(
         def one_or_none(self):
             return None
 
+    class NestedTransaction:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc_info):
+            return False
+
     class FakeSession:
         async def execute(self, _stmt):
             return Result()
@@ -266,11 +283,14 @@ async def test_persist_fx_rate_reraises_integrity_error_without_concurrent_rate(
         def add(self, _value):
             return None
 
-        async def commit(self):
+        async def flush(self):
             raise IntegrityError("insert fx", {}, Exception("duplicate"))
 
         async def rollback(self):
             return None
+
+        def begin_nested(self):
+            return NestedTransaction()
 
     with pytest.raises(IntegrityError):
         await market_data._persist_fx_rate(

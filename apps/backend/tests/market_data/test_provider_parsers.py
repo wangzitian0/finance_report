@@ -265,15 +265,25 @@ async def test_persist_stock_price_returns_concurrent_row_after_integrity_error(
 ) -> None:
     """AC11.10.1: Concurrent stock price inserts are resolved idempotently."""
 
+    class NestedTransaction:
+        async def __aenter__(self) -> "NestedTransaction":
+            return self
+
+        async def __aexit__(self, *_exc_info: object) -> bool:
+            return False
+
     class FakeDb:
         def add(self, _row: object) -> None:
             return None
 
-        async def commit(self) -> None:
+        async def flush(self) -> None:
             raise IntegrityError("insert", {}, Exception("duplicate"))
 
         async def rollback(self) -> None:
             return None
+
+        def begin_nested(self) -> NestedTransaction:
+            return NestedTransaction()
 
     calls = 0
 

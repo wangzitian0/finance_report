@@ -23,7 +23,14 @@ def test_next_market_data_sync_at_uses_nightly_sgt_schedule() -> None:
 @pytest.mark.asyncio
 async def test_run_daily_market_data_sync_uses_sessionmaker(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.10: Daily sync opens a DB session and runs FX then stock sync."""
-    session = object()
+
+    class FakeSession:
+        committed = False
+
+        async def commit(self) -> None:
+            self.committed = True
+
+    session = FakeSession()
     calls: list[tuple[str, object]] = []
 
     class FakeSessionMaker:
@@ -50,6 +57,7 @@ async def test_run_daily_market_data_sync_uses_sessionmaker(monkeypatch: pytest.
     await market_data_scheduler.run_daily_market_data_sync(sessionmaker=FakeSessionMaker())  # type: ignore[arg-type]
 
     assert calls == [("fx", session), ("stock", session)]
+    assert session.committed is True
 
 
 @pytest.mark.asyncio

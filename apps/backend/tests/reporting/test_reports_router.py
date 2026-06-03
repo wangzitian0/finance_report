@@ -11,7 +11,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models import (
     Account,
@@ -21,6 +22,7 @@ from src.models import (
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
+    StockPrice,
 )
 from src.routers import reports as reports_router
 from src.services.reporting import ReportError
@@ -123,6 +125,48 @@ async def test_trending_endpoint(client, test_data_setup_reports):
     assert response.status_code == 200
     data = response.json()
     assert len(data["points"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_net_worth_timeseries_endpoint_commits_boundary(
+    client,
+    db_engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC12.26.2: Report endpoints commit flushed market-data writes at the router boundary."""
+
+    async def fake_timeseries(db: AsyncSession, *_args, **_kwargs):
+        db.add(
+            StockPrice(
+                symbol="REPORT",
+                price=Decimal("42.000000"),
+                currency="USD",
+                price_date=date(2026, 1, 31),
+                source="test",
+            )
+        )
+        await db.flush()
+        return {
+            "currency": "SGD",
+            "granularity": "daily",
+            "points": [],
+        }
+
+    monkeypatch.setattr(reports_router, "get_net_worth_timeseries", fake_timeseries)
+
+    response = await client.get(
+        "/reports/net-worth/timeseries",
+        params={"from": "2026-01-01", "to": "2026-01-31", "granularity": "daily", "currency": "SGD"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["points"] == []
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        persisted = await session.scalar(
+            select(StockPrice).where(StockPrice.symbol == "REPORT").where(StockPrice.price_date == date(2026, 1, 31))
+        )
+    assert persisted is not None
 
 
 @pytest.mark.asyncio

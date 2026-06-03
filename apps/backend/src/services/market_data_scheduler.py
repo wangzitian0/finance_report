@@ -35,6 +35,7 @@ async def run_daily_market_data_sync(
     async with session_factory() as session:
         fx_result = await sync_fx_rates(session)
         stock_result = await sync_stock_prices(session)
+        await session.commit()
     logger.info(
         "Daily market data sync completed",
         fx_requested=fx_result.requested,

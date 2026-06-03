@@ -106,7 +106,9 @@ async def sync_fx_endpoint(
             end_date=request.end_date,
             user_id=user_id,
         )
+        await db.commit()
     except ValueError as exc:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return _response_from_result(result)
 
@@ -118,11 +120,16 @@ async def sync_stocks_endpoint(
     user_id: CurrentUserId,
 ) -> MarketDataSyncResponse:
     """Incrementally fill stock prices for explicit symbols or active holdings."""
-    result = await sync_stock_prices(
-        db,
-        symbols=request.symbols,
-        start_date=request.start_date,
-        end_date=request.end_date,
-        user_id=user_id,
-    )
+    try:
+        result = await sync_stock_prices(
+            db,
+            symbols=request.symbols,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            user_id=user_id,
+        )
+        await db.commit()
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return _response_from_result(result)
