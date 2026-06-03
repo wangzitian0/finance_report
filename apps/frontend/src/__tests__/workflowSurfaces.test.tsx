@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   WorkflowNotificationCenter,
+  WorkflowEventsPageContent,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
 import {
@@ -140,8 +141,8 @@ describe("workflow notification surfaces", () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 
     const button = await screen.findByRole("button", { name: /Workflow events/i })
-    expect(button).toHaveTextContent("3")
-    expect(button).toHaveAccessibleName(/2 actions/i)
+    await waitFor(() => expect(button).toHaveTextContent("3"))
+    await waitFor(() => expect(button).toHaveAccessibleName(/2 actions/i))
     expect(button).toHaveAccessibleName(/1 blocked/i)
     expect(fetchWorkflowStatus).toHaveBeenCalledTimes(1)
 
@@ -156,7 +157,7 @@ describe("workflow notification surfaces", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
     const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
 
-    expect(within(dialog).getByRole("heading", { name: "Blocked" })).toBeInTheDocument()
+    await waitFor(() => expect(within(dialog).getByRole("heading", { name: "Blocked" })).toBeInTheDocument())
     expect(within(dialog).getByRole("heading", { name: "Action required" })).toBeInTheDocument()
     expect(within(dialog).getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
     expect(within(dialog).getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
@@ -184,5 +185,44 @@ describe("workflow notification surfaces", () => {
     rerender(<WorkflowStatusFeed status={statusEmpty} events={[]} />)
     expect(screen.getByText("No action required")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/statements/upload")
+  })
+
+  it("AC19.3.5 renders the events page loading and unavailable states", async () => {
+    vi.mocked(fetchWorkflowStatus).mockImplementation(() => new Promise(() => undefined))
+    vi.mocked(fetchWorkflowEvents).mockImplementation(() => new Promise(() => undefined))
+
+    const { unmount } = renderWithQuery(<WorkflowEventsPageContent />)
+
+    expect(screen.getByRole("heading", { name: "Events" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/statements/upload")
+    expect(screen.getByText("Loading workflow status...")).toBeInTheDocument()
+    expect(screen.getByText("Loading workflow events...")).toBeInTheDocument()
+
+    unmount()
+
+    vi.mocked(fetchWorkflowStatus).mockRejectedValue(new Error("status unavailable"))
+    vi.mocked(fetchWorkflowEvents).mockRejectedValue(new Error("events unavailable"))
+
+    renderWithQuery(<WorkflowEventsPageContent />)
+
+    expect(await screen.findByText("Workflow status is unavailable.")).toBeInTheDocument()
+    expect(await screen.findByText("Unable to load workflow events.")).toBeInTheDocument()
+  })
+
+  it("AC19.3.5 renders the events page status feed, inbox total, and lifecycle actions", async () => {
+    renderWithQuery(<WorkflowEventsPageContent />)
+
+    expect(await screen.findByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
+    expect(screen.getByText("Workflow attention for upload, review, reconciliation, and reports")).toBeInTheDocument()
+    expect(screen.getByText("4 total")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Workflow events" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
+      "href",
+      "/reconciliation/unmatched",
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Reconciliation blocked as read" }))
+    await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("blocked-event", "read"))
   })
 })

@@ -254,6 +254,88 @@ export interface PersonalReportPackageTraceabilityResponse {
     completeness_warnings: PersonalReportPackageCompletenessWarning[];
 }
 
+export type WorkflowPrimaryState = "empty" | "processing" | "needs_action" | "blocked" | "ready";
+
+export type WorkflowNextActionType =
+    | "upload"
+    | "wait"
+    | "review_required"
+    | "resolve_blocker"
+    | "open_report"
+    | "none";
+
+export type WorkflowReportReadinessState = "none" | "processing" | "ready" | "blocked" | "stale";
+
+export type WorkflowEventFamily =
+    | "source.uploaded"
+    | "source.parsing.started"
+    | "source.parsing.completed"
+    | "source.parsing.failed"
+    | "record.validation.passed"
+    | "record.validation.failed"
+    | "ledger.auto_posted"
+    | "review.required"
+    | "review.completed"
+    | "reconciliation.blocked"
+    | "report.processing"
+    | "report.ready"
+    | "report.blocked"
+    | "report.generated";
+
+export type WorkflowEventSeverity = "info" | "success" | "warning" | "action_required" | "blocked";
+
+export type WorkflowEventStatus = "unread" | "read" | "archived";
+
+export type WorkflowReportImpact = "none" | "processing" | "ready" | "blocked" | "stale";
+
+export interface WorkflowNextActionResponse {
+    type: WorkflowNextActionType;
+    count: number;
+    href: string;
+}
+
+export interface WorkflowReportReadinessResponse {
+    state: WorkflowReportReadinessState;
+    blocking_count: number;
+    href: string;
+}
+
+export interface WorkflowEventCountsResponse {
+    unread: number;
+    action_required: number;
+    blocked: number;
+}
+
+export interface WorkflowStatusResponse {
+    primary_state: WorkflowPrimaryState;
+    next_action: WorkflowNextActionResponse;
+    report_readiness: WorkflowReportReadinessResponse;
+    event_counts: WorkflowEventCountsResponse;
+}
+
+export interface WorkflowEventResponse {
+    id: string;
+    user_id: string;
+    occurred_at: string;
+    family: WorkflowEventFamily;
+    severity: WorkflowEventSeverity;
+    status: WorkflowEventStatus;
+    title: string;
+    summary: string;
+    source_type: string;
+    source_id: string;
+    action_href: string;
+    report_impact: WorkflowReportImpact;
+    dedupe_key: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface WorkflowEventListResponse {
+    items: WorkflowEventResponse[];
+    total: number;
+}
+
 export interface AnnualizedIncomeScheduleIncome {
     annualized_salary: number | string;
     annualized_bonus: number | string;

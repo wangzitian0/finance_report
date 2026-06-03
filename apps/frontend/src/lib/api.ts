@@ -1,4 +1,10 @@
 import { getAccessToken, getUserId } from "./auth";
+import type {
+  WorkflowEventListResponse,
+  WorkflowEventResponse,
+  WorkflowEventStatus,
+  WorkflowStatusResponse,
+} from "./types";
 
 /**
  * API base URL for backend requests.
@@ -236,4 +242,33 @@ export async function apiUpload<T>(
   }
 
   return (await res.json()) as T;
+}
+
+export interface FetchWorkflowEventsOptions {
+  status?: WorkflowEventStatus;
+  limit?: number;
+}
+
+export async function fetchWorkflowStatus(): Promise<WorkflowStatusResponse> {
+  return apiFetch<WorkflowStatusResponse>("/api/workflow/status");
+}
+
+export async function fetchWorkflowEvents(
+  options: FetchWorkflowEventsOptions = {}
+): Promise<WorkflowEventListResponse> {
+  const params = new URLSearchParams();
+  if (options.status) params.set("status", options.status);
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
+  const query = params.toString();
+  return apiFetch<WorkflowEventListResponse>(`/api/workflow/events${query ? `?${query}` : ""}`);
+}
+
+export async function updateWorkflowEventStatus(
+  eventId: string,
+  status: WorkflowEventStatus
+): Promise<WorkflowEventResponse> {
+  return apiFetch<WorkflowEventResponse>(`/api/workflow/events/${eventId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
 }

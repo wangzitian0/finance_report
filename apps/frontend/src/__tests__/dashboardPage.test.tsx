@@ -25,9 +25,20 @@ vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
   NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-}))
+vi.mock("@/lib/api", () => {
+  const apiFetch = vi.fn()
+  return {
+    apiFetch,
+    fetchWorkflowStatus: () => apiFetch("/api/workflow/status"),
+    fetchWorkflowEvents: ({ limit }: { limit?: number } = {}) =>
+      apiFetch(`/api/workflow/events${limit ? `?limit=${limit}` : ""}`),
+    updateWorkflowEventStatus: (eventId: string, status: string) =>
+      apiFetch(`/api/workflow/events/${eventId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+  }
+})
 
 const baseBalance = {
   assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],

@@ -46,9 +46,7 @@ def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
 def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> None:
     """AC19.3.8: workflow notification UI contract is documented in SSOT and EPIC."""
     ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
-    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(
-        encoding="utf-8"
-    )
+    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
 
     for phrase in (
         "Header badge",
@@ -326,6 +324,41 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
 
 
 @pytest.mark.asyncio
+async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, test_user) -> None:
+    """AC19.3.1: derived sync avoids per-statement workflow event lookups."""
+    from sqlalchemy import event as sqlalchemy_event
+
+    for index in range(3):
+        db.add(
+            BankStatement(
+                user_id=test_user.id,
+                file_path=f"statements/bulk-{index}.csv",
+                file_hash=f"{index}" * 64,
+                original_filename=f"bulk-{index}.csv",
+                institution="Demo Bank",
+                status=BankStatementStatus.UPLOADED,
+            )
+        )
+    await db.commit()
+
+    statements: list[str] = []
+
+    def capture_sql(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        normalized = " ".join(statement.lower().split())
+        if normalized.startswith("select") and "workflow_events" in normalized:
+            statements.append(normalized)
+
+    sqlalchemy_event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+    try:
+        await sync_workflow_events_for_user(db, user_id=test_user.id)
+    finally:
+        sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+
+    assert len(statements) == 1
+    assert "join workflow_events" in statements[0]
+
+
+@pytest.mark.asyncio
 async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
     db,
     db_engine,
@@ -383,9 +416,7 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
 
     count_queries = [statement for statement in statements if "count(" in statement]
     representative_queries = [
-        statement
-        for statement in statements
-        if "select workflow_events." in statement and "count(" not in statement
+        statement for statement in statements if "select workflow_events." in statement and "count(" not in statement
     ]
 
     assert status.primary_state.value == "needs_action"

@@ -20,8 +20,10 @@
 | Derivation/upsert service | `apps/backend/src/services/workflow_events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
+| Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
+| Events page | `apps/frontend/src/app/(main)/events/page.tsx` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py` |
+| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts` |
 
 ---
 
@@ -248,7 +250,55 @@ lifecycle state. Missing or non-owned events return `404`.
 
 ---
 
-## 10. Initial Derivation
+## 10. In-App Notification Surfaces
+
+EPIC-019 notifications are in-app only. External push, email, Slack, browser
+push, proactive reminders, and event bus infrastructure are out of scope.
+
+The frontend notification surface is:
+
+```text
+WorkflowNotificationCenter
+  -> Header badge
+  -> Event inbox drawer
+
+WorkflowStatusFeed
+  -> Dashboard status feed
+  -> Events page status summary
+```
+
+Header badge rules:
+
+- It reads only `GET /api/workflow/status` through `lib/api.ts`.
+- It displays unread/action-required/blocked counts from `event_counts`.
+- It stays visually quiet when no workflow attention is required.
+- It opens the in-app Event inbox drawer.
+
+Event inbox rules:
+
+- It reads `GET /api/workflow/events` only after the user opens the drawer or
+  page.
+- It groups events by actionability: `Blocked`, `Action required`, and
+  `Routine automation`.
+- It supports lifecycle actions through `PATCH /api/workflow/events/{id}`.
+- Each event exposes exactly one primary internal action link from
+  `action_href`.
+- It must not show raw audit-log payloads, low-level ledger internals, or
+  source-table debugging fields as primary content.
+
+Status feed rules:
+
+- `WorkflowStatusFeed` summarizes the current upload-to-report state and report
+  readiness.
+- Blocked and action-required events are prominent.
+- Routine automation is summarized under `Routine automation` and is not the
+  primary attention driver.
+- Empty state says `No action required` and routes the user to upload when no
+  workflow state exists.
+
+---
+
+## 11. Initial Derivation
 
 The first implementation derives `source.uploaded` from `BankStatement` upload
 state. Workflow status and event reads run this deterministic sync before

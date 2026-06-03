@@ -108,6 +108,8 @@ async function installWorkflowMocks(page: Page) {
       };
     } else if (path.startsWith("/api/reports/income-statement")) {
       body = { start_date: "2026-01-01", end_date: "2026-06-03", currency: "SGD", income: [], expenses: [], total_income: "0.00", total_expenses: "0.00", net_income: "0.00", trends: [] };
+    } else if (path.startsWith("/api/reports/trend")) {
+      body = { points: [] };
     } else if (path === "/api/income/annualized") {
       body = { annualized_salary: "0.00", annualized_bonus: "0.00", annualized_dividend: "0.00", annualized_total: "0.00", currency: "SGD", as_of: "2026-06-03" };
     } else if (path === "/api/assets/restricted") {
@@ -118,8 +120,6 @@ async function installWorkflowMocks(page: Page) {
       body = { items: [], total: 0 };
     } else if (path.startsWith("/api/journal-entries")) {
       body = { items: [], total: 0 };
-    } else if (path === "/api/assets/restricted") {
-      body = [];
     }
 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -151,9 +151,10 @@ test.describe("AC19.3.7 workflow notification smoke", () => {
       await expect(page.getByText("Review required")).toBeVisible();
 
       await page.getByRole("button", { name: /Workflow events/i }).click();
-      await expect(page.getByRole("dialog", { name: "Workflow events" })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Blocked" })).toBeVisible();
-      await expect(page.getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
+      const dialog = page.getByRole("dialog", { name: "Workflow events" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("heading", { name: "Blocked", exact: true })).toBeVisible();
+      await expect(dialog.getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
         "href",
         "/reconciliation/unmatched",
       );
