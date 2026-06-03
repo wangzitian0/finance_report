@@ -364,12 +364,13 @@ Closure status:
    input consumed by this package (#566).
 5. Done: deliver notes/disclosures for the package output shape (#571).
 6. Done: deliver the traceability appendix for the package output shape (#572).
-7. Build deterministic fixture coverage (#573) against the same contract and
-   schedules, then extend the #565 guard as those package sections become
-   report-ready.
+7. Done: #573 builds deterministic representative fixture coverage against the
+   same contract and schedules, and the #565 guard now consumes the fixture
+   contract for exact totals, notes, traceability anchors, and package section
+   completeness.
 
-The macro outcome remains `partial` until representative fixture coverage
-(#573) closes.
+The macro outcome is `covered` in `docs/ssot/critical-proof-matrix.yaml` once
+the #573 representative fixture proof is present.
 
 ## 📄 Owned Documentation Surfaces
 

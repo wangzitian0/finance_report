@@ -200,6 +200,7 @@ export interface PersonalReportPackageTraceabilityAnchor {
     source_types?: string[];
     entry_statuses?: string[];
     identifier_fields?: string[];
+    identifiers?: string[];
     unavailable_reason?: string | null;
 }
 

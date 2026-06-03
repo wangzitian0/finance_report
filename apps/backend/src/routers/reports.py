@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from copy import deepcopy
 from datetime import date, timedelta
 from decimal import Decimal
 from enum import Enum
@@ -16,7 +17,16 @@ from sqlalchemy import select, union
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
-from src.models import Account, AccountType, Direction, FxRate, JournalEntry, JournalEntryStatus, JournalLine
+from src.models import (
+    Account,
+    AccountType,
+    BankStatement,
+    Direction,
+    FxRate,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+)
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
@@ -529,6 +539,102 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
 }
 
 
+def _sorted_unique_identifiers(values: list[object]) -> list[str]:
+    return sorted({str(value) for value in values if value is not None})
+
+
+def _line_by_id(payload: dict, line_id: str) -> dict:
+    return next(line for line in payload["lines"] if line["line_id"] == line_id)
+
+
+async def _enrich_package_traceability_identifiers(
+    payload: dict,
+    *,
+    db: DbSession | None,
+    user_id: CurrentUserId | None,
+    start_date: date | None,
+    end_date: date | None,
+    as_of_date: date | None,
+) -> dict:
+    """Attach concrete source, ledger, and manual valuation IDs when request context is available."""
+    if db is None or user_id is None:
+        return payload
+
+    journal_filters = [
+        JournalEntry.user_id == user_id,
+        JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+    ]
+    if start_date is not None:
+        journal_filters.append(JournalEntry.entry_date >= start_date)
+    if end_date is not None:
+        journal_filters.append(JournalEntry.entry_date <= end_date)
+    elif as_of_date is not None:
+        journal_filters.append(JournalEntry.entry_date <= as_of_date)
+
+    journal_result = await db.execute(
+        select(JournalEntry.id, JournalEntry.source_id, JournalLine.id)
+        .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(*journal_filters)
+    )
+    journal_rows = journal_result.all()
+    journal_entry_ids = _sorted_unique_identifiers([row[0] for row in journal_rows])
+    source_ids = _sorted_unique_identifiers([row[1] for row in journal_rows])
+    journal_line_ids = _sorted_unique_identifiers([row[2] for row in journal_rows])
+    ledger_identifiers = _sorted_unique_identifiers([*journal_entry_ids, *journal_line_ids])
+
+    manual_filters = [ManualValuationSnapshot.user_id == user_id]
+    if as_of_date is not None:
+        manual_filters.append(ManualValuationSnapshot.as_of_date <= as_of_date)
+    manual_result = await db.execute(select(ManualValuationSnapshot).where(*manual_filters))
+    manual_snapshots = list(manual_result.scalars().all())
+    manual_ids = _sorted_unique_identifiers([snapshot.id for snapshot in manual_snapshots])
+    restricted_ids = _sorted_unique_identifiers(
+        [
+            snapshot.id
+            for snapshot in manual_snapshots
+            if snapshot.component_type
+            in (
+                ManualValuationComponentType.ESOP,
+                ManualValuationComponentType.RSU,
+                ManualValuationComponentType.STOCK_OPTIONS,
+            )
+            and snapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED
+        ]
+    )
+
+    statement_filters = [BankStatement.user_id == user_id]
+    if start_date is not None:
+        statement_filters.append(BankStatement.period_end >= start_date)
+    if end_date is not None:
+        statement_filters.append(BankStatement.period_start <= end_date)
+    elif as_of_date is not None:
+        statement_filters.append(BankStatement.period_start <= as_of_date)
+    statement_result = await db.execute(select(BankStatement.id).where(*statement_filters))
+    statement_ids = _sorted_unique_identifiers([row[0] for row in statement_result.all()])
+
+    source_identifiers = _sorted_unique_identifiers([*statement_ids, *source_ids])
+    total_asset_source_identifiers = _sorted_unique_identifiers([*source_identifiers, *manual_ids])
+
+    for line_id in (
+        "income_statement.total_income",
+        "income_statement.total_expenses",
+        "cash_flow.net_cash_flow",
+        "annualized_income_long_term.annualized_total",
+    ):
+        line = _line_by_id(payload, line_id)
+        line["source_anchor"]["identifiers"] = source_identifiers
+        line["ledger_anchor"]["identifiers"] = ledger_identifiers
+
+    total_assets = _line_by_id(payload, "balance_sheet.total_assets")
+    total_assets["source_anchor"]["identifiers"] = total_asset_source_identifiers
+    total_assets["ledger_anchor"]["identifiers"] = ledger_identifiers
+
+    restricted = _line_by_id(payload, "annualized_income_long_term.restricted_fair_value_total")
+    restricted["source_anchor"]["identifiers"] = restricted_ids
+
+    return payload
+
+
 def _annualized_income_bucket(account_name: str) -> str | None:
     normalized = account_name.casefold()
     if "salary" in normalized or "payroll" in normalized:
@@ -553,9 +659,23 @@ def personal_report_package_notes() -> PersonalReportPackageNotesResponse:
 
 
 @router.get("/package/traceability", response_model=PersonalReportPackageTraceabilityResponse)
-def personal_report_package_traceability() -> PersonalReportPackageTraceabilityResponse:
+async def personal_report_package_traceability(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> PersonalReportPackageTraceabilityResponse:
     """Return the package-level source-ledger-report traceability appendix."""
-    return PersonalReportPackageTraceabilityResponse(**PERSONAL_REPORT_PACKAGE_TRACEABILITY)
+    payload = await _enrich_package_traceability_identifiers(
+        deepcopy(PERSONAL_REPORT_PACKAGE_TRACEABILITY),
+        db=db,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+        as_of_date=as_of_date,
+    )
+    return PersonalReportPackageTraceabilityResponse(**payload)
 
 
 @router.get("/package/annualized-income-schedule", response_model=AnnualizedIncomeScheduleResponse)

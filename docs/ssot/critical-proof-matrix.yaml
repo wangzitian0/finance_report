@@ -7,7 +7,7 @@ description: >
 outcomes:
   - id: personal-financial-report-package
     question: "Can I generate one auditable personal financial-report package with statements, schedules, notes, and source traceability?"
-    status: partial
+    status: covered
     owner_epics:
       - EPIC-005
       - EPIC-008
@@ -180,6 +180,10 @@ proofs:
       - AC5.8.1
       - AC5.12.4
       - AC5.13.4
+      - AC8.13.83
+      - AC8.13.84
+      - AC8.13.85
+      - AC8.13.86
       - AC11.8.3
       - AC11.9.1
       - AC11.9.2

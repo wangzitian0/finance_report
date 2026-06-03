@@ -239,6 +239,7 @@ class PersonalReportPackageTraceabilityAnchor(BaseModel):
     source_types: list[str] = Field(default_factory=list)
     entry_statuses: list[str] = Field(default_factory=list)
     identifier_fields: list[str] = Field(default_factory=list)
+    identifiers: list[str] = Field(default_factory=list)
     unavailable_reason: str | None = None
 
 
