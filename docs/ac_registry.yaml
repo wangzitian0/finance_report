@@ -2683,6 +2683,17 @@ groups:
         description: The schedule includes ESOP/RSU/stock-option restricted holdings with valuation basis, vesting/unlock
           metadata, fair valu
         mandatory: true
+    AC11.12:
+      - id: AC11.12.1
+        epic: 11
+        epic_name: asset-lifecycle
+        description: Classification rule application is idempotent for the same transaction and rule version
+        mandatory: true
+      - id: AC11.12.2
+        epic: 11
+        epic_name: asset-lifecycle
+        description: Classification priority is deterministic across rule type and descending rule version
+        mandatory: true
   AC13:
     AC13.1:
       - id: AC13.1.1

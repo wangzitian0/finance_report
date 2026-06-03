@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-06-03 04:08:32 UTC by `tools/analyze_test_ac_coverage.py`
+> Generated: 2026-06-03 07:36:03 UTC by `tools/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)
@@ -17,10 +17,10 @@
 
 | Metric | Count |
 |---|---:|
-| Registered ACs | 1102 |
-| Active ACs | 942 |
+| Registered ACs | 1131 |
+| Active ACs | 971 |
 | Deprecated ACs excluded from coverage gate | 160 |
-| Covered by real test candidates | 942 (100.0%) |
+| Covered by real test candidates | 971 (100.0%) |
 | Placeholder-only assertions | 0 |
 | Stub-only placeholders (`_ac_stubs`) | 0 |
 | Active registered but untested | 0 |
@@ -32,11 +32,11 @@
 
 | Source | Files scanned | Unique AC refs (real) | Unique AC refs (placeholder) | Unique AC refs (stub) |
 |---|---:|---:|---:|---:|
-| backend | 178 | 698 | 0 | 0 |
-| frontend | 82 | 212 | 0 | 0 |
-| frontend_playwright | 2 | 11 | 0 | 0 |
-| tooling_tests | 53 | 258 | 0 | 0 |
-| e2e | 13 | 60 | 0 | 0 |
+| backend | 180 | 712 | 0 | 0 |
+| frontend | 83 | 222 | 0 | 0 |
+| frontend_playwright | 3 | 12 | 0 | 0 |
+| tooling_tests | 54 | 261 | 0 | 0 |
+| e2e | 13 | 64 | 0 | 0 |
 
 ## Coverage by EPIC
 
@@ -44,20 +44,20 @@
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | EPIC-001 | phase0-setup | 29 | 2 | 27 | 0 | 0 | 0 | 100.0% |
 | EPIC-002 | double-entry-core | 62 | 15 | 47 | 0 | 0 | 0 | 100.0% |
-| EPIC-003 | statement-parsing | 60 | 20 | 40 | 0 | 0 | 0 | 100.0% |
-| EPIC-004 | reconciliation-engine | 41 | 21 | 20 | 0 | 0 | 0 | 100.0% |
-| EPIC-005 | reporting-visualization | 50 | 11 | 39 | 0 | 0 | 0 | 100.0% |
+| EPIC-003 | statement-parsing | 62 | 20 | 42 | 0 | 0 | 0 | 100.0% |
+| EPIC-004 | reconciliation-engine | 44 | 21 | 23 | 0 | 0 | 0 | 100.0% |
+| EPIC-005 | reporting-visualization | 55 | 11 | 44 | 0 | 0 | 0 | 100.0% |
 | EPIC-006 | ai-advisor | 63 | 8 | 55 | 0 | 0 | 0 | 100.0% |
 | EPIC-007 | deployment | 39 | 0 | 39 | 0 | 0 | 0 | 100.0% |
-| EPIC-008 | testing-strategy | 139 | 6 | 133 | 0 | 0 | 0 | 100.0% |
+| EPIC-008 | testing-strategy | 142 | 6 | 136 | 0 | 0 | 0 | 100.0% |
 | EPIC-009 | pdf-fixture-generation | 37 | 1 | 36 | 0 | 0 | 0 | 100.0% |
 | EPIC-010 | signoz-logging | 25 | 0 | 25 | 0 | 0 | 0 | 100.0% |
-| EPIC-011 | asset-lifecycle | 51 | 0 | 51 | 0 | 0 | 0 | 100.0% |
-| EPIC-012 | foundation-libs | 63 | 7 | 56 | 0 | 0 | 0 | 100.0% |
+| EPIC-011 | asset-lifecycle | 53 | 0 | 53 | 0 | 0 | 0 | 100.0% |
+| EPIC-012 | foundation-libs | 66 | 7 | 59 | 0 | 0 | 0 | 100.0% |
 | EPIC-013 | statement-parsing-v2 | 60 | 2 | 58 | 0 | 0 | 0 | 100.0% |
 | EPIC-014 | ttd-transformation | 6 | 0 | 6 | 0 | 0 | 0 | 100.0% |
 | EPIC-015 | processing-account | 31 | 0 | 31 | 0 | 0 | 0 | 100.0% |
-| EPIC-016 | two-stage-review-ui | 231 | 24 | 207 | 0 | 0 | 0 | 100.0% |
+| EPIC-016 | two-stage-review-ui | 242 | 24 | 218 | 0 | 0 | 0 | 100.0% |
 | EPIC-017 | portfolio-management | 91 | 43 | 48 | 0 | 0 | 0 | 100.0% |
 | EPIC-018 | ai-driven-pipeline | 24 | 0 | 24 | 0 | 0 | 0 | 100.0% |
 
