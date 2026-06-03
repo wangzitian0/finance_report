@@ -435,8 +435,10 @@ async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_
     )
     await db.commit()
 
-    with pytest.raises(ReportError, match="No FX rate available"):
-        await generate_balance_sheet(db, test_user_id, as_of_date=date.today(), currency="SGD")
+    report = await generate_balance_sheet(db, test_user_id, as_of_date=date.today(), currency="SGD")
+
+    assert report["total_assets"] == Decimal("0.00")
+    assert any(warning["type"] == "missing_fx_rate_partial_skip" for warning in report["fx_warnings"])
 
 
 @pytest.mark.asyncio

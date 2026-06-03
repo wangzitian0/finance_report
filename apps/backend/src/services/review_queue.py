@@ -441,6 +441,8 @@ async def create_entry_from_txn(
         else:
             validate_journal_balance(entry.lines)
     except ValidationError as exc:
+        if not auto_post:
+            raise ValueError(f"Generated entry does not balance: {exc}") from exc
         raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
 
     txn.status = BankStatementTransactionStatus.PENDING
