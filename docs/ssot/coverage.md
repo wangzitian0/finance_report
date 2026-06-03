@@ -186,7 +186,7 @@ The CI workflow uses baseline comparison to prevent coverage regressions. There 
 1. **Primary gate**: Baseline comparison (zero tolerance for drops)
    - Compares current coverage against `unified-coverage.json` baseline
    - Fails CI if ANY component drops below baseline
-   - See [No-Regression Coverage Gate](./development.md#no-regression-coverage-gate) for details
+   - See [No-Regression Coverage Gate](./ci-cd.md#no-regression-coverage-gate) for details
 2. **Safety net**: Threshold check (optional)
    - `COVERAGE_THRESHOLD` defaults to `0` (disabled)
    - Set explicitly in CI if a minimum floor is desired

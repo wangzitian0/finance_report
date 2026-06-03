@@ -223,5 +223,5 @@ Entries can be created from different sources:
 ## Next Steps
 
 - [Reconcile with bank statements](reconciliation.md)
-- [View API reference](../reference/api-journal.md)
+- [View API reference](../reference/api.md)
 - [Understand the accounting model](../ssot/accounting.md)

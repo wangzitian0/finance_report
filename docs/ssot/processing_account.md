@@ -449,7 +449,7 @@ ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)
 
 ## 10. Related Documents
 
-- **Vision**: [vision.md Decision 5](../vision.md#decision-5-why-a-processing-account)
+- **Vision**: [Project Vision](../target.md) decision 5
 - **Accounting**: [accounting.md](./accounting.md) - Double-entry rules
 - **Reconciliation**: [reconciliation.md](./reconciliation.md) - Matching algorithm
 - **Schema**: [schema.md](./schema.md) - Account table structure

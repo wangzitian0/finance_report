@@ -75,23 +75,47 @@ nav:
       - AI Advisor: user-guide/ai-advisor.md
   - API Reference:
       - Overview: reference/api-overview.md
-      - Accounts: reference/api-accounts.md
-      - Journal Entries: reference/api-journal.md
-      - Reconciliation: reference/api-reconciliation.md
-      - AI Advisor: reference/api-chat.md
+      - Generated API Reference: reference/api.md
   - Technical Docs:
       - Architecture: ssot/README.md
+      - Development Guide: ssot/development.md
+      - Environments: ssot/environments.md
+      - CI/CD: ssot/ci-cd.md
+      - Coverage: ssot/coverage.md
+      - Deployment: ssot/deployment.md
+      - TDD Workflow: ssot/tdd.md
       - Accounting Model: ssot/accounting.md
+      - Auth: ssot/auth.md
       - Reconciliation Engine: ssot/reconciliation.md
+      - Confirmation Workflow: ssot/confirmation-workflow.md
+      - Processing Account: ssot/processing_account.md
       - Statement Extraction: ssot/extraction.md
       - Reporting: ssot/reporting.md
       - AI Advisor: ssot/ai.md
+      - Assets: ssot/assets.md
+      - Market Data: ssot/market_data.md
+      - Source Type Priority: ssot/source-type-priority.md
+      - Workflow Events: ssot/workflow-events.md
       - Database Schema: ssot/schema.md
       - Observability: ssot/observability.md
-      - Development Guide: ssot/development.md
+      - Observability Logging: ssot/observability-logging.md
+      - Frontend Patterns: ssot/frontend-patterns.md
+      - Env Smoke Test: ssot/env_smoke_test.md
+  - Governance:
+      - Agent Orchestration: agents/orchestration.md
+      - Red Lines: agents/red-lines.md
+      - Branch Policy: contributing/branch-policy.md
   - Development:
       - Project Overview: project/README.md
       - Design Decisions: project/DECISIONS.md
+      - Design Decisions (ZH): project/DECISIONS_ZH.md
+      - Audits: project/AUDITS.md
+      - AC Audit 2026-05-04: project/AC-AUDIT-2026-05-04.md
+      - Delivery Engine Recommendations: project/DELIVERY_ENGINE_RECOMMENDATIONS.md
+      - Generated Evidence:
+          - AC Epic Mismatch Report: analysis/ac-epic-mismatch-report.md
+          - Test AC Coverage Report: analysis/test-ac-coverage-report.md
+          - Traceability Exceptions: analysis/traceability-exceptions.md
       - EPICs:
           - "EPIC-001: Setup": project/EPIC-001.phase0-setup.md
           - "EPIC-002: Double-Entry": project/EPIC-002.double-entry-core.md
@@ -111,6 +135,7 @@ nav:
           - "EPIC-016: Two-Stage Review & Data Validation UI": project/EPIC-016.two-stage-review-ui.md
           - "EPIC-017: Investment Portfolio Management (100% Self-Developed)": project/EPIC-017.portfolio-management.md
           - "EPIC-018: AI-Driven Data Pipeline": project/EPIC-018.ai-driven-pipeline.md
+          - "EPIC-019: Event-Driven Upload to Report UX": project/EPIC-019.event-driven-upload-to-report-ux.md
 
 extra:
   social:

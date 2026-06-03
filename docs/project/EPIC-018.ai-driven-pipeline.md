@@ -331,7 +331,7 @@ rather than duplicated.
 
 ## 🆕 Phase 5 — UI Gap Audit (April 2026): Confidence Hierarchy, AI Suggestion Review Queue, Feature-Flag UI & Audit Trail
 
-**Origin**: UI gap audit against [vision.md](../../vision.md) and `docs/ssot/source-type-priority.md` / `docs/ssot/confirmation-workflow.md`. Backend confidence hierarchy and `enable_ai_reconciliation` flag exist but are invisible to users — no badge, no review queue for AI suggestions, no in-product flag toggle, no audit trail.
+**Origin**: UI gap audit against [Project Vision](../target.md) and `docs/ssot/source-type-priority.md` / `docs/ssot/confirmation-workflow.md`. Backend confidence hierarchy and `enable_ai_reconciliation` flag exist but are invisible to users — no badge, no review queue for AI suggestions, no in-product flag toggle, no audit trail.
 
 ### Acceptance Criteria — Phase 5 (Confidence & AI Suggestion UI)
 

@@ -229,8 +229,8 @@ EPIC-008 remains the owner of the provider-backed staging AI/OCR gate.
 | User completes import and navigates to portfolio value | EPIC-017 | AC17.8.1 / AC17.8.2 / AC17.8.4 | `AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation` | `apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx` | Frontend test |
 
 Provider-backed gate details live in
-[EPIC-008](EPIC-008.testing-strategy.md#tier-3-e2e-implementation) and
-[CI/CD SSOT](../ssot/ci-cd.md#post-merge-staging-aiocr-gate). The README keeps
+[EPIC-008](EPIC-008.testing-strategy.md#ac813-tier-3-browser-e2e-full-statement-journey) and
+[CI/CD SSOT](../ssot/ci-cd.md#deploy-e2e-gates). The README keeps
 the compact entry-point version of this matrix.
 
 ### Personal Report Package Dependency
@@ -284,7 +284,7 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current portfoli
 
 ## 🆕 UI Gap Audit (April 2026) — Dividends, Cost Basis, Realized P&L Frontend
 
-**Origin**: UI gap audit against [vision.md](../../vision.md) decision 1 (100% self-developed portfolio with XIRR/TWR/MWR, dividend tracking, cost basis methods). Backend portfolio APIs are planned but the frontend has no surfaces for dividend history, cost-basis selection, or realized P&L per holding.
+**Origin**: UI gap audit against [Project Vision](../target.md) decision 1 (100% self-developed portfolio with XIRR/TWR/MWR, dividend tracking, cost basis methods). Backend portfolio APIs are planned but the frontend has no surfaces for dividend history, cost-basis selection, or realized P&L per holding.
 
 ### Acceptance Criteria
 

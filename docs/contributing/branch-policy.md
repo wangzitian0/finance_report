@@ -114,4 +114,4 @@ Full reference: [docs/ssot/development.md](../ssot/development.md)
 - [docs/ssot/development.md](../ssot/development.md) — Full development environment setup
 - [docs/agents/orchestration.md](../agents/orchestration.md) — Agent workflow and STAR framework
 - [docs/agents/red-lines.md](../agents/red-lines.md) — Security rules
-- [AGENTS.md](../../AGENTS.md) — Top-level routing
+- [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md) — Top-level routing

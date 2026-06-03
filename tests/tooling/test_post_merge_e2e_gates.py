@@ -106,7 +106,7 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
     assert "Upload & Parse Statement" in test_body
     assert "# === AC8.13.2: Poll until" in test_body
     assert 'a[href="/statements/{statement_id}"]' in test_body
-    assert 'filter(has_text=INSTITUTION_LABEL).first' not in test_body
+    assert "filter(has_text=INSTITUTION_LABEL).first" not in test_body
     assert '"parsed"' in test_body
     assert "# === AC8.13.3: Detail page shows transactions ===" in test_body
     assert "Transactions" in test_body
@@ -261,7 +261,9 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "needs: [build-and-deploy]" in deploy_workflow
     assert "name: Staging AI/OCR Gate" in deploy_workflow
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
-    assert "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
+    assert (
+        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
+    )
     assert "PARSING_TIMEOUT_MS: 480000" in deploy_workflow
     assert (
         "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}"
@@ -620,11 +622,15 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
     assert workflow_paths
     for workflow_path in workflow_paths:
         workflow = workflow_path.read_text(encoding="utf-8")
-        assert 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' in workflow, workflow_path.name
+        assert 'FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"' in workflow, (
+            workflow_path.name
+        )
 
     ci_cd = read("docs/ssot/ci-cd.md")
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in ci_cd
-    assert "GitHub JavaScript action runtime is explicitly validated on Node 24" in ci_cd
+    assert (
+        "GitHub JavaScript action runtime is explicitly validated on Node 24" in ci_cd
+    )
 
 
 def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
@@ -651,6 +657,20 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
         "CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only"
         in ci_cd
     )
+
+
+def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
+    """AC8.13.53: API reference docs are generated contract output in CI."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "Generated API Reference Check" in workflow
+    assert "uv run python ../../tools/generate_api_reference.py --check" in workflow
+    assert workflow.index("Install dependencies") < workflow.index(
+        "tools/generate_api_reference.py --check"
+    )
+    assert "Generated API reference" in ci_cd
+    assert "FastAPI OpenAPI" in ci_cd
 
 
 def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
@@ -971,12 +991,12 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     assert "Set up Docker Buildx" in deploy_block
     assert "Build and push Backend PR preview image" in deploy_block
     assert "Build and push Frontend PR preview image" in deploy_block
-    assert deploy_block.index("Build and push Backend PR preview image") < deploy_block.index(
-        "Deploy preview lifecycle"
-    )
-    assert deploy_block.index("Build and push Frontend PR preview image") < deploy_block.index(
-        "Deploy preview lifecycle"
-    )
+    assert deploy_block.index(
+        "Build and push Backend PR preview image"
+    ) < deploy_block.index("Deploy preview lifecycle")
+    assert deploy_block.index(
+        "Build and push Frontend PR preview image"
+    ) < deploy_block.index("Deploy preview lifecycle")
     assert "push: true" in deploy_block
     assert (
         "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:pr-${{ needs.setup.outputs.pr_number }}"
@@ -987,8 +1007,14 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         in deploy_block
     )
     assert "GIT_COMMIT_SHA=${{ github.sha }}" in deploy_block
-    assert "NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}" in deploy_block
-    assert "PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy" in ci_cd
+    assert (
+        "NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}"
+        in deploy_block
+    )
+    assert (
+        "PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy"
+        in ci_cd
+    )
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
@@ -1005,14 +1031,18 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
-    assert "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
+    assert (
+        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
+    )
     assert (
         "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}"
         in deploy_workflow
     )
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
-    assert "test code, audit context, and deployed image under validation aligned" in ci_cd
+    assert (
+        "test code, audit context, and deployed image under validation aligned" in ci_cd
+    )
     assert (
         "newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running"
         in ci_cd
@@ -1126,9 +1156,7 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
 
     unified_block = workflow.split(
         "- name: Upload main unified coverage to Coveralls", 1
-    )[1].split(
-        "  ac-traceability:", 1
-    )[0]
+    )[1].split("  ac-traceability:", 1)[0]
 
     assert (
         "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
@@ -1227,8 +1255,7 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     assert "file: coverage/coveralls-backend.lcov" not in workflow
     assert "file: coverage/coveralls-frontend.lcov" not in workflow
     assert (
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
-        in workflow
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in workflow
     )
     assert "Coveralls upload LCOV files are line-only" in coverage
     assert "Coveralls is a main-branch external reporting baseline only" in coverage
@@ -1392,7 +1419,9 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     generator = read("tools/_lib/pdf_fixtures/generate_pdf_fixtures.py")
 
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
-    assert "test_brokerage_upload_to_portfolio_value.py" in staging_ai_ocr_contract_shell()
+    assert (
+        "test_brokerage_upload_to_portfolio_value.py" in staging_ai_ocr_contract_shell()
+    )
     assert '-m "llm"' in workflow
     assert "pytest.mark.critical" in brokerage
     assert "pytest.mark.llm" in brokerage

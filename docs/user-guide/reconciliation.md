@@ -317,5 +317,5 @@ curl https://report.zitian.party/api/reconciliation/stats
 ## Next Steps
 
 - [View reconciliation stats](reports.md)
-- [API reference](../reference/api-reconciliation.md)
+- [API reference](../reference/api.md)
 - [Technical details](../ssot/reconciliation.md)

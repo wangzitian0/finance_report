@@ -485,4 +485,4 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - [../ssot/coverage.md](../ssot/coverage.md) — coverage policy semantics.
 - [../ssot/ci-cd.md](../ssot/ci-cd.md) — CI gate semantics.
 - [../ssot/env_smoke_test.md](../ssot/env_smoke_test.md) — environment smoke-test rationale and command semantics.
-- [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) — backend test-suite navigation.
+- [Backend tests README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/tests/README.md) — backend test-suite navigation.

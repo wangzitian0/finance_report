@@ -8,7 +8,7 @@
 > **Owner**: Development Team
 >
 > **2026-05-25 alignment note**: Current proof metrics are owned by generated
-> reports and executable checks; the root [README](../../README.md) links to
+> reports and executable checks; the root [README](https://github.com/wangzitian0/finance_report/blob/main/README.md) links to
 > those sources instead of duplicating mutable values. This EPIC owns the TTD
 > transformation scope; code/test migration follow-ups are tracked by issues
 > #452, #453, #454, #455, and #456.
@@ -76,7 +76,7 @@ checklists.
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../../AGENTS.md](../../AGENTS.md) — repository-wide agent and contributor entry point.
+- [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md) — repository-wide agent and contributor entry point.
 - [./AUDITS.md](./AUDITS.md) — audit index and retired standalone report notes.
 - [./AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — historical consistency audit snapshot.
 - [./DECISIONS.md](./DECISIONS.md) — project decision log.
@@ -85,11 +85,11 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - [../agents/orchestration.md](../agents/orchestration.md) — agent workflow governance.
 - [../agents/red-lines.md](../agents/red-lines.md) — security and engineering hard stops.
 - [../contributing/branch-policy.md](../contributing/branch-policy.md) — branch and PR workflow.
-- [../../.github/copilot-instructions.md](../../.github/copilot-instructions.md) — Copilot-specific contributor instructions.
-- [../../.github/instructions/frontend.instructions.md](../../.github/instructions/frontend.instructions.md) — frontend assistant instructions.
-- [../../.github/instructions/python.instructions.md](../../.github/instructions/python.instructions.md) — Python assistant instructions.
-- [../../.github/pull_request_template.md](../../.github/pull_request_template.md) — PR description contract.
-- [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) — test-suite organization, jointly owned with EPIC-008.
+- [Copilot instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/copilot-instructions.md) — Copilot-specific contributor instructions.
+- [frontend instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/instructions/frontend.instructions.md) — frontend assistant instructions.
+- [Python instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/instructions/python.instructions.md) — Python assistant instructions.
+- [PR template](https://github.com/wangzitian0/finance_report/blob/main/.github/pull_request_template.md) — PR description contract.
+- [Backend tests README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/tests/README.md) — test-suite organization, jointly owned with EPIC-008.
 
 ## Active TTD Operating Model
 

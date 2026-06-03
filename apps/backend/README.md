@@ -1,53 +1,22 @@
 # Finance Report Backend
 
-FastAPI backend for the Finance Report personal financial management system.
+FastAPI backend for Finance Report.
 
-## Quick Start
+## Local Commands
 
 ```bash
-# Install dependencies
 uv sync
-
-# Start dev server
 uv run uvicorn src.main:app --reload
-
-# Or via moon
 moon run :dev -- --backend
-```
-
-## Tests (with DB auto-cleanup)
-
-Use the workspace script to start Postgres via compose and clean up when tests finish:
-
-```bash
 moon run :test
 ```
 
-## API Endpoints
+## SSOT Links
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/ping` | Get current ping/pong state |
-| POST | `/ping/toggle` | Toggle between ping and pong |
-| POST | `/statements/upload` | Upload and parse statement |
-| GET | `/statements/{id}` | Statement details |
-| GET | `/statements/pending-review` | Statements pending review |
-| POST | `/statements/{id}/review/approve` | Stage 1 approve (canonical, with balance validation) |
-| POST | `/statements/{id}/review/reject` | Stage 1 reject (canonical) |
-| POST | `/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
-| POST | `/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
-| POST | `/reconciliation/run` | Run reconciliation matching |
-| GET | `/reconciliation/pending` | Pending review queue |
-| GET | `/reconciliation/stats` | Reconciliation stats |
-| GET | `/reconciliation/unmatched` | Unmatched transactions |
-
-## Environment Variables
-
-See [.env.example](../../.env.example) for the complete list of environment variables and their documentation.
-
-To start local development:
-```bash
-cp ../../.env.example .env
-# Edit .env and fill in required values (see comments in file)
-```
+| Need | Source |
+|---|---|
+| API endpoints and schemas | [Generated API reference](../../docs/reference/api.md), `/api/docs` |
+| Development workflow | [development.md](../../docs/ssot/development.md) |
+| Environment contract | [environments.md](../../docs/ssot/environments.md), [.env.example](../../.env.example) |
+| Database model | [schema.md](../../docs/ssot/schema.md) |
+| Test policy | [tdd.md](../../docs/ssot/tdd.md), [coverage.md](../../docs/ssot/coverage.md) |

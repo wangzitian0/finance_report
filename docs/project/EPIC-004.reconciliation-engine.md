@@ -264,7 +264,7 @@ hand-maintained accuracy prose.
 These non-EPIC docs are part of this EPIC's maintained surface:
 
 - [../user-guide/reconciliation.md](../user-guide/reconciliation.md) — matching, review, and unmatched transaction workflow.
-- [../reference/api-reconciliation.md](../reference/api-reconciliation.md) — reconciliation API reference.
+- [../reference/api.md](../reference/api.md) — generated reconciliation API reference.
 
 ---
 
