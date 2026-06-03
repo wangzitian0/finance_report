@@ -35,6 +35,9 @@ from src.services.validation import (
 )
 
 logger = get_logger(__name__)
+CSV_INFERRED_BALANCE_REVIEW_NOTE = (
+    "CSV import does not include source statement opening/closing balances; manual review required"
+)
 
 
 class ExtractionError(Exception):
@@ -460,13 +463,31 @@ class ExtractionService:
                 net_transactions=net_transactions,
             )
             is_valid = balance_result["balance_valid"]
+            has_inferred_csv_balances = extracted.get("balance_source") == "inferred_from_csv_transactions"
 
-            # For confidence score, we use the original extracted dict to maintain logic
-            confidence = compute_confidence_score(extracted, balance_result)
-            status = BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
+            if has_inferred_csv_balances:
+                confidence = compute_confidence_score(
+                    extracted,
+                    {
+                        **balance_result,
+                        "balance_valid": False,
+                        "balance_proof_available": False,
+                        "notes": CSV_INFERRED_BALANCE_REVIEW_NOTE,
+                    },
+                )
+                status = BankStatementStatus.PARSED
+                is_valid = False
+            else:
+                # For confidence score, we use the original extracted dict to maintain logic.
+                confidence = compute_confidence_score(extracted, balance_result)
+                status = (
+                    BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
+                )
 
             statement.balance_validated = is_valid
-            if not is_valid:
+            if has_inferred_csv_balances:
+                statement.validation_error = CSV_INFERRED_BALANCE_REVIEW_NOTE
+            elif not is_valid:
                 statement.validation_error = balance_result["notes"]
             statement.confidence_score = confidence
             statement.status = status
@@ -1267,6 +1288,7 @@ class ExtractionService:
             "period_end": period_end.isoformat() if period_end else None,
             "opening_balance": "0.00",
             "closing_balance": str(inferred_closing_balance),
+            "balance_source": "inferred_from_csv_transactions",
             "transactions": transactions,
         }
 

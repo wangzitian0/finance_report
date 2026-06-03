@@ -159,6 +159,32 @@ class TestExtractionServiceFlow:
             assert len(events) == 0
 
     @pytest.mark.asyncio
+    async def test_parse_document_csv_without_statement_balances_remains_reviewable(self, service, tmp_path):
+        """AC3.2.5: CSV transaction exports without statement balances remain reviewable."""
+        csv_file = tmp_path / "dbs-export.csv"
+        csv_file.write_bytes(
+            b"Transaction Date,Reference,Debit Amount,Credit Amount,Transaction Ref1\n"
+            b"15 Jan 2025,REF001,,500.00,SALARY\n"
+            b"16 Jan 2025,REF002,100.00,,GROCERIES\n"
+        )
+
+        stmt, events = await service.parse_document(
+            csv_file,
+            "DBS",
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            file_type="csv",
+            file_content=csv_file.read_bytes(),
+        )
+
+        assert len(events) == 2
+        assert stmt.status == BankStatementStatus.PARSED
+        assert stmt.balance_validated is False
+        assert stmt.confidence_score == 45
+        assert stmt.validation_error == (
+            "CSV import does not include source statement opening/closing balances; manual review required"
+        )
+
+    @pytest.mark.asyncio
     async def test_parse_document_unsupported_type(self, service, tmp_path):
         """[AC3.4.2] Test parse_document raises error for unsupported type."""
         txt_file = tmp_path / "test.txt"

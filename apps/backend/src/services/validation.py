@@ -98,17 +98,18 @@ def compute_confidence_score(
     transactions = extracted.get("transactions", []) or []
 
     # Balance validation (35%)
-    if balance_result["balance_valid"]:
-        score += 35
-    else:
-        try:
-            diff = Decimal(str(balance_result.get("difference", "0") or "0"))
-            if diff <= Decimal("1.00"):
-                score += 25
-            elif diff <= Decimal("10.00"):
-                score += 17
-        except (ValueError, TypeError, InvalidOperation):
-            pass
+    if balance_result.get("balance_proof_available", True):
+        if balance_result["balance_valid"]:
+            score += 35
+        else:
+            try:
+                diff = Decimal(str(balance_result.get("difference", "0") or "0"))
+                if diff <= Decimal("1.00"):
+                    score += 25
+                elif diff <= Decimal("10.00"):
+                    score += 17
+            except (ValueError, TypeError, InvalidOperation):
+                pass
 
     # Field completeness (25%)
     required_fields_count = 5
