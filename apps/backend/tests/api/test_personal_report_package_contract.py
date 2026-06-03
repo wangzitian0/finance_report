@@ -1,13 +1,33 @@
 """Personal report package API contract coverage."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models import (
+    Account,
+    AccountType,
+    BankStatement,
+    BankStatementStatus,
+    BankStatementTransaction,
+    CheckStatus,
+    CheckType,
+    ClassificationRule,
+    ConsistencyCheck,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    ReconciliationMatch,
+    ReconciliationStatus,
+    ReportSnapshot,
+    ReportType,
+    RuleType,
+    Stage1Status,
+)
 from src.models.journal import JournalEntrySourceType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import (
@@ -23,8 +43,10 @@ from src.models.user import User
 from src.routers.reports import (
     personal_report_package_contract,
     personal_report_package_notes,
+    personal_report_package_readiness,
     personal_report_package_traceability,
 )
+from src.schemas import PersonalReportPackageReadinessResponse
 
 
 @pytest.fixture(autouse=True)
@@ -147,6 +169,282 @@ def test_AC5_12_2_package_contract_marks_notes_ready():
     assert section["status"] == "ready"
     assert section["blocking_issue"] is None
     assert section["source_endpoint"] == "/api/reports/package/notes"
+
+
+def _statement(
+    user_id,
+    *,
+    status: BankStatementStatus = BankStatementStatus.APPROVED,
+    account_id=None,
+    stage1_status: Stage1Status | None = Stage1Status.APPROVED,
+    balance_validated: bool | None = True,
+    validation_error: str | None = None,
+    updated_at: datetime | None = None,
+) -> BankStatement:
+    timestamp = updated_at or datetime.now(UTC)
+    return BankStatement(
+        user_id=user_id,
+        account_id=account_id,
+        file_path=f"s3://test/{uuid4()}.csv",
+        file_hash=uuid4().hex,
+        original_filename=f"{uuid4()}.csv",
+        institution="Readiness Bank",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        status=status,
+        balance_validated=balance_validated,
+        validation_error=validation_error,
+        stage1_status=stage1_status,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+
+
+async def _ready_source_account(db: AsyncSession, user_id):
+    account = Account(user_id=user_id, name=f"Ready Cash {uuid4()}", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+    statement = _statement(user_id, account_id=account.id)
+    db.add(statement)
+    await db.flush()
+    return account, statement
+
+
+async def _report_snapshot(db: AsyncSession, user_id, *, updated_at: datetime) -> ReportSnapshot:
+    rule = ClassificationRule(
+        user_id=user_id,
+        version_number=1,
+        effective_date=date(2026, 1, 1),
+        rule_name=f"readiness-{uuid4()}",
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["readiness"]},
+        created_by=user_id,
+    )
+    db.add(rule)
+    await db.flush()
+    snapshot = ReportSnapshot(
+        user_id=user_id,
+        report_type=ReportType.BALANCE_SHEET,
+        as_of_date=date(2026, 5, 31),
+        start_date=None,
+        rule_version_id=rule.id,
+        report_data={"total_assets": "100.00"},
+        is_latest=True,
+        created_at=updated_at,
+        updated_at=updated_at,
+    )
+    db.add(snapshot)
+    await db.flush()
+    return snapshot
+
+
+@pytest.mark.asyncio
+async def test_AC19_5_1_package_readiness_returns_draft_for_empty_user(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC19.5.1: Package readiness endpoint returns deterministic draft state for empty users."""
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    payload = response.model_dump(mode="json")
+
+    assert payload["package_id"] == "personal-financial-report-package"
+    assert payload["state"] == "draft"
+    assert payload["label"] == "Draft"
+    assert payload["action_href"] == "/statements/upload"
+    assert payload["blocking_count"] == 0
+    assert payload["blockers"] == []
+    assert payload["source_summary"]["statements"] == 0
+
+
+def test_AC19_5_1_package_readiness_rejects_external_action_links():
+    """AC19.5.1: Package readiness action links must be internal routes."""
+    with pytest.raises(ValueError, match="action_href must be an internal relative path"):
+        PersonalReportPackageReadinessResponse(
+            package_id="personal-financial-report-package",
+            state="blocked",
+            label="Blocked",
+            action_href="https://example.com/review",
+            blocking_count=1,
+            blockers=[
+                {
+                    "code": "pending_review",
+                    "label": "Pending source review",
+                    "severity": "blocking",
+                    "count": 1,
+                    "reason": "Review required.",
+                    "action_href": "/review",
+                }
+            ],
+            source_summary={},
+        )
+
+    with pytest.raises(ValueError, match="action_href must be an internal relative path"):
+        PersonalReportPackageReadinessResponse(
+            package_id="personal-financial-report-package",
+            state="blocked",
+            label="Blocked",
+            action_href="/review",
+            blocking_count=1,
+            blockers=[
+                {
+                    "code": "pending_review",
+                    "label": "Pending source review",
+                    "severity": "blocking",
+                    "count": 1,
+                    "reason": "Review required.",
+                    "action_href": "//evil.example/review",
+                }
+            ],
+            source_summary={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_AC19_5_2_package_readiness_lists_actionable_blockers(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC19.5.2: Blocked readiness lists exact blocker categories and action links."""
+    covered_account = Account(user_id=test_user.id, name="Covered Cash", type=AccountType.ASSET, currency="SGD")
+    uncovered_account = Account(user_id=test_user.id, name="Uncovered Card", type=AccountType.LIABILITY, currency="SGD")
+    processing_account = Account(
+        user_id=test_user.id,
+        name="Processing",
+        code="1199",
+        type=AccountType.ASSET,
+        currency="SGD",
+        is_system=True,
+    )
+    db.add_all([covered_account, uncovered_account, processing_account])
+    await db.flush()
+
+    rejected = _statement(
+        test_user.id,
+        status=BankStatementStatus.REJECTED,
+        account_id=covered_account.id,
+        stage1_status=Stage1Status.PENDING_REVIEW,
+        balance_validated=False,
+        validation_error="Closing balance mismatch",
+    )
+    approved = _statement(test_user.id, account_id=covered_account.id)
+    db.add_all([rejected, approved])
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=rejected.id,
+        txn_date=date(2026, 5, 2),
+        description="Needs reconciliation",
+        amount=Decimal("25.00"),
+        direction="DR",
+        currency="SGD",
+    )
+    db.add(txn)
+    await db.flush()
+    db.add(
+        ReconciliationMatch(
+            bank_txn_id=txn.id,
+            journal_entry_ids=[],
+            match_score=60,
+            score_breakdown={"amount": 60},
+            status=ReconciliationStatus.PENDING_REVIEW,
+        )
+    )
+    db.add(
+        ConsistencyCheck(
+            user_id=test_user.id,
+            check_type=CheckType.ANOMALY,
+            status=CheckStatus.PENDING,
+            related_txn_ids=[str(txn.id)],
+            details={"reason": "manual review"},
+        )
+    )
+    processing_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 5, 3),
+        memo="Unpaired transfer",
+        source_type=JournalEntrySourceType.SYSTEM,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(processing_entry)
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=processing_entry.id,
+            account_id=processing_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("10.00"),
+            currency="SGD",
+        )
+    )
+    await db.flush()
+
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    payload = response.model_dump(mode="json")
+
+    assert payload["state"] == "blocked"
+    assert payload["action_href"] == "/statements"
+    blockers = {blocker["code"]: blocker for blocker in payload["blockers"]}
+    assert set(blockers) == {
+        "failed_parsing",
+        "pending_review",
+        "balance_mismatch",
+        "reconciliation_blocked",
+        "consistency_check_blocked",
+        "processing_account_unresolved",
+        "missing_source_coverage",
+    }
+    assert blockers["failed_parsing"]["action_href"] == "/statements"
+    assert blockers["pending_review"]["action_href"] == "/review"
+    assert blockers["reconciliation_blocked"]["action_href"] == "/reconciliation/review-queue"
+    assert blockers["processing_account_unresolved"]["action_href"] == "/accounts/processing"
+    assert blockers["missing_source_coverage"]["count"] == 1
+    assert payload["blocking_count"] == sum(blocker["count"] for blocker in payload["blockers"])
+
+
+@pytest.mark.asyncio
+async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC19.5.3: Readiness states are deterministic across processing, ready, generated, and stale."""
+    processing = _statement(
+        test_user.id,
+        status=BankStatementStatus.PARSING,
+        stage1_status=None,
+        balance_validated=None,
+    )
+    db.add(processing)
+    await db.flush()
+
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    assert response.state == "processing"
+    assert response.action_href == "/statements"
+
+    processing.status = BankStatementStatus.APPROVED
+    processing.stage1_status = Stage1Status.APPROVED
+    processing.balance_validated = True
+    _, statement = await _ready_source_account(db, test_user.id)
+    await db.flush()
+
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    assert response.state == "ready"
+
+    source_time = datetime(2026, 5, 1, tzinfo=UTC)
+    snapshot_time = datetime(2026, 5, 2, tzinfo=UTC)
+    processing.updated_at = source_time
+    statement.updated_at = source_time
+    await _report_snapshot(db, test_user.id, updated_at=snapshot_time)
+    await db.flush()
+
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    assert response.state == "generated"
+    assert response.generated_at == snapshot_time.isoformat()
+
+    statement.updated_at = datetime(2026, 5, 3, tzinfo=UTC)
+    await db.flush()
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    assert response.state == "stale"
+    assert response.stale_since == datetime(2026, 5, 3, tzinfo=UTC).isoformat()
 
 
 @pytest.mark.asyncio

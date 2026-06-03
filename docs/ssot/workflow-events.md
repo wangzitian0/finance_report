@@ -19,6 +19,7 @@
 | Event schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/services/workflow_events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
+| Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py` |
 | Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py` |
 
@@ -42,8 +43,12 @@ They are intentionally separate from:
   statement processing and Stage 1 review state.
 - `ReconciliationMatch.status`, which is Stage 2 matching state.
 - Report package traceability, which proves report line support.
+- Report package readiness, which is owned by `docs/ssot/reporting.md` and
+  exposed at `GET /api/reports/package/readiness`.
 
 Workflow events may summarize those sources, but they do not own them.
+Workflow status aggregation must consume package readiness as an input rather
+than reimplementing package blocker derivation.
 
 ---
 
@@ -228,6 +233,12 @@ Primary state priority is:
 blocked > needs_action > processing > ready > empty
 ```
 
+The `report_readiness` field consumes the package readiness fact source from
+`GET /api/reports/package/readiness` and collapses package states into the
+compact workflow readiness vocabulary:
+`draft -> none`, `processing -> processing`, `blocked -> blocked`,
+`ready -> ready`, `generated -> ready`, and `stale -> stale`.
+
 `GET /workflow/events` returns `{ items, total }`. It excludes archived events
 by default, supports a `status` filter when archived events are explicitly
 requested, and enforces a bounded `limit`.
@@ -249,4 +260,3 @@ Future slices may add deterministic derivation for:
 - Stage 1 review required/completed.
 - Reconciliation blockers.
 - Processing-account blockers.
-- Report processing/ready/blocked state.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -13,7 +13,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user_id
 from src.main import app
-from src.models import BankStatement, BankStatementStatus, User
+from src.models import (
+    Account,
+    AccountType,
+    BankStatement,
+    BankStatementStatus,
+    ClassificationRule,
+    JournalEntry,
+    JournalEntryStatus,
+    ReportSnapshot,
+    ReportType,
+    RuleType,
+    Stage1Status,
+    User,
+)
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -80,6 +93,51 @@ async def _get_as_user(public_client: AsyncClient, user_id: UUID, path: str) -> 
 
     assert response.status_code == 200
     return response.json()
+
+
+def _approved_statement(user_id: UUID, *, account_id: UUID | None = None, updated_at: datetime | None = None):
+    timestamp = updated_at or datetime.now(UTC)
+    return BankStatement(
+        user_id=user_id,
+        account_id=account_id,
+        file_path=f"statements/{uuid4()}.csv",
+        file_hash=uuid4().hex,
+        original_filename=f"{uuid4()}.csv",
+        institution="Workflow Readiness Bank",
+        status=BankStatementStatus.APPROVED,
+        stage1_status=Stage1Status.APPROVED,
+        balance_validated=True,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+
+
+async def _report_snapshot(db: AsyncSession, user_id: UUID, *, updated_at: datetime) -> ReportSnapshot:
+    rule = ClassificationRule(
+        user_id=user_id,
+        version_number=1,
+        effective_date=date(2026, 1, 1),
+        rule_name=f"workflow-readiness-{uuid4()}",
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["workflow"]},
+        created_by=user_id,
+    )
+    db.add(rule)
+    await db.flush()
+    snapshot = ReportSnapshot(
+        user_id=user_id,
+        report_type=ReportType.BALANCE_SHEET,
+        as_of_date=date(2026, 5, 31),
+        start_date=None,
+        rule_version_id=rule.id,
+        report_data={"total_assets": "100.00"},
+        is_latest=True,
+        created_at=updated_at,
+        updated_at=updated_at,
+    )
+    db.add(snapshot)
+    await db.flush()
+    return snapshot
 
 
 async def test_AC19_2_1_workflow_status_schema_contract() -> None:
@@ -158,7 +216,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     needs_action = await _get_as_user(public_client, test_user.id, "/workflow/status")
     assert needs_action["primary_state"] == "needs_action"
     assert needs_action["next_action"] == {"type": "review_required", "count": 1, "href": "/review?source=events"}
-    assert needs_action["report_readiness"] == {"state": "blocked", "blocking_count": 1, "href": "/reports"}
+    assert needs_action["report_readiness"] == {"state": "processing", "blocking_count": 0, "href": "/reports"}
     assert needs_action["event_counts"] == {"unread": 2, "action_required": 1, "blocked": 0}
 
     await _create_event(
@@ -175,7 +233,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     blocked = await _get_as_user(public_client, test_user.id, "/workflow/status")
     assert blocked["primary_state"] == "blocked"
     assert blocked["next_action"] == {"type": "resolve_blocker", "count": 1, "href": "/reconciliation/unmatched"}
-    assert blocked["report_readiness"] == {"state": "blocked", "blocking_count": 2, "href": "/reports"}
+    assert blocked["report_readiness"] == {"state": "processing", "blocking_count": 0, "href": "/reports"}
     assert blocked["event_counts"] == {"unread": 3, "action_required": 1, "blocked": 1}
 
     ready_user = User(email=f"ready-{uuid4()}@example.com", hashed_password="hashed")
@@ -190,6 +248,14 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         action_href="/reports",
         title="Report ready",
     )
+    db.add(
+        JournalEntry(
+            user_id=ready_user.id,
+            entry_date=date(2026, 5, 31),
+            memo="Ready report input",
+            status=JournalEntryStatus.POSTED,
+        )
+    )
     await db.commit()
 
     ready = await _get_as_user(public_client, ready_user.id, "/workflow/status")
@@ -197,6 +263,57 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert ready["next_action"] == {"type": "open_report", "count": 1, "href": "/reports"}
     assert ready["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports"}
     assert ready["event_counts"] == {"unread": 1, "action_required": 0, "blocked": 0}
+
+
+async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
+    public_client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC19.2.2: workflow status collapses package readiness instead of recalculating blockers."""
+    account = Account(user_id=test_user.id, name="Workflow Cash", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+    source_time = datetime(2026, 5, 1, tzinfo=UTC)
+    statement = _approved_statement(test_user.id, account_id=account.id, updated_at=source_time)
+    db.add(statement)
+    await db.commit()
+
+    ready = await _get_as_user(public_client, test_user.id, "/workflow/status")
+    assert ready["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports"}
+
+    await _report_snapshot(db, test_user.id, updated_at=datetime(2026, 5, 2, tzinfo=UTC))
+    await db.commit()
+    generated = await _get_as_user(public_client, test_user.id, "/workflow/status")
+    assert generated["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports"}
+
+    statement.updated_at = datetime(2026, 5, 3, tzinfo=UTC)
+    await db.commit()
+    stale = await _get_as_user(public_client, test_user.id, "/workflow/status")
+    assert stale["report_readiness"] == {"state": "stale", "blocking_count": 0, "href": "/reports"}
+
+    blocked_user = User(email=f"package-blocked-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(blocked_user)
+    await db.flush()
+    db.add(
+        BankStatement(
+            user_id=blocked_user.id,
+            file_path=f"statements/{uuid4()}.csv",
+            file_hash=uuid4().hex,
+            original_filename=f"{uuid4()}.csv",
+            institution="Workflow Blocker Bank",
+            status=BankStatementStatus.REJECTED,
+            stage1_status=Stage1Status.PENDING_REVIEW,
+            balance_validated=False,
+            validation_error="Closing balance mismatch",
+        )
+    )
+    await db.commit()
+
+    blocked = await _get_as_user(public_client, blocked_user.id, "/workflow/status")
+    assert blocked["primary_state"] == "blocked"
+    assert blocked["next_action"] == {"type": "resolve_blocker", "count": 3, "href": "/statements"}
+    assert blocked["report_readiness"] == {"state": "blocked", "blocking_count": 3, "href": "/reports"}
 
 
 async def test_AC19_2_3_workflow_events_endpoint_lists_bounded_user_events(
@@ -368,3 +485,5 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "GET /workflow/status" in ssot
     assert "GET /workflow/events" in ssot
     assert "PATCH /workflow/events/{event_id}" in ssot
+    assert "GET /api/reports/package/readiness" in ssot
+    assert "generated -> ready" in ssot

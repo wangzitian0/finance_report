@@ -77,6 +77,43 @@ const annualizedSchedule = {
   ],
 }
 
+const readiness = {
+  package_id: "personal-financial-report-package",
+  state: "blocked",
+  label: "Blocked",
+  action_href: "/review",
+  blocking_count: 2,
+  blockers: [
+    {
+      code: "pending_review",
+      label: "Pending source review",
+      severity: "blocking",
+      count: 1,
+      reason: "Statement review must be completed before the package can be marked ready.",
+      action_href: "/review",
+    },
+    {
+      code: "balance_mismatch",
+      label: "Balance validation mismatch",
+      severity: "blocking",
+      count: 1,
+      reason: "Opening and closing balances must validate before report totals are trusted.",
+      action_href: "/review",
+    },
+  ],
+  source_summary: {
+    statements: 3,
+    active_accounts: 2,
+    posted_journal_entries: 4,
+    positions: 1,
+    manual_valuations: 1,
+    dividends: 1,
+    market_prices: 1,
+  },
+  generated_at: null,
+  stale_since: null,
+}
+
 const packageNotes = {
   section_id: "notes",
   label: "Notes & Disclosures",
@@ -160,9 +197,10 @@ const traceabilityAppendix = {
   ],
 }
 
-function mockPackageApi() {
+function mockPackageApi(readinessPayload = readiness) {
   mockedApiFetch.mockImplementation((path: string) => {
     if (path === "/api/reports/package/contract") return Promise.resolve(contract)
+    if (path === "/api/reports/package/readiness") return Promise.resolve(readinessPayload)
     if (path === "/api/reports/package/annualized-income-schedule") return Promise.resolve(annualizedSchedule)
     if (path === "/api/reports/package/notes") return Promise.resolve(packageNotes)
     if (path === "/api/reports/package/traceability") return Promise.resolve(traceabilityAppendix)
@@ -183,6 +221,33 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("Balance Sheet")).toBeInTheDocument()
     expect(screen.getAllByText("annualized_income_long_term").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("Annualized Income & Long-Term Compensation")).toBeInTheDocument()
+  })
+
+  it("AC19.5.4 renders package readiness before report package output", async () => {
+    mockPackageApi()
+
+    render(<PersonalReportPackagePage />)
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/package/readiness"))
+    const readinessHeading = await screen.findByText("Report Readiness")
+    const balanceSheetHeading = screen.getByText("Balance Sheet")
+    expect(readinessHeading.compareDocumentPosition(balanceSheetHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText("2 blockers must be resolved before package output is trusted.")).toBeInTheDocument()
+    expect(screen.getByText("Pending source review")).toBeInTheDocument()
+    expect(screen.getByText("pending_review")).toBeInTheDocument()
+    expect(screen.getByText("Balance validation mismatch")).toBeInTheDocument()
+    expect(screen.getByText("Opening and closing balances must validate before report totals are trusted.")).toBeInTheDocument()
+    expect(screen.getByText("Journal Entries")).toBeInTheDocument()
+    expect(screen.getByText("Manual Valuations")).toBeInTheDocument()
+  })
+
+  it("AC19.5.5 renders non-blocked readiness states without blocker cards", async () => {
+    mockPackageApi({ ...readiness, state: "generated", label: "Generated", blocking_count: 0, blockers: [] })
+
+    render(<PersonalReportPackagePage />)
+
+    await waitFor(() => expect(screen.getByText("Current package state is generated.")).toBeInTheDocument())
+    expect(screen.queryByText("Pending source review")).not.toBeInTheDocument()
   })
 
   it("AC5.9.4 renders export contract metadata", async () => {
@@ -220,7 +285,7 @@ describe("PersonalReportPackagePage", () => {
 
     render(<PersonalReportPackagePage />)
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/package/notes"))
+    await screen.findByText("Basis of Preparation")
     expect(screen.getAllByText("Notes & Disclosures").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("Basis of Preparation")).toBeInTheDocument()
     expect(screen.getByText("Valuation Basis")).toBeInTheDocument()
@@ -233,9 +298,8 @@ describe("PersonalReportPackagePage", () => {
 
     render(<PersonalReportPackagePage />)
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/package/traceability"))
+    await screen.findByText("balance_sheet.total_assets")
     expect(screen.getAllByText("Traceability Appendix").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText("balance_sheet.total_assets")).toBeInTheDocument()
     expect(screen.getByText("posted_reconciled_journal_lines_and_manual_valuations")).toBeInTheDocument()
     expect(screen.getByText("bank_statement, manual_valuation_snapshot")).toBeInTheDocument()
     expect(screen.getByText("posted, reconciled")).toBeInTheDocument()

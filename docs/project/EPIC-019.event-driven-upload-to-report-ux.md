@@ -312,6 +312,16 @@ workflow state exists.
 | AC19.2.5 | Status and events reads run deterministic derived sync without duplicating events or resetting read/archive lifecycle state | `test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_reset` | P0 |
 | AC19.2.6 | Workflow API router is mounted and documented in the workflow-events SSOT as the compact read path for later UI slices | `test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path` | P0 |
 
+### AC19.5 — Report Readiness and Blocker State
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.5.1 | Personal report package exposes a user-scoped readiness endpoint that returns deterministic package state, action link, blocker count, and source summary before report output | `test_AC19_5_1_package_readiness_returns_draft_for_empty_user` | P0 |
+| AC19.5.2 | Blocked package readiness lists exact blocker categories for failed parsing, pending review, balance mismatch, reconciliation blockers, consistency checks, unresolved Processing balance, and missing source coverage | `test_AC19_5_2_package_readiness_lists_actionable_blockers` | P0 |
+| AC19.5.3 | Package readiness deterministically promotes through `draft`, `processing`, `blocked`, `ready`, `generated`, and `stale` based on source state and report snapshot freshness | `test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness` | P0 |
+| AC19.5.4 | Personal report package page renders readiness state and blocker links before package section output | `personalReportPackagePage.test.tsx` | P1 |
+| AC19.5.5 | Personal report package page renders non-blocked readiness states without stale blocker cards | `personalReportPackagePage.test.tsx` | P1 |
+
 ## How To Build It
 
 ### Backend

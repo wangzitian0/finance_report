@@ -8,6 +8,7 @@ import type {
     AnnualizedIncomeScheduleResponse,
     PersonalReportPackageContractResponse,
     PersonalReportPackageNotesResponse,
+    PersonalReportPackageReadinessResponse,
     PersonalReportPackageTraceabilityResponse,
 } from "@/lib/types";
 
@@ -17,6 +18,7 @@ function formatScheduleCurrency(value: number | string, currency: string): strin
 
 export default function PersonalReportPackagePage() {
     const [contract, setContract] = useState<PersonalReportPackageContractResponse | null>(null);
+    const [readiness, setReadiness] = useState<PersonalReportPackageReadinessResponse | null>(null);
     const [annualizedSchedule, setAnnualizedSchedule] = useState<AnnualizedIncomeScheduleResponse | null>(null);
     const [packageNotes, setPackageNotes] = useState<PersonalReportPackageNotesResponse | null>(null);
     const [traceabilityAppendix, setTraceabilityAppendix] = useState<PersonalReportPackageTraceabilityResponse | null>(null);
@@ -27,13 +29,15 @@ export default function PersonalReportPackagePage() {
 
         Promise.all([
             apiFetch<PersonalReportPackageContractResponse>("/api/reports/package/contract"),
+            apiFetch<PersonalReportPackageReadinessResponse>("/api/reports/package/readiness"),
             apiFetch<AnnualizedIncomeScheduleResponse>("/api/reports/package/annualized-income-schedule"),
             apiFetch<PersonalReportPackageNotesResponse>("/api/reports/package/notes"),
             apiFetch<PersonalReportPackageTraceabilityResponse>("/api/reports/package/traceability"),
         ])
-            .then(([contractData, scheduleData, notesData, traceabilityData]) => {
+            .then(([contractData, readinessData, scheduleData, notesData, traceabilityData]) => {
                 if (!isMounted) return;
                 setContract(contractData);
+                setReadiness(readinessData);
                 setAnnualizedSchedule(scheduleData);
                 setPackageNotes(notesData);
                 setTraceabilityAppendix(traceabilityData);
@@ -51,7 +55,7 @@ export default function PersonalReportPackagePage() {
         return <div className="p-6 text-[var(--error)]">{error}</div>;
     }
 
-    if (!contract || !annualizedSchedule || !packageNotes || !traceabilityAppendix) {
+    if (!contract || !readiness || !annualizedSchedule || !packageNotes || !traceabilityAppendix) {
         return <div className="p-6 text-muted">Loading package contract...</div>;
     }
 
@@ -61,6 +65,59 @@ export default function PersonalReportPackagePage() {
                 <h1 className="page-title">Personal Report Package</h1>
                 <p className="page-description">{contract.package_id}</p>
             </div>
+
+            <section className="card p-5 mb-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <p className="text-xs font-mono text-muted">report_readiness</p>
+                        <h2 className="font-semibold mt-1">Report Readiness</h2>
+                        <p className="mt-2 text-sm text-muted">
+                            {readiness.state === "blocked"
+                                ? `${readiness.blocking_count} blocker${readiness.blocking_count === 1 ? "" : "s"} must be resolved before package output is trusted.`
+                                : `Current package state is ${readiness.label.toLowerCase()}.`}
+                        </p>
+                    </div>
+                    <a className="badge badge-muted" href={readiness.action_href}>
+                        {readiness.label}
+                    </a>
+                </div>
+                <dl className="mt-5 grid md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <dt className="text-xs text-muted">Statements</dt>
+                        <dd className="mt-1 font-semibold">{readiness.source_summary.statements ?? 0}</dd>
+                    </div>
+                    <div>
+                        <dt className="text-xs text-muted">Journal Entries</dt>
+                        <dd className="mt-1 font-semibold">{readiness.source_summary.posted_journal_entries ?? 0}</dd>
+                    </div>
+                    <div>
+                        <dt className="text-xs text-muted">Manual Valuations</dt>
+                        <dd className="mt-1 font-semibold">{readiness.source_summary.manual_valuations ?? 0}</dd>
+                    </div>
+                    <div>
+                        <dt className="text-xs text-muted">Blockers</dt>
+                        <dd className="mt-1 font-semibold">{readiness.blocking_count}</dd>
+                    </div>
+                </dl>
+                {readiness.blockers.length ? (
+                    <div className="mt-5 grid lg:grid-cols-2 gap-4">
+                        {readiness.blockers.map((blocker) => (
+                            <article key={blocker.code} className="border border-[var(--border)] rounded p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="font-medium">{blocker.label}</p>
+                                        <p className="text-xs font-mono text-muted mt-1">{blocker.code}</p>
+                                    </div>
+                                    <a className="badge badge-muted" href={blocker.action_href}>
+                                        {blocker.count}
+                                    </a>
+                                </div>
+                                <p className="mt-3 text-sm text-muted">{blocker.reason}</p>
+                            </article>
+                        ))}
+                    </div>
+                ) : null}
+            </section>
 
             <div className="grid lg:grid-cols-2 gap-4 mb-6">
                 {contract.sections.map((section) => (

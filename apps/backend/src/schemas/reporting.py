@@ -5,9 +5,15 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.models import AccountType
+
+
+def _validate_internal_action_href(value: str) -> str:
+    if not value.startswith("/") or value.startswith("//") or "://" in value:
+        raise ValueError("action_href must be an internal relative path")
+    return value
 
 
 class ReportLine(BaseModel):
@@ -208,6 +214,41 @@ class PersonalReportPackageContractResponse(BaseModel):
     period_semantics: dict[str, str]
     sections: list[PersonalReportPackageSectionContract]
     export_contract: PersonalReportPackageExportContract
+
+
+class PersonalReportPackageReadinessBlocker(BaseModel):
+    """Actionable blocker that prevents a report package from being ready."""
+
+    code: str
+    label: str
+    severity: str
+    count: int
+    reason: str
+    action_href: str
+
+    @field_validator("action_href")
+    @classmethod
+    def validate_action_href(cls, value: str) -> str:
+        return _validate_internal_action_href(value)
+
+
+class PersonalReportPackageReadinessResponse(BaseModel):
+    """Deterministic readiness state for the personal report package."""
+
+    package_id: str
+    state: str
+    label: str
+    action_href: str
+    blocking_count: int
+    blockers: list[PersonalReportPackageReadinessBlocker] = Field(default_factory=list)
+    source_summary: dict[str, int] = Field(default_factory=dict)
+    generated_at: str | None = None
+    stale_since: str | None = None
+
+    @field_validator("action_href")
+    @classmethod
+    def validate_action_href(cls, value: str) -> str:
+        return _validate_internal_action_href(value)
 
 
 class PersonalReportPackageNote(BaseModel):

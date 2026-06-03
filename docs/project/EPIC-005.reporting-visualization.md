@@ -369,8 +369,8 @@ Closure status:
 7. Done: build deterministic fixture coverage (#573) against the same contract
    and schedules, and extend the #565 guard to consume the representative
    fixture contract.
-8. Follow-up: [#649](https://github.com/wangzitian0/finance_report/issues/649)
-   hardens the covered package proof with dynamic traceability identifiers and
+8. Done: [#649](https://github.com/wangzitian0/finance_report/issues/649)
+   hardened the covered package proof with dynamic traceability identifiers and
    pinned brokerage/dividend/market-price fixture expected outputs.
 
 The macro outcome is `covered` in `docs/ssot/critical-proof-matrix.yaml` once
