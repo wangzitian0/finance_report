@@ -235,6 +235,20 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "22-minute E2E step timeout" in ci_cd
 
 
+def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
+    """AC8.13.13: Main push CI uses SHA-scoped concurrency."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert (
+        "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.sha || github.run_id }}"
+        in workflow
+    )
+    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
+    assert "Pushes to `main` use a SHA-scoped concurrency" in ci_cd
+    assert "do not cancel or replace a pending main CI" in ci_cd
+
+
 def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     """AC8.13.14: Provider-backed AI/OCR gate runs outside deploy health."""
     deploy_workflow = read(".github/workflows/staging-deploy.yml")

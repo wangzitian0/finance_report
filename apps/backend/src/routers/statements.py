@@ -23,6 +23,7 @@ from src.models import (
     AccountType,
     BankStatement,
     BankStatementStatus,
+    UploadedDocument,
 )
 from src.schemas import (
     BankStatementListResponse,
@@ -544,6 +545,55 @@ def _brokerage_payload_from_statement(statement: BankStatement) -> dict:
     }
 
 
+def _extract_brokerage_payload_from_metadata(metadata: dict | None) -> dict | None:
+    """Return the structured extraction payload stored in Layer 1 metadata."""
+    if not isinstance(metadata, dict):
+        return None
+    for key in ("extraction_payload", "parsed_payload", "payload"):
+        payload = metadata.get(key)
+        if isinstance(payload, dict):
+            return payload
+    return metadata if any(key in metadata for key in ("positions", "holdings", "securities")) else None
+
+
+def _enrich_brokerage_payload_from_statement(payload: dict, statement: BankStatement) -> dict:
+    """Backfill statement metadata into a recovered extraction payload."""
+    enriched = dict(payload)
+    enriched.setdefault("institution", statement.institution)
+    statement_payload = enriched.get("statement") if isinstance(enriched.get("statement"), dict) else {}
+    statement_payload = dict(statement_payload)
+    statement_payload.setdefault("institution", statement.institution)
+    statement_payload.setdefault("period_end", statement.period_end.isoformat() if statement.period_end else None)
+    statement_payload.setdefault("currency", statement.currency)
+    enriched["statement"] = statement_payload
+    return enriched
+
+
+async def _brokerage_payload_from_persisted_extraction(
+    db,
+    *,
+    statement: BankStatement,
+    user_id: UUID,
+) -> dict | None:
+    """Load the persisted OCR extraction payload for statement-scoped imports."""
+    payload = _extract_brokerage_payload_from_metadata(statement.extraction_metadata)
+    if payload is not None:
+        return _enrich_brokerage_payload_from_statement(payload, statement)
+
+    result = await db.execute(
+        select(UploadedDocument)
+        .where(UploadedDocument.user_id == user_id)
+        .where(UploadedDocument.file_hash == statement.file_hash)
+    )
+    uploaded_document = result.scalar_one_or_none()
+    if uploaded_document is None:
+        return None
+    payload = _extract_brokerage_payload_from_metadata(uploaded_document.extraction_metadata)
+    if payload is None:
+        return None
+    return _enrich_brokerage_payload_from_statement(payload, statement)
+
+
 def _brokerage_import_not_ready_reason(statement: BankStatement) -> str:
     """Explain why a brokerage statement cannot be imported yet."""
     status_value = statement.status.value if hasattr(statement.status, "value") else str(statement.status)
@@ -587,7 +637,9 @@ async def import_brokerage_statement_positions(
     if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.APPROVED):
         raise_bad_request(_brokerage_import_not_ready_reason(statement))
 
-    payload = _brokerage_payload_from_statement(statement)
+    payload = await _brokerage_payload_from_persisted_extraction(db, statement=statement, user_id=user_id)
+    if payload is None:
+        payload = _brokerage_payload_from_statement(statement)
     request_id = _current_request_id()
     logger.info(
         "statement.brokerage_import.started",

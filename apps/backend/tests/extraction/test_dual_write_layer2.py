@@ -103,6 +103,52 @@ class TestDualWriteLayer2:
         assert uploaded_doc.file_hash == file_hash
         assert uploaded_doc.original_filename == "test_statement.pdf"
         assert uploaded_doc.document_type == DocumentType.BANK_STATEMENT
+        assert uploaded_doc.extraction_metadata is None
+
+    async def test_dual_write_persists_brokerage_extraction_metadata(
+        self, db, test_user, sample_file_content, monkeypatch
+    ):
+        """AC17.4.7: Brokerage dual-write keeps structured OCR positions available for import."""
+        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
+
+        service = ExtractionService()
+        file_hash = hashlib.sha256(sample_file_content).hexdigest()
+        brokerage_response = {
+            "institution": "Moomoo",
+            "currency": "SGD",
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+            "positions": [
+                {
+                    "symbol": "Fullerton SGD Money Market Fund",
+                    "quantity": "1",
+                    "market_value": "1250.50",
+                    "currency": "SGD",
+                }
+            ],
+            "transactions": [],
+        }
+
+        with patch.object(service, "extract_financial_data", return_value=brokerage_response):
+            statement, transactions = await service.parse_document(
+                file_path=Path("moomoo-statement.pdf"),
+                institution="Moomoo",
+                user_id=test_user.id,
+                file_content=sample_file_content,
+                file_hash=file_hash,
+                original_filename="moomoo-statement.pdf",
+                db=db,
+            )
+
+        await db.commit()
+
+        result = await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
+        uploaded_doc = result.scalar_one()
+
+        assert transactions == []
+        assert statement.extraction_metadata == {"extraction_payload": brokerage_response}
+        assert uploaded_doc.document_type == DocumentType.BROKERAGE_STATEMENT
+        assert uploaded_doc.extraction_metadata == {"extraction_payload": brokerage_response}
 
     async def test_dual_write_creates_atomic_transactions(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch

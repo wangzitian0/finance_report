@@ -428,6 +428,7 @@ async def parse_statement_background(
             statement.period_end = parsed_statement.period_end
             statement.opening_balance = parsed_statement.opening_balance
             statement.closing_balance = parsed_statement.closing_balance
+            statement.extraction_metadata = parsed_statement.extraction_metadata
             await session.commit()
 
             await update_progress(80)

@@ -84,6 +84,11 @@ class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     parsing_progress: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
     balance_validated: Mapped[bool | None] = mapped_column(default=None, nullable=True)
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extraction_metadata: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        default=None,
+    )
     stage1_status: Mapped[Stage1Status | None] = mapped_column(
         SQLEnum(
             Stage1Status,
