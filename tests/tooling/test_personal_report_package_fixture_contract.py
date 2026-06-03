@@ -1,0 +1,91 @@
+from decimal import Decimal
+from pathlib import Path
+
+import yaml
+
+from tools._lib.fixtures.personal_report_package import REPRESENTATIVE_PACKAGE_FIXTURE
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
+def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs() -> None:
+    """AC8.13.83: Personal package fixture contract covers representative sources and exact outputs."""
+    fixture = REPRESENTATIVE_PACKAGE_FIXTURE
+
+    assert fixture.bank.institution == "Personal Report Package Bank"
+    assert fixture.bank.csv_path.as_posix().endswith("vision_hard_gate_statement.csv")
+    assert fixture.brokerage.source == "moomoo"
+    assert fixture.brokerage.institution == "Moomoo Personal Package"
+
+    component_types = {component.component_type for component in fixture.manual_components}
+    assert component_types == {
+        "property_value",
+        "mortgage_balance",
+        "esop",
+        "rsu",
+        "stock_options",
+    }
+    assert {component.source for component in fixture.restricted_components} == {
+        "ACME ESOP",
+        "ACME RSU",
+        "ACME Options",
+    }
+
+    expected = fixture.expected_outputs
+    assert expected.transaction_count > 0
+    assert expected.bank_cash == expected.income - expected.expenses
+    assert expected.restricted_fair_value_total == Decimal("156000.00")
+    assert expected.manual_liability_total == Decimal("360000.00")
+    assert expected.manual_asset_total == Decimal("1256000.00")
+    assert expected.net_worth_adjustment_gain_loss == Decimal("896000.00")
+
+    assert {
+        "balance_sheet.total_assets",
+        "income_statement.total_income",
+        "income_statement.total_expenses",
+        "cash_flow.net_cash_flow",
+        "annualized_income_long_term.annualized_total",
+    } <= fixture.required_traceability_line_ids
+    assert {
+        "basis-of-preparation",
+        "reporting-period-and-currency",
+        "valuation-basis",
+        "investment-market-data",
+        "source-confidence-review",
+        "restricted-asset-treatment",
+    } <= fixture.required_note_ids
+
+
+def test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract() -> None:
+    """AC8.13.84: Package E2E consumes the shared representative fixture contract."""
+    journey = read("tests/e2e/test_personal_financial_report_package.py")
+
+    assert "from tools._lib.fixtures.personal_report_package import" in journey
+    assert "REPRESENTATIVE_PACKAGE_FIXTURE" in journey
+    assert "PROPERTY_VALUE = Decimal" not in journey
+    assert "MORTGAGE_BALANCE = Decimal" not in journey
+    assert "ESOP_VALUE = Decimal" not in journey
+    assert "_fixture_totals(" not in journey
+
+
+def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract() -> None:
+    """AC8.13.85: Package macro proof is covered by the representative fixture ACs."""
+    matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    outcomes = {outcome["id"]: outcome for outcome in matrix["outcomes"]}
+    proofs = {proof["id"]: proof for proof in matrix["proofs"]}
+
+    outcome = outcomes["personal-financial-report-package"]
+    assert outcome["status"] == "covered"
+    assert outcome["issue"] == "#567"
+
+    proof = proofs["personal-financial-report-package-post-merge"]
+    assert proof["issue"] == "#573"
+    assert {
+        "AC8.13.83",
+        "AC8.13.84",
+        "AC8.13.85",
+    } <= set(proof["ac_ids"])

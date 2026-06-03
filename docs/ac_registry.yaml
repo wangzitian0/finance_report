@@ -2389,6 +2389,24 @@ groups:
         description: Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and
           desktop local table clipping.
         mandatory: true
+      - id: AC8.13.83
+        epic: 8
+        epic_name: testing-strategy
+        description: Personal report package representative fixture contract defines bank cash, income and expense activity,
+          brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs.
+        mandatory: true
+      - id: AC8.13.84
+        epic: 8
+        epic_name: testing-strategy
+        description: Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating
+          financial constants or expected totals inline.
+        mandatory: true
+      - id: AC8.13.85
+        epic: 8
+        epic_name: testing-strategy
+        description: Personal financial report package macro proof is promoted to covered only when the representative fixture
+          contract ACs are part of the critical proof matrix.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1
