@@ -203,6 +203,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 |----|-----------|---------------|------|----------|
 | AC2.12.1 | Journal entry balance validation uses base-currency converted amounts when line currencies differ | `test_AC2_12_1_multicurrency_entry_balances_in_base_currency()` | `accounting/test_multicurrency_integrity.py` | P0 |
 | AC2.12.2 | Accounting equation verification uses base-currency converted account balances | `test_AC2_12_2_accounting_equation_uses_base_currency_balances()` | `accounting/test_multicurrency_integrity.py` | P0 |
+| AC2.12.6 | Statement validation logic rejects invalid statement balance and transaction states | `test_validation.py` suite | `accounting/test_validation.py` | P0 |
 
 - Total AC IDs: 52 (AC2.11.1–2.11.3, AC2.11.5–2.11.6 removed as intra-EPIC summary duplicates; traced in AC2.5, AC2.2, AC2.8, AC2.3 respectively)
 - Requirements converted to AC IDs: 100% (EPIC-002 checklist + must-have standards)
@@ -214,7 +215,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 
 ## 📏 Acceptance Criteria
 
-> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC2.x.y` numbers within `docs/ac_registry.yaml` reflect deprecated/merged ACs preserved for historical traceability. Do **not** renumber. New ACs append to the next available index in the relevant feature block.
+> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC2.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
 
 ### 🟢 Must Have
 

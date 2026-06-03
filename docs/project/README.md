@@ -6,7 +6,7 @@ project entry point.
 The project hierarchy is:
 
 ```text
-README.md -> docs/project/EPIC-*.md -> docs/*_registry.yaml -> tests
+README.md -> docs/project/EPIC-*.md -> generated AC indexes -> tests
 ```
 
 Use the root [README](../../README.md) for stable project entry points and links
@@ -16,11 +16,13 @@ other live values should not be duplicated by hand in this directory index.
 ## Source Rules
 
 - EPIC scope lives in `docs/project/EPIC-*.md`.
-- AC definitions are discovered from EPIC documents and generated into
-  `docs/ac_registry.yaml` and `docs/infra_registry.yaml`.
+- AC definitions are discovered from EPIC documents and materialized through
+  generated registry indexes (`docs/ac_registry.yaml`,
+  `docs/infra_registry.yaml`) plus explicit non-derived overrides
+  (`docs/ac_registry_overrides.yaml`).
 - Test proof is reported by `docs/analysis/test-ac-coverage-report.md`.
 - Current AC traceability follows this live chain:
-  `README.md` -> `docs/project/EPIC-*.md` -> `docs/*_registry.yaml` ->
+  `README.md` -> `docs/project/EPIC-*.md` -> generated AC indexes ->
   tests -> CI artifact. Do not commit generated audit snapshots in routine
   feature PRs; removed archive inventory is retained in
   [issue #548](https://github.com/wangzitian0/finance_report/issues/548).

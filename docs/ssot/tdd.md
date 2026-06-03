@@ -31,20 +31,25 @@ AC IDs use `ACx.y.z`:
 | `z` | acceptance criterion within the block |
 
 Registry generation is code-owned by `tools/generate_ac_registry.py`.
-Registry YAML is grouped by `ACx -> ACx.y` so unrelated scenarios do not share
-one append point. The files do not commit a mutable total; CI computes counts
-from the grouped entries.
+`docs/ac_registry.yaml` and `docs/infra_registry.yaml` are small generated
+indexes. Runtime tools materialize entries from EPIC markdown plus
+`docs/ac_registry_overrides.yaml`, which preserves deprecated or non-derived
+historical entries without making the indexes hand-edited truth.
 
 ```bash
 python tools/generate_ac_registry.py --check
 ```
 
-Generated registry files:
+Registry files:
 
-- `docs/ac_registry.yaml`
-- `docs/infra_registry.yaml`
+- `docs/ac_registry.yaml` — feature index
+- `docs/infra_registry.yaml` — infra index
+- `docs/ac_registry_overrides.yaml` — explicit override entries that are not
+  derived from current EPIC text
 
-Do not edit registry files manually.
+Do not edit generated index files manually. Add or update active AC definitions
+in the owning EPIC; use the override file only for intentional historical,
+deprecated, or non-derived metadata.
 
 ## Test References
 

@@ -6,6 +6,7 @@ extraction, deduplication, classification (feature vs infra), and YAML output.
 from pathlib import Path
 
 from common.ssot import generate_ac_registry as gar
+from common.ssot.ac_registry_format import load_registry_entries
 
 
 class TestSortKey:
@@ -58,6 +59,19 @@ class TestExtractAcs:
         result = gar.extract_acs()
         assert "AC2.1.1" in result
         assert "Balanced" in result["AC2.1.1"]["description"]
+
+    def test_extracts_checkbox_bullet_description(self, tmp_path, monkeypatch):
+        """AC8.13.17: Checklist AC definitions are EPIC-owned registry input."""
+        self._write_epic(
+            tmp_path,
+            "EPIC-011.asset-lifecycle.md",
+            "- [x] **AC11.8.5** Net worth calculation toggle stays complete\n",
+        )
+        monkeypatch.setattr(gar, "EPIC_DIR", str(tmp_path / "docs" / "project"))
+        result = gar.extract_acs()
+        assert result["AC11.8.5"]["description"] == (
+            "Net worth calculation toggle stays complete"
+        )
 
     def test_deduplicates_ac_ids(self, tmp_path, monkeypatch):
         content = "AC1.1.1: First occurrence\nAC1.1.1: Second occurrence\n"
@@ -329,98 +343,79 @@ class TestClassifyAc:
 class TestMain:
     """main() extracts, classifies, and writes two output files."""
 
-    def _setup_epic_dir(self, tmp_path):
+    def _setup_epic_dir(self, tmp_path, monkeypatch):
         epic_dir = tmp_path / "docs" / "project"
         epic_dir.mkdir(parents=True, exist_ok=True)
+        overrides = tmp_path / "docs" / "ac_registry_overrides.yaml"
+        overrides.write_text("version: '1.0'\ngroups: {}\n", encoding="utf-8")
+        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
+        monkeypatch.setattr(gar, "OVERRIDES", str(overrides))
         return epic_dir
 
-    def test_main_returns_zero(self, tmp_path, monkeypatch):
-        epic_dir = self._setup_epic_dir(tmp_path)
-        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Setup\n")
+    def _setup_outputs(self, tmp_path, monkeypatch):
         out_feature = tmp_path / "docs" / "ac_registry.yaml"
         out_infra = tmp_path / "docs" / "infra_registry.yaml"
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
         monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
         monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+        return out_feature, out_infra
+
+    def _ids(self, path: Path) -> list[str]:
+        return [entry["id"] for entry in load_registry_entries(path)]
+
+    def test_main_returns_zero(self, tmp_path, monkeypatch):
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Setup\n")
+        self._setup_outputs(tmp_path, monkeypatch)
         assert gar.main() == 0
 
     def test_main_creates_both_output_files(self, tmp_path, monkeypatch):
-        epic_dir = self._setup_epic_dir(tmp_path)
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Setup\n")
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         gar.main()
         assert out_feature.exists()
         assert out_infra.exists()
+        assert "generated_from_epics: true" in out_feature.read_text()
+        assert "generated_from_epics: true" in out_infra.read_text()
 
     def test_main_splits_feature_and_infra(self, tmp_path, monkeypatch):
         """main() routes feature ACs to ac_registry.yaml and infra ACs to infra_registry.yaml."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         # EPIC-001 is feature, EPIC-007 is infra
         (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Feature AC\n")
         (epic_dir / "EPIC-007.deployment.md").write_text("AC7.1.1: Infra AC\n")
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         gar.main()
-        feature_content = out_feature.read_text()
-        infra_content = out_infra.read_text()
-        # Feature file has AC1.1.1 only
-        assert "AC1.1.1" in feature_content
-        assert "AC7.1.1" not in feature_content
-        assert "groups:" in feature_content
-        assert "total:" not in feature_content
-        # Infra file has AC7.1.1 only
-        assert "AC7.1.1" in infra_content
-        assert "AC1.1.1" not in infra_content
-        assert "groups:" in infra_content
-        assert "total:" not in infra_content
+        assert self._ids(out_feature) == ["AC1.1.1"]
+        assert self._ids(out_infra) == ["AC7.1.1"]
+        assert "groups:" not in out_feature.read_text()
+        assert "total:" not in out_feature.read_text()
 
     def test_main_epic16_sub_classification(self, tmp_path, monkeypatch):
         """EPIC-016 ACs are sub-classified: group 11/13 → infra, others → feature."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         content = (
             "AC16.1.1: Feature UI\n"
             "AC16.11.1: Infra tooling\n"
             "AC16.13.1: Test lifecycle\n"
         )
         (epic_dir / "EPIC-016.two-stage-review-ui.md").write_text(content)
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         gar.main()
-        feature_content = out_feature.read_text()
-        infra_content = out_infra.read_text()
-        # AC16.1.1 is feature
-        assert "AC16.1.1" in feature_content
-        assert "AC16.1:" in feature_content
-        assert "total:" not in feature_content
-        # AC16.11.1 and AC16.13.1 are infra
-        assert "AC16.11.1" in infra_content
-        assert "AC16.13.1" in infra_content
-        assert "AC16.11:" in infra_content
-        assert "AC16.13:" in infra_content
-        assert "total:" not in infra_content
+        assert self._ids(out_feature) == ["AC16.1.1"]
+        assert self._ids(out_infra) == ["AC16.11.1", "AC16.13.1"]
 
-    def test_main_appends_missing_ac_without_rewriting_existing_registry(
+    def test_main_appends_missing_ac_without_rewriting_current_epic_text(
         self, tmp_path, monkeypatch
     ):
-        """AC8.13.17: Missing ACs append without rewriting historical descriptions."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        """AC8.13.17: Current non-stub EPIC text and mandatory state win."""
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
             "| AC8.13.16 | EPIC text that must not replace canonical text |\n"
             "| AC8.13.17 | Append-only generator behavior |\n"
         )
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
-        out_feature.write_text(
+        out_feature, _out_infra = self._setup_outputs(tmp_path, monkeypatch)
+        Path(gar.OVERRIDES).write_text(
             "# DO NOT edit this file manually - run tools/generate_ac_registry.py\n"
             "version: '1.0'\n"
             "groups:\n"
@@ -430,37 +425,61 @@ class TestMain:
             "      epic: 8\n"
             "      epic_name: testing-strategy\n"
             "      description: 'Canonical historical description'\n"
-            "      mandatory: true\n"
+            "      status: deprecated\n"
+            "      mandatory: false\n"
         )
-        out_infra.write_text("version: '1.0'\ngroups: {}\n")
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
 
         assert gar.main() == 0
 
-        content = out_feature.read_text()
-        assert "total:" not in content
-        assert "Canonical historical description" in content
-        assert "EPIC text that must not replace canonical text" not in content
-        assert "id: AC8.13.17" in content
-        assert "Append-only generator behavior" in content
+        entries = {entry["id"]: entry for entry in load_registry_entries(out_feature)}
+        assert entries["AC8.13.16"]["description"] == (
+            "EPIC text that must not replace canonical text"
+        )
+        assert entries["AC8.13.16"]["mandatory"] is True
+        assert "status" not in entries["AC8.13.16"]
+        assert entries["AC8.13.17"]["description"] == "Append-only generator behavior"
+
+    def test_current_stub_ac_can_preserve_deprecated_override_metadata(
+        self, tmp_path, monkeypatch
+    ):
+        """AC8.13.17: Current stub placeholders can stay non-mandatory."""
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
+        (epic_dir / "EPIC-016.two-stage-review-ui.md").write_text(
+            "| AC16.15.7 | stub |\n"
+        )
+        out_feature, _out_infra = self._setup_outputs(tmp_path, monkeypatch)
+        Path(gar.OVERRIDES).write_text(
+            "# DO NOT edit this file manually - run tools/generate_ac_registry.py\n"
+            "version: '1.0'\n"
+            "groups:\n"
+            "  AC16:\n"
+            "    AC16.15:\n"
+            "    - id: AC16.15.7\n"
+            "      epic: 16\n"
+            "      epic_name: two-stage-review-ui\n"
+            "      description: '~~retired historical registry placeholder~~'\n"
+            "      status: deprecated\n"
+            "      mandatory: false\n"
+        )
+
+        assert gar.main() == 0
+
+        entries = {entry["id"]: entry for entry in load_registry_entries(out_feature)}
+        assert entries["AC16.15.7"]["description"] == "stub"
+        assert entries["AC16.15.7"]["mandatory"] is False
+        assert entries["AC16.15.7"]["status"] == "deprecated"
 
     def test_main_check_fails_when_epic_ac_is_missing_from_registry(
         self, tmp_path, monkeypatch
     ):
         """AC8.13.17: Check mode catches EPIC-defined ACs missing from registry."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
             "| AC8.13.17 | Append-only generator behavior |\n"
         )
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         out_feature.write_text("version: '1.0'\ngroups: {}\n")
         out_infra.write_text("version: '1.0'\ngroups: {}\n")
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
 
         assert gar.main(["--check"]) == 1
 
@@ -492,12 +511,11 @@ class TestMain:
         self, tmp_path, monkeypatch
     ):
         """AC8.13.17: Check mode rejects the legacy flat registry format."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
             "| AC8.13.17 | Append-only generator behavior |\n"
         )
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         out_feature.write_text(
             "version: '1.0'\n"
             "total: 0\n"
@@ -509,22 +527,18 @@ class TestMain:
             "    mandatory: true\n"
         )
         out_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
 
         assert gar.main(["--check"]) == 1
 
     def test_main_rewrites_legacy_flat_registry_to_grouped_format(
         self, tmp_path, monkeypatch
     ):
-        """AC8.13.17: Normal generation rewrites legacy registries to grouped format."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        """AC8.13.17: Normal generation rewrites legacy registries to index format."""
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
             "| AC8.13.17 | Append-only generator behavior |\n"
         )
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
         out_feature.write_text(
             "version: '1.0'\n"
             "total: 0\n"
@@ -536,68 +550,56 @@ class TestMain:
             "    mandatory: true\n"
         )
         out_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
 
         assert gar.main() == 0
 
         content = out_feature.read_text()
         assert "total:" not in content
-        assert "groups:" in content
-        assert "Append-only generator behavior" in content
+        assert "generated_from_epics: true" in content
         assert "Canonical historical description" not in content
+        entries = {entry["id"]: entry for entry in load_registry_entries(out_feature)}
+        assert entries["AC8.13.17"]["description"] == "Append-only generator behavior"
 
     def test_main_check_succeeds_when_registry_is_current(self, tmp_path, monkeypatch):
-        """AC8.13.17: Check mode accepts current grouped registries."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        """AC8.13.17: Check mode accepts current generated registry indexes."""
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
             "| AC8.13.17 | Append-only generator behavior |\n"
         )
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
-        out_feature.write_text(
-            "version: '1.0'\n"
-            "groups:\n"
-            "  AC8:\n"
-            "    AC8.13:\n"
-            "      - id: AC8.13.17\n"
-            "        epic: 8\n"
-            "        epic_name: testing-strategy\n"
-            "        description: 'Append-only generator behavior'\n"
-            "        mandatory: true\n"
-        )
-        out_infra.write_text("version: '1.0'\ngroups: {}\n")
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
+        gar.write_registry_index("feature", out_feature)
+        gar.write_registry_index("infra", out_infra)
 
         assert gar.main(["--check"]) == 0
 
     def test_main_normal_mode_noops_when_registry_is_current(
         self, tmp_path, monkeypatch
     ):
-        """AC8.13.17: Normal mode leaves current grouped registries valid."""
-        epic_dir = self._setup_epic_dir(tmp_path)
+        """AC8.13.17: Normal mode leaves current generated indexes valid."""
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
         (epic_dir / "EPIC-008.testing-strategy.md").write_text(
             "| AC8.13.17 | Append-only generator behavior |\n"
         )
-        out_feature = tmp_path / "docs" / "ac_registry.yaml"
-        out_infra = tmp_path / "docs" / "infra_registry.yaml"
-        out_feature.write_text(
-            "version: '1.0'\n"
-            "groups:\n"
-            "  AC8:\n"
-            "    AC8.13:\n"
-            "      - id: AC8.13.17\n"
-            "        epic: 8\n"
-            "        epic_name: testing-strategy\n"
-            "        description: 'Append-only generator behavior'\n"
-            "        mandatory: true\n"
-        )
-        out_infra.write_text("version: '1.0'\ngroups: {}\n")
-        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out_feature))
-        monkeypatch.setattr(gar, "OUTPUT_INFRA", str(out_infra))
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
+        gar.write_registry_index("feature", out_feature)
+        gar.write_registry_index("infra", out_infra)
 
         assert gar.main() == 0
+
+    def test_main_materialized_registries_have_no_duplicate_or_missing_ids(
+        self, tmp_path, monkeypatch
+    ):
+        """Generated indexes materialize exactly one classified entry per AC ID."""
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text("AC1.1.1: Feature\n")
+        (epic_dir / "EPIC-007.deployment.md").write_text("AC7.1.1: Infra\n")
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
+
+        assert gar.main() == 0
+
+        feature_ids = self._ids(out_feature)
+        infra_ids = self._ids(out_infra)
+        all_ids = feature_ids + infra_ids
+        assert all_ids == ["AC1.1.1", "AC7.1.1"]
+        assert len(all_ids) == len(set(all_ids))
+        assert set(feature_ids).isdisjoint(infra_ids)

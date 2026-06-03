@@ -8,7 +8,7 @@ body:
     attributes:
       value: |
         ## Before you begin
-        Infrastructure ACs go to `docs/infra_registry.yaml` (not `ac_registry.yaml`).  
+        Infrastructure ACs live in the owning EPIC and materialize through `docs/infra_registry.yaml` (not `ac_registry.yaml`).
         See [AGENTS.md](../../AGENTS.md) and [docs/ssot/tdd.md](../../docs/ssot/tdd.md).
 
   - type: dropdown
@@ -29,7 +29,7 @@ body:
     id: ac_ids
     attributes:
       label: "Infra AC IDs"
-      description: "Format: ACx.y.z — must be registered in docs/infra_registry.yaml before writing code."
+      description: "Format: ACx.y.z — define active infra ACs in the owning EPIC before writing code."
       placeholder: "e.g. AC8.3.1, AC8.3.2"
     validations:
       required: true
@@ -65,7 +65,7 @@ body:
     attributes:
       label: "Pre-submission checklist"
       options:
-        - label: "AC IDs are registered in docs/infra_registry.yaml"
+        - label: "AC IDs are defined in the owning EPIC and materialize through docs/infra_registry.yaml"
           required: true
         - label: "SSOT files to update are identified"
           required: true

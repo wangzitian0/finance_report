@@ -73,9 +73,13 @@ Use this cascade **before processing any task**:
    cover the stated goal; name dependencies and out-of-scope work before
    implementation.
 1. **EPIC**: Anchor task to a project EPIC in `docs/project/`
-2. **ACx.y.z**: Register acceptance criteria before writing code:
-   - Feature ACs → `docs/ac_registry.yaml`
-   - Infrastructure/Tooling ACs → `docs/infra_registry.yaml`
+2. **ACx.y.z**: Define acceptance criteria before writing code:
+   - Active feature ACs live in the owning EPIC and materialize through
+     `docs/ac_registry.yaml`
+   - Active infrastructure/tooling ACs live in the owning EPIC and materialize
+     through `docs/infra_registry.yaml`
+   - Historical, deprecated, or non-derived metadata is explicit in
+     `docs/ac_registry_overrides.yaml`
 3. **Test**: Write failing tests that reference the AC IDs (red phase)
 4. **Code**: Write minimal code to make the tests pass (green phase)
 5. **Doc**: Update SSOT docs and README

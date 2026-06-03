@@ -21,8 +21,9 @@ README -> EPIC -> AC -> test
   entry points, and links to generated reports.
 - **EPIC documents** in `docs/project/EPIC-*.md` describe scope and acceptance
   criteria.
-- **AC registries** are generated from EPIC documents:
-  `docs/ac_registry.yaml` and `docs/infra_registry.yaml`.
+- **AC registries** are generated indexes materialized from EPIC documents plus
+  explicit overrides: `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, and
+  `docs/ac_registry_overrides.yaml`.
 - **Tests** are the proof. A referenced AC is not enough; behavior must be
   asserted by real tests.
 
@@ -41,7 +42,7 @@ from project intent to executable proof without reading archive fragments.
 | Decision filter | `vision.md` | Direction for ambiguous product and architecture choices | Referenced by EPIC vision anchors |
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
 | EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
-| AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml` | Generated acceptance criteria inventory | `tools/generate_ac_registry.py --check` |
+| AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, `docs/ac_registry_overrides.yaml` | Generated acceptance criteria inventory and explicit non-derived overrides | `tools/generate_ac_registry.py --check` |
 | SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `tools/check_ssot_ownership.py` |
 | Testing proof | `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json` | Checked-in AC-to-test snapshot and coverage baseline | `tools/check_ac_traceability.py`, `tools/check_coverage_policy.py` |
 
