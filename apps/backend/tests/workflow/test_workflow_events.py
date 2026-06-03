@@ -77,8 +77,9 @@ def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
 
     assert "AC19.4.1" in epic
     assert "AC19.4.7" in epic
-    assert "secondary analytics below the workflow entry surface" in epic
-    assert "must not block upload, event, or report readiness actions" in epic
+    normalized_epic = " ".join(epic.split())
+    assert "secondary analytics below the workflow entry surface" in normalized_epic
+    assert "must not block upload, event, or report readiness actions" in normalized_epic
 
 
 def test_AC19_1_2_workflow_event_model_contract() -> None:
