@@ -7,7 +7,15 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models import (
+    Account,
+    AccountType,
+    Direction,
+    FxRate,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+)
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
 from src.routers.reports import _annualized_income_bucket
 
@@ -132,3 +140,77 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
         "liquidity_class": "restricted",
         "net_worth_treatment": "excluded_from_liquid_net_worth_by_default",
     }
+
+
+@pytest.mark.asyncio
+async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+):
+    """AC5.11.3/AC11.11.3: Annualized package totals use one reporting currency."""
+    salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+    dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="USD")
+    db.add_all([salary, dividend])
+    await db.flush()
+
+    income_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 5, 1),
+        memo="mixed currency trailing income",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(income_entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=dividend.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("10.00"),
+                currency="USD",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.500000"),
+                rate_date=date(2026, 5, 1),
+                source="test",
+            ),
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.RSU,
+                liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+                as_of_date=date(2026, 5, 1),
+                value=Decimal("20.00"),
+                currency="USD",
+                source="USD-RSU",
+            ),
+        ]
+    )
+    await db.commit()
+
+    response = await client.get("/reports/package/annualized-income-schedule?as_of_date=2026-05-20")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["income"] == {
+        "annualized_salary": "100.00",
+        "annualized_bonus": "0.00",
+        "annualized_dividend": "15.00",
+        "annualized_total": "115.00",
+        "currency": "SGD",
+        "calculation_basis": "posted_or_reconciled_income_journal_lines_trailing_12_months",
+    }
+    assert data["restricted_fair_value_total"] == "30.00"
+    assert data["restricted_fair_value_total_currency"] == "SGD"
+    assert data["restricted_holdings"][0]["fair_value"] == "20.00"
+    assert data["restricted_holdings"][0]["currency"] == "USD"

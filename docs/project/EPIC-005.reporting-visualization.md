@@ -203,6 +203,7 @@ AC5.9. Supporting calculations remain owned by EPIC-011.
 |----|-----------|---------------|------|----------|
 | AC5.11.1 | Package contract marks `annualized_income_long_term` as ready and points to the schedule endpoint | `test_AC5_11_1_package_contract_marks_annualized_schedule_ready` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.11.2 | Frontend personal package page renders annualized income totals and restricted treatment from the schedule endpoint | `AC5.11.2 renders annualized income schedule values and restricted treatment` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.11.3 | Annualized income package schedule converts mixed-currency income and restricted totals into one reporting currency | `test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals` | `reporting/test_annualized_income_schedule.py` | P0 |
 
 ### AC5.12: Personal Report Package Notes and Disclosure Basis
 

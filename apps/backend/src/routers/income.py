@@ -10,6 +10,8 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.schemas.income import AnnualizedIncomeResponse
+from src.services.fx import FxRateError, convert_amount
+from src.utils import raise_bad_request
 
 router = APIRouter(prefix="/income", tags=["income"])
 
@@ -51,14 +53,27 @@ async def get_annualized_income(
         "dividend": Decimal("0.00"),
         "total": Decimal("0.00"),
     }
-    currency = settings.base_currency
+    currency = settings.base_currency.strip().upper()
     for line, account in result.all():
         signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
+        source_currency = (line.currency or account.currency or currency).strip().upper()
+        try:
+            signed_amount = await convert_amount(
+                db,
+                amount=signed_amount,
+                currency=source_currency,
+                target_currency=currency,
+                rate_date=report_date,
+                average_start=start_date,
+                average_end=report_date,
+                lazy_load=True,
+            )
+        except FxRateError as exc:
+            raise_bad_request(str(exc), cause=exc)
         bucket = _income_bucket(account.name)
         if bucket:
             totals[bucket] += signed_amount
         totals["total"] += signed_amount
-        currency = line.currency or account.currency or currency
 
     return AnnualizedIncomeResponse(
         annualized_salary=totals["salary"].quantize(Decimal("0.01")),

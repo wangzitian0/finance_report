@@ -180,7 +180,20 @@ The schedule must not mutate ledger state. It assembles existing portfolio,
 market-data, dividend, and journal-entry facts into a reporting payload that can
 be exported or embedded by EPIC-005.
 
-### 2.6 Personal Financial-Report Package Contract
+### 2.6 Annualized Income Dashboard Summary
+
+Endpoint:
+`GET /api/income/annualized`
+
+The dashboard annualized income summary uses the same trailing 365-day window
+as the package schedule. It returns salary, bonus, dividend, total income,
+currency, and as-of date for quick dashboard display.
+
+Mixed-currency income lines must be converted into the dashboard reporting
+currency before bucket and total aggregation. Non-reporting-currency income
+uses the trailing-period average FX rate for the window.
+
+### 2.7 Personal Financial-Report Package Contract
 
 Issue [#570](https://github.com/wangzitian0/finance_report/issues/570) owns the
 stable package-level API/export contract. The contract defines how existing and
@@ -262,12 +275,17 @@ Annualized income and long-term compensation schedule:
 - Income basis: `POSTED` or `RECONCILED` income journal lines in the trailing
   period, bucketed into salary, bonus, dividend, and total by income account
   name.
+- Income totals are converted into the schedule reporting currency before
+  bucket aggregation. Mixed-currency income lines must not be added at raw
+  nominal amounts. Non-reporting-currency income uses the trailing-period
+  average FX rate for the schedule window.
 - Restricted compensation basis: latest as-of manual valuation snapshots for
   `esop`, `rsu`, and `stock_options` with `liquidity_class=restricted`.
 - Liquid net worth default: restricted holdings are excluded by default and are
   only included through the balance-sheet restricted toggle.
 - Decimal fields serialize as strings; restricted fair-value totals are reported
-  in the schedule currency and do not imply cross-currency conversion.
+  in the schedule currency using the as-of FX rate. Per-holding source currency
+  remains visible.
 
 Notes and disclosures:
 
