@@ -18,7 +18,7 @@
 | Event model | `apps/backend/src/models/workflow.py` |
 | Event schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/services/workflow_events.py` |
-| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_event_contract.py` |
+| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py` |
 | Contract tests | `apps/backend/tests/workflow/test_workflow_events.py` |
 
 ---

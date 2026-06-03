@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0022_harden_workflow_event_contract"
+revision = "0022_harden_workflow_contract"
 down_revision = "0021_add_workflow_events"
 branch_labels = None
 depends_on = None
