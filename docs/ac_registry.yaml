@@ -4038,6 +4038,31 @@ groups:
         description: Primitive component tests cover variants, accessibility-facing props, and the migrated loading/error/empty
           states.
         mandatory: true
+    AC16.29:
+      - id: AC16.29.1
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Tailwind theme extension maps frontend CSS-variable tokens for semantic color, radius, shadow/elevation,
+          z-index, motion, typography, and chart palette usage.
+        mandatory: true
+      - id: AC16.29.2
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Frontend CSS and SSOT document the design-token model, including token usage rules and intentional
+          page-local visual choices such as login/dashboard gradients, shadows, and radius.
+        mandatory: true
+      - id: AC16.29.3
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Confidence and status UI components use semantic token-backed primitives instead of hardcoded Tailwind
+          palette utilities across all confidence/status variants.
+        mandatory: true
+      - id: AC16.29.4
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Frontend tests cover the token configuration contract and at least one tokenized semantic component across
+          multiple variants.
+        mandatory: true
   AC17:
     AC17.1:
       - id: AC17.1.1

@@ -1,0 +1,110 @@
+import "@testing-library/jest-dom/vitest"
+import { render, screen } from "@testing-library/react"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { describe, expect, it } from "vitest"
+
+import ConfidenceBadge from "@/components/ui/ConfidenceBadge"
+import tailwindConfig from "../../tailwind.config"
+
+const extend = tailwindConfig.theme?.extend as Record<string, unknown>
+
+describe("frontend design tokens", () => {
+  it("AC16.29.1 AC16.29.4 maps Tailwind theme values to CSS-variable design tokens", () => {
+    expect(extend.colors).toMatchObject({
+      surface: {
+        DEFAULT: "var(--background)",
+        card: "var(--background-card)",
+        muted: "var(--background-muted)",
+        overlay: "var(--overlay)",
+      },
+      content: {
+        DEFAULT: "var(--foreground)",
+        muted: "var(--foreground-muted)",
+        inverse: "var(--foreground-inverse)",
+      },
+      accent: {
+        DEFAULT: "var(--accent)",
+        hover: "var(--accent-hover)",
+        muted: "var(--accent-muted)",
+      },
+      status: {
+        success: "var(--success)",
+        warning: "var(--warning)",
+        error: "var(--error)",
+        info: "var(--info)",
+      },
+      chart: {
+        1: "var(--chart-1)",
+        5: "var(--chart-5)",
+        "trend-start": "var(--chart-trend-start)",
+      },
+    })
+
+    expect(extend.borderRadius).toMatchObject({
+      control: "var(--radius-md)",
+      panel: "var(--radius-lg)",
+    })
+    expect(extend.fontSize).toMatchObject({
+      caption: ["var(--font-size-caption)", { lineHeight: "var(--line-height-caption)" }],
+      body: ["var(--font-size-body)", { lineHeight: "var(--line-height-body)" }],
+      title: ["var(--font-size-title)", { lineHeight: "var(--line-height-title)" }],
+    })
+    expect(extend.spacing).toMatchObject({
+      page: "var(--space-page)",
+      panel: "var(--space-panel)",
+      control: "var(--space-control)",
+    })
+    expect(extend.boxShadow).toMatchObject({
+      card: "var(--shadow-card)",
+      floating: "var(--shadow-floating)",
+    })
+    expect(extend.zIndex).toMatchObject({
+      overlay: "var(--z-overlay)",
+      modal: "var(--z-modal)",
+    })
+    expect(extend.transitionDuration).toMatchObject({
+      fast: "var(--motion-duration-fast)",
+      standard: "var(--motion-duration-standard)",
+    })
+    expect(extend.transitionTimingFunction).toMatchObject({
+      standard: "var(--motion-ease-standard)",
+    })
+  })
+
+  it("AC16.29.2 AC16.29.4 documents token usage and page-local visual decisions in SSOT", () => {
+    const ssot = readFileSync(
+      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      "utf8",
+    )
+
+    expect(ssot).toContain("## 4. Design Tokens")
+    expect(ssot).toContain("### Token Families")
+    expect(ssot).toContain("### Page-Local Visual Decisions")
+    expect(ssot).toContain("Login uses the accent gradient")
+    expect(ssot).toContain("Dashboard cards and chart panels")
+  })
+
+  it("AC16.29.3 AC16.29.4 renders ConfidenceBadge variants through semantic token classes", () => {
+    const tiers = ["TRUSTED", "HIGH", "MEDIUM", "LOW"] as const
+
+    render(
+      <div>
+        {tiers.map((tier) => (
+          <ConfidenceBadge key={tier} tier={tier} />
+        ))}
+      </div>,
+    )
+
+    expect(screen.getByText("TRUSTED")).toHaveClass("badge-success")
+    expect(screen.getByText("HIGH")).toHaveClass("badge-info")
+    expect(screen.getByText("MEDIUM")).toHaveClass("badge-warning")
+    expect(screen.getByText("LOW")).toHaveClass("badge-muted")
+
+    for (const tier of tiers) {
+      const className = screen.getByText(tier).className
+      expect(className).not.toMatch(/\bbg-(green|blue|amber|gray)-/)
+      expect(className).not.toMatch(/\btext-(green|blue|amber|gray)-/)
+    }
+  })
+})
