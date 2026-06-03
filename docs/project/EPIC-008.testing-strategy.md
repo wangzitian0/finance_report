@@ -120,6 +120,9 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.73**: VPS host hygiene is a Dokploy server schedule that prunes generic Docker and journal garbage while keeping PR preview resources from the last 3 days or the most recent 3 PRs.
 - **AC8.13.74**: Scheduled PR preview cleanup is limited to closed-PR reconciliation and no longer owns generic host hygiene.
 - **AC8.13.75**: Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail.
+- **AC8.13.83**: Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs.
+- **AC8.13.84**: Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline.
+- **AC8.13.85**: Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix.
 
 ### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
 
@@ -512,6 +515,9 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.80 | AC coverage analysis supports no-write and stale-report check modes for local verification | `test_AC8_13_80_*` | `tests/tooling/test_analyze_test_ac_coverage.py` | P0 |
 | AC8.13.81 | Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values | `test_AC8_13_81_*` | `tests/tooling/test_lint_doc_consistency.py` | P1 |
 | AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.12.3`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC8.13.83 | Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs | `test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+| AC8.13.84 | Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline | `test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+| AC8.13.85 | Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix | `test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
@@ -618,7 +624,7 @@ finance_report AC coverage.
 ### 5.4 Known Gaps
 
 0. **Personal Financial Report Package Post-Merge E2E**:
-   - **Status**: ✅ Implemented under [#565](https://github.com/wangzitian0/finance_report/issues/565) with `test_personal_financial_report_package_post_merge_journey`
+   - **Status**: ✅ Covered under [#573](https://github.com/wangzitian0/finance_report/issues/573) with `test_personal_financial_report_package_post_merge_journey`
    - **Scope**: Fresh-user post-merge proof that generates one personal report package from trusted source data and verifies statements, schedules, notes, and source traceability.
    - **Proof**: `critical-proof-matrix.yaml` -> `personal-financial-report-package-post-merge`
    - **Execution contract**: Because the proof carries the `llm` marker, both `.github/workflows/staging-deploy.yml` and `.github/workflows/staging-ai-ocr-gate.yml` must include the personal financial report package test in the serialized AI/OCR gate command and audit inventory.
@@ -629,7 +635,7 @@ finance_report AC coverage.
      4. Representative fixture contract: [#573](https://github.com/wangzitian0/finance_report/issues/573)
    - **Prerequisite fixture**: [#573](https://github.com/wangzitian0/finance_report/issues/573) owns the representative fresh-user fixture contract: bank cash, income/expense activity, brokerage holdings, market prices, dividends, manual valuation, liability, restricted holdings, reviewed sources, exact expected totals, notes, and traceability anchors.
    - **Contract dependencies**: [#570](https://github.com/wangzitian0/finance_report/issues/570) owns section/API shape, [#571](https://github.com/wangzitian0/finance_report/issues/571) owns notes/disclosures, and [#572](https://github.com/wangzitian0/finance_report/issues/572) owns the traceability appendix.
-   - **Closure rule**: Partial. `personal-financial-report-package` points to `personal-financial-report-package-post-merge` as its baseline proof, and remains `partial` in `docs/ssot/critical-proof-matrix.yaml` until #573 closes.
+   - **Closure rule**: Covered. `personal-financial-report-package` points to `personal-financial-report-package-post-merge`, which now consumes the representative fixture contract and carries AC8.13.83-AC8.13.85 in `docs/ssot/critical-proof-matrix.yaml`.
 
 1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
    - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)

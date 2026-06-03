@@ -7,14 +7,14 @@ description: >
 outcomes:
   - id: personal-financial-report-package
     question: "Can I generate one auditable personal financial-report package with statements, schedules, notes, and source traceability?"
-    status: partial
+    status: covered
     owner_epics:
       - EPIC-005
       - EPIC-008
       - EPIC-011
       - EPIC-017
       - EPIC-018
-    issue: "#563"
+    issue: "#567"
     proof_ids:
       - personal-financial-report-package-post-merge
 
@@ -164,7 +164,7 @@ proofs:
   - id: personal-financial-report-package-post-merge
     scope: behavioral
     ci_tier: post_merge_environment
-    issue: "#565"
+    issue: "#573"
     file: tests/e2e/test_personal_financial_report_package.py
     test: test_personal_financial_report_package_post_merge_journey
     required_markers:
@@ -188,3 +188,6 @@ proofs:
       - AC11.11.2
       - AC17.10.1
       - AC17.10.2
+      - AC8.13.83
+      - AC8.13.84
+      - AC8.13.85
