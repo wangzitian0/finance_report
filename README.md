@@ -38,13 +38,13 @@ from project intent to executable proof without reading archive fragments.
 
 | Layer | Owner | What It Shows | Proof / Guard |
 |---|---|---|---|
-| Project entry | `README.md` | EPIC map, tracker entry points, and generated proof links | `docs/analysis/test-ac-coverage-report.md` |
+| Project entry | `README.md` | EPIC map, tracker entry points, and proof commands | `tools/check_ac_traceability.py` |
 | Decision filter | `vision.md` | Direction for ambiguous product and architecture choices | Referenced by EPIC vision anchors |
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
 | EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
 | AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, `docs/ac_registry_overrides.yaml` | Generated acceptance criteria inventory and explicit non-derived overrides | `tools/generate_ac_registry.py --check` |
 | SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `tools/check_ssot_ownership.py` |
-| Testing proof | `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json` | Checked-in AC-to-test snapshot and coverage baseline | `tools/check_ac_traceability.py`, `tools/check_coverage_policy.py` |
+| Testing proof | CI traceability artifact, `unified-coverage.json` | AC-to-test proof and coverage baseline | `tools/check_ac_traceability.py`, `tools/check_coverage_policy.py` |
 
 Implementation facts should be code-owned where possible. Prose SSOT documents
 explain rationale and link to code, tests, generated registries, or issues
@@ -58,8 +58,8 @@ change whenever registries, tests, or coverage baselines change.
 
 Use these sources instead:
 
-- Checked-in AC coverage snapshot: `docs/analysis/test-ac-coverage-report.md`
 - Live local AC coverage: `python tools/analyze_test_ac_coverage.py --no-write --stdout`
+- Optional regenerated AC coverage snapshot: `python tools/analyze_test_ac_coverage.py`
 - Traceability gate: `python tools/check_ac_traceability.py`
 - E2E EPIC closure gate: `python tools/check_e2e_epic_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
@@ -244,7 +244,7 @@ migration path is tracked in
 | [vision.md](vision.md) | Decision filter and long-term direction |
 | [docs/project/](docs/project/) | EPIC documents and project audits |
 | [docs/ssot/](docs/ssot/) | Rationale docs, code-owner links, proof references |
-| [docs/analysis/test-ac-coverage-report.md](docs/analysis/test-ac-coverage-report.md) | Generated AC-to-test coverage report |
+| `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
 | [docs/agents/](docs/agents/) | Agent workflow and red-line rules |
 
 ## License

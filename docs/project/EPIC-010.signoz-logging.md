@@ -156,15 +156,6 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.8.3 | Brokerage import and reconciliation emit start/complete/failure audit checkpoints with result counts | `test_AC10_8_3_statement_scoped_brokerage_import_audit_logs()`, `test_AC10_8_3_brokerage_import_audit_checkpoints()`, `test_AC10_8_3_reconciliation_run_audit_checkpoints()` | `api/test_statements_router.py`, `extraction/test_statement_parsing_audit_logging.py`, `reconciliation/test_reconciliation_router_additional.py` | P0 |
 | AC10.8.4 | High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs | `test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level()` | `infra/test_observability_contract.py` | P1 |
 
-**Traceability Result**:
-- Total AC IDs: 22 (AC10.2.1, AC10.3.1, AC10.3.2 removed as duplicates of EPIC-012 canonical ACs)
-- Requirements converted to AC IDs: 100% (EPIC-010 checklist + must-have standards)
-- Requirements with implemented test references: 100% (contract tests cover config, docs, templates, and logger behavior)
-- Test files: 5
-- Note: Staging/production SigNoz UI checks remain operational smoke verification outside the AC contract suite
-
----
-
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.

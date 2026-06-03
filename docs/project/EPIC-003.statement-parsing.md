@@ -196,14 +196,6 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | AC3.8.12 | Continue runner after unexpected sweep exception | `test_run_storage_sweep_handles_exception` | `services/test_storage_sweep.py` | P1 |
 | AC3.8.13 | Disable runner by feature flag | `test_run_storage_sweep_disabled_by_feature_flag` | `services/test_storage_sweep.py` | P1 |
 
-**Traceability Result**:
-- Total AC IDs: 35
-- Requirements converted to AC IDs: 100% (EPIC-003 checklist + must-have standards)
-- Requirements with test references: 100%
-- Test files: 9
-
----
-
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

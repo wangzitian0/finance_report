@@ -51,9 +51,13 @@ E2E coverage is measured across three tiers of increasing fidelity:
 | **Tier 3** | Browser E2E | Playwright | Staging | Full UI→API→DB user journey |
 
 **Coverage accounting rules:**
-- An AC counts as "covered" when it has a **passing Tier 1+ test** that exercises the real code path (not a mock/stub).
-- Tier 2/3 tests that `skip` due to missing env vars (e.g., `FRONTEND_URL`) do NOT count toward coverage.
-- The **AC pass rate** = (ACs with at least one passing Tier 1+ test) / (Total ACs).
+- An AC counts as "covered" for traceability when it has a qualifying real test
+  reference in a CI-required execution stage, not a mock/stub placeholder.
+- Tier 2/3 tests that `skip` due to missing env vars (e.g., `FRONTEND_URL`) do
+  not count toward mandatory proof unless they are mapped to a required CI stage
+  and run under that stage's strict gate.
+- The AC coverage rate is generated from registry and test references; it is not
+  a line-coverage percentage and not a replacement for CI pass/fail status.
 - CI source coverage uses the shared coverage policy in `common/coverage/policy.py`. New backend, frontend, common, and tools modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
 - **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
 - **AC8.13.16**: CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache.
@@ -156,7 +160,7 @@ Integration tests and E2E tests are intentionally different in this project:
 AC rates are generated on each CI run from `python tools/analyze_test_ac_coverage.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
 
 Current test and AC coverage status is generated, not hand-maintained here.
-Use `docs/analysis/test-ac-coverage-report.md`,
+Use `python tools/analyze_test_ac_coverage.py --no-write --stdout`,
 `docs/analysis/ac-epic-mismatch-report.md`, and CI artifacts for live proof
 counts.
 
@@ -182,123 +186,21 @@ To ensure deterministic and controllable tests for Phase 3 (Import/Parsing), we 
 
 ---
 
-## 3. Core Use Cases (100 Scenarios)
+## 3. Core Proof Paths
 
-These scenarios represent the "Vertical Slices" of user value.
+The old hand-written 100-scenario checklist was removed from this EPIC because
+it duplicated executable E2E tests and drifted from CI execution. Current macro
+proof is managed by:
 
-### Phase 1: Onboarding & Account Structure (1-10)
-- [x] **New User Registration**: User signs up with email/password, verifies email, and lands on dashboard. *(test_core_journeys.py::test_register_and_login_flow)*
-- [ ] **Setup Base Currency**: User selects SGD as base currency during onboarding.
-- [x] **Create Cash Account**: User creates a "Wallet" asset account (SGD). *(test_core_journeys.py::test_create_cash_account)*
-- [x] **Create Bank Account**: User creates a "DBS Savings" asset account (SGD). *(test_core_journeys.py::test_create_bank_account)*
-- [ ] **Create Credit Card**: User creates a "Citi Rewards" liability account (SGD).
-- [ ] **Create Multi-currency Account**: User creates a "Wise USD" asset account (USD).
-- [ ] **Define Custom Expense Category**: User adds "Coffee Subscription" under "Expenses".
-- [ ] **Define Income Source**: User adds "Freelance Design" under "Income".
-- [ ] **Archive Account**: User archives an old "Student Account" (hidden from lists).
-- [ ] **Reactivate Account**: User restores the "Student Account" for historical reference.
+| Proof layer | Owner |
+|---|---|
+| README macro outcomes and owner EPIC declarations | `README.md`, EPIC `Macro Proof Ownership` sections |
+| Critical E2E proof paths | [critical-proof-matrix.yaml](../ssot/critical-proof-matrix.yaml) |
+| Product E2E function ownership | `tools/check_e2e_epic_traceability.py` |
+| AC proof and placeholder/stub exclusion | `tools/check_ac_traceability.py`, CI traceability artifact |
 
-### Phase 2: Manual Journal Entries (11-30)
-- [x] **Simple Expense**: User pays $5.00 for coffee using "Wallet" (Manual Entry). *(test_core_journeys.py::test_simple_expense_entry)*
-- [x] **Income Recording**: User records $5,000 salary deposit into "DBS Savings". *(test_core_journeys.py::test_income_recording)*
-- [x] **Credit Card Spend**: User buys a laptop ($2,000) using "Citi Rewards". *(test_core_journeys.py::test_credit_card_spend)*
-- [x] **Credit Card Repayment**: User pays off "Citi Rewards" ($2,000) from "DBS Savings". *(test_core_journeys.py::test_credit_card_repayment)*
-- [x] **Internal Transfer**: User moves $500 from "DBS Savings" to "Wallet" (ATM Withdrawal). *(test_core_journeys.py::test_internal_transfer)*
-- [x] **Split Transaction**: User spends $100 at supermarket: $80 "Groceries", $20 "Household" (1 Debit, 2 Credits). *(test_core_journeys.py::test_split_transaction)*
-- [ ] **Refund Processing**: User receives $50 refund to "Citi Rewards" for returned item.
-- [ ] **Foreign Expense (Manual FX)**: User spends 10 USD on "Wise USD", records as 13.50 SGD equivalent.
-- [x] **Void Entry**: User voids a duplicate coffee transaction (System generates reversal). *(test_core_journeys.py::test_void_journal_entry)*
-- [x] **Post Draft**: User saves a complex entry as "Draft", reviews later, and "Posts" it. *(test_core_journeys.py::test_post_draft_entry)*
-- [ ] **Recurring Subscription**: User sets up monthly $15 Netflix bill (Template/Copy).
-- [ ] **Asset Purchase**: User buys a car, recording asset increase and loan liability increase.
-- [ ] **Depreciation Entry**: User manually records monthly depreciation for the laptop.
-- [ ] **Dividend Income**: User records stock dividend received in "DBS Savings".
-- [ ] **Tax Payment**: User records income tax payment from "DBS Savings".
-- [ ] **Loan Interest**: User records monthly mortgage payment (Split: Principal + Interest).
-- [ ] **Gift Received**: User records cash gift into "Wallet".
-- [ ] **Lost Cash**: User records "Misc Expense" for lost $10 note.
-- [ ] **Opening Balance**: User sets initial balance for "DBS Savings" (Equity adjustment).
-- [ ] **Year-End Closing**: User (symbolically) reviews P&L reset (though system is continuous).
-
-### Phase 3: Statement Import & Parsing (31-50)
-- [ ] **Import DBS CSV**: User uploads standard DBS CSV; system parses date, amount, description.
-- [ ] **Import Citi PDF**: User uploads Citi PDF; system extracts transaction table.
-- [ ] **Import Wise JSON**: User uploads custom JSON export from Wise.
-- [ ] **Duplicate Detection**: User uploads same DBS CSV twice; system rejects duplicates.
-- [ ] **Malformed File Handling**: User uploads corrupted CSV; system shows friendly error.
-- [ ] **Date Format Handling**: System correctly parses DD/MM/YYYY vs MM/DD/YYYY based on settings.
-- [ ] **Multi-page PDF**: System parses PDF statement spanning 3 pages.
-- [ ] **Ignored Lines**: System ignores "Opening Balance" and "Closing Balance" rows in CSV.
-- [ ] **Currency Detection**: System detects USD currency in statement metadata.
-- [ ] **Unknown Format**: User uploads unsupported bank format; system asks for mapping.
-- [ ] **Map Columns**: User manually maps "Trans Date", "Debit", "Credit" columns for new CSV.
-- [ ] **Preview Parsing**: User previews parsed data before confirming import.
-- [ ] **Cancel Import**: User cancels import after previewing errors.
-- [ ] **Partial Success**: System imports 98 records, flags 2 for review (ambiguous).
-- [ ] **Large File**: User uploads 5MB CSV (5000 rows); system processes async.
-- [ ] **Encoding Handling**: System correctly handles UTF-8 chars in merchant names (e.g., café).
-- [ ] **Negative Values**: System handles "-$50.00" as outflow correctly.
-- [ ] **Positive Outflows**: System handles "(50.00)" format as outflow.
-- [ ] **Description Cleaning**: System trims whitespace and "CARD TRANS" prefixes.
-- [ ] **Delete Import**: User deletes an entire imported batch (cascades to raw lines).
-
-### Phase 4: Reconciliation Engine (51-75)
-- [ ] **Auto-Match Exact**: System auto-matches import ($50, 1/1) with manual entry ($50, 1/1).
-- [ ] **Auto-Match Near Date**: System matches import ($50, 1/2) with manual entry ($50, 1/1) (Score > 85).
-- [ ] **Manual Match Suggestion**: System suggests pairing import ($50) with entry ($50) despite 4-day gap.
-- [ ] **Create from Statement (Simple)**: User clicks "Create" on unmatched import; pre-fills date/amount.
-- [ ] **Create from Statement (Rule)**: "Netflix" import auto-categorizes to "Subscriptions" via rule.
-- [ ] **One-to-Many Match**: User matches 1 bank withdrawal ($100) to 2 manual expense entries ($40 + $60).
-- [ ] **Many-to-One Match**: User matches 2 bank charges ($10 + $0.50 fee) to 1 manual entry ($10.50).
-- [ ] **Bank Fee Adjustment**: User accepts match with $0.10 difference; system creates "Bank Fee" entry.
-- [ ] **FX Variance Adjustment**: User matches USD import to SGD entry; system calculates FX Gain/Loss.
-- [ ] **Unmatch**: User detaches a reconciled link; status reverts to "Pending".
-- [ ] **Bulk Accept**: User selects 10 "High Confidence" matches and accepts all.
-- [ ] **Ignore Transaction**: User marks a "Bank Error" line as "Ignored" (excludes from recon).
-- [ ] **Reconcile Period**: User "Locks" reconciliation up to Jan 31st.
-- [ ] **Modify Reconciled Entry**: User tries to edit amount of reconciled entry -> **Blocked/Warning**.
-- [ ] **Void Reconciled Entry**: User voids reconciled entry; system warns to unmatch first.
-- [x] **Recon Progress Bar**: User sees "85% Reconciled" for Jan statement. *(test_core_journeys.py::test_reconciliation_stats)*
-- [ ] **Filter Unreconciled**: User filters view to show only unmatched manual entries.
-- [ ] **Search Statement**: User searches "Starbucks" in statement lines.
-- [ ] **Review Low Confidence**: User reviews a 60% match score (wrong date?) and rejects it.
-- [ ] **Rule Creation**: User creates "If description contains 'Uber', set category 'Transport'".
-- [ ] **Rule Application**: System applies new rule to existing unmatched history.
-- [ ] **Rule Conflict**: System picks specific rule ("Uber Eats" -> Food) over generic ("Uber" -> Transport).
-- [ ] **Cross-Month Match**: Matching Jan 31 transaction with Feb 1st bank clear.
-- [ ] **Duplicate Warning**: System warns if user tries to link import to already linked entry.
-- [ ] **Force Match**: User manually links two totally different records (Admin override).
-
-### Phase 5: Reporting & Visualization (76-90)
-- [x] **View Balance Sheet**: User views BS as of today; sees Assets = Liab + Equity. *(test_core_journeys.py::test_balance_sheet_report)*
-- [x] **View Income Statement**: User views P&L for "Last Month". *(test_core_journeys.py::test_income_statement_report)*
-- [ ] **Drill Down**: User clicks "Food" in P&L -> sees list of food transactions.
-- [ ] **Trend Analysis**: User views "6 Month Expense Trend" bar chart.
-- [ ] **Category Pie Chart**: User sees "Where my money went" breakdown.
-- [ ] **Net Worth Tracking**: User views line chart of Net Worth over 1 year.
-- [ ] **Savings Rate**: System calculates (Income - Expense) / Income %.
-- [x] **Cash Flow Report**: User views Operating vs Investing vs Financing flows. *(test_core_journeys.py::test_cash_flow_report)*
-- [ ] **Multi-currency Report**: User views BS in SGD (USD assets converted at closing rate).
-- [ ] **Export PDF**: User downloads P&L as PDF.
-- [ ] **Export CSV**: User downloads raw transaction list for Excel.
-- [ ] **Filter by Tag**: User generates report for tag "#Holiday2025".
-- [ ] **Compare Periods**: User compares Jan 2026 vs Dec 2025.
-- [ ] **Unrealized Gains**: User views report showing FX impact on USD accounts.
-- [ ] **Missing Data Warning**: Report warns "Jan 2026 not fully reconciled".
-
-### Phase 6: AI Advisor & Smart Features (91-100)
-- [ ] **Ask Balance**: User asks "How much cash do I have?"; AI queries BS.
-- [ ] **Ask Spending**: User asks "How much did I spend on food?"; AI queries P&L.
-- [ ] **Spending Insight**: AI suggests "Your food spend is 20% higher than last month."
-- [ ] **Anomaly Detection**: AI alerts "Duplicate subscription detected?".
-- [ ] **Categorization Help**: AI suggests "Expenses:Software" for "Github" transaction.
-- [ ] **Budget Advice**: User asks "Can I afford a PS5?"; AI checks Free Cash Flow.
-- [ ] **Investment Check**: User asks "What is my asset allocation?"; AI summarizes.
-- [ ] **Privacy Guard**: User asks AI for full account number; AI refuses (Redacted).
-- [ ] **Context History**: User asks "What about last month?" (follows up on previous Q).
-- [ ] **Disclaimer**: AI response includes "Not financial advice" footer.
-
----
+New scenario coverage must be added as ACs plus tests or as critical proof
+matrix rows, not as another prose scenario checklist.
 
 ## 4. Implementation Notes
 
@@ -309,9 +211,10 @@ These scenarios represent the "Vertical Slices" of user value.
 - **Test Data**: `tools/generate_pdf_fixtures.py` (ReportLab) for generating PDF inputs.
 
 ### 4.2 CI/CD Integration
-- **PR Check**: Run Unit + Integration + Phase 1-3 E2E subset.
-- **Staging Deploy**: Run Full E2E (All 100 scenarios if feasible, or critical 50).
-- **Prod Deploy**: Run Smoke Tests (Read-only).
+
+CI execution shape is owned by [ci-cd.md](../ssot/ci-cd.md), workflows, and
+[test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml). Do not copy
+job inventories or scenario counts into this EPIC.
 
 ---
 
@@ -527,8 +430,8 @@ These scenarios represent the "Vertical Slices" of user value.
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
-  owned by [the generated coverage report](../analysis/test-ac-coverage-report.md)
-  and `python tools/analyze_test_ac_coverage.py --no-write --stdout`.
+  owned by `python tools/analyze_test_ac_coverage.py --no-write --stdout` and
+  CI traceability artifacts.
 - Mandatory AC gate behavior is owned by `python tools/check_ac_traceability.py`.
 - Test path execution status for AC proof is owned by
   [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml).
@@ -545,139 +448,67 @@ Current test counts and coverage percentages belong to generated reports and CI
 artifacts, not this EPIC. This section records which suites are allowed to
 serve as E2E proof surfaces.
 
-### 5.1 E2E Test Files
+### 5.1 E2E Proof Surface Ownership
 
-| File | Role | AC Ownership |
-|------|------|--------------|
-| `apps/backend/tests/e2e/test_core_journeys.py` | Backend Tier 1 scenario/API coverage | AC8.1-AC8.10 |
-| `apps/backend/tests/e2e/test_auth_flows.py` | Backend auth flow coverage | AC8.2, AC8.7 |
-| `apps/backend/tests/e2e/test_e2e_flows.py` | Backend report/navigation flow coverage | AC8.2, AC8.6 |
-| `tests/e2e/test_statement_upload_e2e.py` | Statement upload readiness E2E | AC8.4.2, AC8.4.3 |
-| `tests/e2e/test_statement_full_journey.py` | Full statement hard gate | AC8.13.1-AC8.13.8 |
-| `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Brokerage portfolio hard gate | AC8.13.10, AC8.13.18, AC8.13.19 |
-| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Deterministic upload-to-dashboard hard gate | AC8.13.28-AC8.13.32 |
-| `tests/e2e/test_personal_financial_report_package.py` | Personal financial report package post-merge proof | AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4, AC5.13.5, AC11.8.3, AC11.9.1, AC11.9.2, AC11.9.3, AC11.11.1, AC11.11.2, AC17.10.1, AC17.10.2, AC8.13.83, AC8.13.84, AC8.13.85, AC8.13.87, AC8.13.88 |
-| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Four-asset net-worth hard gate | AC8.13.42, AC8.13.10, AC5.7.3, AC11.9.1, AC11.9.2, AC11.9.3, AC17.5.4 |
-| `tests/e2e/test_market_data_price_paths.py` | Provider-backed market-data price path gate | AC11.10.7, AC11.10.11 |
-| `tests/e2e/test_production_readonly_smoke.py` | Production-safe read-only smoke | AC8.13.9 |
-| `tests/e2e/test_core_journeys.py` | Supplemental post-merge API smoke | AC8.1, AC8.3, AC8.4, AC8.7, AC8.8, AC8.10, AC1.5, AC6.5, AC6.11 |
-| `tests/e2e/test_e2e_flows.py` | Supplemental browser route/auth smoke | AC8.13.9, AC8.10.8, AC16.12.6, AC1.7.1 |
-| `tests/e2e/test_auth_flows.py` | Supplemental frontend auth/API-path smoke | AC8.10.8, AC8.10.9, AC16.12.5, AC16.12.6, AC1.7.1 |
-| `tests/e2e/test_version_check.py` | Deployment version smoke | AC8.13.36, AC8.13.39 |
+E2E file inventories and Tier-1 test-to-AC mappings are generated or validated
+by tooling instead of being copied into this EPIC:
+
+| Fact | Owner |
+|---|---|
+| Test path -> execution stage mapping | [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
+| Product E2E function -> EPIC ownership | `tools/check_e2e_epic_traceability.py` |
+| Mandatory AC proof eligibility | `tools/check_ac_traceability.py` |
+| Critical macro outcome proof | [critical-proof-matrix.yaml](../ssot/critical-proof-matrix.yaml) |
+
+Product E2E ownership index:
+
+| File | Ownership anchor |
+|---|---|
+| `apps/backend/tests/e2e/test_auth_flows.py` | Backend auth flow E2E; AC references live in the test file |
+| `apps/backend/tests/e2e/test_core_journeys.py` | Backend core journey E2E; AC8.1-AC8.12 references live in the test file |
+| `apps/backend/tests/e2e/test_e2e_flows.py` | Backend extended flow E2E; AC references live in the test file |
+| `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
+| `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC8.13.10 |
+| `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |
+| `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |
+| `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC8.13.42, AC8.13.10, AC5.7.3, AC11.9.1-AC11.9.3, AC17.5.4 |
+| `tests/e2e/test_market_data_price_paths.py` | Critical proof: AC11.10.7, AC11.10.11 |
+| `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC5.1.1, AC5.1.4, AC5.2.3, AC5.3.1, AC5.8.1, AC5.12.4, AC5.13.4-AC5.13.5, AC11.8.3, AC11.9.1-AC11.9.3, AC11.11.1-AC11.11.2, AC17.10.1-AC17.10.2, AC8.13.83-AC8.13.85, AC8.13.87-AC8.13.88 |
+| `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
+| `tests/e2e/test_statement_full_journey.py` | Critical proof: AC8.13.1-AC8.13.5 |
+| `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
+| `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
+| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC8.13.28-AC8.13.32 |
 
 Product E2E files under `tests/e2e/test_*.py` and
 `apps/backend/tests/e2e/test_*.py` must carry AC references directly. They are
 not eligible for `docs/analysis/traceability-exceptions.md`; only fixtures and
-shared harness files such as `tests/e2e/conftest.py` may use that exception
-path. The `repo/e2e_regressions/` tree belongs to the `repo/` infra2 submodule
-and is managed by the infrastructure submodule sync process, not by
-finance_report AC coverage.
+shared harness files may use that exception path. The `repo/e2e_regressions/`
+tree belongs to the `repo/` infra2 submodule and is managed by the infrastructure
+submodule sync process.
 
-### 5.2 Tier 1 Test -> AC Mapping (Complete)
+### 5.3 CI/CD Integration Ownership
 
-| Test Function | ACs Covered | Description |
-|---------------|-------------|-------------|
-| `test_api_health_check` | AC8.1.1, AC8.8.1 | GET /health returns 200 |
-| `test_create_cash_account` | AC8.2.2 | Create Wallet asset account |
-| `test_create_bank_account` | AC8.2.3 | Create DBS Savings asset account |
-| `test_update_account` | AC8.2.4 | Update account name |
-| `test_delete_account` | AC8.2.5 | Delete account + verify 404 |
-| `test_accounts_crud_api` | AC8.8.2 | Full CRUD: create/list/get/update |
-| `test_simple_expense_entry` | AC8.3.1 | $5 coffee with Expense+Asset accounts |
-| `test_void_journal_entry` | AC8.3.2 | Post then void with reason |
-| `test_post_draft_entry` | AC8.3.3 | Draft → posted status transition |
-| `test_unbalanced_journal_entry_rejection` | AC8.3.4 | 422 on unbalanced schema validation |
-| `test_journal_entry_crud` | AC8.3.5, AC8.8.3 | Create/read/list/delete lifecycle |
-| `test_reconciliation_engine_runs` | AC8.5.1, AC8.8.5 | POST /reconciliation/run |
-| `test_reconciliation_stats` | AC8.5.2 | GET /reconciliation/stats |
-| `test_balance_sheet_report` | AC8.6.1, AC8.8.4 | GET /reports/balance-sheet |
-| `test_income_statement_report` | AC8.6.2 | GET /reports/income-statement with date params |
-| `test_cash_flow_report` | AC8.6.3 | GET /reports/cash-flow with date params |
-| `test_reports_currencies_endpoint` | AC8.6.1 (supp) | GET /reports/currencies |
-| `test_api_authentication_failures` | AC8.7.1 | Login with invalid creds |
-| `test_unauthorized_access_blocked` | AC8.7.2 | public_client hits 401 on 3 endpoints |
-| `test_user_session_management` | AC8.7.3 | GET /auth/me returns user info |
-| `test_register_and_login_flow` | AC8.2.1, AC8.7.1 (supp) | Register → Login via public_client |
-| `test_backend_service_reachable` | AC8.1.2 | Backend health + version info |
-| `test_frontend_api_proxy_reachable` | AC8.1.3 | Frontend API proxy connectivity |
-| `test_database_connectivity` | AC8.1.4 | DB round-trip via account create |
-| `test_statement_upload_csv` | AC8.4.1, AC8.10.4 | CSV statement upload → 202 accepted |
-| `test_statement_list_and_get` | AC8.4.2 | List + get individual statement |
-| `test_statement_full_flow` | AC8.4.3 | Upload → list → get → approve flow |
-| `test_reconciliation_match_acceptance` | AC8.5.3 | Run recon + check matches/unmatched |
-| `test_report_navigation_all_endpoints` | AC8.6.4 | All 4 report endpoints return 200 |
-| `test_pr_workflow_runs_e2e_tests` | AC8.9.1 | pr-test.yml contains E2E step |
-| `test_smoke_tests_integrated` | AC8.9.2 | smoke_test.sh exists and is executable |
-| `test_critical_test_check_in_workflow` | AC8.9.3 | pr-test.yml references critical tests |
-| `test_environment_isolation` | AC8.9.4 | pr-test.yml uses BRANCH_NAME isolation |
-| `test_traceability_health_endpoint` | AC8.10.1 | Dedicated: GET /health |
-| `test_traceability_user_can_create_account` | AC8.10.2 | Dedicated: POST /accounts |
-| `test_traceability_user_can_create_journal_entry` | AC8.10.3 | Dedicated: POST /journal/entries |
-| `test_traceability_reconciliation_engine` | AC8.10.5 | Dedicated: POST /reconciliation/run |
-| `test_traceability_unbalanced_entry_rejected` | AC8.10.6 | Dedicated: 400 on unbalanced |
-| `test_traceability_reports_api` | AC8.10.7 | Dedicated: GET /reports/balance-sheet |
-| `test_traceability_user_registration` | AC8.10.8 | Dedicated: POST /auth/register |
-| `test_traceability_authentication_validation` | AC8.10.9 | Dedicated: invalid login → 400/401 |
-
-### 5.3 CI/CD Integration Status
-
-- ✅ **PR Workflow**: `.github/workflows/pr-test.yml` runs E2E tests on every PR
-- ✅ **Smoke Tests**: `tools/smoke_test.sh` integrated into PR pipeline
-- ✅ **Critical Proof Check**: `tools/check_critical_proof_matrix.py` validates core proof matrix results
-- ✅ **Environment Isolation**: Each PR gets isolated DB/Redis/MinIO via Dokploy
+Workflow status is not hand-maintained here. CI structure, smoke-test placement,
+critical proof checks, and environment isolation are owned by
+[ci-cd.md](../ssot/ci-cd.md), `.github/workflows/*.yml`, and the corresponding
+tooling tests.
 
 ### 5.4 Known Gaps
 
-0. **Personal Financial Report Package Post-Merge E2E**:
-   - **Status**: ✅ Covered under [#573](https://github.com/wangzitian0/finance_report/issues/573) with `test_personal_financial_report_package_post_merge_journey`
-   - **Scope**: Fresh-user post-merge proof that generates one personal report package from trusted source data and verifies statements, schedules, notes, and source traceability.
-   - **Proof**: `critical-proof-matrix.yaml` -> `personal-financial-report-package-post-merge`
-   - **Execution contract**: Because the proof carries the `llm` marker, both `.github/workflows/staging-deploy.yml` and `.github/workflows/staging-ai-ocr-gate.yml` must include the personal financial report package test in the serialized AI/OCR gate command and audit inventory.
-   - **Dependency sequence**:
-     1. Foundation contract: [#570](https://github.com/wangzitian0/finance_report/issues/570)
-     2. Package content inputs: [#564](https://github.com/wangzitian0/finance_report/issues/564), [#566](https://github.com/wangzitian0/finance_report/issues/566)
-     3. Explanatory output layers: [#571](https://github.com/wangzitian0/finance_report/issues/571), [#572](https://github.com/wangzitian0/finance_report/issues/572)
-     4. Representative fixture contract: [#573](https://github.com/wangzitian0/finance_report/issues/573)
-   - **Prerequisite fixture**: [#573](https://github.com/wangzitian0/finance_report/issues/573) owns the representative fresh-user fixture contract: bank cash, income/expense activity, brokerage holdings, market prices, dividends, manual valuation, liability, restricted holdings, reviewed sources, exact expected totals, notes, and traceability anchors.
-   - **Contract dependencies**: [#570](https://github.com/wangzitian0/finance_report/issues/570) owns section/API shape, [#571](https://github.com/wangzitian0/finance_report/issues/571) owns notes/disclosures, and [#572](https://github.com/wangzitian0/finance_report/issues/572) owns the traceability appendix.
-   - **Closure rule**: Covered. `personal-financial-report-package` points to `personal-financial-report-package-post-merge`, which now consumes the representative fixture contract and carries AC8.13.83-AC8.13.85 in `docs/ssot/critical-proof-matrix.yaml`. #649 hardened the same proof with AC8.13.87-AC8.13.88 for pinned brokerage, dividend, market-price, and dynamic traceability identifier assertions.
+Known testing gaps are not maintained as detailed status narratives here. Use
+these owners instead:
 
-1. **Statement Upload Parsing** (`test_statement_upload_e2e.py`):
-   - **Status**: ✅ Fixed (Tier 3 assertion now blocks immediate AI/OCR rejection)
-   - **Change**: Test validates upload success, statement visibility, and rejects `status=rejected` as an AI/OCR readiness failure
-   - **Note**: Full parsed transaction assertions live in `test_statement_full_journey.py`, the deploy-blocking hard gate
-   - **Result**: Upload-only E2E can remain lightweight while still catching provider/config failure before full journey polling
+| Gap type | Owner |
+|---|---|
+| Personal report package proof contract | [critical-proof-matrix.yaml](../ssot/critical-proof-matrix.yaml), #573/#649, `tests/tooling/test_personal_report_package_fixture_contract.py` |
+| Provider-backed staging AI/OCR gates | [ci-cd.md](../ssot/ci-cd.md), staging workflow artifacts |
+| Manual-verification treatment | [issue #454](https://github.com/wangzitian0/finance_report/issues/454) |
+| Generated README/project metrics | [issue #455](https://github.com/wangzitian0/finance_report/issues/455) |
+| Future observability, visual regression, and performance gates | AC8.13.61-AC8.13.63 |
 
-2. **Full Statement Journey (Tier 3)** (`test_statement_full_journey.py`):
-   - **Status**: Implemented hard gate — requires `APP_URL` pointing to a running frontend+backend
-   - **Coverage**: AC8.13.1–5 (PDF upload, parse polling, transactions, approve, balance sheet)
-   - **Hard-gate rule**: When `STRICT_E2E_GATES=true`, critical E2E skips are converted to failures; `status=rejected` fails instead of skips and reports the statement id, validation error, parsing progress, confidence, and selected model. The separate post-merge `Staging AI/OCR Gate` is the provider-backed AI/OCR gate.
-   - **Provider budget rule**: Tests marked `llm` run serially in the AI/OCR gate, not under the staging deploy `-n 4` parallel phase. PR preview E2E excludes `llm` tests and does not inject `ZAI_API_KEY`, so automated GLM/OCR provider calls are centralized in the staging AI/OCR gate. Every critical `post_merge_environment` proof in `critical-proof-matrix.yaml` that carries `llm` must be listed in both `.github/workflows/staging-deploy.yml` and `.github/workflows/staging-ai-ocr-gate.yml`. Staging pins `PRIMARY_MODEL=glm-5.1`, `OCR_MODEL=glm-4.6v`, and `VISION_MODEL=glm-4.6v` for the AI/OCR gate. The gate waits for the same SHA's `CI` push run to succeed before spending provider quota.
-   - **Fast-fail guardrail**: Staging post-merge workflows use GitHub concurrency without canceling a running validation. GitHub retains one running run and one latest pending run per group, so rapid pushes are batched to the latest pending commit rather than interrupting the active deploy/gate. The deploy-health job is capped at 75 minutes, the deploy E2E step is capped at 22 minutes, and phase timing logs identify smoke and core non-LLM E2E latency. Provider-backed OCR parsing runs afterward in the separate `Staging AI/OCR Gate`.
-   - **Route diagnostics**: If staging `/api/health` remains 404, `tools/health_check.sh` probes `/api/ping` and `/` and identifies a likely Traefik API route miss or web-route shadow before failing the deploy.
-
-3. **Multi-Brokerage Upload to Portfolio Value (Tier 3)** (`test_brokerage_upload_to_portfolio_value.py`):
-   - **Status**: Implemented hard gate for Issue #404
-   - **Coverage**: AC8.13.10 (Moomoo + Futu PDF upload, real OCR parse polling, parsed-statement position import, holdings visibility, balance-sheet asset value), AC8.13.18, AC8.13.19
-   - **Path matrix**: The README `Core Proof Paths` section and the [EPIC-017 brokerage PDF to asset report proof matrix](EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix) map this provider-backed gate to the backend and frontend proof rows.
-   - **Failure diagnostics**: Assertions include statement IDs and response bodies for OCR rejection, import zero-counts, missing holdings, and reporting failures. Portfolio value coverage is checked against balance-sheet market valuation adjustment lines, not whole `total_assets`, so unrelated cash or bank lines cannot mask or falsely fail the imported portfolio valuation check. Failures include imported position count, holdings total market value, valuation adjustment total, non-portfolio asset total, total assets, net worth adjustment, and relevant asset lines.
-   - **Provider budget rule**: Runs in the same serialized `Staging AI/OCR Gate` as the DBS full journey.
-
-4. **Four-Asset As-of Net Worth Golden Path (Tier 3)** (`test_four_asset_net_worth_golden_path.py`):
-   - **Status**: Implemented hard gate for Issue #444
-   - **Coverage**: AC8.13.42 proves one fresh-user path across bank cash, brokerage PDF positions, property value, mortgage liability, and ESOP restricted equity. The test completes explicit upload, Stage 1 approval/posting, Stage 2 reconciliation, brokerage import, manual valuation creation, exact Decimal-safe as-of balance-sheet totals, and dashboard/report total assertions.
-   - **Provider budget rule**: Runs in the same serialized `Staging AI/OCR Gate` as the DBS and brokerage PDF hard gates because it imports a real brokerage PDF through the configured OCR path.
-
-5. **Production Read-only E2E Smoke** (`test_production_readonly_smoke.py`):
-   - **Status**: Implemented for production release
-   - **Coverage**: Health payload, anonymous auth boundary, browser shell/login route, optional credential-gated dashboard
-   - **Allowed skip**: Authenticated dashboard check may skip only when `PROD_SMOKE_EMAIL` / `PROD_SMOKE_PASSWORD` are not configured; it must not mutate production data
-
-6. **Tier 2 (HTTP E2E)**: Not yet implemented. Would test against deployed PR environments.
-
-7. **Scenario coverage tracking**: Section 3 remains a planning checklist.
-   Current proof counts belong to generated reports and CI artifacts, not this
-   prose list.
+If a gap should block CI, encode it in a workflow/tool check and add AC proof.
+If it is only a roadmap item, keep it in issues rather than prose status.
 
 ### 5.5 Running Tests
 
@@ -700,46 +531,23 @@ HEADLESS=false pytest tests/e2e -v
 
 ## 6. Archive Integration Notes
 
-Useful content from `testing-implementation.md`, `testing-gap-analysis.md`,
-`TEST-COVERAGE-PLAN.md`, and `AC-TEST-TRACEABILITY-AUDIT.md` was consolidated
-before the archive snapshots were removed. The removed inventory is retained in
-[#548](https://github.com/wangzitian0/finance_report/issues/548); current proof
-is owned by the active README -> EPIC -> AC registry -> tests -> CI artifact
-chain:
-
-- The durable testing assets are factories, performance/load-test entry points,
-  Playwright E2E scaffolding, Moon task integration, and critical-path smoke
-  gates.
-- Historical coverage numbers in the archive are superseded by
-  `docs/analysis/test-ac-coverage-report.md`, `unified-coverage.json`, and
-  `common/coverage/policy.py`.
-- Historical AC traceability snapshots are superseded by the generated
-  `ac-test-traceability-audit` CI artifact.
-- The business-critical service focus remains valid: reporting,
-  reconciliation, FX revaluation, assets, review queue, processing account,
-  accounting, and validation.
-- Skipped Tier 2/3 tests and placeholder assertions do not count as proof under
-  the current policy; the CI traceability gate fails missing, placeholder-only,
-  and stub-only mandatory AC references. Manual-verification treatment remains
-  tracked by [#454](https://github.com/wangzitian0/finance_report/issues/454).
+Removed testing archive content is retained in [issue #548](https://github.com/wangzitian0/finance_report/issues/548)
+and git history. Current truth is owned by the active README -> EPIC -> AC ->
+test chain, the critical proof matrix, generated registries, generated CI
+artifacts, and coverage policy code.
 
 ### 6.1 Archive Residual Backlog Ownership
 
-The removed testing archive also contained future testing-capability ideas. They
-are not current CI requirements, but they are owned here so they do not remain
-archive-only TODOs:
-
-| Residual | Owner AC | Current status | Future proof boundary |
-|---|---|---|---|
-| Visual regression | AC8.13.61 | P3 future testing capability; no current CI gate | Add a Playwright screenshot or equivalent visual regression gate only when visual stability becomes a release requirement |
-| Test observability: test report dashboard, failure notification, trend analysis | AC8.13.62 | Current replacements are GitHub Step Summary, CI artifacts, Coveralls, and generated coverage reports | Add report dashboard, Slack/Email failure notification, or failure-rate trend analysis only as explicit EPIC-008 work |
-| Performance testing | AC8.13.63 | Locust exists for load tests and staging has a non-blocking API benchmark | Promote to a required P95 trend gate only after threshold ownership and failure policy are defined |
+| Residual | Owner AC | Current boundary |
+|---|---|---|
+| Visual regression | AC8.13.61 | P3 future testing capability; add a visual gate only when visual stability becomes a release requirement |
+| Test observability: test report dashboard, failure notification, and trend analysis | AC8.13.62 | Current replacements are GitHub Step Summary, CI artifacts, Coveralls, and generated coverage reports |
+| Performance testing | AC8.13.63 | Locust exists; promote to a required P95 gate only after threshold ownership and failure policy are defined |
 
 ## 📄 Owned Documentation Surfaces
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) — generated AC coverage report.
 - [../ssot/coverage.md](../ssot/coverage.md) — coverage policy semantics.
 - [../ssot/ci-cd.md](../ssot/ci-cd.md) — CI gate semantics.
 - [../ssot/env_smoke_test.md](../ssot/env_smoke_test.md) — environment smoke-test rationale and command semantics.

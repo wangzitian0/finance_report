@@ -77,7 +77,7 @@ contracts is tracked in
 | Report | Purpose |
 |---|---|
 | [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Bidirectional README -> EPIC -> E2E macro outcome contract |
-| [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Generated AC-to-test coverage report |
+| `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
 | [../../unified-coverage.json](../../unified-coverage.json) | Current committed coverage baseline |
 
 ## Known Gaps

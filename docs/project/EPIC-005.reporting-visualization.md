@@ -238,14 +238,6 @@ to audit each report line.
 | AC5.13.4 | Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
 | AC5.13.5 | Package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors | `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | `api/test_personal_report_package_contract.py` | P0 |
 
-**Traceability Result**:
-- Total AC IDs: 34
-- Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
-- Requirements with implemented test references: 100%
-- Test files: 8
-
----
-
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

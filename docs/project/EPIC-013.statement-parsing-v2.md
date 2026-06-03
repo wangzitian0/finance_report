@@ -192,13 +192,6 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.9.1 | Test full score with all factors | `test_full_score_with_all_factors()` | `extraction/test_extraction.py` | P0 |
 | AC13.9.2 | Test no new factors caps at 85 | `test_no_new_factors_caps_at_85()` | `extraction/test_extraction.py` | P0 |
 
-**Test Coverage Summary**:
-- Total AC IDs: 52
-- Requirements converted to AC IDs: 100% (EPIC-013 P0 implementation)
-- Requirements with test references: 100%
-- Test files: 1 (`test_extraction.py`)
-- Overall coverage: EPIC-013 implementation in progress
-
 ### AC13.10: Source Type Priority & Conflict Resolution
 
 | ID | Test Case | Test Function | File | Priority |
