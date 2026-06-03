@@ -1,7 +1,25 @@
 """Personal report package API contract coverage."""
 
-import pytest
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
 
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models.journal import JournalEntrySourceType
+from src.models.layer2 import AssetType, AtomicPosition
+from src.models.layer3 import (
+    CostBasisMethod,
+    ManagedPosition,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+    PositionStatus,
+)
+from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
+from src.models.user import User
 from src.routers.reports import (
     personal_report_package_contract,
     personal_report_package_notes,
@@ -131,9 +149,10 @@ def test_AC5_12_2_package_contract_marks_notes_ready():
     assert section["source_endpoint"] == "/api/reports/package/notes"
 
 
-def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
+@pytest.mark.asyncio
+async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
     """AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
-    response = personal_report_package_traceability()
+    response = await personal_report_package_traceability()
     payload = response.model_dump(mode="json")
 
     assert payload["section_id"] == "traceability_appendix"
@@ -156,9 +175,10 @@ def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
     assert total_assets["confidence_tier"] == "TRUSTED"
 
 
-def test_AC5_13_2_package_traceability_declares_completeness_warnings():
+@pytest.mark.asyncio
+async def test_AC5_13_2_package_traceability_declares_completeness_warnings():
     """AC5.13.2: Traceability appendix exposes explicit completeness states where anchors are unavailable."""
-    response = personal_report_package_traceability()
+    response = await personal_report_package_traceability()
     payload = response.model_dump(mode="json")
 
     lines = {line["line_id"]: line for line in payload["lines"]}
@@ -180,3 +200,149 @@ def test_AC5_13_2_package_traceability_declares_completeness_warnings():
         assert line["ledger_anchor"]["state"] in {"available", "not_applicable", "unavailable"}
         assert line["review_state"]
         assert line["confidence_tier"] in {"TRUSTED", "HIGH", "MEDIUM", "LOW", "UNAVAILABLE"}
+
+
+@pytest.mark.asyncio
+async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC5.13.5: Traceability returns current-user dynamic identifiers without cross-user leakage."""
+    report_date = date(2026, 5, 31)
+    statement_txn_id = uuid4()
+    other_user = User(email=f"other-trace-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(other_user)
+    await db.flush()
+
+    bank = Account(user_id=test_user.id, name="Trace Bank", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=test_user.id, name="Trace Salary", type=AccountType.INCOME, currency="SGD")
+    investment = Account(user_id=test_user.id, name="Trace Brokerage", type=AccountType.ASSET, currency="SGD")
+    other_income = Account(user_id=other_user.id, name="Other Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([bank, income, investment, other_income])
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=report_date,
+        memo="Traceable income",
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        source_id=statement_txn_id,
+        status=JournalEntryStatus.POSTED,
+    )
+    other_source_id = uuid4()
+    other_entry = JournalEntry(
+        user_id=other_user.id,
+        entry_date=report_date,
+        memo="Other income",
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        source_id=other_source_id,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([entry, other_entry])
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=bank.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=other_entry.id,
+                account_id=other_income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment.id,
+        asset_identifier="TRACE",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("100.00"),
+        currency="SGD",
+        acquisition_date=date(2026, 1, 1),
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add(position)
+    await db.flush()
+
+    atomic = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=report_date,
+        asset_identifier="TRACE",
+        broker="Trace Broker",
+        quantity=Decimal("10"),
+        market_value=Decimal("125.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"trace-{uuid4()}",
+        source_documents={"documents": [{"doc_id": "brokerage-doc-trace", "doc_type": "brokerage_statement"}]},
+    )
+    manual = ManualValuationSnapshot(
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        as_of_date=report_date,
+        value=Decimal("500000.00"),
+        currency="SGD",
+        source="Trace Property",
+    )
+    dividend = DividendIncome(
+        user_id=test_user.id,
+        position_id=position.id,
+        payment_date=report_date,
+        amount=Decimal("8.25"),
+        currency="SGD",
+    )
+    price = MarketDataOverride(
+        user_id=test_user.id,
+        asset_identifier="TRACE",
+        price_date=report_date,
+        price=Decimal("12.50"),
+        currency="SGD",
+        source=PriceSource.MANUAL,
+    )
+    db.add_all([atomic, manual, dividend, price])
+    await db.commit()
+
+    response = await personal_report_package_traceability(
+        start_date=date(2026, 5, 1),
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+    lines = {line["line_id"]: line for line in response.model_dump(mode="json")["lines"]}
+
+    total_assets = lines["balance_sheet.total_assets"]
+    assert f"statement_transaction:{statement_txn_id}" in total_assets["source_anchor"]["identifiers"]
+    assert f"manual_valuation_snapshot:{manual.id}" in total_assets["source_anchor"]["identifiers"]
+    assert f"atomic_position:{atomic.id}" in total_assets["source_anchor"]["identifiers"]
+    assert f"journal_entry:{entry.id}" in total_assets["ledger_anchor"]["identifiers"]
+
+    investment_line = lines["investment_performance.market_value"]
+    assert f"dividend_income:{dividend.id}" in investment_line["source_anchor"]["identifiers"]
+    assert f"market_price:{price.id}" in investment_line["source_anchor"]["identifiers"]
+    assert "brokerage_document:brokerage-doc-trace" in investment_line["source_anchor"]["identifiers"]
+
+    all_identifiers = {
+        identifier
+        for line in lines.values()
+        for anchor_name in ("source_anchor", "ledger_anchor")
+        for identifier in line[anchor_name]["identifiers"]
+    }
+    assert f"statement_transaction:{other_source_id}" not in all_identifiers

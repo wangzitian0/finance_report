@@ -21,6 +21,7 @@ from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 from time import time
+from urllib.parse import quote
 from uuid import uuid4
 
 import httpx
@@ -216,6 +217,14 @@ def _assert_traceability(statement_rows: list[dict], journal_rows: list[dict]) -
     assert matched, "expected at least one statement-linked journal entry"
 
 
+def _has_dynamic_traceability_identifiers(traceability: dict) -> bool:
+    return any(
+        anchor.get("identifiers")
+        for line in traceability.get("lines", [])
+        for anchor in (line.get("source_anchor", {}), line.get("ledger_anchor", {}))
+    )
+
+
 def _line_total(lines: list[dict], token: str | None = None) -> Decimal:
     filtered = lines if token is None else [line for line in lines if token.lower() in str(line.get("name", "")).lower()]
     return sum((_money(line["amount"]) for line in filtered), Decimal("0.00"))
@@ -296,9 +305,9 @@ async def _create_manual_snapshot(
 async def test_personal_financial_report_package_post_merge_journey(authenticated_page_unique: Page) -> None:
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
-    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC5.13.4
+    AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC5.13.4 AC5.13.5
     AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3 AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2
-    AC8.13.83 AC8.13.84 AC8.13.85:
+    AC8.13.83 AC8.13.84 AC8.13.85 AC8.13.87 AC8.13.88:
     one complete fresh-user report package with bank data, brokerage import,
     investment performance schedule, annualized income and restricted
     compensation schedule, manual valuation, restricted notes, and source
@@ -407,7 +416,40 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             f"missing imported holdings: {holdings}"
         )
         brokerage_value = sum((_money(item["market_value"]) for item in holdings), Decimal("0.00"))
-        assert brokerage_value > Decimal("0.00"), f"brokerage holdings have no value: {holdings}"
+        assert len(holdings) == expected.brokerage_position_count, f"unexpected brokerage holdings: {holdings}"
+        assert brokerage_value == expected.brokerage_market_value, f"unexpected brokerage value: {holdings}"
+        primary_holding = holdings[0]
+
+        price_update_response = await client.post(
+            _api_url("/portfolio/prices/update"),
+            json={
+                "updates": [
+                    {
+                        "asset_identifier": primary_holding["asset_identifier"],
+                        "price": str(expected.market_price),
+                        "currency": primary_holding["currency"],
+                        "price_date": expected.market_price_date.isoformat(),
+                    }
+                ]
+            },
+        )
+        assert price_update_response.status_code == 200, (
+            f"market price update failed: {price_update_response.status_code} {price_update_response.text}"
+        )
+        assert price_update_response.json()["updated_count"] == 1
+
+        dividend_response = await client.post(
+            _api_url(f"/portfolio/{quote(primary_holding['asset_identifier'], safe='')}/dividends"),
+            json={
+                "payment_date": fixture_period_end.isoformat(),
+                "amount": str(expected.dividend_income),
+                "currency": primary_holding["currency"],
+            },
+        )
+        assert dividend_response.status_code == 201, (
+            f"dividend create failed: {dividend_response.status_code} {dividend_response.text}"
+        )
+        assert _money(dividend_response.json()["amount"]) == expected.dividend_income
 
         schedule_response = await client.get(
             _api_url(
@@ -426,9 +468,16 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert schedule["as_of_date"] == fixture_period_end.isoformat()
         assert schedule["currency"] == "SGD"
         assert schedule["holdings"], f"investment schedule has no holdings: {schedule}"
+        assert _money(schedule["dividend_income"]) == expected.dividend_income
+        assert _money(schedule["holdings"][0]["dividend_income"]) == expected.dividend_income
         assert _money(schedule["unrealized_pnl"]) >= Decimal("0.00")
         assert "data_freshness" in schedule
+        assert schedule["data_freshness"]["latest_price_date"] == expected.market_price_date.isoformat()
+        assert schedule["data_freshness"]["manual_override_basis"] == (
+            f"{primary_holding['asset_identifier']}:{expected.market_price_date.isoformat()}"
+        )
         assert schedule["source_links"], f"investment schedule missing source links: {schedule}"
+        assert any("market_data_override" in source_link for source_link in schedule["source_links"])
         assert schedule["notes"], f"investment schedule missing notes: {schedule}"
 
         await page.goto(_get_url("/portfolio"))
@@ -577,13 +626,21 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert "US GAAP compliant" not in package_notes["non_compliance_statement"]
         assert "HKEX filing" not in package_notes["non_compliance_statement"]
 
-        traceability_response = await client.get(_api_url("/reports/package/traceability"))
+        traceability_response = await client.get(
+            _api_url(
+                "/reports/package/traceability"
+                f"?start_date={fixture_period_start.isoformat()}"
+                f"&end_date={fixture_period_end.isoformat()}"
+                f"&as_of_date={fixture_period_end.isoformat()}"
+            )
+        )
         assert traceability_response.status_code == 200, (
             f"package traceability failed: {traceability_response.status_code} {traceability_response.text}"
         )
         traceability = traceability_response.json()
         assert traceability["section_id"] == "traceability_appendix"
         assert traceability["status"] == "ready"
+        assert _has_dynamic_traceability_identifiers(traceability)
         traceability_lines = {line["line_id"]: line for line in traceability["lines"]}
         trusted_total_line_ids = PACKAGE_FIXTURE.required_traceability_line_ids
         assert trusted_total_line_ids <= set(traceability_lines)

@@ -49,6 +49,11 @@ class ExpectedPackageOutputs:
     manual_liability_total: Decimal
     restricted_fair_value_total: Decimal
     net_worth_adjustment_gain_loss: Decimal
+    brokerage_market_value: Decimal
+    brokerage_position_count: int
+    dividend_income: Decimal
+    market_price: Decimal
+    market_price_date: date
 
     def total_assets(self, brokerage_value: Decimal) -> Decimal:
         return _money(brokerage_value + self.manual_asset_total + self.bank_cash)
@@ -131,6 +136,11 @@ def _expected_outputs(csv_path: Path, manual_components: tuple[ManualComponentFi
         manual_liability_total=_money(manual_liability_total),
         restricted_fair_value_total=_money(restricted_total),
         net_worth_adjustment_gain_loss=_money(manual_asset_total - manual_liability_total),
+        brokerage_market_value=Decimal("1250.50"),
+        brokerage_position_count=1,
+        dividend_income=Decimal("88.25"),
+        market_price=Decimal("12.50"),
+        market_price_date=date(2026, 5, 31),
     )
 
 

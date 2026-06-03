@@ -274,11 +274,24 @@ Traceability appendix:
 - Anchor `state` must be explicit: `available`, `unavailable`, or
   `not_applicable`. Missing anchors are not an acceptable representation for
   trusted totals.
+- When called with a current user and `start_date` / `end_date` / `as_of_date`,
+  the appendix must add privacy-safe `identifiers` to anchors where source
+  records exist. Dynamic identifiers can include statement transactions,
+  journal entries/lines, brokerage atomic positions, brokerage document IDs,
+  market price overrides, dividend income records, and manual valuation
+  snapshots. The endpoint may return the static taxonomy without identifiers
+  only when no request-scoped database context is available.
 - Trusted package totals must expose source and ledger anchors unless the line
   is an explicit manual input, such as restricted compensation fair value from
   manual valuation snapshots.
 - Non-ledger disclosures, such as the non-compliance statement, use
   `ledger_anchor.state=not_applicable`.
+- The representative package proof fixture must pin Decimal expected outputs
+  for bank cash, brokerage market value, dividend income, market price
+  freshness, manual property/liability values, restricted holdings, notes, and
+  traceability identifiers. Package E2E assertions consume those expected
+  outputs from the shared fixture contract rather than recalculating independent
+  constants inline.
 
 Completeness warning taxonomy:
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from copy import deepcopy
 from datetime import date, timedelta
 from decimal import Decimal
 from enum import Enum
@@ -17,11 +18,13 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import Account, AccountType, Direction, FxRate, JournalEntry, JournalEntryStatus, JournalLine
+from src.models.layer2 import AtomicPosition
 from src.models.layer3 import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
+from src.models.portfolio import DividendIncome, MarketDataOverride
 from src.schemas import (
     AccountTrendResponse,
     AnnualizedIncomeScheduleHolding,
@@ -529,6 +532,180 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
 }
 
 
+def _identifier(prefix: str, value: object) -> str:
+    return f"{prefix}:{value}"
+
+
+def _dedupe_identifiers(values: list[str]) -> list[str]:
+    return sorted({value for value in values if value})
+
+
+def _source_document_identifiers(source_documents: object) -> list[str]:
+    if isinstance(source_documents, list):
+        docs = source_documents
+    elif isinstance(source_documents, dict):
+        docs = source_documents.get("documents", [])
+    else:
+        docs = []
+
+    identifiers: list[str] = []
+    for doc in docs:
+        if isinstance(doc, dict) and doc.get("doc_id"):
+            identifiers.append(_identifier("brokerage_document", doc["doc_id"]))
+    return identifiers
+
+
+def _add_anchor_identifiers(
+    lines_by_id: dict[str, dict],
+    line_id: str,
+    anchor_name: str,
+    identifiers: list[str],
+) -> None:
+    line = lines_by_id.get(line_id)
+    if line is None:
+        return
+    line[anchor_name]["identifiers"] = _dedupe_identifiers([*line[anchor_name].get("identifiers", []), *identifiers])
+
+
+async def _personal_report_package_traceability_payload(
+    *,
+    start_date: date | None,
+    end_date: date | None,
+    as_of_date: date | None,
+    db: DbSession | None,
+    user_id: CurrentUserId | None,
+) -> dict:
+    payload = deepcopy(PERSONAL_REPORT_PACKAGE_TRACEABILITY)
+    if db is None or user_id is None:
+        return payload
+
+    report_end = end_date or as_of_date or date.today()
+    report_start = start_date or report_end - timedelta(days=365)
+    report_as_of = as_of_date or report_end
+    lines_by_id = {line["line_id"]: line for line in payload["lines"]}
+
+    ledger_result = await db.execute(
+        select(JournalEntry, JournalLine, Account)
+        .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+        .join(Account, Account.id == JournalLine.account_id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.entry_date >= report_start)
+        .where(JournalEntry.entry_date <= report_end)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+    )
+
+    ledger_identifiers: list[str] = []
+    source_identifiers: list[str] = []
+    income_source_identifiers: list[str] = []
+    expense_source_identifiers: list[str] = []
+    cash_source_identifiers: list[str] = []
+    for entry, line, account in ledger_result.all():
+        ledger_identifiers.extend(
+            [
+                _identifier("journal_entry", entry.id),
+                _identifier("journal_line", line.id),
+            ]
+        )
+        if entry.source_id is not None:
+            source_identifier = _identifier("statement_transaction", entry.source_id)
+            source_identifiers.append(source_identifier)
+            if account.type == AccountType.INCOME:
+                income_source_identifiers.append(source_identifier)
+            elif account.type == AccountType.EXPENSE:
+                expense_source_identifiers.append(source_identifier)
+            elif account.type == AccountType.ASSET:
+                cash_source_identifiers.append(source_identifier)
+
+    manual_result = await db.execute(
+        select(ManualValuationSnapshot)
+        .where(ManualValuationSnapshot.user_id == user_id)
+        .where(ManualValuationSnapshot.as_of_date <= report_as_of)
+        .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
+    )
+    manual_snapshots = list(manual_result.scalars().all())
+    manual_identifiers = [_identifier("manual_valuation_snapshot", snapshot.id) for snapshot in manual_snapshots]
+    restricted_manual_identifiers = [
+        _identifier("manual_valuation_snapshot", snapshot.id)
+        for snapshot in manual_snapshots
+        if snapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED
+    ]
+
+    atomic_result = await db.execute(
+        select(AtomicPosition)
+        .where(AtomicPosition.user_id == user_id)
+        .where(AtomicPosition.snapshot_date <= report_as_of)
+        .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
+    )
+    atomic_positions = list(atomic_result.scalars().all())
+    atomic_identifiers = [_identifier("atomic_position", position.id) for position in atomic_positions]
+    brokerage_document_identifiers = [
+        identifier
+        for position in atomic_positions
+        for identifier in _source_document_identifiers(position.source_documents)
+    ]
+
+    dividend_result = await db.execute(
+        select(DividendIncome)
+        .where(DividendIncome.user_id == user_id)
+        .where(DividendIncome.payment_date >= report_start)
+        .where(DividendIncome.payment_date <= report_end)
+    )
+    dividend_identifiers = [_identifier("dividend_income", dividend.id) for dividend in dividend_result.scalars().all()]
+
+    price_result = await db.execute(
+        select(MarketDataOverride)
+        .where(MarketDataOverride.user_id == user_id)
+        .where(MarketDataOverride.price_date <= report_as_of)
+        .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+    )
+    market_price_identifiers = [_identifier("market_price", price.id) for price in price_result.scalars().all()]
+
+    _add_anchor_identifiers(
+        lines_by_id,
+        "balance_sheet.total_assets",
+        "source_anchor",
+        [*source_identifiers, *manual_identifiers, *atomic_identifiers, *brokerage_document_identifiers],
+    )
+    _add_anchor_identifiers(lines_by_id, "balance_sheet.total_assets", "ledger_anchor", ledger_identifiers)
+
+    for line_id, identifiers in [
+        ("income_statement.total_income", income_source_identifiers or source_identifiers),
+        ("annualized_income_long_term.annualized_total", income_source_identifiers or source_identifiers),
+        ("income_statement.total_expenses", expense_source_identifiers or source_identifiers),
+        ("cash_flow.net_cash_flow", cash_source_identifiers or source_identifiers),
+    ]:
+        _add_anchor_identifiers(lines_by_id, line_id, "source_anchor", identifiers)
+        _add_anchor_identifiers(lines_by_id, line_id, "ledger_anchor", ledger_identifiers)
+
+    investment_source_identifiers = [
+        *atomic_identifiers,
+        *brokerage_document_identifiers,
+        *market_price_identifiers,
+        *dividend_identifiers,
+    ]
+    _add_anchor_identifiers(
+        lines_by_id,
+        "investment_performance.market_value",
+        "source_anchor",
+        investment_source_identifiers,
+    )
+    _add_anchor_identifiers(lines_by_id, "investment_performance.market_value", "ledger_anchor", ledger_identifiers)
+
+    _add_anchor_identifiers(
+        lines_by_id,
+        "annualized_income_long_term.restricted_fair_value_total",
+        "source_anchor",
+        restricted_manual_identifiers or manual_identifiers,
+    )
+    _add_anchor_identifiers(
+        lines_by_id,
+        "notes.non_compliance_statement",
+        "source_anchor",
+        ["package_contract:personal-financial-report-package"],
+    )
+    return payload
+
+
 def _annualized_income_bucket(account_name: str) -> str | None:
     normalized = account_name.casefold()
     if "salary" in normalized or "payroll" in normalized:
@@ -553,9 +730,22 @@ def personal_report_package_notes() -> PersonalReportPackageNotesResponse:
 
 
 @router.get("/package/traceability", response_model=PersonalReportPackageTraceabilityResponse)
-def personal_report_package_traceability() -> PersonalReportPackageTraceabilityResponse:
+async def personal_report_package_traceability(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> PersonalReportPackageTraceabilityResponse:
     """Return the package-level source-ledger-report traceability appendix."""
-    return PersonalReportPackageTraceabilityResponse(**PERSONAL_REPORT_PACKAGE_TRACEABILITY)
+    payload = await _personal_report_package_traceability_payload(
+        start_date=start_date,
+        end_date=end_date,
+        as_of_date=as_of_date,
+        db=db,
+        user_id=user_id,
+    )
+    return PersonalReportPackageTraceabilityResponse(**payload)
 
 
 @router.get("/package/annualized-income-schedule", response_model=AnnualizedIncomeScheduleResponse)

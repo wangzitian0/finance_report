@@ -235,9 +235,10 @@ to audit each report line.
 | AC5.13.2 | Traceability appendix exposes explicit completeness states where anchors are unavailable | `test_AC5_13_2_package_traceability_declares_completeness_warnings` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.13.3 | Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 | AC5.13.4 | Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
+| AC5.13.5 | Package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors | `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | `api/test_personal_report_package_contract.py` | P0 |
 
 **Traceability Result**:
-- Total AC IDs: 33
+- Total AC IDs: 34
 - Requirements converted to AC IDs: 100% (EPIC-005 checklist + must-have standards)
 - Requirements with implemented test references: 100%
 - Test files: 8
@@ -368,6 +369,9 @@ Closure status:
 7. Done: build deterministic fixture coverage (#573) against the same contract
    and schedules, and extend the #565 guard to consume the representative
    fixture contract.
+8. Follow-up: [#649](https://github.com/wangzitian0/finance_report/issues/649)
+   hardens the covered package proof with dynamic traceability identifiers and
+   pinned brokerage/dividend/market-price fixture expected outputs.
 
 The macro outcome is `covered` in `docs/ssot/critical-proof-matrix.yaml` once
 the representative fixture coverage (#573) is merged.
