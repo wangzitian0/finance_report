@@ -179,7 +179,7 @@ class TestExtractionServiceFlow:
         assert len(events) == 2
         assert stmt.status == BankStatementStatus.PARSED
         assert stmt.balance_validated is False
-        assert stmt.confidence_score < 85
+        assert stmt.confidence_score == 45
         assert stmt.validation_error == (
             "CSV import does not include source statement opening/closing balances; manual review required"
         )

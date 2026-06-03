@@ -465,13 +465,21 @@ class ExtractionService:
             is_valid = balance_result["balance_valid"]
             has_inferred_csv_balances = extracted.get("balance_source") == "inferred_from_csv_transactions"
 
-            # For confidence score, we use the original extracted dict to maintain logic
-            confidence = compute_confidence_score(extracted, balance_result)
             if has_inferred_csv_balances:
-                confidence = min(confidence, 84)
+                confidence = compute_confidence_score(
+                    extracted,
+                    {
+                        **balance_result,
+                        "balance_valid": False,
+                        "balance_proof_available": False,
+                        "notes": CSV_INFERRED_BALANCE_REVIEW_NOTE,
+                    },
+                )
                 status = BankStatementStatus.PARSED
                 is_valid = False
             else:
+                # For confidence score, we use the original extracted dict to maintain logic.
+                confidence = compute_confidence_score(extracted, balance_result)
                 status = (
                     BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
                 )

@@ -154,6 +154,30 @@ def test_compute_confidence_score_normalizes_signed_outflow_progression():
     assert score == 100
 
 
+def test_compute_confidence_score_without_balance_proof_gets_no_balance_component():
+    """AC3.2.5: Inferred balances do not earn source balance-validation confidence."""
+    extracted = {
+        "institution": "DBS",
+        "currency": "SGD",
+        "period_start": "2025-01-01",
+        "period_end": "2025-01-31",
+        "opening_balance": "0.00",
+        "closing_balance": "400.00",
+        "transactions": [
+            {"amount": "500.00", "direction": "IN", "currency": "SGD", "balance_after": "500.00"},
+            {"amount": "100.00", "direction": "OUT", "currency": "SGD", "balance_after": "400.00"},
+        ],
+    }
+
+    score = compute_confidence_score(
+        extracted,
+        {"balance_valid": True, "difference": "0.00", "balance_proof_available": False},
+        missing_fields=[],
+    )
+
+    assert score == 65
+
+
 def test_compute_confidence_score_invalid_difference() -> None:
     extracted = {
         "institution": "DBS",

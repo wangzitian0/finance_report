@@ -81,6 +81,8 @@ CSV transaction exports that do not contain source statement opening and closing
 balances may use inferred balances for import continuity, but those inferred
 balances are not source balance proof. Such parses must remain reviewable and
 must not be auto-approved solely because `0 + transactions = inferred closing`.
+Their confidence score must not include the balance-validation component because
+no source statement balances were provided.
 
 **Parsing state note**: `currency`, `period_start`, `period_end`, `opening_balance`, `closing_balance`,
 `confidence_score`, and `balance_validated` are nullable while status is `parsing`.
