@@ -1,7 +1,7 @@
 import pytest
 
 from src.models.journal import JournalEntrySourceType
-from src.services.confidence_tier import derive_confidence_tier
+from src.services.confidence_tier import derive_confidence_tier, derive_reconciliation_score_tier
 
 
 @pytest.mark.parametrize(
@@ -42,3 +42,18 @@ def test_derive_confidence_tier_none_returns_low():
 
 def test_derive_confidence_tier_unknown_string_defaults_low():
     assert derive_confidence_tier("totally_unknown_source") == "LOW"
+
+
+@pytest.mark.parametrize(
+    "score,expected",
+    [
+        (None, "LOW"),
+        (59, "LOW"),
+        (60, "MEDIUM"),
+        (84, "MEDIUM"),
+        (85, "HIGH"),
+        (100, "HIGH"),
+    ],
+)
+def test_ac4_9_4_derive_reconciliation_score_tier(score, expected):
+    assert derive_reconciliation_score_tier(score) == expected

@@ -23,3 +23,14 @@ def derive_confidence_tier(source_type: JournalEntrySourceType | str | None) -> 
         "fx_revaluation": "LOW",
     }
     return tiers.get(value, "LOW")
+
+
+def derive_reconciliation_score_tier(score: int | None) -> ConfidenceTier:
+    """Map a reconciliation score to the Stage 2 review confidence tier."""
+    if score is None:
+        return "LOW"
+    if score >= 85:
+        return "HIGH"
+    if score >= 60:
+        return "MEDIUM"
+    return "LOW"

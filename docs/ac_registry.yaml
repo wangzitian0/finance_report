@@ -1014,6 +1014,21 @@ groups:
         epic_name: reconciliation-engine
         description: Reconciliation amount scoring uses the bank/cash account line, not total entry debits
         mandatory: true
+      - id: AC4.9.2
+        epic: 4
+        epic_name: reconciliation-engine
+        description: Retrying an accepted match is idempotent and does not mutate version or duplicate posting side effects
+        mandatory: true
+      - id: AC4.9.3
+        epic: 4
+        epic_name: reconciliation-engine
+        description: Auto-posted statement entries satisfy the same posting invariants as regular journal posting
+        mandatory: true
+      - id: AC4.9.4
+        epic: 4
+        epic_name: reconciliation-engine
+        description: Stage 2 review queue confidence tier is derived from the actual reconciliation score
+        mandatory: true
   AC5:
     AC5.1:
       - id: AC5.1.1
@@ -1093,6 +1108,11 @@ groups:
         epic: 5
         epic_name: reporting-visualization
         description: Report FX Lazy Resolution
+        mandatory: true
+      - id: AC5.4.4
+        epic: 5
+        epic_name: reporting-visualization
+        description: Missing report FX rates produce explicit partial warnings instead of aborting the whole aggregation
         mandatory: true
     AC5.5:
       - id: AC5.5.1
@@ -3941,6 +3961,11 @@ groups:
         epic: 16
         epic_name: two-stage-review-ui
         description: All service methods mutating pending_review enforce user_id ownership
+        mandatory: true
+      - id: AC16.22.7
+        epic: 16
+        epic_name: two-stage-review-ui
+        description: Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies
         mandatory: true
     AC16.23:
       - id: AC16.23.1

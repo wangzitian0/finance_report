@@ -77,6 +77,22 @@ def validate_journal_balance(lines: list[JournalLine]) -> None:
         raise ValidationError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")
 
 
+def validate_journal_posting_invariants(entry: JournalEntry) -> None:
+    """Validate the invariants required before an entry can become posted."""
+    validate_journal_balance(entry.lines)
+    validate_fx_rates(entry.lines)
+
+    for line in entry.lines:
+        account = line.account
+        if account.is_system and entry.source_type != JournalEntrySourceType.SYSTEM:
+            raise ValidationError(
+                "System accounts can only be used by system-generated entries. "
+                "Manual entries cannot debit/credit system accounts."
+            )
+        if not account.is_active:
+            raise ValidationError(f"Account {account.name} is not active")
+
+
 async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id: UUID) -> Decimal:
     """
     Calculate the current balance of an account.
@@ -315,22 +331,7 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     if entry.status != JournalEntryStatus.DRAFT:
         raise ValidationError(f"Can only post draft entries, current status: {entry.status}")
 
-    validate_journal_balance(entry.lines)
-    validate_fx_rates(entry.lines)
-
-    # Validate system account usage (Anti-pattern A from processing_account.md).
-    # System accounts (e.g., Processing) can only be used by system-generated entries.
-    for line in entry.lines:
-        if line.account.is_system:
-            if entry.source_type != JournalEntrySourceType.SYSTEM:
-                raise ValidationError(
-                    "System accounts can only be used by system-generated entries. "
-                    "Manual entries cannot debit/credit system accounts."
-                )
-
-    for line in entry.lines:
-        if not line.account.is_active:
-            raise ValidationError(f"Account {line.account.name} is not active")
+    validate_journal_posting_invariants(entry)
 
     entry.status = JournalEntryStatus.POSTED
     entry.updated_at = datetime.now(UTC)

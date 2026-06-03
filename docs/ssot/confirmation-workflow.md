@@ -113,6 +113,11 @@ The following diagram shows how a bank statement travels from upload through to 
 | Stage 2 reconciliation match (amount score) | 0.10 USD | AGENTS.md, reconciliation.md |
 | Reconciliation statistics comparison | 1% | AGENTS.md |
 
+These tolerances are intentionally separate policies. Stage 1 document approval
+uses the strict 0.001 USD balance-chain threshold; extraction confidence and
+Stage 2 matching may use wider scoring tolerances, but they cannot approve a
+Stage 1 statement with a balance-chain delta above 0.001 USD.
+
 ---
 
 ## 6. API Contract
@@ -143,6 +148,7 @@ The following diagram shows how a bank statement travels from upload through to 
 |------|------|-----------------|
 | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | 0.001 USD tolerance passes |
 | `test_validate_balance_chain_exceeds_tolerance` | `review/test_statement_validation.py` | 0.0011 USD delta fails |
+| `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | Stage 1 and extraction/reconciliation tolerances remain intentionally separate |
 | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | Approve blocked if balance bad |
 | `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | Stage 2 batch blocked by open checks (⏳ Planned) |
 | `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | Journal entry only on accepted transition (⏳ Planned) |
