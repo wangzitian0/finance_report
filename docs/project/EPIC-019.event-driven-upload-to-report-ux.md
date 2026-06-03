@@ -200,8 +200,9 @@ Make upload the first-class product entry. The user should see:
 - Required action summary.
 - Report readiness summary.
 
-This can start by replacing or reshaping the current dashboard with an
-Upload-to-Report home, without deleting existing dashboard metrics.
+`/dashboard` is the authenticated Upload-to-Report home. Existing dashboard
+metrics remain available, but they are secondary analytics below the workflow
+entry surface and must not block upload, event, or report readiness actions.
 
 **Why this works:** it aligns first-screen behavior with the core use case:
 upload files and let the system work.
@@ -328,6 +329,18 @@ workflow state exists.
 | AC19.3.6 | Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise | `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 |
 | AC19.3.7 | Desktop and mobile Playwright smoke covers the workflow badge/inbox/feed without layout overflow | `workflow-notifications.spec.ts` | P0 |
 | AC19.3.8 | Workflow notification UI contract is documented in the workflow-events SSOT and EPIC-019 | `test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces` | P0 |
+
+### AC19.4 — Upload-First Entry Surface
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.4.1 | EPIC-019 and workflow-events SSOT define `/dashboard` as the upload-first authenticated home, with dashboard metrics as secondary analytics | `test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract` | P0 |
+| AC19.4.2 | The first dashboard viewport renders the upload-to-report workflow home before KPI, chart, and activity content | `dashboardPage.test.tsx` | P0 |
+| AC19.4.3 | The dashboard primary CTA follows `workflow.status.next_action.href` and labels upload as the default action when no higher-priority blocker/action exists | `dashboardPage.test.tsx` | P0 |
+| AC19.4.4 | Report readiness state and blocker count are visible above secondary dashboard metrics and link to the readiness/report action path | `dashboardPage.test.tsx` | P0 |
+| AC19.4.5 | Recent workflow events are visible, grouped by actionability, and routine automation is summarized without dominating the page | `dashboardPage.test.tsx` | P0 |
+| AC19.4.6 | Secondary dashboard metric API failure does not hide the workflow home; the analytics section renders an isolated retry/error state | `dashboardPage.test.tsx` | P0 |
+| AC19.4.7 | Desktop and mobile Playwright smoke covers the upload-first dashboard entry without layout overflow | `upload-first-dashboard.spec.ts` | P0 |
 
 ### AC19.5 — Report Readiness and Blocker State
 

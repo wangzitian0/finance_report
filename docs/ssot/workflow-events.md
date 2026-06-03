@@ -21,6 +21,7 @@
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
+| Upload-to-Report home | `apps/frontend/src/app/(main)/dashboard/page.tsx` |
 | Events page | `apps/frontend/src/app/(main)/events/page.tsx` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py` |
 | Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts` |
@@ -265,6 +266,10 @@ WorkflowNotificationCenter
 WorkflowStatusFeed
   -> Dashboard status feed
   -> Events page status summary
+
+UploadToReportHome
+  -> Dashboard first viewport
+  -> Secondary analytics boundary
 ```
 
 Header badge rules:
@@ -295,6 +300,23 @@ Status feed rules:
   primary attention driver.
 - Empty state says `No action required` and routes the user to upload when no
   workflow state exists.
+
+Upload-to-Report home rules:
+
+- `/dashboard` is the authenticated home for the upload-to-report workflow.
+- The first viewport renders workflow state, the primary next action, report
+  readiness, and recent workflow events before KPI, chart, reconciliation, or
+  activity analytics.
+- The primary CTA uses `workflow.status.next_action.href`. Upload is the
+  default label only when no higher-priority blocker or action-required state
+  wins the workflow priority.
+- Report readiness appears above secondary analytics and links to the report or
+  readiness action route from the workflow status contract.
+- Routine automation is summarized; blocked and action-required events remain
+  visually prominent.
+- Secondary dashboard metric loading or failure must not hide the workflow
+  home. Analytics render below the workflow surface with an isolated loading,
+  empty, retry, or error state.
 
 ---
 

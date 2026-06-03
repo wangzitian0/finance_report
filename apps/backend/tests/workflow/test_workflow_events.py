@@ -62,6 +62,24 @@ def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> No
     assert "AC19.3.8" in epic
 
 
+def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
+    """AC19.4.1: /dashboard is the upload-first home and metrics are secondary."""
+    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
+
+    for phrase in (
+        "`/dashboard` is the authenticated home for the upload-to-report workflow",
+        "UploadToReportHome",
+        "Dashboard first viewport",
+        "Secondary dashboard metric loading or failure must not hide the workflow",
+    ):
+        assert phrase in ssot
+
+    assert "AC19.4.1" in epic
+    assert "AC19.4.7" in epic
+    assert "metrics are secondary analytics below the workflow entry surface" in epic
+
+
 def test_AC19_1_2_workflow_event_model_contract() -> None:
     """AC19.1.2: workflow_events model exposes lifecycle, dedupe, and read indexes."""
     table = WorkflowEvent.__table__
