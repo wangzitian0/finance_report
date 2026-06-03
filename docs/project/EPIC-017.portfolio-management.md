@@ -360,10 +360,17 @@ Response object:
 | `source_links` | Source document, brokerage import, price source, and ledger/report traceability anchors |
 | `notes` | Human-readable methods and limitations for cost basis, market prices, and return metrics |
 
+When no holding snapshot exists on or before the requested `as_of_date`, the
+report schedule may use active current holdings only if the same asset has a
+manual market-data override dated after `as_of_date`. This is report-preparation
+evidence for EPIC-005 packaging, not a mutation or relaxation of historical
+portfolio queries, and the response must disclose the override through notes,
+freshness metadata, and source links.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.10.1 | Investment performance schedule API exposes report-ready metrics and rows | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
-| AC17.10.2 | Investment performance schedule API exposes data freshness, source links, and notes for report traceability | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC17.10.1 | Investment performance schedule API exposes report-ready metrics and rows | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_AC17_10_1_report_schedule_uses_manual_override_after_period_end`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
+| AC17.10.2 | Investment performance schedule API exposes data freshness, source links, and notes for report traceability | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule`; `test_AC17_10_1_report_schedule_uses_manual_override_after_period_end`; `test_personal_financial_report_package_post_merge_journey`; `test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract` | `apps/backend/tests/portfolio/test_portfolio_router.py`; `tests/e2e/test_personal_financial_report_package.py`; `tests/tooling/test_investment_performance_report_contract.py` | P0 |
 | AC17.10.3 | Investment performance schedule source links preserve brokerage statement, price source, ledger, transaction source, and report-section anchors | `test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P0 |
 | AC17.10.4 | Investment performance schedule data freshness marks the schedule stale when any holding lacks current as-of-date price evidence | `test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_stale` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P0 |
 | AC17.10.5 | Investment performance XIRR solver does not convert monetary Decimal cash flows to float | `test_AC17_10_5_xirr_solver_does_not_float_monetary_cashflows` | `apps/backend/tests/portfolio/test_performance_service.py` | P0 |

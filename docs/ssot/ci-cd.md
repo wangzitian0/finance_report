@@ -199,6 +199,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.
 - Main push CI is the only path that pushes SHA-tagged images. Registry login and image push are guarded by `github.event_name == 'push' && github.ref == 'refs/heads/main'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`.
+- GitHub JavaScript action runtime is explicitly validated on Node 24 by setting `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"` at the workflow level. This does not change the application toolchain `NODE_VERSION`; it only opts GitHub-hosted JavaScript actions into the runtime that GitHub will make the default.
 - Production release tag builds and dry-runs verify that the target SHA already
   has a successful `main` CI `finish` result, then run release lint and image
   build validation. They do not rerun the container-backed `moon run :test`
