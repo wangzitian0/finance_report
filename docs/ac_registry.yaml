@@ -4875,3 +4875,40 @@ groups:
         epic_name: event-driven-upload-to-report-ux
         description: Workflow event reads and lifecycle changes are user isolated
         mandatory: true
+    AC19.2:
+      - id: AC19.2.1
+        epic: 19
+        epic_name: event-driven-upload-to-report-ux
+        description: Workflow status schemas define stable primary state, next action, report readiness, and event count response
+          contracts for later UI consumers
+        mandatory: true
+      - id: AC19.2.2
+        epic: 19
+        epic_name: event-driven-upload-to-report-ux
+        description: GET /workflow/status returns user-scoped empty, processing, needs-action, blocked, and ready summaries
+          with deterministic priority rules
+        mandatory: true
+      - id: AC19.2.3
+        epic: 19
+        epic_name: event-driven-upload-to-report-ux
+        description: GET /workflow/events returns bounded, user-scoped, deduplicated events, excludes archived events by default,
+          and supports status filtering
+        mandatory: true
+      - id: AC19.2.4
+        epic: 19
+        epic_name: event-driven-upload-to-report-ux
+        description: PATCH /workflow/events/{id} updates only the authenticated user's event lifecycle and returns 404 for
+          missing or non-owned events
+        mandatory: true
+      - id: AC19.2.5
+        epic: 19
+        epic_name: event-driven-upload-to-report-ux
+        description: Status and events reads run deterministic derived sync without duplicating events or resetting read/archive
+          lifecycle state
+        mandatory: true
+      - id: AC19.2.6
+        epic: 19
+        epic_name: event-driven-upload-to-report-ux
+        description: Workflow API router is mounted and documented in the workflow-events SSOT as the compact read path for
+          later UI slices
+        mandatory: true
