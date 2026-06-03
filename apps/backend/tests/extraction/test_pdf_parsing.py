@@ -198,9 +198,9 @@ class TestInvalidParseNotPersisted:
                 )
 
     @pytest.mark.asyncio
-    async def test_balance_validation_failure_marks_status(self, service, tmp_path):
+    async def test_parse_document_bank_balance_mismatch_records_validation_error(self, service, tmp_path):
         """
-        CRITICAL #4: Balance validation failure should be reflected in status.
+        AC3.2.4: Bank statement balance mismatches preserve validation_error details.
         """
         pdf_file = tmp_path / "test.pdf"
         pdf_file.write_bytes(b"dummy")
@@ -234,6 +234,7 @@ class TestInvalidParseNotPersisted:
             # The status should NOT be APPROVED/PARSED for auto-accept path
             # Low score should route to manual review
             assert stmt.balance_validated is False or stmt.confidence_score < 85
+            assert stmt.validation_error == "Balance mismatch: expected 1100.00, got 2000.00"
 
     def test_validate_balance_returns_invalid_on_mismatch(self):
         """

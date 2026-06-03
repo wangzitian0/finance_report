@@ -72,6 +72,11 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | `balance_validated` | bool | Opening + txns ≈ closing |
 | `validation_error` | str | Optional validation failure details |
 
+When a parsed bank statement fails balance validation, `validation_error` must
+preserve the mismatch note from the Decimal balance check. The statement must
+remain reviewable instead of silently hiding the reason it cannot be trusted for
+auto-accept.
+
 **Parsing state note**: `currency`, `period_start`, `period_end`, `opening_balance`, `closing_balance`,
 `confidence_score`, and `balance_validated` are nullable while status is `parsing`.
 
