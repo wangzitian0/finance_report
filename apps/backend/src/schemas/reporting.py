@@ -210,6 +210,28 @@ class PersonalReportPackageContractResponse(BaseModel):
     export_contract: PersonalReportPackageExportContract
 
 
+class PersonalReportPackageNote(BaseModel):
+    """Disclosure note included in the personal financial-report package."""
+
+    note_id: str
+    label: str
+    owner_epic: str
+    basis: str
+    source_state: str
+    applies_to_sections: list[str]
+    disclosure: str
+
+
+class PersonalReportPackageNotesResponse(BaseModel):
+    """Package-level notes and disclosures for report consumers."""
+
+    section_id: str
+    label: str
+    status: str
+    notes: list[PersonalReportPackageNote]
+    non_compliance_statement: str
+
+
 class AnnualizedIncomeScheduleIncome(BaseModel):
     """Trailing income totals for the personal report package."""
 

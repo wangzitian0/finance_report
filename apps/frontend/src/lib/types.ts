@@ -177,6 +177,24 @@ export interface PersonalReportPackageContractResponse {
     };
 }
 
+export interface PersonalReportPackageNote {
+    note_id: string;
+    label: string;
+    owner_epic: string;
+    basis: string;
+    source_state: string;
+    applies_to_sections: string[];
+    disclosure: string;
+}
+
+export interface PersonalReportPackageNotesResponse {
+    section_id: string;
+    label: string;
+    status: string;
+    notes: PersonalReportPackageNote[];
+    non_compliance_statement: string;
+}
+
 export interface AnnualizedIncomeScheduleIncome {
     annualized_salary: number | string;
     annualized_bonus: number | string;

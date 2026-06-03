@@ -26,7 +26,7 @@ const contract = {
     { section_id: "cash_flow", label: "Cash Flow", owner_epic: "EPIC-005", source_endpoint: "/api/reports/cash-flow", status: "ready" },
     { section_id: "investment_performance", label: "Investment Performance", owner_epic: "EPIC-017", source_endpoint: "/api/portfolio/performance/report-schedule", status: "ready" },
     { section_id: "annualized_income_long_term", label: "Annualized Income & Long-Term Compensation", owner_epic: "EPIC-011", source_endpoint: "/api/reports/package/annualized-income-schedule", status: "ready" },
-    { section_id: "notes", label: "Notes & Disclosures", owner_epic: "EPIC-005", source_endpoint: "/api/reports/package/notes", status: "planned" },
+    { section_id: "notes", label: "Notes & Disclosures", owner_epic: "EPIC-005", source_endpoint: "/api/reports/package/notes", status: "ready" },
     { section_id: "traceability_appendix", label: "Traceability Appendix", owner_epic: "EPIC-018", source_endpoint: "/api/reports/package/traceability", status: "planned" },
   ],
   export_contract: {
@@ -77,10 +77,38 @@ const annualizedSchedule = {
   ],
 }
 
+const packageNotes = {
+  section_id: "notes",
+  label: "Notes & Disclosures",
+  status: "ready",
+  non_compliance_statement: "This personal management report is not a regulated filing, not legal advice, and not tax advice.",
+  notes: [
+    {
+      note_id: "basis-of-preparation",
+      label: "Basis of Preparation",
+      owner_epic: "EPIC-005",
+      basis: "personal_management_report_package_contract",
+      source_state: "package_contract",
+      applies_to_sections: ["balance_sheet", "income_statement"],
+      disclosure: "The package assembles personal finance statements and schedules for management use.",
+    },
+    {
+      note_id: "valuation-basis",
+      label: "Valuation Basis",
+      owner_epic: "EPIC-011",
+      basis: "manual_valuation_component_rules",
+      source_state: "manual_valuation_snapshots",
+      applies_to_sections: ["balance_sheet", "annualized_income_long_term"],
+      disclosure: "Manual valuation snapshots supply restricted compensation values.",
+    },
+  ],
+}
+
 function mockPackageApi() {
   mockedApiFetch.mockImplementation((path: string) => {
     if (path === "/api/reports/package/contract") return Promise.resolve(contract)
     if (path === "/api/reports/package/annualized-income-schedule") return Promise.resolve(annualizedSchedule)
+    if (path === "/api/reports/package/notes") return Promise.resolve(packageNotes)
     return Promise.reject(new Error(`Unexpected path ${path}`))
   })
 }
@@ -128,5 +156,18 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("SGD 12,500")).toBeInTheDocument()
     expect(screen.getByText("exclude_restricted_holdings")).toBeInTheDocument()
     expect(screen.getByText("Personal management report only; not tax advice.")).toBeInTheDocument()
+  })
+
+  it("AC5.12.3 renders package notes and disclosure basis", async () => {
+    mockPackageApi()
+
+    render(<PersonalReportPackagePage />)
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/package/notes"))
+    expect(screen.getAllByText("Notes & Disclosures").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText("Basis of Preparation")).toBeInTheDocument()
+    expect(screen.getByText("Valuation Basis")).toBeInTheDocument()
+    expect(screen.getByText("manual_valuation_snapshots")).toBeInTheDocument()
+    expect(screen.getByText("This personal management report is not a regulated filing, not legal advice, and not tax advice.")).toBeInTheDocument()
   })
 })
