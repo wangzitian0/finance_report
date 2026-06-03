@@ -2407,6 +2407,11 @@ groups:
         description: Personal financial report package macro proof is promoted to covered only when the representative fixture
           contract ACs are part of the critical proof matrix.
         mandatory: true
+      - id: AC8.13.86
+        epic: 8
+        epic_name: testing-strategy
+        description: CI fast feedback jobs start after change classification without waiting for behavior-only backend gates.
+        mandatory: true
   AC11:
     AC11.1:
       - id: AC11.1.1

@@ -940,7 +940,7 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
         "  finish:", 1
     )[0]
 
-    assert "needs: [changes, backend-integration, backend-e2e-tier1]" in backend_block
+    assert "needs: [changes]" in backend_block
     assert "needs: [changes, lint]" not in backend_block
     assert (
         "needs: [changes, backend-integration, backend-e2e-tier1, lint]"
@@ -948,6 +948,30 @@ def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
     )
     assert "needs: [lint]" not in traceability_block
     assert "run in parallel with lint" in ci_cd
+
+
+def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
+    """AC8.13.86: CI fast feedback jobs start after change classification only."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    backend_block = workflow.split("  backend:", 1)[1].split(
+        "  backend-integration:", 1
+    )[0]
+    frontend_block = workflow.split("  frontend:", 1)[1].split(
+        "  container-images:", 1
+    )[0]
+    image_block = workflow.split("  container-images:", 1)[1].split(
+        "  tooling-coverage:", 1
+    )[0]
+
+    for block in (backend_block, frontend_block, image_block):
+        assert "needs: [changes]" in block
+        assert "backend-integration" not in block.split("steps:", 1)[0]
+        assert "backend-e2e-tier1" not in block.split("steps:", 1)[0]
+
+    assert "Fast feedback jobs start after `changes` only" in ci_cd
+    assert "Behavior-only backend gates run in parallel" in ci_cd
 
 
 def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
