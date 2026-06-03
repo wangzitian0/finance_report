@@ -105,6 +105,8 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
     assert "# === AC8.13.1: Upload PDF ===" in test_body
     assert "Upload & Parse Statement" in test_body
     assert "# === AC8.13.2: Poll until" in test_body
+    assert 'a[href="/statements/{statement_id}"]' in test_body
+    assert 'filter(has_text=INSTITUTION_LABEL).first' not in test_body
     assert '"parsed"' in test_body
     assert "# === AC8.13.3: Detail page shows transactions ===" in test_body
     assert "Transactions" in test_body
@@ -258,6 +260,8 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
     assert "name: Staging AI/OCR Gate" in deploy_workflow
+    assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
+    assert "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
     assert "PARSING_TIMEOUT_MS: 480000" in deploy_workflow
     assert (
         "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}"
@@ -1000,12 +1004,15 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     assert "cancel-in-progress: false" in deploy_workflow
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
+    assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
+    assert "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
     assert (
         "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}"
         in deploy_workflow
     )
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
+    assert "test code, audit context, and deployed image under validation aligned" in ci_cd
     assert (
         "newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running"
         in ci_cd
