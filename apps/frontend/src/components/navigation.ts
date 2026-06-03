@@ -1,5 +1,6 @@
 import {
     BarChart3,
+    Bell,
     BookOpen,
     ClipboardCheck,
     Clock,
@@ -27,6 +28,7 @@ export interface RouteConfig {
 
 export const primaryNavItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", protected: true },
+    { icon: Bell, label: "Events", href: "/events", protected: true },
     { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
     { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
     { icon: FileText, label: "Statements", href: "/statements", protected: true },
@@ -40,6 +42,7 @@ export const primaryNavItems: NavItem[] = [
 
 export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/dashboard": { label: "Dashboard", Icon: LayoutDashboard },
+    "/events": { label: "Events", Icon: Bell },
     "/accounts": { label: "Accounts", Icon: Landmark },
     "/journal": { label: "Journal", Icon: BookOpen },
     "/statements": { label: "Statements", Icon: FileText },

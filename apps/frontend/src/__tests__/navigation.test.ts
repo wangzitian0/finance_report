@@ -6,6 +6,7 @@ describe("navigation metadata", () => {
   it("AC16.23.5 exposes the full primary navigation set for mobile and desktop", () => {
     expect(primaryNavItems.map((item) => item.label)).toEqual([
       "Dashboard",
+      "Events",
       "Accounts",
       "Journal",
       "Statements",

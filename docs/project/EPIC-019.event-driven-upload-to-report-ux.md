@@ -312,6 +312,19 @@ workflow state exists.
 | AC19.2.5 | Status and events reads run deterministic derived sync without duplicating events or resetting read/archive lifecycle state | `test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_reset` | P0 |
 | AC19.2.6 | Workflow API router is mounted and documented in the workflow-events SSOT as the compact read path for later UI slices | `test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path` | P0 |
 
+### AC19.3 — In-App Event Inbox, Header Badge, And Status Feed
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.3.1 | Deterministic sync refreshes mutable derived event fields for all user statements without duplicating events or resetting lifecycle state | `test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset` | P0 |
+| AC19.3.2 | Workflow status uses one aggregate count query and only fetches a representative event for the winning branch | `test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts` | P0 |
+| AC19.3.3 | Frontend exposes typed workflow API helpers through `lib/api.ts` for status, events, and lifecycle patching | `workflowApi.test.ts` | P0 |
+| AC19.3.4 | Header/app-shell badge reflects unread/action-required/blocked counts from the compact workflow API and stays quiet when no attention is needed | `workflowSurfaces.test.tsx` | P0 |
+| AC19.3.5 | Event inbox groups events by blocked, action-required, and routine automation; it supports read/archive actions and direct action links | `workflowSurfaces.test.tsx` | P0 |
+| AC19.3.6 | Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise | `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 |
+| AC19.3.7 | Desktop and mobile Playwright smoke covers the workflow badge/inbox/feed without layout overflow | `workflow-notifications.spec.ts` | P0 |
+| AC19.3.8 | Workflow notification UI contract is documented in the workflow-events SSOT and EPIC-019 | `test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces` | P0 |
+
 ### AC19.5 — Report Readiness and Blocker State
 
 | AC ID | Description | Verification | Priority |

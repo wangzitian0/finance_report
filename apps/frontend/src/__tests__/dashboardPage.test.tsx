@@ -25,9 +25,20 @@ vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
   NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-}))
+vi.mock("@/lib/api", () => {
+  const apiFetch = vi.fn()
+  return {
+    apiFetch,
+    fetchWorkflowStatus: () => apiFetch("/api/workflow/status"),
+    fetchWorkflowEvents: ({ limit }: { limit?: number } = {}) =>
+      apiFetch(`/api/workflow/events${limit ? `?limit=${limit}` : ""}`),
+    updateWorkflowEventStatus: (eventId: string, status: string) =>
+      apiFetch(`/api/workflow/events/${eventId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+  }
+})
 
 const baseBalance = {
   assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
@@ -58,6 +69,46 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
         ? { ...baseBalance, total_assets: 17500, total_equity: 16500 }
         : baseBalance
       return Promise.resolve(hasOverride("balance") ? overrides.balance : defaultBalance)
+    }
+    if (path.startsWith("/api/workflow/status")) {
+      return Promise.resolve(
+        hasOverride("workflowStatus")
+          ? overrides.workflowStatus
+          : {
+              primary_state: "needs_action",
+              next_action: { type: "review_required", count: 1, href: "/review" },
+              report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+              event_counts: { unread: 2, action_required: 1, blocked: 0 },
+            },
+      )
+    }
+    if (path.startsWith("/api/workflow/events")) {
+      return Promise.resolve(
+        hasOverride("workflowEvents")
+          ? overrides.workflowEvents
+          : {
+              total: 1,
+              items: [
+                {
+                  id: "workflow-dashboard",
+                  user_id: "user-dashboard",
+                  occurred_at: "2026-06-03T08:00:00Z",
+                  family: "review.required",
+                  severity: "action_required",
+                  status: "unread",
+                  title: "Review required",
+                  summary: "A statement needs confirmation before reports are ready.",
+                  source_type: "bank_statement",
+                  source_id: "statement-dashboard",
+                  action_href: "/review",
+                  report_impact: "blocked",
+                  dedupe_key: "workflow:dashboard",
+                  created_at: "2026-06-03T08:00:00Z",
+                  updated_at: "2026-06-03T08:00:00Z",
+                },
+              ],
+            },
+      )
     }
     if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(hasOverride("income") ? overrides.income : baseIncome)
     if (path.startsWith("/api/income/annualized")) {
@@ -168,6 +219,18 @@ describe("DashboardPage", () => {
     expect(screen.getByText("BarChartMock")).toBeInTheDocument()
     expect(screen.getByText("Recent Entries")).toBeInTheDocument()
     expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
+  })
+
+  it("AC19.3.6 renders the workflow status feed on the dashboard landing surface", async () => {
+    mockDashboardApi()
+
+    render(<DashboardPage />)
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument())
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/workflow/status")
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/workflow/events?limit=5")
+    expect(screen.getByText("Review required")).toBeInTheDocument()
+    expect(screen.getByText("Report blocked")).toBeInTheDocument()
   })
 
   it("AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels", async () => {

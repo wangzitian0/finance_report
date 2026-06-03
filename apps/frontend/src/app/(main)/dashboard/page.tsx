@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Landmark, FileText, BookOpen } from "lucide-react";
 import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
+import { WorkflowStatusFeedPanel } from "@/components/workflow/WorkflowNotifications";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
@@ -313,6 +314,10 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      <div className="mb-6">
+        <WorkflowStatusFeedPanel />
+      </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">

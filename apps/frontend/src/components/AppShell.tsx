@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
 import { ToastProvider } from "@/components/ui/Toast";
+import { WorkflowNotificationCenter } from "@/components/workflow/WorkflowNotifications";
 
 interface AppShellProps {
     children: ReactNode;
@@ -24,11 +25,12 @@ function AppShellContent({ children }: AppShellProps) {
                     isCollapsed ? "md:ml-16" : "md:ml-64"
                 }`}
             >
-                <div className="flex min-w-0 items-center border-b border-border md:block md:border-none">
+                <div className="flex min-w-0 items-center border-b border-border bg-surface-card">
                     <MobileNav />
-                    <div className="hidden md:block min-w-0">
+                    <div className="hidden md:block min-w-0 flex-1">
                         <WorkspaceTabs />
                     </div>
+                    <WorkflowNotificationCenter />
                 </div>
 
                 <main className="min-h-[calc(100vh-4rem)]">

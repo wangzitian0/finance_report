@@ -2,8 +2,9 @@
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from src.models import BankStatement
 from src.models.workflow import (
@@ -48,62 +49,29 @@ def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, 
     return f"{source_type}:{source_id}:{family.value}"
 
 
-async def upsert_workflow_event(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-    payload: WorkflowEventCreate,
-) -> WorkflowEvent:
-    """Create or update a deterministic workflow event without committing."""
-    result = await db.execute(
-        select(WorkflowEvent)
-        .where(WorkflowEvent.user_id == user_id)
-        .where(WorkflowEvent.dedupe_key == payload.dedupe_key)
-    )
-    event = result.scalar_one_or_none()
-    if event is None:
-        event = WorkflowEvent(
-            user_id=user_id,
-            occurred_at=payload.occurred_at,
-            family=payload.family,
-            severity=payload.severity,
-            status=WorkflowEventStatus.UNREAD,
-            title=payload.title,
-            summary=payload.summary,
-            source_type=payload.source_type,
-            source_id=payload.source_id,
-            action_href=payload.action_href,
-            report_impact=payload.report_impact,
-            dedupe_key=payload.dedupe_key,
-        )
-        db.add(event)
-    else:
-        event.occurred_at = payload.occurred_at
-        event.family = payload.family
-        event.severity = payload.severity
-        event.title = payload.title
-        event.summary = payload.summary
-        event.source_type = payload.source_type
-        event.source_id = payload.source_id
-        event.action_href = payload.action_href
-        event.report_impact = payload.report_impact
+def _apply_workflow_event_payload(event: WorkflowEvent, payload: WorkflowEventCreate) -> None:
+    event.occurred_at = payload.occurred_at
+    event.family = payload.family
+    event.severity = payload.severity
+    event.title = payload.title
+    event.summary = payload.summary
+    event.source_type = payload.source_type
+    event.source_id = payload.source_id
+    event.action_href = payload.action_href
+    event.report_impact = payload.report_impact
+    event.dedupe_key = payload.dedupe_key
 
-    await db.flush()
+
+def _workflow_event_from_payload(*, user_id: UUID, payload: WorkflowEventCreate) -> WorkflowEvent:
+    event = WorkflowEvent(user_id=user_id, status=WorkflowEventStatus.UNREAD)
+    _apply_workflow_event_payload(event, payload)
     return event
 
 
-async def derive_uploaded_statement_event(
-    db: AsyncSession,
-    statement: BankStatement,
-    *,
-    user_id: UUID,
-) -> WorkflowEvent:
-    """Upsert the initial uploaded-statement workflow event."""
-    if statement.user_id != user_id:
-        raise ValueError("statement.user_id must match user_id")
-
+def build_uploaded_statement_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+    """Build the deterministic uploaded-statement workflow event payload."""
     family = WorkflowEventFamily.SOURCE_UPLOADED
-    payload = WorkflowEventCreate(
+    return WorkflowEventCreate(
         occurred_at=statement.created_at,
         family=family,
         severity=WorkflowEventSeverity.INFO,
@@ -119,27 +87,70 @@ async def derive_uploaded_statement_event(
             source_id=statement.id,
         ),
     )
+
+
+async def upsert_workflow_event(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    payload: WorkflowEventCreate,
+) -> WorkflowEvent:
+    """Create or update a deterministic workflow event without committing."""
+    result = await db.execute(
+        select(WorkflowEvent)
+        .where(WorkflowEvent.user_id == user_id)
+        .where(WorkflowEvent.dedupe_key == payload.dedupe_key)
+    )
+    event = result.scalar_one_or_none()
+    if event is None:
+        event = _workflow_event_from_payload(user_id=user_id, payload=payload)
+        db.add(event)
+    else:
+        _apply_workflow_event_payload(event, payload)
+
+    await db.flush()
+    return event
+
+
+async def derive_uploaded_statement_event(
+    db: AsyncSession,
+    statement: BankStatement,
+    *,
+    user_id: UUID,
+) -> WorkflowEvent:
+    """Upsert the initial uploaded-statement workflow event."""
+    if statement.user_id != user_id:
+        raise ValueError("statement.user_id must match user_id")
+
+    payload = build_uploaded_statement_event_payload(statement)
     return await upsert_workflow_event(db, user_id=user_id, payload=payload)
 
 
 async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> None:
     """Derive deterministic workflow events from existing user-owned records."""
-    existing_uploaded_event = (
-        select(WorkflowEvent.id)
-        .where(WorkflowEvent.user_id == user_id)
-        .where(WorkflowEvent.source_type == "bank_statement")
-        .where(WorkflowEvent.source_id == BankStatement.id)
-        .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
-        .exists()
-    )
+    existing_event = aliased(WorkflowEvent)
     result = await db.execute(
-        select(BankStatement)
+        select(BankStatement, existing_event)
+        .outerjoin(
+            existing_event,
+            and_(
+                existing_event.user_id == user_id,
+                existing_event.family == WorkflowEventFamily.SOURCE_UPLOADED,
+                existing_event.source_type == "bank_statement",
+                existing_event.source_id == BankStatement.id,
+            ),
+        )
         .where(BankStatement.user_id == user_id)
-        .where(~existing_uploaded_event)
         .order_by(BankStatement.created_at.asc())
     )
-    for statement in result.scalars().all():
-        await derive_uploaded_statement_event(db, statement, user_id=user_id)
+    for statement, event in result.all():
+        payload = build_uploaded_statement_event_payload(statement)
+        if event is None:
+            db.add(_workflow_event_from_payload(user_id=user_id, payload=payload))
+        else:
+            _apply_workflow_event_payload(event, payload)
+
+    await db.flush()
 
 
 async def list_workflow_events(
@@ -200,10 +211,6 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
 
     active_filters = [WorkflowEvent.user_id == user_id, WorkflowEvent.status != WorkflowEventStatus.ARCHIVED]
 
-    async def count_where(*filters: object) -> int:
-        value = await db.scalar(select(func.count(WorkflowEvent.id)).where(*active_filters, *filters))
-        return int(value or 0)
-
     async def representative_event(*filters: object) -> WorkflowEvent | None:
         result = await db.execute(
             select(WorkflowEvent)
@@ -213,12 +220,35 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
         )
         return result.scalar_one_or_none()
 
-    active_count = await count_where()
-    unread_count = await count_where(WorkflowEvent.status == WorkflowEventStatus.UNREAD)
-    action_required_count = await count_where(WorkflowEvent.severity == WorkflowEventSeverity.ACTION_REQUIRED)
-    blocked_count = await count_where(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
-    processing_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.PROCESSING)
-    ready_count = await count_where(WorkflowEvent.report_impact == WorkflowReportImpact.READY)
+    aggregate_row = (
+        await db.execute(
+            select(
+                func.count(WorkflowEvent.id).label("active_count"),
+                func.count(WorkflowEvent.id)
+                .filter(WorkflowEvent.status == WorkflowEventStatus.UNREAD)
+                .label("unread_count"),
+                func.count(WorkflowEvent.id)
+                .filter(WorkflowEvent.severity == WorkflowEventSeverity.ACTION_REQUIRED)
+                .label("action_required_count"),
+                func.count(WorkflowEvent.id)
+                .filter(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
+                .label("blocked_count"),
+                func.count(WorkflowEvent.id)
+                .filter(WorkflowEvent.report_impact == WorkflowReportImpact.PROCESSING)
+                .label("processing_count"),
+                func.count(WorkflowEvent.id)
+                .filter(WorkflowEvent.report_impact == WorkflowReportImpact.READY)
+                .label("ready_count"),
+            ).where(*active_filters)
+        )
+    ).one()
+
+    active_count = int(aggregate_row.active_count or 0)
+    unread_count = int(aggregate_row.unread_count or 0)
+    action_required_count = int(aggregate_row.action_required_count or 0)
+    blocked_count = int(aggregate_row.blocked_count or 0)
+    processing_count = int(aggregate_row.processing_count or 0)
+    ready_count = int(aggregate_row.ready_count or 0)
 
     if blocked_count or package_readiness_state == WorkflowReportReadinessState.BLOCKED:
         blocked_event = await representative_event(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)

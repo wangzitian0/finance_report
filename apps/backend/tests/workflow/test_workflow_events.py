@@ -22,7 +22,9 @@ from src.models.workflow import (
 from src.schemas.workflow import WorkflowEventCreate, WorkflowEventResponse
 from src.services.workflow_events import (
     derive_uploaded_statement_event,
+    get_workflow_status,
     list_workflow_events,
+    sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
 )
@@ -39,6 +41,25 @@ def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
     assert "workflow_events:" in manifest
     assert "owner: docs/ssot/workflow-events.md" in manifest
     assert "docs/project/EPIC-019.event-driven-upload-to-report-ux.md" in manifest
+
+
+def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> None:
+    """AC19.3.8: workflow notification UI contract is documented in SSOT and EPIC."""
+    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
+
+    for phrase in (
+        "Header badge",
+        "Event inbox",
+        "Status feed",
+        "Routine automation",
+        "WorkflowNotificationCenter",
+        "WorkflowStatusFeed",
+    ):
+        assert phrase in ssot
+
+    assert "AC19.3.1" in epic
+    assert "AC19.3.8" in epic
 
 
 def test_AC19_1_2_workflow_event_model_contract() -> None:
@@ -255,3 +276,149 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
     assert updated is not None
     assert updated.status == WorkflowEventStatus.ARCHIVED
     assert WorkflowEventResponse.model_validate(updated).status == WorkflowEventStatus.ARCHIVED
+
+
+@pytest.mark.asyncio
+async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None:
+    """AC19.3.1: derived sync updates mutable display fields without lifecycle reset."""
+    statement = BankStatement(
+        user_id=test_user.id,
+        file_path="statements/original.csv",
+        file_hash="e" * 64,
+        original_filename="original.csv",
+        institution="Demo Bank",
+        status=BankStatementStatus.UPLOADED,
+    )
+    db.add(statement)
+    await db.flush()
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.source_id == statement.id)
+        )
+    ).scalar_one()
+    event.status = WorkflowEventStatus.ARCHIVED
+    statement.original_filename = "renamed.csv"
+    await db.flush()
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events = (
+        (
+            await db.execute(
+                select(WorkflowEvent)
+                .where(WorkflowEvent.user_id == test_user.id)
+                .where(WorkflowEvent.source_id == statement.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert len(events) == 1
+    assert events[0].id == event.id
+    assert events[0].status == WorkflowEventStatus.ARCHIVED
+    assert "renamed.csv" in events[0].summary
+
+
+@pytest.mark.asyncio
+async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, test_user) -> None:
+    """AC19.3.1: derived sync avoids per-statement workflow event lookups."""
+    from sqlalchemy import event as sqlalchemy_event
+
+    for index in range(3):
+        db.add(
+            BankStatement(
+                user_id=test_user.id,
+                file_path=f"statements/bulk-{index}.csv",
+                file_hash=f"{index}" * 64,
+                original_filename=f"bulk-{index}.csv",
+                institution="Demo Bank",
+                status=BankStatementStatus.UPLOADED,
+            )
+        )
+    await db.commit()
+
+    statements: list[str] = []
+
+    def capture_sql(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        normalized = " ".join(statement.lower().split())
+        if normalized.startswith("select") and "workflow_events" in normalized:
+            statements.append(normalized)
+
+    sqlalchemy_event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+    try:
+        await sync_workflow_events_for_user(db, user_id=test_user.id)
+    finally:
+        sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+
+    assert len(statements) == 1
+    assert "join workflow_events" in statements[0]
+
+
+@pytest.mark.asyncio
+async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
+    db,
+    db_engine,
+    test_user,
+) -> None:
+    """AC19.3.2: status uses one aggregate count query and one winning representative query."""
+    from sqlalchemy import event as sqlalchemy_event
+
+    await upsert_workflow_event(
+        db,
+        user_id=test_user.id,
+        payload=WorkflowEventCreate(
+            family=WorkflowEventFamily.REVIEW_REQUIRED,
+            severity=WorkflowEventSeverity.ACTION_REQUIRED,
+            title="Review required",
+            summary="One statement needs confirmation.",
+            source_type="bank_statement",
+            source_id=uuid4(),
+            action_href="/review",
+            report_impact=WorkflowReportImpact.BLOCKED,
+            dedupe_key="bank-statement:review-required:aggregate",
+            occurred_at=datetime.now(UTC),
+        ),
+    )
+    await upsert_workflow_event(
+        db,
+        user_id=test_user.id,
+        payload=WorkflowEventCreate(
+            family=WorkflowEventFamily.REPORT_PROCESSING,
+            severity=WorkflowEventSeverity.INFO,
+            title="Report processing",
+            summary="Automation is running.",
+            source_type="report",
+            source_id=uuid4(),
+            action_href="/reports",
+            report_impact=WorkflowReportImpact.PROCESSING,
+            dedupe_key="report:processing:aggregate",
+            occurred_at=datetime.now(UTC),
+        ),
+    )
+    await db.commit()
+
+    statements: list[str] = []
+
+    def capture_sql(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        normalized = " ".join(statement.lower().split())
+        if "workflow_events" in normalized:
+            statements.append(normalized)
+
+    sqlalchemy_event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+    try:
+        status = await get_workflow_status(db, user_id=test_user.id)
+    finally:
+        sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+
+    count_queries = [statement for statement in statements if "count(" in statement]
+    representative_queries = [
+        statement for statement in statements if "select workflow_events." in statement and "count(" not in statement
+    ]
+
+    assert status.primary_state.value == "needs_action"
+    assert len(count_queries) == 1
+    assert len(representative_queries) == 1
