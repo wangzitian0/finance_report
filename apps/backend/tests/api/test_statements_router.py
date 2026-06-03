@@ -44,7 +44,7 @@ from src.services import (
     statement_parsing as statement_parsing_mod,
     statement_validation as statement_validation_mod,
 )
-from src.services.review_queue import create_entry_from_txn
+from src.services.review_queue import accept_match as accept_match_service, create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.services.statement_parsing import handle_parse_failure
 from src.services.statement_posting import (
@@ -2539,9 +2539,9 @@ async def test_get_stage2_review_queue_empty(db, test_user):
 
 
 async def test_get_stage2_review_queue_with_pending_match(db, test_user):
-    """Given a statement with a pending-review reconciliation match,
+    """AC4.9.4: Given a statement with a pending-review reconciliation match,
     When get_stage2_review_queue is called,
-    Then it returns the match in pending_matches (lines 844-863).
+    Then it returns the match in pending_matches with tier derived from match_score.
     """
     from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 
@@ -2574,6 +2574,8 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
 
     assert len(result.pending_matches) == 1
     assert result.pending_matches[0]["status"] == "pending_review"
+    assert result.pending_matches[0]["match_score"] == 75
+    assert result.pending_matches[0]["confidence_tier"] == "MEDIUM"
 
 
 async def test_run_stage2_checks_success(db, test_user):
@@ -2950,6 +2952,57 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     assert len(list(second_entry_result.scalars().all())) == 1
 
 
+async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
+    """AC4.9.2: Retrying an accepted match must not mutate version or duplicate posting side effects."""
+    account = await create_statement_account(db, test_user.id, "DBS Accept Retry")
+    statement = build_statement(test_user.id, "hash_accept_retry", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 18),
+        description="Retry-safe payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    match = ReconciliationMatch(
+        bank_txn_id=txn.id,
+        journal_entry_ids=[],
+        match_score=85,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add(match)
+    await db.commit()
+
+    first = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    await db.commit()
+    first_version = first.version
+    first_entry_ids = list(first.journal_entry_ids or [])
+
+    second = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    await db.commit()
+
+    assert second.status == ReconciliationStatus.ACCEPTED
+    assert second.version == first_version
+    assert second.journal_entry_ids == first_entry_ids
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.source_id == txn.id)
+    )
+    assert len(list(entry_result.scalars().all())) == 1
+
+
 async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user):
     """AC16.24.4: Batch approval links an existing source journal entry instead of duplicating it."""
     account = await create_statement_account(db, test_user.id, "DBS Batch Existing Source")
@@ -3004,6 +3057,39 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
         .where(JournalEntry.source_id == txn.id)
     )
     assert len(list(entry_result.scalars().all())) == 1
+
+
+async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_account(db, test_user):
+    """AC4.9.3: Auto-posted statement entries must satisfy regular posting account invariants."""
+    account = await create_statement_account(db, test_user.id, "DBS Inactive Statement Account")
+    account.is_active = False
+    statement = build_statement(test_user.id, "hash_batch_inactive_account", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
+    db.add(statement)
+    await db.commit()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 20),
+        description="Inactive mapped account payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    with pytest.raises(ValueError, match="not active"):
+        await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+
+    entry_result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.source_id == txn.id)
+    )
+    assert list(entry_result.scalars().all()) == []
 
 
 async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_user):

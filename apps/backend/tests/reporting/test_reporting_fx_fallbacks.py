@@ -124,6 +124,65 @@ async def test_aggregate_balances_with_start_date(db: AsyncSession, accounts, us
 
 
 @pytest.mark.asyncio
+async def test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning(
+    db: AsyncSession, accounts, user_id
+):
+    """
+    AC5.4.4: Missing FX during balance aggregation returns an explicit partial warning
+    instead of aborting the whole report.
+    """
+    _, usd_savings, capital, _, _ = accounts
+
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2025, 1, 15),
+        memo="USD opening without FX",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_savings.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=capital.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    fx_warnings: list[dict[str, str]] = []
+    balances = await _aggregate_balances_sql(
+        db,
+        user_id,
+        (AccountType.ASSET,),
+        "SGD",
+        date(2025, 1, 31),
+        fx_warnings=fx_warnings,
+    )
+
+    assert balances == {}
+    assert fx_warnings == [
+        {
+            "type": "missing_fx_rate_partial_skip",
+            "base_currency": "USD",
+            "quote_currency": "SGD",
+            "rate_date": "2025-01-31",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_aggregate_net_income_with_start_date(db: AsyncSession, accounts, user_id):
     """
     GIVEN income entries before and during a date range
