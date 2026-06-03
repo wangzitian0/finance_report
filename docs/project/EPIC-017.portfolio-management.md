@@ -212,6 +212,19 @@ freshness metadata, and source links.
 | AC17.11.3 | Portfolio TWR excludes unrelated bank atomic transactions from period cash-flow adjustment | `test_AC17_11_3_twr_excludes_unrelated_bank_transactions()` | `portfolio/test_financial_logic_audit.py` | P0 |
 | AC17.11.4 | Non-structured source document payloads produce no audit links | `test_AC17_11_4_source_document_links_ignore_non_structured_payloads()` | `portfolio/test_financial_logic_audit.py` | P0 |
 
+### AC17.12: Portfolio Audit Fixture Expansion
+
+This block owns the deterministic portfolio fixture contract used by the
+personal financial-report package proof. Local real PDF/CSV inputs may be used
+to learn statement structure, but committed fixtures must be synthetic,
+redacted, and Decimal-safe.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.12.1 | Portfolio audit fixture contract covers multi-broker, multi-currency expected positions for Moomoo statement, Moomoo margin history, and Futu statement sources | `test_AC17_12_1_portfolio_fixture_contract_covers_multi_broker_multi_currency_inputs` | `tests/tooling/test_portfolio_audit_fixture_contract.py` | P0 |
+| AC17.12.2 | Portfolio audit fixture contract pins sanitized trade, dividend, fee, and valuation activity rows and parser support for Moomoo margin history rows | `test_AC17_12_2_portfolio_fixture_pins_activity_rows_without_raw_documents`, `test_AC17_12_2_parse_moomoo_margin_history_rows_as_equity_position_snapshot` | `tests/tooling/test_portfolio_audit_fixture_contract.py`, `portfolio/test_brokerage_position_parsing.py` | P0 |
+| AC17.12.3 | Personal report package fixture consumes expanded portfolio expected outputs instead of keeping one-position brokerage constants inline | `test_AC17_12_3_personal_package_references_expanded_portfolio_fixture_contract` | `tests/tooling/test_portfolio_audit_fixture_contract.py` | P0 |
+
 ### Brokerage PDF to Asset Report Proof Matrix
 
 This is the detailed EPIC-017 counterpart to the README core proof path. It

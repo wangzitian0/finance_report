@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 
 from tools._lib.fixtures.personal_report_package import REPRESENTATIVE_PACKAGE_FIXTURE
+from tools._lib.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -12,7 +13,9 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs() -> None:
+def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs() -> (
+    None
+):
     """AC8.13.83: Personal package fixture contract covers representative sources and exact outputs."""
     fixture = REPRESENTATIVE_PACKAGE_FIXTURE
 
@@ -21,7 +24,9 @@ def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs
     assert fixture.brokerage.source == "moomoo"
     assert fixture.brokerage.institution == "Moomoo Personal Package"
 
-    component_types = {component.component_type for component in fixture.manual_components}
+    component_types = {
+        component.component_type for component in fixture.manual_components
+    }
     assert component_types == {
         "property_value",
         "mortgage_balance",
@@ -60,7 +65,9 @@ def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs
     } <= fixture.required_note_ids
 
 
-def test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract() -> None:
+def test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract() -> (
+    None
+):
     """AC8.13.84: Package E2E consumes the shared representative fixture contract."""
     journey = read("tests/e2e/test_personal_financial_report_package.py")
 
@@ -72,7 +79,9 @@ def test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract
     assert "_fixture_totals(" not in journey
 
 
-def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract() -> None:
+def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract() -> (
+    None
+):
     """AC8.13.85: Package macro proof is covered by the representative fixture ACs."""
     matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
     outcomes = {outcome["id"]: outcome for outcome in matrix["outcomes"]}
@@ -88,17 +97,30 @@ def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contra
         "AC8.13.83",
         "AC8.13.84",
         "AC8.13.85",
+        "AC17.12.1",
+        "AC17.12.2",
+        "AC17.12.3",
     } <= set(proof["ac_ids"])
 
 
-def test_AC8_13_86_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs() -> None:
+def test_AC8_13_86_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs() -> (
+    None
+):
     """AC8.13.87: Audit-grade package fixture pins investment expected outputs."""
     fixture = REPRESENTATIVE_PACKAGE_FIXTURE
     expected = fixture.expected_outputs
 
-    assert expected.brokerage_market_value == Decimal("1250.50")
-    assert expected.brokerage_position_count == 1
-    assert expected.dividend_income == Decimal("88.25")
+    assert (
+        expected.brokerage_market_value
+        == PORTFOLIO_AUDIT_FIXTURE.report_package_market_value_sgd
+    )
+    assert expected.brokerage_position_count == len(
+        PORTFOLIO_AUDIT_FIXTURE.report_package_positions
+    )
+    assert (
+        expected.dividend_income
+        == PORTFOLIO_AUDIT_FIXTURE.expected_activity_totals.dividend_income_sgd
+    )
     assert expected.market_price == Decimal("12.50")
     assert expected.market_price_date.isoformat() == "2026-05-31"
 
@@ -113,6 +135,7 @@ def test_AC8_13_87_personal_package_e2e_consumes_audit_grade_expected_outputs() 
     assert "expected.market_price" in journey
     assert "expected.market_price_date" in journey
     assert "manual_override_basis" in journey
-    assert 'date.fromisoformat(schedule["data_freshness"]["latest_price_date"])' in journey
+    assert "latest_price_date = date.fromisoformat(" in journey
+    assert 'schedule["data_freshness"]["latest_price_date"]' in journey
     assert "latest_price_date >= expected.market_price_date" in journey
     assert "assert _has_dynamic_traceability_identifiers(traceability)" in journey
