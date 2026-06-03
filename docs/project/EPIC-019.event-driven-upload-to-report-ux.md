@@ -230,6 +230,10 @@ Report readiness must link to blockers:
 - Reconciliation blockers.
 - Missing source coverage.
 
+Readiness contracts must reject unknown states, reject non-internal action
+links, expose timestamps as validated datetime fields, and fail deterministically
+when canonical system accounts are duplicated.
+
 **Why this works:** the product becomes trustworthy because the UI tells users
 whether a report is supported by processed, validated, and reviewed source data.
 
@@ -329,11 +333,12 @@ workflow state exists.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.5.1 | Personal report package exposes a user-scoped readiness endpoint that returns deterministic package state, action link, blocker count, and source summary before report output | `test_AC19_5_1_package_readiness_returns_draft_for_empty_user` | P0 |
+| AC19.5.1 | Personal report package exposes a user-scoped readiness endpoint that returns deterministic package state, action link, blocker count, and source summary before report output | `test_AC19_5_1_package_readiness_returns_draft_for_empty_user` / `test_AC19_5_1_package_readiness_rejects_unknown_state_and_external_action_links` | P0 |
 | AC19.5.2 | Blocked package readiness lists exact blocker categories for failed parsing, pending review, balance mismatch, reconciliation blockers, consistency checks, unresolved Processing balance, and missing source coverage | `test_AC19_5_2_package_readiness_lists_actionable_blockers` | P0 |
 | AC19.5.3 | Package readiness deterministically promotes through `draft`, `processing`, `blocked`, `ready`, `generated`, and `stale` based on source state and report snapshot freshness | `test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness` | P0 |
 | AC19.5.4 | Personal report package page renders readiness state and blocker links before package section output | `personalReportPackagePage.test.tsx` | P1 |
 | AC19.5.5 | Personal report package page renders non-blocked readiness states without stale blocker cards | `personalReportPackagePage.test.tsx` | P1 |
+| AC19.5.6 | Package readiness fails deterministically when duplicate Processing system accounts would otherwise make blockers non-deterministic | `test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts` | P0 |
 
 ## How To Build It
 

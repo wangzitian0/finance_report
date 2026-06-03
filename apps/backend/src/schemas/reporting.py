@@ -1,6 +1,6 @@
 """Pydantic schemas for financial reporting endpoints."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID
@@ -232,18 +232,29 @@ class PersonalReportPackageReadinessBlocker(BaseModel):
         return _validate_internal_action_href(value)
 
 
+class PersonalReportPackageReadinessState(str, Enum):
+    """Allowed states for the personal report package readiness contract."""
+
+    DRAFT = "draft"
+    PROCESSING = "processing"
+    BLOCKED = "blocked"
+    READY = "ready"
+    GENERATED = "generated"
+    STALE = "stale"
+
+
 class PersonalReportPackageReadinessResponse(BaseModel):
     """Deterministic readiness state for the personal report package."""
 
     package_id: str
-    state: str
+    state: PersonalReportPackageReadinessState
     label: str
     action_href: str
     blocking_count: int
     blockers: list[PersonalReportPackageReadinessBlocker] = Field(default_factory=list)
     source_summary: dict[str, int] = Field(default_factory=dict)
-    generated_at: str | None = None
-    stale_since: str | None = None
+    generated_at: datetime | None = None
+    stale_since: datetime | None = None
 
     @field_validator("action_href")
     @classmethod

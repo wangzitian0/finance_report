@@ -5,6 +5,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -256,8 +258,18 @@ async def test_AC19_5_1_package_readiness_returns_draft_for_empty_user(
     assert payload["source_summary"]["statements"] == 0
 
 
-def test_AC19_5_1_package_readiness_rejects_external_action_links():
-    """AC19.5.1: Package readiness action links must be internal routes."""
+def test_AC19_5_1_package_readiness_rejects_unknown_state_and_external_action_links():
+    """AC19.5.1: Package readiness state and action links must be contract-bound."""
+    with pytest.raises(ValidationError):
+        PersonalReportPackageReadinessResponse(
+            package_id="personal-financial-report-package",
+            state="unknown",
+            label="Unknown",
+            action_href="/review",
+            blocking_count=0,
+            source_summary={},
+        )
+
     with pytest.raises(ValueError, match="action_href must be an internal relative path"):
         PersonalReportPackageReadinessResponse(
             package_id="personal-financial-report-package",
@@ -297,6 +309,10 @@ def test_AC19_5_1_package_readiness_rejects_external_action_links():
             ],
             source_summary={},
         )
+
+
+def _json_datetime(value: datetime) -> str:
+    return value.isoformat().replace("+00:00", "Z")
 
 
 @pytest.mark.asyncio
@@ -402,6 +418,38 @@ async def test_AC19_5_2_package_readiness_lists_actionable_blockers(
 
 
 @pytest.mark.asyncio
+async def test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC19.5.6: Duplicate Processing system accounts are data corruption, not arbitrary readiness input."""
+    db.add_all(
+        [
+            Account(
+                user_id=test_user.id,
+                name="Processing A",
+                code="1199",
+                type=AccountType.ASSET,
+                currency="SGD",
+                is_system=True,
+            ),
+            Account(
+                user_id=test_user.id,
+                name="Processing B",
+                code="1199",
+                type=AccountType.ASSET,
+                currency="SGD",
+                is_system=True,
+            ),
+        ]
+    )
+    await db.flush()
+
+    with pytest.raises(MultipleResultsFound):
+        await personal_report_package_readiness(db=db, user_id=test_user.id)
+
+
+@pytest.mark.asyncio
 async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
     db: AsyncSession,
     test_user: User,
@@ -438,13 +486,15 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
 
     response = await personal_report_package_readiness(db=db, user_id=test_user.id)
     assert response.state == "generated"
-    assert response.generated_at == snapshot_time.isoformat()
+    assert response.generated_at == snapshot_time
+    assert response.model_dump(mode="json")["generated_at"] == _json_datetime(snapshot_time)
 
     statement.updated_at = datetime(2026, 5, 3, tzinfo=UTC)
     await db.flush()
     response = await personal_report_package_readiness(db=db, user_id=test_user.id)
     assert response.state == "stale"
-    assert response.stale_since == datetime(2026, 5, 3, tzinfo=UTC).isoformat()
+    assert response.stale_since == datetime(2026, 5, 3, tzinfo=UTC)
+    assert response.model_dump(mode="json")["stale_since"] == _json_datetime(datetime(2026, 5, 3, tzinfo=UTC))
 
 
 @pytest.mark.asyncio

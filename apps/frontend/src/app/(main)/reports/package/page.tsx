@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
@@ -77,9 +78,9 @@ export default function PersonalReportPackagePage() {
                                 : `Current package state is ${readiness.label.toLowerCase()}.`}
                         </p>
                     </div>
-                    <a className="badge badge-muted" href={readiness.action_href}>
+                    <Link className="badge badge-muted" href={readiness.action_href}>
                         {readiness.label}
-                    </a>
+                    </Link>
                 </div>
                 <dl className="mt-5 grid md:grid-cols-4 gap-3 text-sm">
                     <div>
@@ -108,9 +109,9 @@ export default function PersonalReportPackagePage() {
                                         <p className="font-medium">{blocker.label}</p>
                                         <p className="text-xs font-mono text-muted mt-1">{blocker.code}</p>
                                     </div>
-                                    <a className="badge badge-muted" href={blocker.action_href}>
+                                    <Link className="badge badge-muted" href={blocker.action_href}>
                                         {blocker.count}
-                                    </a>
+                                    </Link>
                                 </div>
                                 <p className="mt-3 text-sm text-muted">{blocker.reason}</p>
                             </article>

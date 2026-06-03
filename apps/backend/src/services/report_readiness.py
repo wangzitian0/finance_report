@@ -61,13 +61,14 @@ async def _max_updated_at(db: AsyncSession, statement) -> datetime | None:
 
 
 async def _processing_account_balance(db: AsyncSession, user_id: UUID) -> Decimal:
-    processing_account_id = await db.scalar(
+    result = await db.execute(
         select(Account.id).where(
             Account.user_id == user_id,
             Account.is_system == True,  # noqa: E712
             Account.code == "1199",
         )
     )
+    processing_account_id = result.scalar_one_or_none()
     if processing_account_id is None:
         return Decimal("0.00")
 
@@ -345,6 +346,6 @@ async def get_personal_report_package_readiness(db: AsyncSession, user_id: UUID)
         "blocking_count": sum(int(blocker["count"]) for blocker in blockers),
         "blockers": blockers,
         "source_summary": source_summary,
-        "generated_at": latest_snapshot_updated_at.isoformat() if latest_snapshot_updated_at else None,
-        "stale_since": source_updated_at.isoformat() if state == "stale" and source_updated_at else None,
+        "generated_at": latest_snapshot_updated_at,
+        "stale_since": source_updated_at if state == "stale" else None,
     }

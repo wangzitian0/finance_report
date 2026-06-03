@@ -242,15 +242,21 @@ Package readiness:
   workflow summary APIs may aggregate it but must not duplicate its derivation.
 - Response contract:
   - `package_id`: always `personal-financial-report-package`
-  - `state`: one of `draft`, `processing`, `blocked`, `ready`, `generated`, or
-    `stale`
-  - `label` and `action_href`: primary UI state and next action
+  - `state`: closed enum of `draft`, `processing`, `blocked`, `ready`,
+    `generated`, or `stale`
+  - `label` and `action_href`: primary UI state and next action; action links
+    must be internal relative routes
   - `blocking_count`: sum of blocker record counts
   - `blockers`: ordered actionable blockers with `code`, `label`, `severity`,
     `count`, `reason`, and internal `action_href`
   - `source_summary`: counts of source records used to derive readiness
-  - `generated_at`: latest package report snapshot timestamp, when available
-  - `stale_since`: newest source timestamp when generated output is stale
+  - `generated_at`: latest package report snapshot timestamp, when available,
+    modeled as a validated datetime and serialized as ISO 8601 JSON
+  - `stale_since`: newest source timestamp when generated output is stale,
+    modeled as a validated datetime and serialized as ISO 8601 JSON
+- Determinism guard: duplicate canonical Processing system accounts (`code =
+  1199`) are data corruption and must fail readiness derivation rather than
+  selecting an arbitrary account balance.
 - State priority:
   1. `draft`: no report-supporting inputs exist.
   2. `processing`: statements are uploaded or parsing and there are no blockers.
