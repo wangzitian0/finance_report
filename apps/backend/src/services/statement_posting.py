@@ -102,18 +102,31 @@ async def resolve_statement_posting_account(
     user_id: UUID,
 ) -> Account:
     """Resolve the asset account for automatic posting without generic fallback."""
+    currency = (statement.currency or "").strip().upper()
+    if not currency:
+        raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
+
     if statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
         )
         account = account_result.scalar_one_or_none()
-        if account:
-            return account
-        raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
+        if account is None:
+            raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
+        if account.type != AccountType.ASSET or not account.is_active:
+            raise ValueError(
+                "Statement account mapping must reference an active asset account. "
+                "Confirm the target account before posting."
+            )
+        if account.currency != currency:
+            raise ValueError(
+                "Statement account mapping must match the statement currency. "
+                "Confirm the target account before posting."
+            )
+        return account
 
     institution = (statement.institution or "").strip()
     account_last4 = (statement.account_last4 or "").strip()
-    currency = (statement.currency or "").strip().upper()
     if not institution or not account_last4 or not currency:
         raise ValueError(
             "Account mapping required before posting. Confirm the statement account because institution, "
@@ -210,12 +223,12 @@ async def try_auto_approve_high_confidence_statement(
         return 0
 
     try:
-        approved = await approve_statement(db, statement_id, user_id)
-        created_count = await auto_create_posted_entries_for_statement(db, approved, user_id)
-        await db.flush()
+        async with db.begin_nested():
+            approved = await approve_statement(db, statement_id, user_id)
+            created_count = await auto_create_posted_entries_for_statement(db, approved, user_id)
+            await db.flush()
         return created_count
     except ValueError as exc:
-        await db.rollback()
         refreshed = await db.get(BankStatement, statement_id)
         if refreshed is not None:
             refreshed.status = BankStatementStatus.PARSED

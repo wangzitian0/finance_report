@@ -138,7 +138,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC3.3.1 | High Confidence (Auto-Accept) | `test_high_confidence`, `test_auto_approve_high_confidence_statement_creates_posted_entries` | `extraction/test_extraction.py`, `api/test_statements_router.py` | P0 |
+| AC3.3.1 | High Confidence (Auto-Accept) | `test_high_confidence`, `test_auto_approve_high_confidence_statement_creates_posted_entries`, `test_auto_approve_guard_failure_preserves_uncommitted_parse_data` | `extraction/test_extraction.py`, `api/test_statements_router.py` | P0 |
 | AC3.3.2 | Medium Confidence (Review) | `test_medium_confidence` | `extraction/test_extraction.py` | P0 |
 | AC3.3.3 | Low Confidence (Manual) | `test_low_confidence_empty_transactions` | `extraction/test_extraction.py` | P0 |
 
@@ -163,7 +163,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC3.6.1 | Unique Prior Mapping | `test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account` | `api/test_statements_router.py` | P0 |
-| AC3.6.2 | No Silent Fallback Posting | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
+| AC3.6.2 | No Silent Fallback Posting | `test_approve_statement_stage1_blocks_unmapped_account_without_fallback`, `test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping`, `test_create_entry_from_txn_auto_post_requires_account_mapping` | `api/test_statements_router.py`, `reconciliation/test_review_queue.py` | P0 |
 | AC3.6.3 | Ambiguous Mapping Blocked | `test_approve_statement_stage1_blocks_ambiguous_account_mapping` | `api/test_statements_router.py` | P0 |
 | AC3.6.4 | Explicit First-Upload Account Creation | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 |
 | AC3.6.5 | Prior Mapping Requires Confirmed Statement | `test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping` | `api/test_statements_router.py` | P0 |

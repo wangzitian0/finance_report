@@ -1695,6 +1695,42 @@ async def test_auto_approve_high_confidence_statement_falls_back_to_pending_revi
     assert "Account mapping required" in (statement.validation_error or "")
 
 
+async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, test_user):
+    """AC3.3.1: Auto-approval guard fallback must not roll back parsed statement data."""
+    statement = build_statement(test_user.id, "hash_s1_guard_failure_preserves_parse", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = None
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 8),
+        description="Uncommitted Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+
+    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+
+    assert created_count == 0
+
+    persisted_statement = await db.get(BankStatement, statement.id)
+    assert persisted_statement is not None
+    assert persisted_statement.status == BankStatementStatus.PARSED
+    assert persisted_statement.stage1_status == Stage1Status.PENDING_REVIEW
+    assert "Account mapping required" in (persisted_statement.validation_error or "")
+
+    txn_result = await db.execute(
+        select(BankStatementTransaction).where(BankStatementTransaction.statement_id == statement.id)
+    )
+    persisted_txn = txn_result.scalar_one()
+    assert persisted_txn.description == "Uncommitted Salary"
+
+
 async def test_approve_statement_stage1_promotes_existing_statement_entries_without_reposting(db, test_user):
     bank_account = await create_statement_account(db, test_user.id, "DBS Existing Entry Promotion")
     statement = build_statement(test_user.id, "hash_s1_existing_entry_promotion", 90)
@@ -2024,6 +2060,61 @@ async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Statement account mapping is invalid" in str(exc.value.detail)
+
+
+@pytest.mark.parametrize(
+    ("account_type", "account_currency", "is_active", "expected_detail"),
+    [
+        (AccountType.LIABILITY, "SGD", True, "active asset account"),
+        (AccountType.ASSET, "USD", True, "statement currency"),
+        (AccountType.ASSET, "SGD", False, "active asset account"),
+    ],
+)
+async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
+    db,
+    test_user,
+    account_type,
+    account_currency,
+    is_active,
+    expected_detail,
+):
+    """AC3.6.2: Explicit statement accounts must be active ASSET accounts in the statement currency."""
+    user_id = test_user.id
+    account = Account(
+        user_id=user_id,
+        name="Unsafe Explicit Account",
+        type=account_type,
+        currency=account_currency,
+        is_active=is_active,
+    )
+    db.add(account)
+    await db.flush()
+
+    statement = build_statement(user_id, f"hash_s1_unsafe_explicit_{account_type}_{account_currency}_{is_active}", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = account.id
+    statement.currency = "SGD"
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    db.add(
+        BankStatementTransaction(
+            statement_id=statement_id,
+            txn_date=date(2025, 1, 6),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert expected_detail in str(exc.value.detail)
 
 
 async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(db, test_user):

@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 import structlog
 from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
@@ -24,7 +24,6 @@ from src.models import (
     BankStatement,
     BankStatementStatus,
 )
-from src.models.statement import Stage1Status
 from src.schemas import (
     BankStatementListResponse,
     BankStatementResponse,
@@ -50,6 +49,7 @@ from src.services.statement_posting import auto_create_posted_entries_for_statem
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
     edit_and_approve,
+    pending_stage1_review_filter,
     reject_statement as reject_statement_svc,
     set_opening_balance,
     validate_balance_chain,
@@ -448,15 +448,11 @@ async def list_pending_review(
     user_id: CurrentUserId,
 ) -> BankStatementListResponse:
     """List statements pending human review."""
-    pending_review_filter = or_(
-        BankStatement.stage1_status == Stage1Status.PENDING_REVIEW,
-        and_(BankStatement.confidence_score >= 60, BankStatement.confidence_score < 85),
-    )
     result = await db.execute(
         select(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.PARSED)
-        .where(pending_review_filter)
+        .where(pending_stage1_review_filter())
         .options(selectinload(BankStatement.transactions))
         .order_by(BankStatement.created_at.desc())
     )
@@ -467,7 +463,7 @@ async def list_pending_review(
         .select_from(BankStatement)
         .where(BankStatement.user_id == user_id)
         .where(BankStatement.status == BankStatementStatus.PARSED)
-        .where(pending_review_filter)
+        .where(pending_stage1_review_filter())
     )
     total = total_result.scalar() or 0
 

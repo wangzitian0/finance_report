@@ -110,6 +110,10 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 - 60-84: Review queue
 - <60: Manual entry required
 
+If a high-confidence statement fails any Stage 1 posting guard, the parser must
+preserve the extracted statement and transactions, set the statement to parsed
+pending review, and expose the guard reason for human correction.
+
 ## API Endpoints
 
 | Method | Path | Description |
@@ -118,7 +122,7 @@ The system is currently migrating to a 4-layer architecture. During Phase 2, dat
 | GET | `/api/statements` | Statement list |
 | GET | `/api/statements/{id}` | Get statement with transactions |
 | GET | `/api/statements/{id}/transactions` | Transaction list |
-| GET | `/api/statements/pending-review` | List items needing review |
+| GET | `/api/statements/pending-review` | List parsed items needing review, including legacy parsed rows with no `stage1_status` |
 | GET | `/api/accounts/coverage` | Account-level latest confirmed source date, stale status, and statement period continuity issues |
 | POST | `/api/statements/{id}/review/approve` | Stage 1 approve with balance-chain validation (canonical) |
 | POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
@@ -238,7 +242,8 @@ Automatic journal posting from imported statements must never use a generic
 fallback account. Before Stage 1 approval creates posted journal entries, the
 statement must resolve to a user-owned asset account by one of these paths:
 
-1. The statement already has an explicit `account_id` selected by the user.
+1. The statement already has an explicit `account_id` selected by the user, and
+   that account is user-owned, active, `ASSET`, and in the statement currency.
 2. A previous approved statement for the same user has exactly one account
    matching `institution`, `account_last4`, and `currency`.
 3. The user explicitly confirms first-upload account creation during Stage 1

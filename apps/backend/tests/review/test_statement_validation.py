@@ -301,7 +301,7 @@ class TestSetOpeningBalance:
 
 class TestGetPendingStage1Review:
     async def test_returns_parsed_statements(self, db, user_id):
-        """AC1.6.1 get_pending_stage1_review returns medium confidence or explicit pending statements."""
+        """AC1.6.1 get_pending_stage1_review returns explicit pending or legacy parsed statements."""
         # Medium-confidence PARSED with no stage1_status -> should be returned
         stmt_medium = BankStatement(
             id=uuid4(),
@@ -327,8 +327,8 @@ class TestGetPendingStage1Review:
             stage1_status=Stage1Status.PENDING_REVIEW,
             confidence_score=90,
         )
-        # High-confidence PARSED without explicit pending_review is not a review item.
-        stmt_high = BankStatement(
+        # Legacy high-confidence PARSED with no stage1_status should remain reviewable.
+        stmt_high_legacy = BankStatement(
             id=uuid4(),
             user_id=user_id,
             file_path="high.pdf",
@@ -351,14 +351,14 @@ class TestGetPendingStage1Review:
             status=BankStatementStatus.APPROVED,
             stage1_status=Stage1Status.APPROVED,
         )
-        db.add_all([stmt_medium, stmt_review, stmt_high, stmt_approved])
+        db.add_all([stmt_medium, stmt_review, stmt_high_legacy, stmt_approved])
         await db.flush()
 
         result = await get_pending_stage1_review(db, user_id)
         ids = {s.id for s in result}
         assert stmt_medium.id in ids
         assert stmt_review.id in ids
-        assert stmt_high.id not in ids
+        assert stmt_high_legacy.id in ids
         assert stmt_approved.id not in ids
 
     async def test_returns_empty_when_none_pending(self, db, user_id):

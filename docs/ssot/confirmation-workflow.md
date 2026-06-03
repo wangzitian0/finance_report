@@ -68,7 +68,8 @@ The following diagram shows how a bank statement travels from upload through to 
 
 | From | Event | To | Guard |
 |------|-------|----|-------|
-| `parsed` | system auto-accept | `approved` | Score ≥ 85, balance delta ≤ 0.001 USD, confirmed account mapping, non-overlapping source period |
+| `parsed` | system auto-accept | `approved` | Score ≥ 85, balance delta ≤ 0.001 USD, confirmed active asset account in statement currency, non-overlapping source period |
+| `approved` | auto-post guard failure | `pending_review` | Guard failure during high-confidence auto-post; preserve parsed statement and transactions |
 | `pending_review` | `approve_statement()` | `approved` | Balance delta ≤ 0.001 USD |
 | `pending_review` | `reject_statement()` | `rejected` | — |
 | `pending_review` | `edit_and_approve()` | `approved` | Balance delta ≤ 0.001 USD after edits |
@@ -123,7 +124,7 @@ The following diagram shows how a bank statement travels from upload through to 
 | `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; balance chain validation enforced (≤ 0.001 USD); queues to Stage 2 |
 | `POST /api/statements/{id}/review/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
 | `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates, approves if valid |
-| `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` where `status=PARSED` and `confidence_score` is 60–84 (does **not** filter on `stage1_status`) |
+| `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` where `status=PARSED` and either `stage1_status=PENDING_REVIEW` or `stage1_status` is null for legacy parsed rows |
 ### Stage 2 Endpoints (reconciliation + statements routers)
 
 | Endpoint | Input | Side Effect |
