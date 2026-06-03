@@ -124,16 +124,22 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "Backend Tests (Shard ${{ matrix.shard }}/6)" in workflow
     assert "shard: [1, 2, 3, 4, 5, 6]" in workflow
     assert "--splits 6" in workflow
-    assert "Upload unified coverage to Coveralls" in workflow
-    assert "Upload backend to Coveralls (per-flag)" in workflow
-    assert "Upload frontend to Coveralls (per-flag)" in workflow
+    assert "Upload main unified coverage to Coveralls" in workflow
+    coveralls_block = workflow.split(
+        "- name: Upload main unified coverage to Coveralls", 1
+    )[1].split("  ac-traceability:", 1)[0]
+    assert (
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+        in coveralls_block
+    )
+    assert "Upload backend to Coveralls (per-flag)" not in workflow
+    assert "Upload frontend to Coveralls (per-flag)" not in workflow
     assert "Write coverage gate summary" in workflow
     assert "Authoritative coverage gate" in workflow
-    assert "external comparison baseline" in workflow
-    assert "tools/strip_lcov_branches.py" in workflow
+    assert "Pull requests do not publish Coveralls status contexts" in workflow
     assert "coverage/coveralls-unified.lcov" in workflow
-    assert "coverage/coveralls-backend.lcov" in workflow
-    assert "coverage/coveralls-frontend.lcov" in workflow
+    assert "coverage/coveralls-backend.lcov" not in workflow
+    assert "coverage/coveralls-frontend.lcov" not in workflow
     assert "Write coverage debug context" in workflow
     assert "Upload unified coverage context" in workflow
     assert "unified-coverage-context" in workflow
@@ -170,7 +176,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "README EPIC map drift" in ci_cd
     assert "unclassified E2E-like assets outside declared roots" in ci_cd
     assert "trivial placeholder assertions" in ci_cd
-    assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
+    assert "Coveralls uploads are main-only reporting" in ci_cd
     assert "coverage gate summary" in ci_cd
     assert "CI observability artifacts" in ci_cd
     assert "Coverage scope is deny-list based within each governed source root" in ci_cd
@@ -257,14 +263,14 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("coverage/common.lcov" in error for error in errors)
     assert any("coverage/tools.lcov" in error for error in errors)
     assert any("tools/build_ac_traceability.py --output" in error for error in errors)
-    assert any("Upload unified coverage to Coveralls" in error for error in errors)
+    assert any("Upload main unified coverage to Coveralls" in error for error in errors)
     assert any("Write coverage gate summary" in error for error in errors)
     assert "CI metrics contract must run before coverage policy audit" in errors
     assert any("AC traceability is a reference metric" in error for error in errors)
     assert any("README EPIC map drift" in error for error in errors)
     assert any("unclassified E2E-like assets" in error for error in errors)
     assert any(
-        "Coveralls uploads are reporting-only and do not block CI pass/fail" in error
+        "Coveralls uploads are main-only reporting" in error
         for error in errors
     )
     assert any("coverage gate summary" in error for error in errors)
@@ -288,16 +294,12 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
                 "Backend Tests (Shard ${{ matrix.shard }}/6)",
                 "shard: [1, 2, 3, 4, 5, 6]",
                 "--splits 6",
-                "Upload unified coverage to Coveralls",
-                "Upload backend to Coveralls (per-flag)",
-                "Upload frontend to Coveralls (per-flag)",
+                "Upload main unified coverage to Coveralls",
+                "github.event_name == 'push' && github.ref == 'refs/heads/main'",
                 "Write coverage gate summary",
                 "Authoritative coverage gate",
-                "external comparison baseline",
-                "tools/strip_lcov_branches.py",
+                "Pull requests do not publish Coveralls status contexts",
                 "coverage/coveralls-unified.lcov",
-                "coverage/coveralls-backend.lcov",
-                "coverage/coveralls-frontend.lcov",
                 "--cov=common",
                 "--cov=tools",
                 "coverage/common.lcov",
@@ -320,7 +322,7 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
         "README EPIC map drift\n"
         "unclassified E2E-like assets outside declared roots\n"
         "trivial placeholder assertions\n"
-        "Coveralls uploads are reporting-only and do not block CI pass/fail\n"
+        "Coveralls uploads are main-only reporting\n"
         "coverage gate summary\n"
         "Coverage scope is deny-list based within each governed source root\n"
         "New `apps/*/src`\n"

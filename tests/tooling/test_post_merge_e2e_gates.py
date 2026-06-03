@@ -938,21 +938,24 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
-    """AC8.13.27: PR CI reports to Coveralls without external status blocking."""
+    """AC8.13.27: PR CI has no external Coveralls status surface."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     coverage = read("docs/ssot/coverage.md")
     readme = read("README.md")
 
-    unified_block = workflow.split("- name: Upload unified coverage to Coveralls", 1)[
-        1
-    ].split("- name: Upload backend to Coveralls (per-flag)", 1)[0]
-    frontend_block = workflow.split("- name: Upload frontend to Coveralls", 1)[1].split(
+    unified_block = workflow.split(
+        "- name: Upload main unified coverage to Coveralls", 1
+    )[1].split(
         "  ac-traceability:", 1
     )[0]
 
-    assert "github.event_name == 'push'" not in unified_block
-    assert "github.event_name == 'push'" not in frontend_block
+    assert (
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+        in unified_block
+    )
+    assert "Upload backend to Coveralls (per-flag)" not in workflow
+    assert "Upload frontend to Coveralls (per-flag)" not in workflow
     global_permissions = workflow.split("env:", 1)[0]
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
@@ -967,16 +970,13 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
     assert "wait_for_github_status.py" not in workflow
     assert "Write coverage gate summary" in workflow
     assert "Authoritative coverage gate" in workflow
-    assert "external comparison baseline" in workflow
-    assert "Coveralls uploads are reporting-only and do not block CI pass/fail" in ci_cd
+    assert "Pull requests do not publish Coveralls status contexts" in workflow
+    assert "Pull requests do not call Coveralls" in ci_cd
     assert "coverage gate summary" in ci_cd
-    assert "Coveralls contexts are not required checks" in ci_cd
-    assert "coverage/coveralls" in ci_cd
-    assert "Coveralls - unified" in ci_cd
-    assert "Coveralls badge and contexts are reporting-only" in coverage
+    assert "Coveralls badge is reporting-only" in coverage
     assert "authoritative coverage gate" in coverage
-    assert "external comparison baseline" in coverage
-    assert "Coveralls badge is reporting-only" in readme
+    assert "PR CI does not call Coveralls" in coverage
+    assert "Pull requests do not publish" in readme
     assert "merge readiness follows the `finish` check" in readme
 
 
@@ -991,7 +991,8 @@ def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
     assert "if: ${{ always() }}" in summary_block
     assert "continue-on-error: true" in summary_block
     assert "Authoritative coverage gate" in summary_block
-    assert "reporting-only" in summary_block
+    assert "badge/trend reporting only" in summary_block
+    assert "Merge readiness follows" in summary_block
 
 
 def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
@@ -1033,7 +1034,7 @@ def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
 
 
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
-    """AC8.13.66: Coveralls reports the same line-only metric as the CI gate."""
+    """AC8.13.66: Main Coveralls reporting uses the unified line-only metric."""
     workflow = read(".github/workflows/ci.yml")
     coverage = read("docs/ssot/coverage.md")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -1042,19 +1043,15 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
         "tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches"
         in workflow
     )
-    assert (
-        "tools/strip_lcov_branches.py coverage/backend.lcov "
-        "coverage/coveralls-backend.lcov" in workflow
-    )
-    assert (
-        "tools/strip_lcov_branches.py coverage/frontend.lcov "
-        "coverage/coveralls-frontend.lcov" in workflow
-    )
     assert "file: coverage/coveralls-unified.lcov" in workflow
-    assert "file: coverage/coveralls-backend.lcov" in workflow
-    assert "file: coverage/coveralls-frontend.lcov" in workflow
+    assert "file: coverage/coveralls-backend.lcov" not in workflow
+    assert "file: coverage/coveralls-frontend.lcov" not in workflow
+    assert (
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+        in workflow
+    )
     assert "Coveralls upload LCOV files are line-only" in coverage
-    assert "Coveralls is not the merge gate" in coverage
+    assert "Coveralls is a main-branch external reporting baseline only" in coverage
     assert "Coverage scope is deny-list based within each governed source root" in ci_cd
     assert "strip branch records before upload" in ci_cd
 

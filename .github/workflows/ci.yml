@@ -725,34 +725,18 @@ jobs:
 
 
       - name: Build line-only Coveralls LCOV
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           uv run python tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches
-          uv run python tools/strip_lcov_branches.py coverage/backend.lcov coverage/coveralls-backend.lcov
-          uv run python tools/strip_lcov_branches.py coverage/frontend.lcov coverage/coveralls-frontend.lcov
 
-      - name: Upload unified coverage to Coveralls
+      - name: Upload main unified coverage to Coveralls
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: coverallsapp/github-action@v2
         continue-on-error: true
         with:
           file: coverage/coveralls-unified.lcov
           flag-name: unified
           base-path: .
-
-      - name: Upload backend to Coveralls (per-flag)
-        uses: coverallsapp/github-action@v2
-        continue-on-error: true
-        with:
-          file: coverage/coveralls-backend.lcov
-          flag-name: backend
-          base-path: apps/backend
-      - name: Upload frontend to Coveralls (per-flag)
-        # Note: hashFiles() evaluates at plan time before steps run; use always() + action handles missing file
-        uses: coverallsapp/github-action@v2
-        continue-on-error: true
-        with:
-          file: coverage/coveralls-frontend.lcov
-          flag-name: frontend
-          base-path: apps/frontend
 
   ac-traceability:
     name: AC Traceability Check
@@ -865,8 +849,8 @@ jobs:
           echo "## Coverage Gate"
           echo ""
           echo "- Authoritative coverage gate: \`Calculate Unified Coverage\` plus \`finish\`."
-          echo "- Coveralls contexts (\`coverage/coveralls\`, \`Coveralls - unified\`, \`Coveralls - backend\`, \`Coveralls - frontend\`) are reporting-only."
-          echo "- Coveralls may show a different external comparison baseline; merge readiness follows \`finish\`."
+          echo "- Pull requests do not publish Coveralls status contexts; main pushes upload unified line coverage for badge/trend reporting only."
+          echo "- Merge readiness follows \`finish\` and the committed \`unified-coverage.json\` baseline."
         } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Check job status

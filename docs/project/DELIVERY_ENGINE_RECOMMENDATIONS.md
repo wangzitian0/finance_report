@@ -14,7 +14,7 @@ Observed on May 27, 2026:
 | Lane | Recent duration | Main contributor |
 |---|---:|---|
 | Main CI heavy path | 8m 56s | Backend shard wall time plus unified coverage |
-| Unified coverage job | 1m 40s | Local coverage gates plus reporting-only Coveralls uploads |
+| Unified coverage job | 1m 40s | Local coverage gates plus main-only Coveralls reporting |
 | Staging post-merge lane | 18m 04s | Same-SHA CI wait, then deploy and E2E |
 | Staging AI/OCR gate | 3m 53s | Provider-backed E2E execution |
 
@@ -22,12 +22,12 @@ Observed on May 27, 2026:
 
 ### Coveralls reporting split
 
-Keep local deterministic coverage gates required. Coveralls uploads can remain
-in the required job while they are fast and `continue-on-error`; move them to a
-non-required reporting job only if upload latency becomes a repeated bottleneck.
+Implemented in PR #627. Pull requests no longer call Coveralls, and main pushes
+upload only the unified line-only LCOV report for badge/trend reporting. Local
+deterministic coverage gates remain the required merge/deploy boundary.
 
-Risk: dashboard/badge freshness must remain acceptable if uploads are moved out
-of the required path.
+Risk: dashboard/badge freshness depends on successful main CI runs instead of PR
+uploads.
 
 ### parallel image build jobs
 
