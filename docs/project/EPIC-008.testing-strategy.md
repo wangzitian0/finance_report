@@ -130,6 +130,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - **AC8.13.86**: CI fast feedback jobs start after change classification without waiting for behavior-only backend gates.
 - **AC8.13.87**: Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures.
 - **AC8.13.88**: Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs.
+- **AC8.13.89**: PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy.
 
 ### 2.3.1 Test Stage Semantics and Left-Move Plan (Unit / Integration / E2E)
 
@@ -426,6 +427,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.85 | Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix | `test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.87 | Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures | `test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.88 | Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs | `test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+| AC8.13.89 | PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy | `test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
