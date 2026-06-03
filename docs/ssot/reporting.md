@@ -276,6 +276,11 @@ Reports are generated in a single base currency (user configurable, default: SGD
 - Use the requested balance sheet `as_of_date` for manual valuation snapshots.
 - For portfolio market valuation adjustments, historical balance sheets remain date-bounded to the requested `as_of_date`; the current-day balance sheet uses the latest imported brokerage snapshot when provider output normalizes a current statement to a future period end.
 - Return `fx_warnings` when an average-rate calculation falls back to a spot rate
+- When an FX rate is unavailable after allowed fallback/lazy-resolution
+  attempts, the affected currency is excluded from converted trusted totals and
+  the report returns an explicit partial warning such as
+  `missing_fx_rate_partial_skip` or `missing_fx_revaluation_partial_skip`.
+  Reports must never silently assume a 1:1 rate for a foreign currency.
 
 ```python
 def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) -> Decimal:
@@ -322,10 +327,11 @@ Posted `FX_REVALUATION` journal entries are excluded from both native balance an
 - **Pattern E (Reliability)**: Cap trend data points at 366 (one year of daily data) to prevent memory issues with unbounded queries.
 - **Pattern F**: Include market valuation deltas, not full portfolio values, when the account already has ledger cost basis.
 - **Pattern G**: Calculate unrealized FX from historical cost; never use the accounting equation remainder as FX.
+- **Pattern H**: Missing FX data produces an explicit partial report warning and excludes the unconvertible currency from trusted converted totals.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** hardcode account codes in report logic
-- **Anti-pattern B**: **NEVER** generate reports without FX rate data
+- **Anti-pattern B**: **NEVER** silently generate converted totals for foreign-currency data without a real FX rate or explicit partial warning
 - **Anti-pattern C**: **NEVER** double count a broker account by adding both its ledger cost and full market value.
 - **Anti-pattern D**: **NEVER** let posted `FX_REVALUATION` entries change native foreign-currency balances.
 

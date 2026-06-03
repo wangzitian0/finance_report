@@ -135,6 +135,7 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | AC5.4.1 | FX Fallbacks | `test_reporting_fx_fallbacks` | `reporting/test_reporting_fx.py` | P1 |
 | AC5.4.2 | Balance Sheet Net Income FX Fallback | `test_balance_sheet_net_income_fx_fallback` | `reporting/test_reporting_fx.py` | P1 |
 | AC5.4.3 | Report FX Lazy Resolution | `test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates` | `reporting/test_reporting_fx.py` | P0 |
+| AC5.4.4 | Missing report FX rates produce explicit partial warnings instead of aborting the whole aggregation | `test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning` | `reporting/test_reporting_fx_fallbacks.py` | P0 |
 
 ### AC5.5: Error Handling
 

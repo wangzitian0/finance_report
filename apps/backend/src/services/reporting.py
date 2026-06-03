@@ -168,6 +168,8 @@ async def _get_fx_rates_map(
     currencies: set[str],
     target_currency: str,
     rate_date: date,
+    *,
+    fx_warnings: list[FxWarning] | None = None,
 ) -> dict[str, Decimal]:
     """Fetch FX rates for multiple currencies to target currency."""
     target = target_currency.upper()
@@ -182,7 +184,22 @@ async def _get_fx_rates_map(
         try:
             rates[source] = await get_exchange_rate(db, source, target, rate_date, lazy_load=True)
         except FxRateError as exc:
-            raise ReportError(str(exc)) from exc
+            warning = {
+                "type": "missing_fx_rate_partial_skip",
+                "base_currency": source,
+                "quote_currency": target,
+                "rate_date": rate_date.isoformat(),
+            }
+            if fx_warnings is not None and warning not in fx_warnings:
+                fx_warnings.append(warning)
+            logger.warning(
+                "Skipping unconvertible reporting currency because FX rate is unavailable",
+                error_id=ErrorIds.REPORT_FX_FALLBACK,
+                currency=source,
+                target_currency=target,
+                rate_date=rate_date.isoformat(),
+                error=str(exc),
+            )
 
     return rates
 
@@ -195,6 +212,7 @@ async def _aggregate_balances_sql(
     as_of_date: date,
     *,
     start_date: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
 ) -> dict[UUID, Decimal]:
     """Aggregate account balances using SQL SUM/GROUP BY with FX conversion."""
     currency_stmt = (
@@ -216,7 +234,9 @@ async def _aggregate_balances_sql(
     if not currencies:
         return {}
 
-    fx_rates = await _get_fx_rates_map(db, currencies, target_currency, as_of_date)
+    fx_rates = await _get_fx_rates_map(db, currencies, target_currency, as_of_date, fx_warnings=fx_warnings)
+    if not fx_rates:
+        return {}
 
     fx_case_parts = []
     for currency, rate in fx_rates.items():
@@ -256,6 +276,7 @@ async def _aggregate_balances_sql(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type.in_(account_types))
+        .where(JournalLine.currency.in_(list(fx_rates.keys())))
         .where(JournalEntry.status.in_(_REPORT_STATUSES))
         .where(JournalEntry.entry_date <= as_of_date)
         .group_by(Account.id)
@@ -547,7 +568,14 @@ async def generate_balance_sheet(
     accounts = await _load_accounts(db, user_id, account_types)
 
     try:
-        balances = await _aggregate_balances_sql(db, user_id, account_types, target_currency, as_of_date)
+        balances = await _aggregate_balances_sql(
+            db,
+            user_id,
+            account_types,
+            target_currency,
+            as_of_date,
+            fx_warnings=fx_warnings,
+        )
     except ReportError:
         raise
     except SQLAlchemyError as exc:
@@ -611,10 +639,24 @@ async def generate_balance_sheet(
 
     try:
         fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date)
+        unrealized_fx = _quantize_money(fx_revaluation.total_unrealized_gain_loss)
     except RevaluationError as exc:
-        raise ReportError(str(exc)) from exc
-
-    unrealized_fx = _quantize_money(fx_revaluation.total_unrealized_gain_loss)
+        if "Missing FX rate" not in str(exc):
+            raise ReportError(str(exc)) from exc
+        fx_warnings.append(
+            {
+                "type": "missing_fx_revaluation_partial_skip",
+                "as_of_date": as_of_date.isoformat(),
+                "message": str(exc),
+            }
+        )
+        logger.warning(
+            "Skipping unrealized FX revaluation because FX rate is unavailable",
+            error_id=ErrorIds.REPORT_FX_FALLBACK,
+            as_of_date=as_of_date.isoformat(),
+            error=str(exc),
+        )
+        unrealized_fx = Decimal("0.00")
     net_worth_adjustment = _quantize_money(
         _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
     )

@@ -24,7 +24,7 @@ from src.schemas.review import (
     ReviewConflictsResponse,
     Stage2ReviewQueueResponse,
 )
-from src.services.confidence_tier import derive_confidence_tier
+from src.services.confidence_tier import derive_reconciliation_score_tier
 from src.services.consistency_checks import (
     get_pending_checks,
     has_unresolved_checks,
@@ -112,7 +112,7 @@ async def get_stage2_review_queue(
                 "description": transaction.description if transaction else None,
                 "amount": transaction.amount if transaction else None,
                 "txn_date": transaction.txn_date.isoformat() if transaction else None,
-                "confidence_tier": derive_confidence_tier("bank_statement"),
+                "confidence_tier": derive_reconciliation_score_tier(match.match_score),
             }
         )
 

@@ -288,6 +288,26 @@ valid = (opening_delta <= 0.001) AND (closing_delta <= 0.001)
 
 **Constraint**: Batch approve blocked if unresolved checks exist.
 
+Accepted match transitions are idempotent:
+
+- `pending_review -> accepted` is the only transition that may create or
+  reconcile journal entries.
+- Retrying `accept_match()` or Stage 2 batch approval after a match is already
+  `accepted` must return the existing state without incrementing `version` or
+  creating duplicate statement-derived journal entries.
+- Any missing auto-created entry must be created through the same posting
+  invariants used by regular journal posting: double-entry balance, FX-rate
+  requirements, active accounts, and system-account restrictions.
+
+The Stage 2 queue response must derive `confidence_tier` from the actual
+`ReconciliationMatch.match_score`:
+
+| Score Range | Confidence Tier |
+|-------------|-----------------|
+| >= 85 | HIGH |
+| 60-84 | MEDIUM |
+| < 60 or null | LOW |
+
 **State Machine**:
 ```
 [*] --> pending: Check detected

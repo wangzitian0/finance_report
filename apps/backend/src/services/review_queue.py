@@ -26,7 +26,7 @@ from src.models import (
 )
 from src.models.layer2 import AtomicTransaction
 from src.models.layer3 import ClassificationStatus, TransactionClassification
-from src.services.accounting import ValidationError, validate_journal_balance
+from src.services.accounting import ValidationError, validate_journal_balance, validate_journal_posting_invariants
 from src.services.fx import FxRateError, get_exchange_rate
 from src.services.reconciliation import entry_total_amount
 from src.services.source_type_priority import (
@@ -416,7 +416,7 @@ async def create_entry_from_txn(
 
     entry.lines.append(
         JournalLine(
-            account_id=debit_account.id,
+            account=debit_account,
             direction=Direction.DEBIT,
             amount=txn.amount,
             currency=currency,
@@ -426,7 +426,7 @@ async def create_entry_from_txn(
     )
     entry.lines.append(
         JournalLine(
-            account_id=credit_account.id,
+            account=credit_account,
             direction=Direction.CREDIT,
             amount=txn.amount,
             currency=currency,
@@ -436,9 +436,12 @@ async def create_entry_from_txn(
     )
 
     try:
-        validate_journal_balance(entry.lines)
+        if auto_post:
+            validate_journal_posting_invariants(entry)
+        else:
+            validate_journal_balance(entry.lines)
     except ValidationError as exc:
-        raise ValueError(f"Generated entry does not balance: {exc}") from exc
+        raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
 
     txn.status = BankStatementTransactionStatus.PENDING
     db.add(entry)
