@@ -214,6 +214,13 @@ async def test_persist_fx_rate_handles_concurrent_insert():
         def one_or_none(self):
             return self._row
 
+    class NestedTransaction:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc_info):
+            return False
+
     class FakeSession:
         def __init__(self):
             self.execute_calls = 0
@@ -233,6 +240,9 @@ async def test_persist_fx_rate_handles_concurrent_insert():
         async def rollback(self):
             self.rolled_back = True
 
+        def begin_nested(self):
+            return NestedTransaction()
+
     session = FakeSession()
 
     result = await market_data._persist_fx_rate(
@@ -247,7 +257,7 @@ async def test_persist_fx_rate_handles_concurrent_insert():
     )
 
     assert result == Decimal("0.173500")
-    assert session.rolled_back is True
+    assert session.rolled_back is False
     assert session.added is not None
 
 
@@ -258,6 +268,13 @@ async def test_persist_fx_rate_reraises_integrity_error_without_concurrent_rate(
     class Result:
         def one_or_none(self):
             return None
+
+    class NestedTransaction:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc_info):
+            return False
 
     class FakeSession:
         async def execute(self, _stmt):
@@ -271,6 +288,9 @@ async def test_persist_fx_rate_reraises_integrity_error_without_concurrent_rate(
 
         async def rollback(self):
             return None
+
+        def begin_nested(self):
+            return NestedTransaction()
 
     with pytest.raises(IntegrityError):
         await market_data._persist_fx_rate(

@@ -461,19 +461,19 @@ async def _persist_fx_rate(db: AsyncSession, observation: FxRateObservation) -> 
     if existing is not None:
         return existing.rate
 
-    db.add(
-        FxRate(
-            base_currency=base,
-            quote_currency=quote,
-            rate=rate,
-            rate_date=observation.rate_date,
-            source=observation.source[:50],
-        )
-    )
     try:
-        await db.flush()
+        async with db.begin_nested():
+            db.add(
+                FxRate(
+                    base_currency=base,
+                    quote_currency=quote,
+                    rate=rate,
+                    rate_date=observation.rate_date,
+                    source=observation.source[:50],
+                )
+            )
+            await db.flush()
     except IntegrityError:
-        await db.rollback()
         concurrent = await _load_stored_rate_on_date(db, base, quote, observation.rate_date)
         if concurrent is not None:
             return concurrent.rate
@@ -653,35 +653,36 @@ async def _upsert_sync_state(
 ) -> None:
     observed_now = now or datetime.now(UTC)
     state = await _load_sync_state(db, kind, scope)
-    if state is None:
-        db.add(
-            MarketDataSyncState(
-                kind=kind,
-                scope=scope,
-                last_success_at=observed_now,
-                last_success_date=last_success_date,
-                last_observation_date=last_observation_date,
-                created_at=observed_now,
-                updated_at=observed_now,
-            )
-        )
-    else:
-        state.last_success_at = observed_now
-        state.last_success_date = last_success_date
-        state.last_observation_date = last_observation_date
-        state.updated_at = observed_now
     try:
-        await db.flush()
+        async with db.begin_nested():
+            if state is None:
+                db.add(
+                    MarketDataSyncState(
+                        kind=kind,
+                        scope=scope,
+                        last_success_at=observed_now,
+                        last_success_date=last_success_date,
+                        last_observation_date=last_observation_date,
+                        created_at=observed_now,
+                        updated_at=observed_now,
+                    )
+                )
+            else:
+                state.last_success_at = observed_now
+                state.last_success_date = last_success_date
+                state.last_observation_date = last_observation_date
+                state.updated_at = observed_now
+            await db.flush()
     except IntegrityError:
-        await db.rollback()
         concurrent = await _load_sync_state(db, kind, scope)
         if concurrent is None:
             raise
-        concurrent.last_success_at = observed_now
-        concurrent.last_success_date = last_success_date
-        concurrent.last_observation_date = last_observation_date
-        concurrent.updated_at = observed_now
-        await db.flush()
+        async with db.begin_nested():
+            concurrent.last_success_at = observed_now
+            concurrent.last_success_date = last_success_date
+            concurrent.last_observation_date = last_observation_date
+            concurrent.updated_at = observed_now
+            await db.flush()
 
 
 async def _persist_stock_price(db: AsyncSession, observation: StockPriceObservation) -> Decimal:
@@ -693,19 +694,19 @@ async def _persist_stock_price(db: AsyncSession, observation: StockPriceObservat
     if existing is not None:
         return existing.price
 
-    db.add(
-        StockPrice(
-            symbol=symbol,
-            price=price,
-            currency=currency,
-            price_date=observation.price_date,
-            source=observation.source[:50],
-        )
-    )
     try:
-        await db.flush()
+        async with db.begin_nested():
+            db.add(
+                StockPrice(
+                    symbol=symbol,
+                    price=price,
+                    currency=currency,
+                    price_date=observation.price_date,
+                    source=observation.source[:50],
+                )
+            )
+            await db.flush()
     except IntegrityError:
-        await db.rollback()
         concurrent = await _load_stored_stock_price_on_date(db, symbol, observation.price_date)
         if concurrent is not None:
             return concurrent.price

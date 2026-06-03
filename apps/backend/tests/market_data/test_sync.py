@@ -659,6 +659,13 @@ async def test_persist_stock_price_reraises_integrity_error_without_concurrent_r
 ) -> None:
     """AC11.10.1: Stock price persistence reraises unresolved concurrent insert errors."""
 
+    class NestedTransaction:
+        async def __aenter__(self) -> "NestedTransaction":
+            return self
+
+        async def __aexit__(self, *_exc_info: object) -> bool:
+            return False
+
     class FakeDb:
         def add(self, _row: object) -> None:
             return None
@@ -668,6 +675,9 @@ async def test_persist_stock_price_reraises_integrity_error_without_concurrent_r
 
         async def rollback(self) -> None:
             return None
+
+        def begin_nested(self) -> NestedTransaction:
+            return NestedTransaction()
 
     async def fake_load(*_args: object) -> None:
         return None
@@ -691,6 +701,13 @@ async def test_persist_stock_price_reraises_integrity_error_without_concurrent_r
 async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.9: Sync state upsert resolves concurrent inserts idempotently."""
 
+    class NestedTransaction:
+        async def __aenter__(self) -> "NestedTransaction":
+            return self
+
+        async def __aexit__(self, *_exc_info: object) -> bool:
+            return False
+
     class FakeState:
         last_success_at = datetime(2026, 1, 4, tzinfo=UTC)
         last_success_date = date(2026, 1, 4)
@@ -710,6 +727,9 @@ async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.M
 
         async def rollback(self) -> None:
             return None
+
+        def begin_nested(self) -> NestedTransaction:
+            return NestedTransaction()
 
     calls = 0
     state = FakeState()

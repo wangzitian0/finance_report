@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models import FxRate, MarketDataSyncState, StockPrice
 from src.routers import market_data as market_data_router, reports as reports_router
@@ -97,11 +99,22 @@ async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncCl
 @pytest.mark.asyncio
 async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
     client: AsyncClient,
+    db_engine,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC12.26.3: Stock sync endpoint rolls back when the service rejects a request."""
 
-    async def fake_stock_sync(*_args, **_kwargs) -> market_data.MarketDataSyncResult:
+    async def fake_stock_sync(db: AsyncSession, *_args, **_kwargs) -> market_data.MarketDataSyncResult:
+        db.add(
+            StockPrice(
+                symbol="BAD",
+                price=Decimal("1.000000"),
+                currency="USD",
+                price_date=date(2026, 1, 5),
+                source="test",
+            )
+        )
+        await db.flush()
         raise ValueError("invalid symbol")
 
     monkeypatch.setattr(market_data_router, "sync_stock_prices", fake_stock_sync)
@@ -117,6 +130,12 @@ async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
 
     assert response.status_code == 422
     assert response.json()["detail"] == "invalid symbol"
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    async with sessionmaker() as session:
+        persisted = await session.scalar(
+            select(StockPrice).where(StockPrice.symbol == "BAD").where(StockPrice.price_date == date(2026, 1, 5))
+        )
+    assert persisted is None
 
 
 @pytest.mark.asyncio
