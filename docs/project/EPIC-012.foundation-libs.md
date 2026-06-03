@@ -215,15 +215,6 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.21.3 | BaseAppException is subclass of Exception | `test_base_app_exception_is_exception()` | `infra/test_exceptions.py` | P1 |
 | AC12.21.4 | BaseAppException can be raised and caught | `test_base_app_exception_raise_and_catch()` | `infra/test_exceptions.py` | P1 |
 
-**Test Coverage Summary**:
-- Total AC IDs: 49
-- Requirements converted to AC IDs: 100% (EPIC-012 infrastructure work)
-- Requirements with test references: 100%
-- Test files: 4 (`test_logger.py`, `test_config_contract.py`, `test_epic_001_contracts.py`, `test_exceptions.py`)
-- Overall coverage: Logging, config infrastructure, pool config, and exception hierarchy verified
-
----
-
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC12.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides (e.g., AC12.24.1-3 retained as `~~strikethrough~~`). Do **not** renumber. New ACs append to the next available index in this EPIC.

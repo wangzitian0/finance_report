@@ -213,14 +213,6 @@ Clearly labeled "for reference only"
 | AC6.12.5 | OpenRouter API error handling | `test_chat_error_api_key_unavailable()`, `test_stream_openrouter_falls_back()` | `ai/test_chat_router.py`, `ai/test_ai_advisor_service.py` | P0 |
 | AC6.12.6 | Session isolation | `test_get_financial_context_filters_by_user()` | `ai/test_ai_advisor_service.py` | P0 |
 
-**Traceability Result**:
-- Total AC IDs: 63
-- Requirements converted to AC IDs: 100% (EPIC-006 checklist + must-have standards)
-- Requirements with implemented test references: 100%
-- Test files referenced in tables: 3 (additional AC6.* coverage exists in other `apps/backend/tests/ai/` tests not listed here)
-
----
-
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

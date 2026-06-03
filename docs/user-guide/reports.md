@@ -4,8 +4,8 @@ Finance Report provides financial reports and dashboards to help you understand 
 
 Stable report scope is described by
 [EPIC-005](../project/EPIC-005.reporting-visualization.md). Current proof
-metrics live in generated reports such as
-[the AC coverage report](../analysis/test-ac-coverage-report.md).
+metrics live in CI artifacts and
+`python tools/analyze_test_ac_coverage.py --no-write --stdout`.
 
 ## Available Reports
 

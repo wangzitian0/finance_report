@@ -131,12 +131,6 @@ Set up a runnable Monorepo development environment, complete user authentication
 |----|-------------|---------------|------|
 | AC1.8.1 | User management endpoints expose authenticated user operations without cross-user leakage | `test_users_router.py` suite | `auth/test_users_router.py` |
 
-**Traceability Result**:
-- Requirements converted to AC IDs: 100% (EPIC-001 checklist + must-have standards)
-- Requirements with automated test references: 100%
-
----
-
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

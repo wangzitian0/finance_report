@@ -231,15 +231,6 @@ Create an **offline tool** to generate synthetic PDF bank statements that match 
 | AC9.7.3 | Analyzer CLI supports input/output | Manual verification | `analyze_pdf.py` usage | P0 |
 
 *(AC9.8.x section removed — these were intra-EPIC summary duplicates of AC9.3.x, AC9.5.x, AC9.6.x, and AC9.7.x)*
-**Traceability Result**:
-- Total AC IDs: 31 (AC9.8.1–9.8.10 removed as duplicates of AC9.3, AC9.5, AC9.6, AC9.7 series)
-- Requirements converted to AC IDs: 100% (EPIC-009 checklist)
-- Requirements with implemented test references: 86% (remaining manual verification covers visual parity checks)
-- Test files: 6 modules
-- Note: Phase 2 parser integration tests are now automated via script-level PDF parseability tests
-
----
-
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

@@ -9,8 +9,8 @@ The project hierarchy is:
 README.md -> docs/project/EPIC-*.md -> generated AC indexes -> tests
 ```
 
-Use the root [README](../../README.md) for stable project entry points and links
-to generated proof reports. GitHub issue state, generated coverage numbers, and
+Use the root [README](../../README.md) for stable project entry points and proof
+commands. GitHub issue state, generated coverage numbers, and
 other live values should not be duplicated by hand in this directory index.
 
 ## Source Rules
@@ -20,7 +20,8 @@ other live values should not be duplicated by hand in this directory index.
   generated registry indexes (`docs/ac_registry.yaml`,
   `docs/infra_registry.yaml`) plus explicit non-derived overrides
   (`docs/ac_registry_overrides.yaml`).
-- Test proof is reported by `docs/analysis/test-ac-coverage-report.md`.
+- Test proof is reported by `python tools/analyze_test_ac_coverage.py --no-write --stdout`
+  and CI traceability artifacts.
 - Current AC traceability follows this live chain:
   `README.md` -> `docs/project/EPIC-*.md` -> generated AC indexes ->
   tests -> CI artifact. Do not commit generated audit snapshots in routine
@@ -74,7 +75,6 @@ owning source instead of copying:
 | [AUDITS.md](./AUDITS.md) | Audit index |
 | [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | Historical vision -> EPIC -> AC consistency audit |
 | [DELIVERY_ENGINE_RECOMMENDATIONS.md](./DELIVERY_ENGINE_RECOMMENDATIONS.md) | Remaining CI/post-merge delivery-engine optimization recommendations |
-| [../analysis/test-ac-coverage-report.md](../analysis/test-ac-coverage-report.md) | Current generated AC-to-test coverage report |
 | [../analysis/traceability-exceptions.md](../analysis/traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
 
 ## Active Non-EPIC Documentation Ownership
