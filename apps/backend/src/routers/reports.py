@@ -44,6 +44,7 @@ from src.schemas import (
     PersonalReportPackageTraceabilityResponse,
     TrendPeriod,
 )
+from src.services.fx import FxRateError, convert_amount
 from src.services.market_data import ensure_market_data_fresh
 from src.services.reporting import (
     ReportError,
@@ -774,14 +775,27 @@ async def annualized_income_schedule(
         "dividend": Decimal("0.00"),
         "total": Decimal("0.00"),
     }
-    currency = settings.base_currency
+    currency = settings.base_currency.strip().upper()
     for line, account in income_result.all():
         signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
+        source_currency = (line.currency or account.currency or currency).strip().upper()
+        try:
+            signed_amount = await convert_amount(
+                db,
+                amount=signed_amount,
+                currency=source_currency,
+                target_currency=currency,
+                rate_date=report_date,
+                average_start=start_date,
+                average_end=report_date,
+                lazy_load=True,
+            )
+        except FxRateError as exc:
+            raise_bad_request(str(exc), cause=exc)
         bucket = _annualized_income_bucket(account.name)
         if bucket:
             totals[bucket] += signed_amount
         totals["total"] += signed_amount
-        currency = line.currency or account.currency or currency
 
     restricted_types = (
         ManualValuationComponentType.ESOP,
@@ -802,24 +816,34 @@ async def annualized_income_schedule(
         key = (snapshot.component_type, snapshot.source, snapshot.currency)
         latest_holdings.setdefault(key, snapshot)
 
-    holdings = [
-        AnnualizedIncomeScheduleHolding(
-            ticker=snapshot.source,
-            compensation_type=snapshot.component_type.value,
-            fair_value=snapshot.value.quantize(Decimal("0.01")),
-            currency=snapshot.currency,
-            valuation_basis="manual_valuation_snapshot",
-            vesting_schedule=snapshot.notes,
-            unlock_date=snapshot.reminder_date,
-            liquidity_class=snapshot.liquidity_class.value,
-            net_worth_treatment="excluded_from_liquid_net_worth_by_default",
+    holdings: list[AnnualizedIncomeScheduleHolding] = []
+    restricted_total = Decimal("0.00")
+    for snapshot in latest_holdings.values():
+        holdings.append(
+            AnnualizedIncomeScheduleHolding(
+                ticker=snapshot.source,
+                compensation_type=snapshot.component_type.value,
+                fair_value=snapshot.value.quantize(Decimal("0.01")),
+                currency=snapshot.currency,
+                valuation_basis="manual_valuation_snapshot",
+                vesting_schedule=snapshot.notes,
+                unlock_date=snapshot.reminder_date,
+                liquidity_class=snapshot.liquidity_class.value,
+                net_worth_treatment="excluded_from_liquid_net_worth_by_default",
+            )
         )
-        for snapshot in latest_holdings.values()
-    ]
-    restricted_total = sum(
-        (holding.fair_value for holding in holdings if holding.currency == currency),
-        Decimal("0.00"),
-    ).quantize(Decimal("0.01"))
+        try:
+            restricted_total += await convert_amount(
+                db,
+                amount=snapshot.value,
+                currency=snapshot.currency,
+                target_currency=currency,
+                rate_date=report_date,
+                lazy_load=True,
+            )
+        except FxRateError as exc:
+            raise_bad_request(str(exc), cause=exc)
+    restricted_total = restricted_total.quantize(Decimal("0.01"))
 
     return AnnualizedIncomeScheduleResponse(
         section_id="annualized_income_long_term",

@@ -2074,6 +2074,7 @@ The following items were identified during the vision.md recovery audit as featu
 - [x] **AC11.8.4** Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip
 - [x] **AC11.8.5** Net worth calculation toggle on dashboard (`include_restricted=true|false`) re-fetches and updates total, defaulting to `false` (vision: liquid wealth is primary)
 - [x] **AC11.8.6** Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render
+- [x] **AC11.8.7** API endpoint `GET /api/income/annualized` converts mixed-currency annualized income totals into the dashboard reporting currency before aggregation
 
 **Priority**: P1 (high) — closes the largest "vision parity" gap after net worth time series.
 **Estimated effort**: 4-6 days backend (income aggregation + restricted-flag schema check) + 3-4 days frontend.
@@ -2114,6 +2115,7 @@ representative fixture expansion needed before the overall
 |----|-----------|---------------|------|----------|
 | AC11.11.1 | `GET /api/reports/package/annualized-income-schedule` returns annualized salary, bonus, dividend, total income, currency, as-of date, and trailing-period boundaries for the personal report package | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 |
 | AC11.11.2 | The schedule includes ESOP/RSU/stock-option restricted holdings with valuation basis, vesting/unlock metadata, fair value, and explicit liquid-versus-restricted net worth treatment | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 |
+| AC11.11.3 | Annualized income and restricted fair-value package totals are Decimal-safe and converted to the schedule reporting currency | `test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals` | `reporting/test_annualized_income_schedule.py` | P0 |
 
 ### Acceptance Criteria — Layer 3 Classification Service
 

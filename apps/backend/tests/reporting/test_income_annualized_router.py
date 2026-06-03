@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models import Account, AccountType, Direction, FxRate, JournalEntry, JournalEntryStatus, JournalLine
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
 
 
@@ -90,6 +90,66 @@ async def test_annualized_income_endpoint_groups_last_12_month_income(
         "annualized_bonus": "15000.00",
         "annualized_dividend": "2400.00",
         "annualized_total": "137700.00",
+        "currency": "SGD",
+        "as_of": "2026-05-20",
+    }
+
+
+@pytest.mark.asyncio
+async def test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_totals(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+):
+    """AC11.8.7: Dashboard annualized income totals use one reporting currency."""
+    salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+    dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="USD")
+    db.add_all([salary, dividend])
+    await db.flush()
+
+    income_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 5, 1),
+        memo="mixed currency dashboard income",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(income_entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=dividend.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("10.00"),
+                currency="USD",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.500000"),
+                rate_date=date(2026, 5, 1),
+                source="test",
+            ),
+        ]
+    )
+    await db.commit()
+
+    response = await client.get("/income/annualized?as_of=2026-05-20")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "annualized_salary": "100.00",
+        "annualized_bonus": "0.00",
+        "annualized_dividend": "15.00",
+        "annualized_total": "115.00",
         "currency": "SGD",
         "as_of": "2026-05-20",
     }
