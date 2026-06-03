@@ -1,6 +1,6 @@
 # AC Coverage Analysis Report
 
-> Generated: 2026-06-03 07:36:03 UTC by `tools/analyze_test_ac_coverage.py`
+> Generated: 2026-06-03 07:53:52 UTC by `tools/analyze_test_ac_coverage.py`
 > Snapshot: this checked-in report is a generated artifact. Regenerate it or inspect CI artifacts for current values; do not copy these counts into prose docs.
 
 ## Coverage accounting (EPIC-008 aligned)
@@ -17,10 +17,10 @@
 
 | Metric | Count |
 |---|---:|
-| Registered ACs | 1131 |
-| Active ACs | 971 |
+| Registered ACs | 1133 |
+| Active ACs | 973 |
 | Deprecated ACs excluded from coverage gate | 160 |
-| Covered by real test candidates | 971 (100.0%) |
+| Covered by real test candidates | 973 (100.0%) |
 | Placeholder-only assertions | 0 |
 | Stub-only placeholders (`_ac_stubs`) | 0 |
 | Active registered but untested | 0 |
@@ -32,10 +32,10 @@
 
 | Source | Files scanned | Unique AC refs (real) | Unique AC refs (placeholder) | Unique AC refs (stub) |
 |---|---:|---:|---:|---:|
-| backend | 180 | 712 | 0 | 0 |
+| backend | 180 | 713 | 0 | 0 |
 | frontend | 83 | 222 | 0 | 0 |
 | frontend_playwright | 3 | 12 | 0 | 0 |
-| tooling_tests | 54 | 261 | 0 | 0 |
+| tooling_tests | 54 | 262 | 0 | 0 |
 | e2e | 13 | 64 | 0 | 0 |
 
 ## Coverage by EPIC
@@ -44,12 +44,12 @@
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | EPIC-001 | phase0-setup | 29 | 2 | 27 | 0 | 0 | 0 | 100.0% |
 | EPIC-002 | double-entry-core | 62 | 15 | 47 | 0 | 0 | 0 | 100.0% |
-| EPIC-003 | statement-parsing | 62 | 20 | 42 | 0 | 0 | 0 | 100.0% |
+| EPIC-003 | statement-parsing | 63 | 20 | 43 | 0 | 0 | 0 | 100.0% |
 | EPIC-004 | reconciliation-engine | 44 | 21 | 23 | 0 | 0 | 0 | 100.0% |
 | EPIC-005 | reporting-visualization | 55 | 11 | 44 | 0 | 0 | 0 | 100.0% |
 | EPIC-006 | ai-advisor | 63 | 8 | 55 | 0 | 0 | 0 | 100.0% |
 | EPIC-007 | deployment | 39 | 0 | 39 | 0 | 0 | 0 | 100.0% |
-| EPIC-008 | testing-strategy | 142 | 6 | 136 | 0 | 0 | 0 | 100.0% |
+| EPIC-008 | testing-strategy | 143 | 6 | 137 | 0 | 0 | 0 | 100.0% |
 | EPIC-009 | pdf-fixture-generation | 37 | 1 | 36 | 0 | 0 | 0 | 100.0% |
 | EPIC-010 | signoz-logging | 25 | 0 | 25 | 0 | 0 | 0 | 100.0% |
 | EPIC-011 | asset-lifecycle | 53 | 0 | 53 | 0 | 0 | 0 | 100.0% |
