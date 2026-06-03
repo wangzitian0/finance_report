@@ -104,6 +104,13 @@ concepts:
     cross_refs:
       - docs/ssot/reconciliation.md
 
+  extraction_failed_case_registry:
+    owner: docs/ssot/extraction-audit-failed-cases.yaml
+    description: Sanitized registry for parsing cases that fail audit without expanding deterministic parser scope.
+    cross_refs:
+      - docs/ssot/extraction.md
+      - docs/project/EPIC-003.statement-parsing.md
+
   ai_advisor_policy:
     owner: docs/ssot/ai.md
     description: AI advisor prompt policy, context scope, and safety controls.

@@ -196,6 +196,11 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | AC3.8.12 | Continue runner after unexpected sweep exception | `test_run_storage_sweep_handles_exception` | `services/test_storage_sweep.py` | P1 |
 | AC3.8.13 | Disable runner by feature flag | `test_run_storage_sweep_disabled_by_feature_flag` | `services/test_storage_sweep.py` | P1 |
 
+### AC3.9: Audit-Failed Case Registry
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC3.9.1 | Parsing cases that fail audit are recorded in an SSOT registry without expanding deterministic parser scope or committing real documents | `test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_parser_expansion` | `tests/tooling/test_extraction_failed_case_registry.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
@@ -220,6 +225,13 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | Editable parsing results | Frontend implementation | ⏳ |
 | Batch upload | Frontend implementation | ⏳ |
 | Parsing cache | (Future) | ⏳ |
+
+Audit-failed parsing cases are not parser expansion requirements by default.
+LLM/OCR remains the polymorphic extraction layer. Cases that fail schema,
+balance, confidence, account-mapping, provider-shape, or user-review audit are
+tracked in [extraction-audit-failed-cases.yaml](../ssot/extraction-audit-failed-cases.yaml)
+with sanitized evidence only; follow-up work may tune prompts, models, review
+workflow, or parser rules after separate EPIC -> AC registration.
 
 ### 🚫 Not Acceptable Signals
 

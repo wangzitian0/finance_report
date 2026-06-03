@@ -30,6 +30,7 @@ coverage-common.lcov
 coverage-tools.lcov
 # unified-coverage.json is intentionally tracked (coverage baseline)
 /coverage/
+/artifacts/
 
 # PDF Fixtures: Input and Output directories
 tools/_lib/pdf_fixtures/input/
