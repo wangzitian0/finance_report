@@ -527,6 +527,11 @@ groups:
         epic_name: statement-parsing
         description: Bank statement balance mismatches preserve validation_error details
         mandatory: true
+      - id: AC3.2.5
+        epic: 3
+        epic_name: statement-parsing
+        description: CSV transaction exports without statement balances remain reviewable
+        mandatory: true
     AC3.3:
       - id: AC3.3.1
         epic: 3
