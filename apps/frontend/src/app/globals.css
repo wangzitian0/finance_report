@@ -108,11 +108,11 @@ body {
 /* Utility Classes - Dokploy Style */
 @layer components {
   .card {
-    @apply bg-surface-card border border-[var(--border)] rounded-panel shadow-card;
+    @apply bg-surface-card border border-border rounded-panel shadow-card;
   }
 
   .card-header {
-    @apply px-6 py-4 border-b border-[var(--border)];
+    @apply px-6 py-4 border-b border-border;
   }
 
   .btn-primary {
@@ -120,7 +120,7 @@ body {
   }
 
   .btn-secondary {
-    @apply px-4 py-2 rounded-control border border-[var(--border)] text-content-muted hover:bg-surface-muted hover:text-content transition-colors duration-standard ease-standard;
+    @apply px-4 py-2 rounded-control border border-border text-content-muted hover:bg-surface-muted hover:text-content transition-colors duration-standard ease-standard;
   }
 
   .btn-ghost {
@@ -136,7 +136,7 @@ body {
   }
 
   .input {
-    @apply w-full px-3 py-2 rounded-control bg-surface border border-[var(--border)] text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent;
+    @apply w-full px-3 py-2 rounded-control bg-surface border border-border text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent;
   }
 
   .badge {
@@ -189,22 +189,22 @@ body {
   }
 
   .alert-error {
-    @apply alert bg-[var(--error-muted)] text-[var(--error)];
+    @apply alert bg-status-error-muted text-status-error;
     border-color: color-mix(in srgb, var(--error) 30%, transparent);
   }
 
   .alert-success {
-    @apply alert bg-[var(--success-muted)] text-[var(--success)];
+    @apply alert bg-status-success-muted text-status-success;
     border-color: color-mix(in srgb, var(--success) 30%, transparent);
   }
 
   .alert-warning {
-    @apply alert bg-[var(--warning-muted)] text-[var(--warning)];
+    @apply alert bg-status-warning-muted text-status-warning;
     border-color: color-mix(in srgb, var(--warning) 30%, transparent);
   }
 
   .alert-info {
-    @apply alert bg-[var(--info-muted)] text-[var(--info)];
+    @apply alert bg-status-info-muted text-status-info;
     border-color: color-mix(in srgb, var(--info) 30%, transparent);
   }
 
@@ -215,7 +215,7 @@ body {
 
   /* Empty state */
   .empty-state {
-    @apply p-8 rounded-control border border-dashed border-[var(--border)] text-center text-sm text-muted;
+    @apply p-8 rounded-control border border-dashed border-border text-center text-sm text-muted;
   }
 }
 

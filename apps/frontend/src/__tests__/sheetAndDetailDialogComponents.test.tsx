@@ -13,7 +13,7 @@ describe("Sheet component", () => {
     expect(container.querySelector("[role='dialog']")).toBeNull()
   })
 
-  it("renders dialog with title and children when open", () => {
+  it("AC16.30.4 renders dialog with title and children when open", () => {
     render(<Sheet isOpen onClose={vi.fn()} title="My Sheet"><div>child</div></Sheet>)
     const dialog = screen.getByRole("dialog")
     expect(dialog).toBeInTheDocument()
@@ -22,7 +22,7 @@ describe("Sheet component", () => {
     expect(dialog).toHaveAttribute("aria-modal", "true")
   })
 
-  it("calls onClose when close button clicked", () => {
+  it("AC16.30.4 calls onClose when close button clicked", () => {
     const onClose = vi.fn()
     render(<Sheet isOpen onClose={onClose} title="S">ok</Sheet>)
     fireEvent.click(screen.getByRole("button", { name: /Close panel/i }))
@@ -38,7 +38,7 @@ describe("Sheet component", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it("calls onClose when Escape key pressed", () => {
+  it("AC16.30.4 calls onClose when Escape key pressed", () => {
     const onClose = vi.fn()
     render(<Sheet isOpen onClose={onClose} title="S">ok</Sheet>)
     fireEvent.keyDown(document, { key: "Escape" })

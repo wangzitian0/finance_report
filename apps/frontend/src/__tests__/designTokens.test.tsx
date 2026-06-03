@@ -23,6 +23,10 @@ describe("frontend design tokens", () => {
         muted: "var(--foreground-muted)",
         inverse: "var(--foreground-inverse)",
       },
+      border: {
+        DEFAULT: "var(--border)",
+        hover: "var(--border-hover)",
+      },
       accent: {
         DEFAULT: "var(--accent)",
         hover: "var(--accent-hover)",
@@ -83,6 +87,25 @@ describe("frontend design tokens", () => {
     expect(ssot).toContain("### Page-Local Visual Decisions")
     expect(ssot).toContain("Login uses the accent gradient")
     expect(ssot).toContain("Dashboard cards and chart panels")
+  })
+
+  it("AC16.30.2 AC16.30.6 keeps SSOT and CSS recipes on semantic border and status tokens", () => {
+    const ssot = readFileSync(
+      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      "utf8",
+    )
+    const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8")
+
+    expect(ssot).toContain("**Border colors**")
+    expect(ssot).toContain("Use `border-border`")
+    expect(ssot).toContain("```text")
+    expect(globals).not.toContain("border-[var(--border)]")
+    expect(globals).toContain("border-border")
+    expect(globals).toContain("bg-status-error-muted text-status-error")
+    expect(globals).toContain("bg-status-success-muted text-status-success")
+    expect(globals).toContain("bg-status-warning-muted text-status-warning")
+    expect(globals).toContain("bg-status-info-muted text-status-info")
+    expect(globals).not.toMatch(/alert bg-\[var\(--(error|success|warning|info)-muted\)\] text-\[var\(--(error|success|warning|info)\)\]/)
   })
 
   it("AC16.29.3 AC16.29.4 renders ConfidenceBadge variants through semantic token classes", () => {

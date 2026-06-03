@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Sidebar } from "@/components/Sidebar"
@@ -207,7 +207,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.getByText("Open Tabs")).toBeInTheDocument()
   })
 
-  it("AC16.19.15 navigates tabs with ArrowRight keyboard", () => {
+  it("AC16.19.15 AC16.30.3 AC16.30.4 navigates workspace pages with ArrowRight keyboard", () => {
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -222,13 +222,13 @@ describe("Sidebar and WorkspaceTabs", () => {
     }
     render(<WorkspaceTabs />)
 
-    const tablist = screen.getByRole("tablist")
-    fireEvent.keyDown(tablist, { key: "ArrowRight" })
+    const navigation = screen.getByRole("navigation", { name: "Open workspace tabs" })
+    fireEvent.keyDown(navigation, { key: "ArrowRight" })
     expect(setActiveTabMock).toHaveBeenCalledWith("tab-2")
     expect(pushMock).toHaveBeenCalledWith("/accounts")
   })
 
-  it("AC16.19.15 navigates tabs with ArrowLeft keyboard and wraps around", () => {
+  it("AC16.19.15 AC16.30.3 AC16.30.4 navigates workspace pages with ArrowLeft keyboard and wraps around", () => {
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -243,13 +243,13 @@ describe("Sidebar and WorkspaceTabs", () => {
     }
     render(<WorkspaceTabs />)
 
-    const tablist = screen.getByRole("tablist")
-    fireEvent.keyDown(tablist, { key: "ArrowLeft" })
+    const navigation = screen.getByRole("navigation", { name: "Open workspace tabs" })
+    fireEvent.keyDown(navigation, { key: "ArrowLeft" })
     expect(setActiveTabMock).toHaveBeenCalledWith("tab-2")
     expect(pushMock).toHaveBeenCalledWith("/accounts")
   })
 
-  it("AC16.19.15 renders tab ARIA attributes", () => {
+  it("AC16.30.3 AC16.30.4 renders route navigation semantics instead of ARIA tabs", () => {
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -264,10 +264,14 @@ describe("Sidebar and WorkspaceTabs", () => {
     }
     render(<WorkspaceTabs />)
 
-    const tabs = screen.getAllByRole("tab")
-    expect(tabs[0]).toHaveAttribute("aria-selected", "true")
-    expect(tabs[0]).toHaveAttribute("tabindex", "0")
-    expect(tabs[1]).toHaveAttribute("aria-selected", "false")
-    expect(tabs[1]).toHaveAttribute("tabindex", "-1")
+    const navigation = screen.getByRole("navigation", { name: "Open workspace tabs" })
+    expect(within(navigation).getByRole("list")).toBeInTheDocument()
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument()
+    expect(screen.queryAllByRole("tab")).toHaveLength(0)
+
+    const dashboard = within(navigation).getByRole("link", { name: /Dashboard/ })
+    const accounts = within(navigation).getByRole("link", { name: /Accounts/ })
+    expect(dashboard).toHaveAttribute("aria-current", "page")
+    expect(accounts).not.toHaveAttribute("aria-current")
   })
 });

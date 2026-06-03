@@ -33,7 +33,7 @@ export function Button({
   );
 }
 
-interface IconButtonProps extends Omit<ButtonProps, "children"> {
+interface IconButtonProps extends Omit<ButtonProps, "aria-label" | "children"> {
   icon: LucideIcon;
   label: string;
 }
@@ -50,9 +50,9 @@ export function IconButton({
     <Button
       variant={variant}
       className={cx("inline-flex h-9 w-9 items-center justify-center p-2", className)}
+      {...props}
       aria-label={label}
       title={title ?? label}
-      {...props}
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
     </Button>

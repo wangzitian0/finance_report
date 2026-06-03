@@ -132,7 +132,7 @@ export function Sidebar() {
             </div>
 
             {/* Navigation */}
-            <nav className="p-2 space-y-0.5">
+            <nav className="p-2 space-y-0.5" aria-label="Sidebar navigation">
                 {primaryNavItems.filter(item => isAuth || !item.protected).map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                     const IconComponent = item.icon;
