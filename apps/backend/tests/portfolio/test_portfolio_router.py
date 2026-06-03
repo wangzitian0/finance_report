@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models import FxRate
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
@@ -514,6 +515,110 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
     assert data["notes"]
     if data["time_weighted_return"] is None:
         assert any("TWR unavailable" in note for note in data["notes"])
+
+
+@pytest.mark.asyncio
+async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency_amounts(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC17.10.6: Report schedule amounts are converted into presentation currency."""
+    period_start = date(2026, 1, 1)
+    sell_date = date(2026, 3, 1)
+    dividend_date = date(2026, 4, 1)
+    as_of_date = date(2026, 5, 20)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="USD-STOCK",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("1000.00"),
+        currency="USD",
+        acquisition_date=period_start,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add(position)
+    await db.flush()
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.500000"),
+                rate_date=period_start,
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD", quote_currency="SGD", rate=Decimal("1.500000"), rate_date=sell_date, source="test"
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.500000"),
+                rate_date=dividend_date,
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD", quote_currency="SGD", rate=Decimal("1.500000"), rate_date=as_of_date, source="test"
+            ),
+            AtomicPosition(
+                user_id=test_user.id,
+                snapshot_date=as_of_date,
+                asset_identifier="USD-STOCK",
+                broker="Test Broker",
+                quantity=Decimal("10"),
+                market_value=Decimal("1200.00"),
+                currency="USD",
+                dedup_hash="usd_stock_schedule_snapshot",
+                source_documents={},
+            ),
+            InvestmentTransaction(
+                user_id=test_user.id,
+                position_id=position.id,
+                transaction_date=sell_date,
+                transaction_type=InvestmentTransactionType.SELL,
+                asset_identifier="USD-STOCK",
+                quantity=Decimal("1"),
+                unit_price=Decimal("120.00"),
+                gross_amount=Decimal("120.00"),
+                fees=Decimal("0.00"),
+                currency="USD",
+                cost_basis=Decimal("20.00"),
+                realized_pnl=Decimal("100.00"),
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
+            DividendIncome(
+                user_id=test_user.id,
+                position_id=position.id,
+                payment_date=dividend_date,
+                amount=Decimal("10.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    response = await client.get(
+        "/portfolio/performance/report-schedule"
+        f"?period_start={period_start}&period_end={as_of_date}&as_of_date={as_of_date}&currency=SGD"
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["currency"] == "SGD"
+    assert data["realized_pnl"] == "150.00"
+    assert data["dividend_income"] == "15.00"
+    assert data["unrealized_pnl"] == "300.00"
+    holding = data["holdings"][0]
+    assert holding["currency"] == "SGD"
+    assert holding["cost_basis"] == "1500.00"
+    assert holding["market_value"] == "1800.00"
+    assert holding["unrealized_pnl"] == "300.00"
+    assert holding["realized_pnl"] == "150.00"
+    assert holding["dividend_income"] == "15.00"
 
 
 @pytest.mark.asyncio

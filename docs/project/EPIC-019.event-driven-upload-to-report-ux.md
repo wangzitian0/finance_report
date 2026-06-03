@@ -339,6 +339,7 @@ workflow state exists.
 | AC19.5.4 | Personal report package page renders readiness state and blocker links before package section output | `personalReportPackagePage.test.tsx` | P1 |
 | AC19.5.5 | Personal report package page renders non-blocked readiness states without stale blocker cards | `personalReportPackagePage.test.tsx` | P1 |
 | AC19.5.6 | Package readiness fails deterministically when duplicate Processing system accounts would otherwise make blockers non-deterministic | `test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts` | P0 |
+| AC19.5.7 | Package readiness converts Processing Account journal lines into base reporting currency before deciding whether the in-transit balance nets to zero | `test_AC19_5_7_package_readiness_converts_processing_balance_before_zero_check` | P0 |
 
 ## How To Build It
 

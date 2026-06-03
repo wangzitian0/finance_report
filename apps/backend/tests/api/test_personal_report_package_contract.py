@@ -20,6 +20,7 @@ from src.models import (
     ClassificationRule,
     ConsistencyCheck,
     Direction,
+    FxRate,
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
@@ -447,6 +448,71 @@ async def test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts(
 
     with pytest.raises(MultipleResultsFound):
         await personal_report_package_readiness(db=db, user_id=test_user.id)
+
+
+@pytest.mark.asyncio
+async def test_AC19_5_7_package_readiness_converts_processing_balance_before_zero_check(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC19.5.7: Processing readiness cannot net unlike currencies at raw nominal amount."""
+    processing_account = Account(
+        user_id=test_user.id,
+        name="Processing",
+        code="1199",
+        type=AccountType.ASSET,
+        currency="SGD",
+        is_system=True,
+    )
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 5, 3),
+        memo="Mixed-currency processing balance",
+        source_type=JournalEntrySourceType.SYSTEM,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all(
+        [
+            processing_account,
+            entry,
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.500000"),
+                rate_date=date(2026, 5, 3),
+                source="test",
+            ),
+        ]
+    )
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=processing_account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=processing_account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.flush()
+
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    payload = response.model_dump(mode="json")
+    blockers = {blocker["code"]: blocker for blocker in payload["blockers"]}
+
+    assert payload["state"] == "blocked"
+    assert blockers["processing_account_unresolved"]["count"] == 1
+    assert "50.00" in blockers["processing_account_unresolved"]["reason"]
+    assert "SGD" in blockers["processing_account_unresolved"]["reason"]
 
 
 @pytest.mark.asyncio

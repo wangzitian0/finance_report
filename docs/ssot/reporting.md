@@ -188,6 +188,12 @@ report-preparation evidence in `notes`, expose the override in
 source link. This fallback is report-only evidence and must not mutate ledger
 state or weaken historical portfolio holding queries.
 
+All monetary schedule fields are presented in the requested schedule currency.
+Realized P&L uses the investment transaction date, dividend income uses the
+payment date, current market value uses the schedule `as_of_date`, and holding
+cost basis uses the managed position acquisition date. Mixed-currency schedule
+amounts must not be added at raw nominal amounts.
+
 ### 2.6 Annualized Income Dashboard Summary
 
 Endpoint:
@@ -275,7 +281,7 @@ Package readiness:
   - `consistency_check_blocked`: duplicate, transfer-pair, or anomaly check is
     pending.
   - `processing_account_unresolved`: Processing account balance does not net to
-    zero.
+    zero after each line is converted into the base reporting currency.
   - `missing_source_coverage`: active asset or liability account lacks approved
     statement coverage or explicit source anchoring.
 - The readiness derivation must be read-only. Opening the reports page must not

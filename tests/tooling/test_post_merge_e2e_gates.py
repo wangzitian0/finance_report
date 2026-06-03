@@ -954,6 +954,39 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
     assert "Main push CI is the only path that pushes SHA-tagged images" in ci_cd
 
 
+def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
+    """AC8.13.89: PR previews push the exact PR image tag before Dokploy deploy."""
+    workflow = read(".github/workflows/pr-test.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+
+    assert "packages: write" in deploy_block
+    assert "Log in to Container registry" in deploy_block
+    assert "docker/login-action@v3" in deploy_block
+    assert "Set up Docker Buildx" in deploy_block
+    assert "Build and push Backend PR preview image" in deploy_block
+    assert "Build and push Frontend PR preview image" in deploy_block
+    assert deploy_block.index("Build and push Backend PR preview image") < deploy_block.index(
+        "Deploy preview lifecycle"
+    )
+    assert deploy_block.index("Build and push Frontend PR preview image") < deploy_block.index(
+        "Deploy preview lifecycle"
+    )
+    assert "push: true" in deploy_block
+    assert (
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:pr-${{ needs.setup.outputs.pr_number }}"
+        in deploy_block
+    )
+    assert (
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:pr-${{ needs.setup.outputs.pr_number }}"
+        in deploy_block
+    )
+    assert "GIT_COMMIT_SHA=${{ github.sha }}" in deploy_block
+    assert "NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}" in deploy_block
+    assert "PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy" in ci_cd
+
+
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     """AC8.13.23: Deploy health and provider gate share one serialized workflow unit."""
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
