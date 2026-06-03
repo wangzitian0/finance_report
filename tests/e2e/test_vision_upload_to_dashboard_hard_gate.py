@@ -117,7 +117,7 @@ def _assert_expected_totals(payload: dict, expected: dict[str, Decimal], keys: S
 @pytest.mark.tier3
 @pytest.mark.critical
 async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-004 EPIC-005 EPIC-008 EPIC-010 EPIC-014 EPIC-015 EPIC-016 EPIC-018.
+    """EPIC-003 EPIC-004 EPIC-005 EPIC-008 EPIC-010 EPIC-014 EPIC-015 EPIC-016 EPIC-018 EPIC-019.
 
     AC8.13.28 AC8.13.29 AC8.13.30 AC8.13.31 AC8.13.32: upload fixture to trusted reports.
     """

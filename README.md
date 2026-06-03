@@ -100,6 +100,7 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-016](docs/project/EPIC-016.two-stage-review-ui.md) | Two-stage review UI |
 | [EPIC-017](docs/project/EPIC-017.portfolio-management.md) | Portfolio management |
 | [EPIC-018](docs/project/EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline |
+| [EPIC-019](docs/project/EPIC-019.event-driven-upload-to-report-ux.md) | Event-driven upload-to-report UX |
 
 Known proof-quality caveats:
 
