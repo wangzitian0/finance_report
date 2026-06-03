@@ -148,7 +148,7 @@ test.describe("AC19.3.7 workflow notification smoke", () => {
 
       await page.goto("/dashboard", { waitUntil: "networkidle" });
       await expect(page.getByRole("heading", { name: "Workflow status" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(page.getByText("Review required")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Review required", exact: true })).toHaveAttribute("href", "/review");
 
       await page.getByRole("button", { name: /Workflow events/i }).click();
       const dialog = page.getByRole("dialog", { name: "Workflow events" });
