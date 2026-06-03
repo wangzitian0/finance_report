@@ -2114,3 +2114,10 @@ representative fixture expansion needed before the overall
 |----|-----------|---------------|------|----------|
 | AC11.11.1 | `GET /api/reports/package/annualized-income-schedule` returns annualized salary, bonus, dividend, total income, currency, as-of date, and trailing-period boundaries for the personal report package | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 |
 | AC11.11.2 | The schedule includes ESOP/RSU/stock-option restricted holdings with valuation basis, vesting/unlock metadata, fair value, and explicit liquid-versus-restricted net worth treatment | `test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment` | `reporting/test_annualized_income_schedule.py` | P0 |
+
+### Acceptance Criteria — Layer 3 Classification Service
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.12.1 | Re-applying the same rule version to the same atomic transaction is idempotent and returns the existing classification without inserting duplicates | `test_apply_rules_is_idempotent_for_existing_transaction_rule_version` | `extraction/test_classification_service.py` | P0 |
+| AC11.12.2 | Classification priority is deterministic across rule type and descending rule version | `test_classification_priority_keyword_over_regex_over_ml`, `test_same_type_rules_prefer_newer_version` | `extraction/test_classification_service.py` | P0 |

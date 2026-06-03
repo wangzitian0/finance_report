@@ -482,6 +482,18 @@ Reconciliation match table.
     **Constraints**:
     - `(user_id, dedup_hash)` unique
 
+    ### Layer 3: ClassificationRules and TransactionClassification (EPIC-011)
+    Versioned business rules map immutable Layer 2 transactions into report and posting categories.
+
+    | Table | Key Columns | Constraints | Operational Contract |
+    |-------|-------------|-------------|----------------------|
+    | classification_rules | user_id, rule_name, version_number, rule_type, rule_config, default_account_id | `(user_id, rule_name, version_number)` unique | Active rules are evaluated by deterministic priority, then descending version number. |
+    | transaction_classification | atomic_txn_id, rule_version_id, account_id, tags, confidence_score, status | `(atomic_txn_id, rule_version_id)` unique | Re-running the same rule version for the same transaction is idempotent: return the existing classification without inserting a duplicate or surfacing a database uniqueness error. |
+
+    **Constraints**:
+    - Rule priority is deterministic: keyword rules outrank regex rules, regex rules outrank ML rules, and newer versions win within the same rule type.
+    - One transaction can have multiple classifications only across different rule versions; one transaction plus one rule version has exactly one classification row.
+
     ### Layer 3: ManualValuationSnapshots (EPIC-011)
     User-entered valuation snapshots for net worth components that do not arrive from bank or broker statements.
 

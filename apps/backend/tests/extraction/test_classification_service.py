@@ -8,10 +8,11 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import select
 
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.layer3 import ClassificationRule, RuleType
+from src.models.layer3 import ClassificationRule, RuleType, TransactionClassification
 from src.services.classification import ClassificationService
 
 
@@ -618,6 +619,7 @@ class TestClassificationService:
         assert len(results) == 0
 
     async def test_classification_priority_keyword_over_regex_over_ml(self, db, test_user):
+        """AC18.1.4 AC11.12.2: Rule type priority beats lower-priority AI/regex matches."""
         service = ClassificationService()
 
         keyword_account = Account(
@@ -694,6 +696,121 @@ class TestClassificationService:
 
         assert len(results) == 1
         assert results[0].account_id == keyword_account.id
+
+    async def test_same_type_rules_prefer_newer_version(self, db, test_user):
+        """AC11.12.2: Same-type matches choose the newest rule version deterministically."""
+        service = ClassificationService()
+
+        old_account = Account(
+            user_id=test_user.id,
+            name="Old Grocery Account",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6817",
+        )
+        new_account = Account(
+            user_id=test_user.id,
+            name="New Grocery Account",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6818",
+        )
+        db.add_all([old_account, new_account])
+        await db.flush()
+
+        old_rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="Grocery Rule",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": ["grocery"]},
+            default_account_id=old_account.id,
+            created_by=test_user.id,
+        )
+        new_rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=2,
+            effective_date=date(2024, 2, 1),
+            rule_name="Grocery Rule",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": ["grocery"]},
+            default_account_id=new_account.id,
+            created_by=test_user.id,
+        )
+        db.add_all([old_rule, new_rule])
+        await db.flush()
+
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 2, 15),
+            amount=Decimal("42.00"),
+            direction=TransactionDirection.OUT,
+            description="Grocery store",
+            currency="SGD",
+            dedup_hash="hash_same_type_newer_version",
+            source_documents=[],
+        )
+        db.add(txn)
+        await db.flush()
+
+        results = await service.apply_rules(db, test_user.id, [txn])
+
+        assert len(results) == 1
+        assert results[0].rule_version_id == new_rule.id
+        assert results[0].account_id == new_account.id
+
+    async def test_apply_rules_is_idempotent_for_existing_transaction_rule_version(self, db, test_user):
+        """AC11.12.1: Re-running the same rule does not duplicate Layer 3 classifications."""
+        service = ClassificationService()
+
+        account = Account(
+            user_id=test_user.id,
+            name="Idempotent Classification Account",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+            code="6819",
+        )
+        db.add(account)
+        await db.flush()
+
+        rule = ClassificationRule(
+            user_id=test_user.id,
+            version_number=1,
+            effective_date=date(2024, 1, 1),
+            rule_name="Idempotent Keyword Rule",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": ["subscription"]},
+            default_account_id=account.id,
+            created_by=test_user.id,
+        )
+        txn = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 3, 15),
+            amount=Decimal("19.99"),
+            direction=TransactionDirection.OUT,
+            description="Software subscription",
+            currency="SGD",
+            dedup_hash="hash_classification_idempotency",
+            source_documents=[],
+        )
+        db.add_all([rule, txn])
+        await db.flush()
+
+        first_results = await service.apply_rules(db, test_user.id, [txn])
+        second_results = await service.apply_rules(db, test_user.id, [txn])
+
+        assert len(first_results) == 1
+        assert len(second_results) == 1
+        assert second_results[0].id == first_results[0].id
+
+        classification_result = await db.execute(
+            select(TransactionClassification)
+            .where(TransactionClassification.atomic_txn_id == txn.id)
+            .where(TransactionClassification.rule_version_id == rule.id)
+        )
+        classifications = classification_result.scalars().all()
+        assert len(classifications) == 1
 
     async def test_ml_model_rule_ignores_non_extraction_source(self, db, test_user):
         service = ClassificationService()
