@@ -95,6 +95,31 @@ async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncCl
 
 
 @pytest.mark.asyncio
+async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC12.26.3: Stock sync endpoint rolls back when the service rejects a request."""
+
+    async def fake_stock_sync(*_args, **_kwargs) -> market_data.MarketDataSyncResult:
+        raise ValueError("invalid symbol")
+
+    monkeypatch.setattr(market_data_router, "sync_stock_prices", fake_stock_sync)
+
+    response = await client.post(
+        "/market-data/sync/stocks",
+        json={
+            "symbols": ["BAD"],
+            "start_date": "2026-01-05",
+            "end_date": "2026-01-05",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "invalid symbol"
+
+
+@pytest.mark.asyncio
 async def test_market_data_status_endpoint_returns_authenticated_scope_freshness(
     client: AsyncClient,
     db,

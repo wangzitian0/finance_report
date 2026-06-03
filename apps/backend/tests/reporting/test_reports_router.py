@@ -126,6 +126,31 @@ async def test_trending_endpoint(client, test_data_setup_reports):
 
 
 @pytest.mark.asyncio
+async def test_net_worth_timeseries_endpoint_commits_boundary(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC12.26.2: Report endpoints commit flushed market-data writes at the router boundary."""
+
+    async def fake_timeseries(*_args, **_kwargs):
+        return {
+            "currency": "SGD",
+            "granularity": "daily",
+            "points": [],
+        }
+
+    monkeypatch.setattr(reports_router, "get_net_worth_timeseries", fake_timeseries)
+
+    response = await client.get(
+        "/reports/net-worth/timeseries",
+        params={"from": "2026-01-01", "to": "2026-01-31", "granularity": "daily", "currency": "SGD"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["points"] == []
+
+
+@pytest.mark.asyncio
 async def test_breakdown_endpoint(client, test_data_setup_reports):
     """Test breakdown endpoint."""
     _, income = await test_data_setup_reports()
