@@ -133,6 +133,7 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | AC3.2.1 | Balance Validation (Pass) | `test_balance_valid` | `extraction/test_extraction.py` | P0 |
 | AC3.2.2 | Balance Validation (Fail) | `test_balance_invalid` | `extraction/test_extraction.py` | P0 |
 | AC3.2.3 | Completeness Validation | `test_missing_required_fields_detected` | `extraction/test_pdf_parsing.py` | P1 |
+| AC3.2.4 | Bank statement balance mismatches preserve validation_error details | `test_parse_document_bank_balance_mismatch_records_validation_error` | `extraction/test_pdf_parsing.py` | P0 |
 
 ### AC3.3: Confidence & Routing
 

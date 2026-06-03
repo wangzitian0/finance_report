@@ -466,7 +466,7 @@ class ExtractionService:
             status = BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
 
             statement.balance_validated = is_valid
-            if is_brokerage_payload and not is_valid:
+            if not is_valid:
                 statement.validation_error = balance_result["notes"]
             statement.confidence_score = confidence
             statement.status = status
