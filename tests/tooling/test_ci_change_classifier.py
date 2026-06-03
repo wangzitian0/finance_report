@@ -101,11 +101,24 @@ def test_AC8_13_20_empty_change_set_requires_heavy_ci() -> None:
 
 
 def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None:
-    """AC8.13.20: PR preview deploys are scoped to app, E2E, and compose changes."""
+    """AC8.13.20: PR preview deploys are scoped to runtime, E2E, and compose changes."""
     assert is_pr_preview_relevant("apps/backend/src/routers/statements.py") is True
+    assert is_pr_preview_relevant("apps/backend/pyproject.toml") is True
     assert is_pr_preview_relevant("apps/frontend/src/app/page.tsx") is True
+    assert is_pr_preview_relevant("apps/frontend/src/lib/api.ts") is True
+    assert is_pr_preview_relevant("apps/frontend/package-lock.json") is True
     assert is_pr_preview_relevant("tests/e2e/test_core_journeys.py") is True
     assert is_pr_preview_relevant("docker-compose.yml") is True
+    assert is_pr_preview_relevant("apps/backend/tests/reporting/test_reports.py") is False
+    assert is_pr_preview_relevant("apps/backend/README.md") is False
+    assert is_pr_preview_relevant("apps/frontend/src/lib/api.test.ts") is False
+    assert (
+        is_pr_preview_relevant(
+            "apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx"
+        )
+        is False
+    )
+    assert is_pr_preview_relevant("apps/frontend/README.md") is False
     assert is_pr_preview_relevant("common/ssot/ac_traceability_refs.py") is False
     assert is_pr_preview_relevant(".github/workflows/ci.yml") is False
 
@@ -124,12 +137,29 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert result.staging_files == (".github/workflows/ci.yml",)
     assert result.staging_reason == "staging-paths-changed"
 
+    app_test_or_doc_result = classify_changed_paths(
+        [
+            "apps/backend/tests/reporting/test_reports.py",
+            "apps/frontend/src/lib/api.test.ts",
+            "apps/frontend/README.md",
+        ]
+    )
+
+    assert app_test_or_doc_result.heavy_required is True
+    assert app_test_or_doc_result.pr_preview_required is False
+    assert app_test_or_doc_result.staging_required is False
+
 
 def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None:
     """AC8.13.55: Staging deploys are scoped to paths that can change deploy risk."""
     for path in (
         "apps/backend/src/routers/statements.py",
+        "apps/backend/migrations/versions/0001_initial_schema.py",
+        "apps/backend/pyproject.toml",
         "apps/frontend/src/app/page.tsx",
+        "apps/frontend/src/lib/api.ts",
+        "apps/frontend/public/icon.svg",
+        "apps/frontend/package-lock.json",
         "tests/e2e/test_core_journeys.py",
         "docker-compose.yml",
         ".github/workflows/staging-deploy.yml",
@@ -150,6 +180,11 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         assert is_staging_relevant(path) is True
 
     for path in (
+        "apps/backend/tests/reporting/test_reports.py",
+        "apps/backend/README.md",
+        "apps/frontend/src/lib/api.test.ts",
+        "apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx",
+        "apps/frontend/README.md",
         "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
         "docs/ssot/ci-cd.md",
         "common/ssot/check_ssot_ownership.py",

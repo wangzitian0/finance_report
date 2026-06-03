@@ -102,6 +102,22 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "tools/check_toolchain_contract.py" in workflow
     assert "tools/ci_change_classifier.py" in workflow
     assert "tools/github_workflow_timing_summary.py" in workflow
+    lint_block = workflow.split("  lint:", 1)[1].split("  backend:", 1)[0]
+    tooling_coverage_block = workflow.split("  tooling-coverage:", 1)[1].split(
+        "  unified-coverage:", 1
+    )[0]
+    unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
+        "  ac-traceability:", 1
+    )[0]
+    assert "uv run ruff check src tests" in lint_block
+    assert "uv run ruff format src tests --check" in lint_block
+    assert "tools/check_ci_metrics_contract.py" in lint_block
+    assert "Tooling/Common Coverage" in tooling_coverage_block
+    assert "Run tooling tests with coverage" in tooling_coverage_block
+    assert "Upload tooling coverage context" in tooling_coverage_block
+    assert "coverage-tooling" in workflow
+    assert "Download tooling coverage" in unified_coverage_block
+    assert "tools/check_ci_metrics_contract.py" not in unified_coverage_block
     assert workflow.index("tools/check_ci_metrics_contract.py") < workflow.index(
         "tools/check_coverage_policy.py"
     )
@@ -137,9 +153,6 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md" in workflow
     assert "Gate Status" in workflow
     global_permissions = workflow.split("env:", 1)[0]
-    unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
-        "  ac-traceability:", 1
-    )[0]
     assert "statuses: write" not in global_permissions
     assert "statuses: write" not in unified_coverage_block
     assert "Mark Coveralls statuses reporting-only" not in workflow

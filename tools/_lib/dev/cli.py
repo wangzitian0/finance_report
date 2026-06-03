@@ -178,15 +178,21 @@ def cmd_lint(args):
     """Run linting and formatting."""
     if args.backend or not args.frontend:
         if args.fix:
-            run(uv_run("python", "-m", "ruff", "format", "src/"), cwd=BACKEND_DIR)
             run(
-                uv_run("python", "-m", "ruff", "check", "src/", "--fix"),
+                uv_run("python", "-m", "ruff", "format", "src", "tests"),
+                cwd=BACKEND_DIR,
+            )
+            run(
+                uv_run("python", "-m", "ruff", "check", "src", "tests", "--fix"),
                 cwd=BACKEND_DIR,
             )
         else:
-            run(uv_run("python", "-m", "ruff", "check", "src/"), cwd=BACKEND_DIR)
             run(
-                uv_run("python", "-m", "ruff", "format", "src/", "--check"),
+                uv_run("python", "-m", "ruff", "check", "src", "tests"),
+                cwd=BACKEND_DIR,
+            )
+            run(
+                uv_run("python", "-m", "ruff", "format", "src", "tests", "--check"),
                 cwd=BACKEND_DIR,
             )
 

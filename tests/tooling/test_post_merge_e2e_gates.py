@@ -408,11 +408,11 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     assert "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md" in classifier_tests
     assert "common/ssot/check_ssot_ownership.py" in classifier_tests
     assert (
-        "Automatic staging deploys are scoped to runtime, deploy, E2E, staging workflow, toolchain, or infra-submodule changes"
+        "Automatic staging deploys are scoped to runtime app, deploy, root E2E, dependency, Dockerfile/config, staging workflow, toolchain, or infra-submodule changes"
         in ci_cd
     )
     assert (
-        "Documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton"
+        "App test-only changes, documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton"
         in ci_cd
     )
 
@@ -492,7 +492,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, unified-coverage, ac-traceability]"
+        "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
         in workflow
     )
     assert (
@@ -507,7 +507,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "PR vs Main CI Responsibilities" in ci_cd
     assert "Lightweight changes do not repeat the heavy path" in ci_cd
     assert (
-        "PR preview environments deploy only for app, compose, E2E, or preview-action changes"
+        "PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes"
         in ci_cd
     )
     assert "Frontend dependency installation uses `actions/setup-node@v4`" in ci_cd
@@ -820,7 +820,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
 
     container_block = workflow.split("  container-images:", 1)[1].split(
-        "  unified-coverage:", 1
+        "  tooling-coverage:", 1
     )[0]
     finish_block = workflow.split("- name: Check job status", 1)[1]
     login_block = container_block.split("- name: Log in to Container registry", 1)[
@@ -1000,6 +1000,9 @@ def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
     coverage = read("docs/ssot/coverage.md")
     ci_cd = read("docs/ssot/ci-cd.md")
 
+    tooling_coverage_block = workflow.split("  tooling-coverage:", 1)[1].split(
+        "  unified-coverage:", 1
+    )[0]
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
     )[0]
@@ -1007,6 +1010,14 @@ def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
         "- name: Upload unified coverage context", 1
     )[1].split("# Note: baseline auto-push removed", 1)[0]
 
+    assert "Tooling/Common Coverage" in tooling_coverage_block
+    assert "Run tooling tests with coverage" in tooling_coverage_block
+    assert "Upload tooling coverage context" in tooling_coverage_block
+    assert "name: coverage-tooling" in tooling_coverage_block
+    assert "--cov=common" in tooling_coverage_block
+    assert "--cov=tools" in tooling_coverage_block
+    assert "Run tooling tests with coverage" not in unified_coverage_block
+    assert "Download tooling coverage" in unified_coverage_block
     assert "Write coverage debug context" in unified_coverage_block
     assert "if: ${{ always() }}" in upload_block
     assert "name: unified-coverage-context" in upload_block

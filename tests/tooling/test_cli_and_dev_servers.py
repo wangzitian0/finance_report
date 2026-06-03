@@ -443,6 +443,7 @@ class TestCmdLint:
         calls = _mock_run(monkeypatch)
         cli.cmd_lint(SimpleNamespace(backend=True, frontend=False, fix=False))
         assert any("ruff" in str(c["cmd"]) and "check" in str(c["cmd"]) for c in calls)
+        assert any("src" in c["cmd"] and "tests" in c["cmd"] for c in calls)
 
     def test_AC8_13_45_lint_backend_format_check_is_required(self, monkeypatch):
         """AC8.13.45: Local lint must fail on backend formatting drift like CI."""
@@ -466,6 +467,8 @@ class TestCmdLint:
         ]
         assert format_calls
         assert format_calls[0]["check"] is True
+        assert "src" in format_calls[0]["cmd"]
+        assert "tests" in format_calls[0]["cmd"]
 
     def test_lint_backend_fix(self, monkeypatch):
         """Given --backend --fix, should run ruff format then ruff check --fix."""
