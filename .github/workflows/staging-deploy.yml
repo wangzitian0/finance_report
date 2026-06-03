@@ -429,15 +429,13 @@ jobs:
               echo "- App URL: ${APP_URL}"
               echo "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
               echo "- Fixture tests:"
-              echo "  - tests/e2e/test_statement_full_journey.py"
-              echo "  - tests/e2e/test_brokerage_upload_to_portfolio_value.py"
-              echo "  - tests/e2e/test_four_asset_net_worth_golden_path.py"
-              echo "  - tests/e2e/test_personal_financial_report_package.py"
-              echo "  - tests/e2e/test_statement_upload_e2e.py"
-              echo "- Expected uploads: 9"
-              echo "- Expected parse completions: 9"
-              echo "- Expected brokerage imports: 4"
-              echo "- Expected report verifications: 2"
+              for fixture_test in "${STAGING_AI_OCR_TESTS[@]}"; do
+                echo "  - ${fixture_test}"
+              done
+              echo "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              echo "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              echo "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              echo "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
               echo "- Expected failures: 0"
             } | tee -a "$GITHUB_STEP_SUMMARY"
           }
@@ -450,10 +448,10 @@ jobs:
             local verified_report_verifications="unknown"
             local verified_failures="1+"
             if [ "$status" = "0" ]; then
-              verified_uploads="9"
-              verified_parse_completions="9"
-              verified_brokerage_imports="4"
-              verified_report_verifications="2"
+              verified_uploads="${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              verified_parse_completions="${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              verified_brokerage_imports="${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              verified_report_verifications="${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
               verified_failures="0"
             fi
             {
@@ -463,10 +461,10 @@ jobs:
               echo "- GitHub run ID: ${{ github.run_id }}"
               echo "- Expected SHA: ${EXPECTED_SHA}"
               echo "- Gate status: ${status}"
-              echo "- Expected uploads: 7"
-              echo "- Expected parse completions: 7"
-              echo "- Expected brokerage imports: 3"
-              echo "- Expected report verifications: 1"
+              echo "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}"
+              echo "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+              echo "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+              echo "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
               echo "- Expected failures: 0"
               echo "- Uploads verified: ${verified_uploads}"
               echo "- Parse completions verified: ${verified_parse_completions}"
@@ -479,6 +477,7 @@ jobs:
 
           echo "Starting Staging AI/OCR Gate for $APP_URL"
           echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+          eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell)"
           mkdir -p test-results
           write_staging_audit_inventory
 
@@ -492,12 +491,7 @@ jobs:
 
           gate_status=0
           run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
-            pytest \
-              tests/e2e/test_statement_full_journey.py \
-              tests/e2e/test_brokerage_upload_to_portfolio_value.py \
-              tests/e2e/test_four_asset_net_worth_golden_path.py \
-              tests/e2e/test_personal_financial_report_package.py \
-              tests/e2e/test_statement_upload_e2e.py \
+            pytest "${STAGING_AI_OCR_TESTS[@]}" \
               -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
           write_staging_audit_result "$gate_status"
           if [ "$gate_status" -ne 0 ]; then

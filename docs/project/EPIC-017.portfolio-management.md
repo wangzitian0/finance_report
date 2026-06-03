@@ -58,7 +58,7 @@ This EPIC defines scope and acceptance criteria. Do not use unchecked boxes,
 historical audit tables, or planning estimates in this file as current delivery
 status. For current proof and delivery state, use:
 
-- Generated AC registry: `docs/ac_registry.yaml`
+- Generated AC registry index: `docs/ac_registry.yaml`
 - AC coverage snapshot: `docs/analysis/test-ac-coverage-report.md`
 - Live local proof command: `python tools/analyze_test_ac_coverage.py --stdout`
 - North-star tracker: [#444](https://github.com/wangzitian0/finance_report/issues/444)
@@ -612,105 +612,9 @@ delivery status table.
 
 ---
 
-## 🔍 Historical FE/UI Audit Snapshot (April 2026)
+## Historical Audit Notes
 
-> Audit Date: 2026-04-06 | Auditor: AI Agent (Sisyphus) | Scope: Frontend completeness, UX quality, accessibility
->
-> Snapshot note: this audit records findings from April 2026. Treat file and
-> implementation inventories as historical context unless re-validated against
-> the current tree and generated proof reports.
-
-### Executive Summary
-
-**Backend at audit time**: ✅ **FULLY IMPLEMENTED** (1,226 lines across 3 services + 234 lines router + 104 lines schemas)
-- `portfolio.py` (628 lines) — Holdings CRUD, P&L calculations, price updates
-- `performance.py` (413 lines) — XIRR, TWR, MWR calculations
-- `allocation.py` (183 lines) — Sector/geography/asset class allocation
-- `portfolio router` (234 lines) — All API endpoints operational
-- `portfolio schemas` (104 lines) — Pydantic request/response models
-- **Test coverage**: 1,780 lines, 64 test functions across 4 test files
-
-**Frontend at audit time**: ❌ **NOT IMPLEMENTED** — The portfolio frontend was missing in the audited tree. Only `/assets` page from EPIC-011 existed, which was a basic position tracker and did not fulfill EPIC-017 requirements.
-
-### Inventory: What Exists
-
-| File | Lines | Purpose | Covers EPIC-017? |
-|------|-------|---------|-----------------|
-| `assets/page.tsx` | 280 | Position tracker from EPIC-011: KPI cards (Total Positions, Active Holdings, Total Cost Basis), currency allocation bar, grouped by broker, status filters | ⚠️ Partial — shows basic holdings but lacks performance metrics, market value, P&L, allocation charts, dividends |
-| `components/charts/PieChart.tsx` | 94 | Generic SVG donut chart | 🛠️ Reusable for allocation |
-| `components/charts/TrendChart.tsx` | 95 | Generic SVG line/area chart | 🛠️ Reusable for performance over time |
-| `components/charts/BarChart.tsx` | 55 | Generic SVG bar chart | 🛠️ Reusable for dividend timeline |
-| `components/charts/SankeyChart.tsx` | 186 | ECharts sankey (cash flow) | ❌ Not relevant |
-| `Sidebar.tsx` line 39 | — | "Portfolio" nav item points to `/assets`, not `/portfolio` | ⚠️ Wrong route |
-
-### Gap Analysis
-
-#### 🔴 Critical Gaps (entire feature missing)
-
-| # | Gap | EPIC Requirement | Status |
-|---|-----|-----------------|--------|
-| G1 | **No `/portfolio` route at audit time** | EPIC Phase 3 specifies `/portfolio` dashboard page, `/portfolio/[ticker]` detail page, `/portfolio/prices` price update page | `apps/frontend/src/app/(main)/portfolio/` directory did not exist in the audited tree. |
-| G2 | **No portfolio components at audit time** | EPIC specifies `HoldingsTable.tsx`, `PerformanceCard.tsx`, `AllocationChart.tsx`, `DividendTimeline.tsx`, `PriceUpdateForm.tsx`, `TransactionHistory.tsx` | `apps/frontend/src/components/portfolio/` directory did not exist in the audited tree. |
-| G3 | **No portfolio API client functions** | Backend exposes `/api/portfolio/holdings`, `/api/portfolio/performance`, `/api/portfolio/allocation`, `/api/portfolio/prices` | `lib/api.ts` has zero portfolio-specific functions. `lib/types.ts` has only `ManagedPosition` from EPIC-011, no portfolio response types. |
-| G4 | **No performance metrics display** | XIRR, TWR (Time-Weighted Return), MWR (Money-Weighted Return) — core portfolio feature | No UI anywhere shows these calculations. Backend computes them; frontend does not consume them. |
-| G5 | **No market value or P&L display** | Current holdings should show: Market Value, Unrealized P&L, Realized P&L | `/assets` page shows only Cost Basis (book value). No market value column, no P&L. |
-| G6 | **No allocation charts** | Sector, geography, asset class breakdown with pie/donut charts | No portfolio-specific charts. Generic `PieChart.tsx` exists and is reusable, but no page or component consumes it for allocation data. |
-| G7 | **No dividend tracking UI** | Dividend timeline, yield calculations, ex-date tracking | Zero implementation. |
-| G8 | **No market price update page** | Manual price update form (user updates prices monthly) | Zero implementation. Backend has `POST /api/portfolio/prices` endpoint ready. |
-| G9 | **No holding detail page** | `/portfolio/[ticker]` with transaction history, performance chart, cost basis breakdown | Zero implementation. |
-| G10 | **No frontend tests** | EPIC requires frontend test coverage for portfolio features | Zero portfolio frontend tests (backend has 64 test functions). |
-
-#### 🟡 Important Gaps (existing `/assets` page shortcomings)
-
-| # | Gap | Detail |
-|---|-----|--------|
-| G11 | **Sidebar routing mismatch** | "Portfolio" nav item routes to `/assets` instead of `/portfolio`. When portfolio pages are built, this needs updating. |
-| G12 | **`/assets` page uses wrong API** | Calls `/api/assets/positions` (EPIC-011) instead of `/api/portfolio/holdings` (EPIC-017). Different data shape — positions vs holdings with market data. |
-| G13 | **No cost basis method selection** | EPIC-017 supports FIFO/LIFO/AvgCost. `/assets` page shows a single cost basis number with no method indicator or toggle. |
-| G14 | **Currency allocation bar is custom, not chart component** | `/assets` builds its own allocation bar instead of using the generic `PieChart.tsx`. Inconsistent with design system. |
-
-### What Can Be Reused
-
-The project has chart infrastructure and design patterns ready for portfolio features:
-
-| Asset | Reusable For |
-|-------|-------------|
-| `PieChart.tsx` (94 lines) | Allocation breakdown (sector, geography, asset class) |
-| `TrendChart.tsx` (95 lines) | Performance over time (XIRR trend, NAV history) |
-| `BarChart.tsx` (55 lines) | Dividend timeline (monthly/quarterly bars) |
-| `lib/api.ts` wrapper | All portfolio API calls (just add typed functions) |
-| CSS design tokens | `--chart-1` through `--chart-5` palette, `.card`, `.badge-*`, `.page-header` |
-| `ConfirmDialog`, `Sheet`, `Toast` | UI primitives for price update confirmation, holding detail panel, success/error feedback |
-| `@tanstack/react-query` | Already installed, used by `/assets` page. Use for portfolio data fetching. |
-| `decimal.js` | Already installed. Use for frontend P&L display precision. |
-
-### Recommendations (Priority Order)
-
-1. **[P0] Create `/portfolio` route with holdings dashboard** — This is the single highest-impact deliverable. Show holdings table with columns: Ticker, Name, Quantity, Avg Cost, Market Price, Market Value, Unrealized P&L, P&L %. Consume `GET /api/portfolio/holdings`.
-2. **[P0] Add performance summary cards** — Display XIRR, TWR, MWR from `GET /api/portfolio/performance`. Use `PerformanceCard` component with period selector (1M, 3M, 6M, 1Y, YTD, All).
-3. **[P0] Add portfolio TypeScript types** — Define `PortfolioHolding`, `PerformanceMetrics`, `AllocationBreakdown`, `DividendRecord`, `PriceUpdate` types in `lib/types.ts` matching backend schemas.
-4. **[P1] Build allocation charts page section** — Use existing `PieChart.tsx` to show sector/geography/asset class allocation from `GET /api/portfolio/allocation`.
-5. **[P1] Build market price update page** — `/portfolio/prices` with form to update prices. Backend `POST /api/portfolio/prices` is ready.
-6. **[P1] Build holding detail page** — `/portfolio/[ticker]` with transaction history, performance chart, cost basis breakdown (FIFO/LIFO/AvgCost toggle).
-7. **[P2] Add dividend timeline** — Use `BarChart.tsx` for monthly dividend income visualization.
-8. **[P2] Update Sidebar routing** — Change "Portfolio" nav from `/assets` to `/portfolio`. Consider keeping `/assets` as a sub-feature or deprecating it.
-9. **[P3] Write frontend tests** — Test holdings table rendering, performance card calculations display, allocation chart data transformation, price update form validation.
-
-### Implementation Estimate
-
-At audit time, the backend appeared complete and chart infrastructure existed, so the frontend build-out was estimated at:
-
-| Phase | Deliverable | Effort |
-|-------|------------|--------|
-| 1 | Portfolio types + API functions + holdings dashboard | 2-3 days |
-| 2 | Performance cards + allocation charts | 1-2 days |
-| 3 | Price update page + holding detail page | 2-3 days |
-| 4 | Dividend timeline + frontend tests | 1-2 days |
-| **Total** | | **6-10 days** |
-
----
-
-*FE/UI Audit appended: April 2026*
+The April 2026 FE/UI audit snapshot was removed from this EPIC. Current portfolio UI scope is represented by the AC group below and executable frontend tests.
 
 ---
 

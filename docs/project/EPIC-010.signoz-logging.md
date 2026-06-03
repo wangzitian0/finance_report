@@ -167,7 +167,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 
 ## 📏 Acceptance Criteria
 
-> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers within `docs/infra_registry.yaml` reflect deprecated/merged ACs preserved for historical traceability. Do **not** renumber. New ACs append to the next available index in the relevant feature block.
+> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
 
 ### 🟢 Must Have
 

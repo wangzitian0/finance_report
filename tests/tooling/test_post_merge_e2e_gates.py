@@ -1,5 +1,7 @@
 from pathlib import Path
 import re
+import subprocess
+import sys
 
 import yaml
 
@@ -19,6 +21,18 @@ def critical_post_merge_llm_proof_files() -> list[str]:
             if proof["ci_tier"] == "post_merge_environment"
             and "llm" in proof["required_markers"]
         }
+    )
+
+
+def staging_ai_ocr_contract_shell() -> str:
+    return subprocess.check_output(
+        [
+            sys.executable,
+            "tools/staging_ai_ocr_gate_contract.py",
+            "--shell",
+        ],
+        cwd=ROOT,
+        text=True,
     )
 
 
@@ -236,11 +250,8 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         in deploy_workflow
     )
     assert 'run_timed_phase "Staging AI/OCR Gate' in deploy_workflow
-    assert "test_statement_full_journey.py" in deploy_workflow
-    assert "test_brokerage_upload_to_portfolio_value.py" in deploy_workflow
-    assert "test_four_asset_net_worth_golden_path.py" in deploy_workflow
-    assert "test_personal_financial_report_package.py" in deploy_workflow
-    assert "test_statement_upload_e2e.py" in deploy_workflow
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in deploy_workflow
+    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in deploy_workflow
     assert '-v -m "llm"' in deploy_workflow
     assert (
         '-v -m "llm"'
@@ -258,11 +269,8 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
     assert "EXPECTED_SHA: ${{ steps.expected_sha.outputs.short_sha }}" in ai_workflow
     assert "test_version_check.py" in ai_workflow
-    assert "test_statement_full_journey.py" in ai_workflow
-    assert "test_brokerage_upload_to_portfolio_value.py" in ai_workflow
-    assert "test_four_asset_net_worth_golden_path.py" in ai_workflow
-    assert "test_personal_financial_report_package.py" in ai_workflow
-    assert "test_statement_upload_e2e.py" in ai_workflow
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
+    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in ai_workflow
     assert '-v -m "llm"' in ai_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
     assert "manual recovery entry point" in ci_cd
@@ -288,10 +296,19 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
             "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
             in workflow
         )
-        assert "- Expected uploads: 9" in workflow
-        assert "- Expected parse completions: 9" in workflow
-        assert "- Expected brokerage imports: 4" in workflow
-        assert "- Expected report verifications: 2" in workflow
+        assert "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}" in workflow
+        assert (
+            "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
+            in workflow
+        )
+        assert (
+            "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
+            in workflow
+        )
+        assert (
+            "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
+            in workflow
+        )
         assert "- Expected failures: 0" in workflow
         assert "- Uploads verified: ${verified_uploads}" in workflow
         assert "- Parse completions verified: ${verified_parse_completions}" in workflow
@@ -301,12 +318,13 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
             in workflow
         )
         assert "- Failures observed: ${verified_failures}" in workflow
-        assert "tests/e2e/test_statement_full_journey.py" in workflow
-        assert "tests/e2e/test_brokerage_upload_to_portfolio_value.py" in workflow
-        assert "tests/e2e/test_four_asset_net_worth_golden_path.py" in workflow
-        assert "tests/e2e/test_personal_financial_report_package.py" in workflow
-        assert "tests/e2e/test_statement_upload_e2e.py" in workflow
+        assert "for fixture_test in" in workflow
+        assert "${STAGING_AI_OCR_TESTS[@]}" in workflow
         assert "GITHUB_STEP_SUMMARY" in workflow
+        assert "- Expected uploads: 7" not in workflow
+        assert "- Expected parse completions: 7" not in workflow
+        assert "- Expected brokerage imports: 3" not in workflow
+        assert "- Expected report verifications: 1" not in workflow
 
     assert deploy_workflow.index(
         "write_staging_audit_inventory"
@@ -318,9 +336,33 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
     assert "deployment-level inputs" in observability
 
 
+def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
+    """AC8.13.49: Staging AI/OCR replay contract has one file/count source."""
+    shell = staging_ai_ocr_contract_shell()
+    match = re.search(r"^STAGING_AI_OCR_TESTS=\((?P<files>.+)\)$", shell, re.M)
+    assert match is not None
+    files = match.group("files").split()
+
+    for token in (
+        "tests/e2e/test_statement_full_journey.py",
+        "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+        "tests/e2e/test_four_asset_net_worth_golden_path.py",
+        "tests/e2e/test_personal_financial_report_package.py",
+        "tests/e2e/test_statement_upload_e2e.py",
+        "STAGING_AI_OCR_EXPECTED_UPLOADS=9",
+        "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=9",
+        "STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS=4",
+        "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=2",
+    ):
+        assert token in shell
+    assert len(files) == len(set(files))
+    assert files == sorted(files)
+
+
 def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
     """AC8.13.50: Critical LLM post-merge proofs are executed by AI/OCR gates."""
     proof_files = critical_post_merge_llm_proof_files()
+    shell = staging_ai_ocr_contract_shell()
     assert proof_files == [
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
@@ -333,8 +375,11 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
         ".github/workflows/staging-ai-ocr-gate.yml",
     ):
         workflow = read(workflow_path)
-        missing = [proof_file for proof_file in proof_files if proof_file not in workflow]
-        assert missing == []
+        assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
+        assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in workflow
+
+    missing = [proof_file for proof_file in proof_files if proof_file not in shell]
+    assert missing == []
 
 
 def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
@@ -570,7 +615,7 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     assert workflow.index("tools/check_ac_traceability.py") < workflow.index(
         "tools/build_ac_traceability.py --output"
     )
-    assert "without rewriting historical registry descriptions" in ci_cd
+    assert "generated registry indexes can be materialized" in ci_cd
     assert (
         "CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only"
         in ci_cd
@@ -727,8 +772,10 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
     assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "test_brokerage_upload_to_portfolio_value.py" in workflow
-    assert "test_four_asset_net_worth_golden_path.py" in workflow
+    contract = staging_ai_ocr_contract_shell()
+    assert "test_brokerage_upload_to_portfolio_value.py" in contract
+    assert "test_four_asset_net_worth_golden_path.py" in contract
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
     assert '-v -m "llm"' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in ai_workflow
     assert "@pytest.mark.llm" in journey
@@ -1277,7 +1324,8 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     statements_router = read("apps/backend/src/routers/statements.py")
     generator = read("tools/_lib/pdf_fixtures/generate_pdf_fixtures.py")
 
-    assert "test_brokerage_upload_to_portfolio_value.py" in workflow
+    assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
+    assert "test_brokerage_upload_to_portfolio_value.py" in staging_ai_ocr_contract_shell()
     assert '-m "llm"' in workflow
     assert "pytest.mark.critical" in brokerage
     assert "pytest.mark.llm" in brokerage
@@ -1395,8 +1443,9 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
         assert token in gate
 
     for workflow in (deploy_workflow, ai_workflow):
-        assert "test_four_asset_net_worth_golden_path.py" in workflow
+        assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
         assert '-v -m "llm"' in workflow
+    assert "test_four_asset_net_worth_golden_path.py" in staging_ai_ocr_contract_shell()
 
     assert "four-asset-as-of-net-worth" in matrix
     assert "test_four_asset_as_of_net_worth_golden_path" in matrix

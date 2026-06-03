@@ -57,7 +57,7 @@ E2E coverage is measured across three tiers of increasing fidelity:
 - CI source coverage uses the shared coverage policy in `common/coverage/policy.py`. New backend, frontend, common, and tools modules are expected to appear in the matching LCOV report unless the policy explicitly excludes them.
 - **AC8.13.15**: Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned.
 - **AC8.13.16**: CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache.
-- **AC8.13.17**: AC registry generation preserves canonical descriptions and stores entries under ACx.y merge anchors without committed totals.
+- **AC8.13.17**: AC registry generation writes small generated indexes and materializes entries from EPIC docs plus explicit overrides.
 - **AC8.13.18**: Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets.
 - **AC8.13.19**: Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics.
 - **AC8.13.20**: CI change classification is covered by multi-commit and markdown edge-case regression tests.
@@ -320,7 +320,7 @@ These scenarios represent the "Vertical Slices" of user value.
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 > **Coverage**: See `apps/backend/tests/e2e/` and `tools/smoke_test.sh`
 >
-> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC8.x.y` numbers within `docs/infra_registry.yaml` reflect deprecated/merged ACs preserved for historical traceability. Do **not** renumber. New ACs append to the next available index in the relevant feature block.
+> ℹ️ **Non-contiguous AC numbering**: Gaps in `AC8.x.y` numbers reflect deprecated or merged ACs preserved for historical traceability through generated registry indexes plus explicit overrides. Do **not** renumber. New active ACs append to the next available index in the owning EPIC block.
 
 ### AC8.1: Smoke Tests (Health Checks)
 
@@ -453,7 +453,7 @@ These scenarios represent the "Vertical Slices" of user value.
 | AC8.13.14 | Provider-backed staging AI/OCR gate runs separately from deploy health | `test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.15 | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `test_*coverage_policy*` / `test_build_unified_lcov*` | `tests/tooling/` | P0 |
 | AC8.13.16 | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `test_AC8_13_16_ci_change_classification_and_frontend_cache` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
-| AC8.13.17 | AC registry generation preserves canonical descriptions and stores entries under ACx.y merge anchors without committed totals | `test_main_appends_missing_ac_without_rewriting_existing_registry` / `test_AC8_13_17_ac_traceability_runs_registry_generation_check` | `tests/tooling/test_generate_ac_registry.py` / `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.17 | AC registry generation writes small generated indexes, materializes entries from EPIC docs plus explicit overrides, and preserves no duplicate feature/infra ownership | `test_main_appends_missing_ac_without_rewriting_current_epic_text` / `test_main_materialized_registries_have_no_duplicate_or_missing_ids` / `test_AC8_13_17_ac_traceability_runs_registry_generation_check` | `tests/tooling/test_generate_ac_registry.py` / `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.18 | Brokerage portfolio gate validates market valuation adjustment lines even when unrelated asset lines lower total assets | `test_portfolio_valuation_gate_ignores_unrelated_negative_asset_lines` / `test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` / `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P0 |
 | AC8.13.19 | Brokerage portfolio gate failures include holdings, valuation adjustment, non-portfolio asset, and balance-sheet diagnostics | `test_portfolio_valuation_gate_failure_diagnostics_are_actionable` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | P0 |
 | AC8.13.20 | CI change classification is covered by multi-commit and markdown edge-case regression tests | `test_AC8_13_20_*` | `tests/tooling/test_ci_change_classifier.py` | P1 |

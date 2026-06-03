@@ -43,6 +43,15 @@ def load_registry_entries(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if payload.get("generated_from_epics"):
+        from common.ssot import generate_ac_registry
+
+        registry_kind = str(payload.get("kind") or _infer_registry_kind(path))
+        return generate_ac_registry.materialized_entries(
+            registry_kind,
+            epic_source=payload.get("epic_source"),
+            overrides=payload.get("overrides"),
+        )
     return list(iter_registry_entries(payload))
 
 
@@ -52,6 +61,12 @@ def registry_validation_errors(path: Path) -> list[str]:
 
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     errors: list[str] = []
+
+    if payload.get("generated_from_epics"):
+        kind = payload.get("kind")
+        if kind not in {"feature", "infra"}:
+            errors.append("generated registry requires kind: feature|infra")
+        return errors
 
     if "groups" not in payload:
         errors.append("missing required 'groups' map")
@@ -84,3 +99,9 @@ def registry_validation_errors(path: Path) -> list[str]:
                     )
 
     return errors
+
+
+def _infer_registry_kind(path: Path) -> str:
+    if path.name == "infra_registry.yaml":
+        return "infra"
+    return "feature"
