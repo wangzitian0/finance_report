@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Archive,
   ArrowRight,
   Bell,
   CheckCircle2,
@@ -18,7 +17,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
-import { Alert, Badge, EmptyState, IconButton, type BadgeVariant } from "@/components/ui";
+import { Alert, Badge, EmptyState, type BadgeVariant } from "@/components/ui";
 import {
   fetchWorkflowEvents,
   fetchWorkflowStatus,
@@ -623,73 +622,6 @@ export function UploadToReportHomePanel() {
   }
 
   return <UploadToReportHome status={status} events={events} />;
-}
-
-export function WorkflowStatusFeedPanel() {
-  const [status, setStatus] = useState<WorkflowStatusResponse | null>(null);
-  const [events, setEvents] = useState<WorkflowEventResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadWorkflowFeed() {
-      setIsLoading(true);
-      setError(false);
-      try {
-        const [nextStatus, nextEvents] = await Promise.all([
-          fetchWorkflowStatus(),
-          fetchWorkflowEvents({ limit: 5 }),
-        ]);
-        if (!cancelled) {
-          setStatus(nextStatus);
-          setEvents(nextEvents.items);
-        }
-      } catch {
-        if (!cancelled) setError(true);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    void loadWorkflowFeed();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (isLoading) {
-    return (
-      <section className="card p-5" aria-label="Workflow status">
-        <div className="flex items-center gap-2 text-sm text-muted" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading workflow status...
-        </div>
-      </section>
-    );
-  }
-
-  if (error || !status) {
-    return (
-      <section className="card p-5" aria-label="Workflow status">
-        <div className="alert-warning">Workflow status is unavailable.</div>
-      </section>
-    );
-  }
-
-  return <WorkflowStatusFeed status={status} events={events} />;
-}
-
-export function WorkflowArchiveButton({
-  event,
-  onArchive,
-}: {
-  event: WorkflowEventResponse;
-  onArchive: (eventId: string) => void;
-}) {
-  return <IconButton icon={Archive} label={`Archive ${event.title}`} onClick={() => onArchive(event.id)} />;
 }
 
 export function WorkflowEventsPageContent() {

@@ -482,7 +482,10 @@ async def test_four_asset_as_of_net_worth_golden_path(
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_role("heading", name="Dashboard")).to_be_visible(
+    await expect(page.get_by_role("heading", name="Upload to report")).to_be_visible(
+        timeout=10_000
+    )
+    await expect(page.get_by_label("Dashboard analytics")).to_be_visible(
         timeout=10_000
     )
     include_checkbox = page.get_by_label("Include restricted holdings")
