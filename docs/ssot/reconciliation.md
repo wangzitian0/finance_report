@@ -334,6 +334,11 @@ The Stage 2 queue response must derive `confidence_tier` from the actual
 | 60-84 | MEDIUM |
 | < 60 or null | LOW |
 
+The `/review/run/[runId]` frontend page currently uses the shared global
+`/statements/stage2/queue` endpoint and shows `runId` as navigation context.
+Until a backend run-scoped queue contract is introduced, the UI must not imply
+that the queue payload is isolated to a persisted batch/run.
+
 **State Machine**:
 ```
 [*] --> pending: Check detected
@@ -351,6 +356,7 @@ pending --> flagged: Needs manual review
 | POST | `/statements/{id}/review/reject` | Reject and trigger re-parse |
 | POST | `/statements/{id}/review/edit` | Edit transactions and approve |
 | POST | `/statements/{id}/review/opening-balance` | Set manual opening balance |
+| GET | `/review/conflicts/{statement_id}` | Stage 1 duplicate and transfer-pair conflict candidates |
 | GET | `/statements/stage2/queue` | Stage 2 review queue (global) |
 | POST | `/statements/{id}/stage2/run-checks` | Run consistency checks for statement |
 | POST | `/statements/consistency-checks/{id}/resolve` | Resolve a check |

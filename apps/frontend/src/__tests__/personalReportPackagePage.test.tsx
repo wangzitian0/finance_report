@@ -157,11 +157,13 @@ const traceabilityAppendix = {
         state: "available",
         source_types: ["bank_statement", "manual_valuation_snapshot"],
         identifier_fields: ["statement_transaction_ids", "manual_valuation_snapshot_ids"],
+        identifiers: ["statement_transaction:txn-123", "manual_valuation_snapshot:val-456"],
       },
       ledger_anchor: {
         state: "available",
         entry_statuses: ["posted", "reconciled"],
         identifier_fields: ["journal_entry_ids", "journal_line_ids"],
+        identifiers: ["journal_entry:je-789", "journal_line:jl-101"],
       },
       review_state: "trusted_or_explicit_manual_input",
       confidence_tier: "TRUSTED",
@@ -177,11 +179,13 @@ const traceabilityAppendix = {
         state: "available",
         source_types: ["package_contract"],
         identifier_fields: ["note_id"],
+        identifiers: ["note:basis-of-preparation"],
       },
       ledger_anchor: {
         state: "not_applicable",
         entry_statuses: [],
         identifier_fields: [],
+        identifiers: [],
       },
       review_state: "not_applicable",
       confidence_tier: "UNAVAILABLE",
@@ -293,7 +297,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("This personal management report is not a regulated filing, not legal advice, and not tax advice.")).toBeInTheDocument()
   })
 
-  it("AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata", async () => {
+  it("AC5.13.3 AC5.16.3 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
     mockPackageApi()
 
     render(<PersonalReportPackagePage />)
@@ -302,7 +306,9 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getAllByText("Traceability Appendix").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("posted_reconciled_journal_lines_and_manual_valuations")).toBeInTheDocument()
     expect(screen.getByText("bank_statement, manual_valuation_snapshot")).toBeInTheDocument()
+    expect(screen.getByText("statement_transaction:txn-123, manual_valuation_snapshot:val-456")).toBeInTheDocument()
     expect(screen.getByText("posted, reconciled")).toBeInTheDocument()
+    expect(screen.getByText("journal_entry:je-789, journal_line:jl-101")).toBeInTheDocument()
     expect(screen.getByText("trusted_or_explicit_manual_input")).toBeInTheDocument()
     expect(screen.getByText("TRUSTED")).toBeInTheDocument()
     expect(screen.getByText("manual_only_source")).toBeInTheDocument()

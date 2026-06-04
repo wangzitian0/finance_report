@@ -183,6 +183,7 @@ class CashFlowResponse(BaseModel):
     investing: list[CashFlowItem]
     financing: list[CashFlowItem]
     summary: CashFlowSummary
+    fx_warnings: list[dict[str, str]] = Field(default_factory=list)
 
 
 class PersonalReportPackageSectionContract(BaseModel):

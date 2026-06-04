@@ -471,6 +471,20 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current review U
 - [x] **AC16.24.3** Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved
 - **AC16.24.4** - Stage 2 batch approval routes accepted matches through the ledger-safe acceptance path, creating missing journal entries or reconciling referenced entries without duplicating entries on retry
 
+### Acceptance Criteria — Feature (group 31, review contract hardening)
+
+The June 2026 UI audit found several high-line-coverage review tests that
+validated mocked UI-only state rather than backend-owned review contracts.
+These ACs close those gaps without changing the underlying reconciliation data
+model.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC16.31.1 | Stage 1 conflict dialog loads duplicate and transfer-pair candidates from `GET /api/review/conflicts/{statement_id}` instead of fake review payload fields | `AC16.23.3 opens the conflict dialog when duplicate or transfer-pair candidates exist` / `opens conflict dialog when duplicate/transfer candidates present` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx`, `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx` | P0 |
+| AC16.31.2 | Stage 1 approval is disabled unless both opening and closing balance validation match | `AC16.31.2 disables approval when opening balance validation fails` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
+| AC16.31.3 | Stage 2 run review page states that it uses the shared Stage 2 queue endpoint when no run-scoped queue API exists | `AC16.24.1 and AC16.24.2 summarizes unresolved run checks and blocks approval` | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | P0 |
+| AC16.31.4 | Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation | `AC16.20.4 supports flag and ignore actions` / `creates all entries with batch action` | `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
+
 ### Acceptance Criteria — Feature (group 28, frontend UI system primitives)
 
 Issue [#612](https://github.com/wangzitian0/finance_report/issues/612)

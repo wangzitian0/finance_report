@@ -7,6 +7,7 @@ import { API_URL, apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
+import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
 
 interface ReportLine {
   account_id: string;
@@ -25,6 +26,10 @@ interface BalanceSheetResponse {
   total_assets: number | string;
   total_liabilities: number | string;
   total_equity: number | string;
+  net_income?: number | string;
+  unrealized_fx_gain_loss?: number | string;
+  net_worth_adjustment_gain_loss?: number | string;
+  fx_warnings?: FxWarning[];
   equation_delta: number | string;
   is_balanced: boolean;
 }
@@ -48,6 +53,7 @@ export default function BalanceSheetPage() {
   const [report, setReport] = useState<BalanceSheetResponse | null>(null);
   const [asOfDate, setAsOfDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
+  const [includeRestricted, setIncludeRestricted] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +62,12 @@ export default function BalanceSheetPage() {
   const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<BalanceSheetResponse>(`/api/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}`);
+      const params = new URLSearchParams({
+        as_of_date: asOfDate,
+        currency,
+        include_restricted: includeRestricted ? "true" : "false",
+      });
+      const data = await apiFetch<BalanceSheetResponse>(`/api/reports/balance-sheet?${params.toString()}`);
       setReport(data);
       setError(null);
       const rootIds = new Set<string>();
@@ -65,7 +76,7 @@ export default function BalanceSheetPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load balance sheet.");
     } finally { setLoading(false); }
-  }, [asOfDate, currency]);
+  }, [asOfDate, currency, includeRestricted]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
@@ -73,7 +84,7 @@ export default function BalanceSheetPage() {
   const liabilitiesTree = useMemo(() => report ? buildTree(report.liabilities) : [], [report]);
   const equityTree = useMemo(() => report ? buildTree(report.equity) : [], [report]);
 
-  const exportUrl = `${API_URL}/api/reports/export?report_type=balance-sheet&format=csv&as_of_date=${asOfDate}&currency=${currency}`;
+  const exportUrl = `${API_URL}/api/reports/export?report_type=balance-sheet&format=csv&as_of_date=${asOfDate}&currency=${currency}&include_restricted=${includeRestricted ? "true" : "false"}`;
   const aiPrompt = useMemo(() => encodeURIComponent(`Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`), [asOfDate, currency]);
 
   const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -117,8 +128,14 @@ export default function BalanceSheetPage() {
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">As of date</span><input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="input w-auto" /></label>
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto">{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+        <label className="self-end flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2">
+          <input type="checkbox" checked={includeRestricted} onChange={(e) => setIncludeRestricted(e.target.checked)} />
+          <span>Include restricted holdings</span>
+        </label>
         <span className={`self-end badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>{report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</span>
       </div>
+
+      <FxWarningBanner warnings={report?.fx_warnings} />
 
       <div className="flex flex-col gap-2 mb-6">
         <span className="text-xs text-muted uppercase">Quick filters</span>
@@ -128,6 +145,32 @@ export default function BalanceSheetPage() {
           <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#liabilities`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
           <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#equity`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
         </div>
+      </div>
+
+      <div className="card p-5 mb-6">
+        <h2 className="font-semibold mb-3">Balance Equation Detail</h2>
+        <dl className="grid gap-3 text-sm md:grid-cols-5">
+          <div>
+            <dt className="text-xs text-muted uppercase">Net Income</dt>
+            <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted uppercase">Unrealized FX</dt>
+            <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.unrealized_fx_gain_loss ?? 0, report.currency) : "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted uppercase">Net Worth Adjustment</dt>
+            <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.net_worth_adjustment_gain_loss ?? 0, report.currency) : "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted uppercase">Equation Delta</dt>
+            <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.equation_delta, report.currency) : "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted uppercase">Restricted Treatment</dt>
+            <dd className="mt-1 font-medium">{includeRestricted ? "Included" : "Excluded by default"}</dd>
+          </div>
+        </dl>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

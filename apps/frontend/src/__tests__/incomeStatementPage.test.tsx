@@ -49,6 +49,7 @@ describe("IncomeStatementPage", () => {
       total_income: "5000",
       total_expenses: "1200",
       net_income: "3800",
+      fx_warnings: [{ type: "missing_average_rate", from_currency: "USD", to_currency: "SGD", date: "2026-01-31" }],
       trends: [{ period_start: "2026-01-01", period_end: "2026-01-31", total_income: "5000", total_expenses: "1200", net_income: "3800" }],
       filters_applied: { tags: null, account_type: null },
     })
@@ -60,6 +61,7 @@ describe("IncomeStatementPage", () => {
     expect(screen.getByText("Total Expenses")).toBeInTheDocument()
     expect(screen.getByText("Net Income")).toBeInTheDocument()
     expect(screen.getByText("BarChartMock")).toBeInTheDocument()
+    expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
     expect(screen.getByText("Salary")).toBeInTheDocument()
     expect(screen.getByText("Rent")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "AI Interpretation" })).toHaveAttribute(

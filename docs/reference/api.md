@@ -176,7 +176,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/breakdown` | yes | `type`* (query), `period` (query), `currency` (query) | - | `200` `CategoryBreakdownResponse` | Category Breakdown |
 | `GET` | `/reports/cash-flow` | yes | `start_date`* (query), `end_date`* (query), `currency` (query) | - | `200` `CashFlowResponse` | Cash Flow |
 | `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
-| `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query) | - | `200` - | Export Report |
+| `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query) | - | `200` - | Export Report |
 | `GET` | `/reports/income-statement` | yes | `start_date`* (query), `end_date`* (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package/annualized-income-schedule` | yes | `as_of_date` (query) | - | `200` `AnnualizedIncomeScheduleResponse` | Annualized Income Schedule |

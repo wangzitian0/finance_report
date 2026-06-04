@@ -42,9 +42,17 @@ interface StatementReview {
     balance_validation_result: BalanceValidationResult | null;
     pdf_url: string | null;
     transactions: Transaction[];
-    // TODO(epic-016-conflict-detection): Backend needs to expose these
-    duplicate_candidates?: any[];
-    transfer_pair_candidates?: any[];
+}
+
+interface ConflictCandidate {
+    description: string;
+    txn_date: string;
+    amount: string | number;
+}
+
+interface ReviewConflicts {
+    duplicates: ConflictCandidate[];
+    transfer_pairs: ConflictCandidate[];
 }
 
 interface Stage1ApprovalResponse {
@@ -74,7 +82,14 @@ export default function StatementReviewPage() {
         queryFn: () => apiFetch<{ items: Array<{ id: string }> }>("/api/statements/pending-review"),
     });
 
+    const { data: conflicts } = useQuery({
+        queryKey: ["statement-conflicts", statementId],
+        queryFn: () => apiFetch<ReviewConflicts>(`/api/review/conflicts/${statementId}`),
+    });
+
     const pendingStatements = pendingStatementsData?.items || [];
+    const duplicateCandidates = conflicts?.duplicates || [];
+    const transferPairCandidates = conflicts?.transfer_pairs || [];
 
     // Mutations
     const editMutation = useMutation({
@@ -167,10 +182,10 @@ export default function StatementReviewPage() {
     };
 
     useEffect(() => {
-        if (data?.duplicate_candidates?.length || data?.transfer_pair_candidates?.length) {
+        if (duplicateCandidates.length || transferPairCandidates.length) {
             setConflictDialogOpen(true);
         }
-    }, [data]);
+    }, [duplicateCandidates.length, transferPairCandidates.length]);
 
     if (loading) {
         return (
@@ -216,7 +231,9 @@ export default function StatementReviewPage() {
         );
     }
 
-    const balanceValid = data.balance_validation_result?.closing_match ?? false;
+    const balanceValid = Boolean(
+        data.balance_validation_result?.opening_match && data.balance_validation_result?.closing_match
+    );
 
     return (
         <div className="flex min-h-[calc(100vh-2rem)] flex-col p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
@@ -300,8 +317,8 @@ export default function StatementReviewPage() {
             <ConflictResolutionDialog 
                 isOpen={conflictDialogOpen}
                 onClose={() => setConflictDialogOpen(false)}
-                duplicateCandidates={data.duplicate_candidates || []}
-                transferPairCandidates={data.transfer_pair_candidates || []}
+                duplicateCandidates={duplicateCandidates}
+                transferPairCandidates={transferPairCandidates}
             />
 
             <ConfirmDialog

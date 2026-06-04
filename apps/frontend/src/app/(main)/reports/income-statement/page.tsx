@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_URL, apiFetch } from "@/lib/api";
 import { BarChart } from "@/components/charts/BarChart";
+import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -34,6 +35,7 @@ interface IncomeStatementResponse {
   total_income: number | string;
   total_expenses: number | string;
   net_income: number | string;
+  fx_warnings?: FxWarning[];
   trends: IncomeStatementTrend[];
   filters_applied?: {
     tags: string[] | null;
@@ -164,6 +166,8 @@ export default function IncomeStatementPage() {
           {report.filters_applied.tags?.map((t) => <span key={t} className="badge badge-muted mr-2">{t}</span>)}
         </div>
       )}
+
+      <FxWarningBanner warnings={report?.fx_warnings} />
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="card p-5"><p className="text-xs text-muted uppercase">Total Income</p><p className="text-2xl font-semibold text-[var(--success)] mt-1">{report ? formatCurrencyLocale(report.total_income, report.currency) : "—"}</p></div>

@@ -54,6 +54,7 @@ describe("CashFlowPage", () => {
         beginning_cash: "5000",
         ending_cash: "5900",
       },
+      fx_warnings: [{ type: "spot_rate_fallback", from_currency: "EUR", to_currency: "SGD", fallback_date: "2026-01-30" }],
     })
 
     render(<CashFlowPage />)
@@ -63,6 +64,7 @@ describe("CashFlowPage", () => {
     expect(screen.getByText("Operating Activities")).toBeInTheDocument()
     expect(screen.getByText("Investing Activities")).toBeInTheDocument()
     expect(screen.getByText("Financing Activities")).toBeInTheDocument()
+    expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
     expect(screen.getByText("Sales")).toBeInTheDocument()
     expect(screen.getByText("Main ops")).toBeInTheDocument()
 

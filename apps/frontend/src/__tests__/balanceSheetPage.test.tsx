@@ -45,6 +45,10 @@ describe("BalanceSheetPage", () => {
       total_assets: "1000",
       total_liabilities: "200",
       total_equity: "800",
+      net_income: "300",
+      unrealized_fx_gain_loss: "12",
+      net_worth_adjustment_gain_loss: "5",
+      fx_warnings: [{ type: "missing_fx_rate_partial_skip", from_currency: "USD", to_currency: "SGD", date: "2026-02-01" }],
       equation_delta: "0",
       is_balanced: true,
     })
@@ -55,7 +59,16 @@ describe("BalanceSheetPage", () => {
     expect(screen.getByRole("heading", { name: "Assets", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Liabilities", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Equity", level: 2 })).toBeInTheDocument()
+    expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
+    expect(screen.getByText("Balance Equation Detail")).toBeInTheDocument()
+    expect(screen.getByText("Excluded by default")).toBeInTheDocument()
+    expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("include_restricted=false"))
     expect(screen.getAllByText(/Total:/)).toHaveLength(3)
+
+    fireEvent.click(screen.getByLabelText("Include restricted holdings"))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("include_restricted=true")),
+    )
 
     const dateInput = container.querySelector('input[type="date"]')
     expect(dateInput).not.toBeNull()

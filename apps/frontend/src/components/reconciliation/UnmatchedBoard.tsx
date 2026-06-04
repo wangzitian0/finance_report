@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { apiFetch } from "@/lib/api";
 
 interface BankTransactionSummary {
@@ -55,6 +56,7 @@ export default function UnmatchedBoard() {
   const [error, setError] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<Set<string>>(() => loadFlaggedFromStorage());
   const [creatingAll, setCreatingAll] = useState(false);
+  const [confirmCreateAllOpen, setConfirmCreateAllOpen] = useState(false);
   const [batchCreatedCount, setBatchCreatedCount] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
@@ -85,6 +87,7 @@ export default function UnmatchedBoard() {
 
   const createAllEntries = async () => {
     setCreatingAll(true);
+    setConfirmCreateAllOpen(false);
     setBatchCreatedCount(null);
     try {
       const result = await apiFetch<BatchCreateEntriesResponse>("/api/reconciliation/unmatched/batch-create", {
@@ -138,12 +141,13 @@ export default function UnmatchedBoard() {
         <div>
           <h1 className="page-title">Unmatched Transactions</h1>
           <p className="page-description">Triage unmatched transactions and create manual journal entries</p>
+          <p className="mt-1 text-xs text-muted">Flags and hidden rows are local workspace triage only.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/reconciliation" className="btn-secondary text-sm">← Workbench</Link>
           <button
             type="button"
-            onClick={createAllEntries}
+            onClick={() => setConfirmCreateAllOpen(true)}
             disabled={creatingAll || items.length === 0}
             className="btn-primary text-sm"
           >
@@ -180,7 +184,7 @@ export default function UnmatchedBoard() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className="font-semibold text-[var(--accent)]">{item.amount?.toLocaleString()}</div>
-                    {flagged.has(item.id) && <span className="badge badge-warning text-[10px]">Flagged</span>}
+                    {flagged.has(item.id) && <span className="badge badge-warning text-[10px]">Flagged locally</span>}
                   </div>
                 </div>
               </button>
@@ -203,8 +207,8 @@ export default function UnmatchedBoard() {
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => createEntry(selected.id)} disabled={creating === selected.id} className="btn-primary">{creating === selected.id ? "Creating..." : "Create Entry"}</button>
                 {aiPrompt && <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary">Ask AI</Link>}
-                <button onClick={() => toggleFlag(selected.id)} className="btn-secondary">{flagged.has(selected.id) ? "Unflag" : "Flag"}</button>
-                <button onClick={() => removeFromList(selected.id)} className="btn-secondary">Ignore</button>
+                <button onClick={() => toggleFlag(selected.id)} className="btn-secondary">{flagged.has(selected.id) ? "Unflag local" : "Flag local"}</button>
+                <button onClick={() => removeFromList(selected.id)} className="btn-secondary">Hide locally</button>
               </div>
 
               {createdEntry && (
@@ -216,6 +220,16 @@ export default function UnmatchedBoard() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmCreateAllOpen}
+        onCancel={() => !creatingAll && setConfirmCreateAllOpen(false)}
+        onConfirm={() => createAllEntries()}
+        title="Create All Entries"
+        message={`Create draft journal entries for ${items.length} unmatched transaction${items.length === 1 ? "" : "s"}? Review local flags before continuing.`}
+        confirmLabel="Create Entries"
+        loading={creatingAll}
+      />
     </div>
   );
 }

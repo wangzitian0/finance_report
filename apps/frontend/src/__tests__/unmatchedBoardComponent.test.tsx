@@ -73,7 +73,7 @@ describe("UnmatchedBoard", () => {
     )
   })
 
-  it("AC16.20.4 supports flag and ignore actions", async () => {
+  it("AC16.20.4 AC16.31.4 supports local flag and hide actions", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
         {
@@ -93,15 +93,16 @@ describe("UnmatchedBoard", () => {
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Unmatched Transactions" })).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole("button", { name: "Flag" }))
-    expect(screen.getByRole("button", { name: "Unflag" })).toBeInTheDocument()
+    expect(screen.getByText("Flags and hidden rows are local workspace triage only.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Flag local" }))
+    expect(screen.getByRole("button", { name: "Unflag local" })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Ignore" }))
+    fireEvent.click(screen.getByRole("button", { name: "Hide locally" }))
     await waitFor(() => expect(screen.queryAllByText("Card payment")).toHaveLength(0))
     expect(screen.getByText("Select a transaction to review")).toBeInTheDocument()
   })
 
-  it("creates all entries with batch action", async () => {
+  it("AC16.31.4 creates all entries only after confirming the batch action", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
         items: [
@@ -124,6 +125,9 @@ describe("UnmatchedBoard", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
+    const dialog = await screen.findByRole("dialog", { name: "Create All Entries" })
+    expect(dialog).toHaveTextContent("Create draft journal entries for 1 unmatched transaction?")
+    fireEvent.click(screen.getByRole("button", { name: "Create Entries" }))
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/unmatched/batch-create", {
@@ -171,10 +175,12 @@ describe("UnmatchedBoard", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Create Entries" }))
     expect(await screen.findByText("Created 1 journal entry from unmatched transactions.")).toBeInTheDocument()
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Create All Entries" })).toBeEnabled())
     fireEvent.click(screen.getByRole("button", { name: "Create All Entries" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Create Entries" }))
     expect(await screen.findByText("bulk failed")).toBeInTheDocument()
     expect(screen.queryByText("Created 1 journal entry from unmatched transactions.")).not.toBeInTheDocument()
   })
@@ -204,10 +210,10 @@ describe("UnmatchedBoard", () => {
 
     render(<UnmatchedBoard />)
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Unflag" })).toBeInTheDocument())
-    fireEvent.click(screen.getByRole("button", { name: "Unflag" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Unflag local" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Unflag local" }))
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Flag" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("button", { name: "Flag local" })).toBeInTheDocument())
     expect(warnSpy).toHaveBeenCalledWith(
       "[UnmatchedBoard] Failed to save flagged state:",
       expect.any(Error),

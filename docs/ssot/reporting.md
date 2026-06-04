@@ -302,7 +302,9 @@ Annualized income and long-term compensation schedule:
 - Restricted compensation basis: latest as-of manual valuation snapshots for
   `esop`, `rsu`, and `stock_options` with `liquidity_class=restricted`.
 - Liquid net worth default: restricted holdings are excluded by default and are
-  only included through the balance-sheet restricted toggle.
+  only included through the balance-sheet restricted toggle. The
+  `/reports/balance-sheet` endpoint and Balance Sheet page must both default
+  `include_restricted=false`.
 - Decimal fields serialize as strings; restricted fair-value totals are reported
   in the schedule currency using the as-of FX rate. Per-holding source currency
   remains visible.
@@ -410,6 +412,11 @@ Reports are generated in a single base currency (user configurable, default: SGD
   the report returns an explicit partial warning such as
   `missing_fx_rate_partial_skip` or `missing_fx_revaluation_partial_skip`.
   Reports must never silently assume a 1:1 rate for a foreign currency.
+- Core report pages must render non-empty `fx_warnings` visibly before the
+  headline KPI/cards so users can see that totals are partial or fallback-based.
+- The Balance Sheet page must render equation component detail for
+  `net_income`, `unrealized_fx_gain_loss`,
+  `net_worth_adjustment_gain_loss`, and `equation_delta`.
 
 ```python
 def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) -> Decimal:

@@ -18,7 +18,7 @@ describe("RunReviewPage", () => {
         vi.clearAllMocks();
     });
 
-    it("AC16.24.1 and AC16.24.2 summarizes unresolved run checks and blocks approval", async () => {
+    it("AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval", async () => {
         const checks = [
             {
                 id: "c-transfer",
@@ -66,6 +66,8 @@ describe("RunReviewPage", () => {
         renderReviewComponent(<RunReviewPage /> as any);
 
         expect(await screen.findByText("Stage 2 Run Review")).toBeInTheDocument();
+        expect(screen.getByText("Review the current Stage 2 queue from this run context")).toBeInTheDocument();
+        expect(screen.getByText(/this page uses the shared Stage 2 queue endpoint/i)).toBeInTheDocument();
         expect(screen.getByText("run-123")).toBeInTheDocument();
         expect(screen.getByText("1 unresolved transfer")).toBeInTheDocument();
         expect(screen.getByText("1 duplicate")).toBeInTheDocument();

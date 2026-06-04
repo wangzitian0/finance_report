@@ -64,7 +64,7 @@ describe("EPIC-016 Componentization Tests", () => {
             />
         );
         expect(screen.getByText("Resolve Conflicts")).toBeInTheDocument();
-        expect(screen.getByText(/Backend conflict detection is currently under development/)).toBeInTheDocument();
+        expect(screen.getByText("No conflicts detected for this statement.")).toBeInTheDocument();
     });
 
     it("mounts MobileNav and asserts primary affordance (AC16.23.6)", () => {

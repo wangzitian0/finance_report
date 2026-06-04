@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockedApi = vi.mocked(apiFetch);
+const emptyConflicts = { duplicates: [], transfer_pairs: [] };
 
 describe("StatementReviewPage - coverage additions", () => {
     beforeEach(() => {
@@ -18,9 +19,12 @@ describe("StatementReviewPage - coverage additions", () => {
     });
 
     it("renders loading then empty transactions and handles retry/back link", async () => {
-        mockedApi.mockResolvedValueOnce(null as any); // first query returns falsy -> not found
-        // pending statements
-        mockedApi.mockResolvedValueOnce({ items: [] });
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(null as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
 
         renderReviewComponent(<StatementReviewPage /> as any);
 
@@ -48,13 +52,13 @@ describe("StatementReviewPage - coverage additions", () => {
             ],
         };
 
-        // statement fetch
-        mockedApi.mockResolvedValueOnce(stmt as any);
-        // pending statements
-        mockedApi.mockResolvedValueOnce({ items: [{ id: "s1" }] });
-
-        // mock edit mutation endpoint response
-        mockedApi.mockResolvedValueOnce({ success: true });
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+            if (path === "/api/statements/s1/review/edit") return Promise.resolve({ success: true });
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
 
         renderReviewComponent(<StatementReviewPage /> as any);
 
@@ -114,12 +118,19 @@ describe("StatementReviewPage - coverage additions", () => {
             balance_validation_result: null,
             pdf_url: null,
             transactions: [],
-            duplicate_candidates: [{ description: "dup", txn_date: "2024-01-01", amount: 10 }],
-            transfer_pair_candidates: [{ description: "pair", txn_date: "2024-01-02", amount: 20 }],
         };
 
-        mockedApi.mockResolvedValueOnce(stmt as any);
-        mockedApi.mockResolvedValueOnce({ items: [] });
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] });
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve({
+                    duplicates: [{ description: "dup", txn_date: "2024-01-01", amount: 10 }],
+                    transfer_pairs: [{ description: "pair", txn_date: "2024-01-02", amount: 20 }],
+                });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
 
         renderReviewComponent(<StatementReviewPage /> as any);
 
@@ -149,14 +160,14 @@ describe("StatementReviewPage - coverage additions", () => {
             transactions: [],
         };
 
-        // initial data + pending statements
-        mockedApi.mockResolvedValueOnce(stmt as any);
-        mockedApi.mockResolvedValueOnce({ items: [] });
-
-        // approve endpoint
-        mockedApi.mockResolvedValueOnce({});
-        // reject endpoint
-        mockedApi.mockResolvedValueOnce({});
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+            if (path === "/api/statements/s1/review/approve") return Promise.resolve({});
+            if (path === "/api/statements/s1/review/reject") return Promise.resolve({});
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
 
         renderReviewComponent(<StatementReviewPage /> as any);
 
@@ -226,10 +237,13 @@ describe("StatementReviewPage - coverage additions", () => {
             ],
         };
 
-        mockedApi
-            .mockResolvedValueOnce(stmt as any)
-            .mockResolvedValueOnce({ items: [{ id: "s1" }] })
-            .mockRejectedValueOnce(new Error("edit failed"));
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+            if (path === "/api/statements/s1/review/edit") return Promise.reject(new Error("edit failed"));
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
 
         renderReviewComponent(<StatementReviewPage /> as any);
 
@@ -264,6 +278,7 @@ describe("StatementReviewPage - coverage additions", () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
             if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
             if (path === "/api/statements/s1/review/approve") return Promise.reject(new Error("approve failed"));
             if (path === "/api/statements/s1/review/reject") return Promise.reject(new Error("reject failed"));
             return Promise.reject(new Error(`Unexpected path ${path}`));

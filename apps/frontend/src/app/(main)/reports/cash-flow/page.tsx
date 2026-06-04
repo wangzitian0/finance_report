@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
+import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
 import { API_URL, apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale } from "@/lib/currency";
@@ -33,6 +34,7 @@ interface CashFlowResponse {
   investing: CashFlowItem[];
   financing: CashFlowItem[];
   summary: CashFlowSummary;
+  fx_warnings?: FxWarning[];
 }
 
 export default function CashFlowPage() {
@@ -104,6 +106,8 @@ export default function CashFlowPage() {
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">End date</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input w-auto" /></label>
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto">{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
       </div>
+
+      <FxWarningBanner warnings={report?.fx_warnings} />
 
       {summary && (
         <div className="grid gap-4 md:grid-cols-3 mb-6">
