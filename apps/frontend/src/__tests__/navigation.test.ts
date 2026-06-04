@@ -1,27 +1,43 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_ROUTE_ICON, getRouteConfig, primaryNavItems } from "@/components/navigation";
+import {
+  DEFAULT_ROUTE_ICON,
+  advancedNavItems,
+  getRouteConfig,
+  primaryWorkflowNavItems,
+} from "@/components/navigation";
 
 describe("navigation metadata", () => {
-  it("AC16.23.5 exposes the full primary navigation set for mobile and desktop", () => {
-    expect(primaryNavItems.map((item) => item.label)).toEqual([
-      "Dashboard",
+  it("AC19.6.2 exposes primary workflow navigation separately from advanced drill-downs", () => {
+    expect(primaryWorkflowNavItems.map((item) => item.label)).toEqual([
+      "Upload",
       "Events",
-      "Accounts",
-      "Journal",
+      "Reports",
+      "Portfolio",
+    ]);
+    expect(primaryWorkflowNavItems.map((item) => item.href)).toEqual([
+      "/dashboard",
+      "/events",
+      "/reports",
+      "/portfolio",
+    ]);
+    expect(advancedNavItems.map((item) => item.label)).toEqual([
       "Statements",
       "Review",
-      "Portfolio",
-      "Reports",
+      "Accounts",
+      "Journal",
       "Reconciliation",
       "Processing",
-      "AI Advisor",
+      "AI Settings",
     ]);
   });
 
-  it("AC16.19.4 resolves exact, parent, and derived route labels", () => {
+  it("AC16.19.4 AC19.6.6 resolves exact, parent, and advanced deep-link route labels", () => {
     expect(getRouteConfig("/reports/balance-sheet").label).toBe("Balance Sheet");
     expect(getRouteConfig("/reports/balance-sheet/detail").label).toBe("Balance Sheet");
+    expect(getRouteConfig("/review/run/123").label).toBe("Review");
+    expect(getRouteConfig("/reconciliation/unmatched").label).toBe("Unmatched");
+    expect(getRouteConfig("/processing").label).toBe("Processing");
     expect(getRouteConfig("/custom-report_page").label).toBe("Custom Report Page");
     expect(getRouteConfig("/").Icon).toBe(DEFAULT_ROUTE_ICON);
   });

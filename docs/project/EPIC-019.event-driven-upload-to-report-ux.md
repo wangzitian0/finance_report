@@ -354,6 +354,18 @@ workflow state exists.
 | AC19.5.6 | Package readiness fails deterministically when duplicate Processing system accounts would otherwise make blockers non-deterministic | `test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts` | P0 |
 | AC19.5.7 | Package readiness converts Processing Account journal lines into base reporting currency before deciding whether the in-transit balance nets to zero | `test_AC19_5_7_package_readiness_converts_processing_balance_before_zero_check` | P0 |
 
+### AC19.6 — Navigation Folding And Advanced Drill-Down
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.6.1 | EPIC-019 and workflow-events SSOT define the canonical primary/advanced navigation IA and document `/dashboard` as the Upload primary entry | `test_AC19_6_1_workflow_navigation_ssot_documents_primary_and_advanced_groups` | P0 |
+| AC19.6.2 | Frontend navigation exports separate primary workflow nav and advanced nav groups while preserving route config for all existing advanced deep links | `navigation.test.ts` | P0 |
+| AC19.6.3 | Desktop sidebar renders Upload, Events, Reports, Portfolio, and Advanced as the primary surface; advanced child links remain accessible and active-state aware | `sidebarAndTabs.test.tsx` | P0 |
+| AC19.6.4 | Mobile nav renders the same primary/advanced grouping, supports advanced route selection, closes the drawer on navigation, and avoids overflow | `mobileNav.coverage.test.tsx`, `workflow-navigation.spec.ts` | P0 |
+| AC19.6.5 | Sidebar attention indicators are derived from `/api/workflow/status` through `lib/api.ts`; direct `/api/statements/pending-review` and stage2 queue polling are removed from Sidebar | `sidebarAndTabs.test.tsx` | P0 |
+| AC19.6.6 | Workflow event action links and workspace route labels continue to deep-link into advanced review/reconciliation/processing/report destinations | `workflowSurfaces.test.tsx`, `sidebarAndTabs.test.tsx` | P0 |
+| AC19.6.7 | Desktop and mobile Playwright smoke covers the folded navigation and Advanced access without horizontal overflow | `workflow-navigation.spec.ts` | P0 |
+
 ## How To Build It
 
 ### Backend

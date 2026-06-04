@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Sidebar } from "@/components/Sidebar"
 import { WorkspaceTabs } from "@/components/WorkspaceTabs"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, fetchWorkflowStatus } from "@/lib/api"
+import type { WorkflowStatusResponse } from "@/lib/types"
 
 const pushMock = vi.fn()
 const toggleSidebarMock = vi.fn()
@@ -14,6 +15,7 @@ const clearUserMock = vi.fn()
 const getUserEmailMock = vi.fn()
 const isAuthenticatedMock = vi.fn()
 const mockedApiFetch = vi.mocked(apiFetch)
+const mockedFetchWorkflowStatus = vi.mocked(fetchWorkflowStatus)
 
 let pathnameMock = "/dashboard"
 
@@ -34,7 +36,15 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
+  fetchWorkflowStatus: vi.fn(),
 }))
+
+const defaultWorkflowStatus: WorkflowStatusResponse = {
+  primary_state: "needs_action",
+  next_action: { type: "review_required", count: 2, href: "/review" },
+  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+  event_counts: { unread: 4, action_required: 2, blocked: 1 },
+}
 
 let workspaceMockData = {
     isCollapsed: false,
@@ -51,8 +61,6 @@ vi.mock("@/hooks/useWorkspace", () => ({
 }))
 
 describe("Sidebar and WorkspaceTabs", () => {
-  const expectedReviewBadgeCountFromMocks = "3"
-
   beforeEach(() => {
     pushMock.mockReset()
     toggleSidebarMock.mockReset()
@@ -63,21 +71,12 @@ describe("Sidebar and WorkspaceTabs", () => {
     getUserEmailMock.mockReset()
     isAuthenticatedMock.mockReset()
     mockedApiFetch.mockReset()
+    mockedFetchWorkflowStatus.mockReset()
     pathnameMock = "/dashboard"
     getUserEmailMock.mockReturnValue("user@example.com")
     isAuthenticatedMock.mockReturnValue(true)
-    mockedApiFetch.mockImplementation(async (path: string) => {
-      if (path === "/api/statements/pending-review") {
-        return { items: [{ id: "s1" }, { id: "s2" }], total: 2 }
-      }
-      if (path === "/api/statements/stage2/queue") {
-        return { pending_matches: [{ id: "m1", status: "pending_review" }, { id: "m2", status: "accepted" }] }
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return { pending_count: 0, pending_total: "0.00", current_balance: "0.00", currency: "SGD", oldest_pending_date: null }
-      }
-      return {}
-    })
+    mockedApiFetch.mockResolvedValue({})
+    mockedFetchWorkflowStatus.mockResolvedValue(defaultWorkflowStatus)
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -92,10 +91,9 @@ describe("Sidebar and WorkspaceTabs", () => {
   it("AC16.19.3 shows auth-aware sidebar actions and logout behavior", async () => {
     render(<Sidebar />)
 
-    await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument())
-    const reviewLink = await screen.findByRole("link", { name: /Review/i })
-    expect(reviewLink).toHaveAttribute("href", "/review")
-    expect(screen.getByText(expectedReviewBadgeCountFromMocks)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole("link", { name: /Upload/i })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: /Events/i })).toHaveAttribute("href", "/events")
+    expect(screen.getByRole("button", { name: /Advanced/i })).toBeInTheDocument()
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
 
@@ -104,24 +102,18 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(pushMock).toHaveBeenCalledWith("/login")
   })
 
-  it("AC15.7.3 exposes Processing Account in sidebar", async () => {
-    mockedApiFetch.mockImplementation(async (path: string) => {
-      if (path === "/api/statements/pending-review") {
-        return { items: [], total: 0 }
-      }
-      if (path === "/api/statements/stage2/queue") {
-        return { pending_matches: [] }
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return { pending_count: 4, pending_total: "1250.00", current_balance: "0.00", currency: "SGD", oldest_pending_date: "2026-05-01" }
-      }
-      return {}
-    })
-
+  it("AC19.6.3 exposes advanced accounting surfaces behind the Advanced group", async () => {
     render(<Sidebar />)
 
-    const processingLink = await screen.findByRole("link", { name: /Processing/i })
+    fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
+    expect(screen.getByRole("link", { name: /Statements/i })).toHaveAttribute("href", "/statements")
+    expect(screen.getByRole("link", { name: /Review/i })).toHaveAttribute("href", "/review")
+    expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/accounts")
+    expect(screen.getByRole("link", { name: /Journal/i })).toHaveAttribute("href", "/journal")
+    expect(screen.getByRole("link", { name: /Reconciliation/i })).toHaveAttribute("href", "/reconciliation")
+    const processingLink = screen.getByRole("link", { name: /Processing/i })
     expect(processingLink).toHaveAttribute("href", "/processing")
+    expect(screen.getByRole("link", { name: /AI Settings/i })).toHaveAttribute("href", "/chat")
   })
 
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
@@ -158,40 +150,33 @@ describe("Sidebar and WorkspaceTabs", () => {
     })))
   });
 
-  it("AC16.19.12 sidebar nav shows Portfolio label for /assets route", () => {
+  it("AC16.19.12 sidebar nav shows Portfolio label for /assets route", async () => {
     render(<Sidebar />)
-    expect(screen.getByText("Portfolio")).toBeInTheDocument()
+    expect(await screen.findByText("Portfolio")).toBeInTheDocument()
     expect(screen.queryByText("Assets")).not.toBeInTheDocument()
   })
 
-  it("AC15.7.6 shows Processing between Reconciliation and AI Advisor", async () => {
+  it("AC15.7.6 AC19.6.3 shows Processing between Reconciliation and AI Settings in Advanced", async () => {
     render(<Sidebar />)
 
+    fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
     await waitFor(() => expect(screen.getByText("Processing")).toBeInTheDocument())
     const labels = screen.getAllByRole("link").map((link) => link.textContent ?? "")
     expect(labels.indexOf("Reconciliation")).toBeLessThan(labels.indexOf("Processing"))
-    expect(labels.indexOf("Processing")).toBeLessThan(labels.indexOf("AI Advisor"))
+    expect(labels.indexOf("Processing")).toBeLessThan(labels.indexOf("AI Settings"))
   })
 
-  it("AC15.7.7 shows a sidebar warning when Processing Account balance is non-zero", async () => {
-    mockedApiFetch.mockImplementation(async (path: string) => {
-      if (path === "/api/statements/pending-review") {
-        return { items: [], total: 0 }
-      }
-      if (path === "/api/statements/stage2/queue") {
-        return { pending_matches: [] }
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return { pending_count: 1, pending_total: "100.00", current_balance: "100.00", currency: "SGD", oldest_pending_date: "2026-05-01" }
-      }
-      return {}
-    })
-
+  it("AC15.7.7 AC19.6.5 derives sidebar attention badges from workflow status instead of local processing or review polling", async () => {
     render(<Sidebar />)
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Processing Account has unresolved balance")).toBeInTheDocument()
+      expect(mockedFetchWorkflowStatus).toHaveBeenCalledTimes(1)
     })
+    expect(screen.getByRole("link", { name: /Events 4/i })).toHaveAttribute("href", "/events")
+    expect(screen.getByRole("button", { name: /Advanced 3/i })).toBeInTheDocument()
+    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/pending-review")
+    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/stage2/queue")
+    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/accounts/processing/summary")
   })
 
   it("AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => {

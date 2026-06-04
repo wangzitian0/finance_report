@@ -5,12 +5,10 @@ import { useRouter, usePathname } from "next/navigation";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
-import { isAmountZero } from "@/lib/currency";
-import type { ProcessingSummaryResponse } from "@/lib/types";
-import { primaryNavItems } from "@/components/navigation";
+import { fetchWorkflowStatus } from "@/lib/api";
+import { advancedNavItems, primaryWorkflowNavItems, type NavItem } from "@/components/navigation";
 import { useState, useEffect } from "react";
-import { LogIn, LogOut, Zap } from "lucide-react";
+import { ChevronDown, FolderOpen, LogIn, LogOut, Zap } from "lucide-react";
 
 // Hide dev routes in production
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -21,8 +19,11 @@ export function Sidebar() {
     const { isCollapsed, toggleSidebar } = useWorkspace();
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isAuth, setIsAuth] = useState(false);
-    const [pendingReviewCount, setPendingReviewCount] = useState(0);
-    const [hasProcessingBalanceWarning, setHasProcessingBalanceWarning] = useState(false);
+    const [workflowBadgeCount, setWorkflowBadgeCount] = useState(0);
+    const [advancedAttentionCount, setAdvancedAttentionCount] = useState(0);
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(() =>
+        advancedNavItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/")),
+    );
 
     useEffect(() => {
         setUserEmail(getUserEmail());
@@ -31,64 +32,89 @@ export function Sidebar() {
 
     useEffect(() => {
         if (!isAuth) {
-            setPendingReviewCount(0);
+            setWorkflowBadgeCount(0);
+            setAdvancedAttentionCount(0);
             return;
         }
 
-        const fetchPendingReviewCount = async () => {
+        const fetchWorkflowAttention = async () => {
             try {
-                const [stage1, stage2] = await Promise.all([
-                    apiFetch<{ items: Array<{ id: string }>; total: number }>("/api/statements/pending-review"),
-                    apiFetch<{ pending_matches: Array<{ id: string; status: string }> }>("/api/statements/stage2/queue"),
-                ]);
-
-                const stage2Pending = stage2.pending_matches.filter((match) => match.status === "pending_review").length;
-                setPendingReviewCount((stage1.total || 0) + stage2Pending);
+                const status = await fetchWorkflowStatus();
+                const attentionCount = status.event_counts.blocked + status.event_counts.action_required;
+                setWorkflowBadgeCount(status.event_counts.unread || attentionCount);
+                setAdvancedAttentionCount(attentionCount);
             } catch {
-                setPendingReviewCount(0);
+                setWorkflowBadgeCount(0);
+                setAdvancedAttentionCount(0);
             }
         };
 
-        fetchPendingReviewCount();
-        const refreshInterval = window.setInterval(fetchPendingReviewCount, 30000);
-        window.addEventListener("focus", fetchPendingReviewCount);
+        void fetchWorkflowAttention();
+        const refreshInterval = window.setInterval(fetchWorkflowAttention, 30000);
+        window.addEventListener("focus", fetchWorkflowAttention);
 
         return () => {
             window.clearInterval(refreshInterval);
-            window.removeEventListener("focus", fetchPendingReviewCount);
+            window.removeEventListener("focus", fetchWorkflowAttention);
         };
     }, [isAuth]);
 
     useEffect(() => {
-        if (!isAuth) {
-            setHasProcessingBalanceWarning(false);
-            return;
+        if (advancedNavItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))) {
+            setIsAdvancedOpen(true);
         }
-
-        const fetchProcessingSummary = async () => {
-            try {
-                const summary = await apiFetch<ProcessingSummaryResponse>("/api/accounts/processing/summary");
-                const balance = summary.current_balance ?? summary.pending_total ?? "0.00";
-                setHasProcessingBalanceWarning(!isAmountZero(balance, 0));
-            } catch {
-                setHasProcessingBalanceWarning(false);
-            }
-        };
-
-        fetchProcessingSummary();
-        const refreshInterval = window.setInterval(fetchProcessingSummary, 30000);
-        window.addEventListener("focus", fetchProcessingSummary);
-
-        return () => {
-            window.clearInterval(refreshInterval);
-            window.removeEventListener("focus", fetchProcessingSummary);
-        };
-    }, [isAuth]);
+    }, [pathname]);
 
     const handleLogout = () => {
         clearUser();
         router.push("/login");
     };
+
+    const renderNavLink = (item: NavItem, badgeCount = 0, inset = false) => {
+        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+        const IconComponent = item.icon;
+        const label = badgeCount > 0 ? `${item.label} ${badgeCount}` : item.label;
+
+        return (
+            <Link
+                key={item.href}
+                href={item.href}
+                className={`
+                    relative flex items-center gap-2.5 rounded-md min-h-[44px]
+                    transition-colors text-sm
+                    ${inset ? "px-2.5 py-2.5" : "px-2.5 py-3"}
+                    ${isActive
+                        ? "bg-[var(--accent-muted)] text-[var(--accent)]"
+                        : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+                    }
+                    ${isCollapsed ? "justify-center" : ""}
+                `}
+                title={isCollapsed ? label : undefined}
+                aria-label={isCollapsed ? label : undefined}
+            >
+                <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                    <IconComponent className="w-5 h-5" aria-hidden="true" />
+                    {isCollapsed && badgeCount > 0 && (
+                        <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--warning)] ring-2 ring-[var(--background-card)]" />
+                    )}
+                </span>
+                {!isCollapsed && (
+                    <>
+                        <span className="font-medium">{item.label}</span>
+                        {badgeCount > 0 && (
+                            <span className="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--warning)] px-1.5 py-0.5 text-xs font-semibold text-white">
+                                {badgeCount > 99 ? "99+" : badgeCount}
+                            </span>
+                        )}
+                    </>
+                )}
+            </Link>
+        );
+    };
+
+    const visiblePrimaryItems = primaryWorkflowNavItems.filter(item => isAuth || !item.protected);
+    const visibleAdvancedItems = advancedNavItems.filter(item => isAuth || !item.protected);
+    const isAdvancedActive = visibleAdvancedItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
 
     return (
         <aside
@@ -133,52 +159,58 @@ export function Sidebar() {
 
             {/* Navigation */}
             <nav className="p-2 space-y-0.5" aria-label="Sidebar navigation">
-                {primaryNavItems.filter(item => isAuth || !item.protected).map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-                    const IconComponent = item.icon;
-                    const badgeCount = item.href === "/review" ? pendingReviewCount : 0;
-                    const showProcessingWarning = item.href === "/processing" && hasProcessingBalanceWarning;
-                    return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
+                {visiblePrimaryItems.map((item) => renderNavLink(
+                    item,
+                    item.href === "/events" ? workflowBadgeCount : 0,
+                ))}
+
+                {visibleAdvancedItems.length > 0 && (
+                    <div className="pt-1">
+                        <button
+                            type="button"
+                            onClick={() => setIsAdvancedOpen((open) => !open)}
                             className={`
-                relative flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
-                transition-colors text-sm
-                ${isActive
+                                relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-3 min-h-[44px]
+                                text-sm transition-colors
+                                ${isAdvancedActive
                                     ? "bg-[var(--accent-muted)] text-[var(--accent)]"
                                     : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
                                 }
-                ${isCollapsed ? "justify-center" : ""}
-              `}
-                            title={isCollapsed ? item.label : undefined}
-                            aria-label={isCollapsed ? item.label : undefined}
+                                ${isCollapsed ? "justify-center" : ""}
+                            `}
+                            title={isCollapsed ? `Advanced${advancedAttentionCount > 0 ? ` ${advancedAttentionCount}` : ""}` : undefined}
+                            aria-label={`Advanced${advancedAttentionCount > 0 ? ` ${advancedAttentionCount}` : ""}`}
+                            aria-expanded={isAdvancedOpen}
                         >
                             <span className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                                <IconComponent className="w-5 h-5" aria-hidden="true" />
-                                {showProcessingWarning && (
-                                    <span
-                                        className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--warning)] ring-2 ring-[var(--background-card)]"
-                                        aria-label="Processing Account has unresolved balance"
-                                    />
+                                <FolderOpen className="w-5 h-5" aria-hidden="true" />
+                                {isCollapsed && advancedAttentionCount > 0 && (
+                                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--warning)] ring-2 ring-[var(--background-card)]" />
                                 )}
                             </span>
                             {!isCollapsed && (
                                 <>
-                                    <span className="font-medium">{item.label}</span>
-                                    {badgeCount > 0 && (
+                                    <span className="font-medium">Advanced</span>
+                                    {advancedAttentionCount > 0 && (
                                         <span className="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--warning)] px-1.5 py-0.5 text-xs font-semibold text-white">
-                                            {badgeCount}
+                                            {advancedAttentionCount > 99 ? "99+" : advancedAttentionCount}
                                         </span>
                                     )}
-                                    {showProcessingWarning && (
-                                        <span className="ml-auto h-2.5 w-2.5 rounded-full bg-[var(--warning)]" aria-hidden="true" />
-                                    )}
+                                    <ChevronDown
+                                        className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`}
+                                        aria-hidden="true"
+                                    />
                                 </>
                             )}
-                        </Link>
-                    );
-                })}
+                        </button>
+
+                        {isAdvancedOpen && (
+                            <div className={`mt-1 space-y-0.5 ${isCollapsed ? "" : "pl-3"}`}>
+                                {visibleAdvancedItems.map((item) => renderNavLink(item, 0, true))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </nav>
 
             {/* Bottom Section */}

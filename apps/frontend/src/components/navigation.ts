@@ -9,6 +9,7 @@ import {
     LayoutDashboard,
     Link2,
     MessageSquare,
+    UploadCloud,
     Wallet,
     Zap,
     type LucideIcon,
@@ -26,18 +27,21 @@ export interface RouteConfig {
     Icon: LucideIcon;
 }
 
-export const primaryNavItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", protected: true },
+export const primaryWorkflowNavItems: NavItem[] = [
+    { icon: UploadCloud, label: "Upload", href: "/dashboard", protected: true },
     { icon: Bell, label: "Events", href: "/events", protected: true },
-    { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
-    { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
+    { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
+    { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
+];
+
+export const advancedNavItems: NavItem[] = [
     { icon: FileText, label: "Statements", href: "/statements", protected: true },
     { icon: ClipboardCheck, label: "Review", href: "/review", protected: true },
-    { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
-    { icon: BarChart3, label: "Reports", href: "/reports", protected: true },
+    { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
+    { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
     { icon: Clock, label: "Processing", href: "/processing", protected: true },
-    { icon: MessageSquare, label: "AI Advisor", href: "/chat", protected: true },
+    { icon: MessageSquare, label: "AI Settings", href: "/chat", protected: true },
 ];
 
 export const ROUTE_CONFIG: Record<string, RouteConfig> = {
