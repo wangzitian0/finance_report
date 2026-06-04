@@ -82,6 +82,25 @@ def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
     assert "must not block upload, event, or report readiness actions" in normalized_epic
 
 
+def test_AC19_6_1_workflow_navigation_ssot_documents_primary_and_advanced_groups() -> None:
+    """AC19.6.1: workflow navigation IA is documented in SSOT and EPIC."""
+    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
+
+    for phrase in (
+        "Primary navigation:",
+        "Upload -> /dashboard",
+        "Advanced navigation:",
+        "Statements -> /statements",
+        "AI Settings -> /chat",
+        "Navigation attention indicators must use `GET /api/workflow/status` through",
+    ):
+        assert phrase in ssot
+
+    assert "AC19.6.1" in epic
+    assert "AC19.6.7" in epic
+
+
 def test_AC19_1_2_workflow_event_model_contract() -> None:
     """AC19.1.2: workflow_events model exposes lifecycle, dedupe, and read indexes."""
     table = WorkflowEvent.__table__

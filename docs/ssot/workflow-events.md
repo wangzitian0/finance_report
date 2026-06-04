@@ -23,8 +23,11 @@
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
 | Upload-to-Report home | `apps/frontend/src/app/(main)/dashboard/page.tsx` |
 | Events page | `apps/frontend/src/app/(main)/events/page.tsx` |
+| Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
+| Desktop workflow navigation | `apps/frontend/src/components/Sidebar.tsx` |
+| Mobile workflow navigation | `apps/frontend/src/components/MobileNav.tsx` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts` |
+| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts` |
 
 ---
 
@@ -320,7 +323,51 @@ Upload-to-Report home rules:
 
 ---
 
-## 11. Initial Derivation
+## 11. Workflow Navigation
+
+EPIC-019 owns the product-level navigation model for the upload-to-report
+journey. The primary navigation must express the workflow, not the internal
+accounting pipeline.
+
+Primary navigation:
+
+```text
+Upload -> /dashboard
+Events -> /events
+Reports -> /reports
+Portfolio -> /portfolio
+Advanced
+```
+
+Advanced navigation:
+
+```text
+Statements -> /statements
+Review -> /review
+Accounts -> /accounts
+Journal -> /journal
+Reconciliation -> /reconciliation
+Processing -> /processing
+AI Settings -> /chat
+```
+
+Rules:
+
+- `/dashboard` remains the authenticated upload-to-report home and is labeled
+  as Upload in primary navigation.
+- Advanced is a navigation group, not a new backend workflow concept.
+- Advanced pages are not removed. Direct routes and event `action_href` links
+  into review, reconciliation, processing, statements, reports, and package
+  readiness must continue to work.
+- Desktop and mobile navigation must expose the same primary and advanced
+  groups.
+- Navigation attention indicators must use `GET /api/workflow/status` through
+  `lib/api.ts`. Sidebar-local review queue polling must not calculate separate
+  review badge semantics.
+
+---
+
+## 12. Initial Derivation
 
 The first implementation derives `source.uploaded` from `BankStatement` upload
 state. Workflow status and event reads run this deterministic sync before
