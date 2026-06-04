@@ -71,7 +71,7 @@ describe("ChatPageClient", () => {
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)
 
-    expect(screen.getByText("AI Financial Advisor")).toBeInTheDocument()
+    expect(screen.getByText("AI")).toBeInTheDocument()
     expect(screen.getByText(/Ask about spending trends/)).toBeInTheDocument()
   })
 

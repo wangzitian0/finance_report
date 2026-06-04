@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   WorkflowNotificationCenter,
   WorkflowEventsPageContent,
+  WorkflowInbox,
   UploadToReportHome,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
@@ -38,6 +39,18 @@ const statusNeedsAction: WorkflowStatusResponse = {
   next_action: { type: "review_required", count: 2, href: "/review" },
   report_readiness: { state: "blocked", blocking_count: 2, href: "/reports" },
   event_counts: { unread: 3, action_required: 2, blocked: 1 },
+  active_session: {
+    id: "session-1",
+    status: "active",
+    title: "Upload-to-report session",
+    summary: "Current upload, processing, review, and report-readiness work.",
+    started_at: "2026-06-03T05:00:00Z",
+    last_event_at: "2026-06-03T08:00:00Z",
+    source_count: 4,
+    primary_state: "needs_action",
+    report_readiness: { state: "blocked", blocking_count: 2, href: "/reports" },
+    event_counts: { unread: 3, action_required: 2, blocked: 1 },
+  },
 }
 
 const statusEmpty: WorkflowStatusResponse = {
@@ -53,6 +66,7 @@ const workflowEvents: WorkflowEventListResponse = {
     {
       id: "blocked-event",
       user_id: "user-1",
+      session_id: "session-1",
       occurred_at: "2026-06-03T08:00:00Z",
       family: "reconciliation.blocked",
       severity: "blocked",
@@ -70,6 +84,7 @@ const workflowEvents: WorkflowEventListResponse = {
     {
       id: "review-event",
       user_id: "user-1",
+      session_id: "session-1",
       occurred_at: "2026-06-03T07:00:00Z",
       family: "review.required",
       severity: "action_required",
@@ -87,6 +102,7 @@ const workflowEvents: WorkflowEventListResponse = {
     {
       id: "success-event",
       user_id: "user-1",
+      session_id: "session-1",
       occurred_at: "2026-06-03T06:00:00Z",
       family: "ledger.auto_posted",
       severity: "success",
@@ -104,6 +120,7 @@ const workflowEvents: WorkflowEventListResponse = {
     {
       id: "info-event",
       user_id: "user-1",
+      session_id: "session-1",
       occurred_at: "2026-06-03T05:00:00Z",
       family: "source.uploaded",
       severity: "info",
@@ -117,6 +134,20 @@ const workflowEvents: WorkflowEventListResponse = {
       dedupe_key: "event:info",
       created_at: "2026-06-03T05:00:00Z",
       updated_at: "2026-06-03T05:00:00Z",
+    },
+  ],
+  sessions: [
+    {
+      id: "session-1",
+      status: "active",
+      title: "Upload-to-report session",
+      summary: "Current upload, processing, review, and report-readiness work.",
+      started_at: "2026-06-03T05:00:00Z",
+      last_event_at: "2026-06-03T08:00:00Z",
+      source_count: 4,
+      primary_state: "needs_action",
+      report_readiness: { state: "blocked", blocking_count: 2, href: "/reports" },
+      event_counts: { unread: 3, action_required: 2, blocked: 1 },
     },
   ],
 }
@@ -152,25 +183,69 @@ describe("workflow notification surfaces", () => {
     await waitFor(() => expect(screen.getAllByRole("button", { name: /Workflow events/i })[1]).not.toHaveTextContent("0"))
   })
 
-  it("AC19.3.5 groups inbox events by actionability and supports read/archive lifecycle actions", async () => {
+  it("AC19.3.5 AC19.8.4 groups inbox events by workflow session timeline and supports lifecycle actions", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 
     fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
     const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
 
-    await waitFor(() => expect(within(dialog).getByRole("heading", { name: "Blocked" })).toBeInTheDocument())
-    expect(within(dialog).getByRole("heading", { name: "Action required" })).toBeInTheDocument()
-    expect(within(dialog).getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
-    expect(within(dialog).getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
+    await waitFor(() => expect(within(dialog).getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument())
+    expect(within(dialog).getByRole("list", { name: "Upload-to-report session timeline" })).toBeInTheDocument()
+    expect(within(dialog).getAllByRole("link", { name: "Open" })[0]).toHaveAttribute(
       "href",
       "/reconciliation/unmatched",
     )
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Mark Reconciliation blocked as read" }))
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Mark as read" })[0])
     await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("blocked-event", "read"))
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Archive Review required" }))
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Archive" })[1])
     await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("review-event", "archived"))
+  })
+
+  it("AC19.3.5 shows drawer event load failures without hiding status", async () => {
+    vi.mocked(fetchWorkflowEvents).mockRejectedValue(new Error("events unavailable"))
+    renderWithQuery(<WorkflowNotificationCenter />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
+    const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
+
+    expect(await within(dialog).findByText("Unable to load workflow events.")).toBeInTheDocument()
+    expect(within(dialog).getByText("Upload-to-report session")).toBeInTheDocument()
+  })
+
+  it("AC19.8.4 groups legacy events without session metadata into a fallback session", async () => {
+    const onStatusChange = vi.fn()
+    const legacyEvents = workflowEvents.items.map((event) => ({ ...event, session_id: null }))
+
+    render(<WorkflowInbox events={legacyEvents} sessions={[]} onStatusChange={onStatusChange} />)
+
+    expect(screen.getByRole("heading", { name: "Workflow session" })).toBeInTheDocument()
+    expect(screen.getByText("Legacy workflow events without a stored session.")).toBeInTheDocument()
+    expect(screen.getByText("4 events")).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Workflow session timeline" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Mark as read" })[0])
+    expect(onStatusChange).toHaveBeenCalledWith("blocked-event", "read")
+  })
+
+  it("AC19.8.4 derives legacy fallback session copy for action-only, routine-only, and empty inboxes", () => {
+    const actionOnlyEvents = workflowEvents.items
+      .filter((event) => event.severity === "action_required")
+      .map((event) => ({ ...event, session_id: null }))
+    const routineOnlyEvents = workflowEvents.items
+      .filter((event) => event.severity === "success" || event.severity === "info")
+      .map((event) => ({ ...event, session_id: null }))
+
+    const { rerender } = render(<WorkflowInbox events={actionOnlyEvents} sessions={[]} />)
+    expect(screen.getByText("1 event")).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Workflow session timeline" })).toBeInTheDocument()
+
+    rerender(<WorkflowInbox events={routineOnlyEvents} sessions={[]} />)
+    expect(screen.getByText("2 events")).toBeInTheDocument()
+
+    rerender(<WorkflowInbox events={[]} sessions={[]} />)
+    expect(screen.getByText("Workflow events will appear here when review or blockers need attention.")).toBeInTheDocument()
   })
 
   it("AC19.3.6 renders status feed severity, readiness, routine summary, and empty no-action state", () => {
@@ -192,13 +267,14 @@ describe("workflow notification surfaces", () => {
     render(<UploadToReportHome status={statusNeedsAction} events={workflowEvents.items} />)
 
     expect(screen.getByRole("region", { name: "Upload-to-report home" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Upload to report" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
     expect(screen.getByText("Review the required action so automation can continue.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /^Review required$/i })).toHaveAttribute("href", "/review")
     expect(screen.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports")
     expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Action required" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Recent session timeline" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
     expect(screen.getByText("2 routine events")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Archive/i })).not.toBeInTheDocument()
@@ -295,13 +371,13 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByText("Workflow attention for upload, review, reconciliation, and reports")).toBeInTheDocument()
     expect(screen.getByText("4 total")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Workflow events" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: "Open" })[0]).toHaveAttribute(
       "href",
       "/reconciliation/unmatched",
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Mark Reconciliation blocked as read" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Mark as read" })[0])
     await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("blocked-event", "read"))
   })
 })

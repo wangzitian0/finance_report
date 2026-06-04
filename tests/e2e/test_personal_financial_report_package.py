@@ -864,7 +864,7 @@ async def test_personal_financial_report_package_post_merge_journey(
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_role("heading", name="Upload to report")).to_be_visible(
+    await expect(page.get_by_label("Upload-to-report home")).to_be_visible(
         timeout=10_000
     )
     await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=10_000)

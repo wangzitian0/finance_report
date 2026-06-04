@@ -19,23 +19,24 @@ describe("MobileNav coverage (AC16.23.6)", () => {
         renderReviewComponent(<MobileNav />);
         const trigger = screen.getByLabelText("Open navigation menu");
         fireEvent.click(trigger);
-        const uploadLink = screen.getByRole("link", { name: /upload/i });
+        const uploadLink = screen.getByRole("link", { name: /upload pipeline/i });
         expect(uploadLink).toHaveAttribute("href", "/dashboard");
-        expect(screen.getByRole("link", { name: /events/i })).toHaveAttribute("href", "/events");
         expect(screen.getByRole("link", { name: /reports/i })).toHaveAttribute("href", "/reports");
-        expect(screen.getByRole("link", { name: /portfolio/i })).toHaveAttribute("href", "/portfolio");
+        expect(screen.getByRole("link", { name: /^ai$/i })).toHaveAttribute("href", "/chat");
         expect(screen.queryByRole("link", { name: /accounts/i })).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: /advanced/i })).toBeInTheDocument();
         expect(uploadLink.className).toContain("accent-muted");
 
         fireEvent.click(screen.getByRole("button", { name: /advanced/i }));
+        expect(screen.getByRole("link", { name: /events/i })).toHaveAttribute("href", "/events");
+        expect(screen.getByRole("link", { name: /portfolio/i })).toHaveAttribute("href", "/portfolio");
         expect(screen.getByRole("link", { name: /statements/i })).toHaveAttribute("href", "/statements");
         expect(screen.getByRole("link", { name: /review/i })).toHaveAttribute("href", "/review");
         expect(screen.getByRole("link", { name: /accounts/i })).toHaveAttribute("href", "/accounts");
         expect(screen.getByRole("link", { name: /journal/i })).toHaveAttribute("href", "/journal");
         expect(screen.getByRole("link", { name: /reconciliation/i })).toHaveAttribute("href", "/reconciliation");
         expect(screen.getByRole("link", { name: /processing/i })).toHaveAttribute("href", "/processing");
-        expect(screen.getByRole("link", { name: /ai settings/i })).toHaveAttribute("href", "/chat");
+        expect(screen.getByRole("link", { name: /ai settings/i })).toHaveAttribute("href", "/settings/ai");
 
         const closeBtn = screen.getByText("Close panel").closest("button")!;
         fireEvent.click(closeBtn);

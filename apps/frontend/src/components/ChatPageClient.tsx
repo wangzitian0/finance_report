@@ -27,7 +27,7 @@ export default function ChatPageClient() {
     <div className="p-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">AI Financial Advisor</h1>
+          <h1 className="page-title">AI</h1>
           <p className="page-description">
             Ask about spending trends, report highlights, or reconciliation health. Read-only guidance based on posted data.
           </p>

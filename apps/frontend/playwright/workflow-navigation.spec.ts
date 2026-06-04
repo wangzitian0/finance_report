@@ -7,6 +7,18 @@ const workflowStatus = {
   next_action: { type: "review_required", count: 2, href: "/review" },
   report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
   event_counts: { unread: 4, action_required: 2, blocked: 1 },
+  active_session: {
+    id: "workflow-session",
+    status: "active",
+    title: "Upload-to-report session",
+    summary: "Current upload, processing, review, and report-readiness work.",
+    started_at: "2026-06-04T01:00:00Z",
+    last_event_at: "2026-06-04T02:00:00Z",
+    source_count: 4,
+    primary_state: "needs_action",
+    report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+    event_counts: { unread: 4, action_required: 2, blocked: 1 },
+  },
 };
 
 async function installNavigationMocks(page: Page) {
@@ -23,7 +35,7 @@ async function installNavigationMocks(page: Page) {
     if (path === "/api/workflow/status") {
       body = workflowStatus;
     } else if (path === "/api/workflow/events") {
-      body = { items: [], total: 0 };
+      body = { items: [], total: 0, sessions: [] };
     } else if (path.startsWith("/api/reports/balance-sheet")) {
       body = {
         as_of_date: "2026-06-04",
@@ -107,18 +119,19 @@ test.describe("AC19.6.7 workflow navigation folding", () => {
     await page.goto("/dashboard", { waitUntil: "networkidle" });
 
     const nav = page.getByRole("navigation", { name: "Sidebar navigation" });
-    await expect(nav.getByRole("link", { name: "Upload" })).toHaveAttribute("href", "/dashboard");
-    await expect(nav.getByRole("link", { name: /Events.*4/ })).toHaveAttribute("href", "/events");
+    await expect(nav.getByRole("link", { name: "Upload Pipeline" })).toHaveAttribute("href", "/dashboard");
     await expect(nav.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
-    await expect(nav.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
+    await expect(nav.getByRole("link", { name: "AI" })).toHaveAttribute("href", "/chat");
     await expect(nav.getByRole("button", { name: /Advanced.*3/ })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
 
     await nav.getByRole("button", { name: /Advanced/ }).click();
+    await expect(nav.getByRole("link", { name: "Events" })).toHaveAttribute("href", "/events");
+    await expect(nav.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
     await expect(nav.getByRole("link", { name: "Statements" })).toHaveAttribute("href", "/statements");
     await expect(nav.getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
     await expect(nav.getByRole("link", { name: "Reconciliation" })).toHaveAttribute("href", "/reconciliation");
     await expect(nav.getByRole("link", { name: "Processing" })).toHaveAttribute("href", "/processing");
-    await expect(nav.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/chat");
+    await expect(nav.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
     await expectNoDocumentHorizontalScroll(page);
   });
 
@@ -128,15 +141,16 @@ test.describe("AC19.6.7 workflow navigation folding", () => {
 
     await page.getByLabel("Open navigation menu").click();
     const dialog = page.getByRole("dialog", { name: "Finance Report" });
-    await expect(dialog.getByRole("link", { name: "Upload" })).toHaveAttribute("href", "/dashboard");
-    await expect(dialog.getByRole("link", { name: "Events" })).toHaveAttribute("href", "/events");
+    await expect(dialog.getByRole("link", { name: "Upload Pipeline" })).toHaveAttribute("href", "/dashboard");
     await expect(dialog.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
-    await expect(dialog.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
+    await expect(dialog.getByRole("link", { name: "AI" })).toHaveAttribute("href", "/chat");
 
     await dialog.getByRole("button", { name: "Advanced" }).click();
+    await expect(dialog.getByRole("link", { name: "Events" })).toHaveAttribute("href", "/events");
+    await expect(dialog.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
     await expect(dialog.getByRole("link", { name: "Statements" })).toHaveAttribute("href", "/statements");
     await expect(dialog.getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
-    await expect(dialog.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/chat");
+    await expect(dialog.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
     await expectNoDocumentHorizontalScroll(page);
   });
 });

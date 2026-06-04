@@ -93,6 +93,7 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
                 {
                   id: "workflow-dashboard",
                   user_id: "user-dashboard",
+                  session_id: "dashboard-session",
                   occurred_at: "2026-06-03T08:00:00Z",
                   family: "review.required",
                   severity: "action_required",
@@ -110,6 +111,7 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
                 {
                   id: "workflow-routine-dashboard",
                   user_id: "user-dashboard",
+                  session_id: "dashboard-session",
                   occurred_at: "2026-06-03T07:00:00Z",
                   family: "ledger.auto_posted",
                   severity: "success",
@@ -123,6 +125,20 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
                   dedupe_key: "workflow:routine-dashboard",
                   created_at: "2026-06-03T07:00:00Z",
                   updated_at: "2026-06-03T07:00:00Z",
+                },
+              ],
+              sessions: [
+                {
+                  id: "dashboard-session",
+                  status: "active",
+                  title: "Upload-to-report session",
+                  summary: "Current upload, processing, review, and report-readiness work.",
+                  started_at: "2026-06-03T07:00:00Z",
+                  last_event_at: "2026-06-03T08:00:00Z",
+                  source_count: 2,
+                  primary_state: "needs_action",
+                  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+                  event_counts: { unread: 1, action_required: 1, blocked: 0 },
                 },
               ],
             },
@@ -284,7 +300,7 @@ describe("DashboardPage", () => {
         report_readiness: { state: "none", blocking_count: 0, href: "/reports" },
         event_counts: { unread: 0, action_required: 0, blocked: 0 },
       },
-      workflowEvents: { total: 0, items: [] },
+      workflowEvents: { total: 0, items: [], sessions: [] },
     })
 
     render(<DashboardPage />)
@@ -317,7 +333,7 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("Review required").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
     expect(screen.getByText("1 routine event")).toBeInTheDocument()
-    expect(screen.getByText("Safe entries posted")).toBeInTheDocument()
+    expect(screen.getAllByText("Safe entries posted").length).toBeGreaterThanOrEqual(1)
   })
 
   it("AC19.4.6 keeps upload-to-report home visible when secondary analytics fail", async () => {

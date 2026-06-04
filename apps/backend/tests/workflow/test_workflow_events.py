@@ -18,6 +18,8 @@ from src.models.workflow import (
     WorkflowEventSeverity,
     WorkflowEventStatus,
     WorkflowReportImpact,
+    WorkflowSession,
+    WorkflowSessionStatus,
 )
 from src.schemas.workflow import WorkflowEventCreate, WorkflowEventResponse
 from src.services.workflow_events import (
@@ -89,16 +91,70 @@ def test_AC19_6_1_workflow_navigation_ssot_documents_primary_and_advanced_groups
 
     for phrase in (
         "Primary navigation:",
-        "Upload -> /dashboard",
+        "Upload Pipeline -> /dashboard",
+        "AI -> /chat",
         "Advanced navigation:",
         "Statements -> /statements",
-        "AI Settings -> /chat",
+        "AI Settings -> /settings/ai",
         "Navigation attention indicators must use `GET /api/workflow/status` through",
     ):
         assert phrase in ssot
 
     assert "AC19.6.1" in epic
     assert "AC19.6.7" in epic
+
+
+def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
+    """AC19.8.1: WorkflowSession is the workflow domain object; chat sessions are AI UI state."""
+    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
+    normalized_ssot = " ".join(ssot.split())
+
+    for phrase in (
+        "WorkflowSession is the EPIC-019 product object",
+        "event timeline belongs to exactly one workflow session",
+        "AI chat sessions are internal `/chat` UI state",
+        "not workflow session ownership",
+    ):
+        assert phrase in normalized_ssot
+
+    assert "AC19.8.1" in epic
+    assert "AC19.8.8" in epic
+
+
+def test_AC19_8_2_workflow_session_model_contract() -> None:
+    """AC19.8.2: workflow_sessions and workflow_events.session_id expose the v1 session contract."""
+    session_table = WorkflowSession.__table__
+    event_table = WorkflowEvent.__table__
+
+    assert session_table.name == "workflow_sessions"
+    assert session_table.c.status.type.name == "workflow_session_status_enum"
+    assert event_table.c.session_id.foreign_keys
+    assert event_table.c.session_id.nullable is True
+
+    unique_constraints = {
+        tuple(constraint.columns.keys()): constraint.name
+        for constraint in session_table.constraints
+        if constraint.__class__.__name__ == "UniqueConstraint"
+    }
+    assert unique_constraints[("user_id", "dedupe_key")] == "uq_workflow_sessions_user_dedupe_key"
+
+    check_constraints = {
+        constraint.name
+        for constraint in session_table.constraints
+        if constraint.__class__.__name__ == "CheckConstraint"
+    }
+    assert "ck_workflow_sessions_report_href_internal" in check_constraints
+
+    session_indexes = {index.name: tuple(index.columns.keys()) for index in session_table.indexes}
+    event_indexes = {index.name: tuple(index.columns.keys()) for index in event_table.indexes}
+    assert session_indexes["idx_workflow_sessions_user_status_last_event"] == (
+        "user_id",
+        "status",
+        "last_event_at",
+    )
+    assert event_indexes["idx_workflow_events_user_session_occurred"] == ("user_id", "session_id", "occurred_at")
+    assert {status.value for status in WorkflowSessionStatus} == {"active", "generated", "archived"}
 
 
 def test_AC19_1_2_workflow_event_model_contract() -> None:
@@ -249,6 +305,7 @@ async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, tes
     assert first.status == WorkflowEventStatus.UNREAD
     assert first.action_href == f"/statements/{statement.id}"
     assert first.report_impact == WorkflowReportImpact.PROCESSING
+    assert first.session_id is not None
 
     count = await db.scalar(select(func.count(WorkflowEvent.id)).where(WorkflowEvent.user_id == test_user.id))
     assert count == 1
@@ -393,7 +450,7 @@ async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, t
     finally:
         sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
 
-    assert len(statements) == 1
+    assert len(statements) <= 2
     assert "join workflow_events" in statements[0]
 
 

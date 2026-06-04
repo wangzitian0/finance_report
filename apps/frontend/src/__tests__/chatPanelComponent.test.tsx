@@ -66,7 +66,7 @@ describe("ChatPanel", () => {
         return Promise.resolve({ suggestions: ["How is cash flow?"] })
       }
       if (path.includes("/api/chat/history")) {
-        return Promise.resolve({ sessions: [{ id: "sess-1", messages: [] }] })
+        return Promise.resolve({ sessions: [{ id: "sess-1", title: "Cash flow review", message_count: 0, messages: [] }] })
       }
       return Promise.resolve({})
     })
@@ -89,12 +89,61 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.getByText("Assistant answer")).toBeInTheDocument())
   })
 
-  it("AC16.20.5 clears existing session", async () => {
+  it("AC16.20.5 starts a new conversation from the active session", async () => {
     render(<ChatPanel variant="page" />)
     // Wait for history to load (sessionId gets set from loadHistory)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
-    await waitFor(() => expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument())
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "New" }))
+  })
+
+  it("AC19.8.6 shows chat sessions inside the AI page without workflow ownership", async () => {
+    render(<ChatPanel variant="page" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sessions" }))
+    expect(await screen.findByRole("dialog", { name: "AI sessions" })).toBeInTheDocument()
+    expect(screen.getByText("Cash flow review")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Cash flow review"))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/chat/history?session_id=sess-1"))
+  })
+
+  it("AC19.8.6 renders an empty session drawer when no chat history exists", async () => {
+    const storage = new Map<string, string>()
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    })
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/suggestions")) {
+        return Promise.resolve({ suggestions: [] })
+      }
+      if (path.includes("/api/chat/history")) {
+        return Promise.resolve({ sessions: [] })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ChatPanel variant="page" />)
+
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }))
+    expect(await screen.findByText("No saved conversations yet.")).toBeInTheDocument()
+  })
+
+  it("AC19.8.6 closes the chat session drawer without changing the active conversation", async () => {
+    render(<ChatPanel variant="page" />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sessions" }))
+    const dialog = await screen.findByRole("dialog", { name: "AI sessions" })
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    expect(localStorage.getItem("ai_chat_session_id")).toBe("sess-1")
   })
 
   it("AC16.20.5 handles model selection", async () => {
@@ -177,7 +226,7 @@ describe("ChatPanel", () => {
         return Promise.reject(new Error("Suggestions fail"))
       }
       if (path.includes("/api/chat/history")) {
-        return Promise.resolve({ sessions: [{ id: "sess-1", messages: [] }] })
+        return Promise.resolve({ sessions: [{ id: "sess-1", title: "Tip session", message_count: 0, messages: [] }] })
       }
       return Promise.resolve({})
     })
@@ -199,6 +248,34 @@ describe("ChatPanel", () => {
     render(<ChatPanel variant="page" />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     expect(localStorage.getItem("ai_chat_session_id")).toBeNull()
+  })
+
+  it("AC16.20.7 handles history fetch failure without a stored chat session", async () => {
+    const storage = new Map<string, string>()
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    })
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/suggestions")) {
+        return Promise.resolve({ suggestions: ["Tip 1"] })
+      }
+      if (path.includes("/api/chat/history")) {
+        return Promise.reject(new Error("History fail"))
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ChatPanel variant="page" />)
+
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Sessions" }))
+    expect(await screen.findByText("No saved conversations yet.")).toBeInTheDocument()
   })
 
   it("AC16.20.7 handles AI model fetch failure", async () => {

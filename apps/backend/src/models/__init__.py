@@ -53,6 +53,8 @@ from src.models.workflow import (
     WorkflowEventSeverity,
     WorkflowEventStatus,
     WorkflowReportImpact,
+    WorkflowSession,
+    WorkflowSessionStatus,
 )
 
 # Alias for SSOT compatibility (account_events table / statements table naming)
@@ -125,4 +127,6 @@ __all__ = [
     "WorkflowEventSeverity",
     "WorkflowEventStatus",
     "WorkflowReportImpact",
+    "WorkflowSession",
+    "WorkflowSessionStatus",
 ]

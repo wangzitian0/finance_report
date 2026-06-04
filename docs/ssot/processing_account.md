@@ -43,7 +43,7 @@ Day 3:
 
 **Key Insight**: Processing account balance represents **unconfirmed in-transit funds**. When Processing balance ≠ 0, there are unpaired transfers.
 
-**Visibility Rule**: Processing is hidden from normal user-managed account lists, but it must remain visible as a dedicated Processing sidebar entry and as a dashboard status card. The dashboard card shows the signed current Processing Account balance. Any non-zero current balance must render a warning indicator on both the sidebar entry and the dashboard card.
+**Visibility Rule**: Processing is hidden from normal user-managed account lists, but it must remain visible through the Advanced Processing drill-down and as a dashboard status card. The dashboard card shows the signed current Processing Account balance. Any non-zero current balance must produce a workflow readiness blocker and Advanced/app-shell attention indicator; the Processing drill-down and dashboard card must show the signed balance and warning context.
 
 ---
 

@@ -91,8 +91,8 @@ describe("Sidebar and WorkspaceTabs", () => {
   it("AC16.19.3 shows auth-aware sidebar actions and logout behavior", async () => {
     render(<Sidebar />)
 
-    await waitFor(() => expect(screen.getByRole("link", { name: /Upload/i })).toBeInTheDocument())
-    expect(screen.getByRole("link", { name: /Events/i })).toHaveAttribute("href", "/events")
+    await waitFor(() => expect(screen.getByRole("link", { name: /Upload Pipeline/i })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: /^AI$/i })).toHaveAttribute("href", "/chat")
     expect(screen.getByRole("button", { name: /Advanced/i })).toBeInTheDocument()
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
@@ -106,6 +106,8 @@ describe("Sidebar and WorkspaceTabs", () => {
     render(<Sidebar />)
 
     fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
+    expect(screen.getByRole("link", { name: /Events/i })).toHaveAttribute("href", "/events")
+    expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio")
     expect(screen.getByRole("link", { name: /Statements/i })).toHaveAttribute("href", "/statements")
     expect(screen.getByRole("link", { name: /Review/i })).toHaveAttribute("href", "/review")
     expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/accounts")
@@ -113,7 +115,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.getByRole("link", { name: /Reconciliation/i })).toHaveAttribute("href", "/reconciliation")
     const processingLink = screen.getByRole("link", { name: /Processing/i })
     expect(processingLink).toHaveAttribute("href", "/processing")
-    expect(screen.getByRole("link", { name: /AI Settings/i })).toHaveAttribute("href", "/chat")
+    expect(screen.getByRole("link", { name: /AI Settings/i })).toHaveAttribute("href", "/settings/ai")
   })
 
   it("AC19.6.3 opens Advanced automatically for active advanced routes", async () => {
@@ -161,6 +163,7 @@ describe("Sidebar and WorkspaceTabs", () => {
 
   it("AC16.19.12 sidebar nav shows Portfolio label for /assets route", async () => {
     render(<Sidebar />)
+    fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
     expect(await screen.findByText("Portfolio")).toBeInTheDocument()
     expect(screen.queryByText("Assets")).not.toBeInTheDocument()
   })
@@ -180,7 +183,6 @@ describe("Sidebar and WorkspaceTabs", () => {
 
     await waitFor(() => {
       expect(mockedFetchWorkflowStatus).toHaveBeenCalledTimes(1)
-      expect(screen.getByRole("link", { name: /Events 4/i })).toHaveAttribute("href", "/events")
       expect(screen.getByRole("button", { name: /Advanced 3/i })).toBeInTheDocument()
     })
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/pending-review")
@@ -196,7 +198,6 @@ describe("Sidebar and WorkspaceTabs", () => {
     await waitFor(() => {
       expect(mockedFetchWorkflowStatus).toHaveBeenCalledTimes(1)
     })
-    expect(screen.getByRole("link", { name: /^Events$/i })).toHaveAttribute("href", "/events")
     expect(screen.getByRole("button", { name: /^Advanced$/i })).toBeInTheDocument()
   })
 
