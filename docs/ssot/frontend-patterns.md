@@ -197,7 +197,8 @@ Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/
 Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as the route source of truth.
 
 **Rules:**
-- Add primary app routes once in `primaryNavItems`.
+- Add primary workflow routes once in `primaryWorkflowNavItems` and drill-down
+  routes once in `advancedNavItems`.
 - Add workspace tab labels/icons once in `ROUTE_CONFIG`.
 - Mobile must not render desktop workspace tabs; phone navigation uses the drawer only.
 - Do not create separate reduced mobile menus that hide core routes.

@@ -7,6 +7,18 @@ const workflowStatus = {
   next_action: { type: "review_required", count: 1, href: "/review" },
   report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
   event_counts: { unread: 2, action_required: 1, blocked: 1 },
+  active_session: {
+    id: "workflow-session",
+    status: "active",
+    title: "Upload-to-report session",
+    summary: "Current upload, processing, review, and report-readiness work.",
+    started_at: "2026-06-03T06:00:00Z",
+    last_event_at: "2026-06-03T08:00:00Z",
+    source_count: 3,
+    primary_state: "needs_action",
+    report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+    event_counts: { unread: 2, action_required: 1, blocked: 1 },
+  },
 };
 
 const workflowEvents = {
@@ -15,6 +27,7 @@ const workflowEvents = {
     {
       id: "workflow-blocked",
       user_id: "workflow-user",
+      session_id: "workflow-session",
       occurred_at: "2026-06-03T08:00:00Z",
       family: "reconciliation.blocked",
       severity: "blocked",
@@ -32,6 +45,7 @@ const workflowEvents = {
     {
       id: "workflow-review",
       user_id: "workflow-user",
+      session_id: "workflow-session",
       occurred_at: "2026-06-03T07:00:00Z",
       family: "review.required",
       severity: "action_required",
@@ -49,6 +63,7 @@ const workflowEvents = {
     {
       id: "workflow-success",
       user_id: "workflow-user",
+      session_id: "workflow-session",
       occurred_at: "2026-06-03T06:00:00Z",
       family: "ledger.auto_posted",
       severity: "success",
@@ -64,6 +79,7 @@ const workflowEvents = {
       updated_at: "2026-06-03T06:00:00Z",
     },
   ],
+  sessions: [workflowStatus.active_session],
 };
 
 async function installWorkflowMocks(page: Page) {
@@ -153,8 +169,9 @@ test.describe("AC19.3.7 workflow notification smoke", () => {
       await page.getByRole("button", { name: /Workflow events/i }).click();
       const dialog = page.getByRole("dialog", { name: "Workflow events" });
       await expect(dialog).toBeVisible();
-      await expect(dialog.getByRole("heading", { name: "Blocked", exact: true })).toBeVisible();
-      await expect(dialog.getByRole("link", { name: /Open Reconciliation blocked/i })).toHaveAttribute(
+      await expect(dialog.getByRole("heading", { name: "Upload-to-report session", exact: true })).toBeVisible();
+      await expect(dialog.getByRole("list", { name: "Upload-to-report session timeline" })).toBeVisible();
+      await expect(dialog.getByRole("link", { name: "Open" }).first()).toHaveAttribute(
         "href",
         "/reconciliation/unmatched",
       );

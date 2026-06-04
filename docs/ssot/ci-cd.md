@@ -258,6 +258,12 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - PR preview Dokploy API responses are parsed for required fields only. Workflows must not print raw Dokploy response JSON because compose responses can include environment data and refresh tokens.
 - Dokploy API and CLI checks may coexist when Dokploy exposes different operational surfaces, but deploy proof must compare only allowlisted effective state differences. The logged diff is limited to `IMAGE_TAG`, `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`, `ENV_SUFFIX`, and `COMPOSE_PROFILES`; unchanged fields and secret-like fields are not printed.
 - PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy. The preview compose uses `IMAGE_TAG=pr-<number>`, so the deploy job must make `finance_report-backend:pr-<number>` and `finance_report-frontend:pr-<number>` available in GHCR before `tools/pr_preview_lifecycle.py --action deploy` can trigger the rollout.
+- PR preview deploy proof is not satisfied by a Dokploy trigger alone. The
+  backend must expose the target SHA through `/api/health.git_sha` or
+  `/api/health.version`, and the frontend must expose the same target SHA
+  through `/frontend-version.json.git_sha` or `/frontend-version.json.version`.
+  The frontend Docker image must therefore inject `GIT_COMMIT_SHA` into the
+  runtime container, not only into the build job metadata.
 - PR preview compose env includes stable metadata: `PR_PREVIEW_PR_NUMBER`, `PR_PREVIEW_COMPOSE_NAME`, `PR_PREVIEW_COMPOSE_PROJECT`, `COMPOSE_PROJECT_NAME`, and `PR_PREVIEW_CREATED_BY=github-actions`. Cleanup uses that deterministic compose project and PR number rather than broad volume pruning.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
 - PR preview non-LLM E2E mirrors the staging non-LLM command shape: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, and `-n 4` parallelism. The provider-backed `llm` marker remains post-merge only.

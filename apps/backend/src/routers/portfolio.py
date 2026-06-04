@@ -607,7 +607,7 @@ async def get_investment_performance_report_schedule(
     for holding in holdings:
         position = position_by_asset.get(holding.asset_identifier)
         if position is None:
-            cost_basis = _money(holding.cost_basis)
+            cost_basis = _money(await _schedule_amount(holding.cost_basis, holding.currency, holding.acquisition_date))
         else:
             cost_basis = _money(
                 await _schedule_amount(position.cost_basis, position.currency, position.acquisition_date)

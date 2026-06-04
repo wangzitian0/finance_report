@@ -33,6 +33,7 @@ from src.models.workflow import (
     WorkflowEventSeverity,
     WorkflowEventStatus,
     WorkflowReportImpact,
+    WorkflowSession,
 )
 from src.schemas.workflow import (
     WorkflowEventCreate,
@@ -170,6 +171,7 @@ async def test_AC19_2_1_workflow_status_schema_contract() -> None:
             "href": "/reports",
         },
         "event_counts": {"unread": 4, "action_required": 2, "blocked": 1},
+        "active_session": None,
     }
 
 
@@ -184,6 +186,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert empty["next_action"] == {"type": "upload", "count": 0, "href": "/statements/upload"}
     assert empty["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports"}
     assert empty["event_counts"] == {"unread": 0, "action_required": 0, "blocked": 0}
+    assert empty["active_session"] is None
 
     statement = BankStatement(
         user_id=test_user.id,
@@ -201,6 +204,9 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert processing["next_action"] == {"type": "wait", "count": 1, "href": "/statements"}
     assert processing["report_readiness"] == {"state": "processing", "blocking_count": 0, "href": "/reports"}
     assert processing["event_counts"] == {"unread": 1, "action_required": 0, "blocked": 0}
+    assert processing["active_session"]["title"] == "Upload-to-report session"
+    assert processing["active_session"]["source_count"] == 1
+    assert processing["active_session"]["primary_state"] == "processing"
 
     await _create_event(
         db,
@@ -375,6 +381,9 @@ async def test_AC19_2_3_workflow_events_endpoint_lists_bounded_user_events(
     data = WorkflowEventListResponse.model_validate(response.json())
     assert data.total == 2
     assert [item.id for item in data.items] == [newer.id, older.id]
+    assert all(item.session_id is not None for item in data.items)
+    assert len(data.sessions) == 1
+    assert data.sessions[0].source_count == 2
 
     limited = await client.get("/workflow/events?limit=1")
     assert limited.status_code == 200
@@ -451,6 +460,8 @@ async def test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_res
     first_data = WorkflowEventListResponse.model_validate(first.json())
     assert first_data.total == 1
     event_id = first_data.items[0].id
+    assert first_data.items[0].session_id is not None
+    assert first_data.sessions[0].title == "Upload-to-report session"
 
     patch = await client.patch(f"/workflow/events/{event_id}", json={"status": "archived"})
     assert patch.status_code == 200
@@ -472,6 +483,9 @@ async def test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_res
     assert len(events) == 1
     assert events[0].id == event_id
     assert events[0].status == WorkflowEventStatus.ARCHIVED
+    workflow_session = await db.scalar(select(WorkflowSession).where(WorkflowSession.id == first_data.sessions[0].id))
+    assert workflow_session is not None
+    assert workflow_session.source_count == 0
 
 
 async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() -> None:
@@ -487,3 +501,37 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "PATCH /workflow/events/{event_id}" in ssot
     assert "GET /api/reports/package/readiness" in ssot
     assert "generated -> ready" in ssot
+
+
+async def test_AC19_7_3_workflow_status_and_events_expose_session_timeline(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC19.7.3: workflow status exposes active session and events return session-scoped timeline data."""
+    statement = BankStatement(
+        user_id=test_user.id,
+        file_path="statements/session-demo.csv",
+        file_hash="f" * 64,
+        original_filename="session-demo.csv",
+        institution="Demo Bank",
+        status=BankStatementStatus.UPLOADED,
+    )
+    db.add(statement)
+    await db.commit()
+
+    status_response = await client.get("/workflow/status")
+    assert status_response.status_code == 200
+    status_payload = status_response.json()
+    active_session = status_payload["active_session"]
+    assert active_session["status"] == "active"
+    assert active_session["title"] == "Upload-to-report session"
+    assert active_session["primary_state"] == "processing"
+    assert active_session["event_counts"] == {"unread": 1, "action_required": 0, "blocked": 0}
+
+    events_response = await client.get("/workflow/events")
+    assert events_response.status_code == 200
+    events_payload = events_response.json()
+    assert events_payload["items"][0]["session_id"] == active_session["id"]
+    assert events_payload["sessions"][0]["id"] == active_session["id"]
+    assert events_payload["sessions"][0]["last_event_at"] == events_payload["items"][0]["occurred_at"]

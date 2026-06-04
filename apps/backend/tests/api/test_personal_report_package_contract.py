@@ -50,6 +50,7 @@ from src.routers.reports import (
     personal_report_package_traceability,
 )
 from src.schemas import PersonalReportPackageReadinessResponse
+from src.services.fx import FxRateError
 
 
 @pytest.fixture(autouse=True)
@@ -513,6 +514,57 @@ async def test_AC19_5_7_package_readiness_converts_processing_balance_before_zer
     assert blockers["processing_account_unresolved"]["count"] == 1
     assert "50.00" in blockers["processing_account_unresolved"]["reason"]
     assert "SGD" in blockers["processing_account_unresolved"]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_AC19_7_8_package_readiness_blocks_when_processing_fx_conversion_fails(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC19.7.8: Missing FX for Processing lines produces a clear readiness blocker."""
+    processing_account = Account(
+        user_id=test_user.id,
+        name="Processing",
+        code="1199",
+        type=AccountType.ASSET,
+        currency="SGD",
+        is_system=True,
+    )
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 5, 3),
+        memo="Processing line with missing FX",
+        source_type=JournalEntrySourceType.SYSTEM,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([processing_account, entry])
+    await db.flush()
+    db.add(
+        JournalLine(
+            journal_entry_id=entry.id,
+            account_id=processing_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("25.00"),
+            currency="USD",
+        )
+    )
+    await db.flush()
+
+    async def raise_fx_error(*_args, **_kwargs):
+        raise FxRateError("No FX rate available for USD/SGD on 2026-05-03")
+
+    monkeypatch.setattr("src.services.report_readiness.convert_amount", raise_fx_error)
+
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    payload = response.model_dump(mode="json")
+    blockers = {blocker["code"]: blocker for blocker in payload["blockers"]}
+
+    assert payload["state"] == "blocked"
+    assert blockers["processing_account_unresolved"]["label"] == "Processing account unresolved"
+    assert blockers["processing_account_unresolved"]["count"] == 1
+    assert "cannot be converted to SGD" in blockers["processing_account_unresolved"]["reason"]
+    assert "USD/SGD" in blockers["processing_account_unresolved"]["reason"]
 
 
 @pytest.mark.asyncio

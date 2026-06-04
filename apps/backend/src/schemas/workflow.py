@@ -11,6 +11,7 @@ from src.models.workflow import (
     WorkflowEventSeverity,
     WorkflowEventStatus,
     WorkflowReportImpact,
+    WorkflowSessionStatus,
 )
 
 
@@ -111,6 +112,29 @@ class WorkflowEventCountsResponse(BaseModel):
     blocked: int = Field(ge=0)
 
 
+class WorkflowSessionSummaryResponse(BaseModel):
+    """Workflow session header plus compact current state."""
+
+    id: UUID
+    status: WorkflowSessionStatus
+    title: str
+    summary: str
+    started_at: datetime
+    last_event_at: datetime | None = None
+    source_count: int = Field(ge=0)
+    report_href: str | None = None
+    primary_state: WorkflowPrimaryState
+    report_readiness: WorkflowReportReadinessResponse
+    event_counts: WorkflowEventCountsResponse
+
+    @field_validator("report_href")
+    @classmethod
+    def validate_report_href(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_internal_action_href(value)
+
+
 class WorkflowStatusResponse(BaseModel):
     """Compact user-scoped workflow status response."""
 
@@ -118,6 +142,7 @@ class WorkflowStatusResponse(BaseModel):
     next_action: WorkflowNextActionResponse
     report_readiness: WorkflowReportReadinessResponse
     event_counts: WorkflowEventCountsResponse
+    active_session: WorkflowSessionSummaryResponse | None = None
 
 
 class WorkflowEventResponse(BaseModel):
@@ -125,6 +150,7 @@ class WorkflowEventResponse(BaseModel):
 
     id: UUID
     user_id: UUID
+    session_id: UUID | None = None
     occurred_at: datetime
     family: WorkflowEventFamily
     severity: WorkflowEventSeverity
@@ -147,3 +173,4 @@ class WorkflowEventListResponse(BaseModel):
 
     items: list[WorkflowEventResponse]
     total: int = Field(ge=0)
+    sessions: list[WorkflowSessionSummaryResponse] = Field(default_factory=list)

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -27,6 +27,7 @@ import type {
   WorkflowEventResponse,
   WorkflowEventSeverity,
   WorkflowEventStatus,
+  WorkflowSessionSummaryResponse,
   WorkflowStatusResponse,
 } from "@/lib/types";
 
@@ -63,6 +64,15 @@ function countLabel(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function formatEventTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function routineEvents(events: WorkflowEventResponse[]) {
   return events.filter((event) => event.severity !== "blocked" && event.severity !== "action_required");
 }
@@ -94,15 +104,11 @@ function readinessVariant(state: WorkflowStatusResponse["report_readiness"]["sta
 interface WorkflowEventGroupProps {
   title: string;
   events: WorkflowEventResponse[];
-  onStatusChange?: (eventId: string, status: WorkflowEventStatus) => void;
-  showActions?: boolean;
 }
 
 function WorkflowEventGroup({
   title,
   events,
-  onStatusChange,
-  showActions = true,
 }: WorkflowEventGroupProps) {
   if (events.length === 0) return null;
 
@@ -132,6 +138,9 @@ function WorkflowEventGroup({
                     <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted">{event.summary}</p>
+                  <time className="mt-2 block text-xs text-muted" dateTime={event.occurred_at}>
+                    {formatEventTime(event.occurred_at)}
+                  </time>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Link
                       href={event.action_href}
@@ -140,26 +149,6 @@ function WorkflowEventGroup({
                       <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                       Open {event.title}
                     </Link>
-                    {showActions && event.status === "unread" && (
-                      <button
-                        type="button"
-                        className="btn-ghost px-3 py-1.5 text-xs"
-                        aria-label={`Mark ${event.title} as read`}
-                        onClick={() => onStatusChange?.(event.id, "read")}
-                      >
-                        Mark as read
-                      </button>
-                    )}
-                    {showActions && event.status !== "archived" && (
-                      <button
-                        type="button"
-                        className="btn-ghost px-3 py-1.5 text-xs"
-                        onClick={() => onStatusChange?.(event.id, "archived")}
-                      >
-                        Archive
-                        <span className="sr-only"> {event.title}</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -173,19 +162,123 @@ function WorkflowEventGroup({
 
 interface WorkflowInboxProps {
   events: WorkflowEventResponse[];
+  sessions?: WorkflowSessionSummaryResponse[];
   onStatusChange?: (eventId: string, status: WorkflowEventStatus) => void;
 }
 
-export function WorkflowInbox({ events, onStatusChange }: WorkflowInboxProps) {
-  const grouped = useMemo(
-    () => ({
-      blocked: events.filter((event) => event.severity === "blocked"),
-      actionRequired: events.filter((event) => event.severity === "action_required"),
-      routine: routineEvents(events),
-    }),
-    [events],
-  );
+function fallbackSession(events: WorkflowEventResponse[]): WorkflowSessionSummaryResponse {
+  return {
+    id: "legacy-workflow-session",
+    status: "active",
+    title: "Workflow session",
+    summary: "Legacy workflow events without a stored session.",
+    started_at: events[events.length - 1]?.occurred_at ?? new Date().toISOString(),
+    last_event_at: events[0]?.occurred_at ?? null,
+    source_count: events.length,
+    primary_state: events.some((event) => event.severity === "blocked")
+      ? "blocked"
+      : events.some((event) => event.severity === "action_required")
+        ? "needs_action"
+        : events.length
+          ? "processing"
+          : "empty",
+    report_readiness: { state: "none", blocking_count: 0, href: "/reports" },
+    event_counts: {
+      unread: events.filter((event) => event.status === "unread").length,
+      action_required: events.filter((event) => event.severity === "action_required").length,
+      blocked: events.filter((event) => event.severity === "blocked").length,
+    },
+  };
+}
 
+function groupEventsBySession(events: WorkflowEventResponse[], sessions: WorkflowSessionSummaryResponse[]) {
+  const sessionById = new Map(sessions.map((session) => [session.id, session]));
+  const grouped = new Map<string, WorkflowEventResponse[]>();
+  for (const event of events) {
+    const sessionId = event.session_id ?? "legacy-workflow-session";
+    grouped.set(sessionId, [...(grouped.get(sessionId) ?? []), event]);
+  }
+  return Array.from(grouped.entries()).map(([sessionId, sessionEvents]) => ({
+    session: sessionById.get(sessionId) ?? fallbackSession(sessionEvents),
+    events: sessionEvents.sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at)),
+  }));
+}
+
+function WorkflowSessionTimeline({
+  session,
+  events,
+  onStatusChange,
+}: {
+  session: WorkflowSessionSummaryResponse;
+  events: WorkflowEventResponse[];
+  onStatusChange?: (eventId: string, status: WorkflowEventStatus) => void;
+}) {
+  const latest = session.last_event_at ? formatEventTime(session.last_event_at) : "No events yet";
+  return (
+    <details className="rounded-md border border-border bg-surface-card p-3" open={session.status === "active"}>
+      <summary className="cursor-pointer list-none">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold">{session.title}</h3>
+            <p className="mt-1 text-xs text-muted">{session.summary}</p>
+          </div>
+          <Badge variant={session.event_counts.blocked > 0 ? "error" : session.event_counts.action_required > 0 ? "warning" : "muted"}>
+            {countLabel(events.length, "event")}
+          </Badge>
+        </div>
+        <p className="mt-2 text-xs text-muted">Latest: {latest}</p>
+      </summary>
+      <ol className="mt-4 space-y-3" aria-label={`${session.title} timeline`}>
+        {events.map((event) => {
+          const Icon = severityIcon(event.severity);
+          return (
+            <li key={event.id} className="flex gap-3">
+              <div className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-surface-muted">
+                <Icon className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1 rounded-md border border-border bg-surface-muted p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <time className="text-xs text-muted" dateTime={event.occurred_at}>
+                    {formatEventTime(event.occurred_at)}
+                  </time>
+                  <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
+                </div>
+                <h4 className="mt-2 text-sm font-medium">{event.title}</h4>
+                <p className="mt-1 text-sm text-muted">{event.summary}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Link href={event.action_href} className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    Open
+                  </Link>
+                  {event.status === "unread" && (
+                    <button
+                      type="button"
+                      className="btn-ghost px-3 py-1.5 text-xs"
+                      onClick={() => onStatusChange?.(event.id, "read")}
+                    >
+                      Mark as read
+                    </button>
+                  )}
+                  {event.status !== "archived" && (
+                    <button
+                      type="button"
+                      className="btn-ghost px-3 py-1.5 text-xs"
+                      onClick={() => onStatusChange?.(event.id, "archived")}
+                    >
+                      Archive
+                    </button>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
+export function WorkflowInbox({ events, sessions = [], onStatusChange }: WorkflowInboxProps) {
   if (events.length === 0) {
     return (
       <EmptyState
@@ -200,11 +293,17 @@ export function WorkflowInbox({ events, onStatusChange }: WorkflowInboxProps) {
     );
   }
 
+  const sessionGroups = groupEventsBySession(events, sessions);
   return (
-    <div className="space-y-5">
-      <WorkflowEventGroup title="Blocked" events={grouped.blocked} onStatusChange={onStatusChange} />
-      <WorkflowEventGroup title="Action required" events={grouped.actionRequired} onStatusChange={onStatusChange} />
-      <WorkflowEventGroup title="Routine automation" events={grouped.routine} onStatusChange={onStatusChange} />
+    <div className="space-y-3">
+      {sessionGroups.map(({ session, events: sessionEvents }) => (
+        <WorkflowSessionTimeline
+          key={session.id}
+          session={session}
+          events={sessionEvents}
+          onStatusChange={onStatusChange}
+        />
+      ))}
     </div>
   );
 }
@@ -213,6 +312,7 @@ export function WorkflowNotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [status, setStatus] = useState<WorkflowStatusResponse | null>(null);
   const [events, setEvents] = useState<WorkflowEventResponse[]>([]);
+  const [sessions, setSessions] = useState<WorkflowSessionSummaryResponse[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState(false);
 
@@ -248,7 +348,10 @@ export function WorkflowNotificationCenter() {
       setEventsError(false);
       try {
         const nextEvents = await fetchWorkflowEvents({ limit: 50 });
-        if (!cancelled) setEvents(nextEvents.items);
+        if (!cancelled) {
+          setEvents(nextEvents.items);
+          setSessions(nextEvents.sessions);
+        }
       } catch {
         if (!cancelled) setEventsError(true);
       } finally {
@@ -271,6 +374,7 @@ export function WorkflowNotificationCenter() {
     ]);
     setStatus(nextStatusSummary);
     setEvents(nextEvents.items);
+    setSessions(nextEvents.sessions);
   }
 
   const counts = status?.event_counts ?? { unread: 0, action_required: 0, blocked: 0 };
@@ -322,6 +426,7 @@ export function WorkflowNotificationCenter() {
           {!eventsLoading && !eventsError && (
             <WorkflowInbox
               events={events}
+              sessions={sessions}
               onStatusChange={(eventId, nextStatus) => {
                 void updateEventLifecycle(eventId, nextStatus);
               }}
@@ -334,12 +439,18 @@ export function WorkflowNotificationCenter() {
 }
 
 function WorkflowStatusSummary({ status }: { status: WorkflowStatusResponse }) {
+  const activeSession = status.active_session;
   return (
     <div className="rounded-md border border-border bg-surface-muted p-3 text-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-muted">Current state</p>
-          <p className="font-semibold">{labelFromSnake(status.primary_state)}</p>
+          <p className="font-semibold">{activeSession?.title ?? labelFromSnake(status.primary_state)}</p>
+          {activeSession && (
+            <p className="mt-1 text-xs text-muted">
+              {countLabel(activeSession.source_count, "event")} in this session
+            </p>
+          )}
         </div>
         <Badge variant={status.report_readiness.state === "blocked" ? "error" : "info"}>
           Report {sentenceFromSnake(status.report_readiness.state)}
@@ -457,20 +568,25 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
   const readinessLabel = `Report ${sentenceFromSnake(status.report_readiness.state)}`;
   const blockerLabel = countLabel(status.report_readiness.blocking_count, "blocker");
   const primaryIsUpload = status.next_action.type === "upload";
+  const activeSession = status.active_session;
+  const activeSessionEvents = activeSession
+    ? events.filter((event) => !event.session_id || event.session_id === activeSession.id)
+    : events;
 
   return (
     <section className="space-y-4" aria-label="Upload-to-report home">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
         <div className="card p-5">
-          <p className="text-xs uppercase tracking-wide text-muted">Upload-to-report workflow</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Upload Pipeline</p>
           <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold">Upload to report</h1>
+              <h1 className="text-2xl font-semibold">{activeSession?.title ?? "Upload to report"}</h1>
               <p className="mt-2 max-w-2xl text-sm text-muted">{workflowStateCopy(status)}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge variant={severityBadgeVariant(status.primary_state === "blocked" ? "blocked" : "info")}>
                   {labelFromSnake(status.primary_state)}
                 </Badge>
+                {activeSession && <Badge variant="muted">{countLabel(activeSession.source_count, "session event")}</Badge>}
                 {status.event_counts.action_required > 0 && (
                   <Badge variant="warning">{countLabel(status.event_counts.action_required, "action")}</Badge>
                 )}
@@ -493,7 +609,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
               </Link>
               <Link href="/events" className="btn-secondary inline-flex items-center justify-center gap-2 text-sm">
                 <Inbox className="h-4 w-4" aria-hidden="true" />
-                View events
+                Session history
               </Link>
             </div>
           </div>
@@ -530,12 +646,27 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <WorkflowEventGroup title="Blocked" events={groupedEvents.blocked.slice(0, 2)} showActions={false} />
-            <WorkflowEventGroup title="Action required" events={groupedEvents.actionRequired.slice(0, 2)} showActions={false} />
+            <WorkflowEventGroup title="Blocked" events={groupedEvents.blocked.slice(0, 2)} />
+            <WorkflowEventGroup title="Action required" events={groupedEvents.actionRequired.slice(0, 2)} />
           </div>
           {groupedEvents.blocked.length === 0 && groupedEvents.actionRequired.length === 0 && (
             <div className="rounded-md border border-border bg-surface-muted p-3 text-sm text-muted">
               No action required
+            </div>
+          )}
+          {activeSessionEvents.length > 0 && (
+            <div className="mt-4 rounded-md border border-border bg-surface-muted p-3">
+              <h3 className="text-sm font-semibold">Recent session timeline</h3>
+              <ol className="mt-3 space-y-2">
+                {activeSessionEvents.slice(0, 3).map((event) => (
+                  <li key={event.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate">{event.title}</span>
+                    <time className="shrink-0 text-xs text-muted" dateTime={event.occurred_at}>
+                      {formatEventTime(event.occurred_at)}
+                    </time>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
         </section>
@@ -688,6 +819,7 @@ export function WorkflowEventsPageContent() {
           {eventsQuery.data && (
             <WorkflowInbox
               events={eventsQuery.data.items}
+              sessions={eventsQuery.data.sessions}
               onStatusChange={(eventId, status) => lifecycleMutation.mutate({ eventId, status })}
             />
           )}

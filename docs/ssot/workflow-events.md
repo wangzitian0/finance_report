@@ -15,19 +15,19 @@
 
 | Concern | Location |
 |---|---|
-| Event model | `apps/backend/src/models/workflow.py` |
-| Event schemas | `apps/backend/src/schemas/workflow.py` |
+| Event and session model | `apps/backend/src/models/workflow.py` |
+| Event and session schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/services/workflow_events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/services/report_readiness.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
 | Upload-to-Report home | `apps/frontend/src/app/(main)/dashboard/page.tsx` |
-| Events page | `apps/frontend/src/app/(main)/events/page.tsx` |
+| Events page | `apps/frontend/src/app/(main)/events/page.tsx` advanced session history surface |
 | Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
 | Desktop workflow navigation | `apps/frontend/src/components/Sidebar.tsx` |
 | Mobile workflow navigation | `apps/frontend/src/components/MobileNav.tsx` |
-| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts` |
+| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py` |
+| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/mobileNav.coverage.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
 
 ---
 
@@ -55,6 +55,19 @@ They are intentionally separate from:
 Workflow events may summarize those sources, but they do not own them.
 Workflow status aggregation must consume package readiness as an input rather
 than reimplementing package blocker derivation.
+
+WorkflowSession is the EPIC-019 product object for the upload-to-report
+journey. A session starts when the user uploads or binds source work into the
+active upload-to-report flow and ends when the resulting report is generated or
+the session is archived. The current v1 implementation uses one active
+synthetic/default upload-to-report session per user so legacy records have a
+stable home; future upload-batch work may split sessions by batch without
+changing the event timeline contract.
+
+AI chat sessions are internal `/chat` UI state. They support model selection
+and conversation history inside the AI utility page, but they are not workflow
+session ownership and must not drive upload pipeline readiness, event
+actionability, or report blocker semantics.
 
 ---
 
@@ -120,6 +133,35 @@ Rules:
 
 ## 6. Persistence Contract
 
+The session header table is `workflow_sessions`.
+
+Required `workflow_sessions` fields:
+
+| Field | Purpose |
+|---|---|
+| `id` | Session identity |
+| `user_id` | Owner and isolation boundary |
+| `status` | `active`, `generated`, or `archived` |
+| `title` | Short UI label |
+| `summary` | Plain-language session summary |
+| `dedupe_key` | Stable key for synthetic/default or future batch sessions |
+| `started_at` | Session start time |
+| `last_event_at` | Latest timeline event time |
+| `source_count` | Denormalized active event/source count for list surfaces |
+| `report_href` | Internal report route when generated |
+| `created_at` / `updated_at` | Model timestamps |
+
+Required `workflow_sessions` database rules:
+
+- `UNIQUE(user_id, dedupe_key)`
+- `INDEX(user_id, status, last_event_at)`
+- `CHECK(report_href)` only allows null or internal relative routes.
+
+Each event timeline belongs to exactly one workflow session after deterministic
+sync. Legacy rows may be nullable at the storage level during migration, but
+read services must bind derived/upload events to the active synthetic/default
+session before returning user-facing responses.
+
 The read model table is `workflow_events`.
 
 Required fields:
@@ -128,6 +170,7 @@ Required fields:
 |---|---|
 | `id` | Event identity |
 | `user_id` | Owner and isolation boundary |
+| `session_id` | Owning workflow session timeline |
 | `occurred_at` | Product event time |
 | `family` | Stable workflow family |
 | `severity` | User-facing actionability |
@@ -148,6 +191,7 @@ Required database rules:
 - `INDEX(user_id, severity, occurred_at)`
 - `INDEX(user_id, family, occurred_at)`
 - `INDEX(user_id, source_type, source_id)`
+- `INDEX(user_id, session_id, occurred_at)`
 - `CHECK(action_href)` only allows internal relative routes: starts with `/`,
   does not start with `//`, and does not contain `://`.
 
@@ -157,6 +201,7 @@ All database enum types must have explicit names:
 - `workflow_event_severity_enum`
 - `workflow_event_status_enum`
 - `workflow_report_impact_enum`
+- `workflow_session_status_enum`
 
 ---
 
@@ -232,6 +277,8 @@ PATCH /workflow/events/{event_id}
 - `report_readiness`: `none`, `processing`, `ready`, `blocked`, or `stale`,
   plus a blocking count and `/reports` route.
 - `event_counts`: unread, action-required, and blocked counts.
+- `active_session`: current active workflow session summary, or null when no
+  workflow state exists.
 
 Primary state priority is:
 
@@ -245,9 +292,10 @@ compact workflow readiness vocabulary:
 `draft -> none`, `processing -> processing`, `blocked -> blocked`,
 `ready -> ready`, `generated -> ready`, and `stale -> stale`.
 
-`GET /workflow/events` returns `{ items, total }`. It excludes archived events
-by default, supports a `status` filter when archived events are explicitly
-requested, and enforces a bounded `limit`.
+`GET /workflow/events` returns `{ items, total, sessions }`. It excludes
+archived events by default, supports a `status` filter when archived events are
+explicitly requested, and enforces a bounded `limit`. `items[].session_id`
+links every timeline event to a session summary in `sessions[]` when available.
 
 `PATCH /workflow/events/{event_id}` updates only the authenticated user's event
 lifecycle state. Missing or non-owned events return `404`.
@@ -282,12 +330,14 @@ Header badge rules:
 - It stays visually quiet when no workflow attention is required.
 - It opens the in-app Event inbox drawer.
 
-Event inbox rules:
+Event inbox and session history rules:
 
 - It reads `GET /api/workflow/events` only after the user opens the drawer or
   page.
-- It groups events by actionability: `Blocked`, `Action required`, and
-  `Routine automation`.
+- It groups notifications by workflow session first.
+- Each expanded session shows a timestamped event timeline.
+- Blocked and action-required events stay visually prominent inside the
+  session timeline; routine automation remains compact.
 - It supports lifecycle actions through `PATCH /api/workflow/events/{id}`.
 - Each event exposes exactly one primary internal action link from
   `action_href`.
@@ -308,8 +358,8 @@ Upload-to-Report home rules:
 
 - `/dashboard` is the authenticated home for the upload-to-report workflow.
 - The first viewport renders workflow state, the primary next action, report
-  readiness, and recent workflow events before KPI, chart, reconciliation, or
-  activity analytics.
+  readiness, active workflow session state, and a recent timeline preview before
+  KPI, chart, reconciliation, or activity analytics.
 - The primary CTA uses `workflow.status.next_action.href`. Upload is the
   default label only when no higher-priority blocker or action-required state
   wins the workflow priority.
@@ -332,29 +382,34 @@ accounting pipeline.
 Primary navigation:
 
 ```text
-Upload -> /dashboard
-Events -> /events
+Upload Pipeline -> /dashboard
 Reports -> /reports
-Portfolio -> /portfolio
+AI -> /chat
 Advanced
 ```
 
 Advanced navigation:
 
 ```text
+Events -> /events
+Portfolio -> /portfolio
 Statements -> /statements
 Review -> /review
 Accounts -> /accounts
 Journal -> /journal
 Reconciliation -> /reconciliation
 Processing -> /processing
-AI Settings -> /chat
+AI Settings -> /settings/ai
 ```
 
 Rules:
 
 - `/dashboard` remains the authenticated upload-to-report home and is labeled
-  as Upload in primary navigation.
+  as Upload Pipeline in primary navigation.
+- `/events` is an Advanced session-history surface, not a primary navigation
+  entry.
+- `/chat` is labeled AI and is an auxiliary utility, not workflow domain state.
+- `/settings/ai` is the AI Settings route.
 - Advanced is a navigation group, not a new backend workflow concept.
 - Advanced pages are not removed. Direct routes and event `action_href` links
   into review, reconciliation, processing, statements, reports, and package

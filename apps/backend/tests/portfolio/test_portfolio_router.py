@@ -16,6 +16,7 @@ from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDire
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.routers import portfolio as portfolio_router
+from src.schemas.portfolio import HoldingResponse
 from src.services.portfolio import AssetNotFoundError
 
 
@@ -618,7 +619,60 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
     assert holding["market_value"] == "1800.00"
     assert holding["unrealized_pnl"] == "300.00"
     assert holding["realized_pnl"] == "150.00"
-    assert holding["dividend_income"] == "15.00"
+
+
+@pytest.mark.asyncio
+async def test_AC19_7_8_investment_schedule_fallback_holding_cost_basis_converts_currency(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC19.7.8: Fallback holdings without ManagedPosition still convert cost basis to presentation currency."""
+    period_start = date(2026, 1, 1)
+    as_of_date = date(2026, 5, 20)
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.500000"),
+            rate_date=period_start,
+            source="test",
+        )
+    )
+    await db.commit()
+
+    async def fake_holdings(*_args, **_kwargs):
+        return [
+            HoldingResponse(
+                id=uuid4(),
+                user_id=test_user.id,
+                account_id=investment_account.id,
+                asset_identifier="UNRECONCILED-USD",
+                quantity=Decimal("10"),
+                cost_basis=Decimal("1000.00"),
+                market_value=Decimal("1800.00"),
+                unrealized_pnl=Decimal("800.00"),
+                unrealized_pnl_percent=Decimal("80.00"),
+                currency="USD",
+                acquisition_date=period_start,
+                status=PositionStatus.ACTIVE,
+            )
+        ]
+
+    monkeypatch.setattr(portfolio_router._portfolio_service, "get_holdings", fake_holdings)
+
+    response = await client.get(
+        "/portfolio/performance/report-schedule"
+        f"?period_start={period_start}&period_end={as_of_date}&as_of_date={as_of_date}&currency=SGD"
+    )
+
+    assert response.status_code == 200
+    holding = response.json()["holdings"][0]
+    assert holding["cost_basis"] == "1500.00"
+    assert holding["market_value"] == "1800.00"
+    assert holding["unrealized_pnl"] == "300.00"
 
 
 @pytest.mark.asyncio

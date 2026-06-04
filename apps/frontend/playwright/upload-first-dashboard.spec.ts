@@ -7,6 +7,18 @@ const workflowStatus = {
   next_action: { type: "review_required", count: 1, href: "/review" },
   report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
   event_counts: { unread: 2, action_required: 1, blocked: 0 },
+  active_session: {
+    id: "upload-home-session",
+    status: "active",
+    title: "Upload-to-report session",
+    summary: "Current upload, processing, review, and report-readiness work.",
+    started_at: "2026-06-03T07:00:00Z",
+    last_event_at: "2026-06-03T08:00:00Z",
+    source_count: 2,
+    primary_state: "needs_action",
+    report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+    event_counts: { unread: 2, action_required: 1, blocked: 0 },
+  },
 };
 
 const workflowEvents = {
@@ -15,6 +27,7 @@ const workflowEvents = {
     {
       id: "upload-home-review",
       user_id: "upload-home-user",
+      session_id: "upload-home-session",
       occurred_at: "2026-06-03T08:00:00Z",
       family: "review.required",
       severity: "action_required",
@@ -32,6 +45,7 @@ const workflowEvents = {
     {
       id: "upload-home-posted",
       user_id: "upload-home-user",
+      session_id: "upload-home-session",
       occurred_at: "2026-06-03T07:00:00Z",
       family: "ledger.auto_posted",
       severity: "success",
@@ -47,6 +61,7 @@ const workflowEvents = {
       updated_at: "2026-06-03T07:00:00Z",
     },
   ],
+  sessions: [workflowStatus.active_session],
 };
 
 async function installDashboardMocks(page: Page) {
@@ -122,9 +137,10 @@ test.describe("AC19.4.7 upload-first dashboard smoke", () => {
       await page.goto("/dashboard", { waitUntil: "networkidle" });
 
       const uploadHome = page.getByLabel("Upload-to-report home");
-      await expect(uploadHome.getByRole("heading", { name: "Upload to report" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+      await expect(uploadHome.getByRole("heading", { name: "Upload-to-report session" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(uploadHome.getByRole("link", { name: "Review required", exact: true })).toHaveAttribute("href", "/review");
       await expect(uploadHome.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports");
+      await expect(uploadHome.getByRole("heading", { name: "Recent session timeline" })).toBeVisible();
       await expect(uploadHome.getByRole("heading", { name: "Routine automation" })).toBeVisible();
 
       const homeBox = await uploadHome.boundingBox();

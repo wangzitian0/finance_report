@@ -288,6 +288,8 @@ export type WorkflowEventStatus = "unread" | "read" | "archived";
 
 export type WorkflowReportImpact = "none" | "processing" | "ready" | "blocked" | "stale";
 
+export type WorkflowSessionStatus = "active" | "generated" | "archived";
+
 export interface WorkflowNextActionResponse {
     type: WorkflowNextActionType;
     count: number;
@@ -306,16 +308,32 @@ export interface WorkflowEventCountsResponse {
     blocked: number;
 }
 
+export interface WorkflowSessionSummaryResponse {
+    id: string;
+    status: WorkflowSessionStatus;
+    title: string;
+    summary: string;
+    started_at: string;
+    last_event_at?: string | null;
+    source_count: number;
+    report_href?: string | null;
+    primary_state: WorkflowPrimaryState;
+    report_readiness: WorkflowReportReadinessResponse;
+    event_counts: WorkflowEventCountsResponse;
+}
+
 export interface WorkflowStatusResponse {
     primary_state: WorkflowPrimaryState;
     next_action: WorkflowNextActionResponse;
     report_readiness: WorkflowReportReadinessResponse;
     event_counts: WorkflowEventCountsResponse;
+    active_session?: WorkflowSessionSummaryResponse | null;
 }
 
 export interface WorkflowEventResponse {
     id: string;
     user_id: string;
+    session_id?: string | null;
     occurred_at: string;
     family: WorkflowEventFamily;
     severity: WorkflowEventSeverity;
@@ -334,6 +352,7 @@ export interface WorkflowEventResponse {
 export interface WorkflowEventListResponse {
     items: WorkflowEventResponse[];
     total: number;
+    sessions: WorkflowSessionSummaryResponse[];
 }
 
 export interface AnnualizedIncomeScheduleIncome {

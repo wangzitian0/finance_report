@@ -2,9 +2,11 @@
 
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageSquareText, PanelLeft } from "lucide-react";
 
 import { apiFetch, apiStream, apiDelete } from "@/lib/api";
 import { fetchAiModels } from "@/lib/aiModels";
+import Sheet from "@/components/ui/Sheet";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";
 const DISCLAIMER_ZH = "\u4ee5\u4e0a\u5206\u6790\u4ec5\u4f9b\u53c2\u8003\u3002";
@@ -14,7 +16,15 @@ const MODEL_KEY = "ai_chat_model_v1";
 type ChatRole = "user" | "assistant";
 interface ChatMessage { id: string; role: ChatRole; content: string; streaming?: boolean; }
 interface ChatMessageResponse { id: string; role: ChatRole; content: string; }
-interface ChatSessionResponse { id: string; messages: ChatMessageResponse[]; }
+interface ChatSessionResponse {
+  id: string;
+  title?: string | null;
+  message_count?: number;
+  last_active_at?: string | null;
+  updated_at?: string;
+  last_message?: { role: ChatRole; content: string; created_at: string } | null;
+  messages: ChatMessageResponse[];
+}
 interface ChatHistoryResponse { sessions: ChatSessionResponse[]; }
 interface ChatSuggestionsResponse { suggestions: string[]; }
 interface ChatPanelProps { variant?: "page" | "widget"; initialPrompt?: string | null; onClose?: () => void; }
@@ -34,6 +44,8 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSessionResponse[]>([]);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [initialPromptHandled, setInitialPromptHandled] = useState(false);
   const [models, setModels] = useState<{ id: string; name?: string; is_free: boolean }[]>([]);
@@ -53,19 +65,51 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     }
   }, [language]);
 
-  const loadHistory = useCallback(async () => {
-    const storedSession = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
-    if (!storedSession) { setLoadingHistory(false); return; }
+  const refreshSessionList = useCallback(async () => {
+    const data = await apiFetch<ChatHistoryResponse>("/api/chat/history?limit=50");
+    setChatSessions(data.sessions || []);
+    return data.sessions || [];
+  }, []);
+
+  const loadSession = useCallback(async (nextSessionId: string) => {
+    setLoadingHistory(true);
     try {
-      const data = await apiFetch<ChatHistoryResponse>(`/api/chat/history?session_id=${storedSession}`);
+      const data = await apiFetch<ChatHistoryResponse>(`/api/chat/history?session_id=${nextSessionId}`);
       const session = data.sessions[0];
-      if (session) { setSessionId(session.id); setMessages(session.messages.map((m) => ({ id: m.id, role: m.role, content: m.content }))); }
+      if (session) {
+        setSessionId(session.id);
+        setMessages(session.messages.map((m) => ({ id: m.id, role: m.role, content: m.content })));
+        localStorage.setItem(SESSION_KEY, session.id);
+      }
     } catch { 
       localStorage.removeItem(SESSION_KEY); 
+      setSessionId(null);
+      setMessages([]);
     } finally { 
       setLoadingHistory(false); 
     }
   }, []);
+
+  const loadHistory = useCallback(async () => {
+    const storedSession = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
+    try {
+      const sessions = await refreshSessionList();
+      const selectedSession = storedSession && sessions.some((session) => session.id === storedSession)
+        ? storedSession
+        : sessions[0]?.id;
+      if (selectedSession) {
+        await loadSession(selectedSession);
+      } else {
+        setLoadingHistory(false);
+      }
+    } catch {
+      if (storedSession) {
+        await loadSession(storedSession);
+      } else {
+        setLoadingHistory(false);
+      }
+    }
+  }, [loadSession, refreshSessionList]);
 
   useEffect(() => { fetchSuggestions(); loadHistory(); }, [fetchSuggestions, loadHistory]);
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
@@ -147,13 +191,14 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
         localStorage.setItem(SESSION_KEY, newSessionId);
       }
       await handleStream(res, assistantId);
+      void refreshSessionList();
       setIsStreaming(false);
     } catch (err) {
       setError(formatErrorMessage(err));
       updateMessage(assistantId, formatErrorMessage(err), false);
       setIsStreaming(false);
     }
-  }, [handleStream, input, isStreaming, selectedModel, sessionId, updateMessage]);
+  }, [handleStream, input, isStreaming, refreshSessionList, selectedModel, sessionId, updateMessage]);
 
   useEffect(() => {
     if (initialPromptHandled || !initialPrompt || loadingHistory) return;
@@ -173,7 +218,10 @@ await apiDelete(`/api/chat/session/${sessionId}`);
     localStorage.removeItem(SESSION_KEY);
     setSessionId(null);
     setMessages([]);
+    void refreshSessionList();
   };
+
+  const sessionTitle = (session: ChatSessionResponse) => session.title || session.last_message?.content || "Untitled session";
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } };
 
@@ -181,10 +229,18 @@ await apiDelete(`/api/chat/session/${sessionId}`);
     <div className={variant === "widget" ? "flex h-full flex-col" : "flex h-full min-h-[540px] flex-col"}>
       <div className={variant === "widget" ? "flex items-center justify-between border-b border-[var(--border)] pb-3" : "flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4"}>
         <div>
-          <p className="text-xs text-[var(--accent)] uppercase tracking-wide">AI Advisor</p>
-          <h2 className="text-lg font-semibold">Financial Insight Console</h2>
+          <p className="text-xs text-[var(--accent)] uppercase tracking-wide">AI</p>
+          <h2 className="text-lg font-semibold">Conversation</h2>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSessionsOpen(true)}
+            className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1 text-xs"
+          >
+            <PanelLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Sessions
+          </button>
           <select
             className="input text-xs min-w-[220px]"
             value={selectedModel}
@@ -208,10 +264,43 @@ await apiDelete(`/api/chat/session/${sessionId}`);
               ))
             )}
           </select>
-          <button onClick={clearSession} className="btn-secondary text-xs px-3 py-1">Clear</button>
+          <button onClick={clearSession} className="btn-secondary text-xs px-3 py-1">New</button>
           {onClose && <button onClick={onClose} className="btn-secondary text-xs px-3 py-1">Close</button>}
         </div>
       </div>
+
+      <Sheet isOpen={sessionsOpen} onClose={() => setSessionsOpen(false)} title="AI sessions" width="max-w-sm">
+        <div className="space-y-2">
+          {chatSessions.length === 0 && (
+            <div className="rounded-md border border-dashed border-[var(--border)] p-4 text-sm text-muted">
+              No saved conversations yet.
+            </div>
+          )}
+          {chatSessions.map((session) => (
+            <button
+              type="button"
+              key={session.id}
+              onClick={() => {
+                setSessionsOpen(false);
+                void loadSession(session.id);
+              }}
+              className={`w-full rounded-md border p-3 text-left text-sm transition-colors ${
+                session.id === sessionId
+                  ? "border-[var(--accent)] bg-[var(--accent-muted)]"
+                  : "border-[var(--border)] bg-[var(--background-card)] hover:bg-[var(--background-muted)]"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 text-muted" aria-hidden="true" />
+                <span className="min-w-0 truncate font-medium">{sessionTitle(session)}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                {session.message_count ?? session.messages.length} messages
+              </p>
+            </button>
+          ))}
+        </div>
+      </Sheet>
 
       {suggestions.length > 0 && variant === "page" && (
         <div className="mt-4 flex flex-wrap gap-2">
