@@ -244,7 +244,6 @@ EPIC-005 assembles report packages from framework policy results owned by
 [EPIC-020](EPIC-020.framework-aware-personal-reporting.md). It renders
 statements, notes, exports, and traceability; it must not own US/HK
 recognition, measurement, or classification rules.
-It must not own US/HK recognition rules.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|

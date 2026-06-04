@@ -124,9 +124,9 @@ Not owned here:
 - Policy result schema: [#676](https://github.com/wangzitian0/finance_report/issues/676)
 - US/HK policy matrix v1: [#677](https://github.com/wangzitian0/finance_report/issues/677)
 - Framework-aware readiness blockers: [#678](https://github.com/wangzitian0/finance_report/issues/678)
-- Report package API integration: [#679](https://github.com/wangzitian0/finance_report/issues/679)
-- US/HK golden fixture proof: [#680](https://github.com/wangzitian0/finance_report/issues/680)
-- Framework selection UI and exports: [#681](https://github.com/wangzitian0/finance_report/issues/681)
+- Framework selection UI and exports: [#679](https://github.com/wangzitian0/finance_report/issues/679)
+- Report package API integration: [#680](https://github.com/wangzitian0/finance_report/issues/680)
+- US/HK golden fixture proof: [#681](https://github.com/wangzitian0/finance_report/issues/681)
 
 ## Related
 

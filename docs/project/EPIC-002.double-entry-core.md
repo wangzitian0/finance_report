@@ -408,7 +408,8 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 > **Question**: Should we enforce 1xxx-5xxx account codes? Or allow user customization?  
 > **Impact**: Affects Account model `code` field validation rules
 
-**✅ Your Answer**: Use US GAAP Taxonomy standard
+**✅ Your Answer**: Use canonical framework-neutral account codes, with
+framework-specific taxonomy and report-line mapping owned by EPIC-020.
 
 **Current decision**: Account codes are canonical user ledger identifiers, not
 the authoritative US GAAP, HKFRS, or CAS taxonomy. Framework-specific report

@@ -24,7 +24,6 @@ EPIC-003 owns source capture. It extracts settlement, statement, PDF, and CSV
 facts with source metadata, period boundaries, currencies, balances, and raw
 line anchors needed by downstream evidence checks. It does not decide US-like
 or HK-like report classification, measurement, presentation, or disclosure.
-It does not decide US-like or HK-like report classification.
 
 ---
 

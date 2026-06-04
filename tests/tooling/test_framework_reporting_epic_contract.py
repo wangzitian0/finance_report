@@ -147,7 +147,8 @@ def test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy() -> 
     assert "Framework Boundary" in epic
     assert "source capture" in epic
     assert "period boundaries" in epic
-    assert "does not decide US-like or HK-like report classification" in epic
+    assert "It does not decide US-like" in epic
+    assert "classification, measurement, presentation, or disclosure" in epic
 
 
 def test_AC5_14_1_reporting_assembles_framework_policy_results_only() -> None:
@@ -156,7 +157,8 @@ def test_AC5_14_1_reporting_assembles_framework_policy_results_only() -> None:
 
     assert "Framework Policy Result Consumption" in epic
     assert "assembles report packages from framework policy results" in epic
-    assert "must not own US/HK recognition" in epic
+    assert "must not own US/HK" in epic
+    assert "recognition, measurement, or classification rules" in epic
     assert "Integration of EPIC-020 framework policy results" in epic
 
 
@@ -166,7 +168,8 @@ def test_AC17_13_1_portfolio_supplies_facts_not_framework_conclusions() -> None:
 
     assert "Framework boundary" in epic
     assert "supplies portfolio facts" in epic
-    assert "not final framework accounting conclusions" in epic
+    assert "inputs to EPIC-020" in epic
+    assert "belongs to EPIC-020 and EPIC-005 assembly" in epic
     assert "does not own final US/HK report presentation decisions" in epic
 
 

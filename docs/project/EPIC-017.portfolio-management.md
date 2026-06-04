@@ -84,7 +84,6 @@ accounting conclusions. Holdings, lots, cost basis, dividends, fees, prices,
 freshness, and source links are inputs to EPIC-020. Whether a US-like or HK-like
 personal report presents a valuation change in a specific statement line or
 disclosure belongs to EPIC-020 and EPIC-005 assembly.
-EPIC-017 owns portfolio facts, not final framework accounting conclusions.
 
 Future scope such as additional brokers, complex corporate actions, options,
 futures, crypto, and real-time market streaming needs explicit ACs before it can
