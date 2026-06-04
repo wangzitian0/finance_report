@@ -872,6 +872,7 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
     compose = read("docker-compose.yml")
     frontend_dockerfile = read("apps/frontend/Dockerfile")
+    frontend_version_route = read("apps/frontend/src/app/frontend-version.json/route.ts")
 
     deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
     cleanup_block = workflow.split("  cleanup:", 1)[1]
@@ -891,6 +892,7 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         "Build and push Frontend PR preview image"
     ) < deploy_block.index("Deploy preview lifecycle")
     assert "push: true" in deploy_block
+    assert "cache-to: type=gha,mode=max,ignore-error=true" in deploy_block
     assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}" in deploy_block
     assert (
         "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}" in deploy_block
@@ -900,9 +902,15 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         "NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}"
         in deploy_block
     )
-    assert "frontend-version.json" in frontend_dockerfile
     assert "ARG GIT_COMMIT_SHA=unknown" in frontend_dockerfile
+    assert "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" in frontend_dockerfile
+    assert "process.env.GIT_COMMIT_SHA" in frontend_version_route
     assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}" in frontend_compose_block
+    assert sum(
+        1
+        for line in frontend_compose_block.splitlines()
+        if line.strip().startswith("GIT_COMMIT_SHA:")
+    ) == 2
     assert "Wait for API readiness" in deploy_block
     assert "Wait for frontend readiness" in deploy_block
     assert deploy_block.index("Wait for API readiness") < deploy_block.index(
@@ -925,7 +933,7 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         "PR preview deploy builds and pushes commit-scoped PR backend and frontend images before invoking Dokploy"
         in ci_cd
     )
-    assert "waits for both `/api/health` and `/frontend-version.json`" in ci_cd
+    assert "readiness waits for both `/api/health` and `/frontend-version.json?expected=<sha>`" in ci_cd
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:

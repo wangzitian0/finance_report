@@ -154,6 +154,13 @@ def test_AC8_13_71_preview_compose_project_uses_safe_deterministic_name() -> Non
     assert lifecycle.preview_compose_project(591) == "finance_report_pr_591"
 
 
+def test_AC8_13_71_preview_image_tag_includes_pr_number_and_commit_sha() -> None:
+    """AC8.13.71: PR preview image tags are commit-specific to avoid stale mutable deploys."""
+    lifecycle = lifecycle_module()
+
+    assert lifecycle.preview_image_tag(591, "abc123") == "pr-591-abc123"
+
+
 def test_AC8_13_71_create_compose_requires_compose_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

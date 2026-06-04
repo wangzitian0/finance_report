@@ -143,7 +143,7 @@ jobs:
           context: ./apps/backend
           push: true
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
@@ -154,7 +154,7 @@ jobs:
           context: ./apps/frontend
           push: true
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
