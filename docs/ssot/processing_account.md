@@ -17,7 +17,7 @@
 
 ## 2. Problem Statement (Vision Context)
 
-From `vision.md` Decision 5:
+From the `vision.md` `decision-5-processing-account` anchor:
 
 **Problem**: Bank A transfers out on Day 1, Bank B receives on Day 3. Where are the funds on Day 2?
 

@@ -6,6 +6,21 @@ This document defines the Single Source of Truth for the document extraction fea
 
 The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-4.6v`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.1`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
+## Upload-First Product Contract
+
+The user-facing input model is upload-first: users provide supported source
+documents and exports, and the system converts them into reviewed records before
+ledger/report use. Supported upload classes include bank statements, brokerage
+statements or settlement notes, CSV exports, ESOP/RSU grant or vesting
+documents, property appraisals, insurance or liability statements, and other
+future document types registered through the schema and AC workflow.
+
+Extraction owns parsing, source metadata, validation results, and lineage back
+to the original file. Downstream automation such as market-data refresh,
+portfolio valuation, ESOP schedule presentation, recurring accrual treatment,
+and report preparation is delegated to the owning SSOT documents and must not
+weaken extraction confidence or balance-validation rules.
+
 ## Data Flow
 
 ```mermaid
