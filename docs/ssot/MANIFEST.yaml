@@ -111,6 +111,17 @@ concepts:
       - docs/ssot/extraction.md
       - docs/project/EPIC-003.statement-parsing.md
 
+  pdf_fixtures:
+    owner: docs/ssot/pdf-fixtures.md
+    description: Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback.
+    cross_refs:
+      - docs/project/EPIC-009.pdf-fixture-generation.md
+      - tools/_lib/pdf_fixtures/README.md
+      - tools/_lib/pdf_fixtures/FONT_HANDLING.md
+      - tools/_lib/pdf_fixtures/analyzers/README.md
+      - tests/tooling/test_pdf_fixture_epic009_behavior.py
+      - tests/tooling/test_pdf_fixture_parseable.py
+
   ai_advisor_policy:
     owner: docs/ssot/ai.md
     description: AI advisor prompt policy, context scope, and safety controls.

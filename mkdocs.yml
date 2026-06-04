@@ -90,6 +90,7 @@ nav:
       - Confirmation Workflow: ssot/confirmation-workflow.md
       - Processing Account: ssot/processing_account.md
       - Statement Extraction: ssot/extraction.md
+      - PDF Fixtures: ssot/pdf-fixtures.md
       - Reporting: ssot/reporting.md
       - AI Advisor: ssot/ai.md
       - Assets: ssot/assets.md
