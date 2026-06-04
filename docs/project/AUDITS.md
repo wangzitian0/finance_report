@@ -3,16 +3,16 @@
 This file indexes project consistency and traceability audits. Use generated
 reports for current metrics.
 
-## Current Generated Reports
+## Current Generated Evidence
 
-| Report | Purpose |
+| Source | Purpose |
 |---|---|
-| [../analysis/ac-epic-mismatch-report.md](../analysis/ac-epic-mismatch-report.md) | Current AC-to-EPIC mismatch triage, separated into actionable and fixture-only refs |
+| `python tools/audit_ac_epic_mismatches.py` | Current AC-to-EPIC mismatch triage, separated into actionable and fixture-only refs |
 | [../analysis/traceability-exceptions.md](../analysis/traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
 
 Current generated AC snapshot values are owned by:
 
-- `docs/analysis/ac-epic-mismatch-report.md`
+- `python tools/audit_ac_epic_mismatches.py`
 - `python tools/analyze_test_ac_coverage.py --no-write --stdout`
 - `python tools/check_ac_traceability.py`
 
@@ -20,7 +20,7 @@ Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforce
 by the AC traceability gate before the generated audit artifact is uploaded.
 
 Fixture-only fake AC IDs in tooling tests are classified separately in the
-generated AC-to-EPIC mismatch report.
+generated AC-to-EPIC mismatch output.
 
 ## Historical Audits
 

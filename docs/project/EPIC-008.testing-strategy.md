@@ -92,7 +92,7 @@ AC rates are generated on each CI run from `python tools/analyze_test_ac_coverag
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `python tools/analyze_test_ac_coverage.py --no-write --stdout`,
-`docs/analysis/ac-epic-mismatch-report.md`, and CI artifacts for live proof
+`python tools/audit_ac_epic_mismatches.py`, and CI artifacts for live proof
 counts.
 
 ### 2.3.2 E2E EPIC Traceability

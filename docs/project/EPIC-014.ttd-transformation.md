@@ -80,7 +80,6 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 - [./AUDITS.md](./AUDITS.md) — audit index and retired standalone report notes.
 - [./AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) — historical consistency audit snapshot.
 - [./DECISIONS.md](./DECISIONS.md) — project decision log.
-- [./DECISIONS_ZH.md](./DECISIONS_ZH.md) — Chinese mirror of project decision notes.
 - [../ssot/tdd.md](../ssot/tdd.md) — canonical EPIC -> AC -> test workflow.
 - [../agents/orchestration.md](../agents/orchestration.md) — agent workflow governance.
 - [../agents/red-lines.md](../agents/red-lines.md) — security and engineering hard stops.
@@ -129,3 +128,7 @@ Historical work-progress reports and test-organization audits were removed from 
 | AC14.1.4 | check_env_keys.py detects missing keys across secrets.ctmpl, config.py, .env.example | `test_env_keys_three_way_sync` | `infra/test_check_env_keys.py` | P0 |
 | AC14.1.5 | smoke_test.sh runs successfully against local docker environment | `test_smoke_test_local_pass` | `infra/test_smoke_test.py` | P1 |
 | AC14.1.6 | generate_ac_registry.py produces zero ghost ACs and zero overlap between feature and infra registries | `test_ac_registry_no_ghost_no_overlap` | `tests/tooling/test_issue_493_foundation_ttd_behavior.py` | P1 |
+| AC14.1.7 | Generated analysis snapshots are not checked into `docs/analysis/`; live coverage and mismatch data come from tools or CI artifacts | `test_AC14_1_7_generated_analysis_snapshots_are_absent` | `tests/tooling/test_lint_doc_consistency.py` | P0 |
+| AC14.1.8 | Reconciliation threshold prose points to code/config owners instead of claiming Markdown is the single authority | `test_AC14_1_8_reconciliation_thresholds_are_code_owned` | `tests/tooling/test_lint_doc_consistency.py` | P0 |
+| AC14.1.9 | SSOT manifest `#anchor` owners and cross-references resolve to actual Markdown anchors | `test_AC14_1_9_manifest_anchor_refs_must_exist` | `tests/tooling/test_check_manifest.py` | P0 |
+| AC14.1.10 | Frontend source cannot call raw `fetch()` outside `apps/frontend/src/lib/api.ts` | `test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper` | `tests/tooling/test_lint_doc_consistency.py` | P0 |

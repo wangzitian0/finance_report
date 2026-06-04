@@ -110,14 +110,10 @@ nav:
   - Development:
       - Project Overview: project/README.md
       - Design Decisions: project/DECISIONS.md
-      - Design Decisions (ZH): project/DECISIONS_ZH.md
       - Audits: project/AUDITS.md
       - AC Audit 2026-05-04: project/AC-AUDIT-2026-05-04.md
       - Delivery Engine Recommendations: project/DELIVERY_ENGINE_RECOMMENDATIONS.md
-      - Generated Evidence:
-          - AC Epic Mismatch Report: analysis/ac-epic-mismatch-report.md
-          - Test AC Coverage Report: analysis/test-ac-coverage-report.md
-          - Traceability Exceptions: analysis/traceability-exceptions.md
+      - Traceability Exceptions: analysis/traceability-exceptions.md
       - EPICs:
           - "EPIC-001: Setup": project/EPIC-001.phase0-setup.md
           - "EPIC-002: Double-Entry": project/EPIC-002.double-entry-core.md

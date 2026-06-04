@@ -6,6 +6,8 @@ Validates ``docs/ssot/MANIFEST.yaml`` against the following rules:
   1. No two concepts may share the same owner (file + optional anchor).
   2. Every owner *file* path (ignoring ``#anchor``) MUST exist on disk.
   3. Every cross_ref *file* path (ignoring ``#anchor``) MUST exist on disk.
+  4. Every ``#anchor`` in owner and cross_ref entries MUST resolve to an
+     explicit HTML id or Markdown heading slug in the referenced file.
 
 The script exits 0 on success and 1 on any violation.
 
@@ -20,6 +22,7 @@ Run in CI alongside ``tools/lint_doc_consistency.py``.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -42,6 +45,43 @@ class Violation(NamedTuple):
 def _file_part(ref: str) -> str:
     """Strip optional ``#anchor`` from a path string and return the file part."""
     return ref.split("#")[0]
+
+
+def _anchor_part(ref: str) -> str | None:
+    """Return the anchor fragment from a path string, if present."""
+    if "#" not in ref:
+        return None
+    return ref.split("#", 1)[1]
+
+
+HTML_ID_PATTERN = re.compile(r"""id\s*=\s*["'](?P<id>[^"']+)["']""", re.IGNORECASE)
+MARKDOWN_HEADING_PATTERN = re.compile(r"^\s{0,3}#{1,6}\s+(?P<heading>.+?)\s*$")
+HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
+NON_SLUG_CHARS = re.compile(r"[^a-z0-9 _-]")
+WHITESPACE_OR_DASH = re.compile(r"[\s_-]+")
+
+
+def _github_heading_slug(heading: str) -> str:
+    """Return a close GitHub/MkDocs-compatible slug for a Markdown heading."""
+    text = HTML_TAG_PATTERN.sub("", heading)
+    text = text.replace("`", "").strip().lower()
+    text = NON_SLUG_CHARS.sub("", text)
+    text = WHITESPACE_OR_DASH.sub("-", text).strip("-")
+    return text
+
+
+def collect_markdown_anchors(path: Path) -> set[str]:
+    """Collect explicit HTML ids and generated heading slugs from a Markdown file."""
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    anchors = {match.group("id") for match in HTML_ID_PATTERN.finditer(text)}
+    for line in text.splitlines():
+        match = MARKDOWN_HEADING_PATTERN.match(line)
+        if not match:
+            continue
+        slug = _github_heading_slug(match.group("heading"))
+        if slug:
+            anchors.add(slug)
+    return anchors
 
 
 def _is_valid_concept(concept_data: object) -> bool:
@@ -178,6 +218,49 @@ def check_crossref_files_exist(concepts: dict) -> list[Violation]:
     return violations
 
 
+def check_anchor_refs_exist(concepts: dict) -> list[Violation]:
+    """Rule 4: every owner/cross_ref anchor must exist in its file."""
+    violations: list[Violation] = []
+    anchor_cache: dict[Path, set[str]] = {}
+
+    def check_ref(concept_key: str, field: str, ref: str) -> None:
+        anchor = _anchor_part(ref)
+        if not anchor:
+            return
+        file_path = REPO_ROOT / _file_part(ref)
+        if not file_path.exists():
+            return
+        anchors = anchor_cache.get(file_path)
+        if anchors is None:
+            anchors = collect_markdown_anchors(file_path)
+            anchor_cache[file_path] = anchors
+        if anchor not in anchors:
+            violations.append(
+                Violation(
+                    check="check4_anchor_exists",
+                    message=(
+                        f"Concept '{concept_key}': {field} anchor does not "
+                        f"exist: '{ref}'"
+                    ),
+                )
+            )
+
+    for concept_key, concept_data in concepts.items():
+        if not _is_valid_concept(concept_data):
+            continue
+        owner = concept_data.get("owner", "")
+        if isinstance(owner, str):
+            check_ref(concept_key, "owner", owner)
+
+        cross_refs = concept_data.get("cross_refs")
+        if not isinstance(cross_refs, list):
+            continue
+        for ref in cross_refs:
+            if isinstance(ref, str):
+                check_ref(concept_key, "cross_ref", ref)
+    return violations
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate docs/ssot/MANIFEST.yaml consistency."
@@ -202,6 +285,7 @@ def main() -> int:
     violations.extend(check_duplicate_owners(concepts))
     violations.extend(check_owner_files_exist(concepts))
     violations.extend(check_crossref_files_exist(concepts))
+    violations.extend(check_anchor_refs_exist(concepts))
 
     if args.verbose or violations:
         print("=" * 72)
