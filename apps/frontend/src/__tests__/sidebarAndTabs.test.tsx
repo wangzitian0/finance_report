@@ -180,9 +180,9 @@ describe("Sidebar and WorkspaceTabs", () => {
 
     await waitFor(() => {
       expect(mockedFetchWorkflowStatus).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole("link", { name: /Events 4/i })).toHaveAttribute("href", "/events")
+      expect(screen.getByRole("button", { name: /Advanced 3/i })).toBeInTheDocument()
     })
-    expect(screen.getByRole("link", { name: /Events 4/i })).toHaveAttribute("href", "/events")
-    expect(screen.getByRole("button", { name: /Advanced 3/i })).toBeInTheDocument()
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/pending-review")
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/stage2/queue")
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/accounts/processing/summary")
