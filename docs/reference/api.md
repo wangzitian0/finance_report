@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `114`
-- Schema count: `182`
+- Endpoint count: `115`
+- Schema count: `190`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -27,7 +27,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `market-data` | 3 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
-| `reports` | 14 |
+| `reports` | 15 |
 | `review` | 7 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -180,9 +180,10 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/income-statement` | yes | `start_date`* (query), `end_date`* (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package/annualized-income-schedule` | yes | `as_of_date` (query) | - | `200` `AnnualizedIncomeScheduleResponse` | Annualized Income Schedule |
-| `GET` | `/reports/package/contract` | no | - | - | `200` `PersonalReportPackageContractResponse` | Personal Report Package Contract |
+| `GET` | `/reports/package/contract` | no | `framework_id` (query) | - | `200` `PersonalReportPackageContractResponse` | Personal Report Package Contract |
+| `GET` | `/reports/package/framework-policy` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `FrameworkPolicyResult` | Personal Report Package Framework Policy |
 | `GET` | `/reports/package/notes` | no | - | - | `200` `PersonalReportPackageNotesResponse` | Personal Report Package Notes |
-| `GET` | `/reports/package/readiness` | yes | - | - | `200` `PersonalReportPackageReadinessResponse` | Personal Report Package Readiness |
+| `GET` | `/reports/package/readiness` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageReadinessResponse` | Personal Report Package Readiness |
 | `GET` | `/reports/package/traceability` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageTraceabilityResponse` | Personal Report Package Traceability |
 | `GET` | `/reports/trend` | yes | `account_id`* (query), `period` (query), `currency` (query) | - | `200` `AccountTrendResponse` | Account Trend |
 | `GET` | `/reports/{report_type}/snapshots` | yes | `report_type`* (path) | - | `200` array[object] | List Report Snapshots |
