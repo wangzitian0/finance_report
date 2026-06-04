@@ -177,6 +177,7 @@ uv run invoke env.set OTEL_RESOURCE_ATTRIBUTES=deployment.environment=staging \
 | Sensitive data excluded | Review log payloads for keys like `password`, `token` |
 | Environment filtering works | Filter by `deployment.environment=production` in SigNoz |
 | App alert readiness is visible | `/health.observability` and startup logs expose service `finance-report-backend`, rule `FinanceReportBackendErrorLogs`, and no collector/webhook URL |
+| Production deploy blocks missing app observability configuration | `python tools/production_infra_smoke.py --base-url https://report.zitian.party --signoz-url https://signoz.zitian.party` |
 
 ### 7.1 Runtime Contract
 
@@ -357,7 +358,7 @@ infra2/platform (repo submodule)
 
 | Gap | Risk | Mitigation |
 |-----|------|------------|
-| **OTEL connectivity not verified at deploy** | Logs silently lost if collector unreachable | Manual SigNoz UI check post-deploy |
+| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from SigNoz if collector ingestion or rule automation drifts | Production smoke verifies the app-side observability contract; SigNoz log queries and Lark delivery remain manual live gates |
 | **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
 | **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `tools/check_env_keys.py` + pre-commit |
 | **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |

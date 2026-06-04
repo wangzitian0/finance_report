@@ -28,6 +28,14 @@ class HttpResponse:
 
 Fetcher = Callable[[str, float], HttpResponse]
 
+EXPECTED_OBSERVABILITY = {
+    "service_name": "finance-report-backend",
+    "deployment_environment": "production",
+    "alert_rule_name": "FinanceReportBackendErrorLogs",
+    "alert_rule_service_name": "finance-report-backend",
+    "alerting_pipeline": "component->otel->signoz->lark",
+}
+
 
 def _join_url(base_url: str, path: str) -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
@@ -104,10 +112,32 @@ def verify_health(
     if failed:
         raise SmokeFailure(f"Production health dependency checks failed: {failed}")
 
+    observability = payload.get("observability")
+    if not isinstance(observability, dict):
+        raise SmokeFailure("Production health payload is missing observability object")
+
+    flag_messages = {
+        "otel_exporter_configured": "OTEL exporter is not configured",
+        "logs_export_enabled": "OTEL log export is not enabled",
+        "traces_export_enabled": "OTEL trace export is not enabled",
+    }
+    for key, message in flag_messages.items():
+        if observability.get(key) is not True:
+            raise SmokeFailure(f"Production observability {message}")
+
+    for key, expected in EXPECTED_OBSERVABILITY.items():
+        actual = observability.get(key)
+        if actual != expected:
+            raise SmokeFailure(
+                f"Production observability {key} mismatch: "
+                f"expected {expected}, got {actual}"
+            )
+
     return [
         f"health status healthy ({git_sha})",
         "database check true",
         "s3 check true",
+        "observability contract enabled (finance-report-backend production)",
     ]
 
 

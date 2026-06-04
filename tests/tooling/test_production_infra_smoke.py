@@ -17,18 +17,29 @@ from common.ci.production_infra_smoke import (
     write_summary,
 )
 
+VALID_HEALTH_BODY = (
+    '{"status":"healthy","git_sha":"v0.1.3",'
+    '"checks":{"database":true,"s3":true},'
+    '"observability":{'
+    '"otel_exporter_configured":true,'
+    '"logs_export_enabled":true,'
+    '"traces_export_enabled":true,'
+    '"service_name":"finance-report-backend",'
+    '"deployment_environment":"production",'
+    '"alert_rule_name":"FinanceReportBackendErrorLogs",'
+    '"alert_rule_service_name":"finance-report-backend",'
+    '"alerting_pipeline":"component->otel->signoz->lark"'
+    "}}"
+)
+
 
 def test_AC8_13_64_production_infra_smoke_requires_db_s3_and_signoz() -> None:
-    """AC8.13.64: Production infra smoke proves DB, S3, and SigNoz health."""
+    """AC8.13.64: Production infra smoke proves app dependencies, observability, and SigNoz health."""
 
     def fetcher(url: str, timeout: float) -> HttpResponse:
         assert timeout == 5
         if url.endswith("/api/health"):
-            return HttpResponse(
-                200,
-                '{"status":"healthy","git_sha":"v0.1.3",'
-                '"checks":{"database":true,"s3":true}}',
-            )
+            return HttpResponse(200, VALID_HEALTH_BODY)
         if url.endswith("/api/ping"):
             return HttpResponse(200, '{"state":"ping","toggle_count":1}')
         if url.endswith("/api/v1/health"):
@@ -50,6 +61,7 @@ def test_AC8_13_64_production_infra_smoke_requires_db_s3_and_signoz() -> None:
 
     assert "database check true" in passed
     assert "s3 check true" in passed
+    assert "observability contract enabled (finance-report-backend production)" in passed
     assert "signoz health ok (v0.105.1)" in passed
 
 
@@ -61,7 +73,14 @@ def test_AC8_13_64_production_infra_smoke_fails_when_db_is_down() -> None:
             return HttpResponse(
                 200,
                 '{"status":"healthy","git_sha":"v0.1.3",'
-                '"checks":{"database":false,"s3":true}}',
+                '"checks":{"database":false,"s3":true},'
+                '"observability":{"otel_exporter_configured":true,'
+                '"logs_export_enabled":true,"traces_export_enabled":true,'
+                '"service_name":"finance-report-backend",'
+                '"deployment_environment":"production",'
+                '"alert_rule_name":"FinanceReportBackendErrorLogs",'
+                '"alert_rule_service_name":"finance-report-backend",'
+                '"alerting_pipeline":"component->otel->signoz->lark"}}',
             )
         return HttpResponse(200, "{}")
 
@@ -80,11 +99,7 @@ def test_AC8_13_64_production_infra_smoke_fails_when_signoz_is_down() -> None:
 
     def fetcher(url: str, timeout: float) -> HttpResponse:
         if url.endswith("/api/health"):
-            return HttpResponse(
-                200,
-                '{"status":"healthy","git_sha":"v0.1.3",'
-                '"checks":{"database":true,"s3":true}}',
-            )
+            return HttpResponse(200, VALID_HEALTH_BODY)
         if url.endswith("/api/ping"):
             return HttpResponse(200, '{"state":"ping","toggle_count":1}')
         if url.endswith("/api/v1/health"):
@@ -131,6 +146,51 @@ def test_AC8_13_64_production_infra_smoke_fails_when_signoz_is_down() -> None:
             '"checks":{"database":true,"s3":false}}',
             "v0.1.3",
             "s3",
+        ),
+        (
+            '{"status":"healthy","git_sha":"v0.1.3",'
+            '"checks":{"database":true,"s3":true}}',
+            "v0.1.3",
+            "missing observability object",
+        ),
+        (
+            '{"status":"healthy","git_sha":"v0.1.3",'
+            '"checks":{"database":true,"s3":true},'
+            '"observability":{"otel_exporter_configured":false,'
+            '"logs_export_enabled":true,"traces_export_enabled":true,'
+            '"service_name":"finance-report-backend",'
+            '"deployment_environment":"production",'
+            '"alert_rule_name":"FinanceReportBackendErrorLogs",'
+            '"alert_rule_service_name":"finance-report-backend",'
+            '"alerting_pipeline":"component->otel->signoz->lark"}}',
+            "v0.1.3",
+            "OTEL exporter is not configured",
+        ),
+        (
+            '{"status":"healthy","git_sha":"v0.1.3",'
+            '"checks":{"database":true,"s3":true},'
+            '"observability":{"otel_exporter_configured":true,'
+            '"logs_export_enabled":true,"traces_export_enabled":true,'
+            '"service_name":"wrong-service",'
+            '"deployment_environment":"production",'
+            '"alert_rule_name":"FinanceReportBackendErrorLogs",'
+            '"alert_rule_service_name":"finance-report-backend",'
+            '"alerting_pipeline":"component->otel->signoz->lark"}}',
+            "v0.1.3",
+            "service_name",
+        ),
+        (
+            '{"status":"healthy","git_sha":"v0.1.3",'
+            '"checks":{"database":true,"s3":true},'
+            '"observability":{"otel_exporter_configured":true,'
+            '"logs_export_enabled":true,"traces_export_enabled":true,'
+            '"service_name":"finance-report-backend",'
+            '"deployment_environment":"production",'
+            '"alert_rule_name":"WrongRule",'
+            '"alert_rule_service_name":"finance-report-backend",'
+            '"alerting_pipeline":"component->otel->signoz->lark"}}',
+            "v0.1.3",
+            "alert_rule_name",
         ),
     ],
 )
@@ -179,11 +239,7 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_runtime_responses(
         if url.endswith(url_suffix):
             return response
         if url.endswith("/api/health"):
-            return HttpResponse(
-                200,
-                '{"status":"healthy","git_sha":"v0.1.3",'
-                '"checks":{"database":true,"s3":true}}',
-            )
+            return HttpResponse(200, VALID_HEALTH_BODY)
         if url.endswith("/api/ping"):
             return HttpResponse(200, '{"state":"ping","toggle_count":1}')
         return HttpResponse(200, "<html></html>")

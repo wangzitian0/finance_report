@@ -439,6 +439,43 @@ def test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run() -> N
     assert "does not poll or wait for CI inside the deploy job" in ci_cd
 
 
+def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> None:
+    """AC8.13.91: Main post-merge staging failures create a persistent GitHub issue alert."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+
+    assert "staging-deploy-alert:" in workflow
+    assert "name: Staging Deploy Alert" in workflow
+    assert "issues: write" in workflow
+    assert "STAGING_ALERT_TITLE: \"[staging-alert] Post-merge staging deploy failing\"" in workflow
+    assert "github.event_name == 'workflow_run'" in workflow
+    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "github.event.workflow_run.head_branch == 'main'" in workflow
+    assert 'staging_required="${{ needs.classify-staging.outputs.staging_required }}"' in workflow
+    assert '[ "$staging_required" = "true" ]' in workflow
+    assert "needs.build-and-deploy.result" in workflow
+    assert "needs.ai-ocr-gate.result" in workflow
+    assert "gh issue list" in workflow
+    assert "gh issue create" in workflow
+    assert "gh issue comment" in workflow
+    assert "gh issue close" in workflow
+    assert "Staging deploy failed" in workflow
+    assert "Staging deploy recovered" in workflow
+    assert 'run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"' in workflow
+    assert "Run URL: ${run_url}" in workflow
+    assert "Target SHA: ${TARGET_SHA}" in workflow
+    assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
+    assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
+    assert "Build/deploy result: ${build_result}" in workflow
+    assert "AI/OCR result: ${ai_ocr_result}" in workflow
+    assert "STAGING_APP_URL: https://report-staging.zitian.party" in workflow
+    assert "App URL: ${STAGING_APP_URL}" in workflow
+    assert "DOKPLOY_API_KEY" not in workflow.split("staging-deploy-alert:", 1)[1]
+    assert "persistent GitHub Issue alert" in ci_cd
+    assert "AC8.13.91" in epic
+
+
 def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> None:
     """AC8.13.55: Post-merge staging only runs for deploy-relevant changes."""
     workflow = read(".github/workflows/staging-deploy.yml")
