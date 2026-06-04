@@ -22,6 +22,7 @@ from src.config import settings
 from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
+from src.observability import get_observability_status, log_observability_startup
 from src.rate_limit import api_rate_limiter
 from src.routers import (
     accounts,
@@ -104,6 +105,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
     market_data_task = asyncio.create_task(run_market_data_scheduler(stop_event))
     sweep_task = asyncio.create_task(run_storage_sweep(stop_event))
+    log_observability_startup(logger)
     logger.info("Application started", version="0.1.0")
     yield
     stop_event.set()
@@ -315,6 +317,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> Response:
                 "version": settings.git_commit_sha,
                 "git_sha": settings.git_commit_sha,
                 "checks": checks,
+                "observability": get_observability_status(),
             },
         )
     except Exception as e:

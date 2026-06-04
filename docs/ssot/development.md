@@ -352,7 +352,7 @@ VPS_HOST=cloud.zitian.party ./tools/check_resource_leaks.sh
 When a PR is closed, GitHub Actions automatically cleans:
 - ✅ Dokploy stack on VPS
 - ✅ Docker volumes (`postgres_data`, `redis_data`, `minio_data`)
-- ✅ GHCR container images (`backend:pr-{number}`, `frontend:pr-{number}`)
+- ✅ GHCR container images (`backend:pr-{number}-{sha}`, `frontend:pr-{number}-{sha}`)
 
 The scheduled `PR Preview Cleanup` workflow is the fallback cleanup path for
 missed PR close events or failed Dokploy/SSH cleanup. Every six hours it:

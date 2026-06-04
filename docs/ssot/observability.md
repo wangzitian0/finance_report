@@ -10,9 +10,10 @@
 | Component | Physical Location | Description |
 |-----------|-------------------|-------------|
 | Logging configuration | `apps/backend/src/logger.py` | Structlog setup + optional OTLP log export |
+| Runtime contract | `apps/backend/src/observability.py` | Redacted observability status for health checks, startup logs, and alert triage |
 | Env settings | `apps/backend/src/config.py` | OTEL/SigNoz environment variables |
 | Env documentation | `.env.example` | Developer guidance for OTEL variables |
-| Infra reference | `repo/docs/ssot/ops.observability.md` | SigNoz platform/collector details |
+| Infra reference | `repo/docs/ssot/ops.observability.md`, `repo/docs/ssot/ops.alerting.md` | SigNoz platform, collector, alert rule, and Lark delivery details |
 
 ---
 
@@ -23,11 +24,16 @@ flowchart LR
     Backend[Backend Logs] -->|OTLP HTTP| Collector[SigNoz OTEL Collector]
     Collector --> ClickHouse[(ClickHouse)]
     UI[SigNoz UI] --> Collector
+    Collector --> Alerts[SigNoz Alert Rule]
+    Alerts --> Bridge[infra2 platform/12.alerting]
+    Bridge --> Lark[Lark Group]
 ```
 
 **Signal Types**
 - **Logs**: Structured JSON logs emitted by structlog and exported via OTLP.
-- **Traces/Metrics**: Not configured here unless explicitly enabled later.
+- **Traces**: FastAPI, SQLAlchemy, and HTTPX spans are exported when the OTLP endpoint is configured.
+- **Metrics**: Not configured here unless explicitly enabled later.
+- **Alerts**: Backend error logs follow `component -> OTEL -> SigNoz -> Lark`; the app owns the service name and safe runtime contract, while infra2 owns shared SigNoz/Lark automation.
 
 ---
 
@@ -170,14 +176,59 @@ uv run invoke env.set OTEL_RESOURCE_ATTRIBUTES=deployment.environment=staging \
 | Logs export to SigNoz | Set OTEL vars; confirm logs appear in SigNoz UI |
 | Sensitive data excluded | Review log payloads for keys like `password`, `token` |
 | Environment filtering works | Filter by `deployment.environment=production` in SigNoz |
+| App alert readiness is visible | `/health.observability` and startup logs expose service `finance-report-backend`, rule `FinanceReportBackendErrorLogs`, and no collector/webhook URL |
 
-### 7.1 Manual Verification
+### 7.1 Runtime Contract
+
+The backend exposes a redacted observability snapshot through `/health` and emits
+the same fields once at startup with event `Observability runtime configured`.
+This snapshot is for deploy checks and alert triage, not for secret discovery.
+
+Required fields:
+
+| Field | Meaning |
+|-------|---------|
+| `otel_exporter_configured` | Whether OTLP export is configured at runtime |
+| `logs_export_enabled` | Whether structured logs should be exported to SigNoz |
+| `traces_export_enabled` | Whether traces should be exported to SigNoz |
+| `service_name` | OTEL service name; production value is `finance-report-backend` |
+| `deployment_environment` | Effective environment from `deployment.environment` or app environment fallback |
+| `resource_attributes` | Parsed non-secret OTEL resource attributes |
+| `alert_rule_name` | Shared SigNoz rule name, `FinanceReportBackendErrorLogs` |
+| `alert_rule_service_name` | Service matched by the shared rule, `finance-report-backend` |
+| `alerting_pipeline` | Literal app path, `component->otel->signoz->lark` |
+
+Forbidden fields:
+- OTLP collector endpoint URLs
+- SigNoz API keys
+- SigNoz webhook channel URLs
+- Feishu/Lark bot webhook URLs
+- Feishu/Lark app secrets
+
+### 7.2 Alert Rule Contract
+
+Finance Report production uses the shared infra2 rule automation:
+
+```bash
+cd repo
+uv run python -m invoke alerting.shared.ensure-log-error-rule \
+  --alert-name=FinanceReportBackendErrorLogs \
+  --service-name=finance-report-backend
+```
+
+The shared owner for SigNoz channels, bridge deployment, and Lark delivery is
+`repo/docs/ssot/ops.alerting.md`. This application must not duplicate that
+automation; it only declares the service metadata and emits structured logs that
+the shared rule can query.
+
+### 7.3 Manual Verification
 
 1. Open https://signoz.zitian.party
 2. Login with credentials from 1Password
 3. Go to **Logs** tab
 4. Add filter: `deployment.environment = production`
 5. Verify logs from `finance-report-backend` appear
+6. Verify alert rule `FinanceReportBackendErrorLogs` targets service `finance-report-backend`
 
 ---
 

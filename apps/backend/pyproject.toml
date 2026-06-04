@@ -84,6 +84,7 @@ markers = [
     "perf: Performance tests",
     "integration: Backend cross-module integration tests with infrastructure and service boundaries",
     "e2e: End-to-end tests, including backend API scenarios and browser UI flows",
+    "no_db: Pure tests that must not initialize the autouse database fixture",
 ]
 
 # Default: Run all tests except slow/perf/e2e

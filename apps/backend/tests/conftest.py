@@ -198,8 +198,12 @@ async def ensure_database(db_url: str):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_engine(test_database_url):
+async def db_engine(test_database_url, request):
     """Create a test database engine with worker-specific isolation."""
+    if request.node.get_closest_marker("no_db"):
+        yield None
+        return
+
     await ensure_database(test_database_url)
 
     from src.database import Base
@@ -263,6 +267,10 @@ async def patch_database_connection(db_engine):
     This handles tests that manually instantiate the app/client without using
     the client fixture.
     """
+    if db_engine is None:
+        yield
+        return
+
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from src import database

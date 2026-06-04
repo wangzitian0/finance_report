@@ -34,12 +34,14 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 4. Add restart-safe wiring for Vault template updates.
 5. Validate via tests and env consistency check.
 6. Add staging audit replay events for statement upload, async parsing, brokerage import, and reconciliation.
+7. Expose a redacted runtime observability contract for health checks, startup logs, and alert triage.
 
 ### Result
 - Optional OTEL export implemented; local/dev remains stdout-only.
 - Infra templates updated with safe quoting.
 - Production containers restarted successfully.
 - Log ingestion still requires a backend image rebuild.
+- Finance Report app alerting follows `component -> OTEL -> SigNoz -> Lark`; shared SigNoz/Lark automation remains owned by infra2.
 
 ---
 
@@ -48,6 +50,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 - **Backend log shipping** via OTLP HTTP when configured.
 - **Optional by default** in local/dev environments.
 - **Vault-managed configuration** for staging/production.
+- **App-owned runtime contract** for the `FinanceReportBackendErrorLogs` shared alert rule on `finance-report-backend`.
 
 ---
 
@@ -63,7 +66,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 ## 🌟 Nice to Have
 
 - Dashboard or saved view in SigNoz for backend logs.
-- Basic alert on elevated error rates.
+- Additional domain-specific alerts beyond backend error logs.
 
 ---
 
@@ -156,6 +159,15 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.8.3 | Brokerage import and reconciliation emit start/complete/failure audit checkpoints with result counts | `test_AC10_8_3_statement_scoped_brokerage_import_audit_logs()`, `test_AC10_8_3_brokerage_import_audit_checkpoints()`, `test_AC10_8_3_reconciliation_run_audit_checkpoints()` | `api/test_statements_router.py`, `extraction/test_statement_parsing_audit_logging.py`, `reconciliation/test_reconciliation_router_additional.py` | P0 |
 | AC10.8.4 | High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs | `test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level()` | `infra/test_observability_contract.py` | P1 |
 
+### AC10.9: Production Alerting Runtime Contract
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC10.9.1 | Backend exposes a stable redacted observability status with service name, deployment environment, resource attributes, and shared alert metadata, without exposing OTLP endpoint or webhook secrets | `test_AC10_9_1_observability_status_is_redacted_and_alert_ready()` | `infra/test_observability_contract.py` | P0 |
+| AC10.9.2 | Startup logs emit one structured observability runtime event for SigNoz/Lark alert triage | `test_AC10_9_2_observability_startup_log_uses_runtime_contract()` | `infra/test_observability_contract.py` | P0 |
+| AC10.9.3 | `/health` includes the same redacted observability status so deploy checks can prove app-side alert readiness | `test_AC10_9_3_health_response_includes_redacted_observability_status()` | `infra/test_observability_contract.py` | P0 |
+| AC10.9.4 | Finance Report docs declare the app-owned alerting contract while infra2 remains the shared SigNoz/Lark automation owner | `test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline()` | `infra/test_observability_contract.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
@@ -167,12 +179,14 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | Backend starts without SigNoz | Run app with no OTEL vars | ✅ |
 | Logs export to SigNoz | Set OTEL vars, logs visible in UI | ✅ |
 | No sensitive data in logs | Review log payloads | ✅ |
+| App alert path is declared | `component -> OTEL -> SigNoz -> Lark`, rule `FinanceReportBackendErrorLogs`, service `finance-report-backend` | ✅ |
 
 ### 🚫 Not Acceptable
 
 - App fails to start when SigNoz is down.
 - Logs contain secrets or PII.
 - OTEL config is undocumented or not in Vault templates.
+- App health exposes collector URLs, webhook URLs, bot secrets, or SigNoz API keys.
 
 ---
 
