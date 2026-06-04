@@ -241,6 +241,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Dokploy API failures must not print raw response bodies. Shared deploy helpers report only the endpoint, HTTP status, safe message fields, and `raw_body_printed=false`; compose responses can include environment data and refresh tokens.
 - Staging and production deploys verify the effective Dokploy environment with an allowlist-only diff before triggering the rollout. The diff includes only `IMAGE_TAG`, `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`, `ENV_SUFFIX`, and `COMPOSE_PROFILES`; full environment strings and secret-like keys must not be logged.
 - The post-merge workflow appends a GitHub Step Summary after deploy health and AI/OCR finish, making queue time, serial execution time, and slow jobs visible without manually scraping logs.
+- Automatic main post-merge staging failures create or update one persistent GitHub Issue alert titled `[staging-alert] Post-merge staging deploy failing`. Later failures append comments with the target SHA, run URL, staging URL, job results, and current staging SHA; the next successful staging run comments and closes the issue. This is a CI/deploy visibility alert and does not replace SigNoz/Lark runtime alerting.
 
 **Post-merge staging AI/OCR gate** (`.github/workflows/staging-ai-ocr-gate.yml`):
 - Automatic `Staging AI/OCR Gate` execution lives in `.github/workflows/staging-deploy.yml` and starts only after deploy health succeeds in the same serialized post-merge workflow unit.

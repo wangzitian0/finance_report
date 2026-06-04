@@ -541,10 +541,122 @@ jobs:
             ci-context/staging-ai-ocr-context.txt
           retention-days: 14
 
+  staging-deploy-alert:
+    name: Staging Deploy Alert
+    runs-on: ubuntu-latest
+    needs: [classify-staging, build-and-deploy, ai-ocr-gate]
+    if: ${{ always() && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      STAGING_ALERT_TITLE: "[staging-alert] Post-merge staging deploy failing"
+      STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
+      STAGING_APP_URL: https://report-staging.zitian.party
+    steps:
+      - name: Open or resolve staging failure alert
+        run: |
+          set -euo pipefail
+
+          classify_result="${{ needs.classify-staging.result }}"
+          staging_required="${{ needs.classify-staging.outputs.staging_required }}"
+          build_result="${{ needs.build-and-deploy.result }}"
+          ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
+          TARGET_SHA="${{ github.event.workflow_run.head_sha }}"
+          target_short="${TARGET_SHA:0:7}"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [ "$classify_result" = "success" ] && [ "$staging_required" != "true" ]; then
+            echo "No staging alert needed: staging_required=${staging_required}."
+            exit 0
+          fi
+
+          current_response="$(curl -fsS --max-time 15 "$STAGING_HEALTH_URL" || true)"
+          current_staging_sha="$(
+            RESPONSE="$current_response" python - <<'PY'
+          import json
+          import os
+
+          payload = os.environ.get("RESPONSE", "")
+          try:
+              data = json.loads(payload) if payload else {}
+          except json.JSONDecodeError:
+              data = {}
+          print(data.get("git_sha") or data.get("version") or "unknown")
+          PY
+          )"
+
+          issue_number="$(
+            gh issue list \
+              --state open \
+              --search "$STAGING_ALERT_TITLE in:title" \
+              --json number,title \
+              --jq ".[] | select(.title == \"$STAGING_ALERT_TITLE\") | .number" \
+              | head -n 1
+          )"
+
+          failed=false
+          if [ "$classify_result" != "success" ]; then
+            failed=true
+          elif [ "$staging_required" = "true" ] && [ "$build_result" != "success" ]; then
+            failed=true
+          elif [ "$staging_required" = "true" ] && [ "$ai_ocr_result" != "success" ]; then
+            failed=true
+          fi
+
+          if [ "$failed" = "true" ]; then
+            {
+              echo "Staging deploy failed."
+              echo ""
+              echo "- Target SHA: ${TARGET_SHA}"
+              echo "- Target short SHA: ${target_short}"
+              echo "- Run URL: ${run_url}"
+              echo "- App URL: ${STAGING_APP_URL}"
+              echo "- Staging required: ${staging_required:-unknown}"
+              echo "- Classify result: ${classify_result}"
+              echo "- Build/deploy result: ${build_result}"
+              echo "- AI/OCR result: ${ai_ocr_result}"
+              echo "- Current staging SHA: ${current_staging_sha}"
+              echo ""
+              echo "This issue stays open while post-merge staging is failing. Later failures append comments; the next successful post-merge staging run closes it."
+            } > staging-alert.md
+
+            if [ -n "$issue_number" ]; then
+              gh issue comment "$issue_number" --body-file staging-alert.md
+              echo "Updated staging alert issue #${issue_number}."
+            else
+              gh issue create \
+                --title "$STAGING_ALERT_TITLE" \
+                --body-file staging-alert.md
+              echo "Created staging alert issue."
+            fi
+            exit 0
+          fi
+
+          if [ -n "$issue_number" ]; then
+            {
+              echo "Staging deploy recovered."
+              echo ""
+              echo "- Target SHA: ${TARGET_SHA}"
+              echo "- Target short SHA: ${target_short}"
+              echo "- Run URL: ${run_url}"
+              echo "- App URL: ${STAGING_APP_URL}"
+              echo "- Build/deploy result: ${build_result}"
+              echo "- AI/OCR result: ${ai_ocr_result}"
+              echo "- Current staging SHA: ${current_staging_sha}"
+            } > staging-recovery.md
+            gh issue comment "$issue_number" --body-file staging-recovery.md
+            gh issue close "$issue_number" --reason completed
+            echo "Closed recovered staging alert issue #${issue_number}."
+          else
+            echo "No open staging alert issue to close."
+          fi
+
   post-merge-summary:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
-    needs: [classify-staging, build-and-deploy, ai-ocr-gate]
+    needs: [classify-staging, build-and-deploy, ai-ocr-gate, staging-deploy-alert]
     if: ${{ always() }}
     permissions:
       actions: read
