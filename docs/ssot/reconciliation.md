@@ -231,9 +231,9 @@ Activated via `ENABLE_4_LAYER_READ=true`:
 |----------|---------------------|--------|
 | Exact match score > 85 | `test_execute_matching_auto_accepts_exact_match` | ✅ Done |
 | Tolerance match score 60-84 | `test_execute_matching_pending_review_and_unmatched` | ✅ Done |
-| One-to-many match | `test_one_to_many` | ⏳ Pending |
-| Cross-period match | `test_cross_period` | ⏳ Pending |
-| Deterministic accuracy audit harness | `python tools/reconciliation_audit.py --stdout` and `tests/tooling/test_reconciliation_audit.py` | ✅ Initial harness |
+| One-to-many match | `test_execute_matching_multi_entry_combinations` and audit scenario `one-to-many-fee-split` | ✅ Done |
+| Cross-period match | `test_month_end_to_month_start_match` and audit scenario `cross-period` | ✅ Done |
+| Deterministic accuracy audit harness | `python tools/reconciliation_audit.py --stdout` and `tests/tooling/test_reconciliation_audit.py` | ✅ CI hard gate |
 
 ### Accuracy Audit Harness
 
@@ -250,10 +250,11 @@ one-to-many fee splits, and cross-period timing. The command
 
 Reports include accuracy, false-positive, false-negative, review-routing,
 unmatched, per-scenario score breakdown, and deterministic 10,000-transaction
-pair-scoring benchmark metrics. This is the initial proof path for
-[#665](https://github.com/wangzitian0/finance_report/issues/665); it can be
-promoted from manual/post-merge use to CI gating after the dataset and
-performance thresholds stabilize.
+pair-scoring benchmark metrics. The CI `ac-traceability` job treats the harness
+as a hard gate for the `>=95%` accuracy, `<0.5%` false-positive, `<2%`
+false-negative, and `<10s` runtime targets. The golden dataset includes the
+core exact/review/unmatched/group/cross-period paths plus a 100-transaction
+manual false-positive audit.
 
 ---
 

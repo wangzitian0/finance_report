@@ -801,10 +801,10 @@ jobs:
             echo "check_e2e_epic_traceability=$e2e_status"
             echo "check_critical_proof_matrix=$critical_status"
             echo "build_ac_traceability=$audit_status"
-            echo "reconciliation_audit_non_gating=$reconciliation_audit_status"
+            echo "reconciliation_audit_gate=$reconciliation_audit_status"
           } > "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md"
 
-          if [ "$registry_status" -ne 0 ] || [ "$ac_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$critical_status" -ne 0 ] || [ "$audit_status" -ne 0 ]; then
+          if [ "$registry_status" -ne 0 ] || [ "$ac_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$critical_status" -ne 0 ] || [ "$audit_status" -ne 0 ] || [ "$reconciliation_audit_status" -ne 0 ]; then
             exit 1
           fi
 

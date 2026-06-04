@@ -22,6 +22,11 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ARG NEXT_PUBLIC_APP_URL=
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
+# Build fingerprint served as a static file so deploy gates can prove the
+# frontend bundle rolled forward, not only the backend API.
+ARG GIT_COMMIT_SHA=unknown
+RUN printf '{"git_sha":"%s","version":"%s"}\n' "$GIT_COMMIT_SHA" "$GIT_COMMIT_SHA" > public/frontend-version.json
+
 # Build the application
 RUN npm run build
 

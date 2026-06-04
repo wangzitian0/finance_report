@@ -10,7 +10,6 @@ from pathlib import Path
 
 from common.ssot.ac_registry_format import load_registry_entries
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -71,15 +70,17 @@ def test_AC12_25_1_uuid_logging_residual_is_epic_owned() -> None:
 
 
 def test_AC4_8_1_reconciliation_benchmark_residual_is_epic_owned() -> None:
-    """AC4.8.1: Reconciliation benchmark residual is owned by EPIC-004."""
+    """AC4.8.1: Reconciliation benchmark residual closure is owned by EPIC-004."""
     epic = read("docs/project/EPIC-004.reconciliation-engine.md")
     registry = registry_ids("docs/ac_registry.yaml")
 
     assert "AC4.8.1" in epic
     assert "Archive baseline benchmark residual is explicitly owned by EPIC-004" in epic
+    assert "now closed through AC4.10.3" in epic
     assert "100-transaction manual false-positive audit" in epic
     assert "10,000-transaction" in epic
     assert "benchmark evidence" in epic
+    assert "fails CI" in epic
     assert "0.1 USD Threshold**" in epic
     assert "Done (AC4.6.1)" in epic
     assert "tests/tooling/test_archive_residual_epic_ownership.py" in epic

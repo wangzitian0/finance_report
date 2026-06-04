@@ -39,12 +39,15 @@ def test_AC4_10_1_reconciliation_audit_report_schema_and_outputs(tmp_path: Path)
     assert payload["metadata"]["issue"] == "#665"
     assert payload["metadata"]["epic"] == "EPIC-004"
     assert payload["metadata"]["macro_outcome"] == "source-ledger-report-traceability"
-    assert payload["summary"]["total_expectations"] >= 8
+    assert payload["summary"]["total_expectations"] >= 100
     assert "accuracy_pct" in payload["summary"]
     assert "false_positive_rate_pct" in payload["summary"]
+    assert payload["targets"]["passed"] is True
+    assert payload["targets"]["failures"] == []
     assert payload["benchmark"]["benchmark_size"] == 100
     assert payload["benchmark"]["mode"] == "deterministic_pair_scoring"
     assert "# Reconciliation Accuracy Audit" in markdown
+    assert "Target gate passed" in markdown
 
 
 def test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive() -> None:
@@ -79,24 +82,29 @@ def test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive() -> N
 
     assert report["summary"]["failed"] == 1
     assert report["summary"]["false_positive_count"] == 1
+    assert report["targets"]["passed"] is False
+    assert "false_positive_rate" in report["targets"]["failures"]
     assert report["failures"][0]["failure_type"] == "false_positive"
     assert report["failures"][0]["actual_route"] == AUTO_ACCEPT
     assert "false_positive expected" in render_markdown(report)
 
 
-def test_AC4_10_3_ci_uploads_reconciliation_audit_as_non_gating_artifact() -> None:
-    """AC4.10.3: CI publishes reconciliation audit evidence before gating it."""
+def test_AC4_10_3_ci_gates_reconciliation_audit_thresholds() -> None:
+    """AC4.10.3: CI gates reconciliation audit target thresholds."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text()
     ci_cd = (ROOT / "docs/ssot/ci-cd.md").read_text()
+    epic = (ROOT / "docs/project/EPIC-004.reconciliation-engine.md").read_text()
 
     assert "tools/reconciliation_audit.py" in workflow
     assert "reconciliation_audit_status=$?" in workflow
-    assert "reconciliation_audit_non_gating=$reconciliation_audit_status" in workflow
+    assert "reconciliation_audit_gate=$reconciliation_audit_status" in workflow
     assert "${{ runner.temp }}/reconciliation-audit/reconciliation-audit.json" in workflow
     assert "${{ runner.temp }}/reconciliation-audit/reconciliation-audit.md" in workflow
     fail_condition = workflow.split('if [ "$registry_status"', 1)[1].split("exit 1", 1)[0]
-    assert "reconciliation_audit_status" not in fail_condition
-    assert "non-gating EPIC-004 accuracy evidence" in ci_cd
+    assert "reconciliation_audit_status" in fail_condition
+    assert "non-gating EPIC-004 accuracy evidence" not in ci_cd
+    assert "hard gate" in ci_cd
+    assert "10,000-transaction runtime targets" in epic
 
 
 def test_AC4_10_1_reconciliation_audit_tool_wrapper_delegates_to_backend_service() -> None:

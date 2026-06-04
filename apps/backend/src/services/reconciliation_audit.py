@@ -250,7 +250,7 @@ def build_golden_scenarios() -> list[AuditScenario]:
         direction="OUT",
     )
 
-    return [
+    core_scenarios = [
         AuditScenario(
             scenario_id="exact-auto-accept",
             title="Exact salary match auto-accepts",
@@ -320,6 +320,52 @@ def build_golden_scenarios() -> list[AuditScenario]:
             expectations=(AuditExpectation("cross_period_bill", AUTO_ACCEPT, (str(cross_period.id),)),),
         ),
     ]
+
+    return core_scenarios + _build_false_positive_audit_scenarios(user_id, bank, expense)
+
+
+def _build_false_positive_audit_scenarios(
+    user_id: UUID,
+    bank: Account,
+    expense: Account,
+    count: int = 100,
+) -> list[AuditScenario]:
+    """Build unmatched decoy scenarios for the manual false-positive audit."""
+    scenarios: list[AuditScenario] = []
+    for index in range(count):
+        txn_ref = f"false_positive_decoy_{index:03d}"
+        entry_ref = f"false_positive_decoy_entry_{index:03d}"
+        txn_amount = Decimal("37.11") + Decimal(index % 13)
+        entry_amount = txn_amount + Decimal("900.00")
+        txn_date = date(2024, 6, 1) + timedelta(days=index % 28)
+        decoy_entry = _entry(
+            user_id,
+            entry_ref,
+            txn_date,
+            f"Different vendor invoice {index:03d}",
+            str(entry_amount),
+            bank_account=bank,
+            other_account=expense,
+            direction="OUT",
+        )
+        scenarios.append(
+            AuditScenario(
+                scenario_id=f"manual-false-positive-audit-{index:03d}",
+                title="Decoy transaction must remain unmatched",
+                transactions=(
+                    _txn(
+                        txn_ref,
+                        txn_date,
+                        f"Coffee shop card purchase {index:03d}",
+                        str(txn_amount),
+                        "OUT",
+                    ),
+                ),
+                entries=(decoy_entry,),
+                expectations=(AuditExpectation(txn_ref, UNMATCHED),),
+            )
+        )
+    return scenarios
 
 
 def _route_for_score(score: int, config: ReconciliationConfig) -> str:
@@ -483,6 +529,22 @@ def build_report(
     expected_matchable = [row for row in scenario_rows if row["expected_route"] in {AUTO_ACCEPT, REVIEW}]
     false_positives = [row for row in failures if row["failure_type"] in {"false_positive", "wrong_entry"}]
     false_negatives = [row for row in failures if row["failure_type"] == "false_negative"]
+    accuracy_pct = round((passed / total) * 100, 2) if total else 100.0
+    false_positive_rate_pct = round((len(false_positives) / max(len(actual_auto), 1)) * 100, 2)
+    false_negative_rate_pct = round((len(false_negatives) / max(len(expected_matchable), 1)) * 100, 2)
+    benchmark = _run_benchmark(config, benchmark_size)
+    target_accuracy_pct = 95.0
+    target_false_positive_rate_pct = 0.5
+    target_false_negative_rate_pct = 2.0
+    target_failures = []
+    if accuracy_pct < target_accuracy_pct:
+        target_failures.append("accuracy")
+    if false_positive_rate_pct > target_false_positive_rate_pct:
+        target_failures.append("false_positive_rate")
+    if false_negative_rate_pct > target_false_negative_rate_pct:
+        target_failures.append("false_negative_rate")
+    if not benchmark["target_met"]:
+        target_failures.append("runtime")
 
     return {
         "metadata": {
@@ -494,24 +556,28 @@ def build_report(
         "thresholds": {
             "auto_accept": config.auto_accept,
             "pending_review": config.pending_review,
-            "target_accuracy_pct": 95.0,
-            "target_false_positive_rate_pct": 0.5,
-            "target_false_negative_rate_pct": 2.0,
+            "target_accuracy_pct": target_accuracy_pct,
+            "target_false_positive_rate_pct": target_false_positive_rate_pct,
+            "target_false_negative_rate_pct": target_false_negative_rate_pct,
         },
         "summary": {
             "total_expectations": total,
             "passed": passed,
             "failed": len(failures),
-            "accuracy_pct": round((passed / total) * 100, 2) if total else 100.0,
+            "accuracy_pct": accuracy_pct,
             "false_positive_count": len(false_positives),
-            "false_positive_rate_pct": round((len(false_positives) / max(len(actual_auto), 1)) * 100, 2),
+            "false_positive_rate_pct": false_positive_rate_pct,
             "false_negative_count": len(false_negatives),
-            "false_negative_rate_pct": round((len(false_negatives) / max(len(expected_matchable), 1)) * 100, 2),
+            "false_negative_rate_pct": false_negative_rate_pct,
             "review_routing_miss_count": sum(
                 1 for row in failures if row["expected_route"] == REVIEW and row["failure_type"] == "routing_miss"
             ),
         },
-        "benchmark": _run_benchmark(config, benchmark_size),
+        "targets": {
+            "passed": not target_failures,
+            "failures": target_failures,
+        },
+        "benchmark": benchmark,
         "scenarios": scenario_rows,
         "failures": failures,
     }
@@ -541,6 +607,7 @@ def render_markdown(report: dict) -> str:
         f"| False positive rate | {summary['false_positive_rate_pct']}% |",
         f"| False negatives | {summary['false_negative_count']} |",
         f"| False negative rate | {summary['false_negative_rate_pct']}% |",
+        f"| Target gate passed | {report['targets']['passed']} |",
         "",
         "## Benchmark",
         "",
@@ -606,4 +673,4 @@ def main(argv: list[str] | None = None) -> int:
     write_report(report, args.output_dir)
     if args.stdout:
         print(render_markdown(report), end="")
-    return 0 if not report["failures"] and report["benchmark"]["target_met"] else 1
+    return 0 if report["targets"]["passed"] else 1
