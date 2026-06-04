@@ -366,6 +366,12 @@ workflow state exists.
 | AC19.6.6 | Workflow event action links and workspace route labels continue to deep-link into advanced review/reconciliation/processing/report destinations | `workflowSurfaces.test.tsx`, `sidebarAndTabs.test.tsx` | P0 |
 | AC19.6.7 | Desktop and mobile Playwright smoke covers the folded navigation and Advanced access without horizontal overflow | `workflow-navigation.spec.ts` | P0 |
 
+### AC19.7 — Framework-Aware Evidence Readiness
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.7.1 | Report readiness must evaluate framework-specific evidence blockers from EPIC-020, including missing settlement coverage, unresolved review, stale market data, missing valuation basis, and AI-only unreviewed policy suggestions before marking US/HK personal reports trusted | `test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers` | P0 |
+
 ## How To Build It
 
 ### Backend

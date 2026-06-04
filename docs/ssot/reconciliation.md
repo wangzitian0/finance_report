@@ -10,7 +10,7 @@
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Matching Algorithm** | `apps/backend/src/services/reconciliation.py` | Core logic |
-| **Scoring Config** | `apps/backend/config/reconciliation.yaml` | Weight parameters |
+| **Scoring Config** | `apps/backend/config/reconciliation.yaml`, `apps/backend/src/services/reconciliation.py` (`DEFAULT_CONFIG`, `load_reconciliation_config`) | Weight, threshold, and tolerance parameters |
 | **Model Definition** | `apps/backend/src/models/reconciliation.py` | ORM |
 
 ---
@@ -21,15 +21,19 @@
 
 ### <a id="thresholds"></a>Reconciliation Thresholds
 
+Runtime threshold values are code/config-owned. The default values live in
+`apps/backend/src/services/reconciliation.py` (`DEFAULT_CONFIG`) and are loaded
+from `apps/backend/config/reconciliation.yaml` when present. Environment
+overrides are applied by `load_reconciliation_config()`:
+`RECONCILIATION_AUTO_ACCEPT_THRESHOLD` and `RECONCILIATION_REVIEW_THRESHOLD`.
+This section explains the default routing semantics; update the config/code and
+tests first when changing values.
+
 | Score Range | Action | Status Transition |
 |-------------|--------|-------------------|
 | ≥ 85 | Auto-Accept | `pending` → `auto_accepted` |
 | 60–84 | Review Queue | `pending` → `pending_review` |
 | < 60 | Unmatched | stays `pending` |
-
-> **SSOT**: This table is the single authoritative definition of reconciliation score thresholds.
-> All other files that mention these thresholds should reference this section:
-> `See: docs/ssot/reconciliation.md#thresholds`
 
 ### Reconciliation Flow
 

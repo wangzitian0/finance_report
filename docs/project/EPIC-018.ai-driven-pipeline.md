@@ -80,6 +80,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | EPIC-013 (Statement Parsing V2) | Builds on V2's confidence scoring framework |
 | EPIC-016 (Two-Stage Review) | **Complementary** — AI automates what it can, EPIC-016 handles human review for what AI can't confidently classify |
 | EPIC-017 (Portfolio) | Independent — no direct dependency |
+| EPIC-020 (Framework-aware reporting) | AI may suggest measurement/disclosure evidence, but EPIC-020 owns deterministic policy and trusted report boundaries |
 
 ---
 
@@ -268,6 +269,12 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.4.2 | 4 | `ReportSnapshot` (Layer 4) generated and queryable via API |
 | AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback |
 | AC18.4.4 | 4 | Income statements include applied Layer 3 classification coverage |
+
+### AC18.6: Framework Measurement and Disclosure Suggestions
+
+| AC ID | Phase | Description |
+|-------|-------|-------------|
+| AC18.6.1 | Framework reporting | AI-generated measurement or disclosure suggestions for US/HK personal report packages must remain structured, source-anchored, confidence-scored, and reviewed before EPIC-020 or EPIC-005 can treat them as trusted report inputs |
 
 ---
 

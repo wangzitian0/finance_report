@@ -326,7 +326,7 @@ async def _create_manual_snapshot(
 async def test_personal_financial_report_package_post_merge_journey(
     authenticated_page_unique: Page,
 ) -> None:
-    """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
+    """EPIC-005 EPIC-008 EPIC-011 EPIC-017 EPIC-020.
 
     AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC5.13.4 AC5.13.5
     AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3 AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2

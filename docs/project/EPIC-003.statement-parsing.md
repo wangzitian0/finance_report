@@ -18,6 +18,13 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 
 - `source-ledger-report-traceability`
 
+## Framework Boundary
+
+EPIC-003 owns source capture. It extracts settlement, statement, PDF, and CSV
+facts with source metadata, period boundaries, currencies, balances, and raw
+line anchors needed by downstream evidence checks. It does not decide US-like
+or HK-like report classification, measurement, presentation, or disclosure.
+
 ---
 
 ## 👥 Multi-Role Review
@@ -200,6 +207,12 @@ Upload → Free LLM (NVIDIA, etc) → JSON → Validation → BankStatementTrans
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC3.9.1 | Parsing cases that fail audit are recorded in an SSOT registry without expanding deterministic parser scope or committing real documents | `test_AC3_9_1_extraction_failed_case_registry_preserves_audit_cases_without_parser_expansion` | `tests/tooling/test_extraction_failed_case_registry.py` | P0 |
+
+### AC3.10: Settlement Evidence Capture Boundary
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC3.10.1 | Statement parsing owns fact-forward settlement evidence capture and must preserve source metadata needed by framework readiness while leaving US/HK policy decisions to EPIC-020 | `test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
 ## 📏 Acceptance Criteria
 

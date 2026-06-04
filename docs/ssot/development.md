@@ -96,6 +96,8 @@ wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -l
 
 ---
 
+<a id="moon-commands"></a>
+
 ## Moon Commands (Primary Interface)
 
 ```bash
@@ -174,6 +176,8 @@ Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/
 2. **Isolation**: Creates `finance_report_test` database and runs migrations.
 3. **Teardown**: Stops the database container after tests complete.
 4. **Signal Handling**: Catches `SIGINT`/`SIGTERM` to clean up on interruption.
+
+<a id="local-test-isolation"></a>
 
 ### Local Test Isolation (Namespace-Based)
 

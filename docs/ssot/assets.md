@@ -238,6 +238,8 @@ CREATE TABLE investment_lots (
 | `ACTIVE` | Currently held position |
 | `DISPOSED` | Position closed or quantity went to zero |
 
+<a id="manual-valuation-snapshots"></a>
+
 ### ManualValuationSnapshot (Layer 3)
 
 ```sql
