@@ -110,8 +110,8 @@ jobs:
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
 
-  deploy:
-    name: Deploy Test Environment
+  build-preview-backend-image:
+    name: Build Backend PR Preview Image
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: setup
     runs-on: ubuntu-latest
@@ -120,7 +120,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -148,6 +147,32 @@ jobs:
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
 
+  build-preview-frontend-image:
+    name: Build Frontend PR Preview Image
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    needs: setup
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push Frontend PR preview image
         uses: docker/build-push-action@v5
         with:
@@ -160,6 +185,20 @@ jobs:
             GIT_COMMIT_SHA=${{ github.sha }}
             NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
             NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+
+  deploy:
+    name: Deploy Test Environment
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    needs: [setup, build-preview-backend-image, build-preview-frontend-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Deploy preview lifecycle
         id: deploy

@@ -581,7 +581,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "lightweight-docs-or-docs-workflow-only" in classifier
     assert "pr-preview-paths-changed" in classifier
     assert "no-pr-preview-paths-changed" in classifier
-    assert "needs: [changes]" in workflow
+    assert "needs: [changes, lint, ac-traceability]" in workflow
     assert "if: needs.changes.outputs.heavy_required == 'true'" in workflow
     assert "pr_preview_required: ${{ steps.preview.outputs.pr_preview_required }}" in pr_workflow
     assert "name: Classify PR preview relevance" in pr_workflow
@@ -846,7 +846,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
 
     assert "container-images:" in ci_workflow
     assert "name: Build Staging Images" in ci_workflow
-    assert "needs: [changes]" in ci_workflow
+    assert "needs: [changes, lint, ac-traceability]" in ci_workflow
     assert "needs.changes.outputs.heavy_required == 'true'" in ci_workflow
     assert "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in ci_workflow
     assert "packages: write" in ci_workflow
@@ -915,34 +915,35 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     frontend_dockerfile = read("apps/frontend/Dockerfile")
     frontend_version_route = read("apps/frontend/src/app/frontend-version.json/route.ts")
 
+    backend_build_block = workflow.split("  build-preview-backend-image:", 1)[1].split("  build-preview-frontend-image:", 1)[0]
+    frontend_build_block = workflow.split("  build-preview-frontend-image:", 1)[1].split("  deploy:", 1)[0]
     deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
     cleanup_block = workflow.split("  cleanup:", 1)[1]
     frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
-    assert "PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}" in deploy_block
-    assert "packages: write" in deploy_block
-    assert "Log in to Container registry" in deploy_block
-    assert "docker/login-action@v3" in deploy_block
-    assert "Set up Docker Buildx" in deploy_block
-    assert "Build and push Backend PR preview image" in deploy_block
-    assert "Build and push Frontend PR preview image" in deploy_block
-    assert deploy_block.index(
-        "Build and push Backend PR preview image"
-    ) < deploy_block.index("Deploy preview lifecycle")
-    assert deploy_block.index(
-        "Build and push Frontend PR preview image"
-    ) < deploy_block.index("Deploy preview lifecycle")
-    assert "push: true" in deploy_block
-    assert "cache-to: type=gha,mode=max,ignore-error=true" in deploy_block
-    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}" in deploy_block
+    assert "needs: setup" in backend_build_block
+    assert "needs: setup" in frontend_build_block
+    assert "needs: [setup, build-preview-backend-image, build-preview-frontend-image]" in deploy_block
+    assert "PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}" in backend_build_block
+    assert "PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}" in frontend_build_block
+    for build_block in (backend_build_block, frontend_build_block):
+        assert "packages: write" in build_block
+        assert "Log in to Container registry" in build_block
+        assert "docker/login-action@v3" in build_block
+        assert "Set up Docker Buildx" in build_block
+        assert "push: true" in build_block
+        assert "cache-to: type=gha,mode=max,ignore-error=true" in build_block
+    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}" in backend_build_block
     assert (
-        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}" in deploy_block
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}" in frontend_build_block
     )
-    assert "GIT_COMMIT_SHA=${{ github.sha }}" in deploy_block
+    assert "GIT_COMMIT_SHA=${{ github.sha }}" in backend_build_block
+    assert "GIT_COMMIT_SHA=${{ github.sha }}" in frontend_build_block
     assert (
         "NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}"
-        in deploy_block
+        in frontend_build_block
     )
+    assert "docker/build-push-action@v5" not in deploy_block
     assert "ARG GIT_COMMIT_SHA=unknown" in frontend_dockerfile
     assert "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" in frontend_dockerfile
     assert "process.env.GIT_COMMIT_SHA" in frontend_version_route
@@ -971,7 +972,7 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in cleanup_block
     assert 'startswith(\\"${TAG_PREFIX}\\")' in cleanup_block
     assert (
-        "PR preview deploy builds and pushes commit-scoped PR backend and frontend images before invoking Dokploy"
+        "PR preview deploy builds and pushes commit-scoped PR backend and frontend images in parallel jobs before invoking Dokploy"
         in ci_cd
     )
     assert "readiness waits for both `/api/health` and `/frontend-version.json?expected=<sha>`" in ci_cd
@@ -1016,20 +1017,20 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
     assert "issue #548" in project_readme
 
 
-def test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint() -> None:
-    """AC8.13.25: Independent CI jobs start without waiting for lint."""
+def test_AC8_13_25_full_ci_waits_for_static_and_traceability_gates() -> None:
+    """AC8.13.25: Full CI waits for static and traceability gates."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     backend_block = workflow.split("  backend:", 1)[1].split("  frontend:", 1)[0]
     traceability_block = workflow.split("  ac-traceability:", 1)[1].split("  finish:", 1)[0]
 
-    assert "needs: [changes]" in backend_block
-    assert "needs: [changes, lint]" not in backend_block
+    assert "needs: [changes, lint, ac-traceability]" in backend_block
     assert "needs: [changes, backend-integration, backend-e2e-tier1, lint]" not in backend_block
     assert "needs: [lint]" not in traceability_block
+    assert "needs:" not in traceability_block.split("steps:", 1)[0]
     assert "Standalone lint and AC traceability start immediately" in ci_cd
-    assert "without waiting for behavior-only backend gates" in ci_cd
+    assert "Full CI jobs wait for change classification, lint, and AC traceability" in ci_cd
 
 
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
@@ -1044,14 +1045,14 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     traceability_block = workflow.split("  ac-traceability:", 1)[1].split("  finish:", 1)[0]
 
     for block in (backend_block, frontend_block, image_block):
-        assert "needs: [changes]" in block
+        assert "needs: [changes, lint, ac-traceability]" in block
         assert "backend-integration" not in block.split("steps:", 1)[0]
         assert "backend-e2e-tier1" not in block.split("steps:", 1)[0]
 
     assert "needs:" not in lint_block.split("steps:", 1)[0]
     assert "needs:" not in traceability_block.split("steps:", 1)[0]
     assert "Standalone gates start immediately" in ci_cd
-    assert "Changes-dependent fast feedback jobs start after `changes` only" in ci_cd
+    assert "Full CI jobs wait for change classification, lint, and AC traceability" in ci_cd
     assert "Behavior-only backend gates run in parallel" in ci_cd
 
 
