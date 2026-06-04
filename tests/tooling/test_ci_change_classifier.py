@@ -109,6 +109,25 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert is_pr_preview_relevant("apps/frontend/package-lock.json") is True
     assert is_pr_preview_relevant("tests/e2e/test_core_journeys.py") is True
     assert is_pr_preview_relevant("docker-compose.yml") is True
+    assert is_pr_preview_relevant("tools/generate_pdf_fixtures.py") is True
+    assert (
+        is_pr_preview_relevant(
+            "tools/_lib/pdf_fixtures/generators/dbs_generator.py"
+        )
+        is True
+    )
+    assert (
+        is_pr_preview_relevant("tools/_lib/pdf_fixtures/templates/dbs_template.yaml")
+        is True
+    )
+    assert is_pr_preview_relevant("tools/_lib/pdf_fixtures/README.md") is False
+    assert (
+        is_pr_preview_relevant("tools/_lib/pdf_fixtures/FONT_HANDLING.md") is False
+    )
+    assert (
+        is_pr_preview_relevant("tools/_lib/pdf_fixtures/analyzers/README.md")
+        is False
+    )
     assert is_pr_preview_relevant("apps/backend/tests/reporting/test_reports.py") is False
     assert is_pr_preview_relevant("apps/backend/README.md") is False
     assert is_pr_preview_relevant("apps/frontend/src/lib/api.test.ts") is False
@@ -150,6 +169,28 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert app_test_or_doc_result.staging_required is False
 
 
+def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
+    """AC8.13.20: PDF fixture MkDocs/doc entrypoint changes do not deploy previews."""
+    result = classify_changed_paths(
+        [
+            "docs/ssot/pdf-fixtures.md",
+            "mkdocs.yml",
+            "tools/_lib/pdf_fixtures/README.md",
+            "tools/_lib/pdf_fixtures/FONT_HANDLING.md",
+            "tools/_lib/pdf_fixtures/analyzers/README.md",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py",
+        ]
+    )
+
+    assert result.heavy_required is True
+    assert result.pr_preview_required is False
+    assert result.pr_preview_files == ()
+    assert result.pr_preview_reason == "no-pr-preview-paths-changed"
+    assert result.staging_required is False
+    assert result.staging_files == ()
+    assert result.staging_reason == "no-staging-paths-changed"
+
+
 def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None:
     """AC8.13.55: Staging deploys are scoped to paths that can change deploy risk."""
     for path in (
@@ -169,8 +210,10 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "tools/dokploy_deploy.sh",
         "tools/health_check.sh",
         "tools/smoke_test.sh",
+        "tools/generate_pdf_fixtures.py",
         "tools/check_ghcr_image_tag.sh",
-        "tools/_lib/pdf_fixtures/generate_pdf_fixtures.py",
+        "tools/_lib/pdf_fixtures/generators/dbs_generator.py",
+        "tools/_lib/pdf_fixtures/templates/dbs_template.yaml",
         "toolchain.toml",
         ".python-version",
         ".node-version",
@@ -190,6 +233,9 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "common/ssot/check_ssot_ownership.py",
         "common/ssot/build_ac_traceability.py",
         "tests/tooling/test_check_ssot_ownership.py",
+        "tools/_lib/pdf_fixtures/README.md",
+        "tools/_lib/pdf_fixtures/FONT_HANDLING.md",
+        "tools/_lib/pdf_fixtures/analyzers/README.md",
         ".github/workflows/docs.yml",
         ".github/workflows/production-release.yml",
     ):
