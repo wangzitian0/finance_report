@@ -200,7 +200,7 @@ _MARKET_VALUE_BY_CURRENCY = {
 
 PORTFOLIO_AUDIT_FIXTURE = PortfolioAuditFixture(
     period_start=date(2026, 1, 1),
-    period_end=date(2026, 1, 2),
+    period_end=date(2026, 1, 31),
     source_bases=frozenset(
         {"moomoo_margin_history", "moomoo_statement", "futu_statement"}
     ),

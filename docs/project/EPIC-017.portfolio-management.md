@@ -221,8 +221,8 @@ redacted, and Decimal-safe.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.12.1 | Portfolio audit fixture contract covers multi-broker, multi-currency expected positions for Moomoo statement, Moomoo margin history, and Futu statement sources | `test_AC17_12_1_portfolio_fixture_contract_covers_multi_broker_multi_currency_inputs` | `tests/tooling/test_portfolio_audit_fixture_contract.py` | P0 |
-| AC17.12.2 | Portfolio audit fixture contract pins sanitized trade, dividend, fee, and valuation activity rows and parser support for Moomoo margin history rows | `test_AC17_12_2_portfolio_fixture_pins_activity_rows_without_raw_documents`, `test_AC17_12_2_parse_moomoo_margin_history_rows_as_equity_position_snapshot` | `tests/tooling/test_portfolio_audit_fixture_contract.py`, `portfolio/test_brokerage_position_parsing.py` | P0 |
+| AC17.12.1 | Portfolio audit fixture contract covers multi-broker, multi-currency expected positions and a report period that contains every activity row for Moomoo statement, Moomoo margin history, and Futu statement sources | `test_AC17_12_1_portfolio_fixture_contract_covers_multi_broker_multi_currency_inputs` | `tests/tooling/test_portfolio_audit_fixture_contract.py` | P0 |
+| AC17.12.2 | Portfolio audit fixture contract pins sanitized trade, dividend, fee, and valuation activity rows, derives expected totals from fixture rows and positions, and covers parser support for Moomoo margin history rows | `test_AC17_12_2_portfolio_fixture_pins_activity_rows_without_raw_documents`, `test_AC17_12_2_parse_moomoo_margin_history_rows_as_equity_position_snapshot` | `tests/tooling/test_portfolio_audit_fixture_contract.py`, `portfolio/test_brokerage_position_parsing.py` | P0 |
 | AC17.12.3 | Personal report package fixture consumes expanded portfolio expected outputs instead of keeping one-position brokerage constants inline | `test_AC17_12_3_personal_package_references_expanded_portfolio_fixture_contract` | `tests/tooling/test_portfolio_audit_fixture_contract.py` | P0 |
 
 ### Brokerage PDF to Asset Report Proof Matrix

@@ -108,14 +108,8 @@ sync with ACs and tests.
 
 ## Known Documentation Debt
 
-- Move code-owned SSOT facts into common/generated contracts:
-  [#453](https://github.com/wangzitian0/finance_report/issues/453)
-- Convert manual-verification ACs into automated tests or explicit manual gates:
-  [#454](https://github.com/wangzitian0/finance_report/issues/454)
-- Generate README EPIC status from registries and test reports:
-  [#455](https://github.com/wangzitian0/finance_report/issues/455)
-- Fix AC-to-EPIC mismatch and invalid test references:
-  [#456](https://github.com/wangzitian0/finance_report/issues/456)
+Use the root README documentation-debt list for active issue links and
+[AUDITS.md](./AUDITS.md) for audit history.
 
 ## Related
 
