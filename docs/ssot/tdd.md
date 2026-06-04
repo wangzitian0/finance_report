@@ -198,7 +198,7 @@ mechanically validated matrices.
 
 ## Related
 
-- [Root README](../../README.md)
+- [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md)
 - [Coverage SSOT](./coverage.md)
 - [CI/CD SSOT](./ci-cd.md)
 - `python tools/analyze_test_ac_coverage.py --no-write --stdout`

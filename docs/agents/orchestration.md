@@ -54,7 +54,7 @@ Use this cascade **before processing any task**:
 - **Closed-Loop Changes**: Code change → Update SSOT → Verify → Update README
 
 ### 4. Result (Verification)
-- **Self-Check**: Compare against project goals in [vision.md](../../vision.md)
+- **Self-Check**: Compare against project goals in [Project Vision](../target.md)
 - **Engineering Audit**:
   - [ ] **MECE Task Frame**: Are task slices non-overlapping, complete for the stated goal, and clear about dependencies and out-of-scope work?
   - [ ] **Submodule Sync**: Did I update `infra2` for config changes?

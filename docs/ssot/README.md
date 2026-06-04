@@ -78,7 +78,7 @@ contracts is tracked in
 |---|---|
 | [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Bidirectional README -> EPIC -> E2E macro outcome contract |
 | `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
-| [../../unified-coverage.json](../../unified-coverage.json) | Current committed coverage baseline |
+| [unified-coverage.json](https://github.com/wangzitian0/finance_report/blob/main/unified-coverage.json) | Current committed coverage baseline |
 
 ## Known Gaps
 
@@ -93,6 +93,6 @@ contracts is tracked in
 
 ## Related
 
-- [Root README](../../README.md) — project fact entry point
-- [Project vision](../../vision.md) — decision filter and long-term direction
+- [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md) — project fact entry point
+- [Project vision](../target.md) — decision filter and long-term direction
 - [Project EPIC index](../project/README.md)

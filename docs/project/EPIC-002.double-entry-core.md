@@ -384,8 +384,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 - [../user-guide/accounts.md](../user-guide/accounts.md) — account-management user guide.
 - [../user-guide/journal-entries.md](../user-guide/journal-entries.md) — journal-entry user guide.
-- [../reference/api-accounts.md](../reference/api-accounts.md) — accounts API reference.
-- [../reference/api-journal.md](../reference/api-journal.md) — journal API reference.
+- [../reference/api.md](../reference/api.md) — generated accounts and journal API reference.
 
 ---
 

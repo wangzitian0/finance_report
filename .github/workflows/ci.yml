@@ -106,6 +106,10 @@ jobs:
       - name: Doc Consistency Check
         run: |
           uv run --with pyyaml python tools/lint_doc_consistency.py
+      - name: Generated API Reference Check
+        run: |
+          cd apps/backend
+          uv run python ../../tools/generate_api_reference.py --check
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose

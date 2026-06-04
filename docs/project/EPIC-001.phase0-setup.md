@@ -180,11 +180,11 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../../README.md](../../README.md) — root project entry point.
+- [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md) — root project entry point.
 - [../index.md](../index.md) — documentation site navigation.
 - [../user-guide/getting-started.md](../user-guide/getting-started.md) — first-use guide and onboarding route.
-- [../../apps/backend/README.md](../../apps/backend/README.md) — backend module entry point.
-- [../../apps/frontend/README.md](../../apps/frontend/README.md) — frontend module entry point.
+- [Backend README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/README.md) — backend module entry point.
+- [Frontend README](https://github.com/wangzitian0/finance_report/blob/main/apps/frontend/README.md) — frontend module entry point.
 - [../reference/api-overview.md](../reference/api-overview.md) — API conventions and auth entry point.
 - [../ssot/auth.md](../ssot/auth.md) — authentication architecture rationale.
 - [../ssot/frontend-patterns.md](../ssot/frontend-patterns.md) — frontend integration and API-client patterns.

@@ -22,7 +22,7 @@
 
 ## 2. Trust Hierarchy
 
-Defined in [vision.md](../../vision.md) Decision 6.
+Defined in [Project Vision](../target.md), under "Manual Data Is Explicitly Trusted".
 
 | Priority | Source Type | Trust Level | Description |
 |----------|-------------|-------------|-------------|

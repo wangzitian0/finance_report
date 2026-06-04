@@ -1,209 +1,57 @@
 # API Overview
 
-Finance Report provides a RESTful API built with FastAPI. All endpoints are documented with OpenAPI (Swagger).
+Finance Report exposes a FastAPI REST API. The runtime OpenAPI document is the
+authoritative API contract.
 
-## Base URL
+## Published References
 
-```
+| Reference | Source | Use |
+|---|---|---|
+| [Swagger UI](https://report.zitian.party/api/docs) | Runtime OpenAPI | Field-level request/response details |
+| [ReDoc](https://report.zitian.party/api/redoc) | Runtime OpenAPI | Long-form runtime API browsing |
+| [Generated API Reference](api.md) | `python tools/generate_api_reference.py` | Static endpoint inventory for GitHub Pages |
+
+The production base URL is:
+
+```text
 https://report.zitian.party/api
 ```
 
-## Interactive Documentation
+## Contract Ownership
 
-- **Swagger UI**: [/api/docs](https://report.zitian.party/api/docs)
-- **ReDoc**: [/api/redoc](https://report.zitian.party/api/redoc)
+Endpoint paths, methods, parameters, request bodies, response schemas, and enum
+values are owned by FastAPI OpenAPI and backend schema code. Static Markdown
+must not hand-copy those mutable facts.
+
+Use these owners instead:
+
+| Contract | Owner |
+|---|---|
+| API shape | FastAPI OpenAPI and backend Pydantic schemas |
+| Static endpoint inventory | [Generated API Reference](api.md) |
+| Auth flow and token policy | [Auth SSOT](../ssot/auth.md) |
+| Monetary precision rule | [Accounting SSOT](../ssot/accounting.md#decimal-rule) |
+| Database enum naming rule | [Schema SSOT](../ssot/schema.md#enum-naming) |
 
 ## Authentication
 
-Finance Report uses JWT bearer authentication. See
-[Auth SSOT](../ssot/auth.md) for the current contract.
+Authenticated endpoints use JWT bearer auth. Get a token from the login endpoint
+shown in the generated reference, then send it as:
 
 ```bash
-curl -X POST /api/auth/login \
-  -d '{"email": "user@example.com", "password": "secret"}'
+curl -H "Authorization: Bearer <token>" https://report.zitian.party/api/accounts
 ```
 
-Response:
-```json
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "token_type": "bearer"
-}
-```
+## Local Generation
 
-Use the token in subsequent requests:
-```bash
-curl -H "Authorization: Bearer <token>" /api/accounts
-```
-
-## Response Format
-
-All responses follow a consistent format:
-
-### Success Response
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "Checking Account",
-  "type": "ASSET",
-  "created_at": "2026-01-10T12:00:00Z"
-}
-```
-
-### List Response
-
-```json
-{
-  "items": [...],
-  "total": 100,
-  "page": 1,
-  "per_page": 20
-}
-```
-
-### Error Response
-
-```json
-{
-  "detail": "Account not found",
-  "status_code": 404
-}
-```
-
-## HTTP Status Codes
-
-| Code | Description |
-|------|-------------|
-| `200` | Success |
-| `201` | Created |
-| `204` | No Content (delete) |
-| `400` | Bad Request |
-| `401` | Unauthorized |
-| `404` | Not Found |
-| `422` | Validation Error |
-| `500` | Server Error |
-
-## Common Parameters
-
-### Pagination
+Regenerate the static endpoint inventory after backend API changes:
 
 ```bash
-GET /api/accounts?page=1&per_page=20
+PYTHONPATH=apps/backend python tools/generate_api_reference.py
 ```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | integer | 1 | Page number |
-| `per_page` | integer | 20 | Items per page (max: 100) |
-
-### Filtering
+Check that the committed page is current:
 
 ```bash
-GET /api/journal-entries?status=posted&start_date=2026-01-01
+PYTHONPATH=apps/backend python tools/generate_api_reference.py --check
 ```
-
-### Sorting
-
-```bash
-GET /api/accounts?sort=name&order=asc
-```
-
-## Data Types
-
-### UUID
-
-All IDs are UUID v4:
-```
-550e8400-e29b-41d4-a716-446655440000
-```
-
-### Dates
-
-ISO 8601 format:
-```
-2026-01-10              # Date only
-2026-01-10T12:30:00Z    # With time (UTC)
-```
-
-### Monetary Values
-
-Decimal strings with 2 decimal places:
-```json
-{
-  "amount": "1234.56",
-  "currency": "USD"
-}
-```
-
-!!! warning "Use Strings"
-    Always use strings for monetary values to preserve precision.
-
-### Enums
-
-| Field | Values |
-|-------|--------|
-| `account_type` | ASSET, LIABILITY, EQUITY, INCOME, EXPENSE |
-| `direction` | DEBIT, CREDIT |
-| `entry_status` | draft, posted, void |
-| `source_type` | manual, import, system, reconciliation |
-| `match_status` | pending, auto_accepted, pending_review, accepted, rejected, superseded |
-
-## Rate Limiting
-
-!!! info "Current Limits"
-    Rate limiting is not currently enforced but may be added in the future.
-
-Expected limits:
-- 100 requests per minute per IP
-- 1000 requests per hour per user
-
-## Versioning
-
-The API is currently v1. Version is not included in the URL path.
-
-Future versions will use:
-```
-/api/v2/accounts
-```
-
-## Endpoints Summary
-
-### Core Resources
-
-| Resource | Endpoint | Description |
-|----------|----------|-------------|
-| **Health** | `GET /api/health` | API health check |
-| **Accounts** | `/api/accounts` | [Account management](api-accounts.md) |
-| **Journal Entries** | `/api/journal-entries` | [Transaction recording](api-journal.md) |
-| **Reconciliation** | `/api/reconciliation` | [Bank matching](api-reconciliation.md) |
-| **Statements** | `/api/statements` | Statement upload & parsing |
-| **Reports** | `/api/reports` | Financial reports |
-| **AI Advisor** | `/api/chat` | Conversational financial advisor |
-
-### Health Check
-
-```bash
-curl https://report.zitian.party/api/health
-```
-
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-01-10T17:52:32.225721+00:00"
-}
-```
-
-## SDK & Libraries
-
-Official SDKs are planned for:
-
-- Python
-- TypeScript/JavaScript
-- Go
-
-## Next Steps
-
-- [Accounts API](api-accounts.md)
-- [Journal Entries API](api-journal.md)
-- [Reconciliation API](api-reconciliation.md)

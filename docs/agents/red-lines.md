@@ -64,7 +64,7 @@ These concepts are **owned** by this document in the SSOT manifest:
 - `security_red_lines` → `docs/agents/red-lines.md`
 
 Cross-referenced by:
-- [AGENTS.md](../../AGENTS.md)
+- [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
 - [docs/ssot/accounting.md](../ssot/accounting.md)
 - [docs/ssot/schema.md](../ssot/schema.md)
 - [docs/ssot/reconciliation.md](../ssot/reconciliation.md)

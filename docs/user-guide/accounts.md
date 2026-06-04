@@ -187,4 +187,4 @@ curl -X POST https://report.zitian.party/api/accounts \
 
 - [Create journal entries](journal-entries.md) to record transactions
 - [Import bank statements](reconciliation.md) for automatic matching
-- [View API reference](../reference/api-accounts.md) for advanced operations
+- [View API reference](../reference/api.md) for advanced operations

@@ -43,8 +43,8 @@ hand-maintained project checklist.
 
 | Fact | Owner |
 |---|---|
-| PDF fixture CLI usage and generated-output policy | [../../tools/_lib/pdf_fixtures/README.md](../../tools/_lib/pdf_fixtures/README.md) |
-| Font fallback behavior | [../../tools/_lib/pdf_fixtures/FONT_HANDLING.md](../../tools/_lib/pdf_fixtures/FONT_HANDLING.md) |
+| PDF fixture CLI usage and generated-output policy | [PDF fixture README](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/README.md) |
+| Font fallback behavior | [PDF fixture font handling](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/FONT_HANDLING.md) |
 | Analyzer and template extraction behavior | `tools/_lib/pdf_fixtures/analyzers/`, `tools/analyze_pdf_fixture.py` |
 | Generator, validator, and fake-data behavior | `tools/_lib/pdf_fixtures/`, `tools/generate_pdf_fixtures.py` |
 | Parseability, date-format, balance, and template contracts | `tests/tooling/test_pdf_fixture_*.py` |
@@ -140,5 +140,5 @@ hand-maintained project checklist.
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../../tools/_lib/pdf_fixtures/README.md](../../tools/_lib/pdf_fixtures/README.md) — PDF fixture tool usage.
-- [../../tools/_lib/pdf_fixtures/FONT_HANDLING.md](../../tools/_lib/pdf_fixtures/FONT_HANDLING.md) — fixture font fallback behavior.
+- [PDF fixture README](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/README.md) — PDF fixture tool usage.
+- [PDF fixture font handling](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/FONT_HANDLING.md) — fixture font fallback behavior.

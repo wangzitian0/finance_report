@@ -29,10 +29,14 @@ Hard-fail checks enforced in CI:
      environment gates.
   8. Every test file without an ``ACx.y.z`` reference MUST be listed in
      docs/analysis/traceability-exceptions.md.
-  9. Product E2E test files MUST NOT be listed as traceability exceptions;
+ 9. Product E2E test files MUST NOT be listed as traceability exceptions;
      attach AC IDs to the test or remove the obsolete file instead.
- 10. Mutable backend coverage threshold numbers MUST be owned by
+10. Mutable backend coverage threshold numbers MUST be owned by
      apps/backend/pyproject.toml instead of copied into TDD SSOT prose.
+ 11. Checked-in Markdown under docs/ MUST be reachable from the MkDocs
+     navigation.
+ 12. Module README files MUST stay as thin pointers to SSOT owners instead of
+     duplicating API routes, page inventories, fixtures, or mapping tables.
 
 The script exits 0 on success and 1 on any violation.
 
@@ -77,6 +81,7 @@ INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 CI_CD_SSOT = REPO_ROOT / "docs" / "ssot" / "ci-cd.md"
 TDD_SSOT = REPO_ROOT / "docs" / "ssot" / "tdd.md"
 TRACEABILITY_EXCEPTIONS = REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
+MKDOCS_CONFIG = REPO_ROOT / "mkdocs.yml"
 
 TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
@@ -201,6 +206,34 @@ PROOF_PLACEMENT_REQUIRED_TOKENS = (
     "Environment-dependent checks",
     "post-merge staging/production workflows",
     "must not be the first proof for deterministic business behavior",
+)
+
+MKDOCS_REQUIRED_STATIC_DOCS = {
+    "docs/agents/orchestration.md",
+    "docs/agents/red-lines.md",
+    "docs/contributing/branch-policy.md",
+    "docs/project/README.md",
+    "docs/project/AUDITS.md",
+    "docs/project/AC-AUDIT-2026-05-04.md",
+    "docs/project/DECISIONS.md",
+    "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
+    "docs/reference/api-overview.md",
+    "docs/reference/api.md",
+}
+
+THIN_README_LIMITS = {
+    "apps/backend/README.md": 35,
+    "apps/frontend/README.md": 35,
+    "apps/backend/tests/README.md": 35,
+}
+
+THIN_README_FORBIDDEN_HEADINGS = (
+    "## API Endpoints",
+    "## Key Pages",
+    "## Architecture",
+    "## SSOT",
+    "## Fixtures",
+    "## Directory Structure",
 )
 
 MARKDOWN_CODE_SPAN_PATTERN = re.compile(r"`([^`]+)`")
@@ -645,6 +678,91 @@ def _display_path(path: Path) -> str:
         return str(path)
 
 
+def collect_mkdocs_nav_docs(mkdocs_path: Path = MKDOCS_CONFIG) -> set[str]:
+    """Return repository-relative Markdown paths referenced by MkDocs nav."""
+    text = mkdocs_path.read_text(encoding="utf-8")
+    refs = re.findall(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.md)", text)
+    docs: set[str] = set()
+    for ref in refs:
+        if ref.startswith("docs/"):
+            docs.add(ref)
+        else:
+            docs.add(f"docs/{ref}")
+    return docs
+
+
+def _required_mkdocs_nav_docs() -> set[str]:
+    docs = {
+        _display_path(path)
+        for path in (REPO_ROOT / "docs").rglob("*.md")
+        if path.is_file()
+    }
+    docs.update(MKDOCS_REQUIRED_STATIC_DOCS)
+    return docs
+
+
+def check_mkdocs_nav_coverage(
+    mkdocs_path: Path = MKDOCS_CONFIG,
+) -> list[Violation]:
+    """Check #11: checked-in docs are reachable from MkDocs."""
+    if not mkdocs_path.exists():
+        return [
+            Violation(
+                check="check11_mkdocs_nav_coverage",
+                message=f"{_display_path(mkdocs_path)}: missing MkDocs config",
+            )
+        ]
+
+    nav_docs = collect_mkdocs_nav_docs(mkdocs_path)
+    required = _required_mkdocs_nav_docs()
+    violations: list[Violation] = []
+    for doc in sorted(required - nav_docs):
+        violations.append(
+            Violation(
+                check="check11_mkdocs_nav_coverage",
+                message=f"{doc}: required public doc is missing from mkdocs.yml nav",
+            )
+        )
+    return violations
+
+
+def check_module_readmes_are_thin() -> list[Violation]:
+    """Check #12: module READMEs point to SSOT instead of duplicating facts."""
+    violations: list[Violation] = []
+    forbidden_headings = set(THIN_README_FORBIDDEN_HEADINGS)
+    for rel_path, max_lines in THIN_README_LIMITS.items():
+        path = REPO_ROOT / rel_path
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            violations.append(
+                Violation(
+                    check="check12_module_readmes_are_thin",
+                    message=f"{rel_path}: cannot read README ({exc})",
+                )
+            )
+            continue
+        line_count = len(text.splitlines())
+        if line_count > max_lines:
+            violations.append(
+                Violation(
+                    check="check12_module_readmes_are_thin",
+                    message=f"{rel_path}: {line_count} lines exceeds {max_lines}",
+                )
+            )
+        headings = {
+            line.strip() for line in text.splitlines() if line.startswith("## ")
+        }
+        for heading in sorted(headings & forbidden_headings):
+            violations.append(
+                Violation(
+                    check="check12_module_readmes_are_thin",
+                    message=f"{rel_path}: duplicates SSOT-style section {heading!r}",
+                )
+            )
+    return violations
+
+
 def check_proof_placement_policy(ci_cd_path: Path | None = None) -> list[Violation]:
     """Check #7: CI/CD SSOT defines pre-merge vs post-merge proof placement."""
     if ci_cd_path is None:
@@ -725,6 +843,8 @@ def main() -> int:
     violations.extend(check_no_ac_test_exceptions())
     violations.extend(check_no_e2e_product_test_exceptions())
     violations.extend(check_code_owned_coverage_threshold_doc())
+    violations.extend(check_mkdocs_nav_coverage())
+    violations.extend(check_module_readmes_are_thin())
 
     if args.verbose or violations:
         print("=" * 72)

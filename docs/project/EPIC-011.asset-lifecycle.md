@@ -216,7 +216,7 @@ lists; it must be represented by one of these owners:
 
 ## 🆕 UI Gap Audit (April 2026) — Annualized Income & ESOP Surfacing
 
-**Origin**: UI gap audit against [vision.md](../../vision.md) (annualized salary, ESOP/RSU vesting, restricted-asset visibility). Backend asset lifecycle is complete but the dashboard does not surface annualized income or ESOP/restricted holdings; user has no view of "earnings power vs. liquid wealth".
+**Origin**: UI gap audit against [Project Vision](../target.md) (annualized salary, ESOP/RSU vesting, restricted-asset visibility). Backend asset lifecycle is complete but the dashboard does not surface annualized income or ESOP/restricted holdings; user has no view of "earnings power vs. liquid wealth".
 
 ### Acceptance Criteria
 

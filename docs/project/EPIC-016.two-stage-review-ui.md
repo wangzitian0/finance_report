@@ -453,7 +453,7 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current review U
 
 ## 🆕 UI Gap Audit (April 2026) — Stage 1 Refactor, Inline Edit, Conflict Resolution & Mobile Nav
 
-**Origin**: UI gap audit against [vision.md](../../vision.md) (two-stage review must be production-grade). Stage 1 page is monolithic, has no inline edit, no conflict resolution UI, no mobile navigation. These block real-user adoption of the review flow.
+**Origin**: UI gap audit against [Project Vision](../target.md) decision 4 (two-stage review must be production-grade). Stage 1 page is monolithic, has no inline edit, no conflict resolution UI, no mobile navigation. These block real-user adoption of the review flow.
 
 ### Acceptance Criteria — Feature (group 23)
 

@@ -27,6 +27,53 @@ def test_AC16_25_1_playwright_specs_are_traceability_test_roots() -> None:
     )
 
 
+def test_mkdocs_nav_coverage_passes_for_public_docs() -> None:
+    """Public SSOT, governance, API, and active EPIC docs are MkDocs-reachable."""
+    assert ldc.check_mkdocs_nav_coverage() == []
+
+
+def test_mkdocs_nav_coverage_reports_missing_required_doc(tmp_path) -> None:
+    mkdocs = tmp_path / "mkdocs.yml"
+    mkdocs.write_text(
+        """
+nav:
+  - Home: index.md
+  - Technical Docs:
+      - Architecture: ssot/README.md
+""",
+        encoding="utf-8",
+    )
+
+    violations = ldc.check_mkdocs_nav_coverage(mkdocs)
+
+    assert violations
+    assert any("docs/reference/api.md" in violation.message for violation in violations)
+
+
+def test_module_readmes_are_thin_passes_for_repo() -> None:
+    """Module README files remain pointers to SSOT owners."""
+    assert ldc.check_module_readmes_are_thin() == []
+
+
+def test_module_readmes_are_thin_reports_duplicate_sections(tmp_path) -> None:
+    readme = tmp_path / "module" / "README.md"
+    readme.parent.mkdir()
+    readme.write_text(
+        "# Module\n\n## API Endpoints\n\n| Method | Path |\n|---|---|\n",
+        encoding="utf-8",
+    )
+
+    with (
+        mock.patch.object(ldc, "REPO_ROOT", tmp_path),
+        mock.patch.object(ldc, "THIN_README_LIMITS", {"module/README.md": 4}),
+    ):
+        violations = ldc.check_module_readmes_are_thin()
+
+    assert len(violations) == 2
+    assert any("exceeds 4" in violation.message for violation in violations)
+    assert any("## API Endpoints" in violation.message for violation in violations)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
@@ -570,7 +617,9 @@ class TestCheckRegistryToEpic:
 
 
 class TestCoverageThresholdDocs:
-    def test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number(self, tmp_path):
+    def test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number(
+        self, tmp_path
+    ):
         """AC8.13.81: Coverage threshold docs should link to the code owner."""
         doc = tmp_path / "tdd.md"
         doc.write_text(
@@ -581,10 +630,15 @@ class TestCoverageThresholdDocs:
 
         assert ldc.check_code_owned_coverage_threshold_doc(doc) == []
 
-    def test_AC8_13_81_doc_fails_when_backend_threshold_number_is_copied(self, tmp_path):
+    def test_AC8_13_81_doc_fails_when_backend_threshold_number_is_copied(
+        self, tmp_path
+    ):
         """AC8.13.81: Mutable backend coverage percentages should not be copied."""
         doc = tmp_path / "tdd.md"
-        doc.write_text("Backend pytest keeps a 90% local source-coverage threshold.\n", encoding="utf-8")
+        doc.write_text(
+            "Backend pytest keeps a 90% local source-coverage threshold.\n",
+            encoding="utf-8",
+        )
 
         violations = ldc.check_code_owned_coverage_threshold_doc(doc)
 
@@ -755,6 +809,19 @@ class TestMain:
         tests = tmp_path / "apps" / "backend" / "tests"
         tests.mkdir(parents=True)
         (tests / "test_setup.py").write_text("# AC1.1.1\n")
+        (tmp_path / "apps" / "backend" / "README.md").write_text(
+            "# Backend\n\n## SSOT Links\n\n- docs\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "apps" / "frontend").mkdir(parents=True)
+        (tmp_path / "apps" / "frontend" / "README.md").write_text(
+            "# Frontend\n\n## SSOT Links\n\n- docs\n",
+            encoding="utf-8",
+        )
+        (tests / "README.md").write_text(
+            "# Backend Tests\n\n## SSOT Links\n\n- docs\n",
+            encoding="utf-8",
+        )
 
         return vision, epic_dir, epic_file, reg, infra, tests
 

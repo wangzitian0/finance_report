@@ -7,7 +7,7 @@ Welcome to the **Finance Report** documentation — your comprehensive guide to 
 Read the North Star goals and decision criteria before deep technical work:
 
 - [Project Vision](target.md)
-- [Project status and EPIC proof summary](../README.md)
+- [Project status and EPIC proof summary](https://github.com/wangzitian0/finance_report/blob/main/README.md)
 
 ## 📖 Documentation Guide
 
@@ -91,7 +91,7 @@ New to Finance Report? Follow these steps:
 
 ## 🌟 Key Features
 
-Feature status and proof live in the root [README](../README.md) and EPIC
+Feature status and proof live in the root [README](https://github.com/wangzitian0/finance_report/blob/main/README.md) and EPIC
 documents. This page only provides navigation:
 
 | Feature | Entry point |
@@ -120,11 +120,9 @@ Step-by-step guides for end users:
 ### API Reference
 Complete REST API documentation:
 
-- [API Overview](reference/api-overview.md) — Authentication and common patterns
-- [Accounts API](reference/api-accounts.md) — Account management endpoints
-- [Journal Entries API](reference/api-journal.md) — Transaction recording endpoints
-- [Reconciliation API](reference/api-reconciliation.md) — Bank reconciliation endpoints
-- [AI Advisor API](reference/api-chat.md) — Chat and insights endpoints
+- [API Overview](reference/api-overview.md) — Authentication and API contract ownership
+- [Generated API Reference](reference/api.md) — OpenAPI-derived endpoint inventory
+- [Runtime Swagger UI](https://report.zitian.party/api/docs) — Full field-level contract
 
 ### Technical Documentation (SSOT)
 Rationale docs with links to code owners, generated contracts, and proof tests:

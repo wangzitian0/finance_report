@@ -408,7 +408,7 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 ## 🆕 UI Gap Audit (April 2026) — Net Worth Time Series
 
-**Origin**: UI gap audit against [vision.md](../../vision.md) North Star ("总资产、月度盈亏、长期趋势"). Current dashboard shows point-in-time balance sheet only; no historical net-worth chart.
+**Origin**: UI gap audit against [Project Vision](../target.md) North Star ("总资产、月度盈亏、长期趋势"). Current dashboard shows point-in-time balance sheet only; no historical net-worth chart.
 
 ### Acceptance Criteria
 

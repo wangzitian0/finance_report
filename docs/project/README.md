@@ -9,7 +9,7 @@ The project hierarchy is:
 README.md -> docs/project/EPIC-*.md -> generated AC indexes -> tests
 ```
 
-Use the root [README](../../README.md) for stable project entry points and proof
+Use the root [README](https://github.com/wangzitian0/finance_report/blob/main/README.md) for stable project entry points and proof
 commands. GitHub issue state, generated coverage numbers, and
 other live values should not be duplicated by hand in this directory index.
 
@@ -85,24 +85,24 @@ sync with ACs and tests.
 
 | Documentation surface | Owner EPIC | Role |
 |---|---|---|
-| [../../README.md](../../README.md) | Root project entry point | Status/proof summary generated or validated from registries and reports |
-| [../../vision.md](../../vision.md) and [../target.md](../target.md) | Vision layer | Decision filter, not implementation status |
+| [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md) | Root project entry point | Status/proof summary generated or validated from registries and reports |
+| [Project vision](../target.md) | Vision layer | Decision filter, not implementation status |
 | [../index.md](../index.md) | EPIC-001 | Documentation site navigation |
 | [../user-guide/getting-started.md](../user-guide/getting-started.md) | EPIC-001 | First-use guide and onboarding route |
-| [../../apps/backend/README.md](../../apps/backend/README.md) | EPIC-001 | Backend module entry point |
-| [../../apps/frontend/README.md](../../apps/frontend/README.md) | EPIC-001 | Frontend module entry point |
-| [../../apps/backend/tests/README.md](../../apps/backend/tests/README.md) | EPIC-008 / EPIC-014 | Test-suite navigation and domain mapping |
+| [Backend README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/README.md) | EPIC-001 | Backend module entry point |
+| [Frontend README](https://github.com/wangzitian0/finance_report/blob/main/apps/frontend/README.md) | EPIC-001 | Frontend module entry point |
+| [Backend tests README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/tests/README.md) | EPIC-008 / EPIC-014 | Test-suite navigation and domain mapping |
 | [../agents/orchestration.md](../agents/orchestration.md), [../agents/red-lines.md](../agents/red-lines.md), and [../contributing/branch-policy.md](../contributing/branch-policy.md) | EPIC-014 | Agent and contributor workflow governance |
-| [../../.github/copilot-instructions.md](../../.github/copilot-instructions.md), [../../.github/instructions/frontend.instructions.md](../../.github/instructions/frontend.instructions.md), [../../.github/instructions/python.instructions.md](../../.github/instructions/python.instructions.md), and [../../.github/pull_request_template.md](../../.github/pull_request_template.md) | EPIC-014 | GitHub contributor and assistant workflow surfaces |
+| [Copilot instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/copilot-instructions.md), [frontend instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/instructions/frontend.instructions.md), [Python instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/instructions/python.instructions.md), and [PR template](https://github.com/wangzitian0/finance_report/blob/main/.github/pull_request_template.md) | EPIC-014 | GitHub contributor and assistant workflow surfaces |
 | [../ssot/README.md](../ssot/README.md) and [../ssot/*.md](../ssot/README.md) | SSOT manifest + related EPICs | Rationale, code-owner links, and proof references |
-| [../user-guide/accounts.md](../user-guide/accounts.md) and [../reference/api-accounts.md](../reference/api-accounts.md) | EPIC-002 | Account user/API surface |
-| [../user-guide/journal-entries.md](../user-guide/journal-entries.md) and [../reference/api-journal.md](../reference/api-journal.md) | EPIC-002 | Journal user/API surface |
+| [../user-guide/accounts.md](../user-guide/accounts.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Account user/API surface |
+| [../user-guide/journal-entries.md](../user-guide/journal-entries.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Journal user/API surface |
 | [../user-guide/reconciliation.md](../user-guide/reconciliation.md) | EPIC-003 / EPIC-004 | Upload, parsing, matching, and review user flow |
-| [../reference/api-reconciliation.md](../reference/api-reconciliation.md) | EPIC-004 | Reconciliation API surface |
+| [../reference/api.md](../reference/api.md) | EPIC-004 | Reconciliation API surface |
 | [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface |
-| [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api-chat.md](../reference/api-chat.md) | EPIC-006 | AI advisor user/API surface |
+| [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 | AI advisor user/API surface |
 | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
-| [../../tools/_lib/pdf_fixtures/README.md](../../tools/_lib/pdf_fixtures/README.md) and [../../tools/_lib/pdf_fixtures/FONT_HANDLING.md](../../tools/_lib/pdf_fixtures/FONT_HANDLING.md) | EPIC-009 | PDF fixture tool documentation |
+| [PDF fixture README](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/README.md) and [PDF fixture font handling](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/FONT_HANDLING.md) | EPIC-009 | PDF fixture tool documentation |
 | [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |
 | [DECISIONS.md](./DECISIONS.md) and [DECISIONS_ZH.md](./DECISIONS_ZH.md) | EPIC-014 | Project decision logs |
 
@@ -119,6 +119,6 @@ sync with ACs and tests.
 
 ## Related
 
-- [Project vision](../../vision.md)
+- [Project vision](../target.md)
 - [SSOT index](../ssot/README.md)
 - [Agent orchestration](../agents/orchestration.md)

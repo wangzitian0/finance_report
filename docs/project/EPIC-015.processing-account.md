@@ -316,7 +316,7 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 
 ## 🆕 UI Gap Audit (April 2026) — Processing Account Visibility
 
-**Origin**: UI gap audit against [vision.md](../../vision.md) (in-flight transfers must be visible). Backend processing-account flow is complete but the dashboard does not show pending in-transit balance, so users cannot see "money on the road".
+**Origin**: UI gap audit against [Project Vision](../target.md) decision 5 (in-flight transfers must be visible). Backend processing-account flow is complete but the dashboard does not show pending in-transit balance, so users cannot see "money on the road".
 
 ### Acceptance Criteria
 
