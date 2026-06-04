@@ -325,21 +325,32 @@ def _position_domain_and_instrument(position: AtomicPosition) -> tuple[PolicyFac
 
 
 def _manual_domain_and_instrument(snapshot: ManualValuationSnapshot) -> tuple[PolicyFactDomain, str]:
-    restricted_components = {
-        ManualValuationComponentType.ESOP,
-        ManualValuationComponentType.RSU,
-        ManualValuationComponentType.STOCK_OPTIONS,
+    restricted_component_instruments = {
+        ManualValuationComponentType.ESOP: "esop",
+        ManualValuationComponentType.RSU: "rsu",
+        ManualValuationComponentType.STOCK_OPTIONS: "stock_option",
     }
-    liability_components = {
-        ManualValuationComponentType.MORTGAGE_BALANCE,
-        ManualValuationComponentType.TAX_PAYABLE,
-        ManualValuationComponentType.OTHER_LIABILITY,
+    liability_component_instruments = {
+        ManualValuationComponentType.MORTGAGE_BALANCE: "mortgage_liability",
+        ManualValuationComponentType.TAX_PAYABLE: "payable",
+        ManualValuationComponentType.OTHER_LIABILITY: "loan",
     }
-    if snapshot.component_type in restricted_components:
-        return PolicyFactDomain.RESTRICTED_COMPENSATION, snapshot.component_type.value
-    if snapshot.component_type in liability_components:
-        return PolicyFactDomain.LIABILITY, snapshot.component_type.value
-    return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, snapshot.component_type.value
+    manual_asset_component_instruments = {
+        ManualValuationComponentType.PROPERTY_VALUE: "property",
+        ManualValuationComponentType.CPF_BALANCE: "manual_asset",
+        ManualValuationComponentType.LONG_TERM_SAVINGS: "manual_asset",
+        ManualValuationComponentType.TAX_REFUND: "manual_asset",
+        ManualValuationComponentType.INSURANCE_CASH_VALUE: "manual_asset",
+        ManualValuationComponentType.OTHER_ASSET: "manual_asset",
+    }
+    if snapshot.component_type in restricted_component_instruments:
+        return PolicyFactDomain.RESTRICTED_COMPENSATION, restricted_component_instruments[snapshot.component_type]
+    if snapshot.component_type in liability_component_instruments:
+        return PolicyFactDomain.LIABILITY, liability_component_instruments[snapshot.component_type]
+    return (
+        PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE,
+        manual_asset_component_instruments.get(snapshot.component_type, "manual_asset"),
+    )
 
 
 def _account_domain_and_instrument(account: Account) -> tuple[PolicyFactDomain, str] | None:
