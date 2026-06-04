@@ -8,13 +8,17 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.account import Account, AccountType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import (
+    CostBasisMethod,
+    ManagedPosition,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
+    PositionStatus,
 )
-from src.models.portfolio import MarketDataOverride, PriceSource
+from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.user import User
 from src.routers.reports import (
     personal_report_package_contract,
@@ -30,7 +34,12 @@ from src.schemas.reporting import (
     PolicyProvenance,
     PolicyReviewState,
 )
-from src.services.framework_policy import _manual_domain_and_instrument, _position_domain_and_instrument
+from src.services.framework_policy import (
+    _account_domain_and_instrument,
+    _manual_domain_and_instrument,
+    _position_domain_and_instrument,
+    framework_policy_facts_for_user,
+)
 from src.services.report_readiness import framework_policy_readiness_blockers
 
 
@@ -288,6 +297,124 @@ def test_AC20_5_1_atomic_position_asset_types_map_to_policy_domains() -> None:
     for asset_type, expected_domain, expected_instrument in fixtures:
         position = SimpleNamespace(asset_type=asset_type)
         assert _position_domain_and_instrument(position) == (expected_domain, expected_instrument)
+
+
+def test_AC20_5_1_ledger_account_types_map_to_policy_domains() -> None:
+    """AC20.5.1: Ledger accounts map to framework-neutral facts or stay out of policy derivation."""
+    fixtures = [
+        (AccountType.ASSET, (PolicyFactDomain.CASH, "bank_account")),
+        (AccountType.LIABILITY, (PolicyFactDomain.LIABILITY, "loan")),
+        (AccountType.INCOME, (PolicyFactDomain.DIVIDEND_INTEREST, "interest")),
+        (AccountType.EXPENSE, None),
+        (AccountType.EQUITY, None),
+    ]
+
+    for account_type, expected in fixtures:
+        account = SimpleNamespace(type=account_type)
+        assert _account_domain_and_instrument(account) == expected
+
+
+@pytest.mark.asyncio
+async def test_AC20_5_1_framework_facts_include_ledger_manual_position_and_dividend_sources(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC20.5.1: Policy facts derive from canonical sources with latest-source deduplication."""
+    report_date = date(2026, 5, 31)
+    account = Account(user_id=test_user.id, name="Framework Cash", type=AccountType.ASSET, currency="SGD")
+    expense_account = Account(user_id=test_user.id, name="Framework Expense", type=AccountType.EXPENSE, currency="SGD")
+    investment_account = Account(
+        user_id=test_user.id,
+        name="Framework Investment",
+        type=AccountType.ASSET,
+        currency="SGD",
+        is_system=True,
+    )
+    db.add_all([account, expense_account, investment_account])
+    await db.flush()
+
+    managed_position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=investment_account.id,
+        asset_identifier="DIVFACT",
+        quantity=Decimal("1"),
+        cost_basis=Decimal("10.00"),
+        currency="SGD",
+        acquisition_date=report_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    db.add(managed_position)
+    await db.flush()
+
+    latest_position = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=report_date,
+        asset_identifier="DEDUP",
+        broker="Framework Broker",
+        quantity=Decimal("2"),
+        market_value=Decimal("20.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"framework-position-latest-{uuid4()}",
+        source_documents={},
+    )
+    older_position = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date(2026, 4, 30),
+        asset_identifier="DEDUP",
+        broker="Framework Broker",
+        quantity=Decimal("1"),
+        market_value=Decimal("10.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"framework-position-older-{uuid4()}",
+        source_documents={},
+    )
+    latest_manual = ManualValuationSnapshot(
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.OTHER_ASSET,
+        liquidity_class=ManualValuationLiquidityClass.LIQUID,
+        as_of_date=report_date,
+        value=Decimal("120.00"),
+        currency="SGD",
+        source="Other asset schedule",
+    )
+    older_manual = ManualValuationSnapshot(
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.OTHER_ASSET,
+        liquidity_class=ManualValuationLiquidityClass.LIQUID,
+        as_of_date=date(2026, 4, 30),
+        value=Decimal("100.00"),
+        currency="SGD",
+        source="Other asset schedule",
+    )
+    dividend = DividendIncome(
+        user_id=test_user.id,
+        position_id=managed_position.id,
+        payment_date=report_date,
+        amount=Decimal("3.50"),
+        currency="SGD",
+    )
+    db.add_all([latest_position, older_position, latest_manual, older_manual, dividend])
+    await db.flush()
+
+    facts = await framework_policy_facts_for_user(
+        db,
+        test_user.id,
+        report_period_start=date(2026, 5, 1),
+        report_period_end=report_date,
+        as_of_date=report_date,
+    )
+
+    fact_ids = {fact.fact_id for fact in facts}
+    assert f"account:{account.id}" in fact_ids
+    assert f"account:{expense_account.id}" not in fact_ids
+    assert f"atomic_position:{latest_position.id}" in fact_ids
+    assert f"atomic_position:{older_position.id}" not in fact_ids
+    assert f"manual_valuation_snapshot:{latest_manual.id}" in fact_ids
+    assert f"manual_valuation_snapshot:{older_manual.id}" not in fact_ids
+    assert f"dividend_income:{dividend.id}" in fact_ids
 
 
 def test_AC19_7_1_framework_policy_helper_emits_all_evidence_blocker_codes() -> None:
