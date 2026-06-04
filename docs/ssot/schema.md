@@ -17,6 +17,8 @@
 
 ---
 
+<a id="er-model"></a>
+
 ## 2. ER Model
 
 ```mermaid

@@ -1,10 +1,11 @@
 """Tests for tools/check_manifest.py.
 
-Covers all four checks:
+Covers all five checks:
   0. Per-concept schema validation (concept value must be a mapping/dict)
   1. No duplicate owners (same file#anchor)
   2. Owner files must exist on disk
   3. Cross-ref files must exist on disk
+  4. Owner and cross-ref anchors must exist in referenced Markdown files
 
 Also covers main() and helper functions.
 """
@@ -288,6 +289,72 @@ class TestCheckCrossrefFilesExist:
 
 
 # ---------------------------------------------------------------------------
+# Tests: check_anchor_refs_exist
+# ---------------------------------------------------------------------------
+
+
+class TestCheckAnchorRefsExist:
+    def test_AC14_1_9_manifest_anchor_refs_must_exist(self, tmp_path: Path) -> None:
+        """AC14.1.9: Manifest owner and cross-ref anchors must exist."""
+        ssot = tmp_path / "docs" / "ssot"
+        ssot.mkdir(parents=True)
+        (ssot / "accounting.md").write_text(
+            "# Accounting\n\n<a id=\"decimal-rule\"></a>\n\n## Entry Balance\n",
+            encoding="utf-8",
+        )
+
+        concepts = _make_concepts(
+            decimal={"owner": "docs/ssot/accounting.md#decimal-rule"},
+            entry={"owner": "docs/ssot/accounting.md#entry-balance"},
+        )
+
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            assert cm.check_anchor_refs_exist(concepts) == []
+
+    def test_missing_owner_anchor_fails(self, tmp_path: Path) -> None:
+        ssot = tmp_path / "docs" / "ssot"
+        ssot.mkdir(parents=True)
+        (ssot / "schema.md").write_text("# Schema\n", encoding="utf-8")
+        concepts = _make_concepts(enum={"owner": "docs/ssot/schema.md#enum-naming"})
+
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_anchor_refs_exist(concepts)
+
+        assert len(violations) == 1
+        assert violations[0].check == "check4_anchor_exists"
+        assert "enum-naming" in violations[0].message
+
+    def test_missing_crossref_anchor_fails(self, tmp_path: Path) -> None:
+        doc = tmp_path / "docs" / "guide.md"
+        doc.parent.mkdir(parents=True)
+        doc.write_text("# Guide\n", encoding="utf-8")
+        concepts = _make_concepts(
+            guide={
+                "owner": "docs/guide.md",
+                "cross_refs": ["docs/guide.md#missing-section"],
+            }
+        )
+
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_anchor_refs_exist(concepts)
+
+        assert len(violations) == 1
+        assert "cross_ref anchor" in violations[0].message
+
+    def test_missing_anchor_file_is_left_to_file_existence_check(
+        self, tmp_path: Path
+    ) -> None:
+        concepts = _make_concepts(
+            missing={"owner": "docs/ssot/missing.md#section"},
+        )
+
+        with mock.patch.object(cm, "REPO_ROOT", tmp_path):
+            violations = cm.check_anchor_refs_exist(concepts)
+
+        assert violations == []
+
+
+# ---------------------------------------------------------------------------
 # Tests: _file_part helper
 # ---------------------------------------------------------------------------
 
@@ -336,8 +403,8 @@ class TestMain:
         # Create a real file to satisfy existence checks
         ssot_dir = tmp_path / "docs" / "ssot"
         ssot_dir.mkdir(parents=True)
-        (ssot_dir / "foo.md").write_text("content")
-        (ssot_dir / "bar.md").write_text("content")
+        (ssot_dir / "foo.md").write_text("## Section A\n")
+        (ssot_dir / "bar.md").write_text("## Section B\n")
 
         manifest = tmp_path / "MANIFEST.yaml"
         manifest.write_text(
@@ -358,6 +425,32 @@ class TestMain:
         ):
             result = cm.main()
         assert result == 0
+
+    def test_valid_manifest_verbose_prints_success(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        ssot_dir = tmp_path / "docs" / "ssot"
+        ssot_dir.mkdir(parents=True)
+        (ssot_dir / "foo.md").write_text("# Foo\n", encoding="utf-8")
+        manifest = tmp_path / "MANIFEST.yaml"
+        manifest.write_text(
+            "concepts:\n"
+            "  concept_a:\n"
+            "    owner: docs/ssot/foo.md#foo\n"
+            "    description: test\n",
+            encoding="utf-8",
+        )
+
+        with (
+            mock.patch("sys.argv", ["check_manifest.py", "--verbose"]),
+            mock.patch.object(cm, "MANIFEST_PATH", manifest),
+            mock.patch.object(cm, "REPO_ROOT", tmp_path),
+        ):
+            result = cm.main()
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "OK: manifest check passed." in captured.out
 
     def test_manifest_violation_exits_1(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

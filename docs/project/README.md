@@ -104,7 +104,7 @@ sync with ACs and tests.
 | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
 | [../ssot/pdf-fixtures.md](../ssot/pdf-fixtures.md) | EPIC-009 | PDF fixture command, template, local-input, and font policy |
 | [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |
-| [DECISIONS.md](./DECISIONS.md) and [DECISIONS_ZH.md](./DECISIONS_ZH.md) | EPIC-014 | Project decision logs |
+| [DECISIONS.md](./DECISIONS.md) | EPIC-014 | Project decision log |
 
 ## Known Documentation Debt
 

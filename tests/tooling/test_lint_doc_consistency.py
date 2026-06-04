@@ -50,6 +50,33 @@ nav:
     assert any("docs/reference/api.md" in violation.message for violation in violations)
 
 
+def test_mkdocs_nav_coverage_reports_missing_config(tmp_path) -> None:
+    missing = tmp_path / "mkdocs.yml"
+
+    violations = ldc.check_mkdocs_nav_coverage(missing)
+
+    assert len(violations) == 1
+    assert violations[0].check == "check11_mkdocs_nav_coverage"
+    assert "missing MkDocs config" in violations[0].message
+
+
+def test_collect_mkdocs_nav_docs_preserves_docs_prefixed_paths(tmp_path) -> None:
+    mkdocs = tmp_path / "mkdocs.yml"
+    mkdocs.write_text(
+        """
+nav:
+  - Agents: docs/agents/orchestration.md
+  - SSOT: ssot/README.md
+""",
+        encoding="utf-8",
+    )
+
+    docs = ldc.collect_mkdocs_nav_docs(mkdocs)
+
+    assert "docs/agents/orchestration.md" in docs
+    assert "docs/ssot/README.md" in docs
+
+
 def test_module_readmes_are_thin_passes_for_repo() -> None:
     """Module README files remain pointers to SSOT owners."""
     assert ldc.check_module_readmes_are_thin() == []
@@ -72,6 +99,100 @@ def test_module_readmes_are_thin_reports_duplicate_sections(tmp_path) -> None:
     assert len(violations) == 2
     assert any("exceeds 4" in violation.message for violation in violations)
     assert any("## API Endpoints" in violation.message for violation in violations)
+
+
+def test_AC14_1_7_generated_analysis_snapshots_are_absent(tmp_path) -> None:
+    """AC14.1.7: Generated analysis snapshots are not checked into docs/analysis."""
+    snapshot = tmp_path / "docs" / "analysis" / "test-ac-coverage-report.md"
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_text("# generated\n", encoding="utf-8")
+
+    violations = ldc.check_generated_analysis_snapshots_absent((snapshot,))
+
+    assert len(violations) == 1
+    assert violations[0].check == "check13_generated_analysis_snapshots_absent"
+
+
+def test_AC14_1_7_generated_analysis_snapshots_absent_passes(tmp_path) -> None:
+    """AC14.1.7: Missing generated snapshots are the expected repository state."""
+    snapshot = tmp_path / "docs" / "analysis" / "test-ac-coverage-report.md"
+
+    assert ldc.check_generated_analysis_snapshots_absent((snapshot,)) == []
+
+
+def test_AC14_1_8_reconciliation_thresholds_are_code_owned(tmp_path) -> None:
+    """AC14.1.8: Reconciliation threshold prose points to code/config owners."""
+    doc = tmp_path / "reconciliation.md"
+    doc.write_text(
+        """
+### Reconciliation Thresholds
+
+Runtime values are owned by apps/backend/config/reconciliation.yaml and
+apps/backend/src/services/reconciliation.py through DEFAULT_CONFIG and
+load_reconciliation_config. Overrides use RECONCILIATION_AUTO_ACCEPT_THRESHOLD
+and RECONCILIATION_REVIEW_THRESHOLD.
+""",
+        encoding="utf-8",
+    )
+
+    assert ldc.check_reconciliation_thresholds_are_code_owned(doc) == []
+
+    doc.write_text(
+        "This table is the single authoritative definition of reconciliation score thresholds.",
+        encoding="utf-8",
+    )
+    violations = ldc.check_reconciliation_thresholds_are_code_owned(doc)
+
+    assert violations
+    assert any("single authority" in violation.message for violation in violations)
+
+
+def test_AC14_1_8_reconciliation_thresholds_report_unreadable_doc() -> None:
+    """AC14.1.8: Missing reconciliation SSOT fails closed."""
+    missing = Path("/definitely/missing/reconciliation.md")
+
+    violations = ldc.check_reconciliation_thresholds_are_code_owned(missing)
+
+    assert len(violations) == 1
+    assert violations[0].check == "check14_reconciliation_thresholds_code_owned"
+    assert "cannot read file" in violations[0].message
+
+
+def test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper(tmp_path) -> None:
+    """AC14.1.10: Frontend raw fetch is limited to the API wrapper."""
+    src = tmp_path / "apps" / "frontend" / "src"
+    api = src / "lib" / "api.ts"
+    page = src / "app" / "page.tsx"
+    test_file = src / "__tests__" / "api.test.ts"
+    api.parent.mkdir(parents=True)
+    page.parent.mkdir(parents=True)
+    test_file.parent.mkdir(parents=True)
+    api.write_text("export const apiFetch = () => fetch('/api/test')\n", encoding="utf-8")
+    page.write_text("export const load = () => fetch('/api/accounts')\n", encoding="utf-8")
+    test_file.write_text("expect(fetch).toBeDefined()\n", encoding="utf-8")
+
+    violations = ldc.check_frontend_raw_fetch_usage(src, {api})
+
+    assert len(violations) == 1
+    assert "app/page.tsx:1" in violations[0].message
+
+
+def test_AC14_1_10_frontend_raw_fetch_missing_source_root_passes(tmp_path) -> None:
+    """AC14.1.10: Missing optional frontend source root has no raw fetch violations."""
+    assert ldc.check_frontend_raw_fetch_usage(tmp_path / "missing", set()) == []
+
+
+def test_AC14_1_10_frontend_raw_fetch_unreadable_file_is_skipped(tmp_path) -> None:
+    """AC14.1.10: Raw fetch scanner skips files it cannot read."""
+    src = tmp_path / "apps" / "frontend" / "src"
+    page = src / "app" / "page.tsx"
+    page.parent.mkdir(parents=True)
+    page.write_text("fetch('/api/accounts')\n", encoding="utf-8")
+
+    with mock.patch.object(Path, "read_text", side_effect=OSError("blocked")):
+        violations = ldc.check_frontend_raw_fetch_usage(src, set())
+
+    assert violations == []
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +457,27 @@ class TestNoAcTestExceptions:
         result = ldc.discover_no_ac_test_files(((tests, ("**/*.py",)),))
 
         assert result == [no_ac]
+
+    def test_discover_no_ac_test_files_skips_excluded_paths(self, tmp_path):
+        tests = tmp_path / "tests"
+        skipped = tests / "node_modules" / "test_generated.py"
+        skipped.parent.mkdir(parents=True)
+        skipped.write_text("def test_generated():\n    assert True\n", encoding="utf-8")
+
+        result = ldc.discover_no_ac_test_files(((tests, ("**/*.py",)),))
+
+        assert result == []
+
+    def test_discover_no_ac_test_files_skips_unreadable_files(self, tmp_path):
+        tests = tmp_path / "tests"
+        test_file = tests / "test_unreadable.py"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text("def test_unreadable():\n    assert True\n", encoding="utf-8")
+
+        with mock.patch.object(Path, "read_text", side_effect=OSError("blocked")):
+            result = ldc.discover_no_ac_test_files(((tests, ("**/*.py",)),))
+
+        assert result == []
 
     def test_load_traceability_exception_paths_reads_markdown_code_spans(
         self, tmp_path
