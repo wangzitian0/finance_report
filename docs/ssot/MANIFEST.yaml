@@ -136,6 +136,14 @@ concepts:
       - docs/ssot/accounting.md
       - docs/ssot/market_data.md
 
+  framework_reporting:
+    owner: docs/ssot/framework-reporting.md
+    description: US-like and HK-like target-backward policy layer for personal report packages.
+    cross_refs:
+      - docs/ssot/reporting.md
+      - docs/ssot/accounting.md
+      - docs/project/EPIC-020.framework-aware-personal-reporting.md
+
   net_worth_valuation_snapshots:
     owner: docs/ssot/assets.md#manual-valuation-snapshots
     description: Point-in-time manual valuation snapshots for non-ledger net worth components.

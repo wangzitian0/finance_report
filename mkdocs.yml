@@ -92,6 +92,7 @@ nav:
       - Statement Extraction: ssot/extraction.md
       - PDF Fixtures: ssot/pdf-fixtures.md
       - Reporting: ssot/reporting.md
+      - Framework Reporting: ssot/framework-reporting.md
       - AI Advisor: ssot/ai.md
       - Assets: ssot/assets.md
       - Market Data: ssot/market_data.md
@@ -137,6 +138,7 @@ nav:
           - "EPIC-017: Investment Portfolio Management (100% Self-Developed)": project/EPIC-017.portfolio-management.md
           - "EPIC-018: AI-Driven Data Pipeline": project/EPIC-018.ai-driven-pipeline.md
           - "EPIC-019: Event-Driven Upload to Report UX": project/EPIC-019.event-driven-upload-to-report-ux.md
+          - "EPIC-020: Framework-Aware Personal Reporting": project/EPIC-020.framework-aware-personal-reporting.md
 
 extra:
   social:
