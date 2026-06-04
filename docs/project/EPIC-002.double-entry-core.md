@@ -360,6 +360,20 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 
 **Implementation Summary**: Current implementation truth is owned by the code paths listed above, [accounting.md](../ssot/accounting.md), [schema.md](../ssot/schema.md), and the AC2.* tests. Archive implementation notes are historical only and are not part of the active README -> EPIC -> AC -> test chain.
 
+## Framework Boundary
+
+EPIC-002 owns canonical double-entry facts only. Journal entries, account
+balances, source links, currency, and Decimal invariants are framework-neutral
+inputs to [EPIC-020](EPIC-020.framework-aware-personal-reporting.md). US-like
+or HK-like recognition, measurement, classification, presentation, and
+disclosure decisions must not be embedded into posting logic.
+
+### AC2.13: Framework-Neutral Ledger Boundary
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.13.1 | Canonical ledger documentation declares that double-entry posting is framework-neutral and that US/HK policy decisions belong to EPIC-020 | `test_AC2_13_1_canonical_ledger_is_framework_neutral` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+
 ---
 
 ## 📝 Technical Debt
@@ -396,11 +410,10 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 **✅ Your Answer**: Use US GAAP Taxonomy standard
 
-**Decision**: Adopt US GAAP Taxonomy standard coding
-- Follow international financial reporting standards
-- Account model `code` field must comply with GAAP Taxonomy
-- Frontend provides code lookup/selection tool
-- Support custom aliases (user-friendly names)
+**Current decision**: Account codes are canonical user ledger identifiers, not
+the authoritative US GAAP, HKFRS, or CAS taxonomy. Framework-specific report
+line mappings are owned by EPIC-020. Frontend lookup can offer familiar code
+aliases, but posting and balance validation must remain framework-neutral.
 
 ### Q2: Multi-Currency Strategy
 > **Question**: Should v1 support multi-currency entries? Or only support single base currency?  

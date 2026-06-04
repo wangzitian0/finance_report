@@ -79,6 +79,13 @@ now better managed by code, SSOT files, and generated proof.
 | Portfolio UI surfaces | `apps/frontend/src/app/(main)/portfolio`, frontend tests |
 | Current proof and execution stage | AC registries, `tools/check_ac_traceability.py`, [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
 
+Framework boundary: EPIC-017 supplies portfolio facts, not final framework
+accounting conclusions. Holdings, lots, cost basis, dividends, fees, prices,
+freshness, and source links are inputs to EPIC-020. Whether a US-like or HK-like
+personal report presents a valuation change in a specific statement line or
+disclosure belongs to EPIC-020 and EPIC-005 assembly.
+EPIC-017 owns portfolio facts, not final framework accounting conclusions.
+
 Future scope such as additional brokers, complex corporate actions, options,
 futures, crypto, and real-time market streaming needs explicit ACs before it can
 be treated as current work.
@@ -225,6 +232,12 @@ redacted, and Decimal-safe.
 | AC17.12.2 | Portfolio audit fixture contract pins sanitized trade, dividend, fee, and valuation activity rows, derives expected totals from fixture rows and positions, and covers parser support for Moomoo margin history rows | `test_AC17_12_2_portfolio_fixture_pins_activity_rows_without_raw_documents`, `test_AC17_12_2_parse_moomoo_margin_history_rows_as_equity_position_snapshot` | `tests/tooling/test_portfolio_audit_fixture_contract.py`, `portfolio/test_brokerage_position_parsing.py` | P0 |
 | AC17.12.3 | Personal report package fixture consumes expanded portfolio expected outputs instead of keeping one-position brokerage constants inline | `test_AC17_12_3_personal_package_references_expanded_portfolio_fixture_contract` | `tests/tooling/test_portfolio_audit_fixture_contract.py` | P0 |
 
+### AC17.13: Portfolio Fact Boundary for Framework Reporting
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.13.1 | Portfolio management owns holdings, lots, dividends, fees, prices, freshness, and source links as framework policy inputs, but does not own final US/HK report presentation decisions | `test_AC17_13_1_portfolio_supplies_facts_not_framework_conclusions` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+
 ### Brokerage PDF to Asset Report Proof Matrix
 
 This is the detailed EPIC-017 counterpart to the README core proof path. It
@@ -284,6 +297,7 @@ scope decisions are:
 | Brokerage statements are uploaded and parsed through the statement pipeline | AC17.4, EPIC-003/EPIC-013 extraction SSOT |
 | Manual price update remains valid for low-frequency holdings; provider sync is governed separately | AC17.1.6, [market_data.md](../ssot/market_data.md), AC11.10 |
 | Report-ready investment schedule is consumed by the personal report package | AC17.10 and EPIC-005 package contract |
+| Framework-specific report presentation for portfolio facts is not owned here | [framework-reporting.md](../ssot/framework-reporting.md), EPIC-020, AC17.13 |
 
 Current proof status comes from generated registries, traceability checks, tests,
 critical proof matrix rows, and CI artifacts. Open product questions should be

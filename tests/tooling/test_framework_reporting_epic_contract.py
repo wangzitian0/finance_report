@@ -180,8 +180,8 @@ def test_AC18_6_1_ai_suggestions_are_reviewed_before_trusted_framework_use() -> 
     assert "structured, source-anchored, confidence-scored, and reviewed" in epic
 
 
-def test_AC19_6_1_readiness_consumes_framework_specific_evidence_blockers() -> None:
-    """AC19.6.1: Readiness consumes framework-specific blockers before trusted reports."""
+def test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers() -> None:
+    """AC19.7.1: Readiness consumes framework-specific blockers before trusted reports."""
     epic = read("docs/project/EPIC-019.event-driven-upload-to-report-ux.md")
     ssot = read(FRAMEWORK_SSOT)
 
