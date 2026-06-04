@@ -62,7 +62,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
     "/reconciliation/review-queue": { label: "Review Queue", Icon: Link2 },
     "/processing": { label: "Processing", Icon: Clock },
-    "/chat": { label: "AI Advisor", Icon: MessageSquare },
+    "/chat": { label: "AI Settings", Icon: MessageSquare },
     "/ping-pong": { label: "Ping-Pong", Icon: Zap },
 };
 

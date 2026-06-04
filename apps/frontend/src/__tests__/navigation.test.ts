@@ -38,6 +38,7 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/review/run/123").label).toBe("Review");
     expect(getRouteConfig("/reconciliation/unmatched").label).toBe("Unmatched");
     expect(getRouteConfig("/processing").label).toBe("Processing");
+    expect(getRouteConfig("/chat").label).toBe("AI Settings");
     expect(getRouteConfig("/custom-report_page").label).toBe("Custom Report Page");
     expect(getRouteConfig("/").Icon).toBe(DEFAULT_ROUTE_ICON);
   });

@@ -325,13 +325,13 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 - [x] **AC15.7.3** Card click-through navigates to `/processing` listing pending transfers (existing or new page) with line items `{from_account, to_account, amount, initiated_date, days_outstanding}`
 - [x] **AC15.7.4** Pending entries older than 7 days render a warning badge on the listing row
 - [x] **AC15.7.5** Frontend test mounts ProcessingSummaryCard and asserts `pending_count` + `pending_total` labels render
-- [x] **AC15.7.6** Sidebar navigation exposes a Processing entry between Reconciliation and AI Advisor
+- [x] **AC15.7.6** Sidebar navigation exposes a Processing entry between Reconciliation and AI Settings
 - [x] **AC15.7.7** Sidebar Processing entry shows a warning indicator when Processing Account current balance is non-zero
 - [x] **AC15.7.8** Dashboard Processing card shows the signed current balance and a non-zero balance warning
 
 | AC ID | Description | Test | Path | Priority |
 |-------|-------------|------|------|----------|
-| AC15.7.6 | Sidebar navigation exposes a Processing entry between Reconciliation and AI Advisor | `AC15.7.6 shows Processing between Reconciliation and AI Advisor` | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC15.7.6 | Sidebar navigation exposes a Processing entry between Reconciliation and AI Settings | `AC15.7.6 AC19.6.3 shows Processing between Reconciliation and AI Settings in Advanced` | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 |
 | AC15.7.7 | Sidebar Processing entry shows a warning indicator when Processing Account current balance is non-zero | `AC15.7.7 shows a sidebar warning when Processing Account balance is non-zero` | `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx` | P1 |
 | AC15.7.8 | Dashboard Processing card shows the signed current balance and a non-zero balance warning | `shows the current Processing Account balance when transfers are unresolved` | `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | P1 |
 
