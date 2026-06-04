@@ -870,9 +870,11 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     """AC8.13.89: PR previews push exact images and wait for frontend/backend versions."""
     workflow = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
+    compose = read("docker-compose.yml")
     frontend_dockerfile = read("apps/frontend/Dockerfile")
 
     deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+    frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
     assert "packages: write" in deploy_block
     assert "Log in to Container registry" in deploy_block
@@ -898,6 +900,7 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     )
     assert "frontend-version.json" in frontend_dockerfile
     assert "ARG GIT_COMMIT_SHA=unknown" in frontend_dockerfile
+    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}" in frontend_compose_block
     assert "Wait for API readiness" in deploy_block
     assert "Wait for frontend readiness" in deploy_block
     assert deploy_block.index("Wait for API readiness") < deploy_block.index(
