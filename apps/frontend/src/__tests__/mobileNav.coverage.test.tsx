@@ -1,14 +1,20 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { MobileNav } from "@/components/MobileNav";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
+let pathnameMock = "/dashboard";
+
 vi.mock("next/navigation", () => ({
-    usePathname: () => "/dashboard",
+    usePathname: () => pathnameMock,
     useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 describe("MobileNav coverage (AC16.23.6)", () => {
+    beforeEach(() => {
+        pathnameMock = "/dashboard";
+    });
+
     it("AC19.6.4 opens workflow mobile nav, exposes Advanced drill-downs, and closes via link click", () => {
         renderReviewComponent(<MobileNav />);
         const trigger = screen.getByLabelText("Open navigation menu");
@@ -39,5 +45,17 @@ describe("MobileNav coverage (AC16.23.6)", () => {
         fireEvent.click(screen.getByRole("button", { name: /advanced/i }));
         fireEvent.click(screen.getByRole("link", { name: /review/i }));
         expect(screen.queryByRole("link", { name: /review/i })).not.toBeInTheDocument();
+    });
+
+    it("AC19.6.4 highlights active advanced routes in mobile navigation", () => {
+        pathnameMock = "/review/run/run-1";
+        renderReviewComponent(<MobileNav />);
+
+        fireEvent.click(screen.getByLabelText("Open navigation menu"));
+        const advancedButton = screen.getByRole("button", { name: /advanced/i });
+        expect(advancedButton.className).toContain("accent-muted");
+        fireEvent.click(advancedButton);
+        const reviewLink = screen.getByRole("link", { name: /review/i });
+        expect(reviewLink.className).toContain("accent-muted");
     });
 });

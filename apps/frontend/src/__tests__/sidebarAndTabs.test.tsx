@@ -116,6 +116,15 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.getByRole("link", { name: /AI Settings/i })).toHaveAttribute("href", "/chat")
   })
 
+  it("AC19.6.3 opens Advanced automatically for active advanced routes", async () => {
+    pathnameMock = "/review/run/run-1"
+    render(<Sidebar />)
+
+    const advancedButton = await screen.findByRole("button", { name: /Advanced/i })
+    expect(advancedButton).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("link", { name: /Review/i })).toHaveAttribute("href", "/review")
+  })
+
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
     pathnameMock = "/reports/balance-sheet"
     render(<WorkspaceTabs />)
@@ -177,6 +186,18 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/pending-review")
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/statements/stage2/queue")
     expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/accounts/processing/summary")
+  })
+
+  it("AC19.6.5 clears sidebar workflow badges when workflow status is unavailable", async () => {
+    mockedFetchWorkflowStatus.mockRejectedValue(new Error("workflow unavailable"))
+
+    render(<Sidebar />)
+
+    await waitFor(() => {
+      expect(mockedFetchWorkflowStatus).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByRole("link", { name: /^Events$/i })).toHaveAttribute("href", "/events")
+    expect(screen.getByRole("button", { name: /^Advanced$/i })).toBeInTheDocument()
   })
 
   it("AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => {
