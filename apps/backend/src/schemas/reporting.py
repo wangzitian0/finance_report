@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.models import AccountType
 
@@ -214,6 +214,168 @@ class PersonalReportPackageContractResponse(BaseModel):
     period_semantics: dict[str, str]
     sections: list[PersonalReportPackageSectionContract]
     export_contract: PersonalReportPackageExportContract
+
+
+class PersonalReportingFrameworkId(str, Enum):
+    """Supported personal reporting framework targets."""
+
+    US_GAAP_LIKE = "personal_us_gaap_like"
+    HKFRS_LIKE = "personal_hkfrs_like"
+
+
+class PolicyDimension(str, Enum):
+    """Required decision dimensions for every framework policy conclusion."""
+
+    RECOGNITION = "recognition"
+    MEASUREMENT = "measurement"
+    CLASSIFICATION = "classification"
+    PRESENTATION = "presentation"
+    DISCLOSURE = "disclosure"
+
+
+class PolicyFactDomain(str, Enum):
+    """Personal finance domains covered by the v1 policy matrix."""
+
+    CASH = "cash"
+    LISTED_SECURITY = "listed_security"
+    FUND = "fund"
+    DIVIDEND_INTEREST = "dividend_interest"
+    BROKERAGE_FEE = "brokerage_fee"
+    FX = "fx"
+    RESTRICTED_COMPENSATION = "restricted_compensation"
+    PROPERTY_MORTGAGE_PRIVATE = "property_mortgage_private"
+    LIABILITY = "liability"
+    TRANSFER = "transfer"
+    TAX_NOTE = "tax_note"
+    UNSUPPORTED = "unsupported"
+
+
+class PolicyProvenance(str, Enum):
+    """How a framework policy decision became trusted."""
+
+    DETERMINISTIC_MATRIX = "deterministic_matrix"
+    REVIEWED_AI_SUGGESTION = "reviewed_ai_suggestion"
+    EXPLICIT_MANUAL_INPUT = "explicit_manual_input"
+
+
+class PolicyReviewState(str, Enum):
+    """Review state for framework policy fields."""
+
+    ACCEPTED = "accepted"
+    PENDING_REVIEW = "pending_review"
+    REJECTED = "rejected"
+    NOT_REQUIRED = "not_required"
+
+
+class FrameworkPolicyEvidenceAnchor(BaseModel):
+    """Source, ledger, portfolio, valuation, or review anchor for a policy field."""
+
+    anchor_id: str
+    anchor_type: str
+    source_system: str
+    source_id: str
+    description: str | None = None
+
+
+class FrameworkPolicyFact(BaseModel):
+    """Framework-neutral fact consumed by the target-backward policy layer."""
+
+    fact_id: str
+    domain: PolicyFactDomain
+    instrument_type: str
+    amount: Decimal | None = None
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    event_date: date | None = None
+    anchors: list[FrameworkPolicyEvidenceAnchor] = Field(default_factory=list)
+
+
+class FrameworkPolicyDecision(BaseModel):
+    """One deterministic framework policy conclusion for a personal finance domain."""
+
+    domain: PolicyFactDomain
+    recognition: str | None = None
+    measurement: str | None = None
+    classification: str | None = None
+    presentation: str | None = None
+    disclosure: str | None = None
+    line_mappings: dict[str, str]
+    evidence_anchors: list[FrameworkPolicyEvidenceAnchor] = Field(default_factory=list)
+    provenance: PolicyProvenance = PolicyProvenance.DETERMINISTIC_MATRIX
+    confidence_tier: str = "TRUSTED"
+    review_state: PolicyReviewState = PolicyReviewState.ACCEPTED
+    policy_field_name: str = "framework_policy_decision"
+    accepted_value: str | None = None
+
+    @model_validator(mode="after")
+    def validate_required_dimensions(self) -> "FrameworkPolicyDecision":
+        missing = [dimension.value for dimension in PolicyDimension if not getattr(self, dimension.value)]
+        if missing:
+            raise ValueError(f"missing required policy dimensions: {', '.join(missing)}")
+        return self
+
+
+class FrameworkPolicyGap(BaseModel):
+    """Explicit policy gap that blocks trusted framework output."""
+
+    code: str
+    fact_id: str
+    domain: PolicyFactDomain
+    instrument_type: str
+    blocker: bool
+    reason: str
+    remediation: str
+    evidence_anchors: list[FrameworkPolicyEvidenceAnchor] = Field(default_factory=list)
+
+
+class FrameworkPolicyMatrixRule(BaseModel):
+    """Framework-specific rule for one supported personal finance domain."""
+
+    domain: PolicyFactDomain
+    supported_instrument_types: list[str]
+    policy_by_dimension: dict[PolicyDimension, str]
+    line_mappings: dict[str, str]
+    required_evidence: list[str]
+    disclosure_requirements: list[str]
+    blocker_conditions: list[str]
+
+    @model_validator(mode="after")
+    def validate_matrix_dimensions(self) -> "FrameworkPolicyMatrixRule":
+        missing = [dimension.value for dimension in PolicyDimension if dimension not in self.policy_by_dimension]
+        if missing:
+            raise ValueError(f"missing matrix policy dimensions: {', '.join(missing)}")
+        return self
+
+
+class FrameworkPolicyMatrix(BaseModel):
+    """Deterministic v1 framework policy matrix."""
+
+    framework_id: PersonalReportingFrameworkId
+    version: str
+    rules: list[FrameworkPolicyMatrixRule]
+
+
+class FrameworkPolicyResult(BaseModel):
+    """Read-only target-backward policy result consumed by readiness and reporting."""
+
+    framework_id: PersonalReportingFrameworkId
+    report_period_start: date
+    report_period_end: date
+    generated_at: date
+    required_statements: list[str]
+    decisions: list[FrameworkPolicyDecision]
+    gaps: list[FrameworkPolicyGap] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_decision_dimensions(self) -> "FrameworkPolicyResult":
+        incomplete = [
+            decision.domain.value
+            for decision in self.decisions
+            for dimension in PolicyDimension
+            if not getattr(decision, dimension.value)
+        ]
+        if incomplete:
+            raise ValueError(f"missing required policy dimensions: {', '.join(sorted(set(incomplete)))}")
+        return self
 
 
 class PersonalReportPackageReadinessBlocker(BaseModel):

@@ -72,6 +72,21 @@ The result must include:
 The policy layer is read-only. It must not mutate source records, journal
 entries, portfolio lots, market data, or report snapshots.
 
+Code-owned contract surfaces:
+
+- Schema: `apps/backend/src/schemas/reporting.py` defines supported framework
+  IDs, policy fact domains, required policy dimensions, evidence anchors,
+  policy decisions, explicit gaps, matrices, and policy results.
+- Matrix service: `apps/backend/src/services/framework_policy.py` owns the
+  deterministic v1 US-like/HK-like matrix and derives read-only policy results
+  from framework-neutral facts.
+- Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that
+  policy results reject missing dimensions, unsupported frameworks are closed
+  out, supported domains carry all five policy dimensions, derivation is
+  deterministic/read-only, US/HK outputs can differ from the same fixture, and
+  unsupported instruments create explicit policy gaps instead of silently
+  defaulting to market value.
+
 ## 4. Minimum V1 Policy Matrix
 
 The first framework matrix must cover these personal finance domains:
