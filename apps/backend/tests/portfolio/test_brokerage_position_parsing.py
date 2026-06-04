@@ -206,6 +206,67 @@ def test_parse_moomoo_raw_subscription_text_position():
     assert snapshots[0].currency == "SGD"
 
 
+def test_AC17_12_2_parse_moomoo_margin_history_rows_as_equity_position_snapshot():
+    """AC17.12.2: Sanitized Moomoo margin history rows create portfolio-ready equity snapshots."""
+    payload = {
+        "institution": "Moomoo",
+        "statement": {"period_end": "2026-01-02", "currency": "USD"},
+        "margin_history_rows": [
+            {
+                "Side": "BUY",
+                "Symbol": "PONY",
+                "Name": "Pony AI Inc ADR",
+                "Fill Qty": "12",
+                "Fill Amount": "123.45",
+                "Currency": "USD",
+                "Total": "123.56",
+                "Commission": "0.00",
+                "Platform Fees": "0.11",
+                "Fill Time": "2026-01-02 09:35:21",
+                "Sector": "Technology",
+                "Geography": "US",
+            },
+            {
+                "Side": "BUY",
+                "Symbol": "PONY",
+                "Name": "Pony AI Inc ADR",
+                "Fill Qty": "24",
+                "Fill Amount": "234.56",
+                "Currency": "USD",
+                "Total": "234.78",
+                "Commission": "0.00",
+                "Platform Fees": "0.22",
+                "Fill Time": "2026-01-02 09:36:44",
+                "Sector": "Technology",
+                "Geography": "US",
+            },
+            {
+                "Side": "SELL",
+                "Symbol": "SKIPME",
+                "Name": "Disposed Test Equity",
+                "Fill Qty": "3",
+                "Fill Amount": "99.99",
+                "Currency": "USD",
+                "Total": "99.72",
+                "Fill Time": "2026-01-02 10:00:00",
+            },
+        ],
+    }
+
+    snapshots = parse_brokerage_positions(payload, filename="synthetic-margin-history.csv")
+
+    assert len(snapshots) == 1
+    assert snapshots[0].broker == "Moomoo"
+    assert snapshots[0].snapshot_date.isoformat() == "2026-01-02"
+    assert snapshots[0].asset_identifier == "PONY"
+    assert snapshots[0].quantity == Decimal("36")
+    assert snapshots[0].market_value == Decimal("358.01")
+    assert snapshots[0].currency == "USD"
+    assert snapshots[0].asset_type == AssetType.STOCK
+    assert snapshots[0].sector == "Technology"
+    assert snapshots[0].geography == "US"
+
+
 def test_parse_moomoo_skips_non_position_subscription_events():
     """AC17.4.1: Moomoo fallback parsing ignores non-position and invalid subscription events."""
     payload = {

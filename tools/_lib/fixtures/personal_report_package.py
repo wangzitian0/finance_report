@@ -8,6 +8,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from tools._lib.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
+
 ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -81,7 +83,10 @@ class RepresentativePackageFixture:
 
     def component(self, component_type: str, source: str) -> ManualComponentFixture:
         for component in self.manual_components:
-            if component.component_type == component_type and component.source == source:
+            if (
+                component.component_type == component_type
+                and component.source == source
+            ):
                 return component
         raise KeyError(f"Unknown package fixture component: {component_type}/{source}")
 
@@ -94,7 +99,9 @@ def _bank_rows(csv_path: Path) -> list[dict[str, str]]:
     return rows
 
 
-def _expected_outputs(csv_path: Path, manual_components: tuple[ManualComponentFixture, ...]) -> ExpectedPackageOutputs:
+def _expected_outputs(
+    csv_path: Path, manual_components: tuple[ManualComponentFixture, ...]
+) -> ExpectedPackageOutputs:
     rows = _bank_rows(csv_path)
     amounts = [_money(row["Amount"]) for row in rows]
     income = sum((amount for amount in amounts if amount > 0), Decimal("0.00"))
@@ -135,10 +142,12 @@ def _expected_outputs(csv_path: Path, manual_components: tuple[ManualComponentFi
         manual_asset_total=_money(manual_asset_total),
         manual_liability_total=_money(manual_liability_total),
         restricted_fair_value_total=_money(restricted_total),
-        net_worth_adjustment_gain_loss=_money(manual_asset_total - manual_liability_total),
-        brokerage_market_value=Decimal("1250.50"),
-        brokerage_position_count=1,
-        dividend_income=Decimal("88.25"),
+        net_worth_adjustment_gain_loss=_money(
+            manual_asset_total - manual_liability_total
+        ),
+        brokerage_market_value=PORTFOLIO_AUDIT_FIXTURE.report_package_market_value_sgd,
+        brokerage_position_count=len(PORTFOLIO_AUDIT_FIXTURE.report_package_positions),
+        dividend_income=PORTFOLIO_AUDIT_FIXTURE.expected_activity_totals.dividend_income_sgd,
         market_price=Decimal("12.50"),
         market_price_date=date(2026, 5, 31),
     )

@@ -251,6 +251,63 @@ def _parse_moomoo_subscription_positions(
     return snapshots
 
 
+def _parse_moomoo_margin_history_positions(
+    payload: dict[str, Any], broker: str, snapshot_date: date
+) -> list[BrokeragePositionSnapshot]:
+    rows = payload.get("margin_history_rows")
+    if not isinstance(rows, list):
+        return []
+
+    aggregates: dict[str, dict[str, Any]] = {}
+    default_currency = _payload_currency(payload)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        side = str(row.get("Side") or row.get("side") or "").strip().upper()
+        if side != "BUY":
+            continue
+        identifier = row.get("Symbol") or row.get("symbol") or row.get("Ticker") or row.get("ticker")
+        quantity = _clean_decimal(row.get("Fill Qty") or row.get("fill_qty") or row.get("Quantity"))
+        market_value = _clean_decimal(
+            row.get("Fill Amount") or row.get("fill_amount") or row.get("Order Amount") or row.get("order_amount")
+        )
+        if not identifier or quantity is None or market_value is None or quantity <= 0 or market_value <= 0:
+            continue
+
+        asset_identifier = str(identifier).strip()
+        aggregate = aggregates.setdefault(
+            asset_identifier,
+            {
+                "quantity": Decimal("0"),
+                "market_value": Decimal("0"),
+                "currency": str(row.get("Currency") or row.get("currency") or default_currency).upper(),
+                "sector": str(row["Sector"]).strip() if row.get("Sector") else None,
+                "geography": str(row["Geography"]).strip() if row.get("Geography") else None,
+            },
+        )
+        aggregate["quantity"] += quantity
+        aggregate["market_value"] += market_value
+        if row.get("Sector") and not aggregate.get("sector"):
+            aggregate["sector"] = str(row["Sector"]).strip()
+        if row.get("Geography") and not aggregate.get("geography"):
+            aggregate["geography"] = str(row["Geography"]).strip()
+
+    return [
+        BrokeragePositionSnapshot(
+            snapshot_date=snapshot_date,
+            asset_identifier=asset_identifier,
+            broker=broker,
+            quantity=aggregate["quantity"],
+            market_value=aggregate["market_value"].quantize(Decimal("0.01")),
+            currency=aggregate["currency"],
+            asset_type=AssetType.STOCK,
+            sector=aggregate["sector"],
+            geography=aggregate["geography"],
+        )
+        for asset_identifier, aggregate in aggregates.items()
+    ]
+
+
 def _parse_futu_aggregate_position(
     payload: dict[str, Any], broker: str, snapshot_date: date
 ) -> list[BrokeragePositionSnapshot]:
@@ -300,6 +357,9 @@ def parse_brokerage_positions(
     if structured:
         return structured
     if broker == "Moomoo":
+        margin_history = _parse_moomoo_margin_history_positions(payload, broker, snapshot_date)
+        if margin_history:
+            return margin_history
         return _parse_moomoo_subscription_positions(payload, broker, snapshot_date)
     if broker == "Futu":
         return _parse_futu_aggregate_position(payload, broker, snapshot_date)

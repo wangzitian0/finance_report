@@ -64,7 +64,6 @@ RSU_NOTES = RSU_COMPONENT.notes
 STOCK_OPTIONS_NOTES = STOCK_OPTIONS_COMPONENT.notes
 
 
-
 def _api_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}/api{path}"
 
@@ -78,7 +77,9 @@ def _money(value: object) -> Decimal:
 
 
 async def _auth_headers(page: Page) -> dict[str, str]:
-    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
+    token = await page.evaluate(
+        "() => window.localStorage.getItem('finance_access_token')"
+    )
     assert token, "Missing finance_access_token in localStorage"
     return {"Authorization": f"Bearer {token}"}
 
@@ -137,7 +138,9 @@ async def _wait_for_parsed_statement(
 
 async def _default_image_model(client: httpx.AsyncClient) -> str:
     response = await client.get(_api_url("/ai/models?modality=image"))
-    assert response.status_code == 200, f"model catalog request failed: {response.status_code} {response.text}"
+    assert response.status_code == 200, (
+        f"model catalog request failed: {response.status_code} {response.text}"
+    )
     payload = response.json()
     return payload.get("default_model") or payload["models"][0]["id"]
 
@@ -166,7 +169,9 @@ def _get_pdf_path(source: str) -> Path:
         pytest.skip(
             f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
-    pdfs = sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+    pdfs = (
+        sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+    )
     if not pdfs:
         pytest.skip(f"PDF generation for {source} produced no files in {source_dir}")
     return pdfs[-1]
@@ -195,7 +200,7 @@ def _assert_csv_total(content: str, section: str, expected: Decimal) -> None:
             )
             return
     pytest.fail(
-        f"CSV export missing section {section}: sections={ [row.get('section') for row in rows] }"
+        f"CSV export missing section {section}: sections={[row.get('section') for row in rows]}"
     )
 
 
@@ -203,13 +208,23 @@ def _assert_traceability(statement_rows: list[dict], journal_rows: list[dict]) -
     txn_ids = {str(txn["id"]) for txn in statement_rows}
     matched = []
     for txn_id in txn_ids:
-        related = [entry for entry in journal_rows if str(entry.get("source_id")) == txn_id]
+        related = [
+            entry for entry in journal_rows if str(entry.get("source_id")) == txn_id
+        ]
         assert related, f"no journal entry linked to statement transaction {txn_id}"
         assert {entry.get("status") for entry in related} <= {"posted", "reconciled"}, (
             f"statement-linked entries for transaction {txn_id} must be posted/reconciled: {related}"
         )
         statement_types = {str(entry.get("source_type")) for entry in related}
-        assert statement_types.issubset({"manual", "user_confirmed", "auto_matched", "auto_parsed", "bank_statement"}), (
+        assert statement_types.issubset(
+            {
+                "manual",
+                "user_confirmed",
+                "auto_matched",
+                "auto_parsed",
+                "bank_statement",
+            }
+        ), (
             f"statement-linked entries for {txn_id} have unexpected source_type: {statement_types}"
         )
         matched.extend(related)
@@ -226,7 +241,13 @@ def _has_dynamic_traceability_identifiers(traceability: dict) -> bool:
 
 
 def _line_total(lines: list[dict], token: str | None = None) -> Decimal:
-    filtered = lines if token is None else [line for line in lines if token.lower() in str(line.get("name", "")).lower()]
+    filtered = (
+        lines
+        if token is None
+        else [
+            line for line in lines if token.lower() in str(line.get("name", "")).lower()
+        ]
+    )
     return sum((_money(line["amount"]) for line in filtered), Decimal("0.00"))
 
 
@@ -302,11 +323,14 @@ async def _create_manual_snapshot(
 @pytest.mark.tier3
 @pytest.mark.critical
 @pytest.mark.llm
-async def test_personal_financial_report_package_post_merge_journey(authenticated_page_unique: Page) -> None:
+async def test_personal_financial_report_package_post_merge_journey(
+    authenticated_page_unique: Page,
+) -> None:
     """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
     AC5.1.1 AC5.1.4 AC5.2.3 AC5.3.1 AC5.8.1 AC5.12.4 AC5.13.4 AC5.13.5
     AC11.8.3 AC11.9.1 AC11.9.2 AC11.9.3 AC11.11.1 AC11.11.2 AC17.10.1 AC17.10.2
+    AC17.12.1 AC17.12.2 AC17.12.3
     AC8.13.83 AC8.13.84 AC8.13.85 AC8.13.87 AC8.13.88:
     one complete fresh-user report package with bank data, brokerage import,
     investment performance schedule, annualized income and restricted
@@ -320,8 +344,12 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
     headers = await _auth_headers(page)
 
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
-        bank_statement_id = await _upload_bank_csv(client, FIXTURE_PATH, institution=BANK_INSTITUTION)
+    async with httpx.AsyncClient(
+        headers=headers, verify=False, timeout=120.0
+    ) as client:
+        bank_statement_id = await _upload_bank_csv(
+            client, FIXTURE_PATH, institution=BANK_INSTITUTION
+        )
         parsed_bank = await _wait_for_parsed_statement(
             client,
             bank_statement_id,
@@ -415,9 +443,15 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert len(holdings) >= import_payload["parsed_positions"], (
             f"missing imported holdings: {holdings}"
         )
-        brokerage_value = sum((_money(item["market_value"]) for item in holdings), Decimal("0.00"))
-        assert len(holdings) == expected.brokerage_position_count, f"unexpected brokerage holdings: {holdings}"
-        assert brokerage_value == expected.brokerage_market_value, f"unexpected brokerage value: {holdings}"
+        brokerage_value = sum(
+            (_money(item["market_value"]) for item in holdings), Decimal("0.00")
+        )
+        assert len(holdings) == expected.brokerage_position_count, (
+            f"unexpected brokerage holdings: {holdings}"
+        )
+        assert brokerage_value == expected.brokerage_market_value, (
+            f"unexpected brokerage value: {holdings}"
+        )
         primary_holding = holdings[0]
 
         price_update_response = await client.post(
@@ -439,7 +473,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert price_update_response.json()["updated_count"] == 1
 
         dividend_response = await client.post(
-            _api_url(f"/portfolio/{quote(primary_holding['asset_identifier'], safe='')}/dividends"),
+            _api_url(
+                f"/portfolio/{quote(primary_holding['asset_identifier'], safe='')}/dividends"
+            ),
             json={
                 "payment_date": fixture_period_end.isoformat(),
                 "amount": str(expected.dividend_income),
@@ -469,20 +505,32 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert schedule["currency"] == "SGD"
         assert schedule["holdings"], f"investment schedule has no holdings: {schedule}"
         assert _money(schedule["dividend_income"]) == expected.dividend_income
-        assert _money(schedule["holdings"][0]["dividend_income"]) == expected.dividend_income
+        assert (
+            _money(schedule["holdings"][0]["dividend_income"])
+            == expected.dividend_income
+        )
         assert _money(schedule["unrealized_pnl"]) >= Decimal("0.00")
         assert "data_freshness" in schedule
         assert schedule["data_freshness"]["manual_override_basis"] == (
             f"{primary_holding['asset_identifier']}:{expected.market_price_date.isoformat()}"
         )
-        latest_price_date = date.fromisoformat(schedule["data_freshness"]["latest_price_date"])
+        latest_price_date = date.fromisoformat(
+            schedule["data_freshness"]["latest_price_date"]
+        )
         assert latest_price_date >= expected.market_price_date
-        assert schedule["source_links"], f"investment schedule missing source links: {schedule}"
-        assert any("market_data_override" in source_link for source_link in schedule["source_links"])
+        assert schedule["source_links"], (
+            f"investment schedule missing source links: {schedule}"
+        )
+        assert any(
+            "market_data_override" in source_link
+            for source_link in schedule["source_links"]
+        )
         assert schedule["notes"], f"investment schedule missing notes: {schedule}"
 
         await page.goto(_get_url("/portfolio"))
-        await expect(page.get_by_text("Investment Performance Report Schedule")).to_be_visible()
+        await expect(
+            page.get_by_text("Investment Performance Report Schedule")
+        ).to_be_visible()
         await expect(page.get_by_text("investment_performance")).to_be_visible()
 
         property_snapshot = await _create_manual_snapshot(
@@ -543,13 +591,22 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         manual_components = manual_components_response.json()
 
         values_by_type_source = {
-            (item["component_type"], item["source"]): _money(item["value"]) for item in manual_components["items"]
+            (item["component_type"], item["source"]): _money(item["value"])
+            for item in manual_components["items"]
         }
-        assert values_by_type_source[("property_value", PROPERTY_SOURCE)] == PROPERTY_VALUE
-        assert values_by_type_source[("mortgage_balance", MORTGAGE_SOURCE)] == MORTGAGE_BALANCE
+        assert (
+            values_by_type_source[("property_value", PROPERTY_SOURCE)] == PROPERTY_VALUE
+        )
+        assert (
+            values_by_type_source[("mortgage_balance", MORTGAGE_SOURCE)]
+            == MORTGAGE_BALANCE
+        )
         assert values_by_type_source[("esop", ESOP_SOURCE)] == ESOP_VALUE
         assert values_by_type_source[("rsu", RSU_SOURCE)] == RSU_VALUE
-        assert values_by_type_source[("stock_options", STOCK_OPTIONS_SOURCE)] == STOCK_OPTIONS_VALUE
+        assert (
+            values_by_type_source[("stock_options", STOCK_OPTIONS_SOURCE)]
+            == STOCK_OPTIONS_VALUE
+        )
 
         snapshots_response = await client.get(
             f"/assets/valuation-snapshots?as_of_date={fixture_period_end.isoformat()}"
@@ -558,7 +615,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             f"valuation snapshot list failed: {snapshots_response.status_code} {snapshots_response.text}"
         )
         snapshots = snapshots_response.json()["items"]
-        notes_by_source = {snapshot["source"]: snapshot["notes"] for snapshot in snapshots}
+        notes_by_source = {
+            snapshot["source"]: snapshot["notes"] for snapshot in snapshots
+        }
         assert notes_by_source[ESOP_SOURCE] == ESOP_NOTES
         assert notes_by_source[RSU_SOURCE] == RSU_NOTES
         assert notes_by_source[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
@@ -575,7 +634,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             RSU_SOURCE,
             STOCK_OPTIONS_SOURCE,
         }
-        schedules_by_ticker = {item["ticker"]: item["vesting_schedule"] for item in restricted_holdings}
+        schedules_by_ticker = {
+            item["ticker"]: item["vesting_schedule"] for item in restricted_holdings
+        }
         assert schedules_by_ticker[ESOP_SOURCE] == ESOP_NOTES
         assert schedules_by_ticker[RSU_SOURCE] == RSU_NOTES
         assert schedules_by_ticker[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
@@ -592,7 +653,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert annualized["section_id"] == "annualized_income_long_term"
         assert annualized["as_of_date"] == fixture_period_end.isoformat()
         assert annualized["trailing_period_days"] == 365
-        assert _money(annualized["income"]["annualized_total"]) == _money(expected.income)
+        assert _money(annualized["income"]["annualized_total"]) == _money(
+            expected.income
+        )
         assert annualized["income"]["currency"] == "SGD"
         assert annualized["income"]["calculation_basis"] == (
             "posted_or_reconciled_income_journal_lines_trailing_12_months"
@@ -603,11 +666,18 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert annualized["net_worth_treatment"]["liquid_net_worth_default"] == (
             "exclude_restricted_holdings"
         )
-        annualized_holdings = {holding["ticker"]: holding for holding in annualized["restricted_holdings"]}
+        annualized_holdings = {
+            holding["ticker"]: holding for holding in annualized["restricted_holdings"]
+        }
         assert annualized_holdings[ESOP_SOURCE]["vesting_schedule"] == ESOP_NOTES
         assert annualized_holdings[RSU_SOURCE]["vesting_schedule"] == RSU_NOTES
-        assert annualized_holdings[STOCK_OPTIONS_SOURCE]["vesting_schedule"] == STOCK_OPTIONS_NOTES
-        assert {holding["compensation_type"] for holding in annualized_holdings.values()} == {
+        assert (
+            annualized_holdings[STOCK_OPTIONS_SOURCE]["vesting_schedule"]
+            == STOCK_OPTIONS_NOTES
+        )
+        assert {
+            holding["compensation_type"] for holding in annualized_holdings.values()
+        } == {
             "esop",
             "rsu",
             "stock_options",
@@ -651,11 +721,20 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             assert line["ledger_anchor"]["state"] == "available"
             assert line["ledger_anchor"]["entry_statuses"] == ["posted", "reconciled"]
             assert line["confidence_tier"] == "TRUSTED"
-        assert traceability_lines["annualized_income_long_term.restricted_fair_value_total"]["ledger_anchor"][
-            "state"
-        ] == "not_applicable"
-        warning_codes = {warning["code"] for warning in traceability["completeness_warnings"]}
-        assert {"missing_source_anchor", "manual_only_source", "stale_market_data"} <= warning_codes
+        assert (
+            traceability_lines[
+                "annualized_income_long_term.restricted_fair_value_total"
+            ]["ledger_anchor"]["state"]
+            == "not_applicable"
+        )
+        warning_codes = {
+            warning["code"] for warning in traceability["completeness_warnings"]
+        }
+        assert {
+            "missing_source_anchor",
+            "manual_only_source",
+            "stale_market_data",
+        } <= warning_codes
 
         manual_components_exclusive = await client.get(
             _api_url(
@@ -667,7 +746,8 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         )
         manual_components_exclusive_payload = manual_components_exclusive.json()
         sources_exclusive = {
-            (item["component_type"], item["source"]) for item in manual_components_exclusive_payload["items"]
+            (item["component_type"], item["source"])
+            for item in manual_components_exclusive_payload["items"]
         }
         assert ("esop", ESOP_SOURCE) not in sources_exclusive
         assert ("rsu", RSU_SOURCE) not in sources_exclusive
@@ -680,7 +760,10 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
 
         assert _money(manual_components["total_assets"]) == expected_assets
         assert _money(manual_components["total_liabilities"]) == expected_liabilities
-        assert _money(manual_components["net_worth_delta"]) == expected_assets - expected_liabilities
+        assert (
+            _money(manual_components["net_worth_delta"])
+            == expected_assets - expected_liabilities
+        )
 
         balance_payload = await client.get(
             _api_url(
@@ -694,11 +777,16 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         assert _money(balance["total_assets"]) == expected_assets
         assert _money(balance["total_liabilities"]) == expected_liabilities
         assert _money(balance["total_equity"]) == expected_assets - expected_liabilities
-        assert _money(balance["net_worth_adjustment_gain_loss"]) == expected_net_worth_adjustment
+        assert (
+            _money(balance["net_worth_adjustment_gain_loss"])
+            == expected_net_worth_adjustment
+        )
         assert _money(balance["equation_delta"]) == Decimal("0.00")
         assert balance["is_balanced"] is True
         assert _line_total(balance["assets"]) == _money(balance["total_assets"])
-        assert _line_total(balance["liabilities"]) == _money(balance["total_liabilities"])
+        assert _line_total(balance["liabilities"]) == _money(
+            balance["total_liabilities"]
+        )
 
         income_payload = await client.get(
             _api_url(
@@ -722,7 +810,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             f"cash flow failed: {cash_flow_payload.status_code} {cash_flow_payload.text}"
         )
         cash_flow = cash_flow_payload.json()
-        assert _money(cash_flow["summary"]["net_cash_flow"]) == _money(expected.net_income)
+        assert _money(cash_flow["summary"]["net_cash_flow"]) == _money(
+            expected.net_income
+        )
         assert _money(cash_flow["summary"]["beginning_cash"]) == Decimal("0.00")
         assert _money(cash_flow["summary"]["ending_cash"]) == _money(expected_bank_cash)
 
@@ -735,9 +825,13 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
                 "currency": "SGD",
             },
         )
-        assert bs_export.status_code == 200, f"balance-sheet export failed: {bs_export.status_code} {bs_export.text}"
+        assert bs_export.status_code == 200, (
+            f"balance-sheet export failed: {bs_export.status_code} {bs_export.text}"
+        )
         assert "text/csv" in bs_export.headers["content-type"]
-        _assert_csv_total(bs_export.text, "Total Assets", _money(balance["total_assets"]))
+        _assert_csv_total(
+            bs_export.text, "Total Assets", _money(balance["total_assets"])
+        )
         _assert_csv_total(
             bs_export.text,
             "Total Liabilities",
@@ -758,13 +852,21 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
             f"income export failed: {income_export.status_code} {income_export.text}"
         )
         assert "text/csv" in income_export.headers["content-type"]
-        _assert_csv_total(income_export.text, "Total Income", _money(income["total_income"]))
-        _assert_csv_total(income_export.text, "Total Expenses", _money(income["total_expenses"]))
-        _assert_csv_total(income_export.text, "Net Income", _money(income["net_income"]))
+        _assert_csv_total(
+            income_export.text, "Total Income", _money(income["total_income"])
+        )
+        _assert_csv_total(
+            income_export.text, "Total Expenses", _money(income["total_expenses"])
+        )
+        _assert_csv_total(
+            income_export.text, "Net Income", _money(income["net_income"])
+        )
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_role("heading", name="Upload to report")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Upload to report")).to_be_visible(
+        timeout=10_000
+    )
     await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=10_000)
 
     await page.goto(
@@ -773,7 +875,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         )
     )
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
+        timeout=10_000
+    )
 
     await page.goto(
         _get_url(
@@ -781,7 +885,9 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         )
     )
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(
+        timeout=10_000
+    )
 
     await page.goto(
         _get_url(
@@ -789,4 +895,6 @@ async def test_personal_financial_report_package_post_merge_journey(authenticate
         )
     )
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_role("heading", name="Cash Flow Statement")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Cash Flow Statement")).to_be_visible(
+        timeout=10_000
+    )
