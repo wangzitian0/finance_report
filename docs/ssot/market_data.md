@@ -18,6 +18,18 @@
 | **Price Storage** | `stock_prices` table | Historical daily stock prices |
 | **Sync State Storage** | `market_data_sync_state` table | Last successful provider sync timestamp by FX pair or stock symbol |
 
+## 1.1 Product Automation Contract
+
+Report and dashboard preparation may automatically refresh FX rates and stock
+prices for currencies and symbols observed in trusted user data. Automatic
+market-data refresh is supporting evidence for valuation and reporting; it does
+not replace source documents, brokerage statements, or user-confirmed ledger
+facts.
+
+Every persisted FX rate or price must retain its source and date. If market
+data is unavailable or stale, reports and assistant suggestions must expose that
+limitation instead of inventing a value.
+
 ---
 
 ## 2. Data Sources

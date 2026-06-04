@@ -43,7 +43,20 @@ The advisor only reads summarized, posted/reconciled data:
 - Reconciliation stats and unmatched counts
 - User session context (last 10 rounds max)
 
-### 2.3 Data Handling Policy
+### 2.3 Financial Suggestion Scope
+
+The assistant may surface explainable personal-finance suggestions from trusted
+summary data, known data gaps, and pending review actions. Supported suggestion
+classes include cash-flow observations, unusual income or expense movement,
+portfolio concentration flags, stale market-data warnings, missing source
+documents, report-readiness blockers, and questions the user should answer
+before relying on a report.
+
+Suggestions are read-only. They must identify the source basis or limitation
+behind the suggestion and must not execute trades, mutate ledger data, provide
+legal or tax advice, or present regulated investment advice as a conclusion.
+
+### 2.4 Data Handling Policy
 
 - No ledger mutations, no write endpoints used.
 - Only summarized data is sent to the LLM (no full account numbers or raw files).

@@ -15,6 +15,21 @@
 | **Report Templates** | `apps/frontend/src/app/reports/` | Report pages and layouts |
 | **Visual Components** | `apps/frontend/src/components/charts/` | Chart components |
 
+## 1.1 Automated Report Preparation Contract
+
+Reports are prepared from trusted ledger facts, reviewed records, owned
+valuation snapshots, and market data with explicit source basis. Once the user
+has uploaded supported source documents, report preparation should assemble the
+required sections automatically wherever deterministic rules and registered ACs
+exist.
+
+Automation examples include multi-currency conversion, investment valuation,
+annualized income, ESOP/RSU and other long-term compensation schedules, fixed
+recurring expense accrual or pre-deduction presentation, report-readiness
+blockers, notes, and source links. If an input is missing, stale, ambiguous, or
+outside the implemented contract, the report must disclose the limitation or
+block readiness instead of silently filling the gap.
+
 ---
 
 ## 2. Report Types
