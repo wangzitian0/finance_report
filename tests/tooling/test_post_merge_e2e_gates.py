@@ -874,8 +874,10 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     frontend_dockerfile = read("apps/frontend/Dockerfile")
 
     deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+    cleanup_block = workflow.split("  cleanup:", 1)[1]
     frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
+    assert "PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}" in deploy_block
     assert "packages: write" in deploy_block
     assert "Log in to Container registry" in deploy_block
     assert "docker/login-action@v3" in deploy_block
@@ -889,9 +891,9 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         "Build and push Frontend PR preview image"
     ) < deploy_block.index("Deploy preview lifecycle")
     assert "push: true" in deploy_block
-    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:pr-${{ needs.setup.outputs.pr_number }}" in deploy_block
+    assert "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}" in deploy_block
     assert (
-        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:pr-${{ needs.setup.outputs.pr_number }}" in deploy_block
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}" in deploy_block
     )
     assert "GIT_COMMIT_SHA=${{ github.sha }}" in deploy_block
     assert (
@@ -915,9 +917,12 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     assert "/frontend-version.json?expected=" in frontend_readiness_block
     assert 'expected_sha = os.environ["EXPECTED_SHA"]' in frontend_readiness_block
     assert 'payload.get("git_sha") or payload.get("version")' in frontend_readiness_block
+    assert '"User-Agent": "finance-report-pr-preview-readiness/1.0"' in frontend_readiness_block
     assert "Frontend not ready with expected git_sha" in frontend_readiness_block
+    assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in cleanup_block
+    assert 'startswith(\\"${TAG_PREFIX}\\")' in cleanup_block
     assert (
-        "PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy"
+        "PR preview deploy builds and pushes commit-scoped PR backend and frontend images before invoking Dokploy"
         in ci_cd
     )
     assert "waits for both `/api/health` and `/frontend-version.json`" in ci_cd

@@ -35,7 +35,7 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     assert env["PR_PREVIEW_COMPOSE_PROJECT"] == "finance_report_pr_591"
     assert env["COMPOSE_PROJECT_NAME"] == "finance_report_pr_591"
     assert env["PR_PREVIEW_CREATED_BY"] == "github-actions"
-    assert env["IMAGE_TAG"] == "pr-591"
+    assert env["IMAGE_TAG"] == "pr-591-abc123"
     assert env["GIT_COMMIT_SHA"] == "abc123"
     assert env["ENV_SUFFIX"] == "-pr-591"
     assert env["COMPOSE_PROFILES"] == "infra,app"
@@ -81,7 +81,7 @@ def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
     lifecycle = lifecycle_module()
 
     expected = {
-        "IMAGE_TAG": "pr-591",
+        "IMAGE_TAG": "pr-591-abc123",
         "GIT_COMMIT_SHA": "abc123",
         "IAC_CONFIG_HASH": "deploy-abc123-1",
         "ENV_SUFFIX": "-pr-591",
@@ -102,7 +102,7 @@ def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
 
     diff = lifecycle.render_allowlisted_env_diff(expected, actual_env)
 
-    assert "IMAGE_TAG: expected=pr-591 actual=old" in diff
+    assert "IMAGE_TAG: expected=pr-591-abc123 actual=old" in diff
     assert "GIT_COMMIT_SHA: match" in diff
     assert "hvs.secret" not in diff
     assert "refresh-secret" not in diff
@@ -208,7 +208,7 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
             lifecycle.DokployConfig("https://cloud.example/api", "secret"),
             compose_id="cmp-591",
             env={
-                "IMAGE_TAG": "pr-591",
+                "IMAGE_TAG": "pr-591-abc123",
                 "GIT_COMMIT_SHA": "abc123",
                 "IAC_CONFIG_HASH": "pr-591-abc123",
                 "ENV_SUFFIX": "-pr-591",
@@ -328,7 +328,7 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
 
     effective_env = "\n".join(
         [
-            "IMAGE_TAG=pr-591",
+            "IMAGE_TAG=pr-591-abc123",
             "GIT_COMMIT_SHA=abc123",
             "IAC_CONFIG_HASH=pr-591-abc123",
             "ENV_SUFFIX=-pr-591",

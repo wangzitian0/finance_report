@@ -115,6 +115,8 @@ jobs:
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: setup
     runs-on: ubuntu-latest
+    env:
+      PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
     permissions:
       contents: read
       packages: write
@@ -142,7 +144,7 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:pr-${{ needs.setup.outputs.pr_number }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
 
@@ -153,7 +155,7 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:pr-${{ needs.setup.outputs.pr_number }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
             NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
@@ -259,7 +261,11 @@ jobs:
               try:
                   request = urllib.request.Request(
                       url,
-                      headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
+                      headers={
+                          "Cache-Control": "no-cache",
+                          "Pragma": "no-cache",
+                          "User-Agent": "finance-report-pr-preview-readiness/1.0",
+                      },
                   )
                   with urllib.request.urlopen(request, timeout=15, context=ctx) as response:
                       body = response.read().decode("utf-8")
@@ -461,34 +467,38 @@ jobs:
 
           for service in backend frontend; do
             IMAGE_NAME="finance_report-${service}"
-            TAG="pr-${PR_NUMBER}"
+            TAG_PREFIX="pr-${PR_NUMBER}-"
 
-            echo "Searching for ${IMAGE_NAME}:${TAG}..."
+            echo "Searching for ${IMAGE_NAME} tags with prefix ${TAG_PREFIX}..."
 
-            # Get package version ID for this tag
-            VERSION_ID=$(gh api \
+            # Get package version IDs for commit-scoped PR preview tags.
+            VERSION_IDS=$(gh api \
               -H "Accept: application/vnd.github+json" \
               "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions" \
-              --jq ".[] | select(.metadata.container.tags[] | contains(\"${TAG}\")) | .id" \
+              --paginate \
+              --jq ".[] | select(.metadata.container.tags[]? | startswith(\"${TAG_PREFIX}\")) | .id" \
               2>/dev/null || echo "")
 
-            if [ -z "$VERSION_ID" ]; then
-              echo "  Image ${IMAGE_NAME}:${TAG} not found (may be already deleted)"
+            if [ -z "$VERSION_IDS" ]; then
+              echo "  No ${IMAGE_NAME} tags found for ${TAG_PREFIX} (may be already deleted)"
               continue
             fi
 
-            echo "  Found version ID: $VERSION_ID"
-            echo "  Deleting..."
+            while IFS= read -r VERSION_ID; do
+              [ -n "$VERSION_ID" ] || continue
+              echo "  Found version ID: $VERSION_ID"
+              echo "  Deleting..."
 
-            gh api \
-              --method DELETE \
-              -H "Accept: application/vnd.github+json" \
-              "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions/${VERSION_ID}" \
-              2>&1 || {
-                echo "::warning::Failed to delete ${IMAGE_NAME}:${TAG} (may require org admin permissions)"
-              }
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions/${VERSION_ID}" \
+                2>&1 || {
+                  echo "::warning::Failed to delete ${IMAGE_NAME} version ${VERSION_ID} (may require org admin permissions)"
+                }
 
-            echo "  ✅ Deleted ${IMAGE_NAME}:${TAG}"
+              echo "  ✅ Deleted ${IMAGE_NAME} version ${VERSION_ID}"
+            done <<< "$VERSION_IDS"
           done
 
           echo "GHCR cleanup complete"
@@ -530,7 +540,7 @@ jobs:
             All temporary resources for this PR have been released:
 
             - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
-            - **GHCR Images**: Deleted (backend:pr-${{ needs.setup.outputs.pr_number }}, frontend:pr-${{ needs.setup.outputs.pr_number }})
+            - **GHCR Images**: Deleted tags with prefix \`pr-${{ needs.setup.outputs.pr_number }}-\` for backend/frontend
             - **Host Docker leftovers**: Managed by the Dokploy host hygiene schedule
 
             _Cleanup completed successfully._`;
