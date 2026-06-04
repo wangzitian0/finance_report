@@ -517,12 +517,12 @@ async def test_AC19_5_7_package_readiness_converts_processing_balance_before_zer
 
 
 @pytest.mark.asyncio
-async def test_AC19_7_8_package_readiness_blocks_when_processing_fx_conversion_fails(
+async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails(
     db: AsyncSession,
     test_user: User,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC19.7.8: Missing FX for Processing lines produces a clear readiness blocker."""
+    """AC19.8.8: Missing FX for Processing lines produces a clear readiness blocker."""
     processing_account = Account(
         user_id=test_user.id,
         name="Processing",

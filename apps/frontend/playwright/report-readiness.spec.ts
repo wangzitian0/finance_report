@@ -106,7 +106,7 @@ async function expectNoDocumentHorizontalScroll(page: Page) {
   expect(metrics.scrollX).toBe(0);
 }
 
-test.describe("AC19.7.7 AC19.7.8 report readiness smoke", () => {
+test.describe("AC19.8.7 AC19.8.8 report readiness smoke", () => {
   for (const scenario of [
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },

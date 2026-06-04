@@ -33,10 +33,14 @@ Hard-fail checks enforced in CI:
      attach AC IDs to the test or remove the obsolete file instead.
 10. Mutable backend coverage threshold numbers MUST be owned by
      apps/backend/pyproject.toml instead of copied into TDD SSOT prose.
- 11. Checked-in Markdown under docs/ MUST be reachable from the MkDocs
+11. Checked-in Markdown under docs/ MUST be reachable from the MkDocs
      navigation.
- 12. Module README files MUST stay as thin pointers to SSOT owners instead of
+12. Module README files MUST stay as thin pointers to SSOT owners instead of
      duplicating API routes, page inventories, fixtures, or mapping tables.
+13. Generated analysis snapshots MUST NOT be checked in under docs/analysis/.
+14. Reconciliation threshold prose MUST point to code/config owners instead of
+     claiming Markdown is the single authority.
+15. Frontend source MUST NOT call raw fetch() outside apps/frontend/src/lib/api.ts.
 
 The script exits 0 on success and 1 on any violation.
 
@@ -82,6 +86,8 @@ CI_CD_SSOT = REPO_ROOT / "docs" / "ssot" / "ci-cd.md"
 TDD_SSOT = REPO_ROOT / "docs" / "ssot" / "tdd.md"
 TRACEABILITY_EXCEPTIONS = REPO_ROOT / "docs" / "analysis" / "traceability-exceptions.md"
 MKDOCS_CONFIG = REPO_ROOT / "mkdocs.yml"
+RECONCILIATION_SSOT = REPO_ROOT / "docs" / "ssot" / "reconciliation.md"
+FRONTEND_SRC = REPO_ROOT / "apps" / "frontend" / "src"
 
 TEST_ROOTS = [
     REPO_ROOT / "apps" / "backend" / "tests",
@@ -237,6 +243,29 @@ THIN_README_FORBIDDEN_HEADINGS = (
 )
 
 MARKDOWN_CODE_SPAN_PATTERN = re.compile(r"`([^`]+)`")
+RAW_FETCH_PATTERN = re.compile(r"\bfetch\s*\(")
+
+GENERATED_ANALYSIS_SNAPSHOTS = (
+    REPO_ROOT / "docs" / "analysis" / "ac-epic-mismatch-report.md",
+    REPO_ROOT / "docs" / "analysis" / "test-ac-coverage-report.md",
+)
+
+FRONTEND_RAW_FETCH_ALLOWED_FILES = {
+    REPO_ROOT / "apps" / "frontend" / "src" / "lib" / "api.ts",
+}
+
+RECONCILIATION_THRESHOLD_REQUIRED_TOKENS = (
+    "apps/backend/config/reconciliation.yaml",
+    "apps/backend/src/services/reconciliation.py",
+    "DEFAULT_CONFIG",
+    "load_reconciliation_config",
+    "RECONCILIATION_AUTO_ACCEPT_THRESHOLD",
+    "RECONCILIATION_REVIEW_THRESHOLD",
+)
+
+RECONCILIATION_THRESHOLD_FORBIDDEN_TOKENS = (
+    "single authoritative definition of reconciliation score thresholds",
+)
 
 
 class Violation(NamedTuple):
@@ -763,6 +792,105 @@ def check_module_readmes_are_thin() -> list[Violation]:
     return violations
 
 
+def check_generated_analysis_snapshots_absent(
+    paths: tuple[Path, ...] = GENERATED_ANALYSIS_SNAPSHOTS,
+) -> list[Violation]:
+    """Check #13: generated reports are produced live, not checked in."""
+    violations: list[Violation] = []
+    for path in paths:
+        if path.exists():
+            violations.append(
+                Violation(
+                    check="check13_generated_analysis_snapshots_absent",
+                    message=(
+                        f"{_display_path(path)}: generated analysis snapshots "
+                        "must not be checked in; use the live tool output or CI "
+                        "artifact instead"
+                    ),
+                )
+            )
+    return violations
+
+
+def check_reconciliation_thresholds_are_code_owned(
+    doc_path: Path = RECONCILIATION_SSOT,
+) -> list[Violation]:
+    """Check #14: reconciliation thresholds stay code/config-owned."""
+    try:
+        text = doc_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [
+            Violation(
+                check="check14_reconciliation_thresholds_code_owned",
+                message=f"{_display_path(doc_path)}: cannot read file ({exc})",
+            )
+        ]
+
+    violations: list[Violation] = []
+    lower_text = text.lower()
+    for token in RECONCILIATION_THRESHOLD_FORBIDDEN_TOKENS:
+        if token.lower() in lower_text:
+            violations.append(
+                Violation(
+                    check="check14_reconciliation_thresholds_code_owned",
+                    message=(
+                        f"{_display_path(doc_path)}: reconciliation thresholds "
+                        "must not claim Markdown prose is the single authority; "
+                        "point to code/config owners instead"
+                    ),
+                )
+            )
+
+    for token in RECONCILIATION_THRESHOLD_REQUIRED_TOKENS:
+        if token not in text:
+            violations.append(
+                Violation(
+                    check="check14_reconciliation_thresholds_code_owned",
+                    message=(
+                        f"{_display_path(doc_path)}: missing code/config owner "
+                        f"token {token!r} for reconciliation thresholds"
+                    ),
+                )
+            )
+    return violations
+
+
+def check_frontend_raw_fetch_usage(
+    source_root: Path = FRONTEND_SRC,
+    allowed_files: set[Path] = FRONTEND_RAW_FETCH_ALLOWED_FILES,
+) -> list[Violation]:
+    """Check #15: frontend API calls go through lib/api.ts."""
+    if not source_root.exists():
+        return []
+
+    violations: list[Violation] = []
+    suffixes = {".ts", ".tsx", ".js", ".jsx"}
+    for path in sorted(source_root.rglob("*")):
+        if not path.is_file() or path.suffix not in suffixes:
+            continue
+        if _is_excluded_path(path) or "__tests__" in path.parts:
+            continue
+        if path in allowed_files:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if RAW_FETCH_PATTERN.search(line):
+                violations.append(
+                    Violation(
+                        check="check15_frontend_raw_fetch_usage",
+                        message=(
+                            f"{_display_path(path)}:{line_no}: raw fetch() is "
+                            "only allowed in apps/frontend/src/lib/api.ts; "
+                            "use the API wrapper instead"
+                        ),
+                    )
+                )
+    return violations
+
+
 def check_proof_placement_policy(ci_cd_path: Path | None = None) -> list[Violation]:
     """Check #7: CI/CD SSOT defines pre-merge vs post-merge proof placement."""
     if ci_cd_path is None:
@@ -845,6 +973,9 @@ def main() -> int:
     violations.extend(check_code_owned_coverage_threshold_doc())
     violations.extend(check_mkdocs_nav_coverage())
     violations.extend(check_module_readmes_are_thin())
+    violations.extend(check_generated_analysis_snapshots_absent())
+    violations.extend(check_reconciliation_thresholds_are_code_owned())
+    violations.extend(check_frontend_raw_fetch_usage())
 
     if args.verbose or violations:
         print("=" * 72)

@@ -104,8 +104,8 @@ def test_AC19_6_1_workflow_navigation_ssot_documents_primary_and_advanced_groups
     assert "AC19.6.7" in epic
 
 
-def test_AC19_7_1_workflow_session_ssot_separates_chat_sessions() -> None:
-    """AC19.7.1: WorkflowSession is the workflow domain object; chat sessions are AI UI state."""
+def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
+    """AC19.8.1: WorkflowSession is the workflow domain object; chat sessions are AI UI state."""
     ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
     normalized_ssot = " ".join(ssot.split())
@@ -118,12 +118,12 @@ def test_AC19_7_1_workflow_session_ssot_separates_chat_sessions() -> None:
     ):
         assert phrase in normalized_ssot
 
-    assert "AC19.7.1" in epic
-    assert "AC19.7.8" in epic
+    assert "AC19.8.1" in epic
+    assert "AC19.8.8" in epic
 
 
-def test_AC19_7_2_workflow_session_model_contract() -> None:
-    """AC19.7.2: workflow_sessions and workflow_events.session_id expose the v1 session contract."""
+def test_AC19_8_2_workflow_session_model_contract() -> None:
+    """AC19.8.2: workflow_sessions and workflow_events.session_id expose the v1 session contract."""
     session_table = WorkflowSession.__table__
     event_table = WorkflowEvent.__table__
 

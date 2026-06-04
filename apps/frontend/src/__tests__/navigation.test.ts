@@ -8,7 +8,7 @@ import {
 } from "@/components/navigation";
 
 describe("navigation metadata", () => {
-  it("AC19.6.2 AC19.7.5 exposes primary workflow navigation separately from advanced drill-downs", () => {
+  it("AC19.6.2 AC19.8.5 exposes primary workflow navigation separately from advanced drill-downs", () => {
     expect(primaryWorkflowNavItems.map((item) => item.label)).toEqual([
       "Upload Pipeline",
       "Reports",

@@ -503,12 +503,12 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "generated -> ready" in ssot
 
 
-async def test_AC19_7_3_workflow_status_and_events_expose_session_timeline(
+async def test_AC19_8_3_workflow_status_and_events_expose_session_timeline(
     client: AsyncClient,
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.7.3: workflow status exposes active session and events return session-scoped timeline data."""
+    """AC19.8.3: workflow status exposes active session and events return session-scoped timeline data."""
     statement = BankStatement(
         user_id=test_user.id,
         file_path="statements/session-demo.csv",

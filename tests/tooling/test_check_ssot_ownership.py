@@ -16,8 +16,6 @@ from common.ssot.check_ssot_ownership import (
     check_must_be_absent,
     check_retired_archive_roots,
     check_rule_cross_references,
-    check_translation_parity,
-    count_lines,
     has_cross_reference,
     main,
 )
@@ -26,27 +24,6 @@ from common.ssot.check_ssot_ownership import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-class TestCountLines:
-    def test_empty_file(self, tmp_path: Path) -> None:
-        f = tmp_path / "empty.md"
-        f.write_text("")
-        assert count_lines(f) == 0
-
-    def test_single_line(self, tmp_path: Path) -> None:
-        f = tmp_path / "one.md"
-        f.write_text("hello")
-        assert count_lines(f) == 1
-
-    def test_multi_line(self, tmp_path: Path) -> None:
-        f = tmp_path / "multi.md"
-        f.write_text("a\nb\nc")
-        assert count_lines(f) == 3
-
-    def test_missing_file_returns_zero(self, tmp_path: Path) -> None:
-        missing = tmp_path / "nonexistent.md"
-        assert count_lines(missing) == 0
 
 
 class TestHasCrossReference:
@@ -64,64 +41,7 @@ class TestHasCrossReference:
 
 
 # ---------------------------------------------------------------------------
-# Check 1 — translation parity
-# ---------------------------------------------------------------------------
-
-
-class TestCheckTranslationParity:
-    def test_passes_when_zh_le_en(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        en = tmp_path / "DECISIONS.md"
-        zh = tmp_path / "DECISIONS_ZH.md"
-        en.write_text("line1\nline2\nline3")
-        zh.write_text("行1\n行2")
-
-        monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.TRANSLATION_PAIRS",
-            [(zh, en)],
-        )
-        violations = check_translation_parity()
-        assert violations == []
-
-    def test_fails_when_zh_gt_en(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        en = tmp_path / "DECISIONS.md"
-        zh = tmp_path / "DECISIONS_ZH.md"
-        en.write_text("line1\nline2")
-        zh.write_text("行1\n行2\n行3\n行4")
-
-        monkeypatch.setattr("common.ssot.check_ssot_ownership.REPO_ROOT", tmp_path)
-        monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.TRANSLATION_PAIRS",
-            [(zh, en)],
-        )
-        violations = check_translation_parity()
-        assert len(violations) == 1
-        assert "ZH translation must not exceed EN source" in violations[0].message
-
-    def test_skips_when_file_missing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """When one file in a pair doesn't exist the pair is silently skipped."""
-        en = tmp_path / "DECISIONS.md"
-        en.write_text("line1\nline2")
-        zh_missing = tmp_path / "DECISIONS_ZH.md"  # NOT created
-        monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.TRANSLATION_PAIRS",
-            [(zh_missing, en)],
-        )
-        assert check_translation_parity() == []
-
-    def test_real_decisions_files_pass(self) -> None:
-        """Actual DECISIONS.md / DECISIONS_ZH.md must satisfy ZH ≤ EN."""
-        violations = check_translation_parity()
-        assert violations == [], "\n".join(v.message for v in violations)
-
-
-# ---------------------------------------------------------------------------
-# Check 2 — retired archive root files
+# Check 1 — retired archive root files
 # ---------------------------------------------------------------------------
 
 
@@ -337,8 +257,7 @@ class TestFullRunOnRealRepo:
     def test_all_checks_pass(self) -> None:
         """All checks must pass on the real repository."""
         violations = (
-            check_translation_parity()
-            + check_retired_archive_roots()
+            check_retired_archive_roots()
             + check_must_be_absent()
             + check_rule_cross_references()
         )
@@ -372,20 +291,20 @@ class TestMain:
     ) -> None:
         """main() prints grouped violations and returns 1 when checks fail."""
         fake_violation = Violation(
-            check="check1_translation_parity",
-            message="DECISIONS_ZH.md has 10 lines but DECISIONS.md has only 5 lines.",
+            check="check2_must_be_absent",
+            message="docs/project/archive must not exist.",
         )
 
         monkeypatch.setattr(sys, "argv", ["check_ssot_ownership.py"])
         monkeypatch.setattr(
-            "common.ssot.check_ssot_ownership.check_translation_parity",
+            "common.ssot.check_ssot_ownership.check_must_be_absent",
             lambda: [fake_violation],
         )
         result = main()
         captured = capsys.readouterr()
         assert result == 1
         assert "SSOT ownership lint found 1 violation" in captured.err
-        assert "check1_translation_parity" in captured.err
+        assert "check2_must_be_absent" in captured.err
         assert fake_violation.message in captured.err
 
     def test_main_entrypoint(self, monkeypatch: pytest.MonkeyPatch) -> None:

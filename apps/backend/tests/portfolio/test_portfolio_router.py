@@ -622,14 +622,14 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
 
 
 @pytest.mark.asyncio
-async def test_AC19_7_8_investment_schedule_fallback_holding_cost_basis_converts_currency(
+async def test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency(
     client: AsyncClient,
     db: AsyncSession,
     test_user,
     investment_account,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC19.7.8: Fallback holdings without ManagedPosition still convert cost basis to presentation currency."""
+    """AC19.8.8: Fallback holdings without ManagedPosition still convert cost basis to presentation currency."""
     period_start = date(2026, 1, 1)
     as_of_date = date(2026, 5, 20)
     db.add(

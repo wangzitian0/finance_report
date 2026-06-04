@@ -97,7 +97,7 @@ describe("ChatPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "New" }))
   })
 
-  it("AC19.7.6 shows chat sessions inside the AI page without workflow ownership", async () => {
+  it("AC19.8.6 shows chat sessions inside the AI page without workflow ownership", async () => {
     render(<ChatPanel variant="page" />)
 
     fireEvent.click(await screen.findByRole("button", { name: "Sessions" }))
@@ -107,7 +107,7 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/chat/history?session_id=sess-1"))
   })
 
-  it("AC19.7.6 renders an empty session drawer when no chat history exists", async () => {
+  it("AC19.8.6 renders an empty session drawer when no chat history exists", async () => {
     const storage = new Map<string, string>()
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => storage.get(key) ?? null,
@@ -135,7 +135,7 @@ describe("ChatPanel", () => {
     expect(await screen.findByText("No saved conversations yet.")).toBeInTheDocument()
   })
 
-  it("AC19.7.6 closes the chat session drawer without changing the active conversation", async () => {
+  it("AC19.8.6 closes the chat session drawer without changing the active conversation", async () => {
     render(<ChatPanel variant="page" />)
 
     fireEvent.click(await screen.findByRole("button", { name: "Sessions" }))

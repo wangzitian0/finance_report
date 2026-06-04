@@ -238,6 +238,17 @@ to audit each report line.
 | AC5.13.4 | Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
 | AC5.13.5 | Package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors | `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | `api/test_personal_report_package_contract.py` | P0 |
 
+### AC5.14: Framework Policy Result Consumption
+
+EPIC-005 assembles report packages from framework policy results owned by
+[EPIC-020](EPIC-020.framework-aware-personal-reporting.md). It renders
+statements, notes, exports, and traceability; it must not own US/HK
+recognition, measurement, or classification rules.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.14.1 | Reporting docs declare that EPIC-005 consumes framework policy results for US/HK package output and does not own framework-specific accounting decisions | `test_AC5_14_1_reporting_assembles_framework_policy_results_only` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
@@ -318,10 +329,12 @@ Scope owned here:
   tracked by [#566](https://github.com/wangzitian0/finance_report/issues/566).
 - Integration of EPIC-017 investment performance schedules tracked by
   [#564](https://github.com/wangzitian0/finance_report/issues/564).
+- Integration of EPIC-020 framework policy results for US-like and HK-like
+  personal report package variants.
 
-US GAAP and Hong Kong listed-company reporting are reference structures for
-coverage and naming discipline. This EPIC does not claim regulated filing
-compliance.
+US GAAP and Hong Kong listed-company reporting are target reference structures
+for coverage and naming discipline through EPIC-020. This EPIC renders personal
+management reports and does not claim regulated filing compliance.
 
 Remaining blocker breakdown after the #565 post-merge proof:
 

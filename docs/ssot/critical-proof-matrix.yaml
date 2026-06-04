@@ -14,6 +14,7 @@ outcomes:
       - EPIC-011
       - EPIC-017
       - EPIC-018
+      - EPIC-020
     issue: "#567"
     proof_ids:
       - personal-financial-report-package-post-merge

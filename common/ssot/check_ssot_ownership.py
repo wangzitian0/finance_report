@@ -3,18 +3,14 @@
 
 Checks enforced in CI:
 
-  1. **Translation line-count parity**: For each ``DECISIONS_ZH.md`` /
-     ``DECISIONS.md`` pair in ``docs/project/``, the ZH file must not
-     exceed the EN file in line count (ZH ≤ EN).
-
-  2. **Retired archive snapshots absent**: Certain legacy root files and the
+  1. **Retired archive snapshots absent**: Certain legacy root files and the
      retired ``docs/project/archive/`` snapshot directory must NOT exist in
      the repository. Retention is handled by issue #548 plus git history.
 
-  3. **Merged / renamed files absent**: Files that were consolidated
+  2. **Merged / renamed files absent**: Files that were consolidated
      into another document or renamed must not exist anymore.
 
-  4. **Rule keyword cross-references**: Files outside the designated
+  3. **Rule keyword cross-references**: Files outside the designated
      SSOT owner that contain rule-defining keywords must also include
      a ``See: docs/ssot/<file>.md`` cross-reference on the same or an
      adjacent line. Files in ``docs/ssot/`` are always treated as
@@ -40,19 +36,7 @@ from typing import NamedTuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # ---------------------------------------------------------------------------
-# Check 1 — Translation line-count parity
-# ---------------------------------------------------------------------------
-
-# Pairs: (zh_path, en_path) — ZH must be ≤ EN in line count.
-TRANSLATION_PAIRS: list[tuple[Path, Path]] = [
-    (
-        REPO_ROOT / "docs" / "project" / "DECISIONS_ZH.md",
-        REPO_ROOT / "docs" / "project" / "DECISIONS.md",
-    ),
-]
-
-# ---------------------------------------------------------------------------
-# Check 2 — Retired archive roots must NOT exist in docs/project/ root
+# Check 1 — Retired archive roots must NOT exist in docs/project/ root
 # ---------------------------------------------------------------------------
 
 # Legacy root files that predate the active README -> EPIC -> AC -> test chain.
@@ -64,7 +48,7 @@ RETIRED_ARCHIVE_ROOT_FILES: list[Path] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Check 3 — Merged / renamed files must not exist
+# Check 2 — Merged / renamed files must not exist
 # ---------------------------------------------------------------------------
 
 # Files that were merged into another document or renamed; must be absent.
@@ -80,7 +64,7 @@ MUST_BE_ABSENT: list[Path] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Check 4 — Rule keyword cross-references
+# Check 3 — Rule keyword cross-references
 # ---------------------------------------------------------------------------
 
 # Each entry: (description, keyword_pattern, canonical_ssot_file, anchor).
@@ -165,44 +149,11 @@ class Violation(NamedTuple):
 # ---------------------------------------------------------------------------
 
 
-def count_lines(path: Path) -> int:
-    try:
-        return len(path.read_text(encoding="utf-8", errors="ignore").splitlines())
-    except OSError:
-        return 0
-
-
 def has_cross_reference(text: str, ssot_file: str) -> bool:
     """Return True if *text* contains a ``See: docs/ssot/<file>`` reference."""
     # Accept either bare filename or full path fragment.
     basename = Path(ssot_file).name
     return ssot_file in text or basename in text
-
-
-# ---------------------------------------------------------------------------
-# Individual checks
-# ---------------------------------------------------------------------------
-
-
-def check_translation_parity() -> list[Violation]:
-    violations: list[Violation] = []
-    for zh_path, en_path in TRANSLATION_PAIRS:
-        if not zh_path.exists() or not en_path.exists():
-            continue
-        zh_lines = count_lines(zh_path)
-        en_lines = count_lines(en_path)
-        if zh_lines > en_lines:
-            violations.append(
-                Violation(
-                    check="check1_translation_parity",
-                    message=(
-                        f"{zh_path.relative_to(REPO_ROOT)} has {zh_lines} lines "
-                        f"but {en_path.relative_to(REPO_ROOT)} has only {en_lines} lines. "
-                        "ZH translation must not exceed EN source."
-                    ),
-                )
-            )
-    return violations
 
 
 def check_retired_archive_roots() -> list[Violation]:
@@ -312,7 +263,6 @@ def main() -> int:
     args = parser.parse_args()
 
     violations: list[Violation] = []
-    violations.extend(check_translation_parity())
     violations.extend(check_retired_archive_roots())
     violations.extend(check_must_be_absent())
     violations.extend(check_rule_cross_references())
@@ -321,7 +271,6 @@ def main() -> int:
         print("=" * 72)
         print("SSOT ownership lint (tools/check_ssot_ownership.py)")
         print("=" * 72)
-        print(f"  Translation pairs checked   : {len(TRANSLATION_PAIRS)}")
         print(f"  Retired archive root files  : {len(RETIRED_ARCHIVE_ROOT_FILES)}")
         print(f"  Must-be-absent paths        : {len(MUST_BE_ABSENT)}")
         print(f"  Rule keyword checks         : {len(RULE_KEYWORDS)}")

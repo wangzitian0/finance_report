@@ -374,18 +374,24 @@ workflow state exists.
 | AC19.6.6 | Workflow event action links and workspace route labels continue to deep-link into advanced review/reconciliation/processing/report destinations | `workflowSurfaces.test.tsx`, `sidebarAndTabs.test.tsx` | P0 |
 | AC19.6.7 | Desktop and mobile Playwright smoke covers the folded navigation and Advanced access without horizontal overflow | `workflow-navigation.spec.ts` | P0 |
 
-### AC19.7 — Workflow Session IA Hardening And CR Cleanup
+### AC19.7 — Framework-Aware Evidence Readiness
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC19.7.1 | WorkflowSession is documented as the EPIC-019 product object; AI chat sessions are documented as `/chat` UI state outside workflow ownership | `test_AC19_7_1_workflow_session_ssot_separates_chat_sessions` | P0 |
-| AC19.7.2 | Backend model and migration define `workflow_sessions`, explicit `workflow_session_status_enum`, and nullable legacy-safe `workflow_events.session_id` with session timeline indexes | `test_AC19_7_2_workflow_session_model_contract` | P0 |
-| AC19.7.3 | `GET /workflow/status` returns active session summary and `GET /workflow/events` returns session-scoped event timeline metadata | `test_AC19_7_3_workflow_status_and_events_expose_session_timeline` | P0 |
-| AC19.7.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 |
-| AC19.7.5 | Primary IA is Upload Pipeline, Reports, AI, Advanced; Events and Portfolio are Advanced drill-downs; AI Settings points to `/settings/ai` | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `mobileNav.coverage.test.tsx`, `workflow-navigation.spec.ts` | P0 |
-| AC19.7.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
-| AC19.7.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
-| AC19.7.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_7_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_7_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
+| AC19.7.1 | Report readiness must evaluate framework-specific evidence blockers from EPIC-020, including missing settlement coverage, unresolved review, stale market data, missing valuation basis, and AI-only unreviewed policy suggestions before marking US/HK personal reports trusted | `test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers` | P0 |
+
+### AC19.8 — Workflow Session IA Hardening And CR Cleanup
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.8.1 | WorkflowSession is documented as the EPIC-019 product object; AI chat sessions are documented as `/chat` UI state outside workflow ownership | `test_AC19_8_1_workflow_session_ssot_separates_chat_sessions` | P0 |
+| AC19.8.2 | Backend model and migration define `workflow_sessions`, explicit `workflow_session_status_enum`, and nullable legacy-safe `workflow_events.session_id` with session timeline indexes | `test_AC19_8_2_workflow_session_model_contract` | P0 |
+| AC19.8.3 | `GET /workflow/status` returns active session summary and `GET /workflow/events` returns session-scoped event timeline metadata | `test_AC19_8_3_workflow_status_and_events_expose_session_timeline` | P0 |
+| AC19.8.4 | Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview | `workflowSurfaces.test.tsx`, `workflow-notifications.spec.ts`, `upload-first-dashboard.spec.ts` | P0 |
+| AC19.8.5 | Primary IA is Upload Pipeline, Reports, AI, Advanced; Events and Portfolio are Advanced drill-downs; AI Settings points to `/settings/ai` | `navigation.test.ts`, `sidebarAndTabs.test.tsx`, `mobileNav.coverage.test.tsx`, `workflow-navigation.spec.ts` | P0 |
+| AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
+| AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
+| AC19.8.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
 
 ## How To Build It
 

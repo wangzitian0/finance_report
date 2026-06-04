@@ -183,7 +183,7 @@ describe("workflow notification surfaces", () => {
     await waitFor(() => expect(screen.getAllByRole("button", { name: /Workflow events/i })[1]).not.toHaveTextContent("0"))
   })
 
-  it("AC19.3.5 AC19.7.4 groups inbox events by workflow session timeline and supports lifecycle actions", async () => {
+  it("AC19.3.5 AC19.8.4 groups inbox events by workflow session timeline and supports lifecycle actions", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 
     fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
@@ -214,7 +214,7 @@ describe("workflow notification surfaces", () => {
     expect(within(dialog).getByText("Upload-to-report session")).toBeInTheDocument()
   })
 
-  it("AC19.7.4 groups legacy events without session metadata into a fallback session", async () => {
+  it("AC19.8.4 groups legacy events without session metadata into a fallback session", async () => {
     const onStatusChange = vi.fn()
     const legacyEvents = workflowEvents.items.map((event) => ({ ...event, session_id: null }))
 
@@ -229,7 +229,7 @@ describe("workflow notification surfaces", () => {
     expect(onStatusChange).toHaveBeenCalledWith("blocked-event", "read")
   })
 
-  it("AC19.7.4 derives legacy fallback session copy for action-only, routine-only, and empty inboxes", () => {
+  it("AC19.8.4 derives legacy fallback session copy for action-only, routine-only, and empty inboxes", () => {
     const actionOnlyEvents = workflowEvents.items
       .filter((event) => event.severity === "action_required")
       .map((event) => ({ ...event, session_id: null }))

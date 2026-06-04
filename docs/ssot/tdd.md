@@ -124,8 +124,8 @@ Invalid AC references are reported by
 `python tools/analyze_test_ac_coverage.py --no-write --stdout` and CI
 traceability artifacts.
 AC-to-EPIC mismatch triage is reported by
-[../analysis/ac-epic-mismatch-report.md](../analysis/ac-epic-mismatch-report.md),
-which separates actionable refs from fixture-only fake IDs.
+`python tools/audit_ac_epic_mismatches.py`, which separates actionable refs
+from fixture-only fake IDs.
 
 Current coverage enforcement:
 
