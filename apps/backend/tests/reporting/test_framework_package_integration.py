@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -22,12 +23,14 @@ from src.routers.reports import (
 )
 from src.schemas.reporting import (
     FrameworkPolicyDecision,
+    FrameworkPolicyGap,
     FrameworkPolicyResult,
     PersonalReportingFrameworkId,
     PolicyFactDomain,
     PolicyProvenance,
     PolicyReviewState,
 )
+from src.services.framework_policy import _manual_domain_and_instrument, _position_domain_and_instrument
 from src.services.report_readiness import framework_policy_readiness_blockers
 
 
@@ -245,3 +248,104 @@ def test_AC19_7_1_selected_framework_requires_non_empty_policy_result() -> None:
     )
 
     assert {blocker["code"] for blocker in blockers} == {"missing_framework_policy_result"}
+
+
+def test_AC20_5_1_manual_valuation_components_map_to_supported_policy_instruments() -> None:
+    """AC20.5.1: Manual valuation facts map to supported matrix instruments instead of policy gaps."""
+    fixtures = [
+        (ManualValuationComponentType.PROPERTY_VALUE, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"),
+        (ManualValuationComponentType.CPF_BALANCE, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (ManualValuationComponentType.LONG_TERM_SAVINGS, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (ManualValuationComponentType.TAX_REFUND, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (ManualValuationComponentType.INSURANCE_CASH_VALUE, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (ManualValuationComponentType.OTHER_ASSET, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (ManualValuationComponentType.ESOP, PolicyFactDomain.RESTRICTED_COMPENSATION, "esop"),
+        (ManualValuationComponentType.RSU, PolicyFactDomain.RESTRICTED_COMPENSATION, "rsu"),
+        (ManualValuationComponentType.STOCK_OPTIONS, PolicyFactDomain.RESTRICTED_COMPENSATION, "stock_option"),
+        (ManualValuationComponentType.MORTGAGE_BALANCE, PolicyFactDomain.LIABILITY, "mortgage_liability"),
+        (ManualValuationComponentType.TAX_PAYABLE, PolicyFactDomain.LIABILITY, "payable"),
+        (ManualValuationComponentType.OTHER_LIABILITY, PolicyFactDomain.LIABILITY, "loan"),
+    ]
+
+    for component_type, expected_domain, expected_instrument in fixtures:
+        snapshot = SimpleNamespace(component_type=component_type)
+        assert _manual_domain_and_instrument(snapshot) == (expected_domain, expected_instrument)
+
+
+def test_AC20_5_1_atomic_position_asset_types_map_to_policy_domains() -> None:
+    """AC20.5.1: Atomic positions map to supported policy domains or explicit unsupported facts."""
+    fixtures = [
+        (AssetType.STOCK, PolicyFactDomain.LISTED_SECURITY, "listed_equity"),
+        (AssetType.ETF, PolicyFactDomain.LISTED_SECURITY, "etf"),
+        (AssetType.MUTUAL_FUND, PolicyFactDomain.FUND, "fund"),
+        (AssetType.CASH, PolicyFactDomain.CASH, "cash"),
+        (AssetType.PROPERTY, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"),
+        (AssetType.BOND, PolicyFactDomain.UNSUPPORTED, "bond"),
+        (AssetType.OTHER, PolicyFactDomain.UNSUPPORTED, "other"),
+        (None, PolicyFactDomain.UNSUPPORTED, "unknown_asset"),
+    ]
+
+    for asset_type, expected_domain, expected_instrument in fixtures:
+        position = SimpleNamespace(asset_type=asset_type)
+        assert _position_domain_and_instrument(position) == (expected_domain, expected_instrument)
+
+
+def test_AC19_7_1_framework_policy_helper_emits_all_evidence_blocker_codes() -> None:
+    """AC19.7.1: Readiness helper emits framework, policy gap, valuation, and market-data blockers."""
+    policy_result = FrameworkPolicyResult.model_construct(
+        result_id="policy-result:gap",
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        report_period_start=date(2026, 5, 1),
+        report_period_end=date(2026, 5, 31),
+        generated_at=date(2026, 5, 31),
+        required_statements=["balance_sheet"],
+        decisions=[
+            FrameworkPolicyDecision(
+                domain=PolicyFactDomain.CASH,
+                recognition="Recognize cash from reviewed source evidence.",
+                measurement="Measure cash at nominal amount.",
+                classification="Cash asset.",
+                presentation="Balance sheet cash.",
+                disclosure="Disclose source coverage.",
+                line_mappings={"balance_sheet": "assets.cash"},
+            )
+        ],
+        gaps=[
+            FrameworkPolicyGap(
+                code="unsupported_policy_domain",
+                fact_id="fact-private-token",
+                domain=PolicyFactDomain.UNSUPPORTED,
+                instrument_type="other",
+                blocker=True,
+                reason="Unsupported.",
+                remediation="Review policy rule.",
+                evidence_anchors=[],
+            )
+        ],
+    )
+
+    blockers = framework_policy_readiness_blockers(
+        framework_id=PersonalReportingFrameworkId.HKFRS_LIKE,
+        policy_result=policy_result,
+        report_input_count=1,
+        missing_valuation_basis_count=2,
+        stale_market_data_count=3,
+    )
+    blocker_codes = {blocker["code"] for blocker in blockers}
+
+    assert {
+        "missing_framework_policy_result",
+        "unsupported_policy_domain",
+        "missing_valuation_basis",
+        "stale_market_data",
+    } <= blocker_codes
+    assert {
+        blocker["code"]
+        for blocker in framework_policy_readiness_blockers(
+            framework_id="personal_cn_cas_like",
+            policy_result=None,
+            report_input_count=1,
+            missing_valuation_basis_count=0,
+            stale_market_data_count=0,
+        )
+    } == {"unsupported_framework"}
