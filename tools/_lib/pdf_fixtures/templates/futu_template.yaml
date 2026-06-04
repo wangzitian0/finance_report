@@ -73,3 +73,31 @@ text_elements:
   statement_period:
     format: "Statement Period: MMM YYYY"
   currency: "SGD"
+
+real_format_contract:
+  source: futu
+  sensitive_data_policy: sanitized_format_metadata_only
+  tolerances:
+    page_size_points: 10
+    column_width_points: 8
+  source_formats:
+    date_regex: "^\\d{4}-\\d{2}-\\d{2}$"
+    currency: "SGD"
+  key_text:
+    - "Futu Securities - Monthly Statement"
+    - "Activity and Valuation"
+  tables:
+    transaction_details:
+      min_rows: 6
+      columns:
+        - Date
+        - Type
+        - Description
+        - Amount
+        - Currency
+      column_widths:
+        - 80
+        - 100
+        - 200
+        - 100
+        - 60

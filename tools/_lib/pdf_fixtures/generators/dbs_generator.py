@@ -1,9 +1,10 @@
 """DBS Bank PDF generator."""
-from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
+
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, Spacer, Table
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from ..data.fake_data import generate_dbs_transactions
 from .base_generator import BasePDFGenerator
@@ -58,6 +59,9 @@ class DBSGenerator(BasePDFGenerator):
         elements.append(Spacer(1, 10))
         
         # Transaction Details Table
+        elements.append(Paragraph("Transaction Details", styles["Normal"]))
+        elements.append(Spacer(1, 8))
+
         table_config = self.template["tables"]["transaction_details"]
         columns = table_config["columns"]
         

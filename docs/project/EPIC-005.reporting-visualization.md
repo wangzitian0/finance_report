@@ -238,6 +238,19 @@ to audit each report line.
 | AC5.13.4 | Post-merge package proof fails trusted totals without source/ledger anchors or explicit manual inputs | `test_personal_financial_report_package_post_merge_journey` | `tests/e2e/test_personal_financial_report_package.py` | P0 |
 | AC5.13.5 | Package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors | `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | `api/test_personal_report_package_contract.py` | P0 |
 
+### AC5.14: Backend Reporting Integration Journey
+
+Issue [#341](https://github.com/wangzitian0/finance_report/issues/341)
+requested a T6 reporting proof. Reporting ownership is EPIC-005 in this
+repository; EPIC-006 remains the AI advisor surface. This AC provides the
+backend Tier-1 integration proof for the multi-currency reporting cycle without
+changing the later PDF export scope tracked by
+[#205](https://github.com/wangzitian0/finance_report/issues/205).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.14.1 | Multi-currency posted entries generate balanced balance sheet, income statement, and cash-flow reports in base currency | `test_AC5_14_1_multicurrency_reporting_cycle_reconciles_bs_is_cf` | `integration/test_reporting_e2e.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

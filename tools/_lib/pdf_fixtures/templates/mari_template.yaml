@@ -94,3 +94,30 @@ text_elements:
   statement_period:
     format: "STATEMENT PERIOD: DD MMM YYYY to DD MMM YYYY"
   currency: "SGD"
+
+real_format_contract:
+  source: mari
+  sensitive_data_policy: sanitized_format_metadata_only
+  tolerances:
+    page_size_points: 10
+    column_width_points: 8
+  source_formats:
+    date_regex: "^\\d{2}\\s[A-Z]{3}$"
+    currency: "SGD"
+  key_text:
+    - "TRANSACTION DETAILS"
+    - "Opening Balance"
+    - "Ending Balance"
+  tables:
+    transaction_details:
+      min_rows: 8
+      columns:
+        - DATE
+        - TRANSACTION
+        - OUTGOING (SGD)
+        - INCOMING (SGD)
+      column_widths:
+        - 60
+        - 200
+        - 80
+        - 80

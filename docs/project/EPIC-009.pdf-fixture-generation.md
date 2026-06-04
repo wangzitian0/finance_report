@@ -98,6 +98,14 @@ tests. Fixtures use fictional data; real PDFs stay local and gitignored.
 | AC9.7.2 | Main script supports --output parameter |
 | AC9.7.3 | Analyzer CLI supports input/output |
 
+### AC9.8: Real-Format Parity Contracts
+
+| ID | Requirement |
+|---|---|
+| AC9.8.1 | Committed templates define sanitized real-format contracts for page, table, date, currency, and key text metadata |
+| AC9.8.2 | Validator rejects missing or drifting real-format contracts |
+| AC9.8.3 | Generated PDFs satisfy the real-format contract for parser-visible page, table, date, currency, and key-text structure |
+
 ## Related
 
 - [PDF Fixtures SSOT](../ssot/pdf-fixtures.md)

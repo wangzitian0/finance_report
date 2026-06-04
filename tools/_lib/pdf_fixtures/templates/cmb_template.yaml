@@ -64,3 +64,32 @@ text_elements:
   statement_period:
     format: "YYYY-MM-DD"
   currency: "CNY"
+
+real_format_contract:
+  source: cmb
+  sensitive_data_policy: sanitized_format_metadata_only
+  tolerances:
+    page_size_points: 10
+    column_width_points: 8
+  source_formats:
+    date_regex: "^\\d{4}-\\d{2}-\\d{2}$"
+    currency: "CNY"
+  key_text:
+    - "CNY"
+  tables:
+    transaction_details:
+      min_rows: 10
+      columns:
+        - 记账日期
+        - 货币
+        - 交易金额
+        - 联机余额
+        - 交易摘要
+        - 对手信息
+      column_widths:
+        - 80
+        - 50
+        - 80
+        - 90
+        - 150
+        - 100
