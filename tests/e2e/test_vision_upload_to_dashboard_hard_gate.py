@@ -275,7 +275,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("networkidle")
-    await expect(page.get_by_role("heading", name="Upload to report")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_label("Upload-to-report home")).to_be_visible(timeout=10_000)
     await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")
