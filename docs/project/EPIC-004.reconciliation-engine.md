@@ -173,7 +173,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 |----|-----------|---------------|------|----------|
 | AC4.10.1 | Deterministic reconciliation audit harness emits JSON and Markdown reports with accuracy, false-positive, false-negative, review-routing, unmatched, and runtime metrics | `test_AC4_10_1_reconciliation_audit_report_schema_and_outputs` | `tests/tooling/test_reconciliation_audit.py` | P0 |
 | AC4.10.2 | Audit diagnostics list intentional false positives or wrong auto-accepts with expected-vs-actual route, entry IDs, score, and failure type | `test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive` | `tests/tooling/test_reconciliation_audit.py` | P0 |
-| AC4.10.3 | CI uploads reconciliation audit JSON/Markdown as a non-gating artifact before the dataset is promoted to a hard gate | `test_AC4_10_3_ci_uploads_reconciliation_audit_as_non_gating_artifact` | `tests/tooling/test_reconciliation_audit.py` | P1 |
+| AC4.10.3 | CI treats reconciliation audit JSON/Markdown as a hard gate for the EPIC-004 accuracy, false-positive, false-negative, and 10,000-transaction runtime targets | `test_AC4_10_3_ci_gates_reconciliation_audit_thresholds` | `tests/tooling/test_reconciliation_audit.py` | P0 |
 
 ## 📏 Acceptance Criteria
 
@@ -238,14 +238,12 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 - [x] Explicit 0.1 USD tolerance check is covered by AC4.6.1 and
       `test_amount_tolerance_0_10_boundary`.
-- [ ] Archive baseline validation still needs a current synthetic accuracy run,
-      100-transaction manual false-positive audit, and 10,000-transaction
-      benchmark evidence before the `>=95%`, `<0.5%`, `<2%`, and `<10s`
-      targets can be treated as measured production-quality metrics. This is
-      tracked by [#665](https://github.com/wangzitian0/finance_report/issues/665).
-      AC4.8.1 keeps ownership of the residual, and AC4.10.1-AC4.10.2 add the
-      executable audit harness path: `python tools/reconciliation_audit.py
-      --stdout`. Current traceability review also uses
+- [x] Archive baseline benchmark residual is explicitly owned by EPIC-004 and
+      now closed through AC4.10.3. The hard-gated audit runs
+      `python tools/reconciliation_audit.py --stdout`, includes a
+      100-transaction manual false-positive audit plus 10,000-transaction
+      benchmark evidence, and fails CI when the `>=95%`, `<0.5%`, `<2%`, or
+      `<10s` targets are missed. Current traceability review also uses
       `python tools/analyze_test_ac_coverage.py --stdout` and
       `python tools/check_ac_traceability.py`.
 

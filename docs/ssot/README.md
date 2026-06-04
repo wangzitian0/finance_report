@@ -62,6 +62,7 @@ contracts is tracked in
 | Document | Key | Current owner role |
 |---|---|---|
 | [extraction.md](./extraction.md) | `extraction` | Statement parsing rationale and code/test links |
+| [pdf-fixtures.md](./pdf-fixtures.md) | `pdf_fixtures` | Synthetic PDF fixture commands, local-only input policy, and font fallback |
 | [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching rationale; thresholds should migrate to code/common |
 | [reporting.md](./reporting.md) | `reporting` | Report calculation rationale and proof links |
 | [ai.md](./ai.md) | `ai` | AI advisor policy and safety rationale |

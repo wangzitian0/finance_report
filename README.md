@@ -162,6 +162,8 @@ that E2E-like assets outside product roots are explicitly classified.
 - [#455](https://github.com/wangzitian0/finance_report/issues/455):
   Generate README EPIC status and completion metrics from registries and test
   reports.
+- [#456](https://github.com/wangzitian0/finance_report/issues/456):
+  Fix AC-to-EPIC mismatch and invalid test references.
 - AC-to-EPIC mismatch and invalid test references:
   [docs/analysis/ac-epic-mismatch-report.md](docs/analysis/ac-epic-mismatch-report.md).
 

@@ -103,7 +103,7 @@ def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contra
     } <= set(proof["ac_ids"])
 
 
-def test_AC8_13_86_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs() -> (
+def test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs() -> (
     None
 ):
     """AC8.13.87: Audit-grade package fixture pins investment expected outputs."""
@@ -125,7 +125,7 @@ def test_AC8_13_86_personal_package_fixture_pins_brokerage_dividend_and_market_p
     assert expected.market_price_date.isoformat() == "2026-05-31"
 
 
-def test_AC8_13_87_personal_package_e2e_consumes_audit_grade_expected_outputs() -> None:
+def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() -> None:
     """AC8.13.88: Package E2E consumes audit-grade expected outputs from the fixture."""
     journey = read("tests/e2e/test_personal_financial_report_package.py")
 

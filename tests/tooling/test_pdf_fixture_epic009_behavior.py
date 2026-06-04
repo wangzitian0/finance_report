@@ -27,7 +27,9 @@ def _load_template(name: str) -> dict:
     return yaml.safe_load((PDF_FIXTURES / "templates" / name).read_text())
 
 
-def test_AC9_1_2_template_extractor_writes_sanitized_format_yaml(tmp_path: Path) -> None:
+def test_AC9_1_2_template_extractor_writes_sanitized_format_yaml(
+    tmp_path: Path,
+) -> None:
     """AC9.1.2: Template extractor writes format YAML while removing sensitive payloads."""
     output_path = tmp_path / "templates" / "safe.yaml"
     result = SanitizingTemplateExtractor().extract(
@@ -53,9 +55,24 @@ def test_AC9_1_2_template_extractor_writes_sanitized_format_yaml(tmp_path: Path)
 @pytest.mark.parametrize(
     ("ac_id", "template_name", "source", "expected_columns"),
     [
-        ("AC9.1.4", "dbs_template.yaml", "dbs", ["Date", "Description", "Withdrawal", "Deposit", "Balance"]),
-        ("AC9.1.5", "cmb_template.yaml", "cmb", ["记账日期", "货币", "交易金额", "联机余额", "交易摘要", "对手信息"]),
-        ("AC9.1.6", "mari_template.yaml", "mari", ["DATE", "TRANSACTION", "OUTGOING (SGD)", "INCOMING (SGD)"]),
+        (
+            "AC9.1.4",
+            "dbs_template.yaml",
+            "dbs",
+            ["Date", "Description", "Withdrawal", "Deposit", "Balance"],
+        ),
+        (
+            "AC9.1.5",
+            "cmb_template.yaml",
+            "cmb",
+            ["记账日期", "货币", "交易金额", "联机余额", "交易摘要", "对手信息"],
+        ),
+        (
+            "AC9.1.6",
+            "mari_template.yaml",
+            "mari",
+            ["DATE", "TRANSACTION", "OUTGOING (SGD)", "INCOMING (SGD)"],
+        ),
     ],
 )
 def test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas(
@@ -77,23 +94,37 @@ def test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas(
     assert all(column["align"] in {"left", "right", "center"} for column in columns)
 
 
-def test_AC9_2_1_base_generator_loads_template_and_applies_layout(tmp_path: Path) -> None:
+def test_AC9_2_1_base_generator_loads_template_and_applies_layout(
+    tmp_path: Path,
+) -> None:
     """AC9.2.1: Base generator loads YAML, margins, fonts, widths, and table style."""
     template_path = tmp_path / "template.yaml"
     template_path.write_text(
         yaml.safe_dump(
             {
                 "source": "unit",
-                "page": {"size": "A4", "margins": {"left": 11, "bottom": 22, "right": 33, "top": 44}},
-                "fonts": {"body": {"family": "MissingFont", "size": 7}, "table_header": {"family": "Helvetica-Bold", "size": 8}},
+                "page": {
+                    "size": "A4",
+                    "margins": {"left": 11, "bottom": 22, "right": 33, "top": 44},
+                },
+                "fonts": {
+                    "body": {"family": "MissingFont", "size": 7},
+                    "table_header": {"family": "Helvetica-Bold", "size": 8},
+                },
                 "tables": {
                     "transaction_details": {
                         "columns": [
                             {"name": "A", "width": 12, "align": "left"},
                             {"name": "B", "width": 34, "align": "right"},
                         ],
-                        "header_style": {"background": "#CCCCCC", "text_color": "#000000"},
-                        "row_style": {"background": "#FFFFFF", "border": "1px solid #000000"},
+                        "header_style": {
+                            "background": "#CCCCCC",
+                            "text_color": "#000000",
+                        },
+                        "row_style": {
+                            "background": "#FFFFFF",
+                            "border": "1px solid #000000",
+                        },
                     }
                 },
             }
@@ -159,27 +190,33 @@ def test_AC9_2_7_main_script_registers_all_supported_generators() -> None:
     assert 'choices=["dbs", "cmb", "mari", "moomoo", "futu", "pingan", "all"]' in text
 
 
-def test_AC9_4_1_AC9_4_2_AC9_4_3_AC9_4_4_readmes_document_analysis_generation_templates_and_examples() -> None:
-    """AC9.4.1 AC9.4.2 AC9.4.3 AC9.4.4: README documents analysis, generation, template format, and examples."""
+def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> None:
+    """AC9.4.1 AC9.4.2 AC9.4.3 AC9.4.4: MkDocs SSOT owns fixture docs."""
     analyzer_readme = (PDF_FIXTURES / "analyzers" / "README.md").read_text()
-    readme = (PDF_FIXTURES / "README.md").read_text()
-    font_readme = (PDF_FIXTURES / "FONT_HANDLING.md").read_text()
+    tool_readme = (PDF_FIXTURES / "README.md").read_text()
+    font_entry = (PDF_FIXTURES / "FONT_HANDLING.md").read_text()
+    ssot = (REPO_ROOT / "docs" / "ssot" / "pdf-fixtures.md").read_text()
+    mkdocs = (REPO_ROOT / "mkdocs.yml").read_text()
+    manifest = (REPO_ROOT / "docs" / "ssot" / "MANIFEST.yaml").read_text()
 
     assert "PDF Format Analysis" in analyzer_readme
     assert "python tools/analyze_pdf_fixture.py" in analyzer_readme
     assert "must stay local" in analyzer_readme
     assert "format-only metadata" in analyzer_readme
-    assert "Analyze Real PDF" in readme
-    assert "Generate Test PDFs" in readme
-    assert "Format templates" in readme
-    assert "python tools/analyze_pdf_fixture.py" in readme
-    assert "python tools/generate_pdf_fixtures.py --source dbs" in readme
-    assert "templates/*.yaml" in readme
-    assert "input/" in readme and "gitignored" in readme
-    assert "register_chinese_fonts()" in font_readme
+    assert "docs/ssot/pdf-fixtures.md" in tool_readme
+    assert "docs/ssot/pdf-fixtures.md#font-fallback" in font_entry
+    assert "Generate Test PDFs" in ssot
+    assert "Analyze Real PDFs" in ssot
+    assert "python tools/analyze_pdf_fixture.py" in ssot
+    assert "python tools/generate_pdf_fixtures.py --source dbs" in ssot
+    assert "templates/*.yaml" in ssot
+    assert "input/" in ssot and "gitignored" in ssot
+    assert "register_chinese_fonts()" in ssot
+    assert "PDF Fixtures: ssot/pdf-fixtures.md" in mkdocs
+    assert "owner: docs/ssot/pdf-fixtures.md" in manifest
 
 
-def test_AC9_5_1_AC9_5_2_AC9_5_3_AC9_5_4_AC9_5_5_git_contract_tracks_safe_sources_only() -> None:
+def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:
     """AC9.5.1 AC9.5.2 AC9.5.3 AC9.5.4 AC9.5.5: git contract ignores sensitive PDFs and keeps safe tooling committed."""
     gitignore = (PDF_FIXTURES / ".gitignore").read_text()
 
@@ -201,7 +238,9 @@ def test_AC9_5_1_AC9_5_2_AC9_5_3_AC9_5_4_AC9_5_5_git_contract_tracks_safe_source
         assert (PDF_FIXTURES / relative_path).is_file()
 
 
-def test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """AC9.6.1 AC9.6.2: DBS and CMB generators load their own source templates."""
     monkeypatch.setattr(
         "tools._lib.pdf_fixtures.generators.cmb_generator.register_chinese_fonts",
@@ -218,14 +257,18 @@ def test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity(monkeypatc
     assert cmb.template["fonts"]["body"]["family"] == "SimSun"
 
 
-def test_AC9_6_3_cmb_generator_uses_registered_chinese_font(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_AC9_6_3_cmb_generator_uses_registered_chinese_font(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """AC9.6.3: CMB generator applies registered Chinese fonts to header/body/table."""
     captured_styles: list[object] = []
     captured_table_styles: list[object] = []
 
     class FakeDoc:
         def build(self, elements: list[object]) -> None:
-            captured_styles.extend(getattr(element, "style", None) for element in elements)
+            captured_styles.extend(
+                getattr(element, "style", None) for element in elements
+            )
 
     class FakeParagraph:
         def __init__(self, _text: str, style: object) -> None:
@@ -245,14 +288,22 @@ def test_AC9_6_3_cmb_generator_uses_registered_chinese_font(monkeypatch: pytest.
     monkeypatch.setattr(
         "tools._lib.pdf_fixtures.generators.cmb_generator.Paragraph", FakeParagraph
     )
-    monkeypatch.setattr("tools._lib.pdf_fixtures.generators.cmb_generator.Table", FakeTable)
-    monkeypatch.setattr(CMBGenerator, "create_document", lambda self, output_path: FakeDoc())
+    monkeypatch.setattr(
+        "tools._lib.pdf_fixtures.generators.cmb_generator.Table", FakeTable
+    )
+    monkeypatch.setattr(
+        CMBGenerator, "create_document", lambda self, output_path: FakeDoc()
+    )
 
     generator = CMBGenerator(PDF_FIXTURES / "templates" / "cmb_template.yaml")
-    generator.generate(tmp_path / "cmb.pdf", datetime(2025, 1, 1), datetime(2025, 1, 31))
+    generator.generate(
+        tmp_path / "cmb.pdf", datetime(2025, 1, 1), datetime(2025, 1, 31)
+    )
 
     assert generator.chinese_font == "ChineseFont"
-    assert any(getattr(style, "fontName", None) == "ChineseFont" for style in captured_styles)
+    assert any(
+        getattr(style, "fontName", None) == "ChineseFont" for style in captured_styles
+    )
     commands = captured_table_styles[0].getCommands()
     assert ("FONTNAME", (0, 0), (-1, -1), "ChineseFont") in commands
 
@@ -281,7 +332,9 @@ def test_AC9_6_4_mari_generator_renders_interest_details_section(
         def setStyle(self, _style: object) -> None:
             return None
 
-    def fake_transactions(*_args: object, **_kwargs: object) -> tuple[list[dict[str, object]], Decimal]:
+    def fake_transactions(
+        *_args: object, **_kwargs: object
+    ) -> tuple[list[dict[str, object]], Decimal]:
         return (
             [
                 {
@@ -305,7 +358,9 @@ def test_AC9_6_4_mari_generator_renders_interest_details_section(
     monkeypatch.setattr(mari_module, "generate_mari_transactions", fake_transactions)
     monkeypatch.setattr(mari_module, "Paragraph", FakeParagraph)
     monkeypatch.setattr(mari_module, "Table", FakeTable)
-    monkeypatch.setattr(MariGenerator, "create_document", lambda self, output_path: FakeDoc())
+    monkeypatch.setattr(
+        MariGenerator, "create_document", lambda self, output_path: FakeDoc()
+    )
 
     MariGenerator(PDF_FIXTURES / "templates" / "mari_template.yaml").generate(
         tmp_path / "mari.pdf",
@@ -314,12 +369,16 @@ def test_AC9_6_4_mari_generator_renders_interest_details_section(
     )
 
     assert "INTEREST DETAILS" in rendered_text
-    interest_table = next(table for table in rendered_tables if table[0] == ["Date", "Interest"])
+    interest_table = next(
+        table for table in rendered_tables if table[0] == ["Date", "Interest"]
+    )
     assert ["02 JAN", "1.25"] in interest_table
     assert all(row[0] != "03 JAN" for row in interest_table[1:])
 
 
-def test_AC9_6_5_generators_use_masked_accounts_and_fictional_data(tmp_path: Path) -> None:
+def test_AC9_6_5_generators_use_masked_accounts_and_fictional_data(
+    tmp_path: Path,
+) -> None:
     """AC9.6.5: Generators use masked accounts and fictional transaction payloads."""
     output_path = tmp_path / "dbs.pdf"
 

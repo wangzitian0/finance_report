@@ -33,6 +33,7 @@ PR_PREVIEW_EXACT = {
     "apps/frontend/tailwind.config.ts",
     "apps/frontend/tsconfig.json",
     "docker-compose.yml",
+    "tools/generate_pdf_fixtures.py",
     "tools/smoke_test.sh",
 }
 PR_PREVIEW_PREFIXES = (
@@ -43,8 +44,17 @@ PR_PREVIEW_PREFIXES = (
     "apps/frontend/public/",
     "apps/frontend/src/",
     ".github/actions/setup-e2e-tests/",
-    "tools/_lib/pdf_fixtures/",
     "tests/e2e/",
+)
+PDF_FIXTURE_RUNTIME_EXACT = {
+    "tools/_lib/pdf_fixtures/__init__.py",
+    "tools/_lib/pdf_fixtures/generate_pdf_fixtures.py",
+}
+PDF_FIXTURE_RUNTIME_PREFIXES = (
+    "tools/_lib/pdf_fixtures/data/",
+    "tools/_lib/pdf_fixtures/generators/",
+    "tools/_lib/pdf_fixtures/templates/",
+    "tools/_lib/pdf_fixtures/validators/",
 )
 
 STAGING_EXACT = {
@@ -67,6 +77,7 @@ STAGING_EXACT = {
     "docker-compose.yml",
     "tools/check_ghcr_image_tag.sh",
     "tools/dokploy_deploy.sh",
+    "tools/generate_pdf_fixtures.py",
     "tools/health_check.sh",
     "tools/smoke_test.sh",
     "toolchain.toml",
@@ -81,7 +92,6 @@ STAGING_PREFIXES = (
     "apps/frontend/src/",
     ".github/actions/setup-e2e-tests/",
     "repo/",
-    "tools/_lib/pdf_fixtures/",
     "tests/e2e/",
 )
 
@@ -126,12 +136,20 @@ def _is_app_test_or_doc_path(path: str) -> bool:
     return len(stem_parts) >= 3 and stem_parts[-2] in {"test", "spec"}
 
 
+def _is_pdf_fixture_runtime_path(path: str) -> bool:
+    return path in PDF_FIXTURE_RUNTIME_EXACT or path.startswith(
+        PDF_FIXTURE_RUNTIME_PREFIXES
+    )
+
+
 def is_pr_preview_relevant(path: str) -> bool:
     normalized = normalize_path(path)
     if normalized in PR_PREVIEW_EXACT:
         return True
     if _is_app_test_or_doc_path(normalized):
         return False
+    if _is_pdf_fixture_runtime_path(normalized):
+        return True
     return normalized.startswith(PR_PREVIEW_PREFIXES)
 
 
@@ -141,6 +159,8 @@ def is_staging_relevant(path: str) -> bool:
         return True
     if _is_app_test_or_doc_path(normalized):
         return False
+    if _is_pdf_fixture_runtime_path(normalized):
+        return True
     return normalized.startswith(STAGING_PREFIXES)
 
 

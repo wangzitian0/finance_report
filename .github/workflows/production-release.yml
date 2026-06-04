@@ -132,6 +132,7 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}
           build-args: |
+            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
             NEXT_PUBLIC_API_URL=https://report.zitian.party
             NEXT_PUBLIC_APP_URL=https://report.zitian.party
 
@@ -256,6 +257,7 @@ jobs:
           push: false
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}
           build-args: |
+            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
             NEXT_PUBLIC_API_URL=https://report.zitian.party
             NEXT_PUBLIC_APP_URL=https://report.zitian.party
 

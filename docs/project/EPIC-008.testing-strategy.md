@@ -359,7 +359,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.86 | CI fast feedback jobs start after change classification without waiting for behavior-only backend gates | `test_AC8_13_86_*` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.87 | Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures | `test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.88 | Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs | `test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
-| AC8.13.89 | PR preview deploy builds and pushes PR-numbered backend and frontend images before invoking Dokploy | `test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.89 | PR preview deploy builds and pushes commit-scoped PR backend/frontend images, then gates E2E on backend and frontend version readiness before browser tests run | `test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

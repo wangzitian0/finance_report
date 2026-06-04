@@ -164,6 +164,7 @@ services:
       dockerfile: Dockerfile
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:20.19.0-alpine}
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
     container_name: finance-report-frontend${ENV_SUFFIX:-}

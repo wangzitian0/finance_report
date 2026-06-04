@@ -85,6 +85,12 @@ def preview_compose_project(pr_number: int) -> str:
     return f"finance_report_pr_{pr_number}"
 
 
+def preview_image_tag(pr_number: int, commit_sha: str) -> str:
+    if not commit_sha:
+        raise ValueError("commit_sha is required for PR preview image tags")
+    return f"pr-{pr_number}-{commit_sha}"
+
+
 def build_preview_env(
     *,
     pr_number: int,
@@ -102,7 +108,7 @@ def build_preview_env(
         "GIT_COMMIT_SHA": commit_sha,
         "REGISTRY": registry,
         "IMAGE_PREFIX": image_prefix,
-        "IMAGE_TAG": f"pr-{pr_number}",
+        "IMAGE_TAG": preview_image_tag(pr_number, commit_sha),
         "COMPOSE_PROJECT_NAME": preview_compose_project(pr_number),
         "ENV_SUFFIX": f"-pr-{pr_number}",
         "ENV_DOMAIN_SUFFIX": f"-pr-{pr_number}",

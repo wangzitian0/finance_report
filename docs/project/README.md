@@ -102,20 +102,14 @@ sync with ACs and tests.
 | [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface |
 | [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 | AI advisor user/API surface |
 | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
-| [PDF fixture README](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/README.md) and [PDF fixture font handling](https://github.com/wangzitian0/finance_report/blob/main/tools/_lib/pdf_fixtures/FONT_HANDLING.md) | EPIC-009 | PDF fixture tool documentation |
+| [../ssot/pdf-fixtures.md](../ssot/pdf-fixtures.md) | EPIC-009 | PDF fixture command, template, local-input, and font policy |
 | [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |
 | [DECISIONS.md](./DECISIONS.md) and [DECISIONS_ZH.md](./DECISIONS_ZH.md) | EPIC-014 | Project decision logs |
 
 ## Known Documentation Debt
 
-- Move code-owned SSOT facts into common/generated contracts:
-  [#453](https://github.com/wangzitian0/finance_report/issues/453)
-- Convert manual-verification ACs into automated tests or explicit manual gates:
-  [#454](https://github.com/wangzitian0/finance_report/issues/454)
-- Generate README EPIC status from registries and test reports:
-  [#455](https://github.com/wangzitian0/finance_report/issues/455)
-- Fix AC-to-EPIC mismatch and invalid test references:
-  [#456](https://github.com/wangzitian0/finance_report/issues/456)
+Use the root README documentation-debt list for active issue links and
+[AUDITS.md](./AUDITS.md) for audit history.
 
 ## Related
 
