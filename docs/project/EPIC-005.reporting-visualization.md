@@ -249,6 +249,19 @@ recognition, measurement, or classification rules.
 |----|-----------|---------------|------|----------|
 | AC5.14.1 | Reporting docs declare that EPIC-005 consumes framework policy results for US/HK package output and does not own framework-specific accounting decisions | `test_AC5_14_1_reporting_assembles_framework_policy_results_only` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
+### AC5.15: Backend Reporting Integration Journey
+
+Issue [#341](https://github.com/wangzitian0/finance_report/issues/341)
+requested a T6 reporting proof. Reporting ownership is EPIC-005 in this
+repository; EPIC-006 remains the AI advisor surface. This AC provides the
+backend Tier-1 integration proof for the multi-currency reporting cycle without
+changing the later PDF export scope tracked by
+[#205](https://github.com/wangzitian0/finance_report/issues/205).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.15.1 | Multi-currency posted entries generate balanced balance sheet, income statement, and cash-flow reports in base currency | `test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf` | `integration/test_reporting_e2e.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

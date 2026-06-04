@@ -131,6 +131,12 @@ Set up a runnable Monorepo development environment, complete user authentication
 |----|-------------|---------------|------|
 | AC1.8.1 | User management endpoints expose authenticated user operations without cross-user leakage | `test_users_router.py` suite | `auth/test_users_router.py` |
 
+### AC1.9: First-Run Ledger Journey Coverage
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.9.1 | A new user can register, log in, create first ledger accounts, post a first manual entry, and preserve the accounting equation | `test_AC1_9_1_first_run_registration_account_entry_journey` | `integration/test_onboarding_e2e.py` |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

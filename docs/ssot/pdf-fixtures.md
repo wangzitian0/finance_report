@@ -57,6 +57,13 @@ margins, font metadata, table columns, column widths, alignment, and text
 element positions. Templates must not include account numbers, customer names,
 real transaction payloads, or real balances.
 
+Templates also carry a `real_format_contract` block. This block is sanitized
+format metadata only: source ID, tolerances, table column names and widths,
+source-specific date regex, currency marker, and required key phrases. It is
+the committed substitute for real PDFs in CI. Real statements remain local and
+gitignored; if local analysis finds a layout drift, update the sanitized
+contract and generator together.
+
 ## Commit Policy
 
 Can be committed:
@@ -102,5 +109,6 @@ the platform must use fallback text.
 | AC definitions | [EPIC-009](../project/EPIC-009.pdf-fixture-generation.md) |
 | Analyzer, sanitizer, templates, generator registration, gitignore, and docs | `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
 | Source-specific generated PDFs, dates, and balances | `tests/tooling/test_pdf_fixture_parseable.py` |
+| Sanitized real-format contracts and generated-PDF parity checks | `tests/tooling/test_pdf_fixture_real_format_contract.py` |
 | CLI branches and validator behavior | `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 | E2E consumers | `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_four_asset_net_worth_golden_path.py`, `tests/e2e/test_personal_financial_report_package.py` |
