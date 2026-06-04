@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -31,9 +31,19 @@ from src.models import (
     ReportSnapshot,
     Stage1Status,
 )
+from src.models.layer2 import AssetType
+from src.schemas.reporting import (
+    FrameworkPolicyResult,
+    PersonalReportingFrameworkId,
+    PolicyDimension,
+    PolicyProvenance,
+    PolicyReviewState,
+)
+from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.fx import FxRateError, convert_amount
 
 PACKAGE_ID = "personal-financial-report-package"
+MARKET_DATA_STALE_AFTER_DAYS = 90
 
 
 def _blocker(
@@ -96,8 +106,215 @@ async def _processing_account_balance(db: AsyncSession, user_id: UUID) -> Decima
     return total
 
 
-async def get_personal_report_package_readiness(db: AsyncSession, user_id: UUID) -> dict:
+def _normalize_framework_id(
+    framework_id: PersonalReportingFrameworkId | str | None,
+) -> PersonalReportingFrameworkId | None:
+    if framework_id is None:
+        return None
+    if isinstance(framework_id, PersonalReportingFrameworkId):
+        return framework_id
+    return PersonalReportingFrameworkId(framework_id)
+
+
+def framework_policy_readiness_blockers(
+    *,
+    framework_id: PersonalReportingFrameworkId | str | None,
+    policy_result: FrameworkPolicyResult | None,
+    report_input_count: int,
+    missing_valuation_basis_count: int,
+    stale_market_data_count: int,
+) -> list[dict[str, str | int]]:
+    """Translate selected-framework policy deficiencies into readiness blockers."""
+    blockers: list[dict[str, str | int]] = []
+    try:
+        selected_framework_id = _normalize_framework_id(framework_id)
+    except ValueError:
+        return [
+            _blocker(
+                "unsupported_framework",
+                "Unsupported framework",
+                1,
+                "The selected reporting framework is not supported for personal report generation.",
+                "/reports/package",
+            )
+        ]
+
+    if selected_framework_id is None:
+        return blockers
+
+    if policy_result is None:
+        if report_input_count:
+            blockers.append(
+                _blocker(
+                    "missing_framework_policy_result",
+                    "Missing framework policy result",
+                    1,
+                    "A selected framework requires a structured policy result before trusted output can be generated.",
+                    "/reports/package/framework-policy",
+                )
+            )
+        return blockers
+
+    if policy_result.framework_id != selected_framework_id:
+        blockers.append(
+            _blocker(
+                "missing_framework_policy_result",
+                "Framework policy result mismatch",
+                1,
+                "The available policy result does not match the selected reporting framework.",
+                "/reports/package/framework-policy",
+            )
+        )
+
+    if report_input_count and not policy_result.decisions and not policy_result.gaps:
+        blockers.append(
+            _blocker(
+                "missing_framework_policy_result",
+                "Missing framework policy result",
+                1,
+                "The selected framework produced no structured policy decisions or explicit policy gaps for the available package inputs.",
+                "/reports/package/framework-policy",
+            )
+        )
+
+    gap_counts: dict[str, int] = {}
+    for gap in policy_result.gaps:
+        if gap.blocker:
+            gap_counts[gap.code] = gap_counts.get(gap.code, 0) + 1
+    for code, count in sorted(gap_counts.items()):
+        blockers.append(
+            _blocker(
+                code,
+                "Unsupported policy domain" if code == "unsupported_policy_domain" else "Framework policy gap",
+                count,
+                "A selected-framework policy gap must be remediated before the package can be trusted.",
+                "/reports/package/framework-policy",
+            )
+        )
+
+    missing_dimension_count = sum(
+        1
+        for decision in policy_result.decisions
+        if any(not getattr(decision, dimension.value, None) for dimension in PolicyDimension)
+    )
+    if missing_dimension_count:
+        blockers.append(
+            _blocker(
+                "framework_policy_missing_dimensions",
+                "Incomplete framework policy decision",
+                missing_dimension_count,
+                "Every policy decision must include recognition, measurement, classification, presentation, and disclosure.",
+                "/reports/package/framework-policy",
+            )
+        )
+
+    unreviewed_ai_count = sum(
+        1
+        for decision in policy_result.decisions
+        if decision.provenance == PolicyProvenance.REVIEWED_AI_SUGGESTION
+        and (
+            decision.review_state != PolicyReviewState.ACCEPTED
+            or not decision.policy_field_name
+            or not decision.accepted_value
+            or not decision.evidence_anchors
+        )
+    )
+    if unreviewed_ai_count:
+        blockers.append(
+            _blocker(
+                "framework_ai_suggestion_unreviewed",
+                "Unreviewed AI policy suggestion",
+                unreviewed_ai_count,
+                "AI-suggested measurement or disclosure fields require source anchors, review acceptance, and accepted structured values.",
+                "/review",
+            )
+        )
+
+    if missing_valuation_basis_count:
+        blockers.append(
+            _blocker(
+                "missing_valuation_basis",
+                "Missing valuation basis",
+                missing_valuation_basis_count,
+                "Manual or private valuation facts need an explicit valuation basis before trusted totals can be generated.",
+                "/assets/manual-valuations",
+            )
+        )
+
+    if stale_market_data_count:
+        blockers.append(
+            _blocker(
+                "stale_market_data",
+                "Stale market data",
+                stale_market_data_count,
+                f"Listed security and fund positions need market prices dated within {MARKET_DATA_STALE_AFTER_DAYS} days of the report date.",
+                "/portfolio/market-data",
+            )
+        )
+
+    return blockers
+
+
+async def _missing_valuation_basis_count(db: AsyncSession, user_id: UUID, *, as_of_date: date) -> int:
+    rows = await db.execute(
+        select(ManualValuationSnapshot.notes)
+        .where(ManualValuationSnapshot.user_id == user_id)
+        .where(ManualValuationSnapshot.as_of_date <= as_of_date)
+    )
+    return sum(1 for notes in rows.scalars().all() if notes is None or not notes.strip())
+
+
+async def _stale_market_data_count(db: AsyncSession, user_id: UUID, *, as_of_date: date) -> int:
+    investable_asset_types = [
+        AssetType.STOCK,
+        AssetType.ETF,
+        AssetType.MUTUAL_FUND,
+        AssetType.BOND,
+    ]
+    position_rows = await db.execute(
+        select(AtomicPosition.asset_identifier)
+        .where(AtomicPosition.user_id == user_id)
+        .where(AtomicPosition.snapshot_date <= as_of_date)
+        .where(AtomicPosition.asset_type.in_(investable_asset_types))
+        .distinct()
+    )
+    asset_identifiers = list(position_rows.scalars().all())
+    if not asset_identifiers:
+        return 0
+
+    price_rows = await db.execute(
+        select(MarketDataOverride)
+        .where(MarketDataOverride.user_id == user_id)
+        .where(MarketDataOverride.asset_identifier.in_(asset_identifiers))
+        .where(MarketDataOverride.price_date <= as_of_date)
+        .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+    )
+    latest_price_by_identifier: dict[str, MarketDataOverride] = {}
+    for price in price_rows.scalars().all():
+        latest_price_by_identifier.setdefault(price.asset_identifier, price)
+
+    freshness_cutoff = as_of_date - timedelta(days=MARKET_DATA_STALE_AFTER_DAYS)
+    return sum(
+        1
+        for asset_identifier in asset_identifiers
+        if latest_price_by_identifier.get(asset_identifier) is None
+        or latest_price_by_identifier[asset_identifier].price_date < freshness_cutoff
+    )
+
+
+async def get_personal_report_package_readiness(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    framework_id: PersonalReportingFrameworkId | str | None = None,
+    report_period_start: date | None = None,
+    report_period_end: date | None = None,
+    as_of_date: date | None = None,
+) -> dict:
     """Return deterministic readiness for the personal financial-report package."""
+    report_as_of = as_of_date or report_period_end or date.today()
+    report_end = report_period_end or report_as_of
+    report_start = report_period_start or report_end - timedelta(days=365)
     statement_count = await _count(
         db,
         select(func.count(BankStatement.id)).where(BankStatement.user_id == user_id),
@@ -301,6 +518,42 @@ async def get_personal_report_package_readiness(db: AsyncSession, user_id: UUID)
                 "/accounts/coverage",
             )
         )
+
+    selected_framework_id: PersonalReportingFrameworkId | None = None
+    policy_result: FrameworkPolicyResult | None = None
+    missing_valuation_basis_count = 0
+    stale_market_data_count = 0
+    try:
+        selected_framework_id = _normalize_framework_id(framework_id)
+    except ValueError:
+        pass
+    if selected_framework_id is not None:
+        policy_result = await derive_user_framework_policy_result(
+            db,
+            user_id,
+            framework_id=selected_framework_id,
+            report_period_start=report_start,
+            report_period_end=report_end,
+            as_of_date=report_as_of,
+        )
+        missing_valuation_basis_count = await _missing_valuation_basis_count(db, user_id, as_of_date=report_as_of)
+        stale_market_data_count = await _stale_market_data_count(db, user_id, as_of_date=report_as_of)
+        source_summary.update(
+            {
+                "selected_framework_id": selected_framework_id.value,
+                "framework_policy_decisions": len(policy_result.decisions),
+                "framework_policy_gaps": len(policy_result.gaps),
+            }
+        )
+    blockers.extend(
+        framework_policy_readiness_blockers(
+            framework_id=framework_id,
+            policy_result=policy_result,
+            report_input_count=report_input_count,
+            missing_valuation_basis_count=missing_valuation_basis_count,
+            stale_market_data_count=stale_market_data_count,
+        )
+    )
 
     latest_snapshot_count = await _count(
         db,

@@ -68,6 +68,7 @@ def test_AC20_3_1_framework_schema_rejects_unsupported_framework_id() -> None:
     """AC20.3.1: Framework policy result schema is closed to unsupported framework IDs."""
     with pytest.raises(ValidationError):
         FrameworkPolicyResult(
+            result_id="policy-result:test",
             framework_id="cn_cas_like",
             report_period_start=date(2026, 5, 1),
             report_period_end=date(2026, 5, 31),

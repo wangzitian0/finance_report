@@ -95,6 +95,7 @@ def test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics():
         "end_date": "required for period sections",
         "as_of_date": "required for point-in-time sections",
         "currency": "ISO-4217 code; defaults to base currency when omitted",
+        "framework_id": "selected supported personal reporting framework",
         "decimal_serialization": "string",
     }
 

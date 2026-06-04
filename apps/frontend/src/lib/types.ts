@@ -170,6 +170,9 @@ export interface PersonalReportPackageContractResponse {
     package_id: string;
     version: string;
     period_semantics: Record<string, string>;
+    supported_frameworks: string[];
+    selected_framework_id?: string | null;
+    framework_policy_endpoint?: string | null;
     sections: PersonalReportPackageSectionContract[];
     export_contract: {
         formats: string[];
@@ -193,7 +196,7 @@ export interface PersonalReportPackageReadinessResponse {
     action_href: string;
     blocking_count: number;
     blockers: PersonalReportPackageReadinessBlocker[];
-    source_summary: Record<string, number>;
+    source_summary: Record<string, number | string>;
     generated_at?: string | null;
     stale_since?: string | null;
 }

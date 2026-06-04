@@ -36,15 +36,18 @@ from src.schemas import (
     BreakdownType,
     CashFlowResponse,
     CategoryBreakdownResponse,
+    FrameworkPolicyResult,
     IncomeStatementResponse,
     NetWorthGranularity,
     NetWorthTimeSeriesResponse,
+    PersonalReportingFrameworkId,
     PersonalReportPackageContractResponse,
     PersonalReportPackageNotesResponse,
     PersonalReportPackageReadinessResponse,
     PersonalReportPackageTraceabilityResponse,
     TrendPeriod,
 )
+from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.fx import FxRateError, convert_amount
 from src.services.market_data import ensure_market_data_fresh
 from src.services.report_readiness import get_personal_report_package_readiness
@@ -126,8 +129,15 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
         "end_date": "required for period sections",
         "as_of_date": "required for point-in-time sections",
         "currency": "ISO-4217 code; defaults to base currency when omitted",
+        "framework_id": "selected supported personal reporting framework",
         "decimal_serialization": "string",
     },
+    "supported_frameworks": [
+        "personal_us_gaap_like",
+        "personal_hkfrs_like",
+    ],
+    "selected_framework_id": None,
+    "framework_policy_endpoint": "/api/reports/package/framework-policy",
     "sections": [
         {
             "section_id": "balance_sheet",
@@ -721,19 +731,57 @@ def _annualized_income_bucket(account_name: str) -> str | None:
 
 
 @router.get("/package/contract", response_model=PersonalReportPackageContractResponse)
-def personal_report_package_contract() -> PersonalReportPackageContractResponse:
+def personal_report_package_contract(
+    framework_id: PersonalReportingFrameworkId | None = None,
+) -> PersonalReportPackageContractResponse:
     """Return the stable package-level API/export contract."""
-    return PersonalReportPackageContractResponse(**PERSONAL_REPORT_PACKAGE_CONTRACT)
+    payload = deepcopy(PERSONAL_REPORT_PACKAGE_CONTRACT)
+    payload["selected_framework_id"] = framework_id.value if framework_id is not None else None
+    return PersonalReportPackageContractResponse(**payload)
 
 
 @router.get("/package/readiness", response_model=PersonalReportPackageReadinessResponse)
 async def personal_report_package_readiness(
+    framework_id: PersonalReportingFrameworkId | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    as_of_date: date | None = None,
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> PersonalReportPackageReadinessResponse:
     """Return deterministic readiness and blocker state for the personal package."""
-    payload = await get_personal_report_package_readiness(db, user_id)
+    payload = await get_personal_report_package_readiness(
+        db,
+        user_id,
+        framework_id=framework_id,
+        report_period_start=start_date,
+        report_period_end=end_date,
+        as_of_date=as_of_date,
+    )
     return PersonalReportPackageReadinessResponse(**payload)
+
+
+@router.get("/package/framework-policy", response_model=FrameworkPolicyResult)
+async def personal_report_package_framework_policy(
+    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    as_of_date: date | None = None,
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> FrameworkPolicyResult:
+    """Return the selected framework policy result consumed by package assembly."""
+    report_as_of = as_of_date or end_date or date.today()
+    report_end = end_date or report_as_of
+    report_start = start_date or report_end - timedelta(days=365)
+    return await derive_user_framework_policy_result(
+        db,
+        user_id,
+        framework_id=framework_id,
+        report_period_start=report_start,
+        report_period_end=report_end,
+        as_of_date=report_as_of,
+    )
 
 
 @router.get("/package/notes", response_model=PersonalReportPackageNotesResponse)

@@ -212,6 +212,9 @@ class PersonalReportPackageContractResponse(BaseModel):
     package_id: str
     version: str
     period_semantics: dict[str, str]
+    supported_frameworks: list[str] = Field(default_factory=list)
+    selected_framework_id: str | None = None
+    framework_policy_endpoint: str | None = None
     sections: list[PersonalReportPackageSectionContract]
     export_contract: PersonalReportPackageExportContract
 
@@ -357,6 +360,7 @@ class FrameworkPolicyMatrix(BaseModel):
 class FrameworkPolicyResult(BaseModel):
     """Read-only target-backward policy result consumed by readiness and reporting."""
 
+    result_id: str
     framework_id: PersonalReportingFrameworkId
     report_period_start: date
     report_period_end: date
@@ -414,7 +418,7 @@ class PersonalReportPackageReadinessResponse(BaseModel):
     action_href: str
     blocking_count: int
     blockers: list[PersonalReportPackageReadinessBlocker] = Field(default_factory=list)
-    source_summary: dict[str, int] = Field(default_factory=dict)
+    source_summary: dict[str, int | str] = Field(default_factory=dict)
     generated_at: datetime | None = None
     stale_since: datetime | None = None
 

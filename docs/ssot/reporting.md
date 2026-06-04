@@ -223,7 +223,10 @@ Contract response:
 |---|---|
 | `package_id` | Always `personal-financial-report-package` |
 | `version` | Contract version, currently `1.0` |
-| `period_semantics` | Defines required `start_date`, `end_date`, `as_of_date`, `currency`, and `decimal_serialization` semantics |
+| `period_semantics` | Defines required `start_date`, `end_date`, `as_of_date`, `currency`, `framework_id`, and `decimal_serialization` semantics |
+| `supported_frameworks` | Supported personal reporting framework IDs for package output |
+| `selected_framework_id` | Selected framework ID when the request includes one; otherwise `null` |
+| `framework_policy_endpoint` | Endpoint that returns the selected framework policy result consumed by package assembly |
 | `sections` | Stable ordered section contracts with `section_id`, label, owner EPIC, period type, source endpoint, status, optional blocking issue, and Decimal-safe total fields |
 | `export_contract` | Stable export formats and CSV column names for package consumers |
 
@@ -250,6 +253,9 @@ Package readiness:
   - `package_id`: always `personal-financial-report-package`
   - `state`: closed enum of `draft`, `processing`, `blocked`, `ready`,
     `generated`, or `stale`
+  - `selected_framework_id` in `source_summary` when a framework is selected
+  - `framework_policy_decisions` and `framework_policy_gaps` in
+    `source_summary` when framework policy is evaluated
   - `label` and `action_href`: primary UI state and next action; action links
     must be internal relative routes
   - `blocking_count`: sum of blocker record counts
@@ -284,8 +290,38 @@ Package readiness:
     zero after each line is converted into the base reporting currency.
   - `missing_source_coverage`: active asset or liability account lacks approved
     statement coverage or explicit source anchoring.
+  - `unsupported_framework`: selected package framework is unsupported.
+  - `missing_framework_policy_result`: selected framework has package inputs but
+    no matching structured policy result.
+  - `unsupported_policy_domain`: selected framework cannot map a source fact to
+    a deterministic v1 policy decision.
+  - `framework_policy_missing_dimensions`: a policy decision lacks one of
+    recognition, measurement, classification, presentation, or disclosure.
+  - `framework_ai_suggestion_unreviewed`: AI-suggested policy fields have not
+    been accepted as anchored structured fields.
+  - `missing_valuation_basis`: manual/private valuations lack explicit basis
+    text before trusted totals.
+  - `stale_market_data`: listed security, ETF, mutual-fund, or bond positions
+    lack prices dated within 90 days of the report date.
 - The readiness derivation must be read-only. Opening the reports page must not
   create Processing accounts or other readiness artifacts.
+
+Framework policy result:
+
+- Endpoint: `GET /api/reports/package/framework-policy`
+- Owner: EPIC-020 for policy decisions; EPIC-005 consumes the result for
+  package assembly.
+- Inputs: `framework_id`, `start_date`, `end_date`, and `as_of_date`.
+  `framework_id` defaults to `personal_us_gaap_like`; omitted period dates
+  default to a trailing 365-day window ending at the selected as-of date.
+- Output: a read-only `FrameworkPolicyResult` with stable `result_id`,
+  selected framework ID, report period, required statements, policy decisions,
+  line mappings, evidence anchors, and explicit gaps. The endpoint derives the
+  result from existing accounts, atomic positions, manual valuations, dividends,
+  and market-data overrides. It must not mutate source records, journal entries,
+  portfolio lots, market data, or report snapshots.
+- Package assembly must consume this policy result and must not infer
+  framework-specific report lines directly from raw portfolio market value.
 
 Annualized income and long-term compensation schedule:
 
