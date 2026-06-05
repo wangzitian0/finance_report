@@ -243,7 +243,7 @@ test("AC16.26.1 stage 1 mobile review exposes editable transaction cards and com
   await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
 
   await page.getByLabel("Description for txn-mobile-1").fill("Edited mobile grocery transaction");
-  await expect(page.getByRole("button", { name: "Save Edits (1)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve Edits (1)" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Discard" })).toBeVisible();
   await expectNoDocumentHorizontalScroll(page);
 });

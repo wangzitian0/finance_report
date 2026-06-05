@@ -32,7 +32,7 @@ describe("StatementReviewPage - coverage additions", () => {
         expect(await screen.findByRole("link", { name: /Back to Statements/i })).toBeInTheDocument();
     });
 
-    it("AC16.11.33 handles inline edit flow: begin edit, change value, save triggers api", async () => {
+    it("AC16.11.33 handles inline edit flow with explicit approve-edits confirmation", async () => {
         const stmt = {
             id: "s1",
             original_filename: "file.pdf",
@@ -56,7 +56,7 @@ describe("StatementReviewPage - coverage additions", () => {
             if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
             if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
             if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
-            if (path === "/api/statements/s1/review/edit") return Promise.resolve({ success: true });
+            if (path === "/api/statements/s1/review/edit") return Promise.resolve({ journal_entries_created: 2 });
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
@@ -77,8 +77,8 @@ describe("StatementReviewPage - coverage additions", () => {
         // blur to end edit
         fireEvent.blur(input);
 
-        // Save edits button should appear
-        const saveBtn = await screen.findByRole("button", { name: /Save Edits/i });
+        // Approve edits button should appear because the endpoint validates, approves, and posts.
+        const saveBtn = await screen.findByRole("button", { name: /Approve Edits/i });
         expect(saveBtn).toBeInTheDocument();
         const discardBtn = await screen.findByRole("button", { name: /Discard/i });
         fireEvent.click(discardBtn);
@@ -88,7 +88,13 @@ describe("StatementReviewPage - coverage additions", () => {
         fireEvent.change(secondInput, { target: { value: "Lunch at cafe" } });
         fireEvent.blur(secondInput);
 
-        fireEvent.click(await screen.findByRole("button", { name: /Save Edits/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /Approve Edits/i }));
+
+        const approveEditsDialog = await screen.findByRole("dialog", { name: "Approve Edited Statement" });
+        expect(
+            within(approveEditsDialog).getByText(/save these edits, validate the balance chain, approve the statement, and post journal entries/i)
+        ).toBeInTheDocument();
+        fireEvent.click(within(approveEditsDialog).getByRole("button", { name: "Approve Edits" }));
 
         // edit API should have been called (third api call)
         await (async () => {
@@ -252,7 +258,9 @@ describe("StatementReviewPage - coverage additions", () => {
         fireEvent.click(desktopTransactions.getByText("Lunch"));
         fireEvent.change(desktopTransactions.getByDisplayValue("Lunch"), { target: { value: "Lunch at cafe" } });
         fireEvent.blur(desktopTransactions.getByDisplayValue("Lunch at cafe"));
-        fireEvent.click(await screen.findByRole("button", { name: /Save Edits/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /Approve Edits/i }));
+        const approveEditsDialog = await screen.findByRole("dialog", { name: "Approve Edited Statement" });
+        fireEvent.click(within(approveEditsDialog).getByRole("button", { name: "Approve Edits" }));
 
         expect(await screen.findByText("edit failed")).toBeInTheDocument();
         expect(mockedApi.mock.calls.some((call) => String(call[0]).includes("/review/edit"))).toBe(true);
