@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import ast
 import sys
+from pathlib import Path
 
 import pytest
 
 from tools import staging_ai_ocr_gate_contract as contract
+
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC8_13_49_gate_files_include_matrix_llm_proofs_and_supplementals(
@@ -109,3 +114,23 @@ def test_AC8_13_49_main_supports_shell_and_human_output(monkeypatch, capsys) -> 
     assert "Staging AI/OCR gate files:" in output
     assert "- tests/e2e/test_statement_full_journey.py" in output
     assert "- uploads: 1" in output
+
+
+def test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users() -> None:
+    """AC8.13.109: Post-merge AI/OCR gate tests must not share mutable users."""
+    shared_user_fixtures = {"authenticated_page", "shared_auth_state"}
+
+    offenders: list[str] = []
+    for relative_path in contract.gate_files():
+        tree = ast.parse((ROOT / relative_path).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not node.name.startswith("test_"):
+                continue
+            used_fixtures = {arg.arg for arg in node.args.args}
+            shared = sorted(used_fixtures & shared_user_fixtures)
+            if shared:
+                offenders.append(f"{relative_path}::{node.name} uses {', '.join(shared)}")
+
+    assert offenders == []
