@@ -444,6 +444,7 @@ def deploy_action(args: argparse.Namespace) -> int:
         ),
     )
     deploy_compose(config, compose_id=compose_id, force_redeploy=existing_compose)
+    start_compose(config, compose_id=compose_id)
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")

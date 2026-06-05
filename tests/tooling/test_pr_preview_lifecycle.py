@@ -484,10 +484,11 @@ def test_AC8_13_98_existing_preview_compose_is_replaced_before_deploy(
     assert "compose.deploy" in rendered_calls
     assert "compose.stop" not in rendered_calls
     assert "compose.redeploy" not in rendered_calls
-    assert "compose.start" not in rendered_calls
+    assert "compose.start" in rendered_calls
     assert rendered_calls.index("compose.delete") < rendered_calls.index("compose.create")
     assert rendered_calls.index("compose.create") < rendered_calls.index("compose.update")
     assert rendered_calls.index("compose.update") < rendered_calls.index("compose.deploy")
+    assert rendered_calls.index("compose.deploy") < rendered_calls.index("compose.start")
     assert "secret-key" not in rendered_calls
 
 
