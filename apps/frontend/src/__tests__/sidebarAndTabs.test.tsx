@@ -41,8 +41,14 @@ vi.mock("@/lib/api", () => ({
 
 const defaultWorkflowStatus: WorkflowStatusResponse = {
   primary_state: "needs_action",
-  next_action: { type: "review_required", count: 2, href: "/review" },
-  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+  next_action: {
+    type: "review_required",
+    count: 2,
+    href: "/review",
+    label: "Review required",
+    summary: "Confirm the source or review item so trusted report preparation can continue.",
+  },
+  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
   event_counts: { unread: 4, action_required: 2, blocked: 1 },
 }
 

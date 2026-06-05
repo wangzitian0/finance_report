@@ -77,8 +77,14 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
           ? overrides.workflowStatus
           : {
               primary_state: "needs_action",
-              next_action: { type: "review_required", count: 1, href: "/review" },
-              report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+              next_action: {
+                type: "review_required",
+                count: 1,
+                href: "/review",
+                label: "Review required",
+                summary: "Confirm the source or review item so trusted report preparation can continue.",
+              },
+              report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
               event_counts: { unread: 2, action_required: 1, blocked: 0 },
             },
       )
@@ -137,7 +143,7 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
                   last_event_at: "2026-06-03T08:00:00Z",
                   source_count: 2,
                   primary_state: "needs_action",
-                  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
+                  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
                   event_counts: { unread: 1, action_required: 1, blocked: 0 },
                 },
               ],
@@ -302,8 +308,14 @@ describe("DashboardPage", () => {
     mockDashboardApi({
       workflowStatus: {
         primary_state: "empty",
-        next_action: { type: "upload", count: 0, href: "/statements/upload" },
-        report_readiness: { state: "none", blocking_count: 0, href: "/reports" },
+        next_action: {
+          type: "upload",
+          count: 0,
+          href: "/statements/upload",
+          label: "Upload statements",
+          summary: "Add source documents to start the upload-to-report workflow.",
+        },
+        report_readiness: { state: "none", blocking_count: 0, href: "/reports/package" },
         event_counts: { unread: 0, action_required: 0, blocked: 0 },
       },
       workflowEvents: { total: 0, items: [], sessions: [] },
@@ -322,7 +334,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByLabelText("Report readiness")).toHaveAttribute("href", "/reports"))
+    await waitFor(() => expect(screen.getByLabelText("Report readiness")).toHaveAttribute("href", "/reports/package"))
     expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("1 blocker")).toBeInTheDocument()
     const readiness = screen.getByLabelText("Report readiness")

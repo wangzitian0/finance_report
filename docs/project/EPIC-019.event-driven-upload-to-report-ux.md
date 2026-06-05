@@ -349,6 +349,7 @@ workflow state exists.
 | AC19.4.5 | Recent workflow events are visible, grouped by actionability, and routine automation is summarized without dominating the page | `dashboardPage.test.tsx` | P0 |
 | AC19.4.6 | Secondary dashboard metric API failure does not hide the workflow home; the analytics section renders an isolated retry/error state | `dashboardPage.test.tsx` | P0 |
 | AC19.4.7 | Desktop and mobile Playwright smoke covers the upload-first dashboard entry without layout overflow | `upload-first-dashboard.spec.ts` | P0 |
+| AC19.4.8 | Workflow status returns cockpit-ready `next_action.label` and `next_action.summary`, routes processing to session history, and routes ready reports directly to `/reports/package` | `test_AC19_2_1_workflow_status_schema_contract`, `test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries`, `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 |
 
 ### AC19.5 — Report Readiness and Blocker State
 

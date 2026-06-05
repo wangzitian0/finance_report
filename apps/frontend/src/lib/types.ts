@@ -392,6 +392,8 @@ export interface WorkflowNextActionResponse {
   type: WorkflowNextActionType;
   count: number;
   href: string;
+  label: string;
+  summary: string;
 }
 
 export interface WorkflowReportReadinessResponse {
