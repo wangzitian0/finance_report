@@ -10,7 +10,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import quote
 
 ALLOWLIST_ENV_KEYS = (
@@ -20,6 +22,12 @@ ALLOWLIST_ENV_KEYS = (
     "ENV_SUFFIX",
     "COMPOSE_PROFILES",
 )
+ROOT_DIR = Path(__file__).resolve().parents[3]
+PR_PREVIEW_COMPOSE_PATH = "docker-compose.pr-preview.yml"
+PR_PREVIEW_COMPOSE_TYPE = "docker-compose"
+PR_PREVIEW_SOURCE_TYPE = "github"
+PR_PREVIEW_REPOSITORY = "finance_report"
+PR_PREVIEW_OWNER = "wangzitian0"
 
 
 @dataclass(frozen=True)
@@ -245,6 +253,8 @@ def create_compose(
     environment_id: str,
     compose_name: str,
     pr_number: int,
+    branch: str,
+    github_integration_id: str,
 ) -> str:
     body = dokploy_api_call(
         config,
@@ -254,6 +264,13 @@ def create_compose(
             "name": compose_name,
             "description": f"PR #{pr_number}: {compose_name}",
             "environmentId": environment_id,
+            "composeType": PR_PREVIEW_COMPOSE_TYPE,
+            "sourceType": PR_PREVIEW_SOURCE_TYPE,
+            "repository": PR_PREVIEW_REPOSITORY,
+            "owner": PR_PREVIEW_OWNER,
+            "branch": branch,
+            "composePath": PR_PREVIEW_COMPOSE_PATH,
+            "githubId": github_integration_id,
         },
     )
     compose_id = json.loads(body or "{}").get("composeId")
@@ -269,6 +286,8 @@ def get_or_create_compose(
     environment_id: str,
     compose_name: str,
     pr_number: int,
+    branch: str,
+    github_integration_id: str,
 ) -> str:
     compose_id = find_compose_id_by_name(config, environment_id, compose_name)
     if compose_id:
@@ -279,6 +298,8 @@ def get_or_create_compose(
         environment_id=environment_id,
         compose_name=compose_name,
         pr_number=pr_number,
+        branch=branch,
+        github_integration_id=github_integration_id,
     )
 
 
@@ -288,6 +309,8 @@ def get_or_create_compose_with_status(
     environment_id: str,
     compose_name: str,
     pr_number: int,
+    branch: str,
+    github_integration_id: str,
 ) -> tuple[str, bool]:
     compose_id = find_compose_id_by_name(config, environment_id, compose_name)
     if compose_id:
@@ -299,6 +322,8 @@ def get_or_create_compose_with_status(
             environment_id=environment_id,
             compose_name=compose_name,
             pr_number=pr_number,
+            branch=branch,
+            github_integration_id=github_integration_id,
         ),
         False,
     )
@@ -317,15 +342,16 @@ def update_compose_source(
         "compose.update",
         payload={
             "composeId": compose_id,
-            "sourceType": "github",
-            "repository": "finance_report",
-            "owner": "wangzitian0",
+            "composeType": PR_PREVIEW_COMPOSE_TYPE,
+            "sourceType": PR_PREVIEW_SOURCE_TYPE,
+            "repository": PR_PREVIEW_REPOSITORY,
+            "owner": PR_PREVIEW_OWNER,
             "branch": branch,
-            "composePath": "docker-compose.yml",
+            "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
         },
     )
-    print(f"GitHub source configured for compose: {compose_id}")
+    print(f"GitHub preview compose configured for compose: {compose_id}")
 
 
 def get_compose_env(config: DokployConfig, *, compose_id: str) -> str:
@@ -372,31 +398,56 @@ def deploy_compose(
     print(f"{action} triggered for compose: {compose_id}")
 
 
-def stop_compose(config: DokployConfig, *, compose_id: str) -> None:
-    dokploy_api_call(
+def list_compose_deployments(
+    config: DokployConfig, *, compose_id: str
+) -> list[object]:
+    body = dokploy_api_call(
         config,
-        "POST",
-        "compose.stop",
-        payload={"composeId": compose_id},
+        "GET",
+        f"deployment.allByCompose?composeId={quote(compose_id, safe='')}",
     )
-    print(f"Stop triggered for compose: {compose_id}")
+    data = json.loads(body or "[]")
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("deployments", "items", "data"):
+            value = data.get(key)
+            if isinstance(value, list):
+                return value
+    return []
 
 
-def start_compose(config: DokployConfig, *, compose_id: str) -> bool:
-    try:
-        dokploy_api_call(
-            config,
-            "POST",
-            "compose.start",
-            payload={"composeId": compose_id},
-        )
-    except RuntimeError:
-        print(
-            f"Start request failed for compose {compose_id}; recreating preview compose"
-        )
-        return False
-    print(f"Start triggered for compose: {compose_id}")
-    return True
+def wait_for_deployment_record(
+    config: DokployConfig,
+    *,
+    compose_id: str,
+    timeout_seconds: int = 120,
+    interval_seconds: int = 5,
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        deployments = list_compose_deployments(config, compose_id=compose_id)
+        if deployments:
+            print(
+                f"Deployment accepted for compose: {compose_id} "
+                f"({len(deployments)} record(s))"
+            )
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                "Dokploy deployment queue did not create a deployment record "
+                f"for compose: {compose_id}"
+            )
+        print(f"Waiting for Dokploy deployment record: {compose_id}")
+        time.sleep(interval_seconds)
+
+
+def write_compose_id_output(compose_id: str) -> None:
+    if github_output := os.environ.get("GITHUB_OUTPUT"):
+        with open(github_output, "a", encoding="utf-8") as output:
+            output.write(f"compose_id={compose_id}\n")
+    else:
+        print(f"compose_id={compose_id}")
 
 
 def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
@@ -416,14 +467,20 @@ def deploy_action(args: argparse.Namespace) -> int:
         environment_id=args.environment_id,
         compose_name=args.compose_name,
         pr_number=args.pr_number,
+        branch=args.branch,
+        github_integration_id=args.github_integration_id,
     )
-    preview_env = build_preview_env(
-        pr_number=args.pr_number,
-        commit_sha=args.commit_sha,
-        registry=args.registry,
-        image_prefix=args.image_prefix,
-        internal_domain=args.internal_domain,
-    )
+    if existing_compose:
+        print(f"Recreating existing PR preview compose: {compose_id}")
+        delete_compose(config, compose_id=compose_id)
+        compose_id = create_compose(
+            config,
+            environment_id=args.environment_id,
+            compose_name=args.compose_name,
+            pr_number=args.pr_number,
+            branch=args.branch,
+            github_integration_id=args.github_integration_id,
+        )
     update_compose_source(
         config,
         compose_id=compose_id,
@@ -433,61 +490,17 @@ def deploy_action(args: argparse.Namespace) -> int:
     update_compose_env(
         config,
         compose_id=compose_id,
-        env=preview_env,
+        env=build_preview_env(
+            pr_number=args.pr_number,
+            commit_sha=args.commit_sha,
+            registry=args.registry,
+            image_prefix=args.image_prefix,
+            internal_domain=args.internal_domain,
+        ),
     )
-    should_start_existing = existing_compose
-    recreated_existing = False
-    if existing_compose:
-        try:
-            stop_compose(config, compose_id=compose_id)
-        except RuntimeError:
-            print(
-                f"Stop request failed for compose {compose_id}; recreating preview compose"
-            )
-            delete_compose(config, compose_id=compose_id)
-            compose_id = create_compose(
-                config,
-                environment_id=args.environment_id,
-                compose_name=args.compose_name,
-                pr_number=args.pr_number,
-            )
-            update_compose_source(
-                config,
-                compose_id=compose_id,
-                branch=args.branch,
-                github_integration_id=args.github_integration_id,
-            )
-            update_compose_env(config, compose_id=compose_id, env=preview_env)
-            should_start_existing = False
-            recreated_existing = True
-    deploy_compose(config, compose_id=compose_id, force_redeploy=should_start_existing)
-    if should_start_existing:
-        if not start_compose(config, compose_id=compose_id):
-            delete_compose(config, compose_id=compose_id)
-            compose_id = create_compose(
-                config,
-                environment_id=args.environment_id,
-                compose_name=args.compose_name,
-                pr_number=args.pr_number,
-            )
-            update_compose_source(
-                config,
-                compose_id=compose_id,
-                branch=args.branch,
-                github_integration_id=args.github_integration_id,
-            )
-            update_compose_env(config, compose_id=compose_id, env=preview_env)
-            deploy_compose(config, compose_id=compose_id, force_redeploy=False)
-            if not start_compose(config, compose_id=compose_id):
-                raise RuntimeError(f"Rebuilt compose failed to start: {compose_id}")
-    elif recreated_existing:
-        if not start_compose(config, compose_id=compose_id):
-            raise RuntimeError(f"Rebuilt compose failed to start: {compose_id}")
-    if github_output := os.environ.get("GITHUB_OUTPUT"):
-        with open(github_output, "a", encoding="utf-8") as output:
-            output.write(f"compose_id={compose_id}\n")
-    else:
-        print(f"compose_id={compose_id}")
+    deploy_compose(config, compose_id=compose_id)
+    write_compose_id_output(compose_id)
+    wait_for_deployment_record(config, compose_id=compose_id)
     return 0
 
 
