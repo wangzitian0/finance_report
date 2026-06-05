@@ -66,7 +66,7 @@ contracts is tracked in
 | [reconciliation.md](./reconciliation.md) | `reconciliation` | Matching rationale; thresholds should migrate to code/common |
 | [reporting.md](./reporting.md) | `reporting` | Report calculation rationale and proof links |
 | [framework-reporting.md](./framework-reporting.md) | `framework_reporting` | US/HK target-backward policy layer for personal report packages |
-| [ai.md](./ai.md) | `ai` | AI advisor policy and safety rationale |
+| [ai.md](./ai.md) | `ai` | Application-layer AI Advisor contract, policy, and safety rationale |
 | [assets.md](./assets.md) | `assets` | Asset lifecycle rationale and code/test links |
 | [market_data.md](./market_data.md) | `market_data` | Market data source rationale and fallback policy |
 | [source-type-priority.md](./source-type-priority.md) | `source-type-priority` | Trust hierarchy rationale; priority should migrate to code/common |
