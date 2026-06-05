@@ -340,7 +340,7 @@ export default function StatementReviewPage() {
 
             <ConfirmDialog
                 isOpen={editApproveDialogOpen}
-                onCancel={() => !editMutation.isPending && setEditApproveDialogOpen(false)}
+                onCancel={() => setEditApproveDialogOpen(false)}
                 onConfirm={handleSaveEdits}
                 title="Approve Edited Statement"
                 message="This will save these edits, validate the balance chain, approve the statement, and post journal entries. Proceed?"
