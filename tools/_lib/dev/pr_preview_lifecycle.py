@@ -417,6 +417,15 @@ def deploy_action(args: argparse.Namespace) -> int:
         compose_name=args.compose_name,
         pr_number=args.pr_number,
     )
+    if existing_compose:
+        delete_compose(config, compose_id=compose_id)
+        compose_id = create_compose(
+            config,
+            environment_id=args.environment_id,
+            compose_name=args.compose_name,
+            pr_number=args.pr_number,
+        )
+        existing_compose = False
     update_compose_source(
         config,
         compose_id=compose_id,
@@ -434,11 +443,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             internal_domain=args.internal_domain,
         ),
     )
-    if existing_compose:
-        stop_compose(config, compose_id=compose_id)
     deploy_compose(config, compose_id=compose_id, force_redeploy=existing_compose)
-    if existing_compose:
-        start_compose(config, compose_id=compose_id)
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")
