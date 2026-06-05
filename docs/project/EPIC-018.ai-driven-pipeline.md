@@ -270,6 +270,18 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.4.3 | 4 | AI CSV parsing handles unknown institutions as fallback |
 | AC18.4.4 | 4 | Income statements include applied Layer 3 classification coverage |
 
+### AC18.7: Evidence Graph Foundation
+
+| AC ID | Phase | Description |
+|-------|-------|-------------|
+| AC18.7.1 | Evidence lineage | Evidence Graph SSOT defines nodes as auditable states, edges as transformation processes, allowed foundation node/edge fields, traversal direction, and append-only edge rules |
+| AC18.7.2 | Evidence lineage | Alembic migration creates `evidence_nodes` and `evidence_edges` with user-scoped entity lookup and edge traversal indexes |
+| AC18.7.3 | Evidence lineage | SQLAlchemy models expose `EvidenceNode` and `EvidenceEdge` with JSONB properties and user-owned isolation |
+| AC18.7.4 | Evidence lineage | Evidence lineage service supports idempotent node and edge upsert keyed by user, entity identity, node kind, relation, and edge endpoints |
+| AC18.7.5 | Evidence lineage | Evidence lineage service resolves entity nodes and traverses upstream and downstream paths only within the authenticated user scope |
+| AC18.7.6 | Evidence lineage | Evidence lineage traversal enforces a default maximum depth and never walks unbounded graphs |
+| AC18.7.7 | Evidence lineage | Evidence Graph foundation tests cover node creation, edge creation, duplicate upsert behavior, upstream traversal, downstream traversal, depth limit, and cross-user isolation |
+
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 
 | AC ID | Phase | Description |
@@ -358,3 +370,4 @@ rather than duplicated.
 These non-EPIC docs are part of this EPIC's maintained surface:
 
 - [../ssot/source-type-priority.md](../ssot/source-type-priority.md) — confidence and source trust hierarchy used by AI-assisted flows.
+- [../ssot/evidence-lineage.md](../ssot/evidence-lineage.md) — generic Evidence Graph contract for source-to-report audit lineage.

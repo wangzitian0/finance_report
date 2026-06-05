@@ -194,6 +194,14 @@ concepts:
       - docs/ssot/confirmation-workflow.md
       - docs/ssot/reporting.md
 
+  evidence_lineage:
+    owner: docs/ssot/evidence-lineage.md
+    description: Generic Evidence Graph for source-to-ledger-to-report audit lineage.
+    cross_refs:
+      - docs/project/EPIC-018.ai-driven-pipeline.md
+      - docs/ssot/workflow-events.md
+      - docs/ssot/reporting.md
+
   # ── Observability ──────────────────────────────────────────────────────
   observability_logging:
     owner: docs/ssot/observability.md
