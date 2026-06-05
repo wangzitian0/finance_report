@@ -1430,7 +1430,9 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     assert "create-time source initialization is required" in ci_cd
     assert "pull_policy: always" in preview_compose
     assert "build:" not in preview_compose
+    assert "profiles:" not in preview_compose
     assert "must not rebuild backend or frontend images on the VPS" in ci_cd
+    assert "does not depend on Dokploy passing `COMPOSE_PROFILES`" in ci_cd
     assert (
         "readiness waits for both `/api/health` and `/frontend-version.json?expected=<sha>`"
         in ci_cd
