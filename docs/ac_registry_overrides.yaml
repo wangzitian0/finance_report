@@ -440,6 +440,12 @@ groups:
         description: ~~retired historical registry placeholder~~
         status: deprecated
         mandatory: false
+    AC8.13:
+      - id: AC8.13.100
+        epic: 8
+        description: ~~superseded by AC8.13.98 rebuild-first PR preview deploy contract~~
+        status: deprecated
+        mandatory: false
   AC9:
     AC9.3:
       - id: AC9.3.7
