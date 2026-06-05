@@ -68,6 +68,7 @@ owning source instead of copying:
 | [EPIC-018](./EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline |
 | [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md) | Event-driven upload-to-report UX |
 | [EPIC-020](./EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
+| [EPIC-021](./EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
 
 ## Current Audit Reports
 
@@ -101,7 +102,7 @@ sync with ACs and tests.
 | [../user-guide/reconciliation.md](../user-guide/reconciliation.md) | EPIC-003 / EPIC-004 | Upload, parsing, matching, and review user flow |
 | [../reference/api.md](../reference/api.md) | EPIC-004 | Reconciliation API surface |
 | [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface |
-| [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 | AI advisor user/API surface |
+| [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 / EPIC-021 | AI advisor user/API surface and application guidance layer |
 | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
 | [../ssot/pdf-fixtures.md](../ssot/pdf-fixtures.md) | EPIC-009 | PDF fixture command, template, local-input, and font policy |
 | [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |

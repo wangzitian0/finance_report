@@ -103,6 +103,7 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-018](docs/project/EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline |
 | [EPIC-019](docs/project/EPIC-019.event-driven-upload-to-report-ux.md) | Event-driven upload-to-report UX |
 | [EPIC-020](docs/project/EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
+| [EPIC-021](docs/project/EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
 
 Known proof-quality caveats:
 

@@ -132,9 +132,13 @@ concepts:
 
   ai_advisor_policy:
     owner: docs/ssot/ai.md
-    description: AI advisor prompt policy, context scope, and safety controls.
+    description: AI advisor application-layer contract, prompt policy, context scope, and safety controls.
     cross_refs:
       - docs/ssot/reporting.md
+      - docs/ssot/workflow-events.md
+      - docs/ssot/source-coverage-matrix.yaml
+      - docs/ssot/market_data.md
+      - docs/project/EPIC-021.application-ai-advisor.md
 
   # ── Reporting domain ───────────────────────────────────────────────────
   reporting_calculations:
