@@ -75,6 +75,12 @@ describe("auth utilities", () => {
             setUser("user-456", "alice@example.com");
             expect(localStorage.getItem("finance_access_token")).toBeNull();
         });
+
+        it("AC16.5.3 clears stale bearer token when token is not provided", () => {
+            localStorage.setItem("finance_access_token", "stale-token");
+            setUser("user-456", "alice@example.com");
+            expect(localStorage.getItem("finance_access_token")).toBeNull();
+        });
     });
 
     describe("clearUser", () => {

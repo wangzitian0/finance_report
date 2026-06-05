@@ -6,6 +6,7 @@ Create Date: 2026-06-06 00:00:00.000000
 
 """
 
+import sqlalchemy as sa
 from alembic import op
 
 revision = "0026_user_email_norm_idx"
@@ -15,8 +16,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE UNIQUE INDEX uq_users_email_normalized ON users (lower(email))")
+    op.create_index(
+        "uq_users_email_normalized",
+        "users",
+        [sa.text("lower(email)")],
+        unique=True,
+    )
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS uq_users_email_normalized")
+    op.drop_index("uq_users_email_normalized", table_name="users")
