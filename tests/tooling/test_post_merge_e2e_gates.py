@@ -1426,7 +1426,8 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         in ci_cd
     )
     assert "docker-compose.pr-preview.yml" in ci_cd
-    assert "raw compose file" in ci_cd
+    assert "GitHub-source `docker-compose` app" in ci_cd
+    assert "create-time source initialization is required" in ci_cd
     assert "pull_policy: always" in preview_compose
     assert "build:" not in preview_compose
     assert "must not rebuild backend or frontend images on the VPS" in ci_cd
