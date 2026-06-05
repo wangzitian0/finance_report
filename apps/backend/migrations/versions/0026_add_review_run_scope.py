@@ -5,8 +5,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0025_add_review_run_scope"
-down_revision = "0024_add_workflow_sessions"
+revision = "0026_add_review_run_scope"
+down_revision = "0025_add_evidence_lineage"
 branch_labels = None
 depends_on = None
 
