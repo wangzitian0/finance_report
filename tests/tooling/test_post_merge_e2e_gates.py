@@ -448,6 +448,7 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert "staging-deploy-alert:" in workflow
     assert "name: Staging Deploy Alert" in workflow
     assert "issues: write" in workflow
+    assert "GH_REPO: ${{ github.repository }}" in workflow
     assert "STAGING_ALERT_TITLE: \"[staging-alert] Post-merge staging deploy failing\"" in workflow
     assert "github.event_name == 'workflow_run'" in workflow
     assert "github.event.workflow_run.conclusion == 'success'" in workflow
@@ -472,6 +473,9 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert "STAGING_APP_URL: https://report-staging.zitian.party" in workflow
     assert "App URL: ${STAGING_APP_URL}" in workflow
     assert "DOKPLOY_API_KEY" not in workflow.split("staging-deploy-alert:", 1)[1]
+    assert "actions/checkout" not in workflow.split("staging-deploy-alert:", 1)[1].split(
+        "post-merge-summary:", 1
+    )[0]
     assert "persistent GitHub Issue alert" in ci_cd
     assert "AC8.13.91" in epic
 
