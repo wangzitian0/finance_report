@@ -551,6 +551,7 @@ jobs:
       issues: write
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       STAGING_ALERT_TITLE: "[staging-alert] Post-merge staging deploy failing"
       STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
       STAGING_APP_URL: https://report-staging.zitian.party
