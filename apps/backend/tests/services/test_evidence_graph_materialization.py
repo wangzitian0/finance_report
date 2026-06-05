@@ -14,6 +14,7 @@ from src.models import User
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.services.deduplication import DeduplicationService
@@ -266,3 +267,191 @@ async def test_AC18_10_7_materialization_caps_and_unknown_sources_return_blocker
     )
 
     assert "entity_missing" in {blocker.code for blocker in unknown.blockers}
+
+
+@pytest.mark.asyncio
+async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.10.4: Direct entity requests use deterministic relationships and remain idempotent."""
+    statement, txn, atomic, entry, _ = await _create_historical_statement_entry(db, user_id=test_user.id)
+    document = UploadedDocument(
+        user_id=test_user.id,
+        file_path="s3://lazy/history-upload.csv",
+        file_hash=statement.file_hash,
+        original_filename="history-upload.csv",
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
+    )
+    db.add(document)
+    await db.flush()
+    service = EvidenceGraphMaterializationService()
+
+    statement_result = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="bank_statement",
+        entity_id=statement.id,
+    )
+    transaction_result = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="bank_statement_transaction",
+        entity_id=txn.id,
+        node_kind="extracted_record",
+    )
+    journal_entry_result = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="journal_entry",
+        entity_id=entry.id,
+        node_kind="ledger_entry",
+    )
+    document_result = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="uploaded_document",
+        entity_id=document.id,
+    )
+    atomic_result = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="atomic_transaction",
+        entity_id=atomic.id,
+        node_kind="atomic_fact",
+    )
+    unsupported = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="future_table",
+        entity_id=uuid4(),
+    )
+
+    assert statement_result.blockers == []
+    assert transaction_result.blockers == []
+    assert journal_entry_result.blockers == []
+    assert document_result.blockers == []
+    assert atomic_result.blockers == []
+    assert [blocker.code for blocker in unsupported.blockers] == ["unsupported_provenance"]
+    nodes = {
+        (node.node_kind, node.entity_type, node.entity_id): node
+        for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()
+    }
+    edges = {
+        (edge.from_node_id, edge.to_node_id, edge.relation)
+        for edge in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == test_user.id))).scalars()
+    }
+    assert ("source_document", "bank_statement", statement.id) in nodes
+    assert ("source_document", "uploaded_document", document.id) in nodes
+    assert ("extracted_record", "bank_statement_transaction", txn.id) in nodes
+    assert ("atomic_fact", "atomic_transaction", atomic.id) in nodes
+    assert ("ledger_entry", "journal_entry", entry.id) in nodes
+    assert (
+        nodes[("source_document", "uploaded_document", document.id)].id,
+        nodes[("extracted_record", "bank_statement_transaction", txn.id)].id,
+        "parsed_into",
+    ) in edges
+    assert (
+        nodes[("extracted_record", "bank_statement_transaction", txn.id)].id,
+        nodes[("atomic_fact", "atomic_transaction", atomic.id)].id,
+        "deduped_into",
+    ) in edges
+
+
+@pytest.mark.asyncio
+async def test_AC18_10_5_detector_recognizes_supported_business_entities(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.10.5: Detector does not mark valid supported graph nodes as orphans."""
+    statement, txn, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
+    document = UploadedDocument(
+        user_id=test_user.id,
+        file_path="s3://lazy/detector-upload.csv",
+        file_hash=f"detector-{uuid4().hex}",
+        original_filename="detector-upload.csv",
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
+    )
+    db.add(document)
+    await db.flush()
+    service = EvidenceGraphMaterializationService()
+    for node_kind, entity_type, entity_id in [
+        ("ledger_line", "journal_line", line.id),
+        ("ledger_entry", "journal_entry", entry.id),
+        ("extracted_record", "bank_statement_transaction", txn.id),
+        ("source_document", "bank_statement", statement.id),
+        ("source_document", "uploaded_document", document.id),
+        ("atomic_fact", "atomic_transaction", atomic.id),
+        ("future_node", "future_table", uuid4()),
+    ]:
+        await service.lineage.upsert_node(
+            db,
+            user_id=test_user.id,
+            node_kind=node_kind,
+            entity_type=entity_type,
+            entity_id=entity_id,
+        )
+
+    report = await service.detect_consistency_drift(db, user_id=test_user.id)
+
+    assert not any(finding.code == "orphan_graph_node" for finding in report.findings)
+
+
+@pytest.mark.asyncio
+async def test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blockers(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.10.7: Missing and cross-user materialization requests return explicit blockers."""
+    other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="x")
+    db.add(other_user)
+    await db.flush()
+    statement, txn, atomic, entry, line = await _create_historical_statement_entry(db, user_id=other_user.id)
+    service = EvidenceGraphMaterializationService()
+
+    missing_results = [
+        await service.materialize_for_entity(
+            db, user_id=test_user.id, entity_type="journal_line", entity_id=uuid4(), node_kind="ledger_line"
+        ),
+        await service.materialize_for_entity(
+            db, user_id=test_user.id, entity_type="journal_entry", entity_id=uuid4(), node_kind="ledger_entry"
+        ),
+        await service.materialize_for_entity(
+            db,
+            user_id=test_user.id,
+            entity_type="bank_statement_transaction",
+            entity_id=uuid4(),
+            node_kind="extracted_record",
+        ),
+        await service.materialize_for_entity(db, user_id=test_user.id, entity_type="bank_statement", entity_id=uuid4()),
+        await service.materialize_for_entity(
+            db, user_id=test_user.id, entity_type="uploaded_document", entity_id=uuid4()
+        ),
+        await service.materialize_for_entity(
+            db, user_id=test_user.id, entity_type="atomic_transaction", entity_id=uuid4(), node_kind="atomic_fact"
+        ),
+    ]
+    line_cross_user = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="journal_line",
+        entity_id=line.id,
+        node_kind="ledger_line",
+    )
+    entry_cross_user = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="journal_entry",
+        entity_id=entry.id,
+        node_kind="ledger_entry",
+    )
+
+    assert all(result.blockers[0].code == "entity_missing" for result in missing_results)
+    assert [blocker.code for blocker in line_cross_user.blockers] == ["cross_user_lineage_blocked"]
+    assert [blocker.code for blocker in entry_cross_user.blockers] == ["cross_user_lineage_blocked"]
+    assert await _graph_counts(db) == (0, 0)
+    assert statement.user_id == other_user.id
+    assert txn.statement_id == statement.id
+    assert atomic.user_id == other_user.id
