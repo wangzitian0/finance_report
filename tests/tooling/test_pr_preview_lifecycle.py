@@ -477,11 +477,12 @@ def test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started(
     assert "compose.update" in rendered_calls
     assert "compose.one" in rendered_calls
     assert "compose.stop" in rendered_calls
-    assert "compose.deploy" in rendered_calls
+    assert "compose.redeploy" in rendered_calls
     assert "compose.start" in rendered_calls
-    assert "compose.redeploy" not in rendered_calls
-    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.deploy")
-    assert rendered_calls.index("compose.deploy") < rendered_calls.index(
+    assert rendered_calls.index("compose.stop") < rendered_calls.index(
+        "compose.redeploy"
+    )
+    assert rendered_calls.index("compose.redeploy") < rendered_calls.index(
         "compose.start"
     )
     assert "secret-key" not in rendered_calls

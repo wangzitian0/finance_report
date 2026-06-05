@@ -458,7 +458,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
             update_compose_env(config, compose_id=compose_id, env=preview_env)
             should_start_existing = False
-    deploy_compose(config, compose_id=compose_id)
+    deploy_compose(config, compose_id=compose_id, force_redeploy=should_start_existing)
     if should_start_existing:
         start_compose(config, compose_id=compose_id)
     if github_output := os.environ.get("GITHUB_OUTPUT"):
