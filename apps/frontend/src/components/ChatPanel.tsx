@@ -6,6 +6,8 @@ import { MessageSquareText, PanelLeft } from "lucide-react";
 
 import { apiFetch, apiStream, apiDelete } from "@/lib/api";
 import { fetchAiModels } from "@/lib/aiModels";
+import type { AdvisorSuggestion, ChatSuggestionsResponse } from "@/lib/types";
+import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
 import Sheet from "@/components/ui/Sheet";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";
@@ -26,7 +28,6 @@ interface ChatSessionResponse {
   messages: ChatMessageResponse[];
 }
 interface ChatHistoryResponse { sessions: ChatSessionResponse[]; }
-interface ChatSuggestionsResponse { suggestions: string[]; }
 interface ChatPanelProps { variant?: "page" | "widget"; initialPrompt?: string | null; onClose?: () => void; }
 
 const getBrowserLanguage = () => typeof window === "undefined" ? "en" : navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
@@ -44,6 +45,7 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [advisorSuggestions, setAdvisorSuggestions] = useState<AdvisorSuggestion[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSessionResponse[]>([]);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -60,8 +62,10 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     try { 
       const data = await apiFetch<ChatSuggestionsResponse>(`/api/chat/suggestions?language=${language}`);
       setSuggestions(data.suggestions || []); 
+      setAdvisorSuggestions(data.structured_suggestions || []);
     } catch { 
       setSuggestions([]); 
+      setAdvisorSuggestions([]);
     }
   }, [language]);
 
@@ -306,6 +310,10 @@ await apiDelete(`/api/chat/session/${sessionId}`);
         <div className="mt-4 flex flex-wrap gap-2">
           {suggestions.map((s) => <button key={s} onClick={() => void sendMessage(s)} className="badge badge-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)] transition-colors cursor-pointer">{s}</button>)}
         </div>
+      )}
+
+      {advisorSuggestions.length > 0 && variant === "page" && (
+        <AdvisorBrief suggestions={advisorSuggestions} compact className="mt-4" />
       )}
 
       {error && <div className="mt-4 alert-error">{error}</div>}

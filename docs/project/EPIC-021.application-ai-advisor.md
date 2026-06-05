@@ -88,6 +88,15 @@ Not owned here:
 | AC21.2.2 | Prompt construction consumes structured advisor facts and must not describe blocked, stale, unreviewed, unsupported, or manual-trusted data as trusted | `test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
 | AC21.2.3 | Chat provider calls and persisted chat messages redact sensitive numeric fields while preserving read-only advisor behavior | `test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
 
+### AC21.3: Frontend Advisor Brief and Contextual Next Actions
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC21.3.1 | Chat suggestions endpoint exposes structured advisor suggestions to the frontend without relying on LLM prose parsing | `test_AC21_3_1_chat_suggestions_include_structured_advisor_facts` | `apps/backend/tests/ai/test_chat_router.py` | P0 |
+| AC21.3.2 | Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links | `test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes` | `apps/frontend/src/__tests__/advisorBrief.test.tsx` | P0 |
+| AC21.3.3 | Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior | `test_AC21_3_3_chat_panel_renders_contextual_advisor_brief`, `test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics` | `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
+| AC21.3.4 | Advisor Brief keeps desktop and mobile layouts free of horizontal overflow | `advisor-brief desktop and mobile layouts avoid horizontal overflow` | `apps/frontend/playwright/advisor-brief.spec.ts` | P1 |
+
 ## Planned Implementation Slices
 
 These are issue-scoped follow-ups. They should add their own AC IDs only when
@@ -99,7 +108,8 @@ their tests are introduced.
    readiness, source trust, workflow blockers, pending review, market freshness,
    portfolio, and cash-flow state. This slice owns AC21.2.1 through AC21.2.3.
 3. PR3 - Frontend Advisor Brief: render structured cards, safe next-action
-   routes, and contextual chat entry points.
+   routes, and contextual chat entry points. This slice owns AC21.3.1 through
+   AC21.3.4.
 
 ## Tracking Issues
 

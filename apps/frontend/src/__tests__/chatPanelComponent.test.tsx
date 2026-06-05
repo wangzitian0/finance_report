@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import ChatPanel from "@/components/ChatPanel"
@@ -13,6 +14,10 @@ vi.mock("@/lib/api", () => ({
 
 vi.mock("@/lib/aiModels", () => ({
   fetchAiModels: vi.fn(),
+}))
+
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...props }: { href: string; children: ReactNode }) => <a href={href} {...props}>{children}</a>,
 }))
 
 function streamingResponse(text: string): Response {
@@ -63,7 +68,18 @@ describe("ChatPanel", () => {
 
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
-        return Promise.resolve({ suggestions: ["How is cash flow?"] })
+        return Promise.resolve({
+          suggestions: ["How is cash flow?"],
+          structured_suggestions: [
+            {
+              basis: "Report package is blocked by one review-required item.",
+              confidence_tier: "blocked",
+              source_refs: ["workflow.status", "report_package.readiness"],
+              limitation: "Review the blocker before relying on this report.",
+              next_action_href: "/reports/package",
+            },
+          ],
+        })
       }
       if (path.includes("/api/chat/history")) {
         return Promise.resolve({ sessions: [{ id: "sess-1", title: "Cash flow review", message_count: 0, messages: [] }] })
@@ -87,6 +103,22 @@ describe("ChatPanel", () => {
 
     await waitFor(() => expect(mockedApiStream).toHaveBeenCalled())
     await waitFor(() => expect(screen.getByText("Assistant answer")).toBeInTheDocument())
+  })
+
+  it("AC21.3.3 test_AC21_3_3_chat_panel_renders_contextual_advisor_brief", async () => {
+    render(<ChatPanel variant="page" />)
+
+    const brief = await screen.findByLabelText("Advisor Brief")
+    expect(within(brief).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument()
+    expect(within(brief).getByText("Review the blocker before relying on this report.")).toBeInTheDocument()
+    expect(within(brief).getByRole("link", { name: "Open next action" })).toHaveAttribute("href", "/reports/package")
+    expect(within(brief).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/chat?prompt="),
+    )
+
+    fireEvent.click(screen.getByText("How is cash flow?"))
+    await waitFor(() => expect(mockedApiStream).toHaveBeenCalled())
   })
 
   it("AC16.20.5 starts a new conversation from the active session", async () => {

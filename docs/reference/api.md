@@ -100,7 +100,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/chat` | yes | - | `ChatRequest` | `200` - | Chat Message |
 | `GET` | `/chat/history` | yes | `session_id` (query), `limit` (query) | - | `200` `ChatHistoryResponse` | Chat History |
 | `DELETE` | `/chat/session/{session_id}` | yes | `session_id`* (path) | - | `204` - | Delete Session |
-| `GET` | `/chat/suggestions` | no | `language` (query), `message` (query) | - | `200` `ChatSuggestionsResponse` | Suggestions |
+| `GET` | `/chat/suggestions` | yes | `language` (query), `message` (query) | - | `200` `ChatSuggestionsResponse` | Suggestions |
 
 ### corrections
 

@@ -229,6 +229,19 @@ export interface PersonalReportPackageReadinessResponse {
   stale_since?: string | null;
 }
 
+export interface AdvisorSuggestion {
+  basis: string;
+  confidence_tier: string;
+  source_refs: string[];
+  limitation: string;
+  next_action_href: string;
+}
+
+export interface ChatSuggestionsResponse {
+  suggestions: string[];
+  structured_suggestions?: AdvisorSuggestion[];
+}
+
 export interface PersonalReportPackageNote {
   note_id: string;
   label: string;

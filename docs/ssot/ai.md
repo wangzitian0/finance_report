@@ -88,6 +88,13 @@ serialized structured facts and must preserve blocked, stale, unreviewed,
 unsupported, and manual-trusted limitations instead of converting them into
 trusted conclusions.
 
+Frontend Advisor Brief surfaces consume
+`GET /api/chat/suggestions.structured_suggestions`; they must render structured
+facts directly rather than parsing LLM prose. Any `next_action_href` shown to
+users must be normalized through the Advisor Brief safe-route allowlist before
+link rendering, and contextual chat entry links must seed scoped prompts through
+`/chat?prompt=...` without clearing the user's existing chat session.
+
 ### 2.4 Financial Suggestion Scope
 
 The assistant may surface explainable personal-finance suggestions from trusted

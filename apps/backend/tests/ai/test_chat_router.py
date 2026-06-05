@@ -49,6 +49,40 @@ async def test_chat_suggestions_auto_detect_en() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.no_db
+async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> None:
+    """AC21.3.1: Chat suggestions expose structured advisor facts without LLM prose parsing."""
+    from src.routers.chat import suggestions
+
+    advisor_fact = {
+        "basis": "Report package is blocked by one review-required item.",
+        "confidence_tier": "blocked",
+        "source_refs": ["workflow.status", "report_package.readiness"],
+        "limitation": "The report should not be treated as final until review is complete.",
+        "next_action_href": "/reports/package",
+    }
+    mock_db = MagicMock()
+    mock_user_id = uuid4()
+
+    with patch("src.routers.chat.AIAdvisorService") as MockService:
+        mock_service = MagicMock()
+        mock_service.get_advisor_context = AsyncMock(return_value={"suggestions": [advisor_fact]})
+        MockService.return_value = mock_service
+
+        response = await suggestions(language="en", db=mock_db, user_id=mock_user_id)
+
+    assert response.suggestions
+    assert len(response.structured_suggestions) == 1
+    structured = response.structured_suggestions[0]
+    assert structured.basis == advisor_fact["basis"]
+    assert structured.confidence_tier == "blocked"
+    assert structured.source_refs == ["workflow.status", "report_package.readiness"]
+    assert structured.limitation == advisor_fact["limitation"]
+    assert structured.next_action_href == "/reports/package"
+    mock_service.get_advisor_context.assert_awaited_once_with(mock_db, mock_user_id)
+
+
+@pytest.mark.asyncio
 async def test_detect_language_chinese() -> None:
     """AC6.2.1: Detect Chinese language."""
     from src.services.ai_advisor import detect_language

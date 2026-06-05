@@ -71,6 +71,25 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
         : baseBalance
       return Promise.resolve(hasOverride("balance") ? overrides.balance : defaultBalance)
     }
+    if (path.startsWith("/api/chat/suggestions")) {
+      if (overrides.chatSuggestionsError) return Promise.reject(overrides.chatSuggestionsError)
+      return Promise.resolve(
+        hasOverride("chatSuggestions")
+          ? overrides.chatSuggestions
+          : {
+              suggestions: ["How is my report readiness?"],
+              structured_suggestions: [
+                {
+                  basis: "Report package is blocked by one review-required item.",
+                  confidence_tier: "blocked",
+                  source_refs: ["workflow.status", "report_package.readiness"],
+                  limitation: "Review the blocker before relying on this report.",
+                  next_action_href: "/reports/package",
+                },
+              ],
+            },
+      )
+    }
     if (path.startsWith("/api/workflow/status")) {
       return Promise.resolve(
         hasOverride("workflowStatus")
@@ -291,6 +310,32 @@ describe("DashboardPage", () => {
     const workflowHome = screen.getByLabelText("Upload-to-report home")
     const totalAssets = screen.getByText("Total Assets")
     expect(Boolean(workflowHome.compareDocumentPosition(totalAssets) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it("AC21.3.3 test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics", async () => {
+    mockDashboardApi()
+
+    render(<DashboardPage />)
+
+    const brief = await screen.findByLabelText("Advisor Brief")
+    expect(within(brief).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument()
+    expect(within(brief).getByRole("link", { name: "Open next action" })).toHaveAttribute("href", "/reports/package")
+    expect(within(brief).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/chat?prompt="),
+    )
+    const analytics = screen.getByLabelText("Dashboard analytics")
+    expect(Boolean(brief.compareDocumentPosition(analytics) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it("AC21.3.3 keeps dashboard analytics usable when Advisor Brief suggestions are unavailable", async () => {
+    mockDashboardApi({ chatSuggestionsError: new Error("advisor suggestions failed") })
+
+    render(<DashboardPage />)
+
+    await waitForDashboardAnalyticsReady()
+    expect(screen.queryByLabelText("Advisor Brief")).not.toBeInTheDocument()
+    expect(screen.getByText("Total Assets")).toBeInTheDocument()
   })
 
   it("AC19.4.3 follows workflow next_action for blocker and upload primary CTAs", async () => {
