@@ -42,6 +42,13 @@ const advisorSuggestions: AdvisorSuggestion[] = [
     limitation: "Portfolio value may be outdated until prices refresh.",
     next_action_href: "/portfolio/prices/update",
   },
+  {
+    basis: "Manual evidence exists for one asset but it is not yet trusted.",
+    confidence_tier: "unsupported",
+    source_refs: [],
+    limitation: "Manual evidence needs an internal support path before it can drive report conclusions.",
+    next_action_href: "/assets?filter=manual",
+  },
 ];
 
 describe("AdvisorBrief", () => {
@@ -53,9 +60,11 @@ describe("AdvisorBrief", () => {
     expect(screen.getByText("Ready facts")).toBeInTheDocument();
     expect(screen.getByText("Needs review")).toBeInTheDocument();
     expect(screen.getByText("Refresh market data")).toBeInTheDocument();
+    expect(screen.getByText("Advisor signal")).toBeInTheDocument();
     expect(screen.getByText("Report package is blocked by one review-required item.")).toBeInTheDocument();
     expect(screen.getByText("Do not rely on the final report until review is complete.")).toBeInTheDocument();
     expect(screen.getByText("workflow.status")).toBeInTheDocument();
+    expect(screen.getByText("source unavailable")).toBeInTheDocument();
 
     const cards = screen.getAllByTestId(/advisor-brief-card-/);
     const cardLinks = cards.map((card) => within(card).getByRole("link", { name: "Open next action" }));
@@ -64,6 +73,7 @@ describe("AdvisorBrief", () => {
       "/reports",
       "/review",
       "/portfolio/prices",
+      "/assets",
     ]);
     expect(safeAdvisorHref("https://evil.example/review")).toBe("/dashboard");
     expect(safeAdvisorHref("/portfolio/prices/update?source=advisor")).toBe("/portfolio/prices");
