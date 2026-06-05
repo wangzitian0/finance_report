@@ -44,7 +44,11 @@ from src.models.layer3 import (
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.user import User
 from src.routers.reports import (
+    _add_anchor_details,
+    _append_blocker,
     _journal_source_anchor_detail,
+    _ledger_anchor_detail,
+    _source_document_details,
     personal_report_package_contract,
     personal_report_package_notes,
     personal_report_package_readiness,
@@ -1016,6 +1020,153 @@ def test_AC19_10_1_source_anchor_resolver_requires_typed_source_membership():
     assert statement_detail["identifier"] == f"statement_transaction:{unknown_source_id}"
     assert statement_detail["source_kind"] == "bank_statement_transaction"
     assert statement_detail["source_type"] == "bank_statement"
+
+
+def test_AC19_10_1_source_anchor_resolver_covers_manual_atomic_and_entry_fallbacks():
+    """AC19.10.1: Resolver emits typed details for each supported source class."""
+    user_id = uuid4()
+    account = Account(id=uuid4(), user_id=user_id, name="Resolver Asset", type=AccountType.ASSET, currency="SGD")
+    line = JournalLine(
+        id=uuid4(),
+        journal_entry_id=uuid4(),
+        account_id=account.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("42.00"),
+        currency="SGD",
+    )
+
+    manual_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Manual resolver source",
+        source_type=JournalEntrySourceType.MANUAL,
+        source_id=None,
+        status=JournalEntryStatus.POSTED,
+    )
+    manual_detail = _journal_source_anchor_detail(
+        manual_entry,
+        line,
+        account,
+        statement_txn_ids=set(),
+        atomic_txn_ids=set(),
+    )
+    assert manual_detail["identifier"] == f"manual_journal_entry:{manual_entry.id}"
+    assert manual_detail["source_kind"] == "manual_journal_entry"
+    assert manual_detail["source_id"] == str(manual_entry.id)
+    assert manual_detail["review_state"] == "explicit_manual_input"
+    assert manual_detail["confidence_tier"] == "TRUSTED"
+
+    atomic_source_id = uuid4()
+    atomic_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Atomic resolver source",
+        source_type=JournalEntrySourceType.AUTO_MATCHED,
+        source_id=atomic_source_id,
+        status=JournalEntryStatus.RECONCILED,
+    )
+    atomic_detail = _journal_source_anchor_detail(
+        atomic_entry,
+        line,
+        account,
+        statement_txn_ids=set(),
+        atomic_txn_ids={atomic_source_id},
+    )
+    assert atomic_detail["identifier"] == f"atomic_transaction:{atomic_source_id}"
+    assert atomic_detail["source_kind"] == "atomic_transaction"
+    assert atomic_detail["source_type"] == "atomic_transaction"
+    assert atomic_detail["review_state"] == "auto_matched"
+
+    generated_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Generated resolver source",
+        source_type=JournalEntrySourceType.SYSTEM,
+        source_id=None,
+        status=JournalEntryStatus.POSTED,
+    )
+    generated_detail = _journal_source_anchor_detail(
+        generated_entry,
+        line,
+        account,
+        statement_txn_ids=set(),
+        atomic_txn_ids=set(),
+    )
+    assert generated_detail["identifier"] == f"journal_entry:{generated_entry.id}"
+    assert generated_detail["source_kind"] == "journal_entry"
+    assert generated_detail["source_type"] == "system"
+
+
+def test_AC19_10_1_anchor_detail_helpers_keep_auditable_deduped_payloads():
+    """AC19.10.1: Anchor details remain typed, deduped, and blocker-aware."""
+    user_id = uuid4()
+    account = Account(id=uuid4(), user_id=user_id, name="Ledger Asset", type=AccountType.ASSET, currency="SGD")
+    entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Ledger detail",
+        source_type=JournalEntrySourceType.BANK_STATEMENT,
+        status=JournalEntryStatus.POSTED,
+    )
+    line = JournalLine(
+        id=uuid4(),
+        journal_entry_id=entry.id,
+        account_id=account.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("11.00"),
+        currency="SGD",
+    )
+    ledger_detail = _ledger_anchor_detail(entry, line, account)
+    assert ledger_detail["identifier"] == f"journal_line:{line.id}"
+    assert ledger_detail["source_kind"] == "journal_line"
+    assert ledger_detail["review_state"] == "unreviewed_auto_parse"
+    assert ledger_detail["account_type"] == "ASSET"
+
+    document_details = _source_document_details(
+        {
+            "documents": [
+                {"doc_id": "doc-1", "doc_type": "brokerage_statement"},
+                {"ignored": True},
+            ]
+        },
+        contribution_basis="market_value_support",
+    )
+    assert document_details == [
+        {
+            "identifier": "brokerage_document:doc-1",
+            "source_kind": "uploaded_document",
+            "source_id": "doc-1",
+            "source_type": "brokerage_statement",
+            "amount": None,
+            "currency": None,
+            "review_state": "imported_or_reviewed_payload",
+            "confidence_tier": "HIGH",
+            "contribution_basis": "market_value_support",
+        }
+    ]
+    assert _source_document_details(None, contribution_basis="ignored") == []
+
+    lines_by_id = {
+        "line": {
+            "source_anchor": {"identifiers": [], "details": []},
+            "ledger_anchor": {"identifiers": [], "details": []},
+            "anchor_count": 0,
+            "blocker_codes": ["existing"],
+        }
+    }
+    _add_anchor_details(lines_by_id, "line", "source_anchor", [*document_details, *document_details])
+    _add_anchor_details(lines_by_id, "missing", "source_anchor", document_details)
+    _append_blocker(lines_by_id["line"], "unknown_source_anchor")
+    _append_blocker(lines_by_id["line"], "existing")
+
+    assert lines_by_id["line"]["source_anchor"]["identifiers"] == ["brokerage_document:doc-1"]
+    assert len(lines_by_id["line"]["source_anchor"]["details"]) == 1
+    assert lines_by_id["line"]["anchor_count"] == 1
+    assert lines_by_id["line"]["blocker_codes"] == ["existing", "unknown_source_anchor"]
 
 
 @pytest.mark.asyncio
