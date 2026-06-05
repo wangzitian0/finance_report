@@ -177,6 +177,7 @@ erDiagram
         uuid id PK
         uuid bank_txn_id FK
         jsonb journal_entry_ids
+        string run_id
         int match_score
         jsonb score_breakdown
         enum status "auto_accepted|pending_review|accepted|rejected|superseded"
@@ -410,11 +411,31 @@ Reconciliation match table.
 | id | UUID | PK | Primary key |
 | bank_txn_id | UUID | FK -> BankStatementTransactions | Bank transaction |
 | journal_entry_ids | JSONB | | Journal entry IDs |
+| run_id | VARCHAR(128) | nullable, indexed | Optional workflow/session scope for run-scoped Stage 2 review queues and approval |
 | match_score | INT | NOT NULL | Composite score |
 | score_breakdown | JSONB | | Score breakdown |
 | status | ENUM | NOT NULL | auto_accepted/pending_review/accepted/rejected/superseded |
 | version | INT | NOT NULL | Version number |
 | superseded_by_id | UUID | | Next version ID |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
+
+### ConsistencyChecks
+
+Stage 2 blocker table.
+
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> User | Owner |
+| check_type | ENUM | NOT NULL | duplicate/transfer_pair/anomaly |
+| status | ENUM | NOT NULL | pending/approved/rejected/flagged |
+| run_id | VARCHAR(128) | nullable, indexed | Optional workflow/session scope for run-scoped Stage 2 blockers |
+| related_txn_ids | JSONB | NOT NULL | Related transaction IDs |
+| details | JSONB | NOT NULL | Check details and display message |
+| severity | VARCHAR(20) | NOT NULL | high/medium/low style severity |
+| resolved_at | TIMESTAMP | nullable | Resolution timestamp |
+| resolution_note | TEXT | nullable | Reviewer note |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 

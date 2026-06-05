@@ -183,7 +183,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/breakdown` | yes | `type`* (query), `period` (query), `currency` (query) | - | `200` `CategoryBreakdownResponse` | Category Breakdown |
 | `GET` | `/reports/cash-flow` | yes | `start_date`* (query), `end_date`* (query), `currency` (query) | - | `200` `CashFlowResponse` | Cash Flow |
 | `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
-| `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query) | - | `200` - | Export Report |
+| `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
 | `GET` | `/reports/income-statement` | yes | `start_date`* (query), `end_date`* (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package/annualized-income-schedule` | yes | `as_of_date` (query) | - | `200` `AnnualizedIncomeScheduleResponse` | Annualized Income Schedule |
@@ -202,9 +202,9 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/review/conflicts/{statement_id}` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
 | `POST` | `/statements/batch-approve-matches` | yes | - | `BatchApproveRequest` | `200` object | Batch Approve Matches |
 | `POST` | `/statements/batch-reject-matches` | yes | - | `BatchRejectRequest` | `200` object | Batch Reject Matches |
-| `GET` | `/statements/consistency-checks/list` | yes | `status` (query), `check_type` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
+| `GET` | `/statements/consistency-checks/list` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
 | `POST` | `/statements/consistency-checks/{check_id}/resolve` | yes | `check_id`* (path) | `ResolveCheckRequest` | `200` `ConsistencyCheckResponse` | Resolve Consistency Check |
-| `GET` | `/statements/stage2/queue` | yes | - | - | `200` `Stage2ReviewQueueResponse` | Get Stage2 Review Queue |
+| `GET` | `/statements/stage2/queue` | yes | `run_id` (query) | - | `200` `Stage2ReviewQueueResponse` | Get Stage2 Review Queue |
 | `POST` | `/statements/{statement_id}/stage2/run-checks` | yes | `statement_id`* (path) | - | `200` `ConsistencyCheckListResponse` | Run Stage2 Checks |
 
 ### statements

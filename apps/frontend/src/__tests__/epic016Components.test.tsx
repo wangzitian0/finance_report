@@ -28,7 +28,7 @@ describe("EPIC-016 Componentization Tests", () => {
                 statement_id: "stmt_1",
                 txn_date: "2024-01-01",
                 description: "Test Txn",
-                amount: 100.0,
+                amount: "100.0",
                 direction: "OUT",
                 reference: null,
                 currency: "SGD",
@@ -40,8 +40,8 @@ describe("EPIC-016 Componentization Tests", () => {
             }
         ];
         renderReviewComponent(
-            <TransactionTable 
-                transactions={transactions} 
+            <TransactionTable
+                transactions={transactions}
                 currency="SGD"
                 onEdit={() => {}}
                 pendingEdits={new Map()}
@@ -56,11 +56,11 @@ describe("EPIC-016 Componentization Tests", () => {
 
     it("mounts ConflictResolutionDialog and asserts primary affordance (AC16.23.6)", () => {
         renderReviewComponent(
-            <ConflictResolutionDialog 
-                isOpen={true} 
-                onClose={() => {}} 
-                duplicateCandidates={[]} 
-                transferPairCandidates={[]} 
+            <ConflictResolutionDialog
+                isOpen={true}
+                onClose={() => {}}
+                duplicateCandidates={[]}
+                transferPairCandidates={[]}
             />
         );
         expect(screen.getByText("Resolve Conflicts")).toBeInTheDocument();

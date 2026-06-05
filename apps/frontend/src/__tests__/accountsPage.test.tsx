@@ -74,8 +74,8 @@ describe("AccountsPage", () => {
   it("AC16.15.2 renders grouped accounts and supports type filters", async () => {
     mockedApiFetch.mockResolvedValue({
       items: [
-        { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000, code: "1000" },
-        { id: "a2", name: "Salary", type: "INCOME", currency: "SGD", is_active: true, balance: 2000, code: "4000" },
+        { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000", code: "1000" },
+        { id: "a2", name: "Salary", type: "INCOME", currency: "SGD", is_active: true, balance: "2000", code: "4000" },
       ],
       total: 2,
     } satisfies AccountListResponse)
@@ -93,7 +93,7 @@ describe("AccountsPage", () => {
   it("AC16.15.3 delete action confirms and calls delete API with success toast", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
         total: 1,
       } satisfies AccountListResponse)
       .mockResolvedValueOnce(undefined)
@@ -117,7 +117,7 @@ describe("AccountsPage", () => {
   it("AC16.15.4 delete error shows error toast", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
         total: 1,
       } satisfies AccountListResponse)
       .mockRejectedValueOnce(new Error("Cannot delete account with transactions"))
@@ -148,7 +148,7 @@ describe("AccountsPage", () => {
 
   it("AC16.15.6 cancel delete dialog closes without API call", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -165,7 +165,7 @@ describe("AccountsPage", () => {
 
   it("AC16.15.7 edit button opens modal with account data", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -178,7 +178,7 @@ describe("AccountsPage", () => {
 
   it("AC16.28.2 AC16.28.3 exposes account row icon actions with accessible labels", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -191,7 +191,7 @@ describe("AccountsPage", () => {
 
   it("AC16.15.8 Add Account button opens create modal", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -205,13 +205,13 @@ describe("AccountsPage", () => {
   it("AC16.15.9 modal onSuccess triggers account list refresh", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
         total: 1,
       } satisfies AccountListResponse)
       .mockResolvedValueOnce({
         items: [
-          { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 },
-          { id: "a2", name: "Savings", type: "ASSET", currency: "SGD", is_active: true, balance: 5000 },
+          { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" },
+          { id: "a2", name: "Savings", type: "ASSET", currency: "SGD", is_active: true, balance: "5000" },
         ],
         total: 2,
       } satisfies AccountListResponse)
@@ -229,7 +229,7 @@ describe("AccountsPage", () => {
 
   it("AC16.15.10 modal onClose closes modal and clears editing state", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }],
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -256,7 +256,7 @@ describe("AccountsPage", () => {
               type: "ASSET",
               currency: "SGD",
               is_active: true,
-              balance: 1000,
+              balance: "1000",
               code: "1000",
               description: "Operating cash",
             },

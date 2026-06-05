@@ -70,16 +70,16 @@ The following diagram shows how a bank statement travels from upload through to 
 |------|-------|----|-------|
 | `parsed` | system auto-accept | `approved` | Score ≥ 85, balance delta ≤ 0.001 USD, confirmed active asset account in statement currency, non-overlapping source period |
 | `approved` | auto-post guard failure | `pending_review` | Guard failure during high-confidence auto-post; preserve parsed statement and transactions |
-| `pending_review` | `approve_statement()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD |
+| `pending_review` | `approve_statement()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD; duplicate and transfer-pair candidates are resolved |
 | `pending_review` | `reject_statement()` | `rejected` | — |
-| `pending_review` | `edit_and_approve()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD after edits |
+| `pending_review` | `edit_and_approve()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD after edits; duplicate and transfer-pair candidates are resolved |
 | `rejected` | re-parse triggered | `pending_review` | — |
 
 ### Stage 2 Transitions
 
 | From | Event | To | Guard |
 |------|-------|----|-------|
-| `pending_review` | `accept_match()` | `accepted` | All consistency checks resolved |
+| `pending_review` | `accept_match()` | `accepted` | All consistency checks resolved in the active Stage 2 scope |
 | `pending_review` | `reject_match()` | `rejected` | — |
 | `auto_accepted` | system auto-accept | `accepted` | Score ≥ 85 |
 | `accepted` | journal created | (terminal) | Accounting equation holds |
@@ -92,8 +92,9 @@ The following diagram shows how a bank statement travels from upload through to 
 - ✅ Always pass `user_id` to service methods that mutate `pending_review` state (ownership check)
 - ✅ Validate both opening and closing balance-chain checks (0.001 USD tolerance) before advancing Stage 1
 - ✅ Label and confirm Stage 1 edit actions as approve-and-post operations because `/review/edit` persists edits, approves the statement, and posts journal entries when valid
+- ✅ Block Stage 1 approve and edit-approve when unresolved duplicate or transfer-pair candidates remain on the statement
 - ✅ Require confirmed account mapping and source-period uniqueness before Stage 1 auto-posting
-- ✅ Resolve all consistency checks before Stage 2 batch approval
+- ✅ Resolve all consistency checks in the active Stage 2 scope before batch approval
 - ✅ Create journal entry only on `accepted` transition (never on `pending_review`)
 - ✅ Emit an audit log entry on every state transition
 
@@ -129,9 +130,9 @@ statement with either balance-chain check outside the 0.001 USD tolerance.
 
 | Endpoint | Input | Side Effect |
 |----------|-------|-------------|
-| `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; opening and closing balance-chain validation enforced (≤ 0.001 USD); queues to Stage 2 |
+| `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; opening and closing balance-chain validation enforced (≤ 0.001 USD); unresolved duplicate/transfer-pair candidates rejected; queues to Stage 2 |
 | `POST /api/statements/{id}/review/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
-| `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates opening and closing balance-chain checks, approves if valid, and posts journal entries |
+| `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates opening and closing balance-chain checks, rejects unresolved duplicate/transfer-pair candidates, approves if valid, and posts journal entries |
 | `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` where `status=PARSED` and either `stage1_status=PENDING_REVIEW` or `stage1_status` is null for legacy parsed rows |
 ### Stage 2 Endpoints (reconciliation + statements routers)
 
@@ -140,7 +141,8 @@ statement with either balance-chain check outside the 0.001 USD tolerance.
 | `POST /api/reconciliation/matches/{id}/accept` | `match_id`, bearer token | status → accepted; creates journal entry |
 | `POST /api/reconciliation/matches/{id}/reject` | `match_id`, bearer token | status → rejected |
 | `POST /api/reconciliation/batch-accept` | `[match_id]`, bearer token | Accepts all provided matches; blocked if any related consistency check is unresolved; creates journal entries |
-| `POST /api/statements/batch-approve-matches` | `statement_id`, `[match_id]`, bearer token | Stage 2 batch acceptance scoped to a statement; routes each pending match through `accept_match()`, creates missing journal entries or reconciles referenced entries, and returns accepted/created/reconciled counts |
+| `GET /api/statements/stage2/queue` | optional `run_id`, bearer token | Returns pending matches and the full unresolved consistency-check set for the user or requested run scope |
+| `POST /api/statements/batch-approve-matches` | `[match_id]`, optional `run_id`, bearer token | Stage 2 batch acceptance scoped to the requested run when provided; routes each pending match through `accept_match()`, creates missing journal entries or reconciles referenced entries, and returns accepted/created/reconciled counts |
 | `GET /api/reconciliation/pending` | bearer token | Returns `[ReconciliationMatch]` with `status=pending_review` |
 
 ---
@@ -153,6 +155,9 @@ statement with either balance-chain check outside the 0.001 USD tolerance.
 | `test_validate_balance_chain_exceeds_tolerance` | `review/test_statement_validation.py` | 0.0011 USD delta fails |
 | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | Stage 1 and extraction/reconciliation tolerances remain intentionally separate |
 | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | Approve blocked if balance bad |
+| `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts` | `api/test_statements_router.py` | Stage 1 approve blocked if duplicate/transfer candidates remain |
+| `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `api/test_statements_router.py` | Stage 2 queue returns the complete unresolved blocker set |
+| `test_AC19_11_1_stage2_run_queue_filters_by_run_id` | `api/test_statements_router.py` | Run-scoped Stage 2 queue and approval cannot affect another run |
 | `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | Stage 2 batch blocked by open checks (⏳ Planned) |
 | `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | Journal entry only on accepted transition (⏳ Planned) |
 | `test_batch_approve_matches_reconciles_referenced_entry` | `api/test_statements_router.py` | Stage 2 batch approval reconciles referenced journal entries |

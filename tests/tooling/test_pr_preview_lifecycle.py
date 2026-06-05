@@ -41,7 +41,9 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     assert env["COMPOSE_PROFILES"] == "infra,app"
 
 
-def test_AC8_13_71_root_compose_passes_git_sha_to_backend_runtime_and_frontend_build() -> None:
+def test_AC8_13_71_root_compose_passes_git_sha_to_backend_runtime_and_frontend_build() -> (
+    None
+):
     compose = (ROOT / "docker-compose.yml").read_text()
     backend_block = compose.split("  backend:", 1)[1].split("  frontend:", 1)[0]
     frontend_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
@@ -475,11 +477,110 @@ def test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started(
     assert "compose.update" in rendered_calls
     assert "compose.one" in rendered_calls
     assert "compose.stop" in rendered_calls
-    assert "compose.deploy" in rendered_calls
+    assert "compose.redeploy" in rendered_calls
     assert "compose.start" in rendered_calls
-    assert "compose.redeploy" not in rendered_calls
-    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.deploy")
-    assert rendered_calls.index("compose.deploy") < rendered_calls.index("compose.start")
+    assert rendered_calls.index("compose.stop") < rendered_calls.index(
+        "compose.redeploy"
+    )
+    assert rendered_calls.index("compose.redeploy") < rendered_calls.index(
+        "compose.start"
+    )
+    assert "secret-key" not in rendered_calls
+
+
+def test_AC8_13_100_existing_preview_stop_failure_still_deploys(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.100: Broken existing PR previews are rebuilt before readiness."""
+    lifecycle = lifecycle_module()
+    calls: list[list[str]] = []
+
+    effective_env = "\n".join(
+        [
+            "IMAGE_TAG=pr-591-abc123",
+            "GIT_COMMIT_SHA=abc123",
+            "IAC_CONFIG_HASH=pr-591-abc123",
+            "ENV_SUFFIX=-pr-591",
+            "COMPOSE_PROFILES=infra,app",
+        ]
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                stderr="",
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps({"env": effective_env}),
+                stderr="",
+            )
+        if "compose.stop" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"message":"Command execution failed: spawn /bin/sh ENOENT"}\n500',
+                stderr="",
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"composeId":"cmp-592"}',
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    args = SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    captured = capsys.readouterr()
+    rendered_calls = "\n".join(" ".join(call) for call in calls)
+    assert "compose.stop" in rendered_calls
+    assert "compose.delete" in rendered_calls
+    assert "compose.create" in rendered_calls
+    assert "compose.deploy" in rendered_calls
+    assert "compose.start" not in rendered_calls
+    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.delete")
+    assert rendered_calls.index("compose.delete") < rendered_calls.index(
+        "compose.create"
+    )
+    assert rendered_calls.index("compose.create") < rendered_calls.index(
+        "compose.deploy"
+    )
+    assert "Stop request failed for compose cmp-591; recreating preview compose" in (
+        captured.out
+    )
     assert "secret-key" not in rendered_calls
 
 

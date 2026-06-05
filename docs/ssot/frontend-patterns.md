@@ -192,6 +192,7 @@ Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/
 - Use `formatQuantity()` for portfolio and asset quantities; page/component code must not parse Decimal quantity strings through JS `number`.
 - Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons.
 - Shared API types must represent decimal-bearing payload fields with `MoneyValue` or `DecimalValue`, not bare `number` field declarations.
+- `MoneyValue` and `DecimalValue` are serialized strings at the API boundary. Components may accept `number` only at rendering/chart boundaries after explicit conversion through `src/lib/currency.ts`.
 - Do not calculate or display cross-currency allocation percentages from raw nominal amounts. Show per-currency amounts until the backend provides a single-currency FX-converted total.
 - Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
 

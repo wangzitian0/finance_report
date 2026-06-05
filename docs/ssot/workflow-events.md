@@ -439,3 +439,15 @@ Future slices may add deterministic derivation for:
 - Stage 1 review required/completed.
 - Reconciliation blockers.
 - Processing-account blockers.
+
+Stage 2 run review uses workflow/session scope without changing event
+lifecycle semantics:
+
+- Route: `/review/run/{run_id}`.
+- Backend scope fields: `ReconciliationMatch.run_id` and
+  `ConsistencyCheck.run_id`.
+- Queue endpoint: `GET /api/statements/stage2/queue?run_id={run_id}`.
+- Approval endpoint: `POST /api/statements/batch-approve-matches` with
+  `run_id` in the request body. When present, only pending matches in that run
+  may transition to `accepted`; unresolved checks from another run must not
+  block or be included in the run-scoped queue.

@@ -486,6 +486,14 @@ model.
 | AC16.31.4 | Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation | `AC16.20.4 supports flag and ignore actions` / `creates all entries with batch action` | `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
 | AC16.33.4 | Stage 1 statement review PDF previews use short-lived presigned URLs and sandboxed iframe embedding | `test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl` / `AC16.33.4 sandboxes PDF preview URLs` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/reviewPages.test.tsx` | P0 |
 
+### AC16.32 — Review Workflow Hardening
+
+| AC ID | Description | Tests | Files | Priority |
+|-------|-------------|-------|-------|----------|
+| AC16.32.1 | Stage 1 approval and edit-approval are blocked while duplicate or transfer-pair conflict candidates remain unresolved | `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts`, `AC16.32.1 disables approval while conflict candidates are unresolved` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
+| AC16.32.2 | Stage 1 balance validation UI reports opening and closing checks separately so reviewers see the same gate enforced by the backend | `AC16.32.2 shows opening and closing balance validation states separately` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
+| AC16.32.3 | Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size | `AC16.32.3 requests an expanded consistency-check limit for unblockable queues`, `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx`, `apps/backend/tests/api/test_statements_router.py` | P0 |
+
 ### Acceptance Criteria — Feature (group 28, frontend UI system primitives)
 
 Issue [#612](https://github.com/wangzitian0/finance_report/issues/612)

@@ -66,7 +66,7 @@ describe("AccountFormModal", () => {
           is_active: true,
           code: "1000",
           description: undefined,
-          balance: 0,
+          balance: "0",
         }}
       />,
     )
@@ -122,7 +122,7 @@ describe("AccountFormModal", () => {
           is_active: false,
           code: undefined,
           description: undefined,
-          balance: 0,
+          balance: "0",
         }}
       />,
     )

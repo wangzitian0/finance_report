@@ -144,6 +144,29 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         expect(approveButton).toBeDisabled();
     });
 
+    it("AC16.32.3 requests an expanded consistency-check limit for unblockable queues", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/stage2/queue") {
+                return Promise.resolve({
+                    pending_matches: [],
+                    consistency_checks: [],
+                    has_unresolved_checks: false,
+                });
+            }
+
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                expect(path).toContain("limit=500");
+                return Promise.resolve({ items: [] });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        expect(await screen.findByText("No pending checks")).toBeInTheDocument();
+    });
+
     it("AC16.2.4/AC16.17.3 approves selected matches through the batch approval API", async () => {
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
             if (path === "/api/statements/stage2/queue") {

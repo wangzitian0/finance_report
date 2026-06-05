@@ -4,7 +4,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Enum as SQLEnum, ForeignKey, Integer
+from sqlalchemy import Enum as SQLEnum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,6 +42,7 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
         nullable=True,
     )
     journal_entry_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    run_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     score_breakdown: Mapped[dict[str, float]] = mapped_column(JSONB, default=dict)
     status: Mapped[ReconciliationStatus] = mapped_column(

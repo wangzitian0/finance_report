@@ -26,7 +26,8 @@ export function BalanceIndicator({
     validationResult,
     currency
 }: BalanceIndicatorProps) {
-    const balanceValid = validationResult?.closing_match ?? false;
+    const openingValid = validationResult?.opening_match ?? false;
+    const closingValid = validationResult?.closing_match ?? false;
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
@@ -50,21 +51,20 @@ export function BalanceIndicator({
                 </div>
             </div>
             <div className="card p-4">
-                <div className="text-xs text-muted mb-1">Balance Validation</div>
-                <div className="flex items-center gap-2">
-                    {balanceValid ? (
-                        <>
-                            <span className="text-[var(--success)]">✓</span>
-                            <span className="text-sm font-medium text-[var(--success)]">Valid</span>
-                        </>
-                    ) : (
-                        <>
-                            <span className="text-[var(--error)]">✗</span>
-                            <span className="text-sm font-medium text-[var(--error)]">
-                                Mismatch (Δ: {validationResult?.closing_delta || "?"})
-                            </span>
-                        </>
-                    )}
+                <div className="text-xs text-muted mb-2">Balance Validation</div>
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                        <span className={`text-sm font-medium ${openingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                            Opening {openingValid ? "Valid" : "Mismatch"}
+                        </span>
+                        <span className="text-xs text-muted">Opening Δ: {validationResult?.opening_delta || "?"}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                        <span className={`text-sm font-medium ${closingValid ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+                            Closing {closingValid ? "Valid" : "Mismatch"}
+                        </span>
+                        <span className="text-xs text-muted">Closing Δ: {validationResult?.closing_delta || "?"}</span>
+                    </div>
                 </div>
             </div>
         </div>

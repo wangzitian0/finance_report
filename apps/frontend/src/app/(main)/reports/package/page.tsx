@@ -4,6 +4,7 @@ import { Network, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import type {
@@ -401,6 +402,7 @@ export default function PersonalReportPackagePage() {
   }
 
   const evidenceReferences = evidenceBundleReferences(frameworkPolicy);
+  const exportPath = `/api/reports/export?report_type=package&format=csv&framework_id=${encodeURIComponent(selectedFrameworkId)}`;
 
   return (
     <div className="p-6">
@@ -410,6 +412,16 @@ export default function PersonalReportPackagePage() {
       </div>
 
       {frameworkSelection}
+
+      <section className="card p-5 mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-mono text-muted">package_export</p>
+            <h2 className="font-semibold mt-1">Package CSV</h2>
+          </div>
+          <ExportCsvButton path={exportPath} />
+        </div>
+      </section>
 
       <section className="card p-5 mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

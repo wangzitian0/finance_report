@@ -474,6 +474,9 @@ Export contract:
 - Export metadata displayed by the package UI must include the selected
   framework, policy result ID, matrix version, and evidence anchor references
   from the policy result.
+- The package UI exposes an authenticated CSV download after framework
+  selection. It calls `GET /api/reports/export?report_type=package&format=csv&framework_id={selected_framework_id}`
+  through the shared API download helper.
 - Decimal fields must serialize as strings so frontend, CSV export, and E2E
   assertions do not lose money precision.
 

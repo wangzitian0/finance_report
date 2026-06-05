@@ -285,6 +285,7 @@ action.
 | AC | Acceptance Criteria | Test(s) | File(s) | Priority |
 |----|--------------------|---------|---------|----------|
 | AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper, and the backend CSV export supports cash-flow reports with date range and currency filters | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload`, `test_AC5_17_1_cash_flow_export_returns_csv` | `frontend/src/__tests__/cashFlowPage.test.tsx`, `reporting/test_reports_router.py` | P0 |
+| AC5.17.2 | Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID | `AC5.17.2 downloads package CSV through authenticated apiDownload` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
 ## 📏 Acceptance Criteria
 

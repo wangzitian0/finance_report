@@ -282,7 +282,8 @@ async def get_pending_checks(
     user_id: UUID,
     check_type: CheckType | None = None,
     severity: str | None = None,
-    limit: int = 50,
+    run_id: str | None = None,
+    limit: int | None = 50,
     offset: int = 0,
 ) -> list[ConsistencyCheck]:
     query = (
@@ -290,13 +291,16 @@ async def get_pending_checks(
         .where(ConsistencyCheck.user_id == user_id)
         .where(ConsistencyCheck.status == CheckStatus.PENDING)
         .order_by(desc(ConsistencyCheck.created_at))
-        .limit(limit)
         .offset(offset)
     )
     if check_type:
         query = query.where(ConsistencyCheck.check_type == check_type)
     if severity:
         query = query.where(ConsistencyCheck.severity == severity)
+    if run_id:
+        query = query.where(ConsistencyCheck.run_id == run_id)
+    if limit is not None:
+        query = query.limit(limit)
 
     result = await db.execute(query)
     return list(result.scalars().all())
@@ -305,13 +309,18 @@ async def get_pending_checks(
 async def has_unresolved_checks(
     db: AsyncSession,
     user_id: UUID,
+    run_id: str | None = None,
 ) -> bool:
-    result = await db.execute(
+    query = (
         select(ConsistencyCheck.id)
         .where(ConsistencyCheck.user_id == user_id)
         .where(ConsistencyCheck.status == CheckStatus.PENDING)
         .limit(1)
     )
+    if run_id:
+        query = query.where(ConsistencyCheck.run_id == run_id)
+
+    result = await db.execute(query)
     return result.scalar_one_or_none() is not None
 
 
@@ -321,6 +330,7 @@ async def list_checks(
     *,
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
+    run_id: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[ConsistencyCheck], int]:
@@ -341,6 +351,9 @@ async def list_checks(
     if check_type:
         query = query.where(ConsistencyCheck.check_type == check_type)
         count_query = count_query.where(ConsistencyCheck.check_type == check_type)
+    if run_id:
+        query = query.where(ConsistencyCheck.run_id == run_id)
+        count_query = count_query.where(ConsistencyCheck.run_id == run_id)
 
     result = await db.execute(query)
     checks = list(result.scalars().all())

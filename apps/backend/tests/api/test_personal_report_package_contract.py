@@ -2,6 +2,7 @@
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -48,17 +49,20 @@ from src.models.layer3 import (
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.user import User
 from src.routers.reports import (
+    ExportFormat,
+    ReportType as ExportReportType,
     _add_anchor_details,
     _append_blocker,
     _journal_source_anchor_detail,
     _ledger_anchor_detail,
     _source_document_details,
+    export_report,
     personal_report_package_contract,
     personal_report_package_notes,
     personal_report_package_readiness,
     personal_report_package_traceability,
 )
-from src.schemas import PersonalReportPackageReadinessResponse
+from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
 from src.services.deduplication import dual_write_layer2
 from src.services.fx import FxRateError
 from src.services.review_queue import create_entry_from_txn
@@ -189,6 +193,61 @@ def test_AC5_12_2_package_contract_marks_notes_ready():
     assert section["status"] == "ready"
     assert section["blocking_issue"] is None
     assert section["source_endpoint"] == "/api/reports/package/notes"
+
+
+async def test_AC5_17_2_package_csv_export_streams_contract_rows(monkeypatch):
+    """AC5.17.2: Package CSV export returns contract columns and traceability rows."""
+
+    class DummyDb:
+        async def commit(self) -> None:
+            return None
+
+    async def fake_policy(**kwargs):
+        anchor = SimpleNamespace(anchor_type="source_document", source_id="stmt-1")
+        return SimpleNamespace(
+            result_id="policy-us-gaap-like",
+            matrix_version="v1",
+            decisions=[SimpleNamespace(evidence_anchors=[anchor])],
+            gaps=[],
+        )
+
+    async def fake_traceability(**kwargs):
+        return SimpleNamespace(
+            lines=[
+                SimpleNamespace(
+                    section_id="balance_sheet",
+                    line_id="cash",
+                    label="Cash",
+                    source_state="ledger_posted",
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "src.routers.reports.personal_report_package_framework_policy",
+        fake_policy,
+    )
+    monkeypatch.setattr(
+        "src.routers.reports.personal_report_package_traceability",
+        fake_traceability,
+    )
+
+    response = await export_report(
+        report_type=ExportReportType.PACKAGE,
+        format=ExportFormat.CSV,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31),
+        currency="SGD",
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        db=DummyDb(),
+        user_id=uuid4(),
+    )
+    body = "".join([chunk async for chunk in response.body_iterator])
+
+    assert "personal-report-package-personal_us_gaap_like.csv" in response.headers["content-disposition"]
+    assert body.splitlines()[0].startswith("package_id,section_id,line_id,label")
+    assert "personal-financial-report-package,balance_sheet,cash,Cash,,SGD,ledger_posted" in body
+    assert "source_document:stmt-1" in body
 
 
 def _statement(

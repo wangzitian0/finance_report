@@ -41,7 +41,7 @@ describe("TransactionTable", () => {
             statement_id: "s1",
             txn_date: "2024-01-10",
             description: "Coffee",
-            amount: 3.5,
+            amount: "3.5",
             direction: "OUT",
             confidence: "high",
             created_at: "",
