@@ -12,14 +12,14 @@
 The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job dependency order:
 
 ```
-standalone: lint ──────────────────────────────────────────────────────────┐
-standalone: ac-traceability ───────────────────────────────────────────────┤
-changes (classify-changes) → backend shards ───────┐                      │
-               ↘ frontend ─────────────────────────┼→ unified-coverage ───┤→ finish
-               ↘ tooling-coverage ─────────────────┘                      │
-               ↘ backend-integration ──────────────────────────────────────┤
-               ↘ backend-e2e-tier1 ────────────────────────────────────────┤
-               ↘ container-images ─────────────────────────────────────────┘
+standalone: lint ───────────────┐
+standalone: ac-traceability ────┤
+changes (classify-changes) ─────┴→ backend shards ───────┐
+                         ├────────→ frontend ─────────────┼→ unified-coverage ───┐
+                         ├────────→ tooling-coverage ─────┘                      │
+                         ├────────→ backend-integration ─────────────────────────┤
+                         ├────────→ backend-e2e-tier1 ───────────────────────────┤→ finish
+                         └────────→ container-images ────────────────────────────┘
 ```
 
 ### Job Details
@@ -28,12 +28,12 @@ changes (classify-changes) → backend shards ───────┐          
 |-----|---------|--------------|
 | **changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
 | **lint** | Static analysis (backend `src tests` ruff check + format check, frontend lint) + manifest/doc/CI metrics contract checks | None (first job) |
-| **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
-| **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
-| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override | `needs: [changes]` |
-| **frontend** | Frontend build + Vitest + Playwright tests when heavy CI is required | `needs: [changes]` |
-| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes]` |
-| **tooling-coverage** | Run root tooling tests with common/tools coverage and upload LCOV inputs | `needs: [changes]` |
+| **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes, lint, ac-traceability]` |
+| **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes, lint, ac-traceability]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override | `needs: [changes, lint, ac-traceability]` |
+| **frontend** | Frontend build + Vitest + Playwright tests when heavy CI is required | `needs: [changes, lint, ac-traceability]` |
+| **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes, lint, ac-traceability]` |
+| **tooling-coverage** | Run root tooling tests with common/tools coverage and upload LCOV inputs | `needs: [changes, lint, ac-traceability]` |
 | **unified-coverage** | Merge backend, frontend, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, update Coveralls when heavy CI is required | `needs: [changes, backend, frontend, tooling-coverage]` |
 | **ac-traceability** | Verify AC-to-test traceability for all PR/main changes, including docs-only changes | None |
 | **finish** | Aggregate all required and skipped job results | `needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]` |
@@ -188,7 +188,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes. App test-only and app Markdown changes still run CI and AC gates without consuming a Dokploy preview slot.
 - Automatic staging deploys are scoped to runtime app, deploy, root E2E, dependency, Dockerfile/config, staging workflow, toolchain, or infra-submodule changes. App test-only changes, documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or tooling documentation changes from being hidden by a global `*.md` skip.
-- Standalone lint and AC traceability start immediately with change classification. Backend shards, frontend build/test, image build validation, tooling coverage, integration, and Tier-1 API E2E start after change classification finishes. Left-side deterministic failures are visible without waiting for behavior-only backend gates.
+- Standalone lint and AC traceability start immediately with change classification. Full CI jobs wait for change classification, lint, and AC traceability, then backend shards, frontend build/test, image build validation, tooling coverage, integration, and Tier-1 API E2E run in parallel. Left-side deterministic failures stop the expensive group before behavior gates consume runner time.
 - 6-way parallel test sharding via `pytest-split`
 - Each shard: `pytest --splits 6 --group N`
 - Tooling/common coverage runs in parallel as `tooling-coverage`; `unified-coverage` downloads `coverage-tooling` and merges backend, frontend, common, and tools LCOV inputs post-run.
@@ -258,7 +258,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - `tools/pr_preview_lifecycle.py` owns PR preview create/update/deploy/delete, PR close cleanup, and scheduled closed-PR reconciliation. The workflow does not hand-roll separate Dokploy lifecycle shell blocks because create, rollback, cleanup, and reconciliation must share the same naming, metadata, logging, and redaction contract.
 - PR preview Dokploy API responses are parsed for required fields only. Workflows must not print raw Dokploy response JSON because compose responses can include environment data and refresh tokens.
 - Dokploy API and CLI checks may coexist when Dokploy exposes different operational surfaces, but deploy proof must compare only allowlisted effective state differences. The logged diff is limited to `IMAGE_TAG`, `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`, `ENV_SUFFIX`, and `COMPOSE_PROFILES`; unchanged fields and secret-like fields are not printed.
-- PR preview deploy builds and pushes commit-scoped PR backend and frontend images before invoking Dokploy. The preview compose uses `IMAGE_TAG=pr-<number>-<github.sha>`, so the deploy job must make `finance_report-backend:pr-<number>-<github.sha>` and `finance_report-frontend:pr-<number>-<github.sha>` available in GHCR before `tools/pr_preview_lifecycle.py --action deploy` can trigger the rollout. Reusing a mutable `pr-<number>` image tag is prohibited because Dokploy may continue serving a stale local image. PR close cleanup deletes GHCR tags with prefix `pr-<number>-` for backend/frontend.
+- PR preview deploy builds and pushes commit-scoped PR backend and frontend images in parallel jobs before invoking Dokploy. The preview compose uses `IMAGE_TAG=pr-<number>-<github.sha>`, so `finance_report-backend:pr-<number>-<github.sha>` and `finance_report-frontend:pr-<number>-<github.sha>` must both be available in GHCR before `tools/pr_preview_lifecycle.py --action deploy` can trigger the rollout. Reusing a mutable `pr-<number>` image tag is prohibited because Dokploy may continue serving a stale local image. PR close cleanup deletes GHCR tags with prefix `pr-<number>-` for backend/frontend.
 - PR preview readiness waits for both `/api/health` and `/frontend-version.json?expected=<sha>` to report the expected `github.sha` before browser E2E starts. The frontend image and runtime environment must carry `GIT_COMMIT_SHA`; the frontend readiness request sets a normal `User-Agent` so edge routing does not reject the CI probe before it can read the bundle fingerprint.
 - PR preview compose env includes stable metadata: `PR_PREVIEW_PR_NUMBER`, `PR_PREVIEW_COMPOSE_NAME`, `PR_PREVIEW_COMPOSE_PROJECT`, `COMPOSE_PROJECT_NAME`, and `PR_PREVIEW_CREATED_BY=github-actions`. Cleanup uses that deterministic compose project and PR number rather than broad volume pruning.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
