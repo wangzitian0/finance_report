@@ -275,7 +275,7 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     test_user: User,
 ):
     """AC18.10.4: Direct entity requests use deterministic relationships and remain idempotent."""
-    statement, txn, atomic, entry, _ = await _create_historical_statement_entry(db, user_id=test_user.id)
+    statement, txn, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     document = UploadedDocument(
         user_id=test_user.id,
         file_path="s3://lazy/history-upload.csv",
@@ -285,6 +285,25 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
         status=DocumentStatus.COMPLETED,
     )
     db.add(document)
+    await db.flush()
+    atomic_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=atomic.txn_date,
+        memo="Atomic sourced entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        source_id=atomic.id,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(atomic_entry)
+    await db.flush()
+    atomic_line = JournalLine(
+        journal_entry_id=atomic_entry.id,
+        account_id=line.account_id,
+        direction=Direction.CREDIT,
+        amount=atomic.amount,
+        currency=atomic.currency,
+    )
+    db.add(atomic_line)
     await db.flush()
     service = EvidenceGraphMaterializationService()
 
@@ -321,6 +340,13 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
         entity_id=atomic.id,
         node_kind="atomic_fact",
     )
+    atomic_entry_result = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="journal_entry",
+        entity_id=atomic_entry.id,
+        node_kind="ledger_entry",
+    )
     unsupported = await service.materialize_for_entity(
         db,
         user_id=test_user.id,
@@ -333,6 +359,8 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     assert journal_entry_result.blockers == []
     assert document_result.blockers == []
     assert atomic_result.blockers == []
+    assert atomic_entry_result.blockers == []
+    assert statement_result.has_writes
     assert [blocker.code for blocker in unsupported.blockers] == ["unsupported_provenance"]
     nodes = {
         (node.node_kind, node.entity_type, node.entity_id): node
@@ -347,6 +375,7 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     assert ("extracted_record", "bank_statement_transaction", txn.id) in nodes
     assert ("atomic_fact", "atomic_transaction", atomic.id) in nodes
     assert ("ledger_entry", "journal_entry", entry.id) in nodes
+    assert ("ledger_entry", "journal_entry", atomic_entry.id) in nodes
     assert (
         nodes[("source_document", "uploaded_document", document.id)].id,
         nodes[("extracted_record", "bank_statement_transaction", txn.id)].id,
@@ -356,6 +385,11 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
         nodes[("extracted_record", "bank_statement_transaction", txn.id)].id,
         nodes[("atomic_fact", "atomic_transaction", atomic.id)].id,
         "deduped_into",
+    ) in edges
+    assert (
+        nodes[("atomic_fact", "atomic_transaction", atomic.id)].id,
+        nodes[("ledger_entry", "journal_entry", atomic_entry.id)].id,
+        "posted_as",
     ) in edges
 
 
