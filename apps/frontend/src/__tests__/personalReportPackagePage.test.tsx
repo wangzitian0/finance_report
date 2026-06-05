@@ -480,6 +480,8 @@ const lineageResponse = {
 function mockPackageApi(
   readinessPayload = readiness,
   policyPayload = frameworkPolicy,
+  traceabilityPayload: unknown = traceabilityAppendix,
+  lineagePayload: unknown = lineageResponse,
 ) {
   mockedApiFetch.mockImplementation((path: string) => {
     if (path === "/api/reports/package/contract")
@@ -502,9 +504,11 @@ function mockPackageApi(
     if (path === "/api/reports/package/notes")
       return Promise.resolve(packageNotes);
     if (path === "/api/reports/package/traceability")
-      return Promise.resolve(traceabilityAppendix);
+      return Promise.resolve(traceabilityPayload);
     if (path.startsWith("/api/evidence/lineage?"))
-      return Promise.resolve(lineageResponse);
+      return lineagePayload instanceof Error
+        ? Promise.reject(lineagePayload)
+        : Promise.resolve(lineagePayload);
     return Promise.reject(new Error(`Unexpected path ${path}`));
   });
 }
@@ -1032,5 +1036,127 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("parsed_into")).toBeInTheDocument();
     expect(screen.getByText("aggregated_into")).toBeInTheDocument();
     expect(screen.getByText(`uploaded_document:${uploadedDocumentId}`)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close evidence lineage" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Evidence Lineage" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("AC18.9.3 AC18.9.4 renders an explicit lineage blocker when a row has no graph-compatible anchor", async () => {
+    mockPackageApi(readiness, frameworkPolicy, {
+      ...traceabilityAppendix,
+      lines: [
+        {
+          ...traceabilityAppendix.lines[0],
+          ledger_anchor: {
+            ...traceabilityAppendix.lines[0].ledger_anchor,
+            identifiers: ["journal_line:not-a-uuid"],
+          },
+          source_anchor: {
+            ...traceabilityAppendix.lines[0].source_anchor,
+            identifiers: [],
+          },
+        },
+      ],
+    });
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("balance_sheet.total_assets");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Trace lineage for balance_sheet.total_assets",
+      }),
+    );
+
+    await screen.findByRole("dialog", { name: "Evidence Lineage" });
+    expect(screen.getByText("lineage_anchor_missing")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "No graph-compatible UUID anchor exists for this traceability row.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("AC18.9.3 AC18.9.4 renders Evidence Graph API failures inside the lineage panel", async () => {
+    mockPackageApi(
+      readiness,
+      frameworkPolicy,
+      traceabilityAppendix,
+      new Error("lineage unavailable"),
+    );
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("balance_sheet.total_assets");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Trace lineage for balance_sheet.total_assets",
+      }),
+    );
+
+    await screen.findByRole("dialog", { name: "Evidence Lineage" });
+    expect(screen.getByText("lineage unavailable")).toBeInTheDocument();
+  });
+
+  it("AC18.9.4 maps source-side graph anchors into Evidence Graph lineage requests", async () => {
+    const cases = [
+      {
+        identifier: `uploaded_document:${uploadedDocumentId}`,
+        expected:
+          `/api/evidence/lineage?entity_type=uploaded_document&entity_id=${uploadedDocumentId}` +
+          "&node_kind=source_document&direction=both&max_depth=6",
+      },
+      {
+        identifier: `statement_transaction:${statementTxnId}`,
+        expected:
+          `/api/evidence/lineage?entity_type=bank_statement_transaction&entity_id=${statementTxnId}` +
+          "&node_kind=extracted_record&direction=both&max_depth=6",
+      },
+      {
+        identifier: `atomic_transaction:${atomicTransactionId}`,
+        expected:
+          `/api/evidence/lineage?entity_type=atomic_transaction&entity_id=${atomicTransactionId}` +
+          "&node_kind=atomic_fact&direction=both&max_depth=6",
+      },
+    ];
+
+    for (const testCase of cases) {
+      mockedApiFetch.mockReset();
+      mockPackageApi(readiness, frameworkPolicy, {
+        ...traceabilityAppendix,
+        lines: [
+          {
+            ...traceabilityAppendix.lines[0],
+            ledger_anchor: {
+              ...traceabilityAppendix.lines[0].ledger_anchor,
+              identifiers: [],
+            },
+            source_anchor: {
+              ...traceabilityAppendix.lines[0].source_anchor,
+              identifiers: [testCase.identifier],
+            },
+          },
+        ],
+      });
+      const { unmount } = render(<PersonalReportPackagePage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+      await screen.findByText("balance_sheet.total_assets");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Trace lineage for balance_sheet.total_assets",
+        }),
+      );
+
+      await screen.findByRole("dialog", { name: "Evidence Lineage" });
+      expect(mockedApiFetch).toHaveBeenCalledWith(testCase.expected);
+      unmount();
+    }
   });
 });
