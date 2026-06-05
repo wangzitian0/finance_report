@@ -239,10 +239,10 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/users` | no | `limit` (query), `offset` (query) | - | `200` `ListResponse_UserResponse_` | List Users |
-| `POST` | `/users` | no | - | `UserCreate` | `201` `UserResponse` | Create User |
-| `GET` | `/users/{user_id}` | no | `user_id`* (path) | - | `200` `UserResponse` | Get User |
-| `PUT` | `/users/{user_id}` | no | `user_id`* (path) | `UserUpdate` | `200` `UserResponse` | Update User |
+| `GET` | `/users` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_UserResponse_` | List Users |
+| `POST` | `/users` | yes | - | `UserCreate` | `201` `UserResponse` | Create User |
+| `GET` | `/users/{user_id}` | yes | `user_id`* (path) | - | `200` `UserResponse` | Get User |
+| `PUT` | `/users/{user_id}` | yes | `user_id`* (path) | `UserUpdate` | `200` `UserResponse` | Update User |
 
 ### workflow
 
