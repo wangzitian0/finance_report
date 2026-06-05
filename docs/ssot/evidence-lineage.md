@@ -165,3 +165,28 @@ Report traceability may still use legacy `JournalEntry.source_type/source_id`
 as a compatibility fallback. When a legacy source ID cannot be resolved to an
 owned source, extracted, atomic, or graph node, the caller must return an
 explicit blocker state rather than fabricating a source anchor.
+
+## Navigation API and UI
+
+Product navigation proof is owned by AC18.9. The generic lineage API resolves
+one user-owned graph anchor by:
+
+```text
+entity_type + entity_id + optional node_kind
+```
+
+The API must support `upstream`, `downstream`, and `both` traversal directions
+with the same bounded depth rules as the foundation service. Responses are DTOs
+for UI consumption:
+
+- `anchor`: the resolved starting node, or `null` when no owned node exists;
+- `nodes`: unique graph nodes reached by the requested traversal, including the anchor when present;
+- `edges`: transformation edges between returned nodes, each with relation, direction, depth, and endpoint IDs;
+- `blockers`: explicit empty or unsupported states such as `graph_node_missing`;
+- `max_depth`: the effective traversal depth.
+
+UI surfaces may open lineage from report package traceability rows by using
+ledger-line or source-document identifiers already returned by package
+traceability. The UI must show missing lineage as an explicit empty state and
+must not infer or fabricate source, ledger, or report anchors when the API does
+not return graph evidence.

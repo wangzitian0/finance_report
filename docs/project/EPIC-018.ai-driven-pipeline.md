@@ -304,6 +304,27 @@ Dependencies: AC18.7 Evidence Graph foundation and existing Layer 1/2, journal p
 | AC18.8.6 | Evidence lineage integration | Existing `JournalEntry.source_type/source_id` semantics remain backward-compatible while Evidence Graph writes add supplemental audit lineage |
 | AC18.8.7 | Evidence lineage integration | Tests cover three end-to-end graph paths: source document downstream impact, bank statement transaction to ledger line, and report line to source document |
 
+### AC18.9: Evidence Graph Navigation UX
+
+MECE task frame:
+
+- API contract: expose a generic user-scoped lineage endpoint by entity identity, node kind, direction, and bounded depth.
+- DTO stability: return graph nodes and edges in a frontend-safe shape without exposing ORM internals or large payloads.
+- Empty/blocker states: return explicit empty state for missing or unsupported graph anchors instead of invented links.
+- Report entry point: add a package traceability panel that opens from report/package traceability rows.
+- Product proof: cover report line to source document and source document to impacted ledger/report navigation.
+
+Dependencies: AC18.7 Evidence Graph foundation and AC18.8 first production source-to-report graph integration. Out of scope: historical graph backfill, complex canvas visualization, graph database adoption, and replacing every legacy resolver.
+
+| AC ID | Phase | Description |
+|-------|-------|-------------|
+| AC18.9.1 | Evidence navigation | An authenticated Evidence Graph lineage API resolves an owned graph node by `entity_type`, `entity_id`, and optional `node_kind` |
+| AC18.9.2 | Evidence navigation | The lineage API supports upstream, downstream, and both-direction traversal with bounded depth and returns stable node and edge DTOs |
+| AC18.9.3 | Evidence navigation | Missing, unsupported, or cross-user entity identities return explicit empty/blocker state and never fabricate source, ledger, or report anchors |
+| AC18.9.4 | Evidence navigation UI | The report package traceability surface exposes a lineage panel from at least one report traceability row |
+| AC18.9.5 | Evidence navigation UI | The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present |
+| AC18.9.6 | Evidence navigation proof | Tests cover report line to source document navigation and source document to impacted ledger/report navigation |
+
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 
 | AC ID | Phase | Description |

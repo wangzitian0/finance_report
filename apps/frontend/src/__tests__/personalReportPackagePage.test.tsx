@@ -9,6 +9,12 @@ vi.mock("@/lib/api", () => ({
 }));
 
 const mockedApiFetch = vi.mocked(apiFetch);
+const statementTxnId = "11111111-1111-4111-8111-111111111111";
+const journalEntryId = "22222222-2222-4222-8222-222222222222";
+const journalLineId = "33333333-3333-4333-8333-333333333333";
+const uploadedDocumentId = "44444444-4444-4444-8444-444444444444";
+const atomicTransactionId = "55555555-5555-4555-8555-555555555555";
+const reportLineNodeId = "66666666-6666-4666-8666-666666666666";
 
 const contract = {
   package_id: "personal-financial-report-package",
@@ -313,7 +319,7 @@ const traceabilityAppendix = {
           "manual_valuation_snapshot_ids",
         ],
         identifiers: [
-          "statement_transaction:txn-123",
+          `statement_transaction:${statementTxnId}`,
           "manual_valuation_snapshot:val-456",
         ],
       },
@@ -321,7 +327,10 @@ const traceabilityAppendix = {
         state: "available",
         entry_statuses: ["posted", "reconciled"],
         identifier_fields: ["journal_entry_ids", "journal_line_ids"],
-        identifiers: ["journal_entry:je-789", "journal_line:jl-101"],
+        identifiers: [
+          `journal_entry:${journalEntryId}`,
+          `journal_line:${journalLineId}`,
+        ],
       },
       review_state: "trusted_or_explicit_manual_input",
       confidence_tier: "TRUSTED",
@@ -365,6 +374,109 @@ const traceabilityAppendix = {
   ],
 };
 
+const lineageResponse = {
+  anchor: {
+    id: "node-ledger-line",
+    node_kind: "ledger_line",
+    entity_type: "journal_line",
+    entity_id: journalLineId,
+    properties: { amount: "120.00", currency: "SGD" },
+  },
+  nodes: [
+    {
+      id: "node-uploaded-document",
+      node_kind: "source_document",
+      entity_type: "uploaded_document",
+      entity_id: uploadedDocumentId,
+      properties: { original_filename: "may-statement.csv" },
+    },
+    {
+      id: "node-extracted-record",
+      node_kind: "extracted_record",
+      entity_type: "bank_statement_transaction",
+      entity_id: statementTxnId,
+      properties: { description: "Salary" },
+    },
+    {
+      id: "node-atomic-fact",
+      node_kind: "atomic_fact",
+      entity_type: "atomic_transaction",
+      entity_id: atomicTransactionId,
+      properties: { amount: "120.00" },
+    },
+    {
+      id: "node-ledger-entry",
+      node_kind: "ledger_entry",
+      entity_type: "journal_entry",
+      entity_id: journalEntryId,
+      properties: { status: "posted" },
+    },
+    {
+      id: "node-ledger-line",
+      node_kind: "ledger_line",
+      entity_type: "journal_line",
+      entity_id: journalLineId,
+      properties: { amount: "120.00" },
+    },
+    {
+      id: "node-report-line",
+      node_kind: "report_line",
+      entity_type: "package_traceability_line",
+      entity_id: reportLineNodeId,
+      properties: { line_id: "balance_sheet.total_assets" },
+    },
+  ],
+  edges: [
+    {
+      id: "edge-parsed",
+      relation: "parsed_into",
+      direction: "upstream",
+      depth: 4,
+      from_node_id: "node-uploaded-document",
+      to_node_id: "node-extracted-record",
+      properties: {},
+    },
+    {
+      id: "edge-deduped",
+      relation: "deduped_into",
+      direction: "upstream",
+      depth: 3,
+      from_node_id: "node-extracted-record",
+      to_node_id: "node-atomic-fact",
+      properties: {},
+    },
+    {
+      id: "edge-posted",
+      relation: "posted_as",
+      direction: "upstream",
+      depth: 2,
+      from_node_id: "node-atomic-fact",
+      to_node_id: "node-ledger-entry",
+      properties: {},
+    },
+    {
+      id: "edge-contains",
+      relation: "contains",
+      direction: "upstream",
+      depth: 1,
+      from_node_id: "node-ledger-entry",
+      to_node_id: "node-ledger-line",
+      properties: {},
+    },
+    {
+      id: "edge-report",
+      relation: "aggregated_into",
+      direction: "downstream",
+      depth: 1,
+      from_node_id: "node-ledger-line",
+      to_node_id: "node-report-line",
+      properties: {},
+    },
+  ],
+  blockers: [],
+  max_depth: 6,
+};
+
 function mockPackageApi(
   readinessPayload = readiness,
   policyPayload = frameworkPolicy,
@@ -391,6 +503,8 @@ function mockPackageApi(
       return Promise.resolve(packageNotes);
     if (path === "/api/reports/package/traceability")
       return Promise.resolve(traceabilityAppendix);
+    if (path.startsWith("/api/evidence/lineage?"))
+      return Promise.resolve(lineageResponse);
     return Promise.reject(new Error(`Unexpected path ${path}`));
   });
 }
@@ -867,12 +981,14 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "statement_transaction:txn-123, manual_valuation_snapshot:val-456",
+        `statement_transaction:${statementTxnId}, manual_valuation_snapshot:val-456`,
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("posted, reconciled")).toBeInTheDocument();
     expect(
-      screen.getByText("journal_entry:je-789, journal_line:jl-101"),
+      screen.getByText(
+        `journal_entry:${journalEntryId}, journal_line:${journalLineId}`,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText("trusted_or_explicit_manual_input"),
@@ -887,5 +1003,34 @@ describe("PersonalReportPackagePage", () => {
     expect(
       screen.getByText("explicit_manual_input_required"),
     ).toBeInTheDocument();
+  });
+
+  it("AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("balance_sheet.total_assets");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Trace lineage for balance_sheet.total_assets",
+      }),
+    );
+
+    await screen.findByRole("dialog", { name: "Evidence Lineage" });
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      `/api/evidence/lineage?entity_type=journal_line&entity_id=${journalLineId}&node_kind=ledger_line&direction=both&max_depth=6`,
+    );
+    expect(screen.getByText("source_document")).toBeInTheDocument();
+    expect(screen.getByText("extracted_record")).toBeInTheDocument();
+    expect(screen.getByText("atomic_fact")).toBeInTheDocument();
+    expect(screen.getByText("ledger_entry")).toBeInTheDocument();
+    expect(screen.getByText("ledger_line")).toBeInTheDocument();
+    expect(screen.getByText("report_line")).toBeInTheDocument();
+    expect(screen.getByText("parsed_into")).toBeInTheDocument();
+    expect(screen.getByText("aggregated_into")).toBeInTheDocument();
+    expect(screen.getByText(`uploaded_document:${uploadedDocumentId}`)).toBeInTheDocument();
   });
 });
