@@ -308,6 +308,9 @@ Package readiness:
     zero after each line is converted into the base reporting currency.
   - `missing_source_coverage`: active asset or liability account lacks approved
     statement coverage or explicit source anchoring.
+  - `unknown_source_anchor`: posted or reconciled journal entries have a
+    `source_id` that cannot be resolved to a typed source record such as a bank
+    statement transaction or atomic transaction.
   - `unsupported_framework`: selected package framework is unsupported.
   - `missing_framework_policy_result`: selected framework has package inputs but
     no matching structured policy result.
@@ -432,6 +435,15 @@ Traceability appendix:
 - Trusted package totals must expose source and ledger anchors unless the line
   is an explicit manual input, such as restricted compensation fair value from
   manual valuation snapshots.
+- Traceability anchors preserve backward-compatible identifier lists and also
+  expose typed `details` rows. Each detail row identifies the anchor kind,
+  source id/type, amount contribution when available, currency, review state,
+  confidence tier, and contribution basis. `JournalEntry.source_id` is never
+  assumed to be a statement transaction; it must resolve to a user-owned typed
+  record before it can support a trusted source anchor.
+- Unknown journal source ids are explicit package blockers through
+  `unknown_source_anchor`. They may appear as `unknown_source:<uuid>` for
+  debugging, but they must not be emitted as `statement_transaction:<uuid>`.
 - Non-ledger disclosures, such as the non-compliance statement, use
   `ledger_anchor.state=not_applicable`.
 - The representative package proof fixture must pin Decimal expected outputs
@@ -450,6 +462,7 @@ Completeness warning taxonomy:
 | `stale_market_data` | Investment values require freshness disclosure or refreshed provider data |
 | `duplicate_source_coverage` | Duplicate source coverage must be excluded or reviewed before totals are trusted |
 | `overlapping_statement_period` | Overlapping period coverage requires review before period totals are trusted |
+| `unknown_source_anchor` | Journal source IDs must resolve to typed source records before supporting trusted totals |
 
 Export contract:
 

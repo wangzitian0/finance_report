@@ -479,6 +479,7 @@ class PersonalReportPackageTraceabilityAnchor(BaseModel):
     identifier_fields: list[str] = Field(default_factory=list)
     identifiers: list[str] = Field(default_factory=list)
     unavailable_reason: str | None = None
+    details: list[dict[str, str | Decimal | None]] = Field(default_factory=list)
 
 
 class PersonalReportPackageTraceabilityLine(BaseModel):

@@ -14,6 +14,7 @@ from src.models import (
     Account,
     AccountType,
     AtomicPosition,
+    AtomicTransaction,
     BankStatement,
     BankStatementStatus,
     BankStatementTransaction,
@@ -321,6 +322,42 @@ async def _stale_market_data_count(db: AsyncSession, user_id: UUID, *, as_of_dat
     )
 
 
+async def _unknown_journal_source_anchor_count(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    report_period_start: date,
+    report_period_end: date,
+) -> int:
+    source_rows = await db.execute(
+        select(JournalEntry.source_id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.source_id.is_not(None))
+        .where(JournalEntry.entry_date >= report_period_start)
+        .where(JournalEntry.entry_date <= report_period_end)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+    )
+    source_ids = {source_id for source_id in source_rows.scalars().all() if source_id is not None}
+    if not source_ids:
+        return 0
+
+    statement_txn_rows = await db.execute(
+        select(BankStatementTransaction.id)
+        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .where(BankStatement.user_id == user_id)
+        .where(BankStatementTransaction.id.in_(source_ids))
+    )
+    known_statement_txn_ids = set(statement_txn_rows.scalars().all())
+
+    atomic_txn_rows = await db.execute(
+        select(AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
+        .where(AtomicTransaction.id.in_(source_ids))
+    )
+    known_atomic_txn_ids = set(atomic_txn_rows.scalars().all())
+    return len(source_ids - known_statement_txn_ids - known_atomic_txn_ids)
+
+
 async def get_personal_report_package_readiness(
     db: AsyncSession,
     user_id: UUID,
@@ -522,6 +559,23 @@ async def get_personal_report_package_readiness(
             )
         )
 
+    unknown_source_anchor_count = await _unknown_journal_source_anchor_count(
+        db,
+        user_id,
+        report_period_start=report_start,
+        report_period_end=report_end,
+    )
+    if unknown_source_anchor_count:
+        blockers.append(
+            _blocker(
+                "unknown_source_anchor",
+                "Unknown source anchor",
+                unknown_source_anchor_count,
+                "Posted journal entries with source IDs must resolve to typed source records before trusted package output.",
+                "/reports/package",
+            )
+        )
+
     try:
         processing_balance = (await _processing_account_balance(db, user_id)).quantize(Decimal("0.01"))
     except FxRateError as exc:
@@ -615,6 +669,8 @@ async def get_personal_report_package_readiness(
         gap_source_classes.add("bank_statement")
     if "stale_market_data" in blocker_codes:
         gap_source_classes.add("brokerage_statement")
+    if "unknown_source_anchor" in blocker_codes:
+        gap_source_classes.add("manual_record")
 
     latest_snapshot_count = await _count(
         db,
