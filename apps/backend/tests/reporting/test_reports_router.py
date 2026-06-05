@@ -87,6 +87,39 @@ async def test_balance_sheet_endpoint(client, test_data_setup_reports):
 
 
 @pytest.mark.asyncio
+async def test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC5.16.1: Balance sheet endpoint defaults restricted holdings to excluded."""
+
+    async def fake_generate_balance_sheet(*_args, **kwargs):
+        assert kwargs["include_restricted"] is False
+        return {
+            "as_of_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "assets": [],
+            "liabilities": [],
+            "equity": [],
+            "total_assets": Decimal("0.00"),
+            "total_liabilities": Decimal("0.00"),
+            "total_equity": Decimal("0.00"),
+            "net_income": Decimal("0.00"),
+            "unrealized_fx_gain_loss": Decimal("0.00"),
+            "net_worth_adjustment_gain_loss": Decimal("0.00"),
+            "fx_warnings": [],
+            "equation_delta": Decimal("0.00"),
+            "is_balanced": True,
+        }
+
+    monkeypatch.setattr(reports_router, "generate_balance_sheet", fake_generate_balance_sheet)
+
+    response = await client.get("/reports/balance-sheet", params={"as_of_date": "2026-01-31", "currency": "SGD"})
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_income_statement_endpoint(client, test_data_setup_reports):
     """Test income statement endpoint."""
     await test_data_setup_reports()
@@ -113,6 +146,57 @@ async def test_cash_flow_endpoint(client, test_data_setup_reports):
     assert "operating" in data
     assert "investing" in data
     assert "financing" in data
+
+
+@pytest.mark.asyncio
+async def test_AC5_16_2_cash_flow_response_preserves_fx_warnings(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC5.16.2: Cash flow response model exposes partial FX warnings."""
+
+    async def fake_generate_cash_flow(*_args, **_kwargs):
+        return {
+            "start_date": date(2026, 1, 1),
+            "end_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "operating": [],
+            "investing": [],
+            "financing": [],
+            "summary": {
+                "operating_activities": Decimal("0.00"),
+                "investing_activities": Decimal("0.00"),
+                "financing_activities": Decimal("0.00"),
+                "net_cash_flow": Decimal("0.00"),
+                "beginning_cash": Decimal("0.00"),
+                "ending_cash": Decimal("0.00"),
+            },
+            "fx_warnings": [
+                {
+                    "type": "spot_rate_fallback",
+                    "from_currency": "USD",
+                    "to_currency": "SGD",
+                    "date": "2026-01-31",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(reports_router, "generate_cash_flow", fake_generate_cash_flow)
+
+    response = await client.get(
+        "/reports/cash-flow",
+        params={"start_date": "2026-01-01", "end_date": "2026-01-31", "currency": "SGD"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["fx_warnings"] == [
+        {
+            "type": "spot_rate_fallback",
+            "from_currency": "USD",
+            "to_currency": "SGD",
+            "date": "2026-01-31",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -201,6 +285,44 @@ async def test_export_endpoint(client, test_data_setup_reports):
     response_is = await client.get("/reports/export", params=params_is)
     assert response_is.status_code == 200
     assert "text/csv" in response_is.headers["content-type"]
+
+
+@pytest.mark.asyncio
+async def test_AC5_16_1_balance_sheet_export_honors_restricted_query(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC5.16.1: Balance-sheet CSV export uses the same restricted toggle as the page."""
+
+    async def fake_generate_balance_sheet(*_args, **kwargs):
+        assert kwargs["include_restricted"] is True
+        return {
+            "as_of_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "assets": [],
+            "liabilities": [],
+            "equity": [],
+            "total_assets": Decimal("0.00"),
+            "total_liabilities": Decimal("0.00"),
+            "total_equity": Decimal("0.00"),
+            "equation_delta": Decimal("0.00"),
+            "is_balanced": True,
+        }
+
+    monkeypatch.setattr(reports_router, "generate_balance_sheet", fake_generate_balance_sheet)
+
+    response = await client.get(
+        "/reports/export",
+        params={
+            "report_type": "balance-sheet",
+            "format": "csv",
+            "as_of_date": "2026-01-31",
+            "currency": "SGD",
+            "include_restricted": "true",
+        },
+    )
+
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio

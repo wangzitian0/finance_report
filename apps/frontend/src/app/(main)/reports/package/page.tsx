@@ -17,6 +17,17 @@ function formatScheduleCurrency(value: number | string, currency: string): strin
     return formatCurrencyLocale(value, currency, "en-US", { maximumFractionDigits: 0 }).replace(/\u00a0/g, " ");
 }
 
+function renderAnchorDetail(primary: string, identifiers?: string[]) {
+    return (
+        <>
+            <p className="mt-1 text-xs text-muted">{primary}</p>
+            {identifiers?.length ? (
+                <p className="mt-1 max-w-xs break-words font-mono text-[11px] text-muted">{identifiers.join(", ")}</p>
+            ) : null}
+        </>
+    );
+}
+
 export default function PersonalReportPackagePage() {
     const [contract, setContract] = useState<PersonalReportPackageContractResponse | null>(null);
     const [readiness, setReadiness] = useState<PersonalReportPackageReadinessResponse | null>(null);
@@ -305,15 +316,17 @@ export default function PersonalReportPackagePage() {
                                     </td>
                                     <td className="py-3 pr-4">
                                         <p className="font-mono text-xs">{line.source_state}</p>
-                                        <p className="mt-1 text-xs text-muted">
-                                            {(line.source_anchor.source_types ?? []).join(", ") || line.source_anchor.state}
-                                        </p>
+                                        {renderAnchorDetail(
+                                            (line.source_anchor.source_types ?? []).join(", ") || line.source_anchor.state,
+                                            line.source_anchor.identifiers,
+                                        )}
                                     </td>
                                     <td className="py-3 pr-4">
                                         <p className="font-mono text-xs">{line.ledger_anchor.state}</p>
-                                        <p className="mt-1 text-xs text-muted">
-                                            {(line.ledger_anchor.entry_statuses ?? []).join(", ") || line.ledger_anchor.unavailable_reason}
-                                        </p>
+                                        {renderAnchorDetail(
+                                            (line.ledger_anchor.entry_statuses ?? []).join(", ") || line.ledger_anchor.unavailable_reason || line.ledger_anchor.state,
+                                            line.ledger_anchor.identifiers,
+                                        )}
                                     </td>
                                     <td className="py-3 pr-4 font-mono text-xs">{line.review_state}</td>
                                     <td className="py-3">

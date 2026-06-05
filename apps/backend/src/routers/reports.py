@@ -940,7 +940,7 @@ async def annualized_income_schedule(
 async def balance_sheet(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=True),
+    include_restricted: bool = Query(default=False),
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> BalanceSheetResponse:
@@ -1138,6 +1138,7 @@ async def export_report(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=False),
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> StreamingResponse:
@@ -1154,6 +1155,7 @@ async def export_report(
                 user_id,
                 as_of_date=report_date,
                 currency=currency,
+                include_restricted=include_restricted,
             )
             writer.writerow(["section", "account", "amount", "currency"])
             for section, lines in (

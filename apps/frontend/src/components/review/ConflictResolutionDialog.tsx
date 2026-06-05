@@ -58,7 +58,6 @@ export function ConflictResolutionDialog({
                     {duplicateCandidates.length === 0 && transferPairCandidates.length === 0 ? (
                         <div className="text-center py-8 text-muted">
                             <p>No conflicts detected for this statement.</p>
-                            <p className="text-xs mt-2 italic">Note: Backend conflict detection is currently under development.</p>
                         </div>
                     ) : (
                         <div className="space-y-6">

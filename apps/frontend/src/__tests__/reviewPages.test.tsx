@@ -45,10 +45,12 @@ describe("Review pages data flows", () => {
             pdf_url: null,
             transactions: [],
         };
-        // first call for statement review
-        mockedApi.mockResolvedValueOnce(stmt);
-        // pending statements
-        mockedApi.mockResolvedValueOnce({ items: [{ id: "s1" }] });
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve({ duplicates: [], transfer_pairs: [] });
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
 
         renderReviewComponent(<StatementReviewPage /> as any);
         expect(await screen.findByText("Back to Statements")).toBeInTheDocument();

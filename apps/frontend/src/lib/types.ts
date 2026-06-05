@@ -121,6 +121,17 @@ export interface ReportLine {
     amount: number | string;
 }
 
+export interface FxWarning {
+    type: string;
+    message?: string;
+    from_currency?: string;
+    to_currency?: string;
+    date?: string;
+    fallback_date?: string;
+    source?: string;
+    [key: string]: string | undefined;
+}
+
 export interface BalanceSheetResponse {
     as_of_date: string;
     currency: string;
@@ -130,6 +141,10 @@ export interface BalanceSheetResponse {
     total_assets: number | string;
     total_liabilities: number | string;
     total_equity: number | string;
+    net_income?: number | string;
+    unrealized_fx_gain_loss?: number | string;
+    net_worth_adjustment_gain_loss?: number | string;
+    fx_warnings?: FxWarning[];
     equation_delta: number | string;
     is_balanced: boolean;
 }
@@ -151,6 +166,7 @@ export interface IncomeStatementResponse {
     total_income: number | string;
     total_expenses: number | string;
     net_income: number | string;
+    fx_warnings?: FxWarning[];
     trends: IncomeStatementTrend[];
 }
 

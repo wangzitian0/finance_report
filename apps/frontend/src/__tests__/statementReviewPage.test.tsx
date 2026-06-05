@@ -53,9 +53,9 @@ const baseStatement = {
             status: "draft",
         },
     ],
-    duplicate_candidates: [],
-    transfer_pair_candidates: [],
 };
+
+const emptyConflicts = { duplicates: [], transfer_pairs: [] };
 
 describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     beforeEach(() => {
@@ -93,6 +93,10 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
                 return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
             }
 
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
@@ -123,6 +127,10 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
                 return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
             }
 
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
@@ -140,6 +148,10 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
             if (path === "/api/statements/pending-review") {
                 return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
             }
 
             if (path === "/api/statements/s1/review/approve") {
@@ -170,6 +182,10 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
             if (path === "/api/statements/pending-review") {
                 return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
             }
 
             if (path === "/api/statements/s1/review/reject") {
@@ -211,6 +227,10 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
                 });
             }
 
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
@@ -223,19 +243,26 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(pushMock).toHaveBeenNthCalledWith(2, "/statements/s2/review");
     });
 
-    it("AC16.23.3 opens the conflict dialog when duplicate or transfer-pair candidates exist", async () => {
+    it("AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/s1/review") {
+                return Promise.resolve(baseStatement);
+            }
+
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+
+            if (path === "/api/review/conflicts/s1") {
                 return Promise.resolve({
-                    ...baseStatement,
-                    duplicate_candidates: [
+                    duplicates: [
                         {
                             description: "Duplicate salary",
                             txn_date: "2024-01-04",
                             amount: "20.00",
                         },
                     ],
-                    transfer_pair_candidates: [
+                    transfer_pairs: [
                         {
                             description: "Transfer to savings",
                             txn_date: "2024-01-05",
@@ -243,10 +270,6 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
                         },
                     ],
                 });
-            }
-
-            if (path === "/api/statements/pending-review") {
-                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
             }
 
             return Promise.reject(new Error(`Unexpected path ${path}`));
@@ -257,5 +280,36 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         const dialog = await screen.findByRole("dialog", { name: "Resolve Conflicts" });
         expect(within(dialog).getByText("Duplicate Candidates")).toBeInTheDocument();
         expect(within(dialog).getByText("Transfer Pair Candidates")).toBeInTheDocument();
+        expect(mockedApi).toHaveBeenCalledWith("/api/review/conflicts/s1");
+    });
+
+    it("AC16.31.2 disables approval when opening balance validation fails", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve({
+                    ...baseStatement,
+                    balance_validation_result: {
+                        ...baseStatement.balance_validation_result,
+                        opening_match: false,
+                        closing_match: true,
+                    },
+                });
+            }
+
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        const approveButton = await screen.findByRole("button", { name: "Approve" });
+        expect(approveButton).toBeDisabled();
     });
 });

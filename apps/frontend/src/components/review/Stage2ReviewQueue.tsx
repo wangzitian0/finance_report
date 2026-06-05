@@ -399,7 +399,7 @@ export function Stage2ReviewQueue() {
                 <h1 className="page-title">{isRunReview ? "Stage 2 Run Review" : "Reconciliation Review Queue"}</h1>
                 <p className="page-description">
                     {isRunReview
-                        ? "Review batch-level consistency checks and approve all resolved matches as one run"
+                        ? "Review the current Stage 2 queue from this run context"
                         : "Review consistency checks and approve reconciliation matches"}
                 </p>
             </div>
@@ -445,7 +445,8 @@ export function Stage2ReviewQueue() {
                         <div>
                             <p className="text-sm font-medium">Run approval gate</p>
                             <p className="text-sm text-muted">
-                                Resolve transfer, duplicate, and anomaly checks and clear Processing Account pending transfers before approving the run.
+                                Resolve transfer, duplicate, and anomaly checks and clear Processing Account pending transfers before approving current pending matches.
+                                Run ID is shown as context; this page uses the shared Stage 2 queue endpoint.
                             </p>
                         </div>
                         <button
