@@ -758,7 +758,10 @@ def test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run() -> N
     assert "ref: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
     assert "Wait for matching CI success" not in workflow
     assert "wait_for_github_ci.py" not in workflow
-    assert "workflow_run event after the matching main CI run succeeds" in ci_cd
+    assert (
+        "successful `push` `CI` `workflow_run` on `main`"
+        in ci_cd
+    )
     assert "does not poll or wait for CI inside the deploy job" in ci_cd
 
 
@@ -1684,18 +1687,81 @@ def test_AC8_13_43_failed_ci_workflow_run_reports_no_deploy_diagnostic() -> None
     assert "https://report-staging.zitian.party/api/health" in workflow
     assert "Current Staging Before Deploy" in workflow
     assert "ci-not-success-summary:" in workflow
-    assert "name: CI Did Not Pass" in workflow
+    assert "name: CI Workflow Run Ignored" in workflow
+    assert "github.event.workflow_run.event != 'push'" in workflow
     assert "github.event.workflow_run.conclusion != 'success'" in workflow
     assert "Staging Deploy Skipped Before VPS Changes" in workflow
-    assert "main CI workflow_run did not succeed" in workflow
+    assert "main CI workflow_run did not satisfy staging promotion guard" in workflow
     assert (
-        "No image promotion, Dokploy change, smoke test, or AI/OCR validation ran."
+        "No FIFO wait, image promotion, Dokploy change, smoke test, or AI/OCR validation ran."
         in workflow
     )
     assert "id: wait_ci" not in workflow
     assert "wait_for_github_ci.py" not in workflow
-    assert "Failed, cancelled, or timed-out main CI runs do not promote images" in ci_cd
+    assert (
+        "Failed, cancelled, timed-out, non-push, or non-main CI runs do not"
+        in ci_cd
+    )
     assert "does not poll or wait for CI inside the deploy job" in ci_cd
+
+
+def test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run() -> None:
+    """AC8.13.93: Automatic staging mutation requires successful main push CI."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    deployment = read("docs/ssot/deployment.md")
+
+    successful_main_push_guard = (
+        "github.event.workflow_run.event == 'push' && "
+        "github.event.workflow_run.conclusion == 'success' && "
+        "github.event.workflow_run.head_branch == 'main'"
+    )
+    ignored_guard = (
+        "github.event.workflow_run.event != 'push' || "
+        "github.event.workflow_run.conclusion != 'success' || "
+        "github.event.workflow_run.head_branch != 'main'"
+    )
+
+    assert workflow.count(successful_main_push_guard) >= 5
+
+    skipped_section = workflow.split("ci-not-success-summary:", 1)[1].split(
+        "\n  classify-staging:", 1
+    )[0]
+    assert ignored_guard in skipped_section
+    assert "- Trigger event: ${{ github.event.workflow_run.event }}" in skipped_section
+    assert "- Head branch: ${{ github.event.workflow_run.head_branch }}" in skipped_section
+    assert "- CI run ID: ${{ github.event.workflow_run.id }}" in skipped_section
+    assert (
+        "- CI run attempt: ${{ github.event.workflow_run.run_attempt }}"
+        in skipped_section
+    )
+    assert "No FIFO wait, image promotion, Dokploy change" in skipped_section
+    assert "tools/wait_post_merge_train_turn.py" not in skipped_section
+    assert "docker buildx imagetools create" not in skipped_section
+    assert "tools/dokploy_deploy.sh" not in skipped_section
+
+    deploy_context = workflow.split("Write staging deploy context", 1)[1].split(
+        "Upload staging deploy test context", 1
+    )[0]
+    for expected_line in [
+        "triggering_ci_run_id=${{ github.event.workflow_run.id }}",
+        "triggering_ci_run_attempt=${{ github.event.workflow_run.run_attempt }}",
+        "triggering_ci_event=${{ github.event.workflow_run.event }}",
+        "triggering_ci_head_sha=${{ github.event.workflow_run.head_sha }}",
+        "triggering_ci_created_at=${{ github.event.workflow_run.created_at }}",
+        "triggering_ci_conclusion=${{ github.event.workflow_run.conclusion }}",
+        "triggering_ci_url=${{ github.event.workflow_run.html_url }}",
+    ]:
+        assert expected_line in deploy_context
+
+    assert "successful `push` `CI` `workflow_run` on `main`" in ci_cd
+    assert "do not enter FIFO, promote images, push `staging` tags" in ci_cd
+    assert "CI run id, run attempt, trigger event, head SHA" in ci_cd
+    assert "Trigger: Successful push CI workflow_run on main" in deployment
+    assert (
+        "Non-`push`, failed, cancelled, timed-out, or non-main CI workflow runs"
+        in deployment
+    )
 
 
 def test_AC8_13_45_make_test_routes_through_root_moon_test() -> None:

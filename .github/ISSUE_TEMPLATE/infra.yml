@@ -2,7 +2,7 @@
 name: "Infrastructure / Tooling"
 description: "Infrastructure, CI/CD, tooling, or meta-testing changes."
 title: "[INFRA] Short description"
-labels: ["infra"]
+labels: ["infrastructure", "surface: infra", "surface: tooling"]
 body:
   - type: markdown
     attributes:
@@ -53,10 +53,57 @@ body:
         - label: "No SSOT update needed"
 
   - type: textarea
-    id: description
+    id: phenomenon_description
     attributes:
-      label: "Description"
-      description: "What infrastructure concern is this addressing?"
+      label: "Phenomenon Description"
+      description: "What infrastructure/tooling behavior is wrong or unclear, and what evidence shows the gap?"
+      placeholder: |
+        Observed:
+        Expected:
+        Evidence:
+    validations:
+      required: true
+
+  - type: textarea
+    id: how_to_reproduce
+    attributes:
+      label: "How to Reproduce"
+      description: "Provide deterministic commands, workflow runs, logs, or file paths that reproduce the issue."
+      placeholder: |
+        1. Run ...
+        2. Inspect ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: minimal_fix_recommendation
+    attributes:
+      label: "Minimal Fix Recommendation"
+      description: "Describe the smallest infrastructure/tooling change that should resolve the issue."
+      placeholder: |
+        Minimal path:
+        Out of scope:
+    validations:
+      required: true
+
+  - type: textarea
+    id: why_this_fix_works
+    attributes:
+      label: "Why This Fix Works"
+      description: "Explain why this change fixes the failure mode without broad workflow or topology churn."
+      placeholder: "This works because ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: "Acceptance Criteria"
+      description: "List concrete pass/fail checks. Include infra AC IDs when known."
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
     validations:
       required: true
 
