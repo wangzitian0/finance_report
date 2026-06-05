@@ -2,6 +2,9 @@
  * Shared Type Definitions
  */
 
+export type DecimalValue = string | number;
+export type MoneyValue = DecimalValue;
+
 export interface Account {
   id: string;
   name: string;
@@ -11,7 +14,7 @@ export interface Account {
   description?: string;
   parent_id?: string | null;
   is_active: boolean;
-  balance?: number;
+  balance?: MoneyValue;
 }
 
 export interface AccountListResponse {
@@ -23,9 +26,9 @@ export interface JournalLine {
   id: string;
   account_id: string;
   direction: "DEBIT" | "CREDIT";
-  amount: number;
+  amount: MoneyValue;
   currency: string;
-  fx_rate?: number | null;
+  fx_rate?: DecimalValue | null;
 }
 
 export interface JournalEntry {
@@ -38,7 +41,7 @@ export interface JournalEntry {
   lines: JournalLine[];
   created_at: string;
   // Summary view properties
-  total_amount?: number;
+  total_amount?: MoneyValue;
 }
 
 export interface JournalEntrySummary {
@@ -46,7 +49,7 @@ export interface JournalEntrySummary {
   entry_date: string;
   memo?: string | null;
   status: string;
-  total_amount: number;
+  total_amount: MoneyValue;
 }
 
 export interface JournalEntryListResponse {
@@ -59,11 +62,11 @@ export interface BankStatementTransaction {
   statement_id: string;
   txn_date: string;
   description: string;
-  amount: number;
+  amount: MoneyValue;
   direction: string;
   reference?: string | null;
   currency?: string | null;
-  balance_after?: number | null;
+  balance_after?: MoneyValue | null;
   status: "pending" | "matched" | "unmatched";
   confidence: "high" | "medium" | "low";
   confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW";
@@ -78,7 +81,7 @@ export interface BankStatementTransactionSummary {
   statement_id: string;
   txn_date: string;
   description: string;
-  amount: number;
+  amount: MoneyValue;
   direction: string;
   reference?: string | null;
   status: "pending" | "matched" | "unmatched";
@@ -96,8 +99,8 @@ export interface BankStatement {
   currency?: string | null;
   period_start?: string | null;
   period_end?: string | null;
-  opening_balance?: number | null;
-  closing_balance?: number | null;
+  opening_balance?: MoneyValue | null;
+  closing_balance?: MoneyValue | null;
   status: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
   confidence_score?: number | null;
   parsing_progress?: number | null;
@@ -118,7 +121,7 @@ export interface ReportLine {
   name: string;
   type: string;
   parent_id?: string | null;
-  amount: number | string;
+  amount: MoneyValue;
 }
 
 export interface FxWarning {
@@ -138,23 +141,23 @@ export interface BalanceSheetResponse {
   assets: ReportLine[];
   liabilities: ReportLine[];
   equity: ReportLine[];
-  total_assets: number | string;
-  total_liabilities: number | string;
-  total_equity: number | string;
-  net_income?: number | string;
-  unrealized_fx_gain_loss?: number | string;
-  net_worth_adjustment_gain_loss?: number | string;
+  total_assets: MoneyValue;
+  total_liabilities: MoneyValue;
+  total_equity: MoneyValue;
+  net_income?: MoneyValue;
+  unrealized_fx_gain_loss?: MoneyValue;
+  net_worth_adjustment_gain_loss?: MoneyValue;
   fx_warnings?: FxWarning[];
-  equation_delta: number | string;
+  equation_delta: MoneyValue;
   is_balanced: boolean;
 }
 
 export interface IncomeStatementTrend {
   period_start: string;
   period_end: string;
-  total_income: number | string;
-  total_expenses: number | string;
-  net_income: number | string;
+  total_income: MoneyValue;
+  total_expenses: MoneyValue;
+  net_income: MoneyValue;
 }
 
 export interface IncomeStatementResponse {
@@ -163,9 +166,9 @@ export interface IncomeStatementResponse {
   currency: string;
   income: ReportLine[];
   expenses: ReportLine[];
-  total_income: number | string;
-  total_expenses: number | string;
-  net_income: number | string;
+  total_income: MoneyValue;
+  total_expenses: MoneyValue;
+  net_income: MoneyValue;
   fx_warnings?: FxWarning[];
   trends: IncomeStatementTrend[];
 }
@@ -457,10 +460,10 @@ export interface WorkflowEventListResponse {
 }
 
 export interface AnnualizedIncomeScheduleIncome {
-  annualized_salary: number | string;
-  annualized_bonus: number | string;
-  annualized_dividend: number | string;
-  annualized_total: number | string;
+  annualized_salary: MoneyValue;
+  annualized_bonus: MoneyValue;
+  annualized_dividend: MoneyValue;
+  annualized_total: MoneyValue;
   currency: string;
   calculation_basis: string;
 }
@@ -468,7 +471,7 @@ export interface AnnualizedIncomeScheduleIncome {
 export interface AnnualizedIncomeScheduleHolding {
   ticker: string;
   compensation_type: string;
-  fair_value: number | string;
+  fair_value: MoneyValue;
   currency: string;
   valuation_basis: string;
   vesting_schedule?: string | null;
@@ -493,35 +496,35 @@ export interface AnnualizedIncomeScheduleResponse {
   trailing_period_days: number;
   income: AnnualizedIncomeScheduleIncome;
   restricted_holdings: AnnualizedIncomeScheduleHolding[];
-  restricted_fair_value_total: number | string;
+  restricted_fair_value_total: MoneyValue;
   restricted_fair_value_total_currency: string;
   net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment;
   notes: string[];
 }
 
 export interface AnnualizedIncomeResponse {
-  annualized_salary: number | string;
-  annualized_bonus: number | string;
-  annualized_dividend: number | string;
-  annualized_total: number | string;
+  annualized_salary: MoneyValue;
+  annualized_bonus: MoneyValue;
+  annualized_dividend: MoneyValue;
+  annualized_total: MoneyValue;
   currency: string;
   as_of: string;
 }
 
 export interface RestrictedHolding {
   ticker: string;
-  quantity: number | string;
+  quantity: DecimalValue;
   vesting_schedule?: string | null;
   unlock_date?: string | null;
-  fair_value: number | string;
+  fair_value: MoneyValue;
   currency: string;
 }
 
 export interface ValuationComponentsResponse {
   items: unknown[];
-  total_assets: number | string;
-  total_liabilities: number | string;
-  net_worth_delta: number | string;
+  total_assets: MoneyValue;
+  total_liabilities: MoneyValue;
+  net_worth_delta: MoneyValue;
 }
 
 export interface ReconciliationStatsResponse {
@@ -542,7 +545,7 @@ export interface UnmatchedTransactionsResponse {
 export interface TrendPoint {
   period_start: string;
   period_end: string;
-  amount: number | string;
+  amount: MoneyValue;
 }
 
 export interface TrendResponse {
@@ -556,9 +559,9 @@ export type NetWorthRange = "1M" | "3M" | "6M" | "1Y" | "All";
 
 export interface NetWorthTimeSeriesPoint {
   date: string;
-  total_assets: number | string;
-  total_liabilities: number | string;
-  net_worth: number | string;
+  total_assets: MoneyValue;
+  total_liabilities: MoneyValue;
+  net_worth: MoneyValue;
   currency: string;
 }
 

@@ -2,18 +2,12 @@
 
 import Link from "next/link";
 import { PortfolioHolding } from "@/lib/types";
-import { compareAmounts, formatAmount, formatCurrencyLocale } from "@/lib/currency";
+import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 
 interface HoldingsTableProps {
     holdings: PortfolioHolding[];
     showDisposed?: boolean;
-}
-
-function formatQuantity(quantity: string): string {
-    const num = parseFloat(quantity);
-    if (Number.isInteger(num)) return num.toLocaleString();
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 }
 
 function getPnlColor(value: string): string {

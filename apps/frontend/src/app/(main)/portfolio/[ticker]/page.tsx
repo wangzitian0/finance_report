@@ -7,14 +7,8 @@ import { useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types";
-import { compareAmounts, formatAmount, formatCurrencyLocale } from "@/lib/currency";
+import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
-
-function formatQuantity(quantity: string): string {
-    const num = parseFloat(quantity);
-    if (Number.isInteger(num)) return num.toLocaleString();
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
-}
 
 function getPnlColor(value: string): string {
     const comparison = compareAmounts(value, "0");

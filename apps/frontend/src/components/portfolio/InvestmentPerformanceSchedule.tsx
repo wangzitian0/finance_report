@@ -2,22 +2,29 @@
 
 import { FileText, Link2 } from "lucide-react";
 
-import { formatCurrencyLocale, formatAmount } from "@/lib/currency";
+import { compareAmounts, formatCurrencyLocale, formatAmount } from "@/lib/currency";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
 function formatPercent(value: string | null): string {
     if (value === null) return "N/A";
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) return "N/A";
-    const sign = numeric > 0 ? "+" : "";
-    return `${sign}${formatAmount(value, 2)}%`;
+    try {
+        const comparison = compareAmounts(value, "0");
+        const sign = comparison > 0 ? "+" : "";
+        return `${sign}${formatAmount(value, 2)}%`;
+    } catch {
+        return "N/A";
+    }
 }
 
 function metricClass(value: string | null): string {
     if (value === null) return "text-muted";
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric === 0) return "";
-    return numeric > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
+    try {
+        const comparison = compareAmounts(value, "0");
+        if (comparison === 0) return "";
+        return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
+    } catch {
+        return "";
+    }
 }
 
 interface InvestmentPerformanceScheduleProps {

@@ -227,7 +227,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(table).toHaveStyle({ width: "calc(100% - 4px)" })
   })
 
-  it("test_AC8_13_48_run_review_approves_matches_after_filter_changes", async () => {
+  it("AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes", async () => {
     navState.pathname = "/review/run/run%201"
     navState.searchParams = new URLSearchParams("check_type=duplicate&status=pending&severity=high,medium&min_score=60")
 
@@ -274,7 +274,12 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
         expect.objectContaining({ method: "POST" }),
       )
     })
-    expect(navState.replace).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(navState.replace).toHaveBeenCalledWith(
+        "/review/run/run%201?check_type=anomaly&status=resolved&severity=medium&min_score=60",
+        { scroll: false },
+      )
+    })
   })
 
   it("test_AC8_13_48_dialog_dismissal_and_resolution_error_paths", async () => {

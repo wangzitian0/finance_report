@@ -233,7 +233,7 @@ describe("AssetsPage", () => {
     expect(screen.getByText("Book value (no market price yet)")).toBeInTheDocument()
   })
 
-  it("AC16.23.4 renders currency allocation breakdown when multiple currencies present", async () => {
+  it("AC17.10.6 does not calculate allocation percentages from mixed raw currencies", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/assets/valuation-snapshots")) {
         return Promise.resolve(emptyValuations)
@@ -280,6 +280,9 @@ describe("AssetsPage", () => {
     await waitFor(() => expect(screen.getByText("Allocation by Currency")).toBeInTheDocument())
     expect(screen.getByText("USD")).toBeInTheDocument()
     expect(screen.getByText("HKD")).toBeInTheDocument()
+    expect(screen.getByText(/FX conversion required/i)).toBeInTheDocument()
+    expect(screen.queryByText("65.2%")).not.toBeInTheDocument()
+    expect(screen.queryByText("34.8%")).not.toBeInTheDocument()
   })
 
   it("shows warning toast when reconcile has skipped assets", async () => {
@@ -329,37 +332,37 @@ describe("AssetsPage", () => {
     })
   })
 
-  it("formats fractional quantities with decimal places", async () => {
+  it("AC2.8.2 formats fractional quantities without JS Number precision loss", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/assets/valuation-snapshots")) {
         return Promise.resolve(emptyValuations)
       }
       return Promise.resolve({
-      items: [
-        {
-          id: "p1",
-          user_id: "u1",
-          account_id: "acc1",
-          account_name: "IBKR",
-          asset_identifier: "BTC",
-          quantity: "0.5",
-          cost_basis: "15000",
-          acquisition_date: "2025-01-01",
-          disposal_date: null,
-          status: "active",
-          currency: "USD",
-          created_at: "2025-01-01",
-          updated_at: "2025-01-02",
-        },
-      ],
-      total: 1,
+        items: [
+          {
+            id: "p1",
+            user_id: "u1",
+            account_id: "acc1",
+            account_name: "IBKR",
+            asset_identifier: "BTC",
+            quantity: "0.123456789",
+            cost_basis: "15000",
+            acquisition_date: "2025-01-01",
+            disposal_date: null,
+            status: "active",
+            currency: "USD",
+            created_at: "2025-01-01",
+            updated_at: "2025-01-02",
+          },
+        ],
+        total: 1,
       } satisfies ManagedPositionListResponse)
     })
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("BTC")).toBeInTheDocument())
-    expect(screen.getByText(/0\.50 units/)).toBeInTheDocument()
+    expect(screen.getByText(/0\.123456789 units/)).toBeInTheDocument()
   })
 
   it("AC11.9.4 renders manual valuation snapshots and creates a new property valuation", async () => {

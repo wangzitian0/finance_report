@@ -9,7 +9,7 @@ import type {
 /**
  * API base URL for backend requests.
  *
- * - Development: Empty string (Next.js rewrites proxy /api/* to backend)
+ * - Local development: Empty string can be proxied by Next.js rewrites
  * - Production: Can be empty (same-origin) or set to backend domain
  *
  * When empty, API calls use relative paths (e.g., /api/accounts).

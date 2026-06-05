@@ -49,4 +49,30 @@ describe("InvestmentPerformanceSchedule", () => {
     expect(screen.getByText("No source links available")).toBeInTheDocument()
     expect(screen.queryByText("Notes")).not.toBeInTheDocument()
   })
+
+  it("AC8.13.92 renders neutral metrics and missing stale holdings defensively", () => {
+    render(
+      <InvestmentPerformanceSchedule
+        schedule={{
+          ...schedule,
+          xirr: "0.00",
+          money_weighted_return: "0.00",
+          data_freshness: {
+            latest_price_date: "2026-04-01",
+            market_data_provider: "manual",
+            stale: false,
+            manual_override_basis: null,
+          },
+          source_links: ["statement:aapl"],
+          notes: ["Reviewed manually"],
+        } as never}
+      />,
+    )
+
+    expect(screen.getAllByText("0.00%").length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText("Status: Current")).toBeInTheDocument()
+    expect(screen.queryByText(/Stale holdings:/)).not.toBeInTheDocument()
+    expect(screen.getByText("statement:aapl")).toBeInTheDocument()
+    expect(screen.getByText("Reviewed manually")).toBeInTheDocument()
+  })
 })

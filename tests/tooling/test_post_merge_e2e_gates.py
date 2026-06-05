@@ -921,7 +921,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "lightweight-docs-or-docs-workflow-only" in classifier
     assert "pr-preview-paths-changed" in classifier
     assert "no-pr-preview-paths-changed" in classifier
-    assert "needs: [changes, lint, ac-traceability]" in workflow
+    assert "needs: [changes]" in workflow
     assert "if: needs.changes.outputs.heavy_required == 'true'" in workflow
     assert (
         "pr_preview_required: ${{ steps.preview.outputs.pr_preview_required }}"
@@ -934,6 +934,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
         "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
         in workflow
     )
+    assert "finish remains the authoritative aggregate gate" in ci_cd
     assert (
         "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
         in workflow
@@ -1234,7 +1235,12 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
 
     assert "container-images:" in ci_workflow
     assert "name: Build Staging Images" in ci_workflow
-    assert "needs: [changes, lint, ac-traceability]" in ci_workflow
+    container_block = ci_workflow.split("  container-images:", 1)[1].split(
+        "  tooling-coverage:", 1
+    )[0]
+    assert "needs: [changes]" in container_block
+    assert "lint" not in container_block.split("steps:", 1)[0]
+    assert "ac-traceability" not in container_block.split("steps:", 1)[0]
     assert "needs.changes.outputs.heavy_required == 'true'" in ci_workflow
     assert (
         "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
@@ -1479,28 +1485,43 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
     assert "issue #548" in project_readme
 
 
-def test_AC8_13_25_full_ci_waits_for_static_and_traceability_gates() -> None:
-    """AC8.13.25: Full CI waits for static and traceability gates."""
+def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> None:
+    """AC8.13.25: Full CI starts tests early while finish aggregates every gate."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     backend_block = workflow.split("  backend:", 1)[1].split("  frontend:", 1)[0]
+    frontend_block = workflow.split("  frontend:", 1)[1].split(
+        "  container-images:", 1
+    )[0]
+    image_block = workflow.split("  container-images:", 1)[1].split(
+        "  tooling-coverage:", 1
+    )[0]
+    tooling_block = workflow.split("  tooling-coverage:", 1)[1].split(
+        "  unified-coverage:", 1
+    )[0]
     traceability_block = workflow.split("  ac-traceability:", 1)[1].split(
         "  finish:", 1
     )[0]
+    finish_block = workflow.split("  finish:", 1)[1]
 
-    assert "needs: [changes, lint, ac-traceability]" in backend_block
-    assert (
-        "needs: [changes, backend-integration, backend-e2e-tier1, lint]"
-        not in backend_block
-    )
+    for block in (backend_block, frontend_block, image_block, tooling_block):
+        assert "needs: [changes]" in block
+        assert "lint" not in block.split("steps:", 1)[0]
+        assert "ac-traceability" not in block.split("steps:", 1)[0]
+
     assert "needs: [lint]" not in traceability_block
     assert "needs:" not in traceability_block.split("steps:", 1)[0]
+    assert (
+        "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, "
+        "container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
+        in finish_block
+    )
     assert "Standalone lint and AC traceability start immediately" in ci_cd
     assert (
-        "Full CI jobs wait for change classification, lint, and AC traceability"
-        in ci_cd
+        "Deterministic test and image jobs start after change classification" in ci_cd
     )
+    assert "finish remains the authoritative aggregate gate" in ci_cd
 
 
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
@@ -1523,39 +1544,48 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     )[0]
 
     for block in (backend_block, frontend_block, image_block):
-        assert "needs: [changes, lint, ac-traceability]" in block
+        assert "needs: [changes]" in block
         assert "backend-integration" not in block.split("steps:", 1)[0]
         assert "backend-e2e-tier1" not in block.split("steps:", 1)[0]
+        assert "lint" not in block.split("steps:", 1)[0]
+        assert "ac-traceability" not in block.split("steps:", 1)[0]
 
     assert "needs:" not in lint_block.split("steps:", 1)[0]
     assert "needs:" not in traceability_block.split("steps:", 1)[0]
     assert "Standalone gates start immediately" in ci_cd
     assert (
-        "Full CI jobs wait for change classification, lint, and AC traceability"
-        in ci_cd
+        "Deterministic test and image jobs start after change classification" in ci_cd
     )
     assert "Behavior-only backend gates run in parallel" in ci_cd
 
 
-def test_AC8_13_94_delivery_pipeline_contract_is_documented() -> None:
-    """AC8.13.94: delivery stages distinguish advisory, authority, and environment proof."""
+def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
+    """AC8.13.94: environments and pipeline stages are separate matrix axes."""
     ci_cd = read("docs/ssot/ci-cd.md")
     environments = read("docs/ssot/environments.md")
     readme = read("README.md")
 
     for token in (
-        "Local fast feedback",
-        "PR CI deterministic proof",
-        "PR Preview deployed proof",
-        "Staging merged-SHA proof",
-        "Production release proof",
+        "Environment Axis",
+        "Pipeline Stage Axis",
+        "Env x Stage Execution Matrix",
+        "local",
+        "pr",
+        "pr-preview",
+        "staging",
+        "prd",
+        "Changed/Affected UT",
+        "Lint/Static",
+        "Full UT",
+        "Regression/E2E",
         "Local runs are fast advisory gates",
         "PR CI is the deterministic merge authority",
         "deployed-environment proof gates",
     ):
         assert token in ci_cd
 
-    assert "environment taxonomy, delivery stages, and GitHub Actions jobs" in ci_cd
+    assert "not every environment runs every pipeline stage" in ci_cd
+    assert "environment taxonomy, pipeline stages, and GitHub Actions jobs" in ci_cd
     assert (
         "Environment taxonomy is not the delivery pipeline stage count" in environments
     )

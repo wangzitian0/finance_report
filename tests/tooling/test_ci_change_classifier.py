@@ -5,6 +5,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.ci import change_classifier as classifier  # noqa: E402
 from common.ci.change_classifier import (
+    ENV_STAGE_MATRIX,
+    Environment,
+    PipelineStage,
     classify_changed_paths,
     is_lightweight,
     is_pr_preview_relevant,
@@ -381,3 +384,59 @@ def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
     assert "pr_preview_required=false" in github_output.read_text(encoding="utf-8")
     assert "staging_required=false" in github_output.read_text(encoding="utf-8")
     assert "Changed files: `2`" in github_summary.read_text(encoding="utf-8")
+
+
+def test_AC8_13_97_env_stage_matrix_keeps_environments_separate_from_pipeline_stages() -> (
+    None
+):
+    """AC8.13.97: CI classification is modeled as sparse env x stage rules."""
+    assert set(ENV_STAGE_MATRIX) == {
+        Environment.LOCAL,
+        Environment.PR,
+        Environment.PR_PREVIEW,
+        Environment.STAGING,
+        Environment.PRODUCTION,
+    }
+    assert ENV_STAGE_MATRIX[Environment.LOCAL] == (
+        PipelineStage.CHANGED_UNIT,
+        PipelineStage.STATIC,
+    )
+    assert PipelineStage.FULL_UNIT in ENV_STAGE_MATRIX[Environment.PR]
+    assert PipelineStage.INTEGRATION in ENV_STAGE_MATRIX[Environment.PR]
+    assert PipelineStage.IMAGE_BUILD in ENV_STAGE_MATRIX[Environment.PR]
+    assert PipelineStage.DEPLOY_SMOKE not in ENV_STAGE_MATRIX[Environment.PR]
+    assert ENV_STAGE_MATRIX[Environment.PR_PREVIEW] == (
+        PipelineStage.IMAGE_BUILD,
+        PipelineStage.DEPLOY_SMOKE,
+        PipelineStage.E2E,
+    )
+    assert PipelineStage.PROVIDER_GATE in ENV_STAGE_MATRIX[Environment.STAGING]
+    assert PipelineStage.FULL_UNIT not in ENV_STAGE_MATRIX[Environment.STAGING]
+    assert ENV_STAGE_MATRIX[Environment.PRODUCTION] == (
+        PipelineStage.RELEASE_INTEGRITY,
+        PipelineStage.DEPLOY_SMOKE,
+    )
+
+
+def test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules() -> None:
+    """AC8.13.97: Shared runtime paths cannot drift between preview and staging classifiers."""
+    for path in classifier.COMMON_DEPLOY_RUNTIME_EXACT:
+        assert is_pr_preview_relevant(path) is True
+        assert is_staging_relevant(path) is True
+
+    for prefix in classifier.COMMON_DEPLOY_RUNTIME_PREFIXES:
+        path = f"{prefix}sentinel.py"
+        assert is_pr_preview_relevant(path) is True
+        assert is_staging_relevant(path) is True
+
+    assert classifier.ENV_STAGE_RULES[Environment.PR_PREVIEW].stages == (
+        PipelineStage.IMAGE_BUILD,
+        PipelineStage.DEPLOY_SMOKE,
+        PipelineStage.E2E,
+    )
+    assert classifier.ENV_STAGE_RULES[Environment.STAGING].stages == (
+        PipelineStage.IMAGE_BUILD,
+        PipelineStage.DEPLOY_SMOKE,
+        PipelineStage.E2E,
+        PipelineStage.PROVIDER_GATE,
+    )

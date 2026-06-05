@@ -3,6 +3,7 @@ import Decimal from 'decimal.js';
 import {
   parseAmount,
   formatAmount,
+  formatQuantity,
   sumAmounts,
   subtractAmounts,
   multiplyAmount,
@@ -104,6 +105,25 @@ describe('formatAmount', () => {
 
   it('should format negative values', () => {
     expect(formatAmount('-50.25')).toBe('-50.25');
+  });
+});
+
+describe('formatQuantity', () => {
+  it('AC2.8.2 formats integer quantities with grouping', () => {
+    expect(formatQuantity('1234567')).toBe('1,234,567');
+  });
+
+  it('AC2.8.2 preserves high precision fractional quantities', () => {
+    expect(formatQuantity('0.123456789')).toBe('0.123456789');
+  });
+
+  it('AC2.8.2 keeps at least two decimal places for fractional quantities', () => {
+    expect(formatQuantity('10.5')).toBe('10.50');
+  });
+
+  it('AC2.8.2 formats negative and non-finite quantities defensively', () => {
+    expect(formatQuantity('-1200.25')).toBe('-1,200.25');
+    expect(formatQuantity(Infinity)).toBe('0');
   });
 });
 

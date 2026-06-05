@@ -295,7 +295,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.22 | Staging deploy starts from successful main CI `workflow_run` before building or deploying | `test_AC8_13_22_staging_deploy_starts_from_successful_ci_before_building` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.23 | Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit | `test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.24 | AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report | `test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
-| AC8.13.25 | Backend tests and AC traceability start without waiting for lint when their own prerequisites are ready | `test_AC8_13_25_backend_and_traceability_do_not_wait_for_lint` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
+| AC8.13.25 | Full CI starts deterministic test and image jobs after change classification while `finish` aggregates lint, AC traceability, tests, image validation, coverage, and skipped-job semantics | `test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.26 | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift | `test_AC8_13_26_*` | `tests/tooling/` | P0 |
 | AC8.13.27 | Pull requests do not publish Coveralls status contexts; main-only Coveralls reporting remains separate from local deterministic coverage gates | `test_AC8_13_27_*` | `tests/tooling/` | P0 |
 | AC8.13.28 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
@@ -364,10 +364,11 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.91 | Main post-merge staging deploy failures open or update a persistent GitHub Issue alert, and the next successful staging run closes it | `test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
 | AC8.13.93 | Automatic staging promotion accepts only successful `push` CI workflow_run events on `main` and records triggering CI metadata in deploy artifacts | `test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.94 | Delivery pipeline documentation distinguishes local advisory feedback, PR merge authority, and deployed-environment proof stages | `test_AC8_13_94_delivery_pipeline_contract_is_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.94 | CI/CD documentation separates environment taxonomy from pipeline stages and declares the sparse env x stage execution matrix | `test_AC8_13_94_env_and_pipeline_stage_contract_is_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.95 | Local verification guidance defaults to affected fast tests and defines risk-triggered escalation for high-impact paths | `test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.96 | PR preview relevance classification includes preview workflow, lifecycle, and config changes while excluding docs-only and app test-only changes | `test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths` | `tests/tooling/test_ci_change_classifier.py` | P0 |
-| AC8.13.97 | Existing PR preview composes preserve compose identity, update allowlisted deploy env, and re-trigger `compose.deploy` so readiness can reject stale SHA rollouts without breaking preview routing | `test_AC8_13_97_existing_preview_compose_is_updated_before_deploy` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.97 | CI change classification exposes table-driven env/stage rules so shared runtime paths cannot drift between PR preview and staging deployed proof | `test_AC8_13_97_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
+| AC8.13.98 | Existing PR preview composes preserve compose identity, update allowlisted deploy env, and re-trigger `compose.deploy` so readiness can reject stale SHA rollouts without breaking preview routing | `test_AC8_13_98_existing_preview_compose_is_updated_before_deploy` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -398,6 +399,33 @@ job inventories or scenario counts into this EPIC.
 Current test counts and coverage percentages belong to generated reports and CI
 artifacts, not this EPIC. This section records which suites are allowed to
 serve as E2E proof surfaces.
+
+### 5.0 Env x Stage Delivery Matrix
+
+CI/CD proof is modeled as a sparse environment x pipeline stage matrix, not as a
+linear list of delivery stages. Environments define where proof runs; pipeline
+stages define what quality gate runs. Empty cells are intentional and must not
+be filled just for symmetry.
+
+| Env \ Stage | Changed/Affected UT | Lint/Static | Full UT | Integration | Regression/E2E | Image Build | Deploy Smoke | Provider Gate | Release Integrity |
+|---|---|---|---|---|---|---|---|---|---|
+| `local` | default | focused/static contracts | risk-triggered | risk-triggered | not default | no | no | no | no |
+| `pr` | covered by full gates | required | required for heavy changes | required for heavy changes | Tier-1/provider-free required | dry-run for heavy changes | no | no | no |
+| `pr-preview` | no | no | no | no | runtime/UI/API preview-relevant subset | push PR images | required health/version | no | no |
+| `staging` | no | no | no | no | merged-SHA non-LLM plus provider-backed regression | reuse or build missing SHA images | required | required when real-provider proof is needed | no |
+| `prd` | no | no | no | no | prod-safe smoke only | release image proof | required | no first-time proof | required |
+
+Operational interpretation:
+- Local optimizes left-shift speed and runs affected/focused checks by default,
+  not full remote-equivalent CI.
+- PR CI is the deterministic merge authority for business behavior, coverage,
+  traceability, and image build proof.
+- PR preview proves PR images can boot, route, report the expected version, and
+  pass provider-free deployed E2E for preview-relevant changes.
+- Staging consumes only successful `main` SHAs and proves real infra/provider
+  behavior for the exact merged commit.
+- Production proves release integrity and availability; it must not be the first
+  proof of deterministic business correctness.
 
 ### 5.1 E2E Proof Surface Ownership
 

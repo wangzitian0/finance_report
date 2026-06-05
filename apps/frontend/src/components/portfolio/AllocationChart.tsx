@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { amountToChartNumber, formatAmount } from "@/lib/currency";
 import { AllocationBreakdown } from "@/lib/types";
 import { PieChart } from "@/components/charts/PieChart";
 
@@ -63,7 +64,7 @@ export function AllocationChart({ type, title }: AllocationChartProps) {
 
     const segments = data.map((d, i) => ({
         label: d.category || "Unknown",
-        value: parseFloat(d.percentage),
+        value: amountToChartNumber(d.percentage),
         color: CHART_PALETTE[i % CHART_PALETTE.length],
     }));
 
@@ -82,7 +83,7 @@ export function AllocationChart({ type, title }: AllocationChartProps) {
                             <span className="truncate">{d.category || "Unknown"}</span>
                             <span className="text-xs text-muted">({d.count})</span>
                         </div>
-                        <span className="font-medium">{parseFloat(d.percentage).toFixed(1)}%</span>
+                        <span className="font-medium">{formatAmount(d.percentage, 1)}%</span>
                     </div>
                 ))}
             </div>

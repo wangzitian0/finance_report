@@ -401,10 +401,10 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_97_existing_preview_compose_is_updated_before_deploy(
+def test_AC8_13_98_existing_preview_compose_is_updated_before_deploy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.97: Existing PR previews update env before retriggering deploy."""
+    """AC8.13.98: Existing PR previews update env before retriggering deploy."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
