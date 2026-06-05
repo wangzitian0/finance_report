@@ -32,6 +32,7 @@ REGISTRY_PATHS = (
 VALID_SCOPES = {"behavioral", "static_contract", "manual_gate"}
 VALID_CI_TIERS = {"pr_ci", "post_merge_environment", "manual"}
 VALID_OUTCOME_STATUSES = {"covered", "partial", "gap"}
+VALID_TRUST_MODES = {"deterministic_pr", "llm_ocr_post_merge", "hybrid"}
 REQUIRED_OUTCOME_IDS = {
     "personal-financial-report-package",
     "asset-distribution-net-worth",
@@ -71,6 +72,9 @@ class ProofResult:
     test: str
     ac_ids: list[str]
     status: str
+    trust_mode: str = ""
+    source_classes: list[str] = field(default_factory=list)
+    mirror_proof_id: str = ""
     errors: list[str] = field(default_factory=list)
 
 
@@ -265,9 +269,20 @@ def _validate_proof(
     scope = str(proof.get("scope", ""))
     ci_tier = str(proof.get("ci_tier", ""))
     ac_ids = [str(ac_id) for ac_id in proof.get("ac_ids", [])]
+    trust_mode = str(proof.get("trust_mode", ""))
+    source_classes = [str(source_class) for source_class in proof.get("source_classes", [])]
+    mirror_proof_id = str(proof.get("mirror_proof_id", ""))
     rel_file = str(proof.get("file", ""))
     test_name = str(proof.get("test", ""))
     errors = list(shape_errors)
+
+    if trust_mode:
+        if trust_mode not in VALID_TRUST_MODES:
+            errors.append(f"{proof_id}: invalid trust_mode {trust_mode!r}")
+        if not source_classes:
+            errors.append(f"{proof_id}: source_classes are required when trust_mode is set")
+        if trust_mode == "llm_ocr_post_merge" and not mirror_proof_id:
+            errors.append(f"{proof_id}: llm_ocr_post_merge proof requires mirror_proof_id")
 
     for ac_id in ac_ids:
         if ac_id not in registry_ids:
@@ -282,6 +297,9 @@ def _validate_proof(
             test=test_name,
             ac_ids=ac_ids,
             status="fail" if errors else "manual",
+            trust_mode=trust_mode,
+            source_classes=source_classes,
+            mirror_proof_id=mirror_proof_id,
             errors=errors,
         )
 
@@ -297,14 +315,34 @@ def _validate_proof(
     if not path.exists():
         errors.append(f"{proof_id}: file does not exist: {rel_file}")
         return ProofResult(
-            proof_id, scope, ci_tier, rel_file, test_name, ac_ids, "fail", errors
+            proof_id,
+            scope,
+            ci_tier,
+            rel_file,
+            test_name,
+            ac_ids,
+            "fail",
+            trust_mode,
+            source_classes,
+            mirror_proof_id,
+            errors,
         )
 
     anchor = _find_anchor(path, test_name)
     if anchor is None:
         errors.append(f"{proof_id}: test anchor not found: {test_name}")
         return ProofResult(
-            proof_id, scope, ci_tier, rel_file, test_name, ac_ids, "fail", errors
+            proof_id,
+            scope,
+            ci_tier,
+            rel_file,
+            test_name,
+            ac_ids,
+            "fail",
+            trust_mode,
+            source_classes,
+            mirror_proof_id,
+            errors,
         )
 
     stable_refs = set(AC_PATTERN.findall(anchor.stable_text))
@@ -337,6 +375,9 @@ def _validate_proof(
         test=test_name,
         ac_ids=ac_ids,
         status="fail" if errors else scope,
+        trust_mode=trust_mode,
+        source_classes=source_classes,
+        mirror_proof_id=mirror_proof_id,
         errors=errors,
     )
 
@@ -347,13 +388,31 @@ def validate_matrix(repo_root: Path, matrix_path: Path) -> list[ProofResult]:
     if not isinstance(proofs, list) or not proofs:
         raise ValueError(f"{matrix_path} must define a non-empty proofs list")
     registry_ids = _load_registry_ids(repo_root)
-    return [
+    results = [
         _validate_proof(
             proof, repo_root=repo_root, registry_ids=registry_ids, index=index
         )
         for index, proof in enumerate(proofs)
         if isinstance(proof, dict)
     ]
+    by_id = {result.proof_id: result for result in results}
+    for result in results:
+        if not result.mirror_proof_id:
+            continue
+        mirror = by_id.get(result.mirror_proof_id)
+        if mirror is None:
+            result.errors.append(f"{result.proof_id}: unknown mirror_proof_id {result.mirror_proof_id}")
+            continue
+        if mirror.trust_mode != "deterministic_pr" or mirror.ci_tier != "pr_ci":
+            result.errors.append(
+                f"{result.proof_id}: mirror proof {result.mirror_proof_id} must be deterministic_pr in pr_ci"
+            )
+        missing_classes = sorted(set(result.source_classes) - set(mirror.source_classes))
+        if missing_classes:
+            result.errors.append(
+                f"{result.proof_id}: mirror proof {result.mirror_proof_id} missing source classes: {', '.join(missing_classes)}"
+            )
+    return results
 
 
 def _validate_outcome(
@@ -623,16 +682,18 @@ def render_report(
         "",
         "## Proofs",
         "",
-        "| ID | Scope | CI tier | AC IDs | Test anchor | Status |",
-        "|---|---|---|---|---|---|",
+        "| ID | Scope | CI tier | Trust mode | Source classes | AC IDs | Test anchor | Status |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for result in results:
         ac_cell = ", ".join(f"`{ac_id}`" for ac_id in result.ac_ids)
         anchor = f"`{result.file}::{result.test}`" if result.file else "_manual_"
         status = "fail" if result.errors else result.scope
+        source_cell = ", ".join(f"`{source_class}`" for source_class in result.source_classes) or "-"
+        trust_cell = result.trust_mode or "-"
         lines.append(
             f"| `{result.proof_id}` | {result.scope} | {result.ci_tier} | "
-            f"{ac_cell} | {anchor} | {status} |"
+            f"{trust_cell} | {source_cell} | {ac_cell} | {anchor} | {status} |"
         )
 
     if outcomes is not None:

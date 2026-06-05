@@ -403,6 +403,17 @@ class PersonalReportPackageReadinessBlocker(BaseModel):
         return _validate_internal_action_href(value)
 
 
+class PersonalReportPackageSourceTrustSummary(BaseModel):
+    """Source-class trust summary for package readiness consumers."""
+
+    source_classes: list[str] = Field(default_factory=list)
+    deterministic_pr_source_classes: list[str] = Field(default_factory=list)
+    post_merge_llm_ocr_source_classes: list[str] = Field(default_factory=list)
+    manual_trusted_source_classes: list[str] = Field(default_factory=list)
+    gap_source_classes: list[str] = Field(default_factory=list)
+    blocker_codes: list[str] = Field(default_factory=list)
+
+
 class PersonalReportPackageReadinessState(str, Enum):
     """Allowed states for the personal report package readiness contract."""
 
@@ -424,6 +435,9 @@ class PersonalReportPackageReadinessResponse(BaseModel):
     blocking_count: int
     blockers: list[PersonalReportPackageReadinessBlocker] = Field(default_factory=list)
     source_summary: dict[str, int | str] = Field(default_factory=dict)
+    source_trust_summary: PersonalReportPackageSourceTrustSummary = Field(
+        default_factory=PersonalReportPackageSourceTrustSummary
+    )
     generated_at: datetime | None = None
     stale_since: datetime | None = None
 
@@ -479,6 +493,10 @@ class PersonalReportPackageTraceabilityLine(BaseModel):
     ledger_anchor: PersonalReportPackageTraceabilityAnchor
     review_state: str
     confidence_tier: str
+    source_classes: list[str] = Field(default_factory=list)
+    proof_level: str = "unclassified"
+    anchor_count: int = 0
+    blocker_codes: list[str] = Field(default_factory=list)
 
 
 class PersonalReportPackageCompletenessWarning(BaseModel):

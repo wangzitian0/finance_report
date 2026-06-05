@@ -48,6 +48,10 @@ MARKET_DATA_STALE_AFTER_DAYS = 90
 FRAMEWORK_POLICY_ACTION_HREF = "/reports/package"
 
 
+def _sorted(values: set[str]) -> list[str]:
+    return sorted(values)
+
+
 def _blocker(
     code: str,
     label: str,
@@ -385,6 +389,30 @@ async def get_personal_report_package_readiness(
         "market_prices": market_price_count,
     }
     framework_policy_input_count = policy_account_count + position_count + manual_valuation_count + dividend_count
+    source_classes: set[str] = set()
+    deterministic_pr_source_classes: set[str] = set()
+    post_merge_llm_ocr_source_classes: set[str] = set()
+    manual_trusted_source_classes: set[str] = set()
+    gap_source_classes: set[str] = set()
+    if statement_count:
+        source_classes.update({"bank_statement", "csv_export"})
+        deterministic_pr_source_classes.update({"bank_statement", "csv_export"})
+        post_merge_llm_ocr_source_classes.add("bank_statement")
+    if position_count:
+        source_classes.add("brokerage_statement")
+        deterministic_pr_source_classes.add("brokerage_statement")
+        post_merge_llm_ocr_source_classes.add("brokerage_statement")
+    if manual_valuation_count:
+        source_classes.update({"property_statement", "liability_statement", "esop_rsu_plan", "manual_record"})
+        deterministic_pr_source_classes.update(
+            {"property_statement", "liability_statement", "esop_rsu_plan", "manual_record"}
+        )
+        manual_trusted_source_classes.update(
+            {"property_statement", "liability_statement", "esop_rsu_plan", "manual_record"}
+        )
+    if journal_entry_count:
+        source_classes.add("manual_record")
+        deterministic_pr_source_classes.add("manual_record")
     report_input_count = (
         statement_count
         + journal_entry_count
@@ -580,6 +608,13 @@ async def get_personal_report_package_readiness(
             stale_market_data_count=stale_market_data_count,
         )
     )
+    blocker_codes = {str(blocker["code"]) for blocker in blockers}
+    if "missing_source_coverage" in blocker_codes:
+        gap_source_classes.add("manual_record")
+    if "pending_review" in blocker_codes or "balance_mismatch" in blocker_codes:
+        gap_source_classes.add("bank_statement")
+    if "stale_market_data" in blocker_codes:
+        gap_source_classes.add("brokerage_statement")
 
     latest_snapshot_count = await _count(
         db,
@@ -648,6 +683,14 @@ async def get_personal_report_package_readiness(
         "blocking_count": sum(int(blocker["count"]) for blocker in blockers),
         "blockers": blockers,
         "source_summary": source_summary,
+        "source_trust_summary": {
+            "source_classes": _sorted(source_classes),
+            "deterministic_pr_source_classes": _sorted(deterministic_pr_source_classes),
+            "post_merge_llm_ocr_source_classes": _sorted(post_merge_llm_ocr_source_classes),
+            "manual_trusted_source_classes": _sorted(manual_trusted_source_classes),
+            "gap_source_classes": _sorted(gap_source_classes),
+            "blocker_codes": sorted(blocker_codes),
+        },
         "generated_at": latest_snapshot_updated_at,
         "stale_since": source_updated_at if state == "stale" else None,
     }
