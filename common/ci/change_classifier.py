@@ -21,6 +21,8 @@ LIGHTWEIGHT_PREFIXES = (
 )
 
 PR_PREVIEW_EXACT = {
+    ".github/workflows/pr-preview-cleanup.yml",
+    ".github/workflows/pr-test.yml",
     "apps/backend/Dockerfile",
     "apps/backend/alembic.ini",
     "apps/backend/pyproject.toml",
@@ -34,7 +36,10 @@ PR_PREVIEW_EXACT = {
     "apps/frontend/tsconfig.json",
     "docker-compose.yml",
     "tools/generate_pdf_fixtures.py",
+    "tools/pr_preview_lifecycle.py",
     "tools/smoke_test.sh",
+    "tools/_lib/dev/cleanup_pr_preview_resources.py",
+    "tools/_lib/dev/pr_preview_lifecycle.py",
 }
 PR_PREVIEW_PREFIXES = (
     "apps/backend/config/",

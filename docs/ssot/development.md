@@ -112,8 +112,11 @@ bash tools/infra.sh down          # Stop local infra
 moon run :dev -- --backend        # FastAPI backend after infra is running
 moon run :dev -- --frontend       # Next.js on :3000
 
-# Local CI / Verification (Recommended)
-moon run :lint && moon run :test  # One-button local gate (same gate family as GitHub CI)
+# Local verification
+moon run :test -- --smart         # Default affected fast gate for ordinary backend changes
+moon run :test -- --fast          # Fast TDD loop without coverage
+moon run :lint                    # Static checks before committing
+moon run :lint && moon run :test  # Full local confidence gate when risk or release timing justifies it
 
 # Testing
 moon run :test                    # All tests (backend threshold is code-owned by apps/backend/pyproject.toml)
@@ -135,6 +138,22 @@ python tools/check_toolchain_contract.py  # Runtime/toolchain drift check
 # Build
 moon run :build             # Build all
 ```
+
+Default local verification starts with affected fast tests. Use
+`moon run :test -- --smart` for ordinary backend changes, focused Vitest/spec
+runs for ordinary frontend changes, and focused tooling checks for docs/tooling
+changes. PR CI remains the authoritative merge gate.
+
+The full local confidence gate (`moon run :lint && moon run :test`) remains the
+same gate family as GitHub CI, but it is no longer the default local loop for
+ordinary low-risk edits.
+
+Risk-triggered local escalation is required for accounting, posting,
+reconciliation, money, balance, schema, migrations, API contract, OpenAPI,
+shared common/tooling, Docker, workflow, environment, and deploy changes. Use
+the focused domain, migration, API, downstream tooling, or static contract gates
+listed in [ci-cd.md](./ci-cd.md#path-risk-to-local-gate-matrix), then rely on
+PR CI and deployed gates for full consistency proof.
 
 Root Moon tasks are uncached wrappers with explicit workspace inputs, so local
 verification runs fresh and never treats the `repo` infra submodule gitlink as a
