@@ -303,6 +303,37 @@ export interface PersonalReportPackageTraceabilityResponse {
   completeness_warnings: PersonalReportPackageCompletenessWarning[];
 }
 
+export interface EvidenceLineageNode {
+  id: string;
+  node_kind: string;
+  entity_type: string;
+  entity_id: string;
+  properties: Record<string, string | number | boolean | null>;
+}
+
+export interface EvidenceLineageEdge {
+  id: string;
+  from_node_id: string;
+  to_node_id: string;
+  relation: string;
+  direction: "upstream" | "downstream";
+  depth: number;
+  properties: Record<string, string | number | boolean | null>;
+}
+
+export interface EvidenceLineageBlocker {
+  code: string;
+  message: string;
+}
+
+export interface EvidenceLineageResponse {
+  anchor: EvidenceLineageNode | null;
+  nodes: EvidenceLineageNode[];
+  edges: EvidenceLineageEdge[];
+  blockers: EvidenceLineageBlocker[];
+  max_depth: number;
+}
+
 export interface FrameworkPolicyEvidenceAnchor {
   anchor_id: string;
   anchor_type: string;

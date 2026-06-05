@@ -1,5 +1,6 @@
 "use client";
 
+import { Network, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -7,10 +8,12 @@ import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import type {
   AnnualizedIncomeScheduleResponse,
+  EvidenceLineageResponse,
   FrameworkPolicyResult,
   PersonalReportPackageContractResponse,
   PersonalReportPackageNotesResponse,
   PersonalReportPackageReadinessResponse,
+  PersonalReportPackageTraceabilityLine,
   PersonalReportPackageTraceabilityResponse,
 } from "@/lib/types";
 
@@ -63,6 +66,94 @@ function evidenceBundleReferences(
   ).sort();
 }
 
+type LineageAnchor = {
+  entity_type: string;
+  entity_id: string;
+  node_kind?: string;
+};
+
+type LineagePanelState = {
+  line: PersonalReportPackageTraceabilityLine;
+  response: EvidenceLineageResponse | null;
+  isLoading: boolean;
+  error: string | null;
+};
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseTypedIdentifier(identifier: string): {
+  type: string;
+  id: string;
+} | null {
+  const separator = identifier.indexOf(":");
+  if (separator <= 0) return null;
+  const type = identifier.slice(0, separator);
+  const id = identifier.slice(separator + 1);
+  if (!UUID_PATTERN.test(id)) return null;
+  return { type, id };
+}
+
+function lineageAnchorForLine(
+  line: PersonalReportPackageTraceabilityLine,
+): LineageAnchor | null {
+  const identifiers = [
+    ...(line.ledger_anchor.identifiers ?? []),
+    ...(line.source_anchor.identifiers ?? []),
+  ];
+  for (const identifier of identifiers) {
+    const parsed = parseTypedIdentifier(identifier);
+    if (!parsed) continue;
+    if (parsed.type === "journal_line") {
+      return {
+        entity_type: "journal_line",
+        entity_id: parsed.id,
+        node_kind: "ledger_line",
+      };
+    }
+    if (parsed.type === "uploaded_document") {
+      return {
+        entity_type: "uploaded_document",
+        entity_id: parsed.id,
+        node_kind: "source_document",
+      };
+    }
+    if (parsed.type === "statement_transaction") {
+      return {
+        entity_type: "bank_statement_transaction",
+        entity_id: parsed.id,
+        node_kind: "extracted_record",
+      };
+    }
+    if (parsed.type === "atomic_transaction") {
+      return {
+        entity_type: "atomic_transaction",
+        entity_id: parsed.id,
+        node_kind: "atomic_fact",
+      };
+    }
+  }
+  return null;
+}
+
+function lineageUrl(anchor: LineageAnchor): string {
+  const params = new URLSearchParams({
+    entity_type: anchor.entity_type,
+    entity_id: anchor.entity_id,
+  });
+  if (anchor.node_kind) params.set("node_kind", anchor.node_kind);
+  params.set("direction", "both");
+  params.set("max_depth", "6");
+  return `/api/evidence/lineage?${params.toString()}`;
+}
+
+function nodeLabel(node: {
+  entity_type: string;
+  entity_id: string;
+}): string {
+  return `${node.entity_type}:${node.entity_id}`;
+}
+
 export default function PersonalReportPackagePage() {
   const [contract, setContract] =
     useState<PersonalReportPackageContractResponse | null>(null);
@@ -81,6 +172,9 @@ export default function PersonalReportPackagePage() {
   );
   const [isPackageLoading, setIsPackageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(
+    null,
+  );
   const packageRequestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -167,6 +261,46 @@ export default function PersonalReportPackagePage() {
         packageRequestRef.current = null;
         setIsPackageLoading(false);
       }
+    }
+  }
+
+  async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
+    setLineagePanel({ line, response: null, isLoading: true, error: null });
+    const anchor = lineageAnchorForLine(line);
+    if (!anchor) {
+      setLineagePanel({
+        line,
+        response: {
+          anchor: null,
+          nodes: [],
+          edges: [],
+          blockers: [
+            {
+              code: "lineage_anchor_missing",
+              message: "No graph-compatible UUID anchor exists for this traceability row.",
+            },
+          ],
+          max_depth: 6,
+        },
+        isLoading: false,
+        error: null,
+      });
+      return;
+    }
+
+    try {
+      const response = await apiFetch<EvidenceLineageResponse>(
+        lineageUrl(anchor),
+      );
+      setLineagePanel({ line, response, isLoading: false, error: null });
+    } catch (err) {
+      setLineagePanel({
+        line,
+        response: null,
+        isLoading: false,
+        error:
+          err instanceof Error ? err.message : "Failed to load evidence lineage.",
+      });
     }
   }
 
@@ -716,6 +850,7 @@ export default function PersonalReportPackagePage() {
                 <th className="py-2 pr-4 font-medium">Ledger</th>
                 <th className="py-2 pr-4 font-medium">Review</th>
                 <th className="py-2 font-medium">Confidence</th>
+                <th className="py-2 pl-4 font-medium">Lineage</th>
               </tr>
             </thead>
             <tbody>
@@ -767,6 +902,17 @@ export default function PersonalReportPackagePage() {
                         </span>
                       ) : null}
                     </div>
+                  </td>
+                  <td className="py-3 pl-4">
+                    <button
+                      type="button"
+                      className="btn-secondary inline-flex h-9 w-9 items-center justify-center p-0"
+                      aria-label={`Trace lineage for ${line.line_id}`}
+                      title="Trace lineage"
+                      onClick={() => void openLineagePanel(line)}
+                    >
+                      <Network aria-hidden="true" className="h-4 w-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -835,6 +981,106 @@ export default function PersonalReportPackagePage() {
           </div>
         </dl>
       </section>
+      {lineagePanel ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/30 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Evidence Lineage"
+            className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded border border-[var(--border)] bg-[var(--background)] shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] p-4">
+              <div>
+                <p className="text-xs font-mono text-muted">
+                  {lineagePanel.line.line_id}
+                </p>
+                <h2 className="mt-1 font-semibold">Evidence Lineage</h2>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary inline-flex h-9 w-9 items-center justify-center p-0"
+                aria-label="Close evidence lineage"
+                onClick={() => setLineagePanel(null)}
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              {lineagePanel.isLoading ? (
+                <p className="text-sm text-muted">Loading evidence lineage...</p>
+              ) : lineagePanel.error ? (
+                <p className="text-sm text-[var(--error)]">
+                  {lineagePanel.error}
+                </p>
+              ) : lineagePanel.response ? (
+                <div className="space-y-5">
+                  {lineagePanel.response.blockers.length ? (
+                    <div className="space-y-2">
+                      {lineagePanel.response.blockers.map((blocker) => (
+                        <div
+                          key={blocker.code}
+                          className="rounded border border-[var(--border)] p-3"
+                        >
+                          <p className="font-mono text-xs">{blocker.code}</p>
+                          <p className="mt-1 text-sm text-muted">
+                            {blocker.message}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div>
+                    <h3 className="text-sm font-semibold">Nodes</h3>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {lineagePanel.response.nodes.map((node) => (
+                        <article
+                          key={node.id}
+                          className="rounded border border-[var(--border)] p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-mono text-xs">
+                              {node.node_kind}
+                            </p>
+                            <span className="badge badge-muted">
+                              {node.entity_type}
+                            </span>
+                          </div>
+                          <p className="mt-2 break-words font-mono text-[11px] text-muted">
+                            {nodeLabel(node)}
+                          </p>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold">Edges</h3>
+                    <div className="mt-3 space-y-2">
+                      {lineagePanel.response.edges.map((edge) => (
+                        <article
+                          key={edge.id}
+                          className="rounded border border-[var(--border)] p-3"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs">
+                              {edge.relation}
+                            </span>
+                            <span className="badge badge-muted">
+                              {edge.direction}
+                            </span>
+                            <span className="font-mono text-xs text-muted">
+                              depth {edge.depth}
+                            </span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

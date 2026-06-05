@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `115`
-- Schema count: `192`
+- Endpoint count: `116`
+- Schema count: `196`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -22,6 +22,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `auth` | 3 |
 | `chat` | 4 |
 | `corrections` | 2 |
+| `evidence` | 1 |
 | `income` | 1 |
 | `journal-entries` | 6 |
 | `market-data` | 3 |
@@ -108,6 +109,12 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `POST` | `/corrections` | yes | - | `CorrectionRequest` | `201` `CorrectionResponse` | Create Correction |
 | `GET` | `/corrections/stats` | yes | - | - | `200` `CorrectionStatsResponse` | Correction Stats |
+
+### evidence
+
+| Method | Path | Auth | Params | Request | Success responses | Summary |
+|---|---|---|---|---|---|---|
+| `GET` | `/evidence/lineage` | yes | `entity_type`* (query), `entity_id`* (query), `node_kind` (query), `direction` (query), `max_depth` (query) | - | `200` `EvidenceLineageResponse` | Get Evidence Lineage |
 
 ### income
 
