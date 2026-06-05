@@ -84,6 +84,10 @@ def validate_journal_posting_invariants(entry: JournalEntry) -> None:
 
     for line in entry.lines:
         account = line.account
+        if account is None:
+            raise ValidationError(f"Account {line.account_id} not found")
+        if account.user_id != entry.user_id:
+            raise ValidationError("Account does not belong to user")
         if account.is_system and entry.source_type != JournalEntrySourceType.SYSTEM:
             raise ValidationError(
                 "System accounts can only be used by system-generated entries. "
@@ -126,6 +130,7 @@ async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id:
         .join(JournalEntry)
         .where(JournalLine.account_id == account_id)
         .where(JournalLine.direction == Direction.DEBIT)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
     )
 
@@ -135,6 +140,7 @@ async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id:
         .join(JournalEntry)
         .where(JournalLine.account_id == account_id)
         .where(JournalLine.direction == Direction.CREDIT)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
     )
 
@@ -198,6 +204,7 @@ async def calculate_account_balances(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .join(Account, JournalLine.account_id == Account.id)
         .where(Account.user_id == user_id)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalLine.account_id.in_(account_ids))
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
         .group_by(JournalLine.account_id)
@@ -259,6 +266,28 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     return abs(left_side - right_side) < Decimal("0.01")
 
 
+async def validate_line_account_ownership(
+    db: AsyncSession,
+    user_id: UUID,
+    account_ids: set[UUID],
+) -> dict[UUID, Account]:
+    """Load and validate that every line account belongs to the current user."""
+    if not account_ids:
+        return {}
+
+    result = await db.execute(select(Account).where(Account.id.in_(account_ids)))
+    accounts = {account.id: account for account in result.scalars().all()}
+
+    missing = account_ids - set(accounts)
+    if missing:
+        raise ValidationError(f"Account {next(iter(missing))} not found")
+
+    if any(account.user_id != user_id for account in accounts.values()):
+        raise ValidationError("Account does not belong to user")
+
+    return accounts
+
+
 async def create_journal_entry(
     db: AsyncSession,
     user_id: UUID,
@@ -268,6 +297,12 @@ async def create_journal_entry(
     source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL,
     source_id: UUID | None = None,
 ) -> JournalEntry:
+    await validate_line_account_ownership(
+        db,
+        user_id,
+        {line_data["account_id"] for line_data in lines_data},
+    )
+
     entry = JournalEntry(
         user_id=user_id,
         entry_date=entry_date,

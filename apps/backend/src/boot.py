@@ -25,6 +25,8 @@ logger = get_logger(__name__)
 
 VAULT_SECRETS_FILE_PATH = "/secrets/.env"
 VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS = 3600
+DEVELOPMENT_SECRET_KEY = "dev_secret_key_change_in_prod"
+PROTECTED_ENVIRONMENTS = frozenset({"staging", "production"})
 
 
 class BootMode(str, Enum):
@@ -167,6 +169,19 @@ class Bootloader:
         try:
             # Just accessing settings triggers validation
             _ = settings.database_url
+            environment = str(getattr(settings, "environment", "")).lower()
+            secret_key = getattr(settings, "secret_key", "")
+            if environment in PROTECTED_ENVIRONMENTS:
+                if not isinstance(secret_key, str) or not secret_key.strip():
+                    logger.error("SECRET_KEY is required in protected environments", environment=environment)
+                    return False
+                normalized_secret = secret_key.strip()
+                if normalized_secret == DEVELOPMENT_SECRET_KEY:
+                    logger.error("Default development SECRET_KEY is forbidden", environment=environment)
+                    return False
+                if len(normalized_secret.encode("utf-8")) < 32:
+                    logger.error("SECRET_KEY must be at least 32 bytes", environment=environment)
+                    return False
             return True
         except Exception as e:
             logger.error("Configuration load failed", error=str(e))

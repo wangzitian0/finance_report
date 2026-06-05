@@ -2,52 +2,29 @@
 
 from uuid import UUID
 
-import bcrypt
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 
-from src.deps import DbSession
+from src.deps import CurrentUserId, DbSession
 from src.models import User
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-MOCK_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
-
-def hash_password(password: str) -> str:
-    """Hash a password."""
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
-
-
-def get_current_user_id() -> UUID:
-    """Return mock user ID until authentication is implemented."""
-    return MOCK_USER_ID
-
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
-    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> UserResponse:
-    """Create a new user."""
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    existing_user = result.scalar_one_or_none()
+    """Deprecated user creation route.
 
-    if existing_user:
-        raise_bad_request("Invalid registration data")
-
-    user = User(
-        email=user_data.email,
-        hashed_password=hash_password(user_data.password),
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    return UserResponse.model_validate(user)
+    Public registration is owned by /auth/register so this legacy route cannot
+    be used to create arbitrary users.
+    """
+    _ = (user_data, user_id)
+    raise_bad_request("Use /auth/register to create users")
 
 
 @router.get("", response_model=UserListResponse)
@@ -55,12 +32,14 @@ async def list_users(
     limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> UserListResponse:
-    """List all users with pagination."""
-    count_result = await db.execute(select(func.count(User.id)))
+    """List the authenticated user's profile only."""
+    scoped_query = select(User).where(User.id == user_id)
+    count_result = await db.execute(select(func.count()).select_from(scoped_query.subquery()))
     total = count_result.scalar_one()
 
-    result = await db.execute(select(User).order_by(User.created_at.desc()).limit(limit).offset(offset))
+    result = await db.execute(scoped_query.order_by(User.created_at.desc()).limit(limit).offset(offset))
     users = result.scalars().all()
 
     return UserListResponse(
@@ -73,8 +52,12 @@ async def list_users(
 async def get_user(
     user_id: UUID,
     db: DbSession = None,
+    current_user_id: CurrentUserId = None,
 ) -> UserResponse:
-    """Get user by ID."""
+    """Get current user by ID without cross-user disclosure."""
+    if user_id != current_user_id:
+        raise_not_found("User")
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
@@ -89,8 +72,12 @@ async def update_user(
     user_id: UUID,
     user_data: UserUpdate,
     db: DbSession = None,
+    current_user_id: CurrentUserId = None,
 ) -> UserResponse:
-    """Update user details."""
+    """Update current user details without cross-user mutation."""
+    if user_id != current_user_id:
+        raise_not_found("User")
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
