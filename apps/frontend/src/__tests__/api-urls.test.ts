@@ -64,6 +64,27 @@ describe('API URL Configuration Scenarios', () => {
 
       expect(JSON.stringify(rewrites)).not.toContain('localhost:8000')
     })
+
+    it('AC1.10.2 configures browser security headers for localStorage bearer-token risk', async () => {
+      const { default: nextConfig } = await import('../../next.config.mjs')
+
+      expect(typeof nextConfig.headers).toBe('function')
+      const headerRules = typeof nextConfig.headers === 'function'
+        ? await nextConfig.headers()
+        : []
+      const headers = Object.fromEntries(
+        headerRules.flatMap((rule: { headers: Array<{ key: string; value: string }> }) =>
+          rule.headers.map((header) => [header.key, header.value])
+        )
+      )
+
+      expect(headers['Content-Security-Policy']).toContain("default-src 'self'")
+      expect(headers['Content-Security-Policy']).toContain("frame-ancestors 'none'")
+      expect(headers['Strict-Transport-Security']).toContain('max-age=31536000')
+      expect(headers['X-Frame-Options']).toBe('DENY')
+      expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin')
+      expect(headers['Permissions-Policy']).toContain('camera=()')
+    })
   })
 
   describe('PR Environment', () => {

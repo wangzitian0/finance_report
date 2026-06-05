@@ -26,8 +26,11 @@ from src.models import (
 from src.services.accounting import (
     ValidationError,
     calculate_account_balance,
+    calculate_account_balances,
     create_journal_entry,
     post_journal_entry,
+    validate_journal_posting_invariants,
+    validate_line_account_ownership,
     verify_accounting_equation,
     void_journal_entry,
 )
@@ -195,6 +198,198 @@ async def test_post_journal_entry_success(db: AsyncSession, bank_account, salary
 
     assert posted_entry.status == JournalEntryStatus.POSTED
     assert posted_entry.id == entry.id
+
+
+@pytest.mark.asyncio
+async def test_AC2_13_1_create_journal_entry_rejects_cross_user_account(
+    db: AsyncSession,
+    bank_account,
+    salary_account,
+    test_user_id,
+):
+    """AC2.13.1: Manual journal creation rejects lines using another user's account."""
+    other_user_id = uuid4()
+    other_account = Account(
+        user_id=other_user_id,
+        name="Other User Cash",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(other_account)
+    await db.commit()
+    await db.refresh(other_account)
+
+    with pytest.raises(ValidationError, match="Account does not belong to user"):
+        await create_journal_entry(
+            db=db,
+            user_id=test_user_id,
+            entry_date=date.today(),
+            memo="Cross-user attempt",
+            lines_data=[
+                {"account_id": other_account.id, "direction": Direction.DEBIT, "amount": Decimal("10.00")},
+                {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("10.00")},
+            ],
+        )
+
+
+@pytest.mark.asyncio
+async def test_AC2_13_1_line_account_ownership_accepts_empty_line_set(
+    db: AsyncSession,
+    test_user_id,
+):
+    """AC2.13.1: Empty line account sets short-circuit without a database lookup."""
+    accounts = await validate_line_account_ownership(db, test_user_id, set())
+
+    assert accounts == {}
+
+
+@pytest.mark.asyncio
+async def test_AC2_13_1_line_account_ownership_rejects_missing_account(
+    db: AsyncSession,
+    test_user_id,
+):
+    """AC2.13.1: Journal lines cannot reference nonexistent accounts."""
+    missing_account_id = uuid4()
+
+    with pytest.raises(ValidationError, match=f"Account {missing_account_id} not found"):
+        await validate_line_account_ownership(db, test_user_id, {missing_account_id})
+
+
+@pytest.mark.asyncio
+async def test_AC2_13_2_post_journal_entry_rejects_cross_user_account(
+    db: AsyncSession,
+    bank_account,
+    salary_account,
+    test_user_id,
+):
+    """AC2.13.2: Posting validates that every line account belongs to the entry owner."""
+    other_user_id = uuid4()
+    other_account = Account(
+        user_id=other_user_id,
+        name="Other User Asset",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(other_account)
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Cross-user draft",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=other_account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("25.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=salary_account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("25.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    with pytest.raises(ValidationError, match="Account does not belong to user"):
+        await post_journal_entry(db, entry.id, test_user_id)
+
+
+@pytest.mark.asyncio
+async def test_AC2_13_2_posting_invariants_reject_line_with_missing_account_relationship(
+    test_user_id,
+):
+    """AC2.13.2: Posting invariants require every line to resolve to an account."""
+    missing_account_id = uuid4()
+    entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Missing account",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.DRAFT,
+    )
+    entry.lines = [
+        JournalLine(
+            journal_entry_id=uuid4(),
+            account_id=missing_account_id,
+            direction=Direction.DEBIT,
+            amount=Decimal("25.00"),
+            currency="SGD",
+        ),
+        JournalLine(
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.CREDIT,
+            amount=Decimal("25.00"),
+            currency="SGD",
+        ),
+    ]
+
+    with pytest.raises(ValidationError, match=f"Account {missing_account_id} not found"):
+        validate_journal_posting_invariants(entry)
+
+
+@pytest.mark.asyncio
+async def test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers(
+    db: AsyncSession,
+    bank_account,
+    salary_account,
+    test_user_id,
+):
+    """AC2.13.3: Balance aggregation requires account and entry ownership to match."""
+    other_user_id = uuid4()
+    other_account = Account(
+        user_id=other_user_id,
+        name="Other User Cash",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(other_account)
+    await db.flush()
+
+    polluted_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Pollution attempt",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(polluted_entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=polluted_entry.id,
+                account_id=other_account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("99.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=polluted_entry.id,
+                account_id=salary_account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("99.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    balances = await calculate_account_balances(db, [other_account], other_user_id)
+
+    assert balances[other_account.id] == Decimal("0")
 
 
 @pytest.mark.asyncio

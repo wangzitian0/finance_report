@@ -182,3 +182,31 @@ async def test_missing_currency_balances_as_base_currency():
     ]
 
     validate_journal_balance(lines)
+
+
+@pytest.mark.asyncio
+async def test_balance_validation_requires_fx_rate_for_foreign_currency_conversion():
+    """AC2.2.5: Balance conversion rejects non-base currency lines without fx_rate."""
+    lines = [
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="USD",
+            fx_rate=None,
+        ),
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.CREDIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+            fx_rate=None,
+        ),
+    ]
+
+    with pytest.raises(ValidationError, match="fx_rate required for currency USD"):
+        validate_journal_balance(lines)

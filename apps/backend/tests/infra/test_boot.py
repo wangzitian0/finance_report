@@ -10,6 +10,7 @@ from src.boot import Bootloader, Bootloader as BootloaderClass, BootMode, Servic
 
 _ORIGINAL_CHECK_DATABASE = BootloaderClass._check_database
 ZAI_CODING_BASE_URL = "https://api.z.ai/api/coding/paas/v4"
+pytestmark = pytest.mark.no_db
 
 
 @pytest.fixture
@@ -131,6 +132,42 @@ class TestBootloader:
 class TestBootloaderStaticConfig:
     def test_check_static_config_success(self, mock_settings):
         result = Bootloader._check_static_config()
+        assert result is True
+
+    def test_AC1_10_1_static_config_rejects_default_secret_key_in_production(self, mock_settings):
+        """AC1.10.1: Production startup refuses the development JWT secret."""
+        mock_settings.environment = "production"
+        mock_settings.secret_key = "dev_secret_key_change_in_prod"
+
+        result = Bootloader._check_static_config()
+
+        assert result is False
+
+    def test_AC1_10_1_static_config_rejects_short_secret_key_in_staging(self, mock_settings):
+        """AC1.10.1: Staging startup requires a high-entropy JWT secret."""
+        mock_settings.environment = "staging"
+        mock_settings.secret_key = "short-secret"
+
+        result = Bootloader._check_static_config()
+
+        assert result is False
+
+    def test_AC1_10_1_static_config_rejects_blank_secret_key_in_production(self, mock_settings):
+        """AC1.10.1: Protected environments require a configured JWT secret."""
+        mock_settings.environment = "production"
+        mock_settings.secret_key = "   "
+
+        result = Bootloader._check_static_config()
+
+        assert result is False
+
+    def test_AC1_10_1_static_config_allows_development_default_secret_key(self, mock_settings):
+        """AC1.10.1: Local development keeps convenient defaults."""
+        mock_settings.environment = "development"
+        mock_settings.secret_key = "dev_secret_key_change_in_prod"
+
+        result = Bootloader._check_static_config()
+
         assert result is True
 
     def test_check_static_config_failure(self):
@@ -387,6 +424,29 @@ class TestBootloaderOpenrouter:
 
             assert status.status == "ok"
             assert status.service == "ai_provider"
+
+    @pytest.mark.asyncio
+    async def test_check_openrouter_configured_catalog_skips_network_probe(self, mock_settings):
+        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.ai_model_catalog_source = "configured"
+
+        status = await Bootloader._check_openrouter()
+
+        assert status.status == "ok"
+        assert "Configured provider=" in status.message
+
+    @pytest.mark.asyncio
+    async def test_check_openrouter_remote_catalog_requires_base_url(self, mock_settings):
+        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.ai_base_url = None
+        mock_settings.openrouter_base_url = None
+
+        status = await Bootloader._check_openrouter()
+
+        assert status.status == "error"
+        assert status.message == "Base URL not configured"
 
     @pytest.mark.asyncio
     async def test_check_openrouter_auth_failure(self, mock_settings):

@@ -13,9 +13,11 @@
 | User context dependency | `apps/backend/src/auth.py` | `get_current_user_id` JWT resolver |
 | Global security gate | `apps/backend/src/main.py` | CORS and security middleware configuration |
 | User registration API | `apps/backend/src/routers/auth.py` | Registration and login endpoints |
+| Legacy user profile API | `apps/backend/src/routers/users.py` | Authenticated current-user compatibility routes only |
 | User model | `apps/backend/src/models/user.py` | Persistence for valid user IDs |
 | Frontend auth context | `apps/frontend/src/lib/auth.ts` | User session management |
 | API fetch with auth | `apps/frontend/src/lib/api.ts` | Bearer token injection |
+| Frontend security headers | `apps/frontend/next.config.mjs` | CSP and browser security response headers |
 
 ---
 
@@ -94,6 +96,7 @@ sequenceDiagram
 **Scope**:
 - Accounts, journal entries, statements, reports, reconciliation, and chat endpoints.
 - Reconciliation endpoints **must** be authenticated and user-scoped via `get_current_user_id`. Unauthenticated access to reconciliation data is **prohibited**, including in MVP and test environments.
+- Legacy `/users` routes are not a public registration surface. Public registration is owned by `/auth/register`; `/users` may only expose authenticated current-user compatibility operations.
 
 ---
 
@@ -218,6 +221,15 @@ Authenticates user with email and password.
 - Constant-time password comparison
 - Rate limiting: 5 attempts per 15 minutes per IP
 - Generic error message (doesn't reveal if email exists)
+
+### Legacy `/users` Compatibility API
+
+The `/users` router is retained for compatibility only:
+
+- `POST /users` requires authentication and returns a migration error directing clients to `/auth/register`.
+- `GET /users` returns only the authenticated user's profile.
+- `GET /users/{user_id}` and `PUT /users/{user_id}` are allowed only when `user_id` matches the JWT subject; other user IDs return not found.
+- Unauthenticated access to any `/users` route returns `401 Unauthorized`.
 
 ### GET /api/auth/me
 
@@ -364,6 +376,14 @@ Before production deployment, ensure:
 4. **Rate limiting** - Configure appropriate limits for production traffic
 5. **Token lifetime** - Consider shorter expiration for sensitive operations
 6. **Monitoring** - Track failed auth attempts for security analysis
+
+The backend bootloader enforces the first requirement for staging and
+production by refusing to start with the development default secret, an empty
+secret, or a secret shorter than 32 bytes.
+
+The frontend must emit security headers, including a Content Security Policy
+with `frame-ancestors 'none'`, because the current token storage model uses
+`localStorage`.
 
 ---
 

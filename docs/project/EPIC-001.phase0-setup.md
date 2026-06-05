@@ -137,6 +137,13 @@ Set up a runnable Monorepo development environment, complete user authentication
 |----|-------------|---------------|------|
 | AC1.9.1 | A new user can register, log in, create first ledger accounts, post a first manual entry, and preserve the accounting equation | `test_AC1_9_1_first_run_registration_account_entry_journey` | `integration/test_onboarding_e2e.py` |
 
+### AC1.10: Auth & Browser Security Hardening
+
+| ID | Requirement | Test Function | File |
+|----|-------------|---------------|------|
+| AC1.10.1 | Staging and production startup reject missing, default, or short JWT `SECRET_KEY` values | `test_AC1_10_1_static_config_*` | `infra/test_boot.py` |
+| AC1.10.2 | Frontend responses include security headers that mitigate localStorage bearer-token exposure | `AC1.10.2 configures browser security headers for localStorage bearer-token risk` | `src/__tests__/api-urls.test.ts` |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

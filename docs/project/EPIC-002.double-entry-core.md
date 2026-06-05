@@ -205,6 +205,14 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.12.2 | Accounting equation verification uses base-currency converted account balances | `test_AC2_12_2_accounting_equation_uses_base_currency_balances()` | `accounting/test_multicurrency_integrity.py` | P0 |
 | AC2.12.6 | Statement validation logic rejects invalid statement balance and transaction states | `test_validation.py` suite | `accounting/test_validation.py` | P0 |
 
+### AC2.13: User-Scoped Ledger Integrity
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.13.1 | Manual journal creation rejects lines using another user's account | `test_AC2_13_1_create_journal_entry_rejects_cross_user_account()` | `accounting/test_accounting_integration.py` | P0 |
+| AC2.13.2 | Posting validates that every line account belongs to the entry owner | `test_AC2_13_2_post_journal_entry_rejects_cross_user_account()` | `accounting/test_accounting_integration.py` | P0 |
+| AC2.13.3 | Balance aggregation requires account and entry ownership to match | `test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers()` | `accounting/test_accounting_integration.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC2.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
