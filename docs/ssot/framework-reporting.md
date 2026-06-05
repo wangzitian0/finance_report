@@ -61,6 +61,7 @@ canonical ledger + portfolio facts + evidence readiness + framework target
 
 The result must include:
 
+- stable policy result ID.
 - framework ID and report period.
 - required statements and schedules.
 - report line mappings.
@@ -78,14 +79,24 @@ Code-owned contract surfaces:
   IDs, policy fact domains, required policy dimensions, evidence anchors,
   policy decisions, explicit gaps, matrices, and policy results.
 - Matrix service: `apps/backend/src/services/framework_policy.py` owns the
-  deterministic v1 US-like/HK-like matrix and derives read-only policy results
-  from framework-neutral facts.
+  deterministic v1 US-like/HK-like matrix, builds framework-neutral facts from
+  existing user accounts, atomic positions, manual valuations, dividends, and
+  market-data overrides, then derives read-only policy results.
+- Package API: `GET /api/reports/package/framework-policy` returns the selected
+  framework policy result consumed by package assembly. `GET
+  /api/reports/package/contract` exposes supported framework IDs, the selected
+  framework ID when provided, and the policy result endpoint. `GET
+  /api/reports/package/readiness` accepts the same selected framework inputs and
+  evaluates framework policy blockers before marking output trusted.
 - Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that
   policy results reject missing dimensions, unsupported frameworks are closed
   out, supported domains carry all five policy dimensions, derivation is
   deterministic/read-only, US/HK outputs can differ from the same fixture, and
   unsupported instruments create explicit policy gaps instead of silently
   defaulting to market value.
+  `apps/backend/tests/reporting/test_framework_package_integration.py` covers
+  package API framework selection, DB-derived policy results, readiness
+  blockers, and reviewed AI policy-field requirements.
 
 ## 4. Minimum V1 Policy Matrix
 
@@ -136,6 +147,23 @@ framework requires evidence that is missing or unresolved, including:
 - stale market data without an explicit freshness disclosure.
 - AI-only measurement or disclosure suggestion that has not been accepted into
   structured policy fields.
+
+Required framework-aware blocker codes:
+
+- `unsupported_framework`: selected framework ID is outside the supported v1
+  enum.
+- `missing_framework_policy_result`: selected framework has report-supporting
+  inputs but no matching structured policy result.
+- `unsupported_policy_domain`: a framework-neutral fact has no deterministic
+  v1 rule for the selected framework.
+- `framework_policy_missing_dimensions`: a decision lacks recognition,
+  measurement, classification, presentation, or disclosure.
+- `framework_ai_suggestion_unreviewed`: AI-suggested policy fields are not
+  accepted structured fields with anchors and accepted values.
+- `missing_valuation_basis`: manual/private valuation snapshots included in
+  trusted totals lack an explicit valuation basis.
+- `stale_market_data`: listed security, ETF, mutual-fund, or bond positions
+  lack market prices dated within 90 days of the report date.
 
 Draft output may exist with blockers, but trusted output must expose the blocker
 state before presenting framework-specific statements as reliable.
