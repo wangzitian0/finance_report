@@ -996,3 +996,72 @@ async def test_market_data_sync_state_updates_when_provider_has_no_rows(
     )
     assert state is not None
     assert state.last_success_date == date(2026, 1, 11)
+
+
+@pytest.mark.asyncio
+async def test_market_data_status_requires_observation_date_for_freshness(
+    db: AsyncSession,
+) -> None:
+    """AC11.10.11: Freshness status requires data evidence, not only a recent provider call."""
+    observed_at = datetime(2026, 1, 11, tzinfo=UTC)
+    db.add(
+        MarketDataSyncState(
+            kind="stock",
+            scope="AAPL",
+            last_success_at=observed_at,
+            last_success_date=date(2026, 1, 11),
+            last_observation_date=None,
+            created_at=observed_at,
+            updated_at=observed_at,
+        )
+    )
+    await db.commit()
+
+    status = await market_data.get_market_data_status(
+        db,
+        symbols=["AAPL"],
+        now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC),
+    )
+
+    assert len(status) == 1
+    assert status[0].fresh is False
+    assert status[0].last_observation_date is None
+
+
+@pytest.mark.asyncio
+async def test_market_data_status_falls_back_to_persisted_observation_date(
+    db: AsyncSession,
+) -> None:
+    """AC11.10.11: Status backfills older sync states from persisted price evidence."""
+    observed_at = datetime(2026, 1, 11, tzinfo=UTC)
+    db.add_all(
+        [
+            StockPrice(
+                symbol="AAPL",
+                price=Decimal("190.000000"),
+                currency="USD",
+                price_date=date(2026, 1, 10),
+                source="test",
+            ),
+            MarketDataSyncState(
+                kind="stock",
+                scope="AAPL",
+                last_success_at=observed_at,
+                last_success_date=date(2026, 1, 11),
+                last_observation_date=None,
+                created_at=observed_at,
+                updated_at=observed_at,
+            ),
+        ]
+    )
+    await db.commit()
+
+    status = await market_data.get_market_data_status(
+        db,
+        symbols=["AAPL"],
+        now=datetime(2026, 1, 11, 1, 0, tzinfo=UTC),
+    )
+
+    assert len(status) == 1
+    assert status[0].fresh is True
+    assert status[0].last_observation_date == date(2026, 1, 10)

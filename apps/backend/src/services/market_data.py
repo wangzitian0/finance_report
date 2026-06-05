@@ -631,11 +631,19 @@ async def _sync_scope_status(
     last_success_at = _normalize_utc(state.last_success_at) if state is not None else fallback_success_at
     latest_observation_date = await _latest_observation_date(db, kind, scope)
     last_success_date = state.last_success_date if state is not None else latest_observation_date
-    last_observation_date = state.last_observation_date if state is not None else latest_observation_date
+    last_observation_date = (
+        state.last_observation_date
+        if state is not None and state.last_observation_date is not None
+        else latest_observation_date
+    )
     return MarketDataScopeStatus(
         kind=kind,
         scope=scope,
-        fresh=last_success_at is not None and last_success_at >= now - _FRESHNESS_THRESHOLD,
+        fresh=(
+            last_success_at is not None
+            and last_success_at >= now - _FRESHNESS_THRESHOLD
+            and last_observation_date is not None
+        ),
         last_success_at=last_success_at,
         last_success_date=last_success_date,
         last_observation_date=last_observation_date,

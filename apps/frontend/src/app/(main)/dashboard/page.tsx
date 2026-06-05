@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Landmark, FileText, BookOpen } from "lucide-react";
 import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
 import { UploadToReportHomePanel } from "@/components/workflow/WorkflowNotifications";
+import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
@@ -15,8 +16,10 @@ import { PieChart } from "@/components/charts/PieChart";
 import { TrendChart } from "@/components/charts/TrendChart";
 import {
   AccountListResponse,
+  AdvisorSuggestion,
   BankStatementListResponse,
   BalanceSheetResponse,
+  ChatSuggestionsResponse,
   AnnualizedIncomeResponse,
   IncomeStatementResponse,
   JournalEntryListResponse,
@@ -121,6 +124,7 @@ export default function DashboardPage() {
   const [unmatched, setUnmatched] = useState<UnmatchedTransactionsResponse | null>(null);
   const [recentEntries, setRecentEntries] = useState<JournalEntryListResponse | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [advisorSuggestions, setAdvisorSuggestions] = useState<AdvisorSuggestion[]>([]);
   const [annualizedIncome, setAnnualizedIncome] = useState<AnnualizedIncomeResponse | null>(null);
   const [restrictedHoldings, setRestrictedHoldings] = useState<RestrictedHolding[]>([]);
   const [includeRestricted, setIncludeRestricted] = useState(false);
@@ -146,6 +150,7 @@ export default function DashboardPage() {
         accountData,
         statementData,
         postedJournalData,
+        chatSuggestionsData,
       ] = await Promise.all([
         apiFetch<BalanceSheetResponse>(`/api/reports/balance-sheet?include_restricted=${includeRestricted ? "true" : "false"}`),
         apiFetch<IncomeStatementResponse>(`/api/reports/income-statement?start_date=${incomeStart}&end_date=${incomeEnd}`),
@@ -157,6 +162,10 @@ export default function DashboardPage() {
         apiFetch<AccountListResponse>("/api/accounts?limit=1"),
         apiFetch<BankStatementListResponse>("/api/statements"),
         apiFetch<JournalEntryListResponse>("/api/journal-entries?status_filter=posted&limit=1"),
+        apiFetch<ChatSuggestionsResponse>("/api/chat/suggestions?language=en").catch(() => ({
+          suggestions: [],
+          structured_suggestions: [],
+        })),
       ]);
       setBalanceSheet(normalizeBalanceSheet(balanceData));
       setIncomeStatement(normalizeIncomeStatement(incomeData));
@@ -171,6 +180,7 @@ export default function DashboardPage() {
         approvedStatementCount: statementData?.items?.filter((statement) => statement.status === "approved").length ?? 0,
         postedEntryCount: postedJournalData?.total ?? 0,
       });
+      setAdvisorSuggestions(chatSuggestionsData?.structured_suggestions ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
@@ -234,6 +244,12 @@ export default function DashboardPage() {
       <div className="mb-6">
         <UploadToReportHomePanel />
       </div>
+
+      {advisorSuggestions.length > 0 ? (
+        <div className="mb-6">
+          <AdvisorBrief suggestions={advisorSuggestions} />
+        </div>
+      ) : null}
 
       <section className="mb-6" aria-label="Dashboard analytics">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -213,6 +213,8 @@ async def delete_session(
 async def suggestions(
     language: str | None = Query(default=None, pattern="^(en|zh)$"),
     message: str | None = Query(default=None, max_length=4000),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
 ) -> ChatSuggestionsResponse:
     """Return a suggested question list for the chat UI."""
     resolved_language = language or (detect_language(message) if message else "en")
@@ -231,4 +233,11 @@ async def suggestions(
         "\u6709\u6ca1\u6709\u5f02\u5e38\u7684\u6d88\u8d39\u8d8b\u52bf\uff1f",
     ]
     suggestions = suggestions_zh if resolved_language == "zh" else suggestions_en
-    return ChatSuggestionsResponse(suggestions=suggestions)
+    structured_suggestions = []
+    if db is not None and user_id is not None:
+        try:
+            context = await AIAdvisorService().get_advisor_context(db, user_id)
+            structured_suggestions = context.get("suggestions") or []
+        except Exception as exc:
+            logger.warning("Failed to load structured chat suggestions", error=str(exc))
+    return ChatSuggestionsResponse(suggestions=suggestions, structured_suggestions=structured_suggestions)
