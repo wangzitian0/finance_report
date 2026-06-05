@@ -273,9 +273,10 @@ PATCH /workflow/events/{event_id}
 - `primary_state`: `empty`, `processing`, `needs_action`, `blocked`, or
   `ready`.
 - `next_action`: `upload`, `wait`, `review_required`, `resolve_blocker`,
-  `open_report`, or `none`, plus a count and internal route.
+  `open_report`, or `none`, plus a count, internal route, cockpit label, and
+  cockpit summary.
 - `report_readiness`: `none`, `processing`, `ready`, `blocked`, or `stale`,
-  plus a blocking count and `/reports` route.
+  plus a blocking count and `/reports/package` route.
 - `event_counts`: unread, action-required, and blocked counts.
 - `active_session`: current active workflow session summary, or null when no
   workflow state exists.
@@ -360,9 +361,13 @@ Upload-to-Report home rules:
 - The first viewport renders workflow state, the primary next action, report
   readiness, active workflow session state, and a recent timeline preview before
   KPI, chart, reconciliation, or activity analytics.
-- The primary CTA uses `workflow.status.next_action.href`. Upload is the
-  default label only when no higher-priority blocker or action-required state
-  wins the workflow priority.
+- The primary CTA uses `workflow.status.next_action.href`,
+  `workflow.status.next_action.label`, and
+  `workflow.status.next_action.summary`. Upload is the default label only when
+  no higher-priority blocker or action-required state wins the workflow
+  priority.
+- Processing actions route to `/events` so the user sees session history rather
+  than a raw statement list. Ready actions route directly to `/reports/package`.
 - Report readiness appears above secondary analytics and links to the report or
   readiness action route from the workflow status contract.
 - Routine automation is summarized; blocked and action-required events remain

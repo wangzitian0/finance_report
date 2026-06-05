@@ -78,12 +78,17 @@ function routineEvents(events: WorkflowEventResponse[]) {
 }
 
 function nextActionLabel(status: WorkflowStatusResponse) {
+  if (status.next_action.label) return status.next_action.label;
   if (status.next_action.type === "upload") return "Upload statements";
   if (status.next_action.type === "review_required") return "Review required";
   if (status.next_action.type === "resolve_blocker") return "Resolve blocker";
-  if (status.next_action.type === "open_report") return "Open reports";
+  if (status.next_action.type === "open_report") return "Open report package";
   if (status.next_action.type === "wait") return "View processing";
   return "Open workflow";
+}
+
+function nextActionSummary(status: WorkflowStatusResponse) {
+  return status.next_action.summary || workflowStateCopy(status);
 }
 
 function workflowStateCopy(status: WorkflowStatusResponse) {
@@ -471,7 +476,7 @@ export function WorkflowStatusFeed({ status, events }: WorkflowStatusFeedProps) 
   );
   const routineCount = routineEvents(events).length;
   const primaryHref = status.next_action.href;
-  const primaryLabel = status.next_action.type === "upload" ? "Upload statements" : "Open next action";
+  const primaryLabel = nextActionLabel(status);
   const readinessLabel = `Report ${sentenceFromSnake(status.report_readiness.state)}`;
 
   if (status.primary_state === "empty" && events.length === 0) {
@@ -582,6 +587,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold">{activeSession?.title ?? "Upload to report"}</h1>
               <p className="mt-2 max-w-2xl text-sm text-muted">{workflowStateCopy(status)}</p>
+              <p className="mt-2 max-w-2xl text-sm font-medium">{nextActionSummary(status)}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge variant={severityBadgeVariant(status.primary_state === "blocked" ? "blocked" : "info")}>
                   {labelFromSnake(status.primary_state)}

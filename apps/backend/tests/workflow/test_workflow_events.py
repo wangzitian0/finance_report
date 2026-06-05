@@ -73,11 +73,14 @@ def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
         "`/dashboard` is the authenticated home for the upload-to-report workflow",
         "UploadToReportHome",
         "Dashboard first viewport",
+        "workflow.status.next_action.label",
+        "Ready actions route directly to `/reports/package`",
         "Secondary dashboard metric loading or failure must not hide the workflow",
     ):
         assert phrase in ssot
 
     assert "AC19.4.1" in epic
+    assert "AC19.4.8" in epic
     assert "AC19.4.7" in epic
     normalized_epic = " ".join(epic.split())
     assert "secondary analytics below the workflow entry surface" in normalized_epic

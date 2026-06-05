@@ -84,6 +84,8 @@ class WorkflowNextActionResponse(BaseModel):
     type: WorkflowNextActionType
     count: int = Field(ge=0)
     href: str
+    label: str = Field(min_length=1, max_length=80)
+    summary: str = Field(min_length=1, max_length=240)
 
     @field_validator("href")
     @classmethod

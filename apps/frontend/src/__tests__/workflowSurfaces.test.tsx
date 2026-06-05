@@ -36,8 +36,14 @@ vi.mock("@/lib/api", () => ({
 
 const statusNeedsAction: WorkflowStatusResponse = {
   primary_state: "needs_action",
-  next_action: { type: "review_required", count: 2, href: "/review" },
-  report_readiness: { state: "blocked", blocking_count: 2, href: "/reports" },
+  next_action: {
+    type: "review_required",
+    count: 2,
+    href: "/review",
+    label: "Review required",
+    summary: "Confirm the source or review item so trusted report preparation can continue.",
+  },
+  report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
   event_counts: { unread: 3, action_required: 2, blocked: 1 },
   active_session: {
     id: "session-1",
@@ -48,15 +54,21 @@ const statusNeedsAction: WorkflowStatusResponse = {
     last_event_at: "2026-06-03T08:00:00Z",
     source_count: 4,
     primary_state: "needs_action",
-    report_readiness: { state: "blocked", blocking_count: 2, href: "/reports" },
+    report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
     event_counts: { unread: 3, action_required: 2, blocked: 1 },
   },
 }
 
 const statusEmpty: WorkflowStatusResponse = {
   primary_state: "empty",
-  next_action: { type: "upload", count: 0, href: "/statements/upload" },
-  report_readiness: { state: "none", blocking_count: 0, href: "/reports" },
+  next_action: {
+    type: "upload",
+    count: 0,
+    href: "/statements/upload",
+    label: "Upload statements",
+    summary: "Add source documents to start the upload-to-report workflow.",
+  },
+  report_readiness: { state: "none", blocking_count: 0, href: "/reports/package" },
   event_counts: { unread: 0, action_required: 0, blocked: 0 },
 }
 
@@ -146,7 +158,7 @@ const workflowEvents: WorkflowEventListResponse = {
       last_event_at: "2026-06-03T08:00:00Z",
       source_count: 4,
       primary_state: "needs_action",
-      report_readiness: { state: "blocked", blocking_count: 2, href: "/reports" },
+      report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
       event_counts: { unread: 3, action_required: 2, blocked: 1 },
     },
   ],
@@ -252,7 +264,7 @@ describe("workflow notification surfaces", () => {
     const { rerender } = render(<WorkflowStatusFeed status={statusNeedsAction} events={workflowEvents.items} />)
 
     expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
-    expect(screen.getByText("Review required")).toBeInTheDocument()
+    expect(screen.getAllByText("Review required").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("Report blocked")).toBeInTheDocument()
     expect(screen.getByText("Routine automation")).toBeInTheDocument()
     expect(screen.getByText("2 routine events")).toBeInTheDocument()
@@ -270,7 +282,7 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
     expect(screen.getByText("Review the required action so automation can continue.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /^Review required$/i })).toHaveAttribute("href", "/review")
-    expect(screen.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports")
+    expect(screen.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports/package")
     expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Action required" })).toBeInTheDocument()
@@ -296,8 +308,14 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "ready",
-          next_action: { type: "open_report", count: 0, href: "/reports" },
-          report_readiness: { state: "ready", blocking_count: 0, href: "/reports" },
+          next_action: {
+            type: "open_report",
+            count: 0,
+            href: "/reports/package",
+            label: "Open report package",
+            summary: "Inspect the personal report package and its readiness evidence.",
+          },
+          report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
           event_counts: { unread: 0, action_required: 0, blocked: 0 },
         }}
         events={workflowEvents.items.slice(2)}
@@ -305,15 +323,21 @@ describe("workflow notification surfaces", () => {
     )
 
     expect(screen.getByText("Reports are ready to inspect.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Open reports/i })).toHaveAttribute("href", "/reports")
+    expect(screen.getByRole("link", { name: /Open report package/i })).toHaveAttribute("href", "/reports/package")
     expect(screen.getAllByText("Report ready")[0]).toBeInTheDocument()
 
     rerender(
       <UploadToReportHome
         status={{
           primary_state: "processing",
-          next_action: { type: "wait", count: 0, href: "/events" },
-          report_readiness: { state: "processing", blocking_count: 0, href: "/reports" },
+          next_action: {
+            type: "wait",
+            count: 0,
+            href: "/events",
+            label: "View processing",
+            summary: "Automation is processing source files; open the session timeline for progress.",
+          },
+          report_readiness: { state: "processing", blocking_count: 0, href: "/reports/package" },
           event_counts: { unread: 1, action_required: 0, blocked: 0 },
         }}
         events={[workflowEvents.items[3]]}
@@ -328,8 +352,14 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "blocked",
-          next_action: { type: "resolve_blocker", count: 1, href: "/reconciliation/unmatched" },
-          report_readiness: { state: "stale", blocking_count: 1, href: "/reports" },
+          next_action: {
+            type: "resolve_blocker",
+            count: 1,
+            href: "/reconciliation/unmatched",
+            label: "Resolve blocker",
+            summary: "Resolve the blocking condition before the report package can be trusted.",
+          },
+          report_readiness: { state: "stale", blocking_count: 1, href: "/reports/package" },
           event_counts: { unread: 1, action_required: 0, blocked: 1 },
         }}
         events={[workflowEvents.items[0]]}
@@ -347,8 +377,14 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "ready",
-          next_action: { type: "unknown" as WorkflowStatusResponse["next_action"]["type"], count: 0, href: "/events" },
-          report_readiness: { state: "none", blocking_count: 0, href: "/reports" },
+          next_action: {
+            type: "unknown" as WorkflowStatusResponse["next_action"]["type"],
+            count: 0,
+            href: "/events",
+            label: "",
+            summary: "",
+          },
+          report_readiness: { state: "none", blocking_count: 0, href: "/reports/package" },
           event_counts: { unread: 0, action_required: 0, blocked: 0 },
         }}
         events={[]}
