@@ -372,6 +372,33 @@ def deploy_compose(
     print(f"{action} triggered for compose: {compose_id}")
 
 
+def stop_compose(config: DokployConfig, *, compose_id: str) -> None:
+    dokploy_api_call(
+        config,
+        "POST",
+        "compose.stop",
+        payload={"composeId": compose_id},
+    )
+    print(f"Stop triggered for compose: {compose_id}")
+
+
+def start_compose(config: DokployConfig, *, compose_id: str) -> None:
+    try:
+        dokploy_api_call(
+            config,
+            "POST",
+            "compose.start",
+            payload={"composeId": compose_id},
+        )
+    except RuntimeError:
+        print(
+            f"Start request did not return for compose: {compose_id}; "
+            "continuing to readiness gate"
+        )
+        return
+    print(f"Start triggered for compose: {compose_id}")
+
+
 def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
     dokploy_api_call(
         config,
@@ -407,7 +434,11 @@ def deploy_action(args: argparse.Namespace) -> int:
             internal_domain=args.internal_domain,
         ),
     )
+    if existing_compose:
+        stop_compose(config, compose_id=compose_id)
     deploy_compose(config, compose_id=compose_id)
+    if existing_compose:
+        start_compose(config, compose_id=compose_id)
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")

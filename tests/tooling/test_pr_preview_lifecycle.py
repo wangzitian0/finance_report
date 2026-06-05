@@ -367,6 +367,13 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
                 stdout=json.dumps({"env": effective_env}),
                 stderr="",
             )
+        if "compose.start" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                28,
+                stdout="",
+                stderr="curl: (28) Operation timed out",
+            )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
 
     monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
@@ -401,10 +408,10 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_98_existing_preview_compose_is_updated_before_deploy(
+def test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.98: Existing PR previews update env before retriggering deploy."""
+    """AC8.13.98: Existing PR previews restart around deploy."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
@@ -467,8 +474,12 @@ def test_AC8_13_98_existing_preview_compose_is_updated_before_deploy(
     assert "compose.create" not in rendered_calls
     assert "compose.update" in rendered_calls
     assert "compose.one" in rendered_calls
+    assert "compose.stop" in rendered_calls
     assert "compose.deploy" in rendered_calls
+    assert "compose.start" in rendered_calls
     assert "compose.redeploy" not in rendered_calls
+    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.deploy")
+    assert rendered_calls.index("compose.deploy") < rendered_calls.index("compose.start")
     assert "secret-key" not in rendered_calls
 
 
