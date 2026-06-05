@@ -20,6 +20,12 @@
 | **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
 | **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
+Environment taxonomy is not the delivery pipeline stage count. The delivery
+pipeline is documented in [ci-cd.md](./ci-cd.md) as local fast feedback, PR CI
+deterministic proof, PR Preview deployed proof, staging merged-SHA proof, and
+production release proof. GitHub Actions jobs are implementation lanes within
+those stages.
+
 ---
 
 ## Key Differences
