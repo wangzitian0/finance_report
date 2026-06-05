@@ -69,7 +69,7 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
         mock_service.get_advisor_context = AsyncMock(return_value={"suggestions": [advisor_fact]})
         MockService.return_value = mock_service
 
-        response = await suggestions(language="en", db=mock_db, user_id=mock_user_id)
+        response = await suggestions(language="en", include_structured=True, db=mock_db, user_id=mock_user_id)
 
     assert response.suggestions
     assert len(response.structured_suggestions) == 1
@@ -80,6 +80,23 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
     assert structured.limitation == advisor_fact["limitation"]
     assert structured.next_action_href == "/reports/package"
     mock_service.get_advisor_context.assert_awaited_once_with(mock_db, mock_user_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.no_db
+async def test_AC21_3_1_chat_suggestions_default_stays_lightweight() -> None:
+    """AC21.3.1: Base chat suggestions do not load Advisor Brief facts unless requested."""
+    from src.routers.chat import suggestions
+
+    mock_db = MagicMock()
+    mock_user_id = uuid4()
+
+    with patch("src.routers.chat.AIAdvisorService") as MockService:
+        response = await suggestions(language="en", db=mock_db, user_id=mock_user_id)
+
+    assert response.suggestions
+    assert response.structured_suggestions == []
+    MockService.assert_not_called()
 
 
 @pytest.mark.asyncio

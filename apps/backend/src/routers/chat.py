@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -213,6 +214,15 @@ async def delete_session(
 async def suggestions(
     language: str | None = Query(default=None, pattern="^(en|zh)$"),
     message: str | None = Query(default=None, max_length=4000),
+    include_structured: Annotated[
+        bool,
+        Query(
+            description=(
+                "Include source-cited Advisor Brief suggestions. Defaults to false so the base "
+                "suggestion list stays lightweight."
+            ),
+        ),
+    ] = False,
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> ChatSuggestionsResponse:
@@ -234,7 +244,7 @@ async def suggestions(
     ]
     suggestions = suggestions_zh if resolved_language == "zh" else suggestions_en
     structured_suggestions = []
-    if db is not None and user_id is not None:
+    if include_structured and db is not None and user_id is not None:
         try:
             context = await AIAdvisorService().get_advisor_context(db, user_id)
             structured_suggestions = context.get("suggestions") or []

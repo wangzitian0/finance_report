@@ -88,12 +88,14 @@ serialized structured facts and must preserve blocked, stale, unreviewed,
 unsupported, and manual-trusted limitations instead of converting them into
 trusted conclusions.
 
-Frontend Advisor Brief surfaces consume
-`GET /api/chat/suggestions.structured_suggestions`; they must render structured
-facts directly rather than parsing LLM prose. Any `next_action_href` shown to
-users must be normalized through the Advisor Brief safe-route allowlist before
-link rendering, and contextual chat entry links must seed scoped prompts through
-`/chat?prompt=...` without clearing the user's existing chat session.
+Frontend Advisor Brief surfaces consume the `structured_suggestions` response
+field from `GET /api/chat/suggestions` only when they explicitly send
+`include_structured=true`; they must render structured facts directly rather
+than parsing LLM prose. Callers that only need the base suggested-question list
+must omit the flag so the endpoint remains lightweight. Any `next_action_href`
+shown to users must be normalized through the Advisor Brief safe-route allowlist
+before link rendering, and contextual chat entry links must seed scoped prompts
+through `/chat?prompt=...` without clearing the user's existing chat session.
 
 ### 2.4 Financial Suggestion Scope
 

@@ -120,8 +120,8 @@ export function AdvisorBrief({
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {suggestion.source_refs.length ? (
-                  suggestion.source_refs.map((source) => (
-                    <span key={source} className="badge badge-info">
+                  suggestion.source_refs.map((source, sourceIndex) => (
+                    <span key={`${source}-${sourceIndex}`} className="badge badge-info">
                       {source}
                     </span>
                   ))

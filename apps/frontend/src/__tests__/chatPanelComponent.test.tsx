@@ -108,6 +108,11 @@ describe("ChatPanel", () => {
   it("AC21.3.3 test_AC21_3_3_chat_panel_renders_contextual_advisor_brief", async () => {
     render(<ChatPanel variant="page" />)
 
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/chat/suggestions?language=en&include_structured=true"),
+      ),
+    )
     const brief = await screen.findByLabelText("Advisor Brief")
     expect(within(brief).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument()
     expect(within(brief).getByText("Review the blocker before relying on this report.")).toBeInTheDocument()
