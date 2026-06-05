@@ -390,14 +390,6 @@ def deploy_action(args: argparse.Namespace) -> int:
         compose_name=args.compose_name,
         pr_number=args.pr_number,
     )
-    if existing_compose:
-        delete_compose(config, compose_id=compose_id)
-        compose_id = create_compose(
-            config,
-            environment_id=args.environment_id,
-            compose_name=args.compose_name,
-            pr_number=args.pr_number,
-        )
     update_compose_source(
         config,
         compose_id=compose_id,

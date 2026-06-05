@@ -401,13 +401,12 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_97_existing_preview_compose_is_recreated_before_deploy(
+def test_AC8_13_97_existing_preview_compose_is_updated_before_deploy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.97: Existing PR previews are recreated to avoid stale containers."""
+    """AC8.13.97: Existing PR previews update env before retriggering deploy."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
-    created = False
 
     effective_env = "\n".join(
         [
@@ -425,7 +424,6 @@ def test_AC8_13_97_existing_preview_compose_is_recreated_before_deploy(
         input_text: str | None = None,
         check: bool = True,
     ) -> subprocess.CompletedProcess[str]:
-        nonlocal created
         calls.append(cmd)
         rendered = " ".join(cmd)
         if "environment.one" in rendered:
@@ -433,14 +431,6 @@ def test_AC8_13_97_existing_preview_compose_is_recreated_before_deploy(
                 cmd,
                 0,
                 stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
-                stderr="",
-            )
-        if "compose.create" in rendered:
-            created = True
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"composeId":"cmp-592"}',
                 stderr="",
             )
         if "compose.one" in rendered:
@@ -473,9 +463,8 @@ def test_AC8_13_97_existing_preview_compose_is_recreated_before_deploy(
     assert lifecycle.main_from_args(args) == 0
 
     rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert created is True
-    assert "compose.delete" in rendered_calls
-    assert "compose.create" in rendered_calls
+    assert "compose.delete" not in rendered_calls
+    assert "compose.create" not in rendered_calls
     assert "compose.update" in rendered_calls
     assert "compose.one" in rendered_calls
     assert "compose.deploy" in rendered_calls

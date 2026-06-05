@@ -367,7 +367,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.94 | Delivery pipeline documentation distinguishes local advisory feedback, PR merge authority, and deployed-environment proof stages | `test_AC8_13_94_delivery_pipeline_contract_is_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.95 | Local verification guidance defaults to affected fast tests and defines risk-triggered escalation for high-impact paths | `test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.96 | PR preview relevance classification includes preview workflow, lifecycle, and config changes while excluding docs-only and app test-only changes | `test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths` | `tests/tooling/test_ci_change_classifier.py` | P0 |
-| AC8.13.97 | Existing PR preview composes are deleted and recreated before deploy so stale Dokploy rollout state cannot continue serving an older SHA after the deploy trigger reports success | `test_AC8_13_97_existing_preview_compose_is_recreated_before_deploy` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.97 | Existing PR preview composes preserve compose identity, update allowlisted deploy env, and re-trigger `compose.deploy` so readiness can reject stale SHA rollouts without breaking preview routing | `test_AC8_13_97_existing_preview_compose_is_updated_before_deploy` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
