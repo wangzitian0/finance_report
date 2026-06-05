@@ -79,6 +79,15 @@ The Advisor output contract for a structured suggestion is:
 - `limitation`: what the user should not rely on yet.
 - `next_action_href`: safe internal route for the next in-product action.
 
+Backend implementation uses `AIAdvisorService.get_advisor_context()` as the
+deterministic advisor-fact assembly boundary. It composes legacy financial
+summary fields with report package readiness, source trust, workflow status,
+market-data freshness, portfolio summary, cash-flow observations, and
+`AdvisorSuggestion` objects before prompt construction. The prompt receives the
+serialized structured facts and must preserve blocked, stale, unreviewed,
+unsupported, and manual-trusted limitations instead of converting them into
+trusted conclusions.
+
 ### 2.4 Financial Suggestion Scope
 
 The assistant may surface explainable personal-finance suggestions from trusted
@@ -188,6 +197,7 @@ application state and points to safe next actions.
 | Suggestions endpoint | `test_chat_suggestions` | ✅ Done |
 | Real OCR brokerage upload → portfolio value | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | ✅ Staging gate |
 | EPIC-021 application-layer contract | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics` | ✅ Framing |
+| EPIC-021 backend advisor context | `test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions`, `test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state`, `test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence` | ✅ Backend context |
 
 ---
 
