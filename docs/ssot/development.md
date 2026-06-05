@@ -305,7 +305,7 @@ Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliatio
 |----------|--------------|-------------------|
 | Local Dev | `postgresql+asyncpg://...` | `localhost` or `postgres` |
 | Local Test | `postgresql+asyncpg://...` | `localhost:5432` |
-| PR Test | `postgresql+asyncpg://...` | **Unique**: `finance-report-db-pr-XX` |
+| PR Test | `postgresql+asyncpg://...` | Compose service DNS (`postgres`, `minio`) on the project-scoped internal network |
 | CI | Same as Local Test | `localhost:5433` (services) |
 | Staging/Prod | External PostgreSQL | Dokploy Managed |
 

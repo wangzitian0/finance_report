@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated
 from uuid import UUID
 
@@ -27,6 +28,7 @@ from src.utils import raise_bad_request, raise_not_found, raise_service_unavaila
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = get_logger(__name__)
+SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS = 2.0
 
 
 @router.post("", response_class=StreamingResponse)
@@ -246,8 +248,17 @@ async def suggestions(
     structured_suggestions = []
     if include_structured and db is not None and user_id is not None:
         try:
-            context = await AIAdvisorService().get_advisor_context(db, user_id)
+            context = await asyncio.wait_for(
+                AIAdvisorService().get_advisor_context(db, user_id),
+                timeout=SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS,
+            )
             structured_suggestions = context.get("suggestions") or []
+        except TimeoutError as exc:
+            logger.warning(
+                "Timed out loading structured chat suggestions",
+                timeout_seconds=SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS,
+                error=str(exc),
+            )
         except Exception as exc:
             logger.warning("Failed to load structured chat suggestions", error=str(exc))
     return ChatSuggestionsResponse(suggestions=suggestions, structured_suggestions=structured_suggestions)

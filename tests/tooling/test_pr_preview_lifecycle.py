@@ -40,6 +40,7 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     assert env["GIT_COMMIT_SHA"] == "abc123"
     assert env["ENV_SUFFIX"] == "-pr-591-abc123"
     assert env["ENV_DOMAIN_SUFFIX"] == "-pr-591-abc123"
+    assert env["NETWORK_SUFFIX"] == "-pr-591"
     assert env["NEXT_PUBLIC_API_URL"] == "https://report-pr-591-abc123.zitian.party"
     assert env["NEXT_PUBLIC_APP_URL"] == "https://report-pr-591-abc123.zitian.party"
     assert env["DB_HOST"] == "finance-report-db-pr-591-abc123"
@@ -64,6 +65,15 @@ def test_AC8_13_101_preview_app_url_is_commit_scoped() -> None:
         "compose -p finance_report_pr_591 -f docker-compose.pr-preview.yml "
         "up -d --pull always --no-build --remove-orphans"
     )
+
+
+def test_AC8_13_102_preview_network_is_pr_scoped_to_limit_subnet_usage() -> None:
+    """AC8.13.102: PR previews do not allocate one Docker network per commit."""
+    compose = (ROOT / "docker-compose.pr-preview.yml").read_text()
+    network_block = compose.split("networks:", 1)[1]
+
+    assert "name: finance-report-internal${NETWORK_SUFFIX:-}" in network_block
+    assert "name: finance-report-internal${ENV_SUFFIX:-}" not in network_block
 
 
 def test_AC8_13_71_root_compose_passes_git_sha_to_backend_runtime_and_frontend_build() -> (
@@ -114,6 +124,7 @@ def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
         "COMPOSE_PROJECT_NAME": "finance_report_pr_591",
         "ENV_SUFFIX": "-pr-591-abc123",
         "ENV_DOMAIN_SUFFIX": "-pr-591-abc123",
+        "NETWORK_SUFFIX": "-pr-591",
         "NEXT_PUBLIC_API_URL": "https://report-pr-591-abc123.zitian.party",
         "DB_HOST": "finance-report-db-pr-591-abc123",
         "S3_HOST": "finance-report-minio-pr-591-abc123",
@@ -127,6 +138,7 @@ def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
             "COMPOSE_PROJECT_NAME=finance_report_pr_591",
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
             "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
@@ -274,8 +286,48 @@ def test_AC8_13_102_dokploy_rollout_record_window_allows_worker_queue() -> None:
 
     signature = inspect.signature(lifecycle.wait_for_dokploy_deployment_rollout)
 
-    assert signature.parameters["timeout_seconds"].default == 600
+    assert signature.parameters["timeout_seconds"].default == 900
     assert signature.parameters["new_deployment_timeout_seconds"].default == 600
+
+
+def test_AC8_13_102_late_rollout_record_gets_completion_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: A late Dokploy record still gets time to reach done."""
+    lifecycle = lifecycle_module()
+    states = iter(
+        [
+            {"composeId": "cmp-591", "composeStatus": "idle", "deployments": []},
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "running",
+                "deployments": [{"deploymentId": "dep-591", "status": "running"}],
+            },
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "running",
+                "deployments": [{"deploymentId": "dep-591", "status": "running"}],
+            },
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "done",
+                "deployments": [{"deploymentId": "dep-591", "status": "done"}],
+            },
+        ]
+    )
+    times = iter([0.0, 590.0, 610.0, 620.0, 630.0])
+
+    monkeypatch.setattr(
+        lifecycle, "get_compose_data", lambda *args, **kwargs: next(states)
+    )
+    monkeypatch.setattr(lifecycle.time, "monotonic", lambda: next(times))
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+
+    lifecycle.wait_for_dokploy_deployment_rollout(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        compose_id="cmp-591",
+        previous_deployment_ids={"old-dep"},
+    )
 
 
 def test_AC8_13_102_dokploy_rollout_timeout_fails_before_readiness(
@@ -449,6 +501,53 @@ def test_AC8_13_102_compose_error_logs_redacted_deployment_diagnostics(
     assert "hvs.secret" not in out
 
 
+def test_AC8_13_102_stale_compose_error_waits_for_new_rollout(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+    states = iter(
+        [
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "error",
+                "deployments": [
+                    {
+                        "deploymentId": "old-dep",
+                        "status": "error",
+                        "description": "Commit: old-sha",
+                    }
+                ],
+            },
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "done",
+                "deployments": [
+                    {"deploymentId": "old-dep", "status": "error"},
+                    {"deploymentId": "dep-592", "status": "done"},
+                ],
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        lifecycle, "get_compose_data", lambda *args, **kwargs: next(states)
+    )
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+
+    lifecycle.wait_for_dokploy_deployment_rollout(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        compose_id="cmp-591",
+        previous_deployment_ids={"old-dep"},
+        timeout_seconds=30,
+    )
+
+    out = capsys.readouterr().out
+    assert "compose-error-attempt-1" in out
+    assert "stale error" in out
+    assert "new_deployment_ids=dep-592" in out
+
+
 def test_AC8_13_72_dokploy_failure_log_is_redacted(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -610,6 +709,7 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
                 "COMPOSE_PROJECT_NAME": "finance_report_pr_591",
                 "ENV_SUFFIX": "-pr-591-abc123",
                 "ENV_DOMAIN_SUFFIX": "-pr-591-abc123",
+                "NETWORK_SUFFIX": "-pr-591",
                 "NEXT_PUBLIC_API_URL": "https://report-pr-591-abc123.zitian.party",
                 "DB_HOST": "finance-report-db-pr-591-abc123",
                 "S3_HOST": "finance-report-minio-pr-591-abc123",
@@ -738,6 +838,7 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
             "COMPOSE_PROJECT_NAME=finance_report_pr_591",
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
             "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
@@ -821,6 +922,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
             "COMPOSE_PROJECT_NAME=finance_report_pr_591",
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
             "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
@@ -908,6 +1010,7 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
             "COMPOSE_PROJECT_NAME=finance_report_pr_591",
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
             "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
@@ -992,6 +1095,7 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
             "COMPOSE_PROJECT_NAME=finance_report_pr_591",
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
             "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
@@ -1063,11 +1167,11 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_102_missing_deploy_record_fails_before_readiness(
+def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Missing Dokploy records are platform failures, not app readiness."""
+    """AC8.13.102: A stuck existing preview is recreated once before readiness."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
     wait_calls = 0
@@ -1080,6 +1184,7 @@ def test_AC8_13_102_missing_deploy_record_fails_before_readiness(
             "COMPOSE_PROJECT_NAME=finance_report_pr_591",
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
             "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
@@ -1100,6 +1205,23 @@ def test_AC8_13_102_missing_deploy_record_fails_before_readiness(
                 cmd,
                 0,
                 stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                stderr="",
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"cmp-591-recreated"}', stderr=""
+            )
+        if "compose.one?composeId=cmp-591-recreated" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps(
+                    {
+                        "env": effective_env,
+                        "composeStatus": "idle",
+                        "deployments": [],
+                    }
+                ),
                 stderr="",
             )
         if "compose.one" in rendered:
@@ -1144,20 +1266,405 @@ def test_AC8_13_102_missing_deploy_record_fails_before_readiness(
         dry_run=False,
     )
 
-    with pytest.raises(
-        lifecycle.DokployDeploymentDidNotStart,
-        match="queued deploy was lost",
-    ):
-        lifecycle.main_from_args(args)
+    assert lifecycle.main_from_args(args) == 0
 
     rendered_calls = "\n".join(" ".join(call) for call in calls)
     assert "compose.redeploy" in rendered_calls
-    assert "compose.delete" not in rendered_calls
-    assert "compose.create" not in rendered_calls
-    assert "compose.deploy" not in rendered_calls
-    assert wait_calls == 1
+    assert "compose.delete" in rendered_calls
+    assert "compose.create" in rendered_calls
+    assert "compose.deploy" in rendered_calls
+    assert wait_calls == 2
     out = capsys.readouterr().out
+    assert "recreating compose before retry" in out
     assert "proceeding to commit-scoped readiness" not in out
+
+
+def test_AC8_13_102_recreated_preview_missing_record_uses_readiness_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.102: Missing Dokploy records do not hide a runtime readiness proof."""
+    lifecycle = lifecycle_module()
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    calls: list[list[str]] = []
+    wait_calls = 0
+
+    effective_env = "\n".join(
+        [
+            "IMAGE_TAG=pr-591-abc123",
+            "GIT_COMMIT_SHA=abc123",
+            "IAC_CONFIG_HASH=pr-591-abc123",
+            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
+            "ENV_SUFFIX=-pr-591-abc123",
+            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "DB_HOST=finance-report-db-pr-591-abc123",
+            "S3_HOST=finance-report-minio-pr-591-abc123",
+            "COMPOSE_PROFILES=infra,app",
+        ]
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                stderr="",
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"cmp-591-recreated"}', stderr=""
+            )
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout=json.dumps(
+                {
+                    "env": effective_env,
+                    "composeStatus": "idle",
+                    "deployments": [],
+                }
+            ),
+            stderr="",
+        )
+
+    def fake_wait_for_rollout(*args: object, **kwargs: object) -> None:
+        nonlocal wait_calls
+        wait_calls += 1
+        raise lifecycle.DokployDeploymentDidNotStart("deployment record missing")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        lifecycle, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
+    )
+    args = SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    rendered_calls = "\n".join(" ".join(call) for call in calls)
+    assert "compose.redeploy" in rendered_calls
+    assert "compose.delete" in rendered_calls
+    assert "compose.create" in rendered_calls
+    assert "compose.deploy" in rendered_calls
+    assert wait_calls == 2
+    out = capsys.readouterr().out
+    assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
+    assert "raw_deployment_printed: false" in out
+    assert "app_url=https://report-pr-591-abc123.zitian.party" in out
+
+
+def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: A failed rollout from an existing preview is recreated once."""
+    lifecycle = lifecycle_module()
+    calls: list[list[str]] = []
+    wait_calls = 0
+
+    effective_env = "\n".join(
+        [
+            "IMAGE_TAG=pr-591-abc123",
+            "GIT_COMMIT_SHA=abc123",
+            "IAC_CONFIG_HASH=pr-591-abc123",
+            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
+            "ENV_SUFFIX=-pr-591-abc123",
+            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "DB_HOST=finance-report-db-pr-591-abc123",
+            "S3_HOST=finance-report-minio-pr-591-abc123",
+            "COMPOSE_PROFILES=infra,app",
+        ]
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                stderr="",
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"cmp-591-recreated"}', stderr=""
+            )
+        if "compose.one?composeId=cmp-591-recreated" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps(
+                    {
+                        "env": effective_env,
+                        "composeStatus": "idle",
+                        "deployments": [],
+                    }
+                ),
+                stderr="",
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps(
+                    {
+                        "env": effective_env,
+                        "composeStatus": "error",
+                        "deployments": [{"deploymentId": "dep-591", "status": "error"}],
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    def fake_wait_for_rollout(*args: object, **kwargs: object) -> None:
+        nonlocal wait_calls
+        wait_calls += 1
+        if wait_calls == 1:
+            raise lifecycle.DokployDeploymentFailed("compose source checkout failed")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        lifecycle, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
+    )
+    args = SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    rendered_calls = "\n".join(" ".join(call) for call in calls)
+    assert "compose.redeploy" in rendered_calls
+    assert "compose.delete" in rendered_calls
+    assert "compose.create" in rendered_calls
+    assert "compose.deploy" in rendered_calls
+    assert wait_calls == 2
+
+
+def test_AC8_13_102_new_preview_missing_after_redeploy_uses_readiness_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.102: Missing Dokploy records defer to commit-scoped readiness."""
+    lifecycle = lifecycle_module()
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    calls: list[list[str]] = []
+    wait_calls = 0
+
+    effective_env = "\n".join(
+        [
+            "IMAGE_TAG=pr-591-abc123",
+            "GIT_COMMIT_SHA=abc123",
+            "IAC_CONFIG_HASH=pr-591-abc123",
+            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
+            "ENV_SUFFIX=-pr-591-abc123",
+            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "DB_HOST=finance-report-db-pr-591-abc123",
+            "S3_HOST=finance-report-minio-pr-591-abc123",
+            "COMPOSE_PROFILES=infra,app",
+        ]
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[]}',
+                stderr="",
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"cmp-591"}', stderr=""
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps(
+                    {
+                        "env": effective_env,
+                        "composeStatus": "idle",
+                        "deployments": [],
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    def fake_wait_for_rollout(*args: object, **kwargs: object) -> None:
+        nonlocal wait_calls
+        wait_calls += 1
+        raise lifecycle.DokployDeploymentDidNotStart("new deploy was lost")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        lifecycle, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
+    )
+    args = SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    rendered_calls = "\n".join(" ".join(call) for call in calls)
+    assert rendered_calls.count("compose.create") == 1
+    assert "compose.delete" not in rendered_calls
+    assert "compose.redeploy" in rendered_calls
+    assert "compose.deploy" in rendered_calls
+    assert wait_calls == 2
+    out = capsys.readouterr().out
+    assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
+    assert "new deploy was lost" in out
+    assert "app_url=https://report-pr-591-abc123.zitian.party" in out
+
+
+def test_AC8_13_102_new_preview_rollout_error_still_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: A new preview rollout error is not hidden by recreate fallback."""
+    lifecycle = lifecycle_module()
+    calls: list[list[str]] = []
+
+    effective_env = "\n".join(
+        [
+            "IMAGE_TAG=pr-591-abc123",
+            "GIT_COMMIT_SHA=abc123",
+            "IAC_CONFIG_HASH=pr-591-abc123",
+            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
+            "ENV_SUFFIX=-pr-591-abc123",
+            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "DB_HOST=finance-report-db-pr-591-abc123",
+            "S3_HOST=finance-report-minio-pr-591-abc123",
+            "COMPOSE_PROFILES=infra,app",
+        ]
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"compose":[]}', stderr=""
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"cmp-591"}', stderr=""
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps({"env": effective_env, "composeStatus": "error"}),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    def fake_wait_for_rollout(*args: object, **kwargs: object) -> None:
+        raise lifecycle.DokployDeploymentFailed("new rollout failed")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        lifecycle, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
+    )
+    args = SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+    with pytest.raises(lifecycle.DokployDeploymentFailed, match="new rollout failed"):
+        lifecycle.main_from_args(args)
+
+    rendered_calls = "\n".join(" ".join(call) for call in calls)
+    assert rendered_calls.count("compose.create") == 1
+    assert "compose.delete" not in rendered_calls
+    assert "compose.redeploy" not in rendered_calls
+    assert "compose.deploy" in rendered_calls
 
 
 def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
@@ -1175,6 +1682,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
             "COMPOSE_PROJECT_NAME=finance_report_pr_591",
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NETWORK_SUFFIX=-pr-591",
             "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",

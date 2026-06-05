@@ -1,5 +1,6 @@
 """Tests for chat router endpoints."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -97,6 +98,39 @@ async def test_AC21_3_1_chat_suggestions_default_stays_lightweight() -> None:
     assert response.suggestions
     assert response.structured_suggestions == []
     MockService.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.no_db
+async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_context_times_out() -> None:
+    """AC6.5.1: Chat suggestions stay available when structured advisor context is slow."""
+    from src.routers.chat import suggestions
+
+    async def slow_context(*_args: object) -> dict:
+        await asyncio.sleep(0.05)
+        return {"suggestions": [{"basis": "too slow"}]}
+
+    mock_db = MagicMock()
+    mock_user_id = uuid4()
+
+    with (
+        patch("src.routers.chat.SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS", 0.001),
+        patch("src.routers.chat.AIAdvisorService") as MockService,
+    ):
+        mock_service = MagicMock()
+        mock_service.get_advisor_context = AsyncMock(side_effect=slow_context)
+        MockService.return_value = mock_service
+
+        response = await suggestions(
+            language="en",
+            include_structured=True,
+            db=mock_db,
+            user_id=mock_user_id,
+        )
+
+    assert response.suggestions
+    assert response.structured_suggestions == []
+    mock_service.get_advisor_context.assert_awaited_once_with(mock_db, mock_user_id)
 
 
 @pytest.mark.asyncio
