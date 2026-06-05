@@ -56,6 +56,46 @@ changes (classify-changes) ─────┴→ backend shards ─────�
 14. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.
 15. **Deny-list coverage scope**: Coverage scope is deny-list based within each governed source root. CI recursively expects every eligible source file in backend, frontend, common, and tools LCOV unless `common/coverage/policy.py` explicitly excludes it. New source roots fail the metrics contract until added to the policy and report pipeline.
 
+### Delivery Pipeline Contract
+
+This SSOT separates environment taxonomy, delivery stages, and GitHub Actions jobs.
+Environment taxonomy names the six runtime contexts in
+[environments.md](./environments.md). Delivery stages describe where confidence
+is produced. GitHub Actions jobs are implementation lanes inside those stages and
+must not be counted as separate release stages.
+
+Local runs are fast advisory gates. PR CI is the deterministic merge authority.
+PR Preview, staging, and production are deployed-environment proof gates.
+
+| Delivery stage | Default proof role | Throughput policy |
+|---|---|---|
+| Local fast feedback | Developer advisory signal from affected tests and focused checks | Optimize for seconds-to-minutes feedback; do not require full remote-equivalent CI before opening a PR |
+| PR CI deterministic proof | Authoritative merge gate for deterministic behavior, AC traceability, coverage, and image build validation | Keep required proof parallel and fail-fast while preserving the aggregate `finish` check |
+| PR Preview deployed proof | Docker/runtime/routing/health/non-LLM deployed proof before merge for preview-relevant changes | Consume preview environments only for runtime, deploy, E2E, dependency, Dockerfile/config, or preview-action changes |
+| Staging merged-SHA proof | Exact successful `main` CI SHA deployed to shared staging with real infra and provider-backed gates | Serialize staging mutations and skip non-runtime changes after CI/AC proof |
+| Production release proof | Manual release image/deploy integrity, health, and prod-safe smoke | Reuse successful main CI proof; do not rerun full container-backed CI in the release lane |
+
+Production release proof is intentionally narrow: production validates release
+integrity and availability, not first-time deterministic business behavior.
+
+### Path Risk to Local Gate Matrix
+
+Default local verification starts with affected fast tests such as
+`moon run :test -- --smart`, focused Vitest/spec runs, or the smallest relevant
+tooling contract. Risk-triggered local escalation applies when the changed path
+can affect behavior outside the touched file.
+
+| Changed path or concern | Default local gate | Escalation trigger |
+|---|---|---|
+| Ordinary backend source | `moon run :test -- --smart` or focused pytest file | Escalate when the change crosses service boundaries or touches shared helpers |
+| accounting, posting, reconciliation, money, balance | Focused domain pytest suite plus changed-file tests | Always include invariant tests beyond the touched file |
+| schema, migrations | Migration validation plus DB-backed integration tests | Required for any Alembic, SQLAlchemy model, enum, or persistence contract change |
+| API contract, OpenAPI | Backend API tests plus affected frontend API consumer tests | Required for route, schema, generated API reference, or response-shape changes |
+| Frontend component or route | Focused Vitest/spec, then affected Playwright when browser behavior changes | Escalate for navigation, responsive layout, workflow, or API-bound behavior |
+| shared common/tooling | Focused tooling tests plus affected downstream contracts | Escalate when a common package feeds CI, coverage, SSOT, or command wrappers |
+| Docker, workflow, environment, deploy | Static/tooling contract checks locally; PR CI and deployed gates own runtime proof | Required image/deploy proof stays in PR CI, PR Preview, staging, or production |
+| docs-only | SSOT/doc/traceability checks only | Escalate only when docs change workflow, registry, AC, or proof semantics |
+
 ### Stage Matrix and Left-Move Guidance
 
 | Stage | Current execution | Scope in CI | Coverage effect | Left-move action |
@@ -185,7 +225,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 **CI Optimization** (`.github/workflows/ci.yml`):
 - Change classification is implemented in `tools/ci_change_classifier.py` and skips backend/frontend/unified coverage for lightweight docs and docs workflow changes.
-- PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes. App test-only and app Markdown changes still run CI and AC gates without consuming a Dokploy preview slot.
+- PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes. Preview-action changes include `.github/workflows/pr-test.yml`, `.github/workflows/pr-preview-cleanup.yml`, `.github/actions/setup-e2e-tests/action.yml`, `tools/pr_preview_lifecycle.py`, and `tools/_lib/dev/pr_preview_lifecycle.py`. App test-only and app Markdown changes still run CI and AC gates without consuming a Dokploy preview slot.
 - Automatic staging deploys are scoped to runtime app, deploy, root E2E, dependency, Dockerfile/config, staging workflow, toolchain, or infra-submodule changes. App test-only changes, documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or tooling documentation changes from being hidden by a global `*.md` skip.
 - Standalone lint and AC traceability start immediately with change classification. Full CI jobs wait for change classification, lint, and AC traceability, then backend shards, frontend build/test, image build validation, tooling coverage, integration, and Tier-1 API E2E run in parallel. Left-side deterministic failures stop the expensive group before behavior gates consume runner time.

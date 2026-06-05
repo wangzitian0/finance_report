@@ -103,6 +103,7 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-018](docs/project/EPIC-018.ai-driven-pipeline.md) | AI-driven pipeline |
 | [EPIC-019](docs/project/EPIC-019.event-driven-upload-to-report-ux.md) | Event-driven upload-to-report UX |
 | [EPIC-020](docs/project/EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
+| [EPIC-021](docs/project/EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
 
 Known proof-quality caveats:
 
@@ -211,15 +212,21 @@ moon run :dev -- --frontend # Frontend only
 moon run :lint             # Lint all workspaces
 moon run :lint -- --fix    # Lint and auto-fix where supported
 
-moon run :test             # Full tests with coverage
+moon run :test -- --smart  # Default local loop: changed-file/affected coverage mode
 moon run :test -- --fast   # Fast TDD loop without coverage
-moon run :test -- --smart  # Changed-file coverage mode
+moon run :test             # Full local confidence gate with coverage
 moon run :test -- --e2e    # Root deployment E2E tests
 moon run :test -- --backend-e2e # Backend Tier-1 API E2E tests
 
 moon run :build            # Build frontend
 moon run :clean            # Clean local resources
 ```
+
+Local fast feedback is advisory. PR CI is the authoritative merge gate, and
+PR Preview/staging/production provide deployed-environment proof. Use
+risk-triggered escalation for accounting, reconciliation, schema, API, shared
+tooling, Docker, workflow, environment, or deploy changes; see
+`docs/ssot/ci-cd.md`.
 
 See `docs/ssot/development.md` for environment details and `docs/ssot/ci-cd.md`
 for CI gates.

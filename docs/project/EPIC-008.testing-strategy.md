@@ -364,7 +364,10 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.91 | Main post-merge staging deploy failures open or update a persistent GitHub Issue alert, and the next successful staging run closes it | `test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
 | AC8.13.93 | Automatic staging promotion accepts only successful `push` CI workflow_run events on `main` and records triggering CI metadata in deploy artifacts | `test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.94 | Existing PR preview composes use Dokploy `compose.redeploy` after allowlisted env verification so stale containers cannot continue serving an older SHA after `compose.deploy` reports success | `test_AC8_13_94_existing_preview_compose_uses_redeploy` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.94 | Delivery pipeline documentation distinguishes local advisory feedback, PR merge authority, and deployed-environment proof stages | `test_AC8_13_94_delivery_pipeline_contract_is_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.95 | Local verification guidance defaults to affected fast tests and defines risk-triggered escalation for high-impact paths | `test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.96 | PR preview relevance classification includes preview workflow, lifecycle, and config changes while excluding docs-only and app test-only changes | `test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths` | `tests/tooling/test_ci_change_classifier.py` | P0 |
+| AC8.13.97 | Existing PR preview composes use Dokploy `compose.redeploy` after allowlisted env verification so stale containers cannot continue serving an older SHA after `compose.deploy` reports success | `test_AC8_13_97_existing_preview_compose_uses_redeploy` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -415,6 +418,7 @@ Product E2E ownership index:
 | `apps/backend/tests/e2e/test_auth_flows.py` | Backend auth flow E2E; AC references live in the test file |
 | `apps/backend/tests/e2e/test_core_journeys.py` | Backend core journey E2E; AC8.1-AC8.12 references live in the test file |
 | `apps/backend/tests/e2e/test_e2e_flows.py` | Backend extended flow E2E; AC references live in the test file |
+| `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC8.13.10 |
 | `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |

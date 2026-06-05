@@ -111,9 +111,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert is_pr_preview_relevant("docker-compose.yml") is True
     assert is_pr_preview_relevant("tools/generate_pdf_fixtures.py") is True
     assert (
-        is_pr_preview_relevant(
-            "tools/_lib/pdf_fixtures/generators/dbs_generator.py"
-        )
+        is_pr_preview_relevant("tools/_lib/pdf_fixtures/generators/dbs_generator.py")
         is True
     )
     assert (
@@ -121,14 +119,13 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
         is True
     )
     assert is_pr_preview_relevant("tools/_lib/pdf_fixtures/README.md") is False
+    assert is_pr_preview_relevant("tools/_lib/pdf_fixtures/FONT_HANDLING.md") is False
     assert (
-        is_pr_preview_relevant("tools/_lib/pdf_fixtures/FONT_HANDLING.md") is False
+        is_pr_preview_relevant("tools/_lib/pdf_fixtures/analyzers/README.md") is False
     )
     assert (
-        is_pr_preview_relevant("tools/_lib/pdf_fixtures/analyzers/README.md")
-        is False
+        is_pr_preview_relevant("apps/backend/tests/reporting/test_reports.py") is False
     )
-    assert is_pr_preview_relevant("apps/backend/tests/reporting/test_reports.py") is False
     assert is_pr_preview_relevant("apps/backend/README.md") is False
     assert is_pr_preview_relevant("apps/frontend/src/lib/api.test.ts") is False
     assert (
@@ -167,6 +164,46 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert app_test_or_doc_result.heavy_required is True
     assert app_test_or_doc_result.pr_preview_required is False
     assert app_test_or_doc_result.staging_required is False
+
+
+def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths() -> (
+    None
+):
+    """AC8.13.96: PR preview workflow and lifecycle changes exercise preview proof."""
+    for path in (
+        ".github/workflows/pr-test.yml",
+        ".github/workflows/pr-preview-cleanup.yml",
+        ".github/actions/setup-e2e-tests/action.yml",
+        "tools/pr_preview_lifecycle.py",
+        "tools/_lib/dev/pr_preview_lifecycle.py",
+        "tools/_lib/dev/cleanup_pr_preview_resources.py",
+    ):
+        assert is_pr_preview_relevant(path) is True
+
+    for path in (
+        "docs/ssot/ci-cd.md",
+        "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
+        "apps/backend/tests/reporting/test_reports.py",
+        "apps/frontend/src/lib/api.test.ts",
+    ):
+        assert is_pr_preview_relevant(path) is False
+
+    result = classify_changed_paths(
+        [
+            "docs/ssot/ci-cd.md",
+            ".github/workflows/pr-test.yml",
+            "tools/_lib/dev/pr_preview_lifecycle.py",
+        ]
+    )
+
+    assert result.heavy_required is True
+    assert result.pr_preview_required is True
+    assert result.pr_preview_files == (
+        ".github/workflows/pr-test.yml",
+        "tools/_lib/dev/pr_preview_lifecycle.py",
+    )
+    assert result.pr_preview_reason == "pr-preview-paths-changed"
+    assert result.staging_required is False
 
 
 def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:

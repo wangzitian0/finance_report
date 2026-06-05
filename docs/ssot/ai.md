@@ -1,7 +1,8 @@
 # AI SSOT
 
 > **SSOT Key**: `ai`
-> **Core Definition**: Conversational financial advisor behavior, data scope, prompt policy, and safety controls.
+> **Core Definition**: Application-layer AI Advisor behavior, data scope,
+> prompt policy, contextual suggestion contract, and safety controls.
 
 ---
 
@@ -16,6 +17,9 @@
 | **Prompt Templates** | `apps/backend/src/prompts/ai_advisor.py` | System prompt + injection guardrails |
 | **Frontend UI** | `apps/frontend/src/app/chat/page.tsx` | Full chat experience |
 | **Chat Widget** | `apps/frontend/src/components/ChatWidget.tsx` | Floating assistant entry point |
+| **Application EPIC** | `docs/project/EPIC-021.application-ai-advisor.md` | Advisor Brief product contract and application-layer ownership |
+| **Source Trust** | `docs/ssot/source-coverage-matrix.yaml` | source coverage matrix consumed for trust and limitation explanations |
+| **Workflow State** | `docs/ssot/workflow-events.md` | Upload-to-report state and blockers consumed by Advisor Brief |
 
 ---
 
@@ -35,7 +39,9 @@ flowchart LR
 
 ### 2.2 Context Assembly
 
-The advisor only reads summarized, posted/reconciled data:
+The advisor only reads summarized, posted/reconciled data and deterministic
+application facts. It is an application-layer consumer, not the source of
+record.
 
 - Balance sheet totals (posted/reconciled only)
 - Income statement totals for the current month
@@ -43,7 +49,37 @@ The advisor only reads summarized, posted/reconciled data:
 - Reconciliation stats and unmatched counts
 - User session context (last 10 rounds max)
 
-### 2.3 Financial Suggestion Scope
+### 2.3 Application-Layer Advisor Contract
+
+EPIC-021 upgrades Advisor behavior from generic chat to product guidance. The
+backend must assemble deterministic application facts first; the LLM may only
+explain, prioritize, and phrase those facts.
+
+Application context may include:
+
+- Report package readiness, snapshot/export status, and traceability gaps from
+  reporting SSOT.
+- Upload-to-report workflow events, blocked steps, pending review state, and
+  next available actions from workflow events.
+- Source class trust, proof level, review requirement, and unsupported source
+  limitations from the source coverage matrix.
+- Portfolio holdings, concentration, valuation, and performance facts from the
+  portfolio/reporting layer.
+- Market-data freshness and stale-price warnings from market data SSOT.
+- Cash-flow observations from posted/reconciled ledger summaries.
+
+The Advisor output contract for a structured suggestion is:
+
+- `basis`: deterministic application fact or user question that triggered the
+  suggestion.
+- `source_refs`: internal report, workflow, source, portfolio, or market-data
+  references that support the suggestion.
+- `confidence_tier`: deterministic, review_required, stale, unsupported, or
+  blocked.
+- `limitation`: what the user should not rely on yet.
+- `next_action_href`: safe internal route for the next in-product action.
+
+### 2.4 Financial Suggestion Scope
 
 The assistant may surface explainable personal-finance suggestions from trusted
 summary data, known data gaps, and pending review actions. Supported suggestion
@@ -56,7 +92,12 @@ Suggestions are read-only. They must identify the source basis or limitation
 behind the suggestion and must not execute trades, mutate ledger data, provide
 legal or tax advice, or present regulated investment advice as a conclusion.
 
-### 2.4 Data Handling Policy
+Report package snapshots and export scale stay in EPIC-005 / EPIC-008. Manual
+evidence intake stays in EPIC-011 / EPIC-005. Source format expansion and parser
+confidence stay in EPIC-003 / EPIC-013. EPIC-021 only explains the current
+application state and points to safe next actions.
+
+### 2.5 Data Handling Policy
 
 - No ledger mutations, no write endpoints used.
 - Only summarized data is sent to the LLM (no full account numbers or raw files).
@@ -146,6 +187,7 @@ legal or tax advice, or present regulated investment advice as a conclusion.
 | Session history | `test_chat_refusal_and_history` | ✅ Done |
 | Suggestions endpoint | `test_chat_suggestions` | ✅ Done |
 | Real OCR brokerage upload → portfolio value | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | ✅ Staging gate |
+| EPIC-021 application-layer contract | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics` | ✅ Framing |
 
 ---
 
@@ -154,3 +196,6 @@ legal or tax advice, or present regulated investment advice as a conclusion.
 - [schema.md](./schema.md)
 - [reporting.md](./reporting.md)
 - [reconciliation.md](./reconciliation.md)
+- [workflow-events.md](./workflow-events.md)
+- [source-coverage-matrix.yaml](./source-coverage-matrix.yaml)
+- [EPIC-021](../project/EPIC-021.application-ai-advisor.md)

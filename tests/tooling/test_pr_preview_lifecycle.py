@@ -401,10 +401,10 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_94_existing_preview_compose_uses_redeploy(
+def test_AC8_13_97_existing_preview_compose_uses_redeploy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.94: Existing PR previews use Dokploy redeploy to avoid stale containers."""
+    """AC8.13.97: Existing PR previews use Dokploy redeploy to avoid stale containers."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 

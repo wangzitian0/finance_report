@@ -758,10 +758,7 @@ def test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run() -> N
     assert "ref: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
     assert "Wait for matching CI success" not in workflow
     assert "wait_for_github_ci.py" not in workflow
-    assert (
-        "successful `push` `CI` `workflow_run` on `main`"
-        in ci_cd
-    )
+    assert "successful `push` `CI` `workflow_run` on `main`" in ci_cd
     assert "does not poll or wait for CI inside the deploy job" in ci_cd
 
 
@@ -1540,6 +1537,56 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     assert "Behavior-only backend gates run in parallel" in ci_cd
 
 
+def test_AC8_13_94_delivery_pipeline_contract_is_documented() -> None:
+    """AC8.13.94: delivery stages distinguish advisory, authority, and environment proof."""
+    ci_cd = read("docs/ssot/ci-cd.md")
+    environments = read("docs/ssot/environments.md")
+    readme = read("README.md")
+
+    for token in (
+        "Local fast feedback",
+        "PR CI deterministic proof",
+        "PR Preview deployed proof",
+        "Staging merged-SHA proof",
+        "Production release proof",
+        "Local runs are fast advisory gates",
+        "PR CI is the deterministic merge authority",
+        "deployed-environment proof gates",
+    ):
+        assert token in ci_cd
+
+    assert "environment taxonomy, delivery stages, and GitHub Actions jobs" in ci_cd
+    assert (
+        "Environment taxonomy is not the delivery pipeline stage count" in environments
+    )
+    assert "Local fast feedback" in readme
+    assert "PR CI is the authoritative merge gate" in readme
+
+
+def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> None:
+    """AC8.13.95: local defaults stay fast but escalate for high-risk paths."""
+    ci_cd = read("docs/ssot/ci-cd.md")
+    development = read("docs/ssot/development.md")
+    readme = read("README.md")
+
+    for token in (
+        "Path Risk to Local Gate Matrix",
+        "accounting, posting, reconciliation, money, balance",
+        "schema, migrations",
+        "API contract, OpenAPI",
+        "shared common/tooling",
+        "Docker, workflow, environment, deploy",
+        "docs-only",
+    ):
+        assert token in ci_cd
+
+    assert "Default local verification starts with affected fast tests" in development
+    assert "moon run :test -- --smart" in development
+    assert "Risk-triggered local escalation" in development
+    assert "Default local loop" in readme
+    assert "risk-triggered escalation" in readme
+
+
 def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
     """AC8.13.67: Tier-1 backend API E2E does not collect Playwright browser E2E."""
     workflow = read(".github/workflows/ci.yml")
@@ -1698,10 +1745,7 @@ def test_AC8_13_43_failed_ci_workflow_run_reports_no_deploy_diagnostic() -> None
     )
     assert "id: wait_ci" not in workflow
     assert "wait_for_github_ci.py" not in workflow
-    assert (
-        "Failed, cancelled, timed-out, non-push, or non-main CI runs do not"
-        in ci_cd
-    )
+    assert "Failed, cancelled, timed-out, non-push, or non-main CI runs do not" in ci_cd
     assert "does not poll or wait for CI inside the deploy job" in ci_cd
 
 
@@ -1729,7 +1773,9 @@ def test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run() -> N
     )[0]
     assert ignored_guard in skipped_section
     assert "- Trigger event: ${{ github.event.workflow_run.event }}" in skipped_section
-    assert "- Head branch: ${{ github.event.workflow_run.head_branch }}" in skipped_section
+    assert (
+        "- Head branch: ${{ github.event.workflow_run.head_branch }}" in skipped_section
+    )
     assert "- CI run ID: ${{ github.event.workflow_run.id }}" in skipped_section
     assert (
         "- CI run attempt: ${{ github.event.workflow_run.run_attempt }}"
