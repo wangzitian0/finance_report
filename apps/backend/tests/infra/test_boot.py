@@ -152,6 +152,15 @@ class TestBootloaderStaticConfig:
 
         assert result is False
 
+    def test_AC1_10_1_static_config_rejects_blank_secret_key_in_production(self, mock_settings):
+        """AC1.10.1: Protected environments require a configured JWT secret."""
+        mock_settings.environment = "production"
+        mock_settings.secret_key = "   "
+
+        result = Bootloader._check_static_config()
+
+        assert result is False
+
     def test_AC1_10_1_static_config_allows_development_default_secret_key(self, mock_settings):
         """AC1.10.1: Local development keeps convenient defaults."""
         mock_settings.environment = "development"
@@ -415,6 +424,29 @@ class TestBootloaderOpenrouter:
 
             assert status.status == "ok"
             assert status.service == "ai_provider"
+
+    @pytest.mark.asyncio
+    async def test_check_openrouter_configured_catalog_skips_network_probe(self, mock_settings):
+        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.ai_model_catalog_source = "configured"
+
+        status = await Bootloader._check_openrouter()
+
+        assert status.status == "ok"
+        assert "Configured provider=" in status.message
+
+    @pytest.mark.asyncio
+    async def test_check_openrouter_remote_catalog_requires_base_url(self, mock_settings):
+        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.ai_api_key = "test-key"
+        mock_settings.ai_base_url = None
+        mock_settings.openrouter_base_url = None
+
+        status = await Bootloader._check_openrouter()
+
+        assert status.status == "error"
+        assert status.message == "Base URL not configured"
 
     @pytest.mark.asyncio
     async def test_check_openrouter_auth_failure(self, mock_settings):

@@ -8,10 +8,12 @@ mutate other users.
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User
+from src.routers.users import get_user, update_user
 from src.schemas.user import UserCreate, UserUpdate
 
 pytestmark = pytest.mark.asyncio
@@ -77,6 +79,18 @@ async def test_AC1_8_1_get_user_by_id_hides_other_users(
     assert response.status_code == 404
 
 
+async def test_AC1_8_1_get_user_by_id_returns_not_found_when_current_user_record_is_missing(
+    db: AsyncSession,
+) -> None:
+    """AC1.8.1: A valid token cannot disclose a deleted current-user row."""
+    missing_user_id = uuid4()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_user(user_id=missing_user_id, db=db, current_user_id=missing_user_id)
+
+    assert exc_info.value.status_code == 404
+
+
 async def test_AC1_8_1_update_user_email_allows_current_user(client: AsyncClient, test_user: User) -> None:
     """AC1.8.1: Current user can update their own email."""
     response = await client.put(f"/users/{test_user.id}", json={"email": "updated-current@example.com"})
@@ -102,6 +116,23 @@ async def test_AC1_8_1_update_user_email_hides_other_users(
 
     assert response.status_code == 404
     assert other.email == "victim@example.com"
+
+
+async def test_AC1_8_1_update_user_returns_not_found_when_current_user_record_is_missing(
+    db: AsyncSession,
+) -> None:
+    """AC1.8.1: A valid token cannot recreate a deleted current-user row via update."""
+    missing_user_id = uuid4()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await update_user(
+            user_id=missing_user_id,
+            user_data=UserUpdate(email="deleted@example.com"),
+            db=db,
+            current_user_id=missing_user_id,
+        )
+
+    assert exc_info.value.status_code == 404
 
 
 async def test_AC1_8_1_update_user_duplicate_email_rejected(
