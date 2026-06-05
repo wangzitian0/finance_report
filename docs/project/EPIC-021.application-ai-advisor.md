@@ -80,6 +80,14 @@ Not owned here:
 | AC21.1.1 | EPIC-021 and AI SSOT define AI Advisor as a read-only application layer that consumes deterministic application facts and is not the source of record | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
 | AC21.1.2 | Scale coverage and confidence work is explicitly routed to existing EPICs and issues instead of being re-owned by EPIC-021 | `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics`, `test_application_ai_advisor_epic021_product_owner_contract` | `tests/tooling/test_application_ai_advisor_epic021_contract.py`, `tests/e2e/test_application_ai_advisor_epic021.py` | P0 |
 
+### AC21.2: Backend Advisor Context and Suggestions
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC21.2.1 | Backend advisor context includes deterministic report readiness, source trust, workflow action counts, market-data freshness, portfolio facts, cash-flow facts, and structured source-cited suggestions | `test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
+| AC21.2.2 | Prompt construction consumes structured advisor facts and must not describe blocked, stale, unreviewed, unsupported, or manual-trusted data as trusted | `test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
+| AC21.2.3 | Chat provider calls and persisted chat messages redact sensitive numeric fields while preserving read-only advisor behavior | `test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence` | `apps/backend/tests/ai/test_ai_advisor_service.py` | P0 |
+
 ## Planned Implementation Slices
 
 These are issue-scoped follow-ups. They should add their own AC IDs only when
@@ -89,7 +97,7 @@ their tests are introduced.
    initial ownership ACs, and wire project indexes.
 2. PR2 - Backend advisor context: expose deterministic advisor facts for
    readiness, source trust, workflow blockers, pending review, market freshness,
-   portfolio, and cash-flow state.
+   portfolio, and cash-flow state. This slice owns AC21.2.1 through AC21.2.3.
 3. PR3 - Frontend Advisor Brief: render structured cards, safe next-action
    routes, and contextual chat entry points.
 

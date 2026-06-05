@@ -11,6 +11,8 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -26,14 +28,19 @@ from src.models import (
     ChatSessionStatus,
 )
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
+from src.schemas.chat import AdvisorSuggestion
+from src.services.market_data import MarketDataScopeStatus, get_market_data_status
 from src.services.openrouter_streaming import stream_openrouter_chat
+from src.services.portfolio import PortfolioNotFoundError, PortfolioService
 from src.services.reconciliation import get_reconciliation_stats
+from src.services.report_readiness import get_personal_report_package_readiness
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
     generate_income_statement,
     get_category_breakdown,
 )
+from src.services.workflow_events import get_workflow_status
 
 logger = get_logger(__name__)
 
@@ -286,28 +293,29 @@ class AIAdvisorService:
         model: str | None = None,
     ) -> ChatStream:
         """Create a streaming chat response for a user message."""
-        message = message.strip()
-        language = detect_language(message)
+        raw_message = message.strip()
+        message = redact_sensitive(raw_message)
+        language = detect_language(raw_message)
 
         session = await self._get_or_create_session(db, user_id, session_id, message)
         await self._record_message(db, session, ChatMessageRole.USER, message)
 
-        if is_prompt_injection(message):
+        if is_prompt_injection(raw_message):
             refusal = build_refusal("injection", language)
             await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
             return self._cached_stream(session.id, refusal, model_name=None)
 
-        if is_sensitive_request(message):
+        if is_sensitive_request(raw_message):
             refusal = build_refusal("sensitive", language)
             await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
             return self._cached_stream(session.id, refusal, model_name=None)
 
-        if is_write_request(message):
+        if is_write_request(raw_message):
             refusal = build_refusal("write", language)
             await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
             return self._cached_stream(session.id, refusal, model_name=None)
 
-        if is_non_financial(message):
+        if is_non_financial(raw_message):
             refusal = build_refusal("non_financial", language)
             await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
             return self._cached_stream(session.id, refusal, model_name=None)
@@ -347,6 +355,17 @@ class AIAdvisorService:
 
     async def get_financial_context(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
         """Build summarized financial context for the advisor."""
+        context = await self._get_financial_summary_context(db, user_id)
+        advisor_context = await self.get_advisor_context(db, user_id, financial_context=context)
+        context["advisor_context"] = json.dumps(advisor_context, sort_keys=True, default=str)
+        context["advisor_suggestions"] = (
+            "; ".join(f"{item['basis']} [{item['confidence_tier']}]" for item in advisor_context["suggestions"])
+            or "N/A"
+        )
+        return context
+
+    async def _get_financial_summary_context(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
+        """Build the legacy summary fields consumed by existing chat surfaces."""
         today = date.today()
         start_date = today.replace(day=1)
 
@@ -404,6 +423,234 @@ class AIAdvisorService:
         )
 
         return context
+
+    async def get_advisor_context(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        financial_context: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Build deterministic application facts and structured suggestions for the advisor."""
+        financial_summary = financial_context or await self._get_financial_summary_context(db, user_id)
+        readiness = await self._load_report_readiness(db, user_id)
+        workflow = await self._load_workflow_status(db, user_id)
+        market_data = await self._load_market_data_status(db, user_id)
+        portfolio = await self._load_portfolio_summary(db, user_id)
+
+        context: dict[str, Any] = {
+            "financial_summary": financial_summary,
+            "report_readiness": self._advisor_readiness(readiness),
+            "source_trust": self._advisor_source_trust(readiness),
+            "workflow": workflow,
+            "market_data": market_data,
+            "portfolio": portfolio,
+            "cash_flow": {
+                "monthly_income": financial_summary.get("monthly_income", "N/A"),
+                "monthly_expenses": financial_summary.get("monthly_expenses", "N/A"),
+                "top_expenses": financial_summary.get("top_expenses", "N/A"),
+                "unmatched_count": financial_summary.get("unmatched_count", "N/A"),
+                "pending_review": financial_summary.get("pending_review", "N/A"),
+            },
+        }
+        context["suggestions"] = [suggestion.model_dump() for suggestion in self._build_advisor_suggestions(context)]
+        return self._redact_context(context)
+
+    async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
+        try:
+            return await get_personal_report_package_readiness(db, user_id=user_id)
+        except Exception as exc:
+            logger.warning("Failed to load advisor report readiness", error=str(exc))
+            return {
+                "state": "draft",
+                "label": "Unavailable",
+                "action_href": "/reports/package",
+                "blocking_count": 0,
+                "blockers": [],
+                "source_trust_summary": {},
+            }
+
+    async def _load_workflow_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
+        try:
+            status = await get_workflow_status(db, user_id=user_id)
+        except Exception as exc:
+            logger.warning("Failed to load advisor workflow status", error=str(exc))
+            return {
+                "primary_state": "empty",
+                "next_action": {
+                    "type": "upload",
+                    "count": 0,
+                    "href": "/statements/upload",
+                    "label": "Upload statements",
+                    "summary": "Add source documents to start the workflow.",
+                },
+                "event_counts": {"unread": 0, "action_required": 0, "blocked": 0},
+                "report_readiness": {"state": "none", "blocking_count": 0, "href": "/reports"},
+            }
+        return self._jsonable(status)
+
+    async def _load_market_data_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
+        try:
+            statuses = await get_market_data_status(db, user_id=user_id, include_default_fx=True)
+        except Exception as exc:
+            logger.warning("Failed to load advisor market data status", error=str(exc))
+            statuses = []
+
+        rows = [self._jsonable(status) for status in statuses]
+        stale_rows = [row for row in rows if row.get("fresh") is False]
+        return {
+            "statuses": rows,
+            "stale_count": len(stale_rows),
+            "stale_scopes": [str(row.get("scope")) for row in stale_rows],
+        }
+
+    async def _load_portfolio_summary(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
+        try:
+            summary = await PortfolioService().get_portfolio_summary(db, user_id)
+        except PortfolioNotFoundError:
+            return {
+                "available": False,
+                "holdings_count": 0,
+                "active_positions_count": 0,
+                "total_market_value": "0.00",
+                "currency": settings.base_currency,
+            }
+        except Exception as exc:
+            logger.warning("Failed to load advisor portfolio summary", error=str(exc))
+            return {"available": False, "limitation": "Portfolio summary is unavailable."}
+
+        payload = self._jsonable(summary)
+        payload["available"] = True
+        return payload
+
+    def _advisor_readiness(self, readiness: dict[str, Any]) -> dict[str, Any]:
+        state = str(readiness.get("state", "draft"))
+        return {
+            "package_id": readiness.get("package_id"),
+            "state": state,
+            "label": readiness.get("label", state),
+            "trusted": state in {"ready", "generated"},
+            "blocking_count": int(readiness.get("blocking_count") or 0),
+            "blockers": readiness.get("blockers", []),
+            "action_href": readiness.get("action_href", "/reports/package"),
+            "generated_at": readiness.get("generated_at"),
+            "stale_since": readiness.get("stale_since"),
+        }
+
+    def _advisor_source_trust(self, readiness: dict[str, Any]) -> dict[str, Any]:
+        source_trust = readiness.get("source_trust_summary") or {}
+        return {
+            "source_classes": list(source_trust.get("source_classes") or []),
+            "deterministic_pr_source_classes": list(source_trust.get("deterministic_pr_source_classes") or []),
+            "post_merge_llm_ocr_source_classes": list(source_trust.get("post_merge_llm_ocr_source_classes") or []),
+            "manual_trusted_source_classes": list(source_trust.get("manual_trusted_source_classes") or []),
+            "gap_source_classes": list(source_trust.get("gap_source_classes") or []),
+            "blocker_codes": list(source_trust.get("blocker_codes") or []),
+        }
+
+    def _build_advisor_suggestions(self, context: dict[str, Any]) -> list[AdvisorSuggestion]:
+        suggestions: list[AdvisorSuggestion] = []
+        readiness = context["report_readiness"]
+        workflow = context["workflow"]
+        market_data = context["market_data"]
+        portfolio = context["portfolio"]
+        cash_flow = context["cash_flow"]
+
+        if readiness["blocking_count"]:
+            suggestions.append(
+                AdvisorSuggestion(
+                    basis=f"Report readiness is {readiness['state']} with {readiness['blocking_count']} blocker(s).",
+                    confidence_tier="blocked",
+                    source_refs=["report_readiness", "source_trust"],
+                    limitation="Do not describe the report package as trusted until blockers are resolved.",
+                    next_action_href=str(readiness["action_href"]),
+                )
+            )
+
+        event_counts = workflow.get("event_counts", {})
+        action_required = int(event_counts.get("action_required") or 0)
+        if action_required:
+            next_action = workflow.get("next_action", {})
+            suggestions.append(
+                AdvisorSuggestion(
+                    basis=f"Workflow has {action_required} action-required event(s).",
+                    confidence_tier="review_required",
+                    source_refs=["workflow"],
+                    limitation="Pending review items may affect report readiness and advisory conclusions.",
+                    next_action_href=str(next_action.get("href") or "/review"),
+                )
+            )
+
+        if market_data["stale_count"]:
+            suggestions.append(
+                AdvisorSuggestion(
+                    basis=f"Market data is stale for {market_data['stale_count']} observed scope(s).",
+                    confidence_tier="stale",
+                    source_refs=["market_data"],
+                    limitation="Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
+                    next_action_href="/portfolio/prices/update",
+                )
+            )
+
+        if portfolio.get("available") and int(portfolio.get("active_positions_count") or 0):
+            suggestions.append(
+                AdvisorSuggestion(
+                    basis=(
+                        f"Portfolio has {portfolio.get('active_positions_count')} active position(s) "
+                        f"and market value {portfolio.get('total_market_value')} {portfolio.get('currency')}."
+                    ),
+                    confidence_tier="deterministic",
+                    source_refs=["portfolio"],
+                    limitation="This is a factual portfolio summary, not trading, tax, legal, or regulated investment advice.",
+                    next_action_href="/portfolio",
+                )
+            )
+
+        if cash_flow.get("pending_review") not in {None, "0", "N/A"}:
+            suggestions.append(
+                AdvisorSuggestion(
+                    basis=f"Cash-flow context has {cash_flow['pending_review']} pending reconciliation review item(s).",
+                    confidence_tier="review_required",
+                    source_refs=["cash_flow", "reconciliation"],
+                    limitation="Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
+                    next_action_href="/reconciliation/review-queue",
+                )
+            )
+
+        if not suggestions:
+            suggestions.append(
+                AdvisorSuggestion(
+                    basis="No blocking advisor facts were found in the current application state.",
+                    confidence_tier="deterministic",
+                    source_refs=["financial_summary"],
+                    limitation="The advisor remains read-only and should cite source limitations when the user asks for detail.",
+                    next_action_href="/reports",
+                )
+            )
+        return suggestions
+
+    def _jsonable(self, value: Any) -> Any:
+        if hasattr(value, "model_dump"):
+            return value.model_dump(mode="json")
+        if isinstance(value, MarketDataScopeStatus):
+            return value.to_dict()
+        if isinstance(value, dict):
+            return {str(key): self._jsonable(item) for key, item in value.items()}
+        if isinstance(value, list | tuple):
+            return [self._jsonable(item) for item in value]
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, date | datetime):
+            return value.isoformat()
+        if isinstance(value, Enum):
+            return value.value
+        if hasattr(value, "__dict__"):
+            return {str(key): self._jsonable(item) for key, item in vars(value).items() if not key.startswith("_")}
+        return value
+
+    def _redact_context(self, context: dict[str, Any]) -> dict[str, Any]:
+        redacted = redact_sensitive(json.dumps(context, sort_keys=True, default=str))
+        return json.loads(redacted)
 
     async def _get_or_create_session(
         self,

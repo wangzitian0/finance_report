@@ -9,11 +9,13 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import AsyncIterator
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -35,7 +37,16 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
-from src.prompts.ai_advisor import DISCLAIMER_EN
+from src.prompts.ai_advisor import DISCLAIMER_EN, get_ai_advisor_prompt
+from src.schemas.workflow import (
+    WorkflowEventCountsResponse,
+    WorkflowNextActionResponse,
+    WorkflowNextActionType,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessResponse,
+    WorkflowReportReadinessState,
+    WorkflowStatusResponse,
+)
 from src.services import ai_advisor as ai_advisor_service
 from src.services.ai_advisor import (
     AIAdvisorError,
@@ -308,6 +319,260 @@ async def test_get_financial_context_handles_report_errors(
 
 
 @pytest.mark.asyncio
+async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC21.2.1: Advisor context exposes deterministic readiness, trust, workflow, and suggestions."""
+    service = AIAdvisorService()
+    now = datetime.now(UTC)
+
+    async def fake_readiness(_db: AsyncSession, *, user_id):
+        assert user_id == test_user.id
+        return {
+            "package_id": "personal-financial-report-package",
+            "state": "blocked",
+            "label": "Blocked",
+            "action_href": "/review",
+            "blocking_count": 2,
+            "blockers": [
+                {
+                    "code": "pending_review",
+                    "label": "Pending source review",
+                    "severity": "blocking",
+                    "count": 2,
+                    "reason": "Review required.",
+                    "action_href": "/review",
+                }
+            ],
+            "source_trust_summary": {
+                "source_classes": ["bank_statement", "manual_record"],
+                "deterministic_pr_source_classes": ["bank_statement"],
+                "post_merge_llm_ocr_source_classes": ["bank_statement"],
+                "manual_trusted_source_classes": ["manual_record"],
+                "gap_source_classes": ["bank_statement"],
+                "blocker_codes": ["pending_review"],
+            },
+        }
+
+    async def fake_workflow(_db: AsyncSession, *, user_id):
+        assert user_id == test_user.id
+        return WorkflowStatusResponse(
+            primary_state=WorkflowPrimaryState.NEEDS_ACTION,
+            next_action=WorkflowNextActionResponse(
+                type=WorkflowNextActionType.REVIEW_REQUIRED,
+                count=2,
+                href="/review",
+                label="Review required",
+                summary="Confirm pending source review items.",
+            ),
+            report_readiness=WorkflowReportReadinessResponse(
+                state=WorkflowReportReadinessState.BLOCKED,
+                blocking_count=2,
+                href="/reports/package",
+            ),
+            event_counts=WorkflowEventCountsResponse(unread=1, action_required=2, blocked=0),
+            active_session=None,
+        )
+
+    async def fake_market_data(_db: AsyncSession, *, user_id, include_default_fx):
+        assert user_id == test_user.id
+        assert include_default_fx is True
+        return [
+            SimpleNamespace(
+                kind="stock",
+                scope="AAPL",
+                fresh=False,
+                last_success_at=now - timedelta(days=4),
+                last_success_date=date.today() - timedelta(days=4),
+                last_observation_date=date.today() - timedelta(days=4),
+            )
+        ]
+
+    async def fake_portfolio_summary(self, _db: AsyncSession, user_id, as_of_date=None):
+        assert user_id == test_user.id
+        assert as_of_date is None
+        return SimpleNamespace(
+            total_market_value=Decimal("10000.00"),
+            total_cost_basis=Decimal("8000.00"),
+            total_unrealized_pnl=Decimal("2000.00"),
+            total_unrealized_pnl_percent=Decimal("25.00"),
+            total_realized_pnl=Decimal("0.00"),
+            total_realized_pnl_percent=Decimal("0.00"),
+            net_pnl=Decimal("2000.00"),
+            net_pnl_percent=Decimal("25.00"),
+            holdings_count=1,
+            active_positions_count=1,
+            disposed_positions_count=0,
+            currency="SGD",
+        )
+
+    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr(ai_advisor_service, "get_workflow_status", fake_workflow)
+    monkeypatch.setattr(ai_advisor_service, "get_market_data_status", fake_market_data)
+    monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
+
+    context = await service.get_advisor_context(
+        db,
+        test_user.id,
+        financial_context={
+            "monthly_income": "SGD 5000.00",
+            "monthly_expenses": "SGD 3000.00",
+            "top_expenses": "Dining: SGD 500.00",
+            "unmatched_count": "1",
+            "pending_review": "2",
+        },
+    )
+
+    assert context["report_readiness"]["state"] == "blocked"
+    assert context["report_readiness"]["trusted"] is False
+    assert context["source_trust"]["blocker_codes"] == ["pending_review"]
+    assert context["workflow"]["event_counts"]["action_required"] == 2
+    assert context["market_data"]["stale_count"] == 1
+    assert context["portfolio"]["active_positions_count"] == 1
+    assert {item["confidence_tier"] for item in context["suggestions"]} >= {
+        "blocked",
+        "review_required",
+        "stale",
+        "deterministic",
+    }
+    assert all(
+        item["basis"] and item["source_refs"] and item["next_action_href"].startswith("/")
+        for item in context["suggestions"]
+    )
+
+
+def test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state() -> None:
+    """AC21.2.2: Prompt construction consumes structured advisor facts and preserves limitations."""
+    prompt = get_ai_advisor_prompt(
+        {
+            "total_assets": "SGD 100.00",
+            "total_liabilities": "SGD 0.00",
+            "equity": "SGD 100.00",
+            "advisor_context": (
+                '{"report_readiness":{"state":"blocked","trusted":false},'
+                '"suggestions":[{"confidence_tier":"blocked","limitation":"review first"}]}'
+            ),
+            "advisor_suggestions": "Report readiness is blocked [blocked]",
+        },
+        "en",
+    )
+
+    assert "Structured advisor facts" in prompt
+    assert "Blocked reports are not trusted" in prompt
+    assert "stale, unreviewed, unsupported, or manual-trusted data must keep its limitation" in prompt
+    assert "Report readiness is blocked [blocked]" in prompt
+
+
+@pytest.mark.asyncio
+async def test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC21.2.3: Sensitive numeric fields are redacted before provider calls and persisted messages."""
+    service = AIAdvisorService()
+    service.api_key = "test-key"
+    captured_messages: list[dict[str, str]] = []
+
+    async def fake_context(_db: AsyncSession, _user_id) -> dict[str, str]:
+        return {"summary": "ok"}
+
+    async def fake_stream_and_store(
+        _db: AsyncSession,
+        _session,
+        messages: list[dict[str, str]],
+        _language: str,
+        _cache_key: str,
+        _preferred_model: str | None,
+    ):
+        captured_messages.extend(messages)
+        yield "ok"
+
+    monkeypatch.setattr(service, "get_financial_context", fake_context)
+    monkeypatch.setattr(service, "_stream_and_store", fake_stream_and_store)
+    ai_advisor_service._CACHE._store.clear()
+
+    chat = await service.chat_stream(db, test_user.id, "What happened to transfer 1234567890123456?")
+    await _drain_stream(chat.stream)
+
+    stored_messages = (await db.execute(select(ChatMessage).where(ChatMessage.session_id == chat.session_id))).scalars()
+    stored_content = "\n".join(message.content for message in stored_messages)
+    provider_content = "\n".join(message["content"] for message in captured_messages)
+
+    assert "1234567890123456" not in stored_content
+    assert "1234567890123456" not in provider_content
+    assert "[REDACTED]" in stored_content
+    assert "[REDACTED]" in provider_content
+
+
+@pytest.mark.asyncio
+async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sources_fail(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC21.2.1: Advisor context stays available with limitations when source loaders fail."""
+    service = AIAdvisorService()
+
+    async def raise_source_error(*_args, **_kwargs):
+        raise RuntimeError("source unavailable")
+
+    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", raise_source_error)
+    monkeypatch.setattr(ai_advisor_service, "get_workflow_status", raise_source_error)
+    monkeypatch.setattr(ai_advisor_service, "get_market_data_status", raise_source_error)
+    monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", raise_source_error)
+
+    context = await service.get_advisor_context(
+        db,
+        test_user.id,
+        financial_context={
+            "monthly_income": "SGD 5000.00",
+            "monthly_expenses": "SGD 3000.00",
+            "top_expenses": "N/A",
+            "unmatched_count": "0",
+            "pending_review": "0",
+        },
+    )
+
+    assert context["report_readiness"]["label"] == "Unavailable"
+    assert context["workflow"]["primary_state"] == "empty"
+    assert context["market_data"]["stale_count"] == 0
+    assert context["portfolio"]["limitation"] == "Portfolio summary is unavailable."
+    assert context["suggestions"] == [
+        {
+            "basis": "No blocking advisor facts were found in the current application state.",
+            "confidence_tier": "deterministic",
+            "source_refs": ["financial_summary"],
+            "limitation": (
+                "The advisor remains read-only and should cite source limitations when the user asks for detail."
+            ),
+            "next_action_href": "/reports",
+        }
+    ]
+
+
+def test_AC21_2_1_jsonable_normalizes_nested_context_values() -> None:
+    """AC21.2.1: Advisor context serialization normalizes nested deterministic values."""
+    service = AIAdvisorService()
+
+    payload = service._jsonable(
+        {
+            "amounts": [Decimal("12.34")],
+            "as_of": date(2026, 1, 31),
+            "account_type": AccountType.ASSET,
+        }
+    )
+
+    assert payload == {
+        "amounts": ["12.34"],
+        "as_of": "2026-01-31",
+        "account_type": "ASSET",
+    }
+
+
+@pytest.mark.asyncio
 async def test_get_or_create_session_with_existing_session(db: AsyncSession, test_user) -> None:
     """AC6.4.1: Get or create returns existing session."""
     service = AIAdvisorService()
@@ -368,7 +633,7 @@ async def test_stream_and_store_records_response(db: AsyncSession, test_user, mo
     ai_advisor_service._CACHE._store.clear()
 
     async def fake_stream_openrouter(_messages: list[dict[str, str]], _preferred: str | None):
-        yield "A" * 40, "test-model"
+        yield "A" * 80, "test-model"
 
     monkeypatch.setattr(service, "_stream_openrouter", fake_stream_openrouter)
 

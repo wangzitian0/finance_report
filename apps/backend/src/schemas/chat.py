@@ -73,7 +73,18 @@ class ChatHistoryResponse(BaseModel):
     sessions: list[ChatSessionResponse]
 
 
+class AdvisorSuggestion(BaseModel):
+    """Source-cited, read-only advisor suggestion contract."""
+
+    basis: str = Field(min_length=1, max_length=240)
+    confidence_tier: str = Field(min_length=1, max_length=40)
+    source_refs: list[str] = Field(default_factory=list)
+    limitation: str = Field(min_length=1, max_length=500)
+    next_action_href: str = Field(min_length=1, max_length=500)
+
+
 class ChatSuggestionsResponse(BaseModel):
     """Suggested questions for the chat UI."""
 
     suggestions: list[str]
+    structured_suggestions: list[AdvisorSuggestion] = Field(default_factory=list)
