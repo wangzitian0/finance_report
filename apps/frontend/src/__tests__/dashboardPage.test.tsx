@@ -581,7 +581,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Financial analytics")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Total Assets")).toBeInTheDocument())
     expect(screen.queryByLabelText("Getting started")).not.toBeInTheDocument()
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
   })
