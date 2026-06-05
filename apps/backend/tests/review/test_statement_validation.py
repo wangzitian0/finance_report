@@ -261,6 +261,69 @@ class TestApproveStatement:
         with pytest.raises(ValueError, match="Balance mismatch"):
             await approve_statement(db, stmt.id, user_id)
 
+    async def test_approve_with_opening_mismatch_raises(self, db, user_id):
+        """AC16.22.1 AC16.31.2: Approval requires both opening and closing balance validation."""
+        account = Account(
+            id=uuid4(),
+            user_id=user_id,
+            name="Opening mismatch account",
+            type=AccountType.ASSET,
+            currency="USD",
+        )
+        previous = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            account_id=account.id,
+            file_path="previous.pdf",
+            file_hash="hash_opening_prev",
+            original_filename="previous.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
+            opening_balance=Decimal("0.00"),
+            closing_balance=Decimal("100.00"),
+            status=BankStatementStatus.APPROVED,
+            stage1_status=Stage1Status.APPROVED,
+        )
+        current = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            account_id=account.id,
+            file_path="current.pdf",
+            file_hash="hash_opening_current",
+            original_filename="current.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=date(2024, 2, 1),
+            period_end=date(2024, 2, 29),
+            opening_balance=Decimal("120.00"),
+            closing_balance=Decimal("150.00"),
+            status=BankStatementStatus.PARSED,
+        )
+        db.add_all([account, previous, current])
+        await db.flush()
+
+        txn = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=current.id,
+            txn_date=date(2024, 2, 15),
+            description="Deposit",
+            amount=Decimal("50.00"),
+            direction="IN",
+            status="pending",
+            confidence="high",
+        )
+        db.add(txn)
+        await db.flush()
+
+        validation = await validate_balance_chain(db, current.id)
+        assert validation["opening_match"] is False
+        assert validation["closing_match"] is True
+
+        with pytest.raises(ValueError, match="Opening balance mismatch"):
+            await approve_statement(db, current.id, user_id)
+
 
 class TestRejectStatement:
     async def test_reject_sets_status(self, db, statement_with_transactions, user_id):
@@ -554,6 +617,67 @@ class TestEditAndApproveEdgeCases:
 
         with pytest.raises(ValueError, match="Balance still invalid after edits"):
             await edit_and_approve(db, stmt.id, user_id, [])
+
+    async def test_edit_and_approve_opening_mismatch_raises(self, db, user_id):
+        """AC16.22.1 AC16.31.2: edit_and_approve blocks opening balance mismatches."""
+        account = Account(
+            id=uuid4(),
+            user_id=user_id,
+            name="Edit opening mismatch account",
+            type=AccountType.ASSET,
+            currency="USD",
+        )
+        previous = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            account_id=account.id,
+            file_path="edit_previous.pdf",
+            file_hash="hash_edit_opening_prev",
+            original_filename="edit_previous.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
+            opening_balance=Decimal("0.00"),
+            closing_balance=Decimal("100.00"),
+            status=BankStatementStatus.APPROVED,
+            stage1_status=Stage1Status.APPROVED,
+        )
+        current = BankStatement(
+            id=uuid4(),
+            user_id=user_id,
+            account_id=account.id,
+            file_path="edit_current.pdf",
+            file_hash="hash_edit_opening_current",
+            original_filename="edit_current.pdf",
+            institution="Test Bank",
+            currency="USD",
+            period_start=date(2024, 2, 1),
+            period_end=date(2024, 2, 29),
+            opening_balance=Decimal("120.00"),
+            closing_balance=Decimal("150.00"),
+            status=BankStatementStatus.PARSED,
+        )
+        db.add_all([account, previous, current])
+        await db.flush()
+
+        txn = BankStatementTransaction(
+            id=uuid4(),
+            statement_id=current.id,
+            txn_date=date(2024, 2, 15),
+            description="Deposit",
+            amount=Decimal("40.00"),
+            direction="IN",
+            status="pending",
+            confidence="high",
+        )
+        db.add(txn)
+        await db.flush()
+
+        edits = [{"txn_id": str(txn.id), "amount": "50.00", "direction": "IN"}]
+
+        with pytest.raises(ValueError, match="Opening balance mismatch"):
+            await edit_and_approve(db, current.id, user_id, edits)
 
     async def test_edit_and_approve_updates_all_fields_and_ignores_unknown_txn(self, db, user_id):
         stmt = BankStatement(
