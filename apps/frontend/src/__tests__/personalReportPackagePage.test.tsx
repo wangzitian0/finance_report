@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page"
 import { apiFetch } from "@/lib/api"
@@ -213,6 +213,19 @@ function mockPackageApi(readinessPayload = readiness) {
 }
 
 describe("PersonalReportPackagePage", () => {
+  afterEach(() => {
+    mockedApiFetch.mockReset()
+  })
+
+  it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {
+    mockedApiFetch.mockRejectedValue(new Error("package contract unavailable"))
+
+    render(<PersonalReportPackagePage />)
+
+    expect(screen.getByText("Loading package contract...")).toBeInTheDocument()
+    expect(await screen.findByText("package contract unavailable")).toBeInTheDocument()
+  })
+
   it("AC5.9.3 renders personal package contract sections from API", async () => {
     mockPackageApi()
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { ToastProvider, useToast } from "@/components/ui/Toast"
 
@@ -15,6 +15,14 @@ function TestToastConsumer() {
 }
 
 describe("ToastProvider component", () => {
+  it("AC8.13.92 rejects toast usage outside the provider", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    expect(() => render(<TestToastConsumer />)).toThrow("useToast must be used within a ToastProvider")
+
+    errorSpy.mockRestore()
+  })
+
   it("AC16.19.9 shows and dismisses notifications", () => {
     render(
       <ToastProvider>

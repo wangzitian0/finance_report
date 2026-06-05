@@ -95,6 +95,43 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "New" }))
+    await waitFor(() => expect(mockedApiDelete).toHaveBeenCalledWith("/api/chat/session/sess-1"))
+    expect(localStorage.getItem("ai_chat_session_id")).toBeNull()
+  })
+
+  it("AC8.13.92 keeps widget close and disclaimer rendering covered", async () => {
+    const onClose = vi.fn()
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/suggestions")) {
+        return Promise.resolve({ suggestions: [] })
+      }
+      if (path.includes("/api/chat/history")) {
+        return Promise.resolve({
+          sessions: [
+            {
+              id: "sess-1",
+              title: "Risk review",
+              message_count: 1,
+              messages: [
+                {
+                  id: "m1",
+                  role: "assistant",
+                  content: "Portfolio risk is concentrated. The above analysis is for reference only.",
+                },
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ChatPanel variant="widget" onClose={onClose} />)
+
+    expect(await screen.findByText("Portfolio risk is concentrated.")).toBeInTheDocument()
+    expect(screen.getByText("The above analysis is for reference only.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it("AC19.8.6 shows chat sessions inside the AI page without workflow ownership", async () => {

@@ -102,6 +102,32 @@ describe("UnmatchedBoard", () => {
     expect(screen.getByText("Select a transaction to review")).toBeInTheDocument()
   })
 
+  it("AC8.13.92 updates the selected transaction when another unmatched row is clicked", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        unmatchedItem,
+        {
+          ...unmatchedItem,
+          id: "u2",
+          description: "Broker dividend",
+          amount: 42,
+          direction: "IN",
+          reference: "DIV-42",
+        },
+      ],
+      total: 2,
+    })
+
+    render(<UnmatchedBoard />)
+
+    await waitFor(() => expect(screen.getAllByText("Card payment").length).toBeGreaterThan(0))
+    fireEvent.click(screen.getByRole("button", { name: /Broker dividend/i }))
+
+    expect(screen.getByText("Ref: DIV-42")).toBeInTheDocument()
+    expect(screen.getAllByText("Broker dividend").length).toBeGreaterThan(0)
+    expect(screen.getByText((_content, element) => element?.textContent === "2026-01-11 · Inflow")).toBeInTheDocument()
+  })
+
   it("AC16.31.4 creates all entries only after confirming the batch action", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({

@@ -270,10 +270,8 @@ coverage: {
     '**/vitest.setup.ts', '**/*.config.*', '**/types/**',
   ],
   thresholds: {
-    lines: 99,
-    functions: 80,
-    branches: 70,
-    statements: 87,
+    // Local frontend baseline is code-owned by apps/frontend/vitest.config.ts
+    // and guarded by apps/frontend/src/__tests__/coverageBaseline.test.ts.
     autoUpdate: false,
   },
 }
