@@ -2814,6 +2814,7 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, te
     """AC16.32.1: Stage 1 approval cannot bypass unresolved transfer-pair candidates."""
     statement = build_statement(test_user.id, "hash_stage1_transfer_conflict", 90)
     statement.status = BankStatementStatus.PARSED
+    statement.closing_balance = Decimal("100.00")
     db.add(statement)
     await db.commit()
 
@@ -2900,7 +2901,7 @@ async def test_AC19_11_1_consistency_check_list_filters_by_run_id(db, test_user)
     result = await review_router.list_consistency_checks(db=db, user_id=test_user.id, run_id="run-123")
 
     assert result.total == 1
-    assert result.items[0].run_id == "run-123"
+    assert result.items[0].related_txn_ids == ["txn-in-run"]
 
 
 async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):

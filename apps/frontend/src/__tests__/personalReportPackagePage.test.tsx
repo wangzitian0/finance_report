@@ -424,7 +424,9 @@ describe("PersonalReportPackagePage", () => {
         "/api/reports/package/contract",
       ),
     );
-    expect(screen.getByRole("button", { name: "US-like" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "US-like" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "HK-like" })).toBeInTheDocument();
     expect(
       screen.getByText("Select a framework before package output is loaded."),
