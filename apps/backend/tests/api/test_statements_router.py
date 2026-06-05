@@ -2810,6 +2810,45 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_us
     assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
 
 
+async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, test_user):
+    """AC16.32.1: Stage 1 approval cannot bypass unresolved transfer-pair candidates."""
+    statement = build_statement(test_user.id, "hash_stage1_transfer_conflict", 90)
+    statement.status = BankStatementStatus.PARSED
+    db.add(statement)
+    await db.commit()
+
+    db.add_all(
+        [
+            BankStatementTransaction(
+                statement_id=statement.id,
+                txn_date=date(2025, 1, 15),
+                description="Transfer out",
+                amount=Decimal("20.00"),
+                direction="OUT",
+            ),
+            BankStatementTransaction(
+                statement_id=statement.id,
+                txn_date=date(2025, 1, 15),
+                description="Transfer in",
+                amount=Decimal("20.00"),
+                direction="IN",
+            ),
+        ]
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id,
+            request=Stage1ApprovalRequest(notes=None),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
+
+
 async def test_AC16_32_3_stage2_queue_returns_all_pending_checks(db, test_user):
     """AC16.32.3: Stage 2 queue includes the full unresolved blocker set."""
     db.add_all(
@@ -2830,6 +2869,38 @@ async def test_AC16_32_3_stage2_queue_returns_all_pending_checks(db, test_user):
     result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
 
     assert len(result.consistency_checks) == 55
+
+
+async def test_AC19_11_1_consistency_check_list_filters_by_run_id(db, test_user):
+    """AC19.11.1: Consistency check list supports run-scoped review pages."""
+    db.add_all(
+        [
+            ConsistencyCheck(
+                user_id=test_user.id,
+                run_id="run-123",
+                check_type=CheckType.DUPLICATE,
+                status=CheckStatus.PENDING,
+                related_txn_ids=["txn-in-run"],
+                details={"message": "Run scoped duplicate"},
+                severity="high",
+            ),
+            ConsistencyCheck(
+                user_id=test_user.id,
+                run_id="run-456",
+                check_type=CheckType.DUPLICATE,
+                status=CheckStatus.PENDING,
+                related_txn_ids=["txn-other-run"],
+                details={"message": "Other run duplicate"},
+                severity="high",
+            ),
+        ]
+    )
+    await db.commit()
+
+    result = await review_router.list_consistency_checks(db=db, user_id=test_user.id, run_id="run-123")
+
+    assert result.total == 1
+    assert result.items[0].run_id == "run-123"
 
 
 async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
