@@ -282,6 +282,28 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.7.6 | Evidence lineage | Evidence lineage traversal enforces a default maximum depth and never walks unbounded graphs |
 | AC18.7.7 | Evidence lineage | Evidence Graph foundation tests cover node creation, edge creation, duplicate upsert behavior, upstream traversal, downstream traversal, depth limit, and cross-user isolation |
 
+### AC18.8: Evidence Graph Source-to-Report Integration
+
+MECE task frame:
+
+- Source capture: statement upload and parse create source document and extracted record nodes.
+- Atomic fact integration: Layer 2 dual-write creates atomic fact nodes and `deduped_into` edges from extracted records.
+- Ledger integration: statement posting creates ledger entry and ledger line nodes while preserving `JournalEntry.source_type/source_id`.
+- Report integration: package traceability can resolve at least one report line through graph lineage back to source documents.
+- Blocker handling: unsupported source IDs remain explicit blockers instead of fabricated source anchors.
+
+Dependencies: AC18.7 Evidence Graph foundation and existing Layer 1/2, journal posting, and package traceability services. Out of scope: UI lineage panel, historical backfill, graph database adoption, and replacing every legacy traceability resolver in one change.
+
+| AC ID | Phase | Description |
+|-------|-------|-------------|
+| AC18.8.1 | Evidence lineage integration | Statement upload and parse create a `source_document` node for the uploaded source and `extracted_record` nodes for parsed bank statement transactions linked by `parsed_into` edges |
+| AC18.8.2 | Evidence lineage integration | Layer 2 dual-write creates `atomic_fact` nodes for atomic transactions and `deduped_into` edges from the parsed transaction records that produced them |
+| AC18.8.3 | Evidence lineage integration | Journal posting creates `ledger_entry` and `ledger_line` nodes, links extracted or atomic transaction facts to the ledger entry with `posted_as`, and links the ledger entry to its lines with `contains` |
+| AC18.8.4 | Evidence lineage integration | `GET /api/reports/package/traceability` can resolve at least one report line from ledger anchors through Evidence Graph lineage back to source document anchors |
+| AC18.8.5 | Evidence lineage integration | Unknown or unsupported `JournalEntry.source_id` values produce explicit blocker codes and never fabricate statement, atomic, or document anchors |
+| AC18.8.6 | Evidence lineage integration | Existing `JournalEntry.source_type/source_id` semantics remain backward-compatible while Evidence Graph writes add supplemental audit lineage |
+| AC18.8.7 | Evidence lineage integration | Tests cover three end-to-end graph paths: source document downstream impact, bank statement transaction to ledger line, and report line to source document |
+
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 
 | AC ID | Phase | Description |

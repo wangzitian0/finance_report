@@ -59,6 +59,7 @@ from src.schemas import (
     TrendPeriod,
 )
 from src.services.confidence_tier import derive_confidence_tier
+from src.services.evidence_lineage import EvidenceLineageService
 from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.fx import FxRateError, convert_amount
 from src.services.market_data import ensure_market_data_fresh
@@ -803,6 +804,47 @@ def _journal_source_anchor_detail(
     }
 
 
+async def _evidence_graph_source_anchor_details(
+    db: DbSession,
+    user_id: CurrentUserId,
+    *,
+    line: JournalLine,
+    ledger_detail: dict,
+) -> list[dict]:
+    lineage = EvidenceLineageService()
+    steps = await lineage.get_upstream(
+        db,
+        user_id=user_id,
+        entity_type="journal_line",
+        entity_id=line.id,
+        node_kind="ledger_line",
+    )
+    details: list[dict] = []
+    for step in steps:
+        node = step.node
+        if node.node_kind not in {"source_document", "atomic_fact"}:
+            continue
+        source_type = str(node.properties.get("document_type") or node.entity_type)
+        details.append(
+            {
+                "identifier": _identifier(node.entity_type, node.entity_id),
+                "source_kind": node.entity_type,
+                "source_id": str(node.entity_id),
+                "source_type": source_type,
+                "amount": ledger_detail["amount"],
+                "currency": ledger_detail["currency"],
+                "review_state": ledger_detail["review_state"],
+                "confidence_tier": ledger_detail["confidence_tier"],
+                "contribution_basis": "evidence_graph_upstream",
+                "journal_entry_id": ledger_detail["journal_entry_id"],
+                "journal_line_id": ledger_detail["journal_line_id"],
+                "account_id": ledger_detail["account_id"],
+                "account_type": ledger_detail["account_type"],
+            }
+        )
+    return _dedupe_details(details)
+
+
 async def _personal_report_package_traceability_payload(
     *,
     start_date: date | None,
@@ -879,20 +921,29 @@ async def _personal_report_package_traceability_payload(
             statement_txn_ids=statement_txn_ids,
             atomic_txn_ids=atomic_txn_ids,
         )
+        graph_source_details = await _evidence_graph_source_anchor_details(
+            db,
+            user_id,
+            line=line,
+            ledger_detail=ledger_detail,
+        )
+        entry_source_details = [source_detail, *graph_source_details]
+        entry_source_identifiers = [
+            str(detail["identifier"]) for detail in entry_source_details if detail.get("identifier")
+        ]
         ledger_details.append(ledger_detail)
-        source_details.append(source_detail)
+        source_details.extend(entry_source_details)
         ledger_identifiers.extend(
             [
                 _identifier("journal_entry", entry.id),
                 _identifier("journal_line", line.id),
             ]
         )
-        source_identifier = str(source_detail["identifier"])
-        source_identifiers.append(source_identifier)
+        source_identifiers.extend(entry_source_identifiers)
         is_unknown_source = source_detail["source_kind"] == "unknown_source"
         if account.type == AccountType.INCOME:
-            income_source_identifiers.append(source_identifier)
-            income_source_details.append(source_detail)
+            income_source_identifiers.extend(entry_source_identifiers)
+            income_source_details.extend(entry_source_details)
             income_ledger_details.append(ledger_detail)
             if is_unknown_source:
                 unknown_source_line_ids.update(
@@ -902,14 +953,14 @@ async def _personal_report_package_traceability_payload(
                     }
                 )
         elif account.type == AccountType.EXPENSE:
-            expense_source_identifiers.append(source_identifier)
-            expense_source_details.append(source_detail)
+            expense_source_identifiers.extend(entry_source_identifiers)
+            expense_source_details.extend(entry_source_details)
             expense_ledger_details.append(ledger_detail)
             if is_unknown_source:
                 unknown_source_line_ids.add("income_statement.total_expenses")
         elif account.type == AccountType.ASSET:
-            cash_source_identifiers.append(source_identifier)
-            cash_source_details.append(source_detail)
+            cash_source_identifiers.extend(entry_source_identifiers)
+            cash_source_details.extend(entry_source_details)
             cash_ledger_details.append(ledger_detail)
             if is_unknown_source:
                 unknown_source_line_ids.update(

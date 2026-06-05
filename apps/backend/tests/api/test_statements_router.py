@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from src.models import Account, AccountType, User
+from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import (
@@ -3090,6 +3091,56 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
         .where(JournalEntry.source_id == txn.id)
     )
     assert list(entry_result.scalars().all()) == []
+
+
+async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledger_graph(
+    db,
+    test_user,
+):
+    """AC18.8.3 AC18.8.6 AC18.8.7: Statement posting records extracted->ledger entry->ledger line lineage."""
+    account = await create_statement_account(db, test_user.id, "DBS Evidence Graph Posting")
+    statement = build_statement(test_user.id, "hash_evidence_graph_posting", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 21),
+        description="Evidence graph salary",
+        amount=Decimal("50.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+
+    entry = await create_entry_from_txn(
+        db,
+        txn,
+        user_id=test_user.id,
+        auto_post=True,
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+    )
+    await db.commit()
+
+    assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
+    assert entry.source_id == txn.id
+
+    nodes = {
+        (node.node_kind, node.entity_type, node.entity_id): node
+        for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()
+    }
+    extracted_node = nodes[("extracted_record", "bank_statement_transaction", txn.id)]
+    ledger_entry_node = nodes[("ledger_entry", "journal_entry", entry.id)]
+    ledger_line_nodes = [nodes[("ledger_line", "journal_line", line.id)] for line in entry.lines]
+
+    edges = {
+        (edge.from_node_id, edge.to_node_id, edge.relation)
+        for edge in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == test_user.id))).scalars()
+    }
+    assert (extracted_node.id, ledger_entry_node.id, "posted_as") in edges
+    assert {(ledger_entry_node.id, ledger_line_node.id, "contains") for ledger_line_node in ledger_line_nodes} <= edges
 
 
 async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_user):
