@@ -408,10 +408,10 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_98_existing_preview_compose_is_replaced_before_deploy(
+def test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.98: Existing PR previews are recreated to force fresh rollout state."""
+    """AC8.13.98: Existing PR previews restart around deploy."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
@@ -438,13 +438,6 @@ def test_AC8_13_98_existing_preview_compose_is_replaced_before_deploy(
                 cmd,
                 0,
                 stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
-                stderr="",
-            )
-        if "compose.create" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"composeId":"cmp-591-new"}',
                 stderr="",
             )
         if "compose.one" in rendered:
@@ -477,17 +470,15 @@ def test_AC8_13_98_existing_preview_compose_is_replaced_before_deploy(
     assert lifecycle.main_from_args(args) == 0
 
     rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert "compose.delete" in rendered_calls
-    assert "compose.create" in rendered_calls
+    assert "compose.delete" not in rendered_calls
+    assert "compose.create" not in rendered_calls
     assert "compose.update" in rendered_calls
     assert "compose.one" in rendered_calls
+    assert "compose.stop" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert "compose.stop" not in rendered_calls
-    assert "compose.redeploy" not in rendered_calls
     assert "compose.start" in rendered_calls
-    assert rendered_calls.index("compose.delete") < rendered_calls.index("compose.create")
-    assert rendered_calls.index("compose.create") < rendered_calls.index("compose.update")
-    assert rendered_calls.index("compose.update") < rendered_calls.index("compose.deploy")
+    assert "compose.redeploy" not in rendered_calls
+    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.deploy")
     assert rendered_calls.index("compose.deploy") < rendered_calls.index("compose.start")
     assert "secret-key" not in rendered_calls
 
