@@ -77,11 +77,13 @@ def _money(value: object) -> Decimal:
 
 
 async def _auth_headers(page: Page) -> dict[str, str]:
-    token = await page.evaluate(
-        "() => window.localStorage.getItem('finance_access_token')"
+    cookies = await page.context.cookies(APP_URL)
+    auth_cookie = next(
+        (cookie for cookie in cookies if cookie["name"] == "finance_access_token"),
+        None,
     )
-    assert token, "Missing finance_access_token in localStorage"
-    return {"Authorization": f"Bearer {token}"}
+    assert auth_cookie, "authenticated Playwright context is missing auth cookie"
+    return {"Cookie": f"finance_access_token={auth_cookie['value']}"}
 
 
 def _statement_timeout_message(statement_id: str, last_payload: dict | None) -> str:

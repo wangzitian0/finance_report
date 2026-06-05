@@ -97,7 +97,6 @@ const visualStatementReview = {
 
 async function installVisualApiMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "visual-smoke-token");
     localStorage.setItem("finance_user_id", "visual-user");
     localStorage.setItem("finance_user_email", "visual@example.com");
   });

@@ -484,6 +484,7 @@ model.
 | AC16.31.2 | Stage 1 approval is disabled unless both opening and closing balance validation match | `AC16.31.2 disables approval when opening balance validation fails` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
 | AC16.31.3 | Stage 2 run review page states that it uses the shared Stage 2 queue endpoint when no run-scoped queue API exists | `AC16.24.1 and AC16.24.2 summarizes unresolved run checks and blocks approval` | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | P0 |
 | AC16.31.4 | Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation | `AC16.20.4 supports flag and ignore actions` / `creates all entries with batch action` | `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
+| AC16.33.4 | Stage 1 statement review PDF previews use short-lived presigned URLs and sandboxed iframe embedding | `test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl` / `AC16.33.4 sandboxes PDF preview URLs` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/reviewPages.test.tsx` | P0 |
 
 ### Acceptance Criteria — Feature (group 28, frontend UI system primitives)
 

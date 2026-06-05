@@ -65,7 +65,7 @@ describe('API URL Configuration Scenarios', () => {
       expect(JSON.stringify(rewrites)).not.toContain('localhost:8000')
     })
 
-    it('AC1.10.2 configures browser security headers for localStorage bearer-token risk', async () => {
+    it('AC1.10.4 configures browser security headers without unsafe eval', async () => {
       const { default: nextConfig } = await import('../../next.config.mjs')
 
       expect(typeof nextConfig.headers).toBe('function')
@@ -80,6 +80,7 @@ describe('API URL Configuration Scenarios', () => {
 
       expect(headers['Content-Security-Policy']).toContain("default-src 'self'")
       expect(headers['Content-Security-Policy']).toContain("frame-ancestors 'none'")
+      expect(headers['Content-Security-Policy']).not.toContain("'unsafe-eval'")
       expect(headers['Strict-Transport-Security']).toContain('max-age=31536000')
       expect(headers['X-Frame-Options']).toBe('DENY')
       expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin')

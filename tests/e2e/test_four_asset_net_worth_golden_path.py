@@ -118,11 +118,13 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 
 async def _auth_headers(page: Page) -> dict[str, str]:
-    token = await page.evaluate(
-        "() => window.localStorage.getItem('finance_access_token')"
+    cookies = await page.context.cookies(APP_URL)
+    auth_cookie = next(
+        (cookie for cookie in cookies if cookie["name"] == "finance_access_token"),
+        None,
     )
-    assert token, "Missing finance_access_token in localStorage"
-    return {"Authorization": f"Bearer {token}"}
+    assert auth_cookie, "authenticated Playwright context is missing auth cookie"
+    return {"Cookie": f"finance_access_token={auth_cookie['value']}"}
 
 
 async def _default_image_model(client: httpx.AsyncClient) -> str:

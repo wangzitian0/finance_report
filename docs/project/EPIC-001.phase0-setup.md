@@ -141,8 +141,10 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.10.1 | Staging and production startup reject missing, default, or short JWT `SECRET_KEY` values | `test_AC1_10_1_static_config_*` | `infra/test_boot.py` |
-| AC1.10.2 | Frontend responses include security headers that mitigate localStorage bearer-token exposure | `AC1.10.2 configures browser security headers for localStorage bearer-token risk` | `src/__tests__/api-urls.test.ts` |
+| AC1.10.1 | Protected runtime startup rejects missing, default, short, or local-development secret/database/storage configuration | `test_AC1_10_1_static_config_*` | `infra/test_boot.py` |
+| AC1.10.2 | Email identity is normalized for registration and login so case variants cannot create duplicate users | `test_AC1_10_2_*` | `auth/test_auth_router.py` |
+| AC1.10.3 | Browser authentication uses an HttpOnly session cookie by default while frontend storage keeps only non-secret user metadata | `test_AC1_10_3_get_me_accepts_httponly_cookie` / `AC1.10.3 sends HttpOnly auth cookies by default` / `auth.test.ts` session tests | `auth/test_auth_router.py`, `src/__tests__/apiFunctions.test.ts`, `src/__tests__/auth.test.ts` |
+| AC1.10.4 | Frontend production dependency audits fail CI and CSP forbids `unsafe-eval` in shipped responses | `AC1.10.4 configures browser security headers without unsafe eval` / `npm run audit:prod` | `src/__tests__/api-urls.test.ts`, `.github/workflows/ci.yml` |
 
 ## 📏 Acceptance Criteria
 

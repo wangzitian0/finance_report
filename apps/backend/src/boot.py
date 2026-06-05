@@ -26,7 +26,10 @@ logger = get_logger(__name__)
 VAULT_SECRETS_FILE_PATH = "/secrets/.env"
 VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS = 3600
 DEVELOPMENT_SECRET_KEY = "dev_secret_key_change_in_prod"
+DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
+DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
 PROTECTED_ENVIRONMENTS = frozenset({"staging", "production"})
+LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
 
 
 class BootMode(str, Enum):
@@ -164,14 +167,25 @@ class Bootloader:
         print("=" * 60 + "\n")
 
     @staticmethod
+    def _is_protected_runtime(environment: str) -> bool:
+        """Return True when config should be treated as deployed/protected."""
+        normalized = environment.strip().lower()
+        if normalized in PROTECTED_ENVIRONMENTS:
+            return True
+        if normalized not in LOCAL_ENVIRONMENTS:
+            return True
+        app_url = str(getattr(settings, "next_public_app_url", "") or "").strip().lower()
+        return app_url.startswith("https://") and "localhost" not in app_url and "127.0.0.1" not in app_url
+
+    @staticmethod
     def _check_static_config() -> bool:
         """Verify presence of required environment variables."""
         try:
             # Just accessing settings triggers validation
-            _ = settings.database_url
+            database_url = settings.database_url
             environment = str(getattr(settings, "environment", "")).lower()
             secret_key = getattr(settings, "secret_key", "")
-            if environment in PROTECTED_ENVIRONMENTS:
+            if Bootloader._is_protected_runtime(environment):
                 if not isinstance(secret_key, str) or not secret_key.strip():
                     logger.error("SECRET_KEY is required in protected environments", environment=environment)
                     return False
@@ -181,6 +195,12 @@ class Bootloader:
                     return False
                 if len(normalized_secret.encode("utf-8")) < 32:
                     logger.error("SECRET_KEY must be at least 32 bytes", environment=environment)
+                    return False
+                if str(database_url).strip() == DEVELOPMENT_DATABASE_URL:
+                    logger.error("Default development DATABASE_URL is forbidden", environment=environment)
+                    return False
+                if str(getattr(settings, "s3_secret_key", "")).strip() == DEVELOPMENT_S3_SECRET_KEY:
+                    logger.error("Default development S3_SECRET_KEY is forbidden", environment=environment)
                     return False
             return True
         except Exception as e:

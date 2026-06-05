@@ -4,7 +4,6 @@ const COLD_ROUTE_TIMEOUT_MS = 10_000;
 
 async function installReportReadinessMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "report-readiness-token");
     localStorage.setItem("finance_user_id", "report-readiness-user");
     localStorage.setItem("finance_user_email", "report-readiness@example.com");
   });

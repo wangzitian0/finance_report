@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
 
 const PUBLIC_PATHS = ["/login", "/ping-pong"];
-const AUTH_TOKEN_KEY = "finance_access_token";
+const AUTH_SESSION_KEY = "finance_user_id";
 
 function isPublicPath(pathname: string) {
     return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/"));
@@ -34,7 +34,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
-            if (e.key !== AUTH_TOKEN_KEY) return;
+            if (e.key !== AUTH_SESSION_KEY) return;
             
             if (e.newValue === null && !isPublicPath(pathname)) {
                 setAuthorized(false);

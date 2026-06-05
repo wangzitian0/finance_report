@@ -156,6 +156,12 @@ class Settings(BaseSettings):
     # S3 optional settings
     s3_region: str = "us-east-1"
     s3_presign_expiry_seconds: int = 300
+    statement_review_presign_expiry_seconds: int = Field(
+        default=120,
+        ge=30,
+        le=600,
+        validation_alias="STATEMENT_REVIEW_PRESIGN_EXPIRY_SECONDS",
+    )
 
     # Observability (optional)
     otel_exporter_otlp_endpoint: str | None = Field(

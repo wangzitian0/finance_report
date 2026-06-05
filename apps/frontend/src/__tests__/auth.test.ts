@@ -53,7 +53,7 @@ describe("auth utilities", () => {
             expect(getAccessToken()).toBeNull();
         });
 
-        it("returns stored token from localStorage", () => {
+        it("returns legacy stored token from localStorage for API-client compatibility", () => {
             localStorage.setItem("finance_access_token", "eyJhbGci...");
             expect(getAccessToken()).toBe("eyJhbGci...");
         });
@@ -66,12 +66,18 @@ describe("auth utilities", () => {
             expect(localStorage.getItem("finance_user_email")).toBe("alice@example.com");
         });
 
-        it("AC16.5.3 stores token when provided", () => {
+        it("AC16.5.3 does not persist bearer token when provided by login response", () => {
             setUser("user-456", "alice@example.com", "token-abc");
-            expect(localStorage.getItem("finance_access_token")).toBe("token-abc");
+            expect(localStorage.getItem("finance_access_token")).toBeNull();
         });
 
         it("AC16.5.3 does not set token when not provided", () => {
+            setUser("user-456", "alice@example.com");
+            expect(localStorage.getItem("finance_access_token")).toBeNull();
+        });
+
+        it("AC16.5.3 clears stale bearer token when token is not provided", () => {
+            localStorage.setItem("finance_access_token", "stale-token");
             setUser("user-456", "alice@example.com");
             expect(localStorage.getItem("finance_access_token")).toBeNull();
         });
@@ -88,13 +94,14 @@ describe("auth utilities", () => {
     });
 
     describe("isAuthenticated", () => {
-        it("AC16.5.5 returns false when no token is stored", () => {
+        it("AC16.5.5 returns false when no local session marker is stored", () => {
             expect(isAuthenticated()).toBe(false);
         });
 
-        it("AC16.5.5 returns true when token exists in localStorage", () => {
-            localStorage.setItem("finance_access_token", "valid-token");
+        it("AC16.5.5 returns true when non-secret user session metadata exists", () => {
+            setUser("user-456", "alice@example.com", "valid-token");
             expect(isAuthenticated()).toBe(true);
+            expect(localStorage.getItem("finance_access_token")).toBeNull();
         });
     });
 });

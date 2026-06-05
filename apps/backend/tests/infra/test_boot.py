@@ -152,6 +152,28 @@ class TestBootloaderStaticConfig:
 
         assert result is False
 
+    def test_AC1_10_1_static_config_rejects_default_db_in_protected_env(self, mock_settings):
+        """AC1.10.1: Protected runtimes cannot boot with local development DB defaults."""
+        mock_settings.environment = "production"
+        mock_settings.secret_key = "a" * 32
+        mock_settings.database_url = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
+
+        result = Bootloader._check_static_config()
+
+        assert result is False
+
+    def test_AC1_10_1_static_config_rejects_default_s3_secret_in_production_like_url(self, mock_settings):
+        """AC1.10.1: Public app URLs are treated as protected even if ENV is misnamed."""
+        mock_settings.environment = "preview"
+        mock_settings.secret_key = "a" * 32
+        mock_settings.database_url = "postgresql+asyncpg://finance:secure@db.internal/finance_report"
+        mock_settings.s3_secret_key = "minio_local_secret"
+        mock_settings.next_public_app_url = "https://report.zitian.party"
+
+        result = Bootloader._check_static_config()
+
+        assert result is False
+
     def test_AC1_10_1_static_config_rejects_blank_secret_key_in_production(self, mock_settings):
         """AC1.10.1: Protected environments require a configured JWT secret."""
         mock_settings.environment = "production"

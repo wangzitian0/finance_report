@@ -96,7 +96,7 @@ describe("AppShell and AuthGuard", () => {
 
     await waitFor(() => expect(screen.getByText("Protected Content")).toBeInTheDocument())
 
-    window.dispatchEvent(new StorageEvent("storage", { key: "finance_access_token", newValue: null }))
+    window.dispatchEvent(new StorageEvent("storage", { key: "finance_user_id", newValue: null }))
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login"))
   })
 
@@ -114,7 +114,7 @@ describe("AppShell and AuthGuard", () => {
     isAuthenticatedMock.mockReturnValue(false)
     render(<AuthGuard><div>Login Content</div></AuthGuard>)
     await waitFor(() => expect(screen.getByText("Login Content")).toBeInTheDocument())
-    window.dispatchEvent(new StorageEvent("storage", { key: "finance_access_token", newValue: "tok" }))
+    window.dispatchEvent(new StorageEvent("storage", { key: "finance_user_id", newValue: "user-1" }))
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/dashboard"))
   })
 

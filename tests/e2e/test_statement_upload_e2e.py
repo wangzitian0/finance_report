@@ -132,14 +132,9 @@ async def test_statement_upload_full_flow(authenticated_page: Page) -> None:
     # Statement row appears in the list with the institution name we provided.
     statement_row = page.locator("a").filter(has_text="E2E Upload Test Bank").first
     await expect(statement_row).to_be_visible(timeout=15_000)
-    # Verify the statement is immediately accessible via the API.
-    # Read the JWT from localStorage, then use Playwright's request API (no JS-in-browser needed).
-    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    api_resp = await page.request.get(
-        _get_url(f"/api/statements/{statement_id}"),
-        headers=headers,
-    )
+    # Verify the statement is immediately accessible via the API. Playwright's
+    # context request shares the browser cookie jar used by the page.
+    api_resp = await page.request.get(_get_url(f"/api/statements/{statement_id}"))
     assert api_resp.status == 200, (
         f"GET /api/statements/{statement_id} returned {api_resp.status} \u2014 response body: {await api_resp.text()}"
     )

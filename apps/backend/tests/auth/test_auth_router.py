@@ -21,6 +21,7 @@ async def test_register_success(public_client):
     assert "id" in data
     assert "access_token" in data
     assert data["token_type"] == "bearer"
+    assert response.cookies.get("finance_access_token")
 
 
 @pytest.mark.asyncio
@@ -33,6 +34,22 @@ async def test_register_duplicate_email(db: AsyncSession, public_client):
 
     payload = {"email": "existing@example.com", "password": "password123"}
     response = await public_client.post("/auth/register", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Email already registered"
+
+
+@pytest.mark.asyncio
+async def test_AC1_10_2_register_rejects_case_variant_duplicate_email(db: AsyncSession, public_client):
+    """AC1.10.2: Email identity is normalized so case variants cannot create duplicate accounts."""
+    user = User(email="existing@example.com", hashed_password=hash_password("password123"))
+    db.add(user)
+    await db.commit()
+
+    response = await public_client.post(
+        "/auth/register",
+        json={"email": "Existing@Example.COM", "password": "password123"},
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Email already registered"
@@ -56,6 +73,24 @@ async def test_login_success(db: AsyncSession, public_client):
     assert data["id"] == str(user.id)
     assert "access_token" in data
     assert data["token_type"] == "bearer"
+    assert response.cookies.get("finance_access_token")
+
+
+@pytest.mark.asyncio
+async def test_AC1_10_2_login_accepts_normalized_email(db: AsyncSession, public_client):
+    """AC1.10.2: Login resolves the same account for normalized email input."""
+    password = "secretpassword"
+    user = User(email="login-normalized@example.com", hashed_password=hash_password(password))
+    db.add(user)
+    await db.commit()
+
+    response = await public_client.post(
+        "/auth/login",
+        json={"email": "LOGIN-NORMALIZED@EXAMPLE.COM", "password": password},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "login-normalized@example.com"
 
 
 @pytest.mark.asyncio
@@ -94,6 +129,20 @@ async def test_get_me_success(client, test_user):
 
 
 @pytest.mark.asyncio
+async def test_AC1_10_3_get_me_accepts_httponly_cookie(public_client, test_user):
+    """AC1.10.3: Auth dependency accepts the HttpOnly session cookie without localStorage bearer use."""
+    from src.security import create_access_token
+
+    token = create_access_token(data={"sub": str(test_user.id)})
+    public_client.cookies.set("finance_access_token", token)
+
+    response = await public_client.get("/auth/me")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == str(test_user.id)
+
+
+@pytest.mark.asyncio
 async def test_get_me_user_not_found(public_client):
     """Test /auth/me with non-existent user ID returns 401."""
     from src.security import create_access_token
@@ -112,7 +161,7 @@ async def test_get_me_user_not_found(public_client):
 @pytest.mark.asyncio
 async def test_register_integrity_error_race_condition(monkeypatch):
     """AC1.7.4: Register endpoint handles IntegrityError race on duplicate email."""
-    from fastapi import HTTPException, Request
+    from fastapi import HTTPException, Request, Response
 
     from src.routers import auth as auth_router
 
@@ -146,7 +195,7 @@ async def test_register_integrity_error_race_condition(monkeypatch):
     payload = auth_router.RegisterRequest(email="race@example.com", password="password123", name="Race User")
 
     with pytest.raises(HTTPException) as exc_info:
-        await auth_router.register(request=request, data=payload, db=FakeDb())
+        await auth_router.register(request=request, response=Response(), data=payload, db=FakeDb())
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "Email already registered"

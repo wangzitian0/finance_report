@@ -16,6 +16,8 @@ export function PdfPreviewPane({ pdfUrl }: PdfPreviewPaneProps) {
                         src={pdfUrl} 
                         className="w-full h-full rounded border" 
                         title="Statement PDF preview"
+                        sandbox="allow-same-origin"
+                        referrerPolicy="no-referrer"
                     >
                         <p>PDF preview not available. Use the data table below to review statement content.</p>
                     </iframe>

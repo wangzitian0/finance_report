@@ -1,8 +1,8 @@
 /**
  * Auth utilities for user session management.
  *
- * Stores JWT access token and user info in localStorage.
- * Token is sent via Authorization: Bearer header on all API requests.
+ * Stores non-secret user metadata in localStorage.
+ * Browser auth uses the backend-managed HttpOnly access-token cookie.
  * SSR-safe: Returns null on server.
  */
 
@@ -28,9 +28,7 @@ export function getAccessToken(): string | null {
 export function setUser(userId: string, email: string, token?: string): void {
     localStorage.setItem(USER_KEY, userId);
     localStorage.setItem(USER_EMAIL_KEY, email);
-    if (token) {
-        localStorage.setItem(TOKEN_KEY, token);
-    }
+    localStorage.removeItem(TOKEN_KEY);
 }
 
 export function clearUser(): void {
@@ -40,5 +38,5 @@ export function clearUser(): void {
 }
 
 export function isAuthenticated(): boolean {
-    return getAccessToken() !== null;
+    return getUserId() !== null;
 }

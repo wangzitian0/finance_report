@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,15 +11,26 @@ from src.database import get_db
 from src.models import User
 from src.security import decode_access_token
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+AUTH_COOKIE_NAME = "finance_access_token"
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 async def get_current_user_id(
-    token: str = Depends(oauth2_scheme),
+    request: Request = None,
+    token: str | None = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> UUID:
     """Resolve the current user ID from JWT token."""
-    payload = decode_access_token(token)
+    resolved_token = token or (request.cookies.get(AUTH_COOKIE_NAME) if request else None)
+    if not resolved_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_access_token(resolved_token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

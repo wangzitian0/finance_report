@@ -22,6 +22,7 @@ The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.
 - Workflows build images and trigger deployments
 - Actual deployment config managed in `infra2`
 - Env vars for staging/prod stored in HashiCorp Vault
+- Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`.
 - Container names include env suffix (e.g., `-staging`)
 - PR previews must set explicit internal service URLs such as `S3_ENDPOINT=http://finance-report-minio-pr-$PR_NUMBER:9000`; nested compose env expansion is not portable.
 

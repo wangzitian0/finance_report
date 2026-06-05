@@ -67,10 +67,7 @@ def _format_grouped_int(amount: Decimal) -> str:
 
 
 async def _auth_headers(page: Page) -> dict[str, str]:
-    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
-    assert token, "Missing finance_access_token in localStorage"
     return {
-        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 

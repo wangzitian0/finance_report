@@ -23,7 +23,6 @@ const workflowStatus = {
 
 async function installNavigationMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "workflow-navigation-token");
     localStorage.setItem("finance_user_id", "workflow-navigation-user");
     localStorage.setItem("finance_user_email", "workflow-navigation@example.com");
   });

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
+import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
 import { apiFetch } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
@@ -54,5 +55,13 @@ describe("Review pages data flows", () => {
 
         renderReviewComponent(<StatementReviewPage /> as any);
         expect(await screen.findByText("Back to Statements")).toBeInTheDocument();
+    });
+
+    it("AC16.33.4 sandboxes PDF preview URLs", () => {
+        renderReviewComponent(<PdfPreviewPane pdfUrl="https://example.com/presigned.pdf?signature=secret" /> as any);
+
+        const iframe = screen.getByTitle("Statement PDF preview");
+        expect(iframe).toHaveAttribute("sandbox");
+        expect(iframe).toHaveAttribute("referrerPolicy", "no-referrer");
     });
 });

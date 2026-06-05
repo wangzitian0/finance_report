@@ -10,13 +10,13 @@
 
 | Component | Physical Location | Description |
 |-----------|-------------------|-------------|
-| User context dependency | `apps/backend/src/auth.py` | `get_current_user_id` JWT resolver |
+| User context dependency | `apps/backend/src/auth.py` | `get_current_user_id` JWT resolver for bearer and HttpOnly cookie credentials |
 | Global security gate | `apps/backend/src/main.py` | CORS and security middleware configuration |
 | User registration API | `apps/backend/src/routers/auth.py` | Registration and login endpoints |
 | Legacy user profile API | `apps/backend/src/routers/users.py` | Authenticated current-user compatibility routes only |
 | User model | `apps/backend/src/models/user.py` | Persistence for valid user IDs |
 | Frontend auth context | `apps/frontend/src/lib/auth.ts` | User session management |
-| API fetch with auth | `apps/frontend/src/lib/api.ts` | Bearer token injection |
+| API fetch with auth | `apps/frontend/src/lib/api.ts` | Same-origin cookie credentials and legacy bearer compatibility |
 | Frontend security headers | `apps/frontend/next.config.mjs` | CSP and browser security response headers |
 
 ---
@@ -37,23 +37,23 @@ sequenceDiagram
     Backend->>DB: Create user record
     DB-->>Backend: User ID (UUID)
     Backend->>Backend: Generate JWT token (sub: user_id)
-    Backend-->>Frontend: {user_id, email, access_token}
-    Frontend->>Browser: Store token in localStorage
+    Backend-->>Frontend: {user_id, email, access_token} + HttpOnly cookie
+    Frontend->>Browser: Store non-secret user metadata
 
     Note over Browser,DB: Login Flow
     Browser->>Frontend: Fill login form
     Frontend->>Backend: POST /api/auth/login {email, password}
-    Backend->>DB: Query user by email
+    Backend->>DB: Query user by normalized email
     DB-->>Backend: User record
     Backend->>Backend: Verify password with bcrypt
     Backend->>Backend: Generate JWT token (sub: user_id)
-    Backend-->>Frontend: {user_id, email, access_token}
-    Frontend->>Browser: Store token in localStorage
+    Backend-->>Frontend: {user_id, email, access_token} + HttpOnly cookie
+    Frontend->>Browser: Store non-secret user metadata
 
     Note over Browser,DB: Authenticated Requests
     Browser->>Frontend: Navigate to /accounts
-    Frontend->>Frontend: Read token from localStorage
-    Frontend->>Backend: GET /api/accounts (Authorization: Bearer <token>)
+    Frontend->>Frontend: Check non-secret user metadata
+    Frontend->>Backend: GET /api/accounts (HttpOnly cookie)
     Backend->>Backend: Decode & validate JWT
     Backend->>DB: Verify user exists
     Backend->>DB: Query user-scoped data
@@ -71,24 +71,29 @@ sequenceDiagram
 
 ## 3. Current Authentication Model
 
-**Mechanism**: JWT (JSON Web Token) with Bearer token authentication.
+**Mechanism**: JWT (JSON Web Token) authenticated from either an HttpOnly browser cookie or a bearer token.
 
 **Token Storage**:
-- Frontend: `localStorage` (key: `finance_access_token`)
-- Token format: `Bearer <jwt_token>`
+- Browser default: HttpOnly cookie (name: `finance_access_token`)
+- API/test compatibility: `Authorization: Bearer <jwt_token>`
+- Frontend storage: non-secret session metadata only (`finance_user_id`, `finance_user_email`)
 - Token lifetime: 1 day (1440 minutes, configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
 
 **Backend Validation**:
-- Uses `OAuth2PasswordBearer` scheme
+- Resolves bearer tokens first, then the HttpOnly cookie
 - Validates JWT signature with `SECRET_KEY`
 - Extracts user ID from token payload (`sub` claim)
 - Verifies user exists in database
 
 **Behavior**:
-- Missing token → `401 Unauthorized`
-- Invalid/expired token → `401 Unauthorized`
+- Missing cookie and bearer token → `401 Unauthorized`
+- Invalid/expired cookie or bearer token → `401 Unauthorized`
 - Valid token but user deleted → `401 Unauthorized`
 - Valid token → request proceeds with resolved user_id
+
+**Email Identity**:
+- Registration and login normalize email addresses with trim + Unicode case folding before lookup and persistence.
+- The database enforces a unique normalized-email index so case variants cannot create duplicate accounts.
 
 **Prohibition (Red Line)**:
 - **X-User-Id Header**: Direct use of `X-User-Id` for identity resolution is **STRICTLY PROHIBITED** in production and development. All identity must be derived from the validated JWT subject (`sub`).
@@ -265,13 +270,14 @@ const TOKEN_KEY = "finance_access_token";
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
+  // Legacy compatibility only. Browser auth uses the HttpOnly cookie.
   return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setUser(userId: string, email: string, token: string): void {
   localStorage.setItem(USER_KEY, userId);
   localStorage.setItem(USER_EMAIL_KEY, email);
-  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 export function clearUser(): void {
@@ -281,7 +287,7 @@ export function clearUser(): void {
 }
 
 export function isAuthenticated(): boolean {
-  return getAccessToken() !== null;
+  return getUserId() !== null;
 }
 ```
 
@@ -351,10 +357,10 @@ Pages that require authentication should redirect to `/login` if `isAuthenticate
 
 ### Known Limitations
 
-**Token Storage**:
-- Stored in `localStorage` (vulnerable to XSS attacks)
-- **Mitigation**: Strict Content Security Policy (CSP) recommended
-- **Future**: Consider `httpOnly` cookies for enhanced security
+**Session Cookie**:
+- Browser credentials are stored in an HttpOnly cookie and sent with same-origin API calls.
+- Strict Content Security Policy (CSP) is still required to reduce XSS impact.
+- Bearer tokens remain accepted for API clients and legacy tests, but frontend storage must not persist them.
 
 **Token Revocation**:
 - No blacklist mechanism (tokens valid until expiration)
@@ -371,19 +377,21 @@ Pages that require authentication should redirect to `/login` if `isAuthenticate
 Before production deployment, ensure:
 
 1. **SECRET_KEY** is cryptographically random (min 32 bytes)
-2. **HTTPS only** - Never expose tokens over HTTP
-3. **CSP headers** - Prevent XSS attacks that could steal tokens
+2. **HTTPS only** - Never expose session cookies or bearer tokens over HTTP outside local development
+3. **CSP headers** - Reduce XSS risk and forbid `unsafe-eval`
 4. **Rate limiting** - Configure appropriate limits for production traffic
 5. **Token lifetime** - Consider shorter expiration for sensitive operations
 6. **Monitoring** - Track failed auth attempts for security analysis
 
-The backend bootloader enforces the first requirement for staging and
-production by refusing to start with the development default secret, an empty
-secret, or a secret shorter than 32 bytes.
+The backend bootloader enforces the first requirement for protected runtimes by
+refusing to start with a development default secret, an empty secret, a secret
+shorter than 32 bytes, a local development database URL, or the default local S3
+secret. Staging, production, unknown environment names, and public HTTPS app
+URLs are protected runtimes.
 
 The frontend must emit security headers, including a Content Security Policy
-with `frame-ancestors 'none'`, because the current token storage model uses
-`localStorage`.
+with `frame-ancestors 'none'`. Browser session credentials must be sent through
+the HttpOnly cookie; frontend storage must not persist bearer tokens.
 
 ---
 
@@ -393,13 +401,13 @@ with `frame-ancestors 'none'`, because the current token storage model uses
 - **No hard-coded user IDs** in routers or services.
 - **User existence check** against `users` table on every authenticated request.
 - **JWT signature validation** on every request.
-- **Frontend must send Authorization header** with Bearer token on all authenticated API calls.
+- **Frontend must include same-origin credentials** on authenticated API calls.
 - **Token expiration check** - reject expired tokens immediately.
 
 ### Prohibited
 - **Mock user bypass** in production code.
 - **Implicit defaults** when authentication fails.
-- **Storing passwords** in localStorage (only tokens allowed).
+- **Storing passwords or bearer tokens** in frontend storage.
 - **Trusting client-provided user IDs** without JWT validation.
 
 ---
@@ -414,10 +422,11 @@ with `frame-ancestors 'none'`, because the current token storage model uses
    ```
 2. Navigate to `http://localhost:3000/login` or `/register`
 3. Register a new user with email and password
-4. Access token is stored in localStorage and sent with all API calls
+4. The backend sets an HttpOnly auth cookie; frontend storage keeps only user id/email metadata
 
 ### Testing
-- Tests must create a user via `/api/auth/register` and include `Authorization: Bearer <token>` header in all requests
+- Browser tests must create a user via `/api/auth/register`, keep the auth cookie in the browser context, and avoid localStorage bearer tokens.
+- Backend and API-client tests may include `Authorization: Bearer <token>` headers for direct request coverage.
 - Example test setup:
   ```python
   # Backend test (pytest)
@@ -428,7 +437,7 @@ with `frame-ancestors 'none'`, because the current token storage model uses
   })
   token = response.json()["access_token"]
   
-  # Use token in subsequent requests
+  # Direct API clients may use bearer compatibility in subsequent requests.
   client.get("/accounts", headers={"Authorization": f"Bearer {token}"})
   ```
 
@@ -436,10 +445,10 @@ with `frame-ancestors 'none'`, because the current token storage model uses
 
 **Frontend debugging**:
 1. Open browser DevTools → Application → Local Storage
-2. Check for `finance_access_token` key
+2. Check for `finance_user_id` and `finance_user_email` keys
 3. If missing, navigate to `/login` and register/login
-4. Verify API requests include `Authorization: Bearer <token>` header in Network tab
-5. Check token expiration: decode JWT at https://jwt.io
+4. Verify API requests include the `finance_access_token` cookie
+5. For API clients using bearer tokens, check token expiration by decoding the JWT payload
 
 **Backend debugging**:
 1. Check backend logs for JWT validation errors
@@ -451,7 +460,7 @@ with `frame-ancestors 'none'`, because the current token storage model uses
 - **Token expired**: Re-login to get new token (7-day lifetime)
 - **User deleted**: Token remains valid until expiration, but user check fails
 - **Wrong SECRET_KEY**: Tokens generated with different key won't validate
-- **Missing Authorization header**: Frontend not sending token (check localStorage)
+- **Missing cookie**: Browser request context does not include `finance_access_token`
 
 ---
 
