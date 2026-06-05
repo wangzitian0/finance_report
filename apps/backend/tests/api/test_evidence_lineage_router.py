@@ -1,0 +1,180 @@
+"""Evidence Graph navigation API tests."""
+
+from uuid import uuid4
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models import User
+from src.services.evidence_lineage import EvidenceLineageService
+
+
+@pytest.mark.asyncio
+async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_directions(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.9.1 AC18.9.2: API resolves an owned anchor and returns bounded bidirectional DTOs."""
+    service = EvidenceLineageService()
+    source_id = uuid4()
+    extracted_id = uuid4()
+    atomic_id = uuid4()
+    entry_id = uuid4()
+    line_id = uuid4()
+    report_line_id = uuid4()
+
+    source = await service.upsert_node(
+        db,
+        user_id=test_user.id,
+        node_kind="source_document",
+        entity_type="uploaded_document",
+        entity_id=source_id,
+        properties={"original_filename": "may.csv"},
+    )
+    extracted = await service.upsert_node(
+        db,
+        user_id=test_user.id,
+        node_kind="extracted_record",
+        entity_type="bank_statement_transaction",
+        entity_id=extracted_id,
+    )
+    atomic = await service.upsert_node(
+        db,
+        user_id=test_user.id,
+        node_kind="atomic_fact",
+        entity_type="atomic_transaction",
+        entity_id=atomic_id,
+    )
+    entry = await service.upsert_node(
+        db,
+        user_id=test_user.id,
+        node_kind="ledger_entry",
+        entity_type="journal_entry",
+        entity_id=entry_id,
+    )
+    line = await service.upsert_node(
+        db,
+        user_id=test_user.id,
+        node_kind="ledger_line",
+        entity_type="journal_line",
+        entity_id=line_id,
+    )
+    report_line = await service.upsert_node(
+        db,
+        user_id=test_user.id,
+        node_kind="report_line",
+        entity_type="package_traceability_line",
+        entity_id=report_line_id,
+    )
+    await service.upsert_edge(
+        db, user_id=test_user.id, from_node_id=source.id, to_node_id=extracted.id, relation="parsed_into"
+    )
+    await service.upsert_edge(
+        db, user_id=test_user.id, from_node_id=extracted.id, to_node_id=atomic.id, relation="deduped_into"
+    )
+    await service.upsert_edge(
+        db, user_id=test_user.id, from_node_id=atomic.id, to_node_id=entry.id, relation="posted_as"
+    )
+    await service.upsert_edge(db, user_id=test_user.id, from_node_id=entry.id, to_node_id=line.id, relation="contains")
+    await service.upsert_edge(
+        db, user_id=test_user.id, from_node_id=line.id, to_node_id=report_line.id, relation="aggregated_into"
+    )
+    await db.commit()
+
+    response = await client.get(
+        "/evidence/lineage",
+        params={
+            "entity_type": "journal_line",
+            "entity_id": str(line_id),
+            "node_kind": "ledger_line",
+            "direction": "both",
+            "max_depth": "5",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["anchor"]["entity_type"] == "journal_line"
+    assert payload["anchor"]["node_kind"] == "ledger_line"
+    assert payload["max_depth"] == 5
+    assert payload["blockers"] == []
+
+    node_keys = {(node["node_kind"], node["entity_type"], node["entity_id"]) for node in payload["nodes"]}
+    assert ("source_document", "uploaded_document", str(source_id)) in node_keys
+    assert ("extracted_record", "bank_statement_transaction", str(extracted_id)) in node_keys
+    assert ("atomic_fact", "atomic_transaction", str(atomic_id)) in node_keys
+    assert ("ledger_entry", "journal_entry", str(entry_id)) in node_keys
+    assert ("ledger_line", "journal_line", str(line_id)) in node_keys
+    assert ("report_line", "package_traceability_line", str(report_line_id)) in node_keys
+
+    edge_keys = {(edge["relation"], edge["direction"], edge["depth"]) for edge in payload["edges"]}
+    assert ("parsed_into", "upstream", 4) in edge_keys
+    assert ("deduped_into", "upstream", 3) in edge_keys
+    assert ("posted_as", "upstream", 2) in edge_keys
+    assert ("contains", "upstream", 1) in edge_keys
+    assert ("aggregated_into", "downstream", 1) in edge_keys
+
+    source_response = await client.get(
+        "/evidence/lineage",
+        params={
+            "entity_type": "uploaded_document",
+            "entity_id": str(source_id),
+            "node_kind": "source_document",
+            "direction": "downstream",
+            "max_depth": "5",
+        },
+    )
+
+    assert source_response.status_code == 200
+    source_payload = source_response.json()
+    source_downstream_nodes = {
+        (node["node_kind"], node["entity_type"], node["entity_id"]) for node in source_payload["nodes"]
+    }
+    assert ("ledger_line", "journal_line", str(line_id)) in source_downstream_nodes
+    assert ("report_line", "package_traceability_line", str(report_line_id)) in source_downstream_nodes
+    assert ("aggregated_into", "downstream", 5) in {
+        (edge["relation"], edge["direction"], edge["depth"]) for edge in source_payload["edges"]
+    }
+
+
+@pytest.mark.asyncio
+async def test_AC18_9_3_lineage_api_returns_blocker_for_missing_or_cross_user_anchor(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.9.3: Missing or cross-user graph identities return explicit blocker state."""
+    service = EvidenceLineageService()
+    other_user_id = uuid4()
+    other_entity_id = uuid4()
+    await service.upsert_node(
+        db,
+        user_id=other_user_id,
+        node_kind="source_document",
+        entity_type="uploaded_document",
+        entity_id=other_entity_id,
+    )
+    await db.commit()
+
+    response = await client.get(
+        "/evidence/lineage",
+        params={
+            "entity_type": "uploaded_document",
+            "entity_id": str(other_entity_id),
+            "direction": "downstream",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["anchor"] is None
+    assert payload["nodes"] == []
+    assert payload["edges"] == []
+    assert payload["blockers"] == [
+        {
+            "code": "graph_node_missing",
+            "message": "No owned Evidence Graph node exists for this entity identity.",
+        }
+    ]
