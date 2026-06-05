@@ -253,6 +253,7 @@ export interface PersonalReportPackageTraceabilityAnchor {
   identifier_fields?: string[];
   identifiers?: string[];
   unavailable_reason?: string | null;
+  details?: Array<Record<string, string | number | null>>;
 }
 
 export interface PersonalReportPackageTraceabilityLine {

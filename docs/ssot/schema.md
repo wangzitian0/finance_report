@@ -250,7 +250,7 @@ Journal entry header table.
 | entry_date | DATE | NOT NULL | Entry date |
 | memo | VARCHAR(500) | NOT NULL | Description |
 | source_type | ENUM | NOT NULL | manual/user_confirmed/auto_matched/auto_parsed/bank_statement/system/fx_revaluation; `bank_statement` is legacy-normalized to `auto_parsed` |
-| source_id | UUID | | Related source record |
+| source_id | UUID | | Related source record; polymorphic legacy hint that must be resolved with `source_type` and a user-owned typed source record before report traceability treats it as source proof |
 | status | ENUM | NOT NULL | draft/posted/reconciled/void |
 | void_reason | TEXT | | Void reason |
 | void_reversal_entry_id | UUID | | Reversal entry ID |

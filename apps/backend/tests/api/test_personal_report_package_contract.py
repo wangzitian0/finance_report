@@ -44,6 +44,11 @@ from src.models.layer3 import (
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
 from src.models.user import User
 from src.routers.reports import (
+    _add_anchor_details,
+    _append_blocker,
+    _journal_source_anchor_detail,
+    _ledger_anchor_detail,
+    _source_document_details,
     personal_report_package_contract,
     personal_report_package_notes,
     personal_report_package_readiness,
@@ -801,6 +806,33 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     db.add_all([bank, income, investment, other_income])
     await db.flush()
 
+    statement = BankStatement(
+        user_id=test_user.id,
+        account_id=bank.id,
+        file_path="s3://trace/statement.csv",
+        file_hash=f"trace-{uuid4().hex}",
+        original_filename="trace-statement.csv",
+        institution="Trace Bank",
+        period_start=date(2026, 5, 1),
+        period_end=report_date,
+        status=BankStatementStatus.APPROVED,
+        balance_validated=True,
+        stage1_status=Stage1Status.APPROVED,
+    )
+    db.add(statement)
+    await db.flush()
+    db.add(
+        BankStatementTransaction(
+            id=statement_txn_id,
+            statement_id=statement.id,
+            txn_date=report_date,
+            description="Traceable income",
+            amount=Decimal("100.00"),
+            direction="IN",
+            currency="SGD",
+        )
+    )
+
     entry = JournalEntry(
         user_id=test_user.id,
         entry_date=report_date,
@@ -910,6 +942,21 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
 
     total_assets = lines["balance_sheet.total_assets"]
     assert f"statement_transaction:{statement_txn_id}" in total_assets["source_anchor"]["identifiers"]
+    assert any(
+        detail["source_kind"] == "bank_statement_transaction"
+        and detail["source_id"] == str(statement_txn_id)
+        and detail["source_type"] == "bank_statement"
+        and detail["amount"] == "100.00"
+        and detail["currency"] == "SGD"
+        and detail["review_state"] == "reviewed_source"
+        and detail["confidence_tier"] == "HIGH"
+        and detail["contribution_basis"] == "journal_entry_source_amount"
+        and detail["journal_entry_id"] == str(entry.id)
+        and detail["account_id"] == str(bank.id)
+        and detail["account_type"] == "ASSET"
+        and detail["identifier"] == f"statement_transaction:{statement_txn_id}"
+        for detail in total_assets["source_anchor"]["details"]
+    )
     assert f"manual_valuation_snapshot:{manual.id}" in total_assets["source_anchor"]["identifiers"]
     assert total_assets["anchor_count"] > 0
     assert f"atomic_position:{atomic.id}" in total_assets["source_anchor"]["identifiers"]
@@ -927,3 +974,267 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
         for identifier in line[anchor_name]["identifiers"]
     }
     assert f"statement_transaction:{other_source_id}" not in all_identifiers
+
+
+def test_AC19_10_1_source_anchor_resolver_requires_typed_source_membership():
+    """AC19.10.1: Source resolver does not infer source type from a bare UUID."""
+    user_id = uuid4()
+    account = Account(id=uuid4(), user_id=user_id, name="Resolver Bank", type=AccountType.ASSET, currency="SGD")
+    line = JournalLine(
+        id=uuid4(),
+        journal_entry_id=uuid4(),
+        account_id=account.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("42.00"),
+        currency="SGD",
+    )
+    unknown_source_id = uuid4()
+    entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Resolver source",
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        source_id=unknown_source_id,
+        status=JournalEntryStatus.POSTED,
+    )
+
+    unknown_detail = _journal_source_anchor_detail(
+        entry,
+        line,
+        account,
+        statement_txn_ids=set(),
+        atomic_txn_ids=set(),
+    )
+    assert unknown_detail["identifier"] == f"unknown_source:{unknown_source_id}"
+    assert unknown_detail["source_kind"] == "unknown_source"
+    assert unknown_detail["source_type"] == "user_confirmed"
+
+    statement_detail = _journal_source_anchor_detail(
+        entry,
+        line,
+        account,
+        statement_txn_ids={unknown_source_id},
+        atomic_txn_ids=set(),
+    )
+    assert statement_detail["identifier"] == f"statement_transaction:{unknown_source_id}"
+    assert statement_detail["source_kind"] == "bank_statement_transaction"
+    assert statement_detail["source_type"] == "bank_statement"
+
+
+def test_AC19_10_1_source_anchor_resolver_covers_manual_atomic_and_entry_fallbacks():
+    """AC19.10.1: Resolver emits typed details for each supported source class."""
+    user_id = uuid4()
+    account = Account(id=uuid4(), user_id=user_id, name="Resolver Asset", type=AccountType.ASSET, currency="SGD")
+    line = JournalLine(
+        id=uuid4(),
+        journal_entry_id=uuid4(),
+        account_id=account.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("42.00"),
+        currency="SGD",
+    )
+
+    manual_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Manual resolver source",
+        source_type=JournalEntrySourceType.MANUAL,
+        source_id=None,
+        status=JournalEntryStatus.POSTED,
+    )
+    manual_detail = _journal_source_anchor_detail(
+        manual_entry,
+        line,
+        account,
+        statement_txn_ids=set(),
+        atomic_txn_ids=set(),
+    )
+    assert manual_detail["identifier"] == f"manual_journal_entry:{manual_entry.id}"
+    assert manual_detail["source_kind"] == "manual_journal_entry"
+    assert manual_detail["source_id"] == str(manual_entry.id)
+    assert manual_detail["review_state"] == "explicit_manual_input"
+    assert manual_detail["confidence_tier"] == "TRUSTED"
+
+    atomic_source_id = uuid4()
+    atomic_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Atomic resolver source",
+        source_type=JournalEntrySourceType.AUTO_MATCHED,
+        source_id=atomic_source_id,
+        status=JournalEntryStatus.RECONCILED,
+    )
+    atomic_detail = _journal_source_anchor_detail(
+        atomic_entry,
+        line,
+        account,
+        statement_txn_ids=set(),
+        atomic_txn_ids={atomic_source_id},
+    )
+    assert atomic_detail["identifier"] == f"atomic_transaction:{atomic_source_id}"
+    assert atomic_detail["source_kind"] == "atomic_transaction"
+    assert atomic_detail["source_type"] == "atomic_transaction"
+    assert atomic_detail["review_state"] == "auto_matched"
+
+    generated_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Generated resolver source",
+        source_type=JournalEntrySourceType.SYSTEM,
+        source_id=None,
+        status=JournalEntryStatus.POSTED,
+    )
+    generated_detail = _journal_source_anchor_detail(
+        generated_entry,
+        line,
+        account,
+        statement_txn_ids=set(),
+        atomic_txn_ids=set(),
+    )
+    assert generated_detail["identifier"] == f"journal_entry:{generated_entry.id}"
+    assert generated_detail["source_kind"] == "journal_entry"
+    assert generated_detail["source_type"] == "system"
+
+
+def test_AC19_10_1_anchor_detail_helpers_keep_auditable_deduped_payloads():
+    """AC19.10.1: Anchor details remain typed, deduped, and blocker-aware."""
+    user_id = uuid4()
+    account = Account(id=uuid4(), user_id=user_id, name="Ledger Asset", type=AccountType.ASSET, currency="SGD")
+    entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 5, 31),
+        memo="Ledger detail",
+        source_type=JournalEntrySourceType.BANK_STATEMENT,
+        status=JournalEntryStatus.POSTED,
+    )
+    line = JournalLine(
+        id=uuid4(),
+        journal_entry_id=entry.id,
+        account_id=account.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("11.00"),
+        currency="SGD",
+    )
+    ledger_detail = _ledger_anchor_detail(entry, line, account)
+    assert ledger_detail["identifier"] == f"journal_line:{line.id}"
+    assert ledger_detail["source_kind"] == "journal_line"
+    assert ledger_detail["review_state"] == "unreviewed_auto_parse"
+    assert ledger_detail["account_type"] == "ASSET"
+
+    document_details = _source_document_details(
+        {
+            "documents": [
+                {"doc_id": "doc-1", "doc_type": "brokerage_statement"},
+                {"ignored": True},
+            ]
+        },
+        contribution_basis="market_value_support",
+    )
+    assert document_details == [
+        {
+            "identifier": "brokerage_document:doc-1",
+            "source_kind": "uploaded_document",
+            "source_id": "doc-1",
+            "source_type": "brokerage_statement",
+            "amount": None,
+            "currency": None,
+            "review_state": "imported_or_reviewed_payload",
+            "confidence_tier": "HIGH",
+            "contribution_basis": "market_value_support",
+        }
+    ]
+    assert _source_document_details(None, contribution_basis="ignored") == []
+
+    lines_by_id = {
+        "line": {
+            "source_anchor": {"identifiers": [], "details": []},
+            "ledger_anchor": {"identifiers": [], "details": []},
+            "anchor_count": 0,
+            "blocker_codes": ["existing"],
+        }
+    }
+    _add_anchor_details(lines_by_id, "line", "source_anchor", [*document_details, *document_details])
+    _add_anchor_details(lines_by_id, "missing", "source_anchor", document_details)
+    _append_blocker(lines_by_id["line"], "unknown_source_anchor")
+    _append_blocker(lines_by_id["line"], "existing")
+
+    assert lines_by_id["line"]["source_anchor"]["identifiers"] == ["brokerage_document:doc-1"]
+    assert len(lines_by_id["line"]["source_anchor"]["details"]) == 1
+    assert lines_by_id["line"]["anchor_count"] == 1
+    assert lines_by_id["line"]["blocker_codes"] == ["existing", "unknown_source_anchor"]
+
+
+@pytest.mark.asyncio
+async def test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC19.10.1: Unknown journal source IDs remain explicit blockers, not fake statement anchors."""
+    report_date = date(2026, 5, 31)
+    bank = Account(user_id=test_user.id, name="Unknown Source Bank", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=test_user.id, name="Unknown Source Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([bank, income])
+    await db.flush()
+
+    unknown_source_id = uuid4()
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=report_date,
+        memo="Income with unsupported source",
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        source_id=unknown_source_id,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=bank.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("88.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("88.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    traceability = await personal_report_package_traceability(
+        start_date=date(2026, 5, 1),
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+    lines = {line["line_id"]: line for line in traceability.model_dump(mode="json")["lines"]}
+    total_income = lines["income_statement.total_income"]
+
+    assert f"statement_transaction:{unknown_source_id}" not in total_income["source_anchor"]["identifiers"]
+    assert f"unknown_source:{unknown_source_id}" in total_income["source_anchor"]["identifiers"]
+    assert "unknown_source_anchor" in total_income["blocker_codes"]
+    assert any(
+        detail["source_kind"] == "unknown_source"
+        and detail["source_id"] == str(unknown_source_id)
+        and detail["amount"] == "88.00"
+        for detail in total_income["source_anchor"]["details"]
+    )
+
+    readiness = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    readiness_payload = readiness.model_dump(mode="json")
+    blockers = {blocker["code"]: blocker for blocker in readiness_payload["blockers"]}
+    assert readiness_payload["state"] == "blocked"
+    assert blockers["unknown_source_anchor"]["count"] == 1
+    assert "unknown_source_anchor" in readiness_payload["source_trust_summary"]["blocker_codes"]

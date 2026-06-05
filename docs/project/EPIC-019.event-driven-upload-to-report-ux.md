@@ -401,6 +401,12 @@ workflow state exists.
 | AC19.9.1 | Personal report package readiness returns source trust summary by source class, deterministic PR proof availability, post-merge LLM/OCR coverage, manual-trusted classes, gaps, and blocker codes | `test_AC19_9_1_package_readiness_reports_source_trust_summary` | P0 |
 | AC19.9.2 | Personal report package page renders a compact source trust summary before detailed package output | `AC19.9.2 renders compact source trust summary before traceability details` | P0 |
 
+### AC19.10 — Typed Package Source Anchors
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.10.1 | Personal report package traceability resolves journal source IDs to typed source anchors, exposes amount-level source and ledger details for report lines, and blocks unknown source IDs instead of presenting them as statement transactions | `test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions`, `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | P0 |
+
 ## How To Build It
 
 ### Backend
