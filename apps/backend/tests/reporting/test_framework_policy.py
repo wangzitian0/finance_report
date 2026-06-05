@@ -18,13 +18,9 @@ from src.schemas.reporting import (
     PolicyProvenance,
     PolicyReviewState,
 )
-from src.services.framework_policy import derive_framework_policy_result, get_framework_policy_matrix
+from src.services.framework_policy import _result_id, _rule, derive_framework_policy_result, get_framework_policy_matrix
 
-
-@pytest.fixture(autouse=True)
-def patch_database_connection():
-    """Framework policy contract tests do not require a database."""
-    yield
+pytestmark = pytest.mark.no_db
 
 
 def _anchor(identifier: str = "statement:dbs-2026-05") -> FrameworkPolicyEvidenceAnchor:
@@ -64,6 +60,30 @@ def test_AC20_3_1_policy_result_schema_requires_all_policy_dimensions() -> None:
         )
 
 
+def test_AC20_3_1_policy_result_validation_names_missing_dimensions() -> None:
+    """AC20.3.1: Result-level dimension validation identifies fields, not only domains."""
+    incomplete_decision = FrameworkPolicyDecision.model_construct(
+        domain=PolicyFactDomain.CASH,
+        recognition="Recognize cash from reviewed source evidence.",
+        measurement="Measure cash at nominal amount.",
+        classification="Cash asset.",
+        presentation="Balance sheet cash.",
+        disclosure=None,
+        line_mappings={"balance_sheet": "assets.cash"},
+    )
+
+    with pytest.raises(ValidationError, match="cash.disclosure"):
+        FrameworkPolicyResult(
+            result_id="policy-result:test",
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            report_period_start=date(2026, 5, 1),
+            report_period_end=date(2026, 5, 31),
+            generated_at=date(2026, 6, 1),
+            required_statements=["balance_sheet"],
+            decisions=[incomplete_decision],
+        )
+
+
 def test_AC20_3_1_framework_schema_rejects_unsupported_framework_id() -> None:
     """AC20.3.1: Framework policy result schema is closed to unsupported framework IDs."""
     with pytest.raises(ValidationError):
@@ -76,6 +96,27 @@ def test_AC20_3_1_framework_schema_rejects_unsupported_framework_id() -> None:
             required_statements=["balance_sheet"],
             decisions=[],
         )
+
+
+def test_AC20_4_1_policy_rule_defaults_preserve_explicit_empty_lists() -> None:
+    """AC20.4.1: Matrix rule construction preserves explicit empty evidence/disclosure lists."""
+    rule = _rule(
+        domain=PolicyFactDomain.CASH,
+        supported_instrument_types=["cash"],
+        recognition="Recognize cash.",
+        measurement="Measure cash.",
+        classification="Cash asset.",
+        presentation="Cash line.",
+        disclosure="No additional disclosure.",
+        line_mappings={"balance_sheet": "assets.cash"},
+        required_evidence=[],
+        disclosure_requirements=[],
+        blocker_conditions=[],
+    )
+
+    assert rule.required_evidence == []
+    assert rule.disclosure_requirements == []
+    assert rule.blocker_conditions == []
 
 
 def test_AC20_4_1_policy_matrix_covers_required_v1_domains_and_dimensions() -> None:
@@ -133,6 +174,49 @@ def test_AC20_5_1_policy_derivation_is_deterministic_reviewed_and_read_only() ->
     assert first.gaps == []
     assert {decision.provenance for decision in first.decisions} == {PolicyProvenance.DETERMINISTIC_MATRIX}
     assert {decision.review_state for decision in first.decisions} == {PolicyReviewState.ACCEPTED}
+
+
+def test_AC20_5_1_policy_result_id_fingerprints_decision_content_and_matrix_version() -> None:
+    """AC20.5.1: Policy result IDs change when decision content or matrix version changes."""
+    decision = FrameworkPolicyDecision(
+        domain=PolicyFactDomain.CASH,
+        recognition="Recognize cash from reviewed source evidence.",
+        measurement="Measure cash at nominal amount.",
+        classification="Cash asset.",
+        presentation="Balance sheet cash.",
+        disclosure="Disclose source coverage.",
+        line_mappings={"balance_sheet": "assets.cash"},
+        evidence_anchors=[_anchor("source:cash")],
+    )
+    changed_decision = decision.model_copy(update={"presentation": "Changed cash presentation."})
+
+    base_id = _result_id(
+        PersonalReportingFrameworkId.US_GAAP_LIKE,
+        matrix_version="1.0",
+        report_period_start=date(2026, 5, 1),
+        report_period_end=date(2026, 5, 31),
+        decisions=[decision],
+        gaps=[],
+    )
+    changed_decision_id = _result_id(
+        PersonalReportingFrameworkId.US_GAAP_LIKE,
+        matrix_version="1.0",
+        report_period_start=date(2026, 5, 1),
+        report_period_end=date(2026, 5, 31),
+        decisions=[changed_decision],
+        gaps=[],
+    )
+    changed_version_id = _result_id(
+        PersonalReportingFrameworkId.US_GAAP_LIKE,
+        matrix_version="1.1",
+        report_period_start=date(2026, 5, 1),
+        report_period_end=date(2026, 5, 31),
+        decisions=[decision],
+        gaps=[],
+    )
+
+    assert base_id != changed_decision_id
+    assert base_id != changed_version_id
 
 
 def test_AC20_4_1_us_and_hk_matrix_differ_for_same_listed_security_fixture() -> None:

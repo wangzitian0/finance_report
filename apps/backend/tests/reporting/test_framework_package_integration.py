@@ -18,7 +18,9 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.models.market_data import StockPrice
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
+from src.models.statement import BankStatement, BankStatementStatus, Stage1Status
 from src.models.user import User
 from src.routers.reports import (
     personal_report_package_contract,
@@ -43,12 +45,7 @@ from src.services.framework_policy import (
 from src.services.report_readiness import framework_policy_readiness_blockers
 
 
-@pytest.fixture(autouse=True)
-def patch_database_connection():
-    """Pure contract tests in this module do not require an implicit database."""
-    yield
-
-
+@pytest.mark.no_db
 def test_AC5_14_1_package_contract_accepts_selected_framework_policy_endpoint() -> None:
     """AC5.14.1: Package contract consumes EPIC-020 policy result metadata, not raw market value rules."""
     response = personal_report_package_contract(framework_id=PersonalReportingFrameworkId.HKFRS_LIKE)
@@ -117,6 +114,50 @@ async def test_AC20_5_1_package_policy_api_derives_framework_result_from_facts(
     assert hk_line == "assets.financial_assets_at_fair_value"
     assert "atomic_position" in {anchor.anchor_type for anchor in hk_response.decisions[0].evidence_anchors}
     assert "market_price" in {anchor.anchor_type for anchor in hk_response.decisions[0].evidence_anchors}
+
+
+@pytest.mark.asyncio
+async def test_AC20_5_1_package_policy_uses_synced_stock_prices_when_no_manual_override(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC20.5.1: Policy facts use synced StockPrice rows when no manual override exists."""
+    report_date = date(2026, 5, 31)
+    position = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=report_date,
+        asset_identifier="SYNCED",
+        broker="Framework Broker",
+        quantity=Decimal("10"),
+        market_value=Decimal("125.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"framework-synced-{uuid4()}",
+        source_documents={"documents": [{"doc_id": "synced-doc", "doc_type": "brokerage_statement"}]},
+    )
+    synced_price = StockPrice(
+        symbol="SYNCED",
+        price_date=report_date,
+        price=Decimal("12.500000"),
+        currency="SGD",
+        source="test_provider",
+    )
+    db.add_all([position, synced_price])
+    await db.flush()
+
+    response = await personal_report_package_framework_policy(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2026, 5, 1),
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+
+    anchors = response.decisions[0].evidence_anchors
+    market_anchor = next(anchor for anchor in anchors if anchor.anchor_type == "market_price")
+    assert market_anchor.source_system == "stock_price"
+    assert market_anchor.source_id == str(synced_price.id)
 
 
 @pytest.mark.asyncio
@@ -194,6 +235,56 @@ async def test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers(
     assert blockers["stale_market_data"]["count"] == 1
 
 
+@pytest.mark.asyncio
+async def test_AC19_7_1_readiness_uses_freshest_stock_price_or_manual_override(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC19.7.1: Fresh synced StockPrice rows satisfy market-data freshness without manual overrides."""
+    report_date = date(2026, 5, 31)
+    position = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=report_date,
+        asset_identifier="FRESH",
+        broker="Framework Broker",
+        quantity=Decimal("5"),
+        market_value=Decimal("50.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"framework-fresh-{uuid4()}",
+        source_documents={"documents": [{"doc_id": "fresh-doc", "doc_type": "brokerage_statement"}]},
+    )
+    stale_override = MarketDataOverride(
+        user_id=test_user.id,
+        asset_identifier="FRESH",
+        price_date=date(2025, 12, 31),
+        price=Decimal("9.00"),
+        currency="SGD",
+        source=PriceSource.MANUAL,
+    )
+    fresh_synced_price = StockPrice(
+        symbol="FRESH",
+        price_date=report_date,
+        price=Decimal("10.000000"),
+        currency="SGD",
+        source="test_provider",
+    )
+    db.add_all([position, stale_override, fresh_synced_price])
+    await db.flush()
+
+    response = await personal_report_package_readiness(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+    blockers = {blocker.code: blocker for blocker in response.blockers}
+
+    assert "stale_market_data" not in blockers
+
+
+@pytest.mark.no_db
 def test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness() -> None:
     """AC20.6.1: AI suggestions and incomplete policy fields become readiness blocker codes."""
     decision = FrameworkPolicyDecision.model_construct(
@@ -235,6 +326,7 @@ def test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness() 
     assert "framework_ai_suggestion_unreviewed" in blocker_codes
 
 
+@pytest.mark.no_db
 def test_AC19_7_1_selected_framework_requires_non_empty_policy_result() -> None:
     """AC19.7.1: Selected-framework readiness fails closed when no policy result can be derived."""
     empty_policy_result = FrameworkPolicyResult.model_construct(
@@ -259,6 +351,43 @@ def test_AC19_7_1_selected_framework_requires_non_empty_policy_result() -> None:
     assert {blocker["code"] for blocker in blockers} == {"missing_framework_policy_result"}
 
 
+@pytest.mark.asyncio
+async def test_AC19_7_1_statement_only_inputs_do_not_require_framework_policy_result(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC19.7.1: Statement-only package inputs do not require an empty framework policy result."""
+    report_date = date(2026, 5, 31)
+    statement = BankStatement(
+        user_id=test_user.id,
+        file_path=f"s3://test/{uuid4()}.csv",
+        file_hash=uuid4().hex,
+        original_filename=f"{uuid4()}.csv",
+        institution="Framework Bank",
+        period_start=date(2026, 5, 1),
+        period_end=report_date,
+        status=BankStatementStatus.APPROVED,
+        balance_validated=True,
+        validation_error=None,
+        stage1_status=Stage1Status.APPROVED,
+    )
+    db.add(statement)
+    await db.flush()
+
+    response = await personal_report_package_readiness(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+    blocker_codes = {blocker.code for blocker in response.blockers}
+
+    assert response.source_summary["statements"] == 1
+    assert "missing_framework_policy_result" not in blocker_codes
+
+
+@pytest.mark.no_db
 def test_AC20_5_1_manual_valuation_components_map_to_supported_policy_instruments() -> None:
     """AC20.5.1: Manual valuation facts map to supported matrix instruments instead of policy gaps."""
     fixtures = [
@@ -281,6 +410,7 @@ def test_AC20_5_1_manual_valuation_components_map_to_supported_policy_instrument
         assert _manual_domain_and_instrument(snapshot) == (expected_domain, expected_instrument)
 
 
+@pytest.mark.no_db
 def test_AC20_5_1_atomic_position_asset_types_map_to_policy_domains() -> None:
     """AC20.5.1: Atomic positions map to supported policy domains or explicit unsupported facts."""
     fixtures = [
@@ -299,6 +429,7 @@ def test_AC20_5_1_atomic_position_asset_types_map_to_policy_domains() -> None:
         assert _position_domain_and_instrument(position) == (expected_domain, expected_instrument)
 
 
+@pytest.mark.no_db
 def test_AC20_5_1_ledger_account_types_map_to_policy_domains() -> None:
     """AC20.5.1: Ledger accounts map to framework-neutral facts or stay out of policy derivation."""
     fixtures = [
@@ -417,6 +548,7 @@ async def test_AC20_5_1_framework_facts_include_ledger_manual_position_and_divid
     assert f"dividend_income:{dividend.id}" in fact_ids
 
 
+@pytest.mark.no_db
 def test_AC19_7_1_framework_policy_helper_emits_all_evidence_blocker_codes() -> None:
     """AC19.7.1: Readiness helper emits framework, policy gap, valuation, and market-data blockers."""
     policy_result = FrameworkPolicyResult.model_construct(
@@ -466,6 +598,18 @@ def test_AC19_7_1_framework_policy_helper_emits_all_evidence_blocker_codes() -> 
         "missing_valuation_basis",
         "stale_market_data",
     } <= blocker_codes
+    framework_blockers = [
+        blocker
+        for blocker in blockers
+        if blocker["code"]
+        in {
+            "missing_framework_policy_result",
+            "unsupported_policy_domain",
+            "framework_policy_missing_dimensions",
+        }
+    ]
+    assert framework_blockers
+    assert {blocker["action_href"] for blocker in framework_blockers} == {"/reports/package"}
     assert {
         blocker["code"]
         for blocker in framework_policy_readiness_blockers(

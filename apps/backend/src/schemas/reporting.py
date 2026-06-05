@@ -312,7 +312,11 @@ class FrameworkPolicyDecision(BaseModel):
 
     @model_validator(mode="after")
     def validate_required_dimensions(self) -> "FrameworkPolicyDecision":
-        missing = [dimension.value for dimension in PolicyDimension if not getattr(self, dimension.value)]
+        missing = [
+            f"{self.domain.value}.{dimension.value}"
+            for dimension in PolicyDimension
+            if not getattr(self, dimension.value)
+        ]
         if missing:
             raise ValueError(f"missing required policy dimensions: {', '.join(missing)}")
         return self
@@ -373,7 +377,7 @@ class FrameworkPolicyResult(BaseModel):
     @model_validator(mode="after")
     def validate_decision_dimensions(self) -> "FrameworkPolicyResult":
         incomplete = [
-            decision.domain.value
+            f"{decision.domain.value}.{dimension.value}"
             for decision in self.decisions
             for dimension in PolicyDimension
             if not getattr(decision, dimension.value)

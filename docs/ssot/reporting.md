@@ -269,6 +269,9 @@ Package readiness:
   - `state`: closed enum of `draft`, `processing`, `blocked`, `ready`,
     `generated`, or `stale`
   - `selected_framework_id` in `source_summary` when a framework is selected
+  - `framework_policy_inputs` in `source_summary`; this policy-specific count
+    includes accounts, positions, manual valuations, and dividends, and excludes
+    bank statements or journal entries that do not produce EPIC-020 policy facts
   - `framework_policy_decisions` and `framework_policy_gaps` in
     `source_summary` when framework policy is evaluated
   - `label` and `action_href`: primary UI state and next action; action links
@@ -317,9 +320,13 @@ Package readiness:
   - `missing_valuation_basis`: manual/private valuations lack explicit basis
     text before trusted totals.
   - `stale_market_data`: listed security, ETF, mutual-fund, or bond positions
-    lack prices dated within 90 days of the report date.
+    lack synced provider or manual override prices dated within 90 days of the
+    report date.
 - The readiness derivation must be read-only. Opening the reports page must not
   create Processing accounts or other readiness artifacts.
+- Framework policy blocker `action_href` values point to the existing
+  `/reports/package` frontend route. The framework policy API endpoint remains
+  backend-only unless a dedicated frontend route is explicitly added.
 
 Framework policy result:
 
@@ -331,9 +338,11 @@ Framework policy result:
   default to a trailing 365-day window ending at the selected as-of date.
 - Output: a read-only `FrameworkPolicyResult` with stable `result_id`,
   selected framework ID, report period, required statements, policy decisions,
-  line mappings, evidence anchors, and explicit gaps. The endpoint derives the
-  result from existing accounts, atomic positions, manual valuations, dividends,
-  and market-data overrides. It must not mutate source records, journal entries,
+  line mappings, evidence anchors, and explicit gaps. `result_id` fingerprints
+  the selected framework, matrix version, period, full decision content, and gap
+  content. The endpoint derives the result from existing accounts, atomic
+  positions, manual valuations, dividends, synced `StockPrice` rows, and manual
+  `MarketDataOverride` rows. It must not mutate source records, journal entries,
   portfolio lots, market data, or report snapshots.
 - Package assembly must consume this policy result and must not infer
   framework-specific report lines directly from raw portfolio market value.

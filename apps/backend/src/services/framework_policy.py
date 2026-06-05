@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -17,6 +18,7 @@ from src.models import (
     ManualValuationComponentType,
     ManualValuationSnapshot,
     MarketDataOverride,
+    StockPrice,
 )
 from src.models.layer2 import AssetType, AtomicPosition
 from src.schemas.reporting import (
@@ -83,10 +85,19 @@ def _rule(
             disclosure=disclosure,
         ),
         line_mappings=line_mappings,
-        required_evidence=required_evidence or ["source_anchor", "ledger_or_portfolio_anchor", "review_state"],
-        disclosure_requirements=disclosure_requirements or ["basis", "source_coverage", "valuation_or_cutoff"],
+        required_evidence=(
+            ["source_anchor", "ledger_or_portfolio_anchor", "review_state"]
+            if required_evidence is None
+            else required_evidence
+        ),
+        disclosure_requirements=(
+            ["basis", "source_coverage", "valuation_or_cutoff"]
+            if disclosure_requirements is None
+            else disclosure_requirements
+        ),
         blocker_conditions=blocker_conditions
-        or [
+        if blocker_conditions is not None
+        else [
             "missing_source_anchor",
             "pending_review",
             "missing_measurement_basis",
@@ -182,7 +193,7 @@ def _common_rules(framework_label: str) -> list[FrameworkPolicyMatrixRule]:
         _rule(
             domain=PolicyFactDomain.TRANSFER,
             supported_instrument_types=["internal_transfer", "broker_transfer", "cash_transfer", "fixture"],
-            recognition="Recognize transfers when both legs or explicit pending Processing evidence exist.",
+            recognition="Recognize transfers when both legs or explicit pending processing evidence exist.",
             measurement="Measure transfer legs at source cash amounts and FX translated report-currency equivalents.",
             classification="Internal movement, not income or expense.",
             presentation=f"{framework_label} cash-flow transfer reconciliation.",
@@ -269,21 +280,28 @@ def _gap_for_fact(fact: FrameworkPolicyFact) -> FrameworkPolicyGap:
 def _result_id(
     framework_id: PersonalReportingFrameworkId,
     *,
+    matrix_version: str,
     report_period_start: date,
     report_period_end: date,
     decisions: list[FrameworkPolicyDecision],
     gaps: list[FrameworkPolicyGap],
 ) -> str:
-    payload = "|".join(
-        [
-            framework_id.value,
-            report_period_start.isoformat(),
-            report_period_end.isoformat(),
-            ",".join(sorted(decision.domain.value for decision in decisions)),
-            ",".join(sorted(anchor.anchor_id for decision in decisions for anchor in decision.evidence_anchors)),
-            ",".join(sorted(f"{gap.fact_id}:{gap.code}" for gap in gaps)),
-            ",".join(sorted(anchor.anchor_id for gap in gaps for anchor in gap.evidence_anchors)),
-        ]
+    decision_payloads = [decision.model_dump(mode="json") for decision in decisions]
+    gap_payloads = [gap.model_dump(mode="json") for gap in gaps]
+    payload = json.dumps(
+        {
+            "framework_id": framework_id.value,
+            "matrix_version": matrix_version,
+            "report_period_start": report_period_start.isoformat(),
+            "report_period_end": report_period_end.isoformat(),
+            "decisions": sorted(
+                decision_payloads,
+                key=lambda decision: json.dumps(decision, sort_keys=True, separators=(",", ":")),
+            ),
+            "gaps": sorted(gap_payloads, key=lambda gap: json.dumps(gap, sort_keys=True, separators=(",", ":"))),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
     )
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
     return (
@@ -398,6 +416,7 @@ def derive_framework_policy_result(
     return FrameworkPolicyResult(
         result_id=_result_id(
             framework_id,
+            matrix_version=matrix.version,
             report_period_start=report_period_start,
             report_period_end=report_period_end,
             decisions=decisions,
@@ -454,16 +473,6 @@ async def framework_policy_facts_for_user(
             )
         )
 
-    price_result = await db.execute(
-        select(MarketDataOverride)
-        .where(MarketDataOverride.user_id == user_id)
-        .where(MarketDataOverride.price_date <= as_of_date)
-        .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
-    )
-    latest_price_by_identifier: dict[str, MarketDataOverride] = {}
-    for price in price_result.scalars().all():
-        latest_price_by_identifier.setdefault(price.asset_identifier, price)
-
     position_result = await db.execute(
         select(AtomicPosition)
         .where(AtomicPosition.user_id == user_id)
@@ -471,10 +480,37 @@ async def framework_policy_facts_for_user(
         .order_by(AtomicPosition.snapshot_date.desc(), AtomicPosition.created_at.desc())
     )
     seen_positions: set[str] = set()
+    latest_positions: list[AtomicPosition] = []
     for position in position_result.scalars().all():
-        if position.asset_identifier in seen_positions:
+        normalized_identifier = position.asset_identifier.strip().upper()
+        if normalized_identifier in seen_positions:
             continue
-        seen_positions.add(position.asset_identifier)
+        seen_positions.add(normalized_identifier)
+        latest_positions.append(position)
+
+    latest_override_by_identifier: dict[str, MarketDataOverride] = {}
+    latest_stock_price_by_identifier: dict[str, StockPrice] = {}
+    if seen_positions:
+        override_result = await db.execute(
+            select(MarketDataOverride)
+            .where(MarketDataOverride.user_id == user_id)
+            .where(func.upper(MarketDataOverride.asset_identifier).in_(seen_positions))
+            .where(MarketDataOverride.price_date <= as_of_date)
+            .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
+        )
+        for override in override_result.scalars().all():
+            latest_override_by_identifier.setdefault(override.asset_identifier.strip().upper(), override)
+
+        stock_price_result = await db.execute(
+            select(StockPrice)
+            .where(func.upper(StockPrice.symbol).in_(seen_positions))
+            .where(StockPrice.price_date <= as_of_date)
+            .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
+        )
+        for stock_price in stock_price_result.scalars().all():
+            latest_stock_price_by_identifier.setdefault(stock_price.symbol.strip().upper(), stock_price)
+
+    for position in latest_positions:
         domain, instrument_type = _position_domain_and_instrument(position)
         anchors = [
             _anchor(
@@ -484,14 +520,27 @@ async def framework_policy_facts_for_user(
                 description=position.asset_identifier,
             )
         ]
-        price = latest_price_by_identifier.get(position.asset_identifier)
+        asset_identifier = position.asset_identifier.strip().upper()
+        override = latest_override_by_identifier.get(asset_identifier)
+        stock_price = latest_stock_price_by_identifier.get(asset_identifier)
+        price_candidates: list[tuple[date, int, MarketDataOverride | StockPrice]] = []
+        if stock_price is not None:
+            price_candidates.append((stock_price.price_date, 0, stock_price))
+        if override is not None:
+            price_candidates.append((override.price_date, 1, override))
+        price = (
+            max(price_candidates, key=lambda candidate: (candidate[0], candidate[1]))[2] if price_candidates else None
+        )
         if price is not None:
+            source_system = "market_data_override" if isinstance(price, MarketDataOverride) else "stock_price"
+            source_id = price.id
+            identifier = price.asset_identifier if isinstance(price, MarketDataOverride) else price.symbol
             anchors.append(
                 _anchor(
                     anchor_type="market_price",
-                    source_system="market_data_override",
-                    source_id=price.id,
-                    description=f"{price.asset_identifier} price dated {price.price_date.isoformat()}",
+                    source_system=source_system,
+                    source_id=source_id,
+                    description=f"{identifier} price dated {price.price_date.isoformat()}",
                 )
             )
         facts.append(

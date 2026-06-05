@@ -30,6 +30,7 @@ from src.models import (
     ReconciliationStatus,
     ReportSnapshot,
     Stage1Status,
+    StockPrice,
 )
 from src.models.layer2 import AssetType
 from src.schemas.reporting import (
@@ -44,6 +45,7 @@ from src.services.fx import FxRateError, convert_amount
 
 PACKAGE_ID = "personal-financial-report-package"
 MARKET_DATA_STALE_AFTER_DAYS = 90
+FRAMEWORK_POLICY_ACTION_HREF = "/reports/package"
 
 
 def _blocker(
@@ -150,7 +152,7 @@ def framework_policy_readiness_blockers(
                     "Missing framework policy result",
                     1,
                     "A selected framework requires a structured policy result before trusted output can be generated.",
-                    "/reports/package/framework-policy",
+                    FRAMEWORK_POLICY_ACTION_HREF,
                 )
             )
         return blockers
@@ -162,7 +164,7 @@ def framework_policy_readiness_blockers(
                 "Framework policy result mismatch",
                 1,
                 "The available policy result does not match the selected reporting framework.",
-                "/reports/package/framework-policy",
+                FRAMEWORK_POLICY_ACTION_HREF,
             )
         )
 
@@ -173,7 +175,7 @@ def framework_policy_readiness_blockers(
                 "Missing framework policy result",
                 1,
                 "The selected framework produced no structured policy decisions or explicit policy gaps for the available package inputs.",
-                "/reports/package/framework-policy",
+                FRAMEWORK_POLICY_ACTION_HREF,
             )
         )
 
@@ -188,7 +190,7 @@ def framework_policy_readiness_blockers(
                 "Unsupported policy domain" if code == "unsupported_policy_domain" else "Framework policy gap",
                 count,
                 "A selected-framework policy gap must be remediated before the package can be trusted.",
-                "/reports/package/framework-policy",
+                FRAMEWORK_POLICY_ACTION_HREF,
             )
         )
 
@@ -204,7 +206,7 @@ def framework_policy_readiness_blockers(
                 "Incomplete framework policy decision",
                 missing_dimension_count,
                 "Every policy decision must include recognition, measurement, classification, presentation, and disclosure.",
-                "/reports/package/framework-policy",
+                FRAMEWORK_POLICY_ACTION_HREF,
             )
         )
 
@@ -281,24 +283,37 @@ async def _stale_market_data_count(db: AsyncSession, user_id: UUID, *, as_of_dat
     asset_identifiers = list(position_rows.scalars().all())
     if not asset_identifiers:
         return 0
+    normalized_asset_identifiers = [asset_identifier.strip().upper() for asset_identifier in asset_identifiers]
 
-    price_rows = await db.execute(
+    override_rows = await db.execute(
         select(MarketDataOverride)
         .where(MarketDataOverride.user_id == user_id)
-        .where(MarketDataOverride.asset_identifier.in_(asset_identifiers))
+        .where(func.upper(MarketDataOverride.asset_identifier).in_(normalized_asset_identifiers))
         .where(MarketDataOverride.price_date <= as_of_date)
         .order_by(MarketDataOverride.price_date.desc(), MarketDataOverride.created_at.desc())
     )
-    latest_price_by_identifier: dict[str, MarketDataOverride] = {}
-    for price in price_rows.scalars().all():
-        latest_price_by_identifier.setdefault(price.asset_identifier, price)
+    latest_price_date_by_identifier: dict[str, date] = {}
+    for override in override_rows.scalars().all():
+        latest_price_date_by_identifier.setdefault(override.asset_identifier.strip().upper(), override.price_date)
+
+    stock_price_rows = await db.execute(
+        select(StockPrice)
+        .where(func.upper(StockPrice.symbol).in_(normalized_asset_identifiers))
+        .where(StockPrice.price_date <= as_of_date)
+        .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
+    )
+    for stock_price in stock_price_rows.scalars().all():
+        matching_identifier = stock_price.symbol.strip().upper()
+        current_price_date = latest_price_date_by_identifier.get(matching_identifier)
+        if current_price_date is None or stock_price.price_date > current_price_date:
+            latest_price_date_by_identifier[matching_identifier] = stock_price.price_date
 
     freshness_cutoff = as_of_date - timedelta(days=MARKET_DATA_STALE_AFTER_DAYS)
     return sum(
         1
-        for asset_identifier in asset_identifiers
-        if latest_price_by_identifier.get(asset_identifier) is None
-        or latest_price_by_identifier[asset_identifier].price_date < freshness_cutoff
+        for asset_identifier in normalized_asset_identifiers
+        if latest_price_date_by_identifier.get(asset_identifier) is None
+        or latest_price_date_by_identifier[asset_identifier] < freshness_cutoff
     )
 
 
@@ -350,6 +365,15 @@ async def get_personal_report_package_readiness(
         db,
         select(func.count(MarketDataOverride.id)).where(MarketDataOverride.user_id == user_id),
     )
+    policy_account_count = await _count(
+        db,
+        select(func.count(Account.id)).where(
+            Account.user_id == user_id,
+            Account.is_active == True,  # noqa: E712
+            Account.is_system == False,  # noqa: E712
+            Account.type.in_([AccountType.ASSET, AccountType.LIABILITY, AccountType.INCOME]),
+        ),
+    )
 
     source_summary = {
         "statements": statement_count,
@@ -360,6 +384,7 @@ async def get_personal_report_package_readiness(
         "dividends": dividend_count,
         "market_prices": market_price_count,
     }
+    framework_policy_input_count = policy_account_count + position_count + manual_valuation_count + dividend_count
     report_input_count = (
         statement_count
         + journal_entry_count
@@ -541,6 +566,7 @@ async def get_personal_report_package_readiness(
         source_summary.update(
             {
                 "selected_framework_id": selected_framework_id.value,
+                "framework_policy_inputs": framework_policy_input_count,
                 "framework_policy_decisions": len(policy_result.decisions),
                 "framework_policy_gaps": len(policy_result.gaps),
             }
@@ -549,7 +575,7 @@ async def get_personal_report_package_readiness(
         framework_policy_readiness_blockers(
             framework_id=framework_id,
             policy_result=policy_result,
-            report_input_count=report_input_count,
+            report_input_count=framework_policy_input_count,
             missing_valuation_basis_count=missing_valuation_basis_count,
             stale_market_data_count=stale_market_data_count,
         )

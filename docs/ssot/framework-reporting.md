@@ -81,7 +81,10 @@ Code-owned contract surfaces:
 - Matrix service: `apps/backend/src/services/framework_policy.py` owns the
   deterministic v1 US-like/HK-like matrix, builds framework-neutral facts from
   existing user accounts, atomic positions, manual valuations, dividends, and
-  market-data overrides, then derives read-only policy results.
+  market-data evidence from synced `StockPrice` rows and manual
+  `MarketDataOverride` rows, then derives read-only policy results. When both
+  price sources exist, the latest price date is used and same-date manual
+  overrides take precedence.
 - Package API: `GET /api/reports/package/framework-policy` returns the selected
   framework policy result consumed by package assembly. `GET
   /api/reports/package/contract` exposes supported framework IDs, the selected
@@ -91,7 +94,8 @@ Code-owned contract surfaces:
 - Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that
   policy results reject missing dimensions, unsupported frameworks are closed
   out, supported domains carry all five policy dimensions, derivation is
-  deterministic/read-only, US/HK outputs can differ from the same fixture, and
+  deterministic/read-only, result IDs fingerprint the matrix version plus full
+  decision/gap content, US/HK outputs can differ from the same fixture, and
   unsupported instruments create explicit policy gaps instead of silently
   defaulting to market value.
   `apps/backend/tests/reporting/test_framework_package_integration.py` covers
@@ -163,7 +167,8 @@ Required framework-aware blocker codes:
 - `missing_valuation_basis`: manual/private valuation snapshots included in
   trusted totals lack an explicit valuation basis.
 - `stale_market_data`: listed security, ETF, mutual-fund, or bond positions
-  lack market prices dated within 90 days of the report date.
+  lack synced provider or manual override prices dated within 90 days of the
+  report date.
 
 Draft output may exist with blockers, but trusted output must expose the blocker
 state before presenting framework-specific statements as reliable.
