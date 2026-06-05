@@ -57,17 +57,20 @@ Smoke:   ❌ Not run (unit tests only)
 ### staging-deploy.yml
 
 ```yaml
-Trigger: Successful CI workflow_run on main or manual dispatch
+Trigger: Successful push CI workflow_run on main or manual dispatch
 Flow:    promote SHA images -> deploy -> smoke/non-LLM E2E -> AI/OCR gate
 URL:     https://report-staging.zitian.party
 ```
 
 Normal staging deploys reuse SHA-tagged backend and frontend images built by the
-matching successful `CI` workflow. The deploy job checks out the CI
+matching successful `push` `CI` workflow on `main`. The deploy job checks out the CI
 `workflow_run.head_sha`, so it no longer spends staging runner time polling for
 CI completion. If a SHA image is missing, staging falls back to building only
 the missing image before promotion. Provider-backed AI/OCR tests run after
 deploy health in the same serialized post-merge workflow unit.
+Non-`push`, failed, cancelled, timed-out, or non-main CI workflow runs write a
+skipped summary before FIFO wait, image promotion, Dokploy rollout, smoke tests,
+or AI/OCR validation can run.
 
 ### production-release.yml
 

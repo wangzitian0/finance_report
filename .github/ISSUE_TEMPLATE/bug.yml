@@ -46,11 +46,57 @@ body:
       placeholder: "e.g. AC4.2.1"
 
   - type: textarea
-    id: description
+    id: phenomenon_description
     attributes:
-      label: "Bug Description"
-      description: "What happened? What did you expect?"
-      placeholder: "Steps to reproduce:\n1. ...\n2. ...\n\nExpected: ...\nActual: ..."
+      label: "Phenomenon Description"
+      description: "What happened, what was expected, and what evidence shows the gap?"
+      placeholder: |
+        Observed:
+        Expected:
+        Evidence:
+    validations:
+      required: true
+
+  - type: textarea
+    id: how_to_reproduce
+    attributes:
+      label: "How to Reproduce"
+      description: "Provide deterministic commands, URLs, workflow runs, inputs, or screenshots needed to reproduce the issue."
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: minimal_fix_recommendation
+    attributes:
+      label: "Minimal Fix Recommendation"
+      description: "What is the smallest scoped change likely to fix the issue?"
+      placeholder: |
+        Minimal path:
+        Out of scope:
+    validations:
+      required: true
+
+  - type: textarea
+    id: why_this_fix_works
+    attributes:
+      label: "Why This Fix Works"
+      description: "Explain why the proposed minimal fix addresses the observed failure without expanding scope."
+      placeholder: "This works because ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: "Acceptance Criteria"
+      description: "List concrete pass/fail checks. Include AC IDs when known."
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
     validations:
       required: true
 

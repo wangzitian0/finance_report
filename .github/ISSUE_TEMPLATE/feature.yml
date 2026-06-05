@@ -1,7 +1,7 @@
 name: "Feature / Story"
 description: "Propose a new feature or user story anchored to an EPIC and AC IDs."
 title: "[EPIC-XXX] Short description"
-labels: ["feature"]
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
@@ -84,11 +84,46 @@ body:
       required: true
 
   - type: textarea
-    id: problem
+    id: phenomenon_description
     attributes:
-      label: "Problem Statement"
-      description: "What is the current state and what is the desired state?"
-      placeholder: "Current state: ...\nDesired state: ..."
+      label: "Phenomenon Description"
+      description: "What is the current state, desired state, and evidence that this feature is needed?"
+      placeholder: |
+        Current state:
+        Desired state:
+        Evidence:
+    validations:
+      required: true
+
+  - type: textarea
+    id: how_to_reproduce
+    attributes:
+      label: "How to Reproduce"
+      description: "Describe how to observe the current gap or validate the need for this feature."
+      placeholder: |
+        1. Open ...
+        2. Try ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: minimal_fix_recommendation
+    attributes:
+      label: "Minimal Fix Recommendation"
+      description: "Describe the smallest feature slice that delivers the intended outcome."
+      placeholder: |
+        Minimal path:
+        Out of scope:
+    validations:
+      required: true
+
+  - type: textarea
+    id: why_this_fix_works
+    attributes:
+      label: "Why This Fix Works"
+      description: "Explain why this slice satisfies the user outcome and avoids unnecessary scope."
+      placeholder: "This works because ..."
     validations:
       required: true
 
