@@ -617,6 +617,109 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
 
 
 @pytest.mark.asyncio
+async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC19.9.1 AC8.14.3: Package readiness reports deterministic source trust coverage."""
+    report_date = date(2026, 5, 31)
+    await _ready_source_account(db, test_user.id)
+    db.add(
+        Account(
+            user_id=test_user.id,
+            name="Uncovered Trust Liability",
+            type=AccountType.LIABILITY,
+            currency="SGD",
+        )
+    )
+    db.add(
+        JournalEntry(
+            user_id=test_user.id,
+            entry_date=report_date,
+            memo="Manual source trust anchor",
+            source_type=JournalEntrySourceType.MANUAL,
+            status=JournalEntryStatus.POSTED,
+        )
+    )
+    db.add(
+        AtomicPosition(
+            user_id=test_user.id,
+            snapshot_date=report_date,
+            asset_identifier="TRUST",
+            broker="Trust Broker",
+            quantity=Decimal("10"),
+            market_value=Decimal("125.00"),
+            currency="SGD",
+            asset_type=AssetType.STOCK,
+            dedup_hash=f"trust-{uuid4()}",
+            source_documents={"documents": [{"doc_id": "trust-brokerage-doc", "doc_type": "brokerage_statement"}]},
+        )
+    )
+    db.add_all(
+        [
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.PROPERTY_VALUE,
+                liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+                as_of_date=report_date,
+                value=Decimal("500000.00"),
+                currency="SGD",
+                source="Trust Property",
+                notes="Independent appraisal basis",
+            ),
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.RSU,
+                liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+                as_of_date=report_date,
+                value=Decimal("42000.00"),
+                currency="SGD",
+                source="Trust RSU",
+                notes="25% annual vesting",
+            ),
+            MarketDataOverride(
+                user_id=test_user.id,
+                asset_identifier="TRUST",
+                price_date=report_date,
+                price=Decimal("12.50"),
+                currency="SGD",
+                source=PriceSource.MANUAL,
+            ),
+        ]
+    )
+    await db.flush()
+
+    response = await personal_report_package_readiness(db=db, user_id=test_user.id)
+    payload = response.model_dump(mode="json")
+    trust = payload["source_trust_summary"]
+
+    assert {
+        "bank_statement",
+        "brokerage_statement",
+        "property_statement",
+        "liability_statement",
+        "esop_rsu_plan",
+        "csv_export",
+        "manual_record",
+    } <= set(trust["source_classes"])
+    assert {
+        "bank_statement",
+        "brokerage_statement",
+        "property_statement",
+        "liability_statement",
+        "esop_rsu_plan",
+        "csv_export",
+        "manual_record",
+    } <= set(trust["deterministic_pr_source_classes"])
+    assert {"bank_statement", "brokerage_statement"} <= set(trust["post_merge_llm_ocr_source_classes"])
+    assert {"property_statement", "liability_statement", "esop_rsu_plan", "manual_record"} <= set(
+        trust["manual_trusted_source_classes"]
+    )
+    assert "missing_source_coverage" in trust["blocker_codes"]
+    assert "manual_record" in trust["gap_source_classes"]
+
+
+@pytest.mark.asyncio
 async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
     """AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
     response = await personal_report_package_traceability()
@@ -640,6 +743,9 @@ async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_ancho
     assert "manual_valuation_snapshot_ids" in total_assets["source_anchor"]["identifier_fields"]
     assert total_assets["review_state"] == "trusted_or_explicit_manual_input"
     assert total_assets["confidence_tier"] == "TRUSTED"
+    assert total_assets["source_classes"] == ["bank_statement", "brokerage_statement", "manual_record"]
+    assert total_assets["proof_level"] == "hybrid"
+    assert total_assets["anchor_count"] == 0
 
 
 @pytest.mark.asyncio
@@ -667,6 +773,9 @@ async def test_AC5_13_2_package_traceability_declares_completeness_warnings():
         assert line["ledger_anchor"]["state"] in {"available", "not_applicable", "unavailable"}
         assert line["review_state"]
         assert line["confidence_tier"] in {"TRUSTED", "HIGH", "MEDIUM", "LOW", "UNAVAILABLE"}
+        assert line["proof_level"]
+        assert isinstance(line["source_classes"], list)
+        assert isinstance(line["blocker_codes"], list)
 
 
 @pytest.mark.asyncio
@@ -798,6 +907,7 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     total_assets = lines["balance_sheet.total_assets"]
     assert f"statement_transaction:{statement_txn_id}" in total_assets["source_anchor"]["identifiers"]
     assert f"manual_valuation_snapshot:{manual.id}" in total_assets["source_anchor"]["identifiers"]
+    assert total_assets["anchor_count"] > 0
     assert f"atomic_position:{atomic.id}" in total_assets["source_anchor"]["identifiers"]
     assert f"journal_entry:{entry.id}" in total_assets["ledger_anchor"]["identifiers"]
 

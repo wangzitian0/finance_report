@@ -17,6 +17,10 @@ function formatScheduleCurrency(value: number | string, currency: string): strin
     return formatCurrencyLocale(value, currency, "en-US", { maximumFractionDigits: 0 }).replace(/\u00a0/g, " ");
 }
 
+function renderCsv(values?: string[]): string {
+    return values && values.length ? values.join(", ") : "none";
+}
+
 function renderAnchorDetail(primary: string, identifiers?: string[]) {
     return (
         <>
@@ -130,6 +134,54 @@ export default function PersonalReportPackagePage() {
                     </div>
                 ) : null}
             </section>
+
+            {readiness.source_trust_summary ? (
+                <section className="card p-5 mb-6" aria-label="Source trust summary">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-mono text-muted">source_trust_summary</p>
+                            <h2 className="font-semibold mt-1">Source Trust</h2>
+                        </div>
+                        <span className="badge badge-muted">
+                            {readiness.source_trust_summary.source_classes.length} classes
+                        </span>
+                    </div>
+                    <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                        <div>
+                            <dt className="text-xs text-muted">Deterministic PR</dt>
+                            <dd className="mt-1 font-mono text-xs">
+                                {renderCsv(readiness.source_trust_summary.deterministic_pr_source_classes)}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt className="text-xs text-muted">Post-merge LLM/OCR</dt>
+                            <dd className="mt-1 font-mono text-xs">
+                                {renderCsv(readiness.source_trust_summary.post_merge_llm_ocr_source_classes)}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt className="text-xs text-muted">Manual Trusted</dt>
+                            <dd className="mt-1 font-mono text-xs">
+                                {renderCsv(readiness.source_trust_summary.manual_trusted_source_classes)}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt className="text-xs text-muted">Trust Gaps</dt>
+                            <dd className="mt-1 font-mono text-xs">
+                                {renderCsv(readiness.source_trust_summary.gap_source_classes)}
+                            </dd>
+                        </div>
+                    </dl>
+                    {readiness.source_trust_summary.blocker_codes.length ? (
+                        <div className="mt-4">
+                            <p className="text-xs text-muted">Blocker Codes</p>
+                            <p className="mt-1 font-mono text-xs">
+                                {readiness.source_trust_summary.blocker_codes.join(", ")}
+                            </p>
+                        </div>
+                    ) : null}
+                </section>
+            ) : null}
 
             <div className="grid lg:grid-cols-2 gap-4 mb-6">
                 {contract.sections.map((section) => (
@@ -330,7 +382,14 @@ export default function PersonalReportPackagePage() {
                                     </td>
                                     <td className="py-3 pr-4 font-mono text-xs">{line.review_state}</td>
                                     <td className="py-3">
-                                        <span className="badge badge-muted">{line.confidence_tier}</span>
+                                        <div className="flex flex-col gap-2">
+                                            <span className="badge badge-muted">{line.confidence_tier}</span>
+                                            <span className="font-mono text-xs text-muted">{line.proof_level ?? "unclassified"}</span>
+                                            <span className="font-mono text-xs text-muted">{line.anchor_count ?? 0} anchors</span>
+                                            {line.blocker_codes?.length ? (
+                                                <span className="font-mono text-xs text-muted">{line.blocker_codes.join(", ")}</span>
+                                            ) : null}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

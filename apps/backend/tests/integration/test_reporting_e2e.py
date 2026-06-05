@@ -57,7 +57,7 @@ async def test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf(
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC5.15.1: Multi-currency entries generate balanced BS, IS, and CF reports in base currency."""
+    """AC5.15.1 AC8.14.4: Structured/manual facts deterministically generate BS, IS, and CF reports."""
     user_id = test_user.id
     period_start = date(2026, 1, 1)
     period_end = date(2026, 1, 31)

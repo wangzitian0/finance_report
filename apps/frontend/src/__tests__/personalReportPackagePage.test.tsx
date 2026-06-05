@@ -110,6 +110,14 @@ const readiness = {
     dividends: 1,
     market_prices: 1,
   },
+  source_trust_summary: {
+    source_classes: ["bank_statement", "brokerage_statement", "property_statement", "liability_statement", "esop_rsu_plan", "csv_export", "manual_record"],
+    deterministic_pr_source_classes: ["bank_statement", "brokerage_statement", "property_statement", "liability_statement", "esop_rsu_plan", "csv_export", "manual_record"],
+    post_merge_llm_ocr_source_classes: ["bank_statement", "brokerage_statement"],
+    manual_trusted_source_classes: ["property_statement", "liability_statement", "esop_rsu_plan", "manual_record"],
+    gap_source_classes: ["manual_record"],
+    blocker_codes: ["missing_source_coverage", "pending_review"],
+  },
   generated_at: null,
   stale_since: null,
 }
@@ -167,6 +175,10 @@ const traceabilityAppendix = {
       },
       review_state: "trusted_or_explicit_manual_input",
       confidence_tier: "TRUSTED",
+      source_classes: ["bank_statement", "manual_record"],
+      proof_level: "hybrid",
+      anchor_count: 4,
+      blocker_codes: [],
     },
     {
       line_id: "notes.non_compliance_statement",
@@ -189,6 +201,10 @@ const traceabilityAppendix = {
       },
       review_state: "not_applicable",
       confidence_tier: "UNAVAILABLE",
+      source_classes: [],
+      proof_level: "static_contract",
+      anchor_count: 1,
+      blocker_codes: [],
     },
   ],
   completeness_warnings: [
@@ -254,6 +270,23 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.queryByText("Pending source review")).not.toBeInTheDocument()
   })
 
+  it("AC19.9.2 renders compact source trust summary before traceability details", async () => {
+    mockPackageApi()
+
+    render(<PersonalReportPackagePage />)
+
+    const sourceTrust = await screen.findByText("Source Trust")
+    await waitFor(() => expect(screen.getAllByText("traceability_appendix").length).toBeGreaterThanOrEqual(2))
+    const traceability = screen.getAllByText("traceability_appendix").at(-1)!
+    expect(traceability).toBeDefined()
+    expect(sourceTrust.compareDocumentPosition(traceability) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText("7 classes")).toBeInTheDocument()
+    expect(screen.getByText("bank_statement, brokerage_statement, property_statement, liability_statement, esop_rsu_plan, csv_export, manual_record")).toBeInTheDocument()
+    expect(screen.getByText("bank_statement, brokerage_statement")).toBeInTheDocument()
+    expect(screen.getByText("property_statement, liability_statement, esop_rsu_plan, manual_record")).toBeInTheDocument()
+    expect(screen.getByText("missing_source_coverage, pending_review")).toBeInTheDocument()
+  })
+
   it("AC5.9.4 renders export contract metadata", async () => {
     mockPackageApi()
 
@@ -297,7 +330,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("This personal management report is not a regulated filing, not legal advice, and not tax advice.")).toBeInTheDocument()
   })
 
-  it("AC5.13.3 AC5.16.3 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
+  it("AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
     mockPackageApi()
 
     render(<PersonalReportPackagePage />)
@@ -311,6 +344,8 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("journal_entry:je-789, journal_line:jl-101")).toBeInTheDocument()
     expect(screen.getByText("trusted_or_explicit_manual_input")).toBeInTheDocument()
     expect(screen.getByText("TRUSTED")).toBeInTheDocument()
+    expect(screen.getByText("hybrid")).toBeInTheDocument()
+    expect(screen.getByText("4 anchors")).toBeInTheDocument()
     expect(screen.getByText("manual_only_source")).toBeInTheDocument()
     expect(screen.getByText("explicit_manual_input_required")).toBeInTheDocument()
   })

@@ -274,6 +274,7 @@ visible to users.
 | AC5.16.1 | Balance sheet defaults restricted holdings to excluded, exposes an include toggle, and renders equation component detail | `test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings` / `AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date` | `reporting/test_reports_router.py`, `frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 |
 | AC5.16.2 | Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals | `test_AC5_16_2_cash_flow_response_preserves_fx_warnings` / page warning assertions | `reporting/test_reports_router.py`, `frontend/src/__tests__/balanceSheetPage.test.tsx`, `frontend/src/__tests__/incomeStatementPage.test.tsx`, `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 |
 | AC5.16.3 | Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+| AC5.16.4 | Personal report package traceability lines expose source classes, proof level, anchor count, and blocker codes for report-line confidence review | `test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors`, `test_AC5_13_2_package_traceability_declares_completeness_warnings` | `api/test_personal_report_package_contract.py` | P0 |
 
 ## 📏 Acceptance Criteria
 

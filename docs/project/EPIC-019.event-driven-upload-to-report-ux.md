@@ -393,6 +393,13 @@ workflow state exists.
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
 | AC19.8.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
 
+### AC19.9 — Source Trust Readiness
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.9.1 | Personal report package readiness returns source trust summary by source class, deterministic PR proof availability, post-merge LLM/OCR coverage, manual-trusted classes, gaps, and blocker codes | `test_AC19_9_1_package_readiness_reports_source_trust_summary` | P0 |
+| AC19.9.2 | Personal report package page renders a compact source trust summary before detailed package output | `AC19.9.2 renders compact source trust summary before traceability details` | P0 |
+
 ## How To Build It
 
 ### Backend
