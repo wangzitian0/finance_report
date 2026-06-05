@@ -331,17 +331,17 @@ async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
     await db.commit()
 
     ready = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert ready["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports"}
+    assert ready["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports/package"}
 
     await _report_snapshot(db, test_user.id, updated_at=datetime(2026, 5, 2, tzinfo=UTC))
     await db.commit()
     generated = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert generated["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports"}
+    assert generated["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports/package"}
 
     statement.updated_at = datetime(2026, 5, 3, tzinfo=UTC)
     await db.commit()
     stale = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert stale["report_readiness"] == {"state": "stale", "blocking_count": 0, "href": "/reports"}
+    assert stale["report_readiness"] == {"state": "stale", "blocking_count": 0, "href": "/reports/package"}
 
     blocked_user = User(email=f"package-blocked-{uuid4()}@example.com", hashed_password="hashed")
     db.add(blocked_user)

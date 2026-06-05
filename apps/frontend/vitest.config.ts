@@ -29,6 +29,7 @@ export default defineConfig({
         '**/*.test.tsx',
         '**/*.spec.ts',
         '**/*.spec.tsx',
+        'src/lib/types.ts',
         '**/vitest.setup.ts',
         '**/*.config.*',
         '**/types/**',

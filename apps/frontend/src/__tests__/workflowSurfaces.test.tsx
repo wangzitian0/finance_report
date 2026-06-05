@@ -281,6 +281,7 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByRole("region", { name: "Upload-to-report home" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
     expect(screen.getByText("Review the required action so automation can continue.")).toBeInTheDocument()
+    expect(screen.getByText(statusNeedsAction.next_action.summary)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /^Review required$/i })).toHaveAttribute("href", "/review")
     expect(screen.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports/package")
     expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
@@ -392,6 +393,43 @@ describe("workflow notification surfaces", () => {
     )
 
     expect(screen.getByRole("link", { name: "Open workflow" })).toHaveAttribute("href", "/events")
+  })
+
+  it("AC19.4.8 keeps legacy next-action type fallbacks when label is absent", () => {
+    const fallbackCases: Array<[
+      WorkflowStatusResponse["next_action"]["type"],
+      string,
+      string,
+    ]> = [
+      ["upload", "Upload statements", "/statements/upload"],
+      ["review_required", "Review required", "/review"],
+      ["resolve_blocker", "Resolve blocker", "/reconciliation/unmatched"],
+      ["open_report", "Open report package", "/reports/package"],
+      ["wait", "View processing", "/events"],
+    ]
+
+    const makeStatus = (
+      type: WorkflowStatusResponse["next_action"]["type"],
+      href: string,
+    ): WorkflowStatusResponse => ({
+      primary_state: type === "upload" ? "empty" : "needs_action",
+      next_action: {
+        type,
+        count: 0,
+        href,
+        label: "",
+        summary: "",
+      },
+      report_readiness: { state: "processing", blocking_count: 0, href: "/reports/package" },
+      event_counts: { unread: 0, action_required: 0, blocked: 0 },
+    })
+
+    const { rerender } = render(<WorkflowStatusFeed status={makeStatus("upload", "/statements/upload")} events={[workflowEvents.items[3]]} />)
+
+    for (const [type, label, href] of fallbackCases) {
+      rerender(<WorkflowStatusFeed status={makeStatus(type, href)} events={[workflowEvents.items[3]]} />)
+      expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href)
+    }
   })
 
   it("AC19.3.5 renders the events page loading and unavailable states", async () => {
