@@ -246,7 +246,7 @@ class TestBackgroundTaskDirtyData:
             period_start=None,
             period_end=None,
             opening_balance=Decimal("1000.00"),
-            closing_balance=Decimal("1100.00"),
+            closing_balance=Decimal("1000.00"),
             confidence_score=90,
             balance_validated=True,
             validation_error=None,
