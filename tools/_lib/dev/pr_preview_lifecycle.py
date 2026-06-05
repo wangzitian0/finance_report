@@ -435,7 +435,13 @@ def deploy_action(args: argparse.Namespace) -> int:
         ),
     )
     if existing_compose:
-        stop_compose(config, compose_id=compose_id)
+        try:
+            stop_compose(config, compose_id=compose_id)
+        except RuntimeError:
+            print(
+                f"Stop request failed for compose {compose_id}; "
+                "continuing to readiness gate"
+            )
     deploy_compose(config, compose_id=compose_id)
     if existing_compose:
         start_compose(config, compose_id=compose_id)
