@@ -14,9 +14,26 @@ from src.schemas.evidence import (
     EvidenceLineageNode,
     EvidenceLineageResponse,
 )
+from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.services.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService, EvidenceTraversalStep
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
+
+_LAZY_MATERIALIZATION_ENTITY_TYPES = {
+    "journal_line",
+    "journal_entry",
+    "bank_statement_transaction",
+    "bank_statement",
+    "uploaded_document",
+    "atomic_transaction",
+}
+_LAZY_MATERIALIZATION_NODE_KINDS = {
+    "ledger_line",
+    "ledger_entry",
+    "extracted_record",
+    "source_document",
+    "atomic_fact",
+}
 
 
 @router.get("/lineage", response_model=EvidenceLineageResponse)
@@ -38,6 +55,27 @@ async def get_evidence_lineage(
         entity_id=entity_id,
         node_kind=node_kind,
     )
+    materialization_blockers: list[EvidenceLineageBlocker] = []
+    if _should_attempt_lazy_materialization(entity_type=entity_type, node_kind=node_kind, anchor=anchor):
+        materialization = await EvidenceGraphMaterializationService().materialize_for_entity(
+            db,
+            user_id=user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            node_kind=node_kind,
+        )
+        materialization_blockers = [
+            EvidenceLineageBlocker(code=blocker.code, message=blocker.message) for blocker in materialization.blockers
+        ]
+        if materialization.has_writes:
+            await db.commit()
+        anchor = await lineage.get_node_for_entity(
+            db,
+            user_id=user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            node_kind=node_kind,
+        )
     if anchor is None:
         return EvidenceLineageResponse(
             anchor=None,
@@ -48,7 +86,8 @@ async def get_evidence_lineage(
                     code="graph_node_missing",
                     message="No owned Evidence Graph node exists for this entity identity.",
                 )
-            ],
+            ]
+            + _visible_missing_anchor_blockers(materialization_blockers),
             max_depth=max_depth,
         )
 
@@ -82,9 +121,26 @@ async def get_evidence_lineage(
         anchor=_node_dto(anchor),
         nodes=[_node_dto(node) for node in nodes],
         edges=edges,
-        blockers=[],
+        blockers=materialization_blockers,
         max_depth=max_depth,
     )
+
+
+def _should_attempt_lazy_materialization(
+    *,
+    entity_type: str,
+    node_kind: str | None,
+    anchor: EvidenceNode | None,
+) -> bool:
+    if anchor is not None:
+        return False
+    return entity_type in _LAZY_MATERIALIZATION_ENTITY_TYPES or node_kind in _LAZY_MATERIALIZATION_NODE_KINDS
+
+
+def _visible_missing_anchor_blockers(
+    materialization_blockers: list[EvidenceLineageBlocker],
+) -> list[EvidenceLineageBlocker]:
+    return [blocker for blocker in materialization_blockers if blocker.code != "entity_missing"]
 
 
 def _node_dto(node: EvidenceNode) -> EvidenceLineageNode:

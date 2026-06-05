@@ -198,8 +198,8 @@ not return graph evidence.
 
 ## Materialization and Consistency
 
-Consistency proof for lazy materialization is planned by issue #733. Evidence
-Graph consistency is maintained through three mechanisms:
+Consistency proof for lazy materialization is owned by AC18.10. Evidence Graph
+consistency is maintained through three mechanisms:
 
 1. Transactional write-through for new facts.
 2. Bounded lazy materialization for historical facts reached by lineage reads.
