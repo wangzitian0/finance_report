@@ -4,9 +4,59 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
+
+
+class Environment(StrEnum):
+    LOCAL = "local"
+    PR = "pr"
+    PR_PREVIEW = "pr-preview"
+    STAGING = "staging"
+    PRODUCTION = "prd"
+
+
+class PipelineStage(StrEnum):
+    CHANGED_UNIT = "changed-unit"
+    STATIC = "static"
+    FULL_UNIT = "full-unit"
+    INTEGRATION = "integration"
+    REGRESSION = "regression"
+    E2E = "e2e"
+    IMAGE_BUILD = "image-build"
+    DEPLOY_SMOKE = "deploy-smoke"
+    PROVIDER_GATE = "provider-gate"
+    RELEASE_INTEGRITY = "release-integrity"
+
+
+ENV_STAGE_MATRIX: dict[Environment, tuple[PipelineStage, ...]] = {
+    Environment.LOCAL: (PipelineStage.CHANGED_UNIT, PipelineStage.STATIC),
+    Environment.PR: (
+        PipelineStage.STATIC,
+        PipelineStage.FULL_UNIT,
+        PipelineStage.INTEGRATION,
+        PipelineStage.REGRESSION,
+        PipelineStage.E2E,
+        PipelineStage.IMAGE_BUILD,
+    ),
+    Environment.PR_PREVIEW: (
+        PipelineStage.IMAGE_BUILD,
+        PipelineStage.DEPLOY_SMOKE,
+        PipelineStage.E2E,
+    ),
+    Environment.STAGING: (
+        PipelineStage.IMAGE_BUILD,
+        PipelineStage.DEPLOY_SMOKE,
+        PipelineStage.E2E,
+        PipelineStage.PROVIDER_GATE,
+    ),
+    Environment.PRODUCTION: (
+        PipelineStage.RELEASE_INTEGRITY,
+        PipelineStage.DEPLOY_SMOKE,
+    ),
+}
 
 LIGHTWEIGHT_EXACT = {
     "AGENTS.md",
@@ -20,28 +70,25 @@ LIGHTWEIGHT_PREFIXES = (
     ".github/ISSUE_TEMPLATE/",
 )
 
-PR_PREVIEW_EXACT = {
-    ".github/workflows/pr-preview-cleanup.yml",
-    ".github/workflows/pr-test.yml",
-    "apps/backend/Dockerfile",
-    "apps/backend/alembic.ini",
-    "apps/backend/pyproject.toml",
-    "apps/backend/uv.lock",
-    "apps/frontend/Dockerfile",
-    "apps/frontend/next.config.mjs",
-    "apps/frontend/package-lock.json",
-    "apps/frontend/package.json",
-    "apps/frontend/postcss.config.mjs",
-    "apps/frontend/tailwind.config.ts",
-    "apps/frontend/tsconfig.json",
-    "docker-compose.yml",
-    "tools/generate_pdf_fixtures.py",
-    "tools/pr_preview_lifecycle.py",
-    "tools/smoke_test.sh",
-    "tools/_lib/dev/cleanup_pr_preview_resources.py",
-    "tools/_lib/dev/pr_preview_lifecycle.py",
-}
-PR_PREVIEW_PREFIXES = (
+COMMON_DEPLOY_RUNTIME_EXACT = frozenset(
+    {
+        "apps/backend/Dockerfile",
+        "apps/backend/alembic.ini",
+        "apps/backend/pyproject.toml",
+        "apps/backend/uv.lock",
+        "apps/frontend/Dockerfile",
+        "apps/frontend/next.config.mjs",
+        "apps/frontend/package-lock.json",
+        "apps/frontend/package.json",
+        "apps/frontend/postcss.config.mjs",
+        "apps/frontend/tailwind.config.ts",
+        "apps/frontend/tsconfig.json",
+        "docker-compose.yml",
+        "tools/generate_pdf_fixtures.py",
+        "tools/smoke_test.sh",
+    }
+)
+COMMON_DEPLOY_RUNTIME_PREFIXES = (
     "apps/backend/config/",
     "apps/backend/migrations/",
     "apps/backend/scripts/",
@@ -51,6 +98,34 @@ PR_PREVIEW_PREFIXES = (
     ".github/actions/setup-e2e-tests/",
     "tests/e2e/",
 )
+
+PR_PREVIEW_ONLY_EXACT = frozenset(
+    {
+        ".github/workflows/pr-preview-cleanup.yml",
+        ".github/workflows/pr-test.yml",
+        "tools/pr_preview_lifecycle.py",
+        "tools/_lib/dev/cleanup_pr_preview_resources.py",
+        "tools/_lib/dev/pr_preview_lifecycle.py",
+    }
+)
+STAGING_ONLY_EXACT = frozenset(
+    {
+        ".github/workflows/ci.yml",
+        ".github/workflows/staging-deploy.yml",
+        ".github/workflows/staging-ai-ocr-gate.yml",
+        ".node-version",
+        ".python-version",
+        "tools/check_ghcr_image_tag.sh",
+        "tools/dokploy_deploy.sh",
+        "tools/health_check.sh",
+        "toolchain.toml",
+        "repo",
+    }
+)
+
+PR_PREVIEW_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | PR_PREVIEW_ONLY_EXACT
+PR_PREVIEW_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES
+
 PDF_FIXTURE_RUNTIME_EXACT = {
     "tools/_lib/pdf_fixtures/__init__.py",
     "tools/_lib/pdf_fixtures/generate_pdf_fixtures.py",
@@ -62,42 +137,45 @@ PDF_FIXTURE_RUNTIME_PREFIXES = (
     "tools/_lib/pdf_fixtures/validators/",
 )
 
-STAGING_EXACT = {
-    ".github/workflows/ci.yml",
-    ".github/workflows/staging-deploy.yml",
-    ".github/workflows/staging-ai-ocr-gate.yml",
-    ".node-version",
-    ".python-version",
-    "apps/backend/Dockerfile",
-    "apps/backend/alembic.ini",
-    "apps/backend/pyproject.toml",
-    "apps/backend/uv.lock",
-    "apps/frontend/Dockerfile",
-    "apps/frontend/next.config.mjs",
-    "apps/frontend/package-lock.json",
-    "apps/frontend/package.json",
-    "apps/frontend/postcss.config.mjs",
-    "apps/frontend/tailwind.config.ts",
-    "apps/frontend/tsconfig.json",
-    "docker-compose.yml",
-    "tools/check_ghcr_image_tag.sh",
-    "tools/dokploy_deploy.sh",
-    "tools/generate_pdf_fixtures.py",
-    "tools/health_check.sh",
-    "tools/smoke_test.sh",
-    "toolchain.toml",
-    "repo",
+STAGING_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | STAGING_ONLY_EXACT
+STAGING_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES + ("repo/",)
+
+
+@dataclass(frozen=True)
+class EnvStageRule:
+    environment: Environment
+    stages: tuple[PipelineStage, ...]
+    exact: frozenset[str]
+    prefixes: tuple[str, ...]
+    changed_reason: str
+    unchanged_reason: str
+    fail_closed_on_empty: bool = True
+    exclude_app_tests_and_docs: bool = True
+    include_pdf_fixture_runtime: bool = True
+
+
+ENV_STAGE_RULES: dict[Environment, EnvStageRule] = {
+    Environment.PR_PREVIEW: EnvStageRule(
+        environment=Environment.PR_PREVIEW,
+        stages=ENV_STAGE_MATRIX[Environment.PR_PREVIEW],
+        exact=frozenset(PR_PREVIEW_EXACT),
+        prefixes=PR_PREVIEW_PREFIXES,
+        changed_reason="pr-preview-paths-changed",
+        unchanged_reason="no-pr-preview-paths-changed",
+    ),
+    Environment.STAGING: EnvStageRule(
+        environment=Environment.STAGING,
+        stages=ENV_STAGE_MATRIX[Environment.STAGING],
+        exact=frozenset(STAGING_EXACT),
+        prefixes=STAGING_PREFIXES,
+        changed_reason="staging-paths-changed",
+        unchanged_reason="no-staging-paths-changed",
+    ),
 }
-STAGING_PREFIXES = (
-    "apps/backend/config/",
-    "apps/backend/migrations/",
-    "apps/backend/scripts/",
-    "apps/backend/src/",
-    "apps/frontend/public/",
-    "apps/frontend/src/",
-    ".github/actions/setup-e2e-tests/",
-    "repo/",
-    "tests/e2e/",
+
+LEGACY_ENV_OUTPUTS = (
+    (Environment.PR_PREVIEW, "pr_preview", "PR preview", "PR preview", "PR preview"),
+    (Environment.STAGING, "staging", "Staging deploy", "Staging", "Staging"),
 )
 
 
@@ -107,12 +185,39 @@ class ChangeClassification:
     heavy_files: tuple[str, ...]
     heavy_required: bool
     reason: str
-    pr_preview_files: tuple[str, ...]
-    pr_preview_required: bool
-    pr_preview_reason: str
-    staging_files: tuple[str, ...]
-    staging_required: bool
-    staging_reason: str
+    envs: Mapping[Environment, "EnvStageClassification"]
+
+    @property
+    def pr_preview_files(self) -> tuple[str, ...]:
+        return self.envs[Environment.PR_PREVIEW].files
+
+    @property
+    def pr_preview_required(self) -> bool:
+        return self.envs[Environment.PR_PREVIEW].required
+
+    @property
+    def pr_preview_reason(self) -> str:
+        return self.envs[Environment.PR_PREVIEW].reason
+
+    @property
+    def staging_files(self) -> tuple[str, ...]:
+        return self.envs[Environment.STAGING].files
+
+    @property
+    def staging_required(self) -> bool:
+        return self.envs[Environment.STAGING].required
+
+    @property
+    def staging_reason(self) -> str:
+        return self.envs[Environment.STAGING].reason
+
+
+@dataclass(frozen=True)
+class EnvStageClassification:
+    files: tuple[str, ...]
+    required: bool
+    reason: str
+    stages: tuple[PipelineStage, ...]
 
 
 def normalize_path(path: str) -> str:
@@ -147,26 +252,44 @@ def _is_pdf_fixture_runtime_path(path: str) -> bool:
     )
 
 
-def is_pr_preview_relevant(path: str) -> bool:
+def _matches_env_stage_rule(path: str, rule: EnvStageRule) -> bool:
     normalized = normalize_path(path)
-    if normalized in PR_PREVIEW_EXACT:
+    if normalized in rule.exact:
         return True
-    if _is_app_test_or_doc_path(normalized):
+    if rule.exclude_app_tests_and_docs and _is_app_test_or_doc_path(normalized):
         return False
-    if _is_pdf_fixture_runtime_path(normalized):
+    if rule.include_pdf_fixture_runtime and _is_pdf_fixture_runtime_path(normalized):
         return True
-    return normalized.startswith(PR_PREVIEW_PREFIXES)
+    return normalized.startswith(rule.prefixes)
+
+
+def is_pr_preview_relevant(path: str) -> bool:
+    return _matches_env_stage_rule(path, ENV_STAGE_RULES[Environment.PR_PREVIEW])
 
 
 def is_staging_relevant(path: str) -> bool:
-    normalized = normalize_path(path)
-    if normalized in STAGING_EXACT:
-        return True
-    if _is_app_test_or_doc_path(normalized):
-        return False
-    if _is_pdf_fixture_runtime_path(normalized):
-        return True
-    return normalized.startswith(STAGING_PREFIXES)
+    return _matches_env_stage_rule(path, ENV_STAGE_RULES[Environment.STAGING])
+
+
+def _classify_env_stage(
+    files: tuple[str, ...], environment: Environment
+) -> EnvStageClassification:
+    rule = ENV_STAGE_RULES[environment]
+    matched_files = tuple(path for path in files if _matches_env_stage_rule(path, rule))
+    required = bool(matched_files or (not files and rule.fail_closed_on_empty))
+    reason = (
+        rule.changed_reason
+        if matched_files
+        else "no-changed-files-detected"
+        if not files and rule.fail_closed_on_empty
+        else rule.unchanged_reason
+    )
+    return EnvStageClassification(
+        files=matched_files,
+        required=required,
+        reason=reason,
+        stages=rule.stages,
+    )
 
 
 def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
@@ -180,35 +303,16 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         if not files
         else "lightweight-docs-or-docs-workflow-only"
     )
-    pr_preview_files = tuple(path for path in files if is_pr_preview_relevant(path))
-    pr_preview_required = bool(pr_preview_files or not files)
-    pr_preview_reason = (
-        "pr-preview-paths-changed"
-        if pr_preview_files
-        else "no-changed-files-detected"
-        if not files
-        else "no-pr-preview-paths-changed"
-    )
-    staging_files = tuple(path for path in files if is_staging_relevant(path))
-    staging_required = bool(staging_files or not files)
-    staging_reason = (
-        "staging-paths-changed"
-        if staging_files
-        else "no-changed-files-detected"
-        if not files
-        else "no-staging-paths-changed"
-    )
+    envs = {
+        environment: _classify_env_stage(files, environment)
+        for environment in ENV_STAGE_RULES
+    }
     return ChangeClassification(
         files=files,
         heavy_files=heavy_files,
         heavy_required=heavy_required,
         reason=reason,
-        pr_preview_files=pr_preview_files,
-        pr_preview_required=pr_preview_required,
-        pr_preview_reason=pr_preview_reason,
-        staging_files=staging_files,
-        staging_required=staging_required,
-        staging_reason=staging_reason,
+        envs=envs,
     )
 
 
@@ -218,12 +322,10 @@ def write_github_outputs(
     with output_path.open("a", encoding="utf-8") as fh:
         fh.write(f"heavy_required={str(classification.heavy_required).lower()}\n")
         fh.write(f"reason={classification.reason}\n")
-        fh.write(
-            f"pr_preview_required={str(classification.pr_preview_required).lower()}\n"
-        )
-        fh.write(f"pr_preview_reason={classification.pr_preview_reason}\n")
-        fh.write(f"staging_required={str(classification.staging_required).lower()}\n")
-        fh.write(f"staging_reason={classification.staging_reason}\n")
+        for environment, output_prefix, *_labels in LEGACY_ENV_OUTPUTS:
+            env_result = classification.envs[environment]
+            fh.write(f"{output_prefix}_required={str(env_result.required).lower()}\n")
+            fh.write(f"{output_prefix}_reason={env_result.reason}\n")
 
 
 def write_github_summary(
@@ -235,27 +337,35 @@ def write_github_summary(
             f"- Heavy CI required: `{str(classification.heavy_required).lower()}`\n"
         )
         fh.write(f"- Reason: `{classification.reason}`\n")
-        fh.write(
-            f"- PR preview required: `{str(classification.pr_preview_required).lower()}`\n"
-        )
-        fh.write(f"- PR preview reason: `{classification.pr_preview_reason}`\n")
-        fh.write(
-            f"- Staging deploy required: `{str(classification.staging_required).lower()}`\n"
-        )
-        fh.write(f"- Staging reason: `{classification.staging_reason}`\n")
+        for (
+            environment,
+            _output_prefix,
+            required_label,
+            reason_label,
+            _files_label,
+        ) in LEGACY_ENV_OUTPUTS:
+            env_result = classification.envs[environment]
+            fh.write(
+                f"- {required_label} required: `{str(env_result.required).lower()}`\n"
+            )
+            fh.write(f"- {reason_label} reason: `{env_result.reason}`\n")
         fh.write(f"- Changed files: `{len(classification.files)}`\n")
         if classification.heavy_files:
             fh.write("\nHeavy-triggering files:\n\n")
             for path in classification.heavy_files[:50]:
                 fh.write(f"- `{path}`\n")
-        if classification.pr_preview_files:
-            fh.write("\nPR preview-triggering files:\n\n")
-            for path in classification.pr_preview_files[:50]:
-                fh.write(f"- `{path}`\n")
-        if classification.staging_files:
-            fh.write("\nStaging-triggering files:\n\n")
-            for path in classification.staging_files[:50]:
-                fh.write(f"- `{path}`\n")
+        for (
+            environment,
+            _output_prefix,
+            _required_label,
+            _reason_label,
+            files_label,
+        ) in LEGACY_ENV_OUTPUTS:
+            env_result = classification.envs[environment]
+            if env_result.files:
+                fh.write(f"\n{files_label}-triggering files:\n\n")
+                for path in env_result.files[:50]:
+                    fh.write(f"- `{path}`\n")
 
 
 def main() -> int:
@@ -276,10 +386,10 @@ def main() -> int:
 
     print(f"heavy_required={str(classification.heavy_required).lower()}")
     print(f"reason={classification.reason}")
-    print(f"pr_preview_required={str(classification.pr_preview_required).lower()}")
-    print(f"pr_preview_reason={classification.pr_preview_reason}")
-    print(f"staging_required={str(classification.staging_required).lower()}")
-    print(f"staging_reason={classification.staging_reason}")
+    for environment, output_prefix, *_labels in LEGACY_ENV_OUTPUTS:
+        env_result = classification.envs[environment]
+        print(f"{output_prefix}_required={str(env_result.required).lower()}")
+        print(f"{output_prefix}_reason={env_result.reason}")
     print(f"changed_files={len(classification.files)}")
     return 0
 
