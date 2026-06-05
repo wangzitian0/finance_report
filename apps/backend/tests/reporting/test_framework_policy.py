@@ -271,3 +271,64 @@ def test_AC20_4_1_unsupported_instruments_create_policy_gap_not_market_value_def
     assert gap.blocker is True
     assert gap.fact_id == "fact-private-token"
     assert "market value" not in gap.remediation.lower()
+
+
+def test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs() -> None:
+    """AC20.7.1: One settlement fixture produces framework-specific lines, notes, and blockers."""
+    facts = [
+        _fact(PolicyFactDomain.CASH, instrument_type="bank_account"),
+        _fact(PolicyFactDomain.LISTED_SECURITY, instrument_type="listed_equity"),
+        _fact(PolicyFactDomain.DIVIDEND_INTEREST, instrument_type="dividend"),
+        _fact(PolicyFactDomain.BROKERAGE_FEE, instrument_type="brokerage_fee"),
+        _fact(PolicyFactDomain.RESTRICTED_COMPENSATION, instrument_type="rsu"),
+        FrameworkPolicyFact(
+            fact_id="settlement:private-token",
+            domain=PolicyFactDomain.UNSUPPORTED,
+            instrument_type="private_token",
+            amount=Decimal("25.00"),
+            currency="SGD",
+            event_date=date(2026, 5, 31),
+            anchors=[_anchor("brokerage_settlement:private-token")],
+        ),
+    ]
+
+    us_result = derive_framework_policy_result(
+        PersonalReportingFrameworkId.US_GAAP_LIKE,
+        report_period_start=date(2026, 5, 1),
+        report_period_end=date(2026, 5, 31),
+        facts=facts,
+    )
+    hk_result = derive_framework_policy_result(
+        PersonalReportingFrameworkId.HKFRS_LIKE,
+        report_period_start=date(2026, 5, 1),
+        report_period_end=date(2026, 5, 31),
+        facts=facts,
+    )
+
+    us_decisions = {decision.domain: decision for decision in us_result.decisions}
+    hk_decisions = {decision.domain: decision for decision in hk_result.decisions}
+
+    assert us_result.matrix_version == "1.0"
+    assert hk_result.matrix_version == "1.0"
+    assert us_result.required_statements == [
+        "balance_sheet",
+        "income_statement",
+        "cash_flow",
+        "notes",
+        "traceability_appendix",
+    ]
+    assert hk_result.required_statements == us_result.required_statements
+    assert (
+        us_decisions[PolicyFactDomain.LISTED_SECURITY].line_mappings["balance_sheet"] == "assets.marketable_securities"
+    )
+    assert (
+        hk_decisions[PolicyFactDomain.LISTED_SECURITY].line_mappings["balance_sheet"]
+        == "assets.financial_assets_at_fair_value"
+    )
+    assert us_decisions[PolicyFactDomain.LISTED_SECURITY].line_mappings["notes"] == "notes.us_like_market_price_basis"
+    assert hk_decisions[PolicyFactDomain.LISTED_SECURITY].line_mappings["notes"] == "notes.hk_like_fair_value_basis"
+    assert "disclose" in us_decisions[PolicyFactDomain.DIVIDEND_INTEREST].disclosure.lower()
+    assert "disclose" in hk_decisions[PolicyFactDomain.RESTRICTED_COMPENSATION].disclosure.lower()
+    assert {gap.code for gap in us_result.gaps} == {"unsupported_policy_domain"}
+    assert {gap.code for gap in hk_result.gaps} == {"unsupported_policy_domain"}
+    assert us_result.result_id != hk_result.result_id

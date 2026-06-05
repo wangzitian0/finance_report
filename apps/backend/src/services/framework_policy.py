@@ -423,6 +423,7 @@ def derive_framework_policy_result(
             gaps=gaps,
         ),
         framework_id=framework_id,
+        matrix_version=matrix.version,
         report_period_start=report_period_start,
         report_period_end=report_period_end,
         generated_at=report_period_end,

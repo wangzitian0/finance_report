@@ -63,6 +63,7 @@ The result must include:
 
 - stable policy result ID.
 - framework ID and report period.
+- policy matrix version.
 - required statements and schedules.
 - report line mappings.
 - recognition basis per source event type.
@@ -90,17 +91,24 @@ Code-owned contract surfaces:
   /api/reports/package/contract` exposes supported framework IDs, the selected
   framework ID when provided, and the policy result endpoint. `GET
   /api/reports/package/readiness` accepts the same selected framework inputs and
-  evaluates framework policy blockers before marking output trusted.
+  evaluates framework policy blockers before marking output trusted. The
+  frontend `/reports/package` route must require an explicit user framework
+  selection before loading framework-scoped readiness, policy, report section,
+  or export metadata.
 - Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that
   policy results reject missing dimensions, unsupported frameworks are closed
   out, supported domains carry all five policy dimensions, derivation is
   deterministic/read-only, result IDs fingerprint the matrix version plus full
-  decision/gap content, US/HK outputs can differ from the same fixture, and
-  unsupported instruments create explicit policy gaps instead of silently
-  defaulting to market value.
+  decision/gap content, the matrix version is exposed on the policy result,
+  US/HK outputs can differ from the same settlement fixture, and unsupported
+  instruments create explicit policy gaps instead of silently defaulting to
+  market value.
   `apps/backend/tests/reporting/test_framework_package_integration.py` covers
   package API framework selection, DB-derived policy results, readiness
   blockers, and reviewed AI policy-field requirements.
+  `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx` covers
+  explicit UI framework selection, framework-aware blockers, policy result
+  display, and export metadata traceability.
 
 ## 4. Minimum V1 Policy Matrix
 
