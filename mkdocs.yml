@@ -98,6 +98,7 @@ nav:
       - Market Data: ssot/market_data.md
       - Source Type Priority: ssot/source-type-priority.md
       - Workflow Events: ssot/workflow-events.md
+      - Evidence Lineage: ssot/evidence-lineage.md
       - Database Schema: ssot/schema.md
       - Observability: ssot/observability.md
       - Observability Logging: ssot/observability-logging.md
