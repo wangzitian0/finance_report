@@ -23,7 +23,8 @@ from pathlib import Path
 
 import httpx
 import pytest
-from conftest import AuthState, fail_or_skip_ai_ocr_gate
+from conftest import fail_or_skip_ai_ocr_gate
+from playwright.async_api import Page
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS: int = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
@@ -319,13 +320,16 @@ def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value(
-    shared_auth_state: AuthState,
+    authenticated_page_unique: Page,
 ) -> None:
     """EPIC-003 EPIC-005 EPIC-008 EPIC-009 EPIC-017.
 
     AC8.13.10: two brokerage PDFs -> real OCR -> positions -> balance sheet value.
     """
-    headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
+    access_token = await authenticated_page_unique.evaluate(
+        "() => window.localStorage.getItem('finance_access_token')"
+    )
+    headers = {"Authorization": f"Bearer {access_token}"}
     async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
         model = await _default_image_model(client)
         uploads = [
