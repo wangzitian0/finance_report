@@ -420,4 +420,58 @@ describe('apiDownload', () => {
     expect(result.blob).toBe(csvBlob);
     expect(result.filename).toBe('cash-flow-2026-01-01-to-2026-01-31.csv');
   });
+
+  it('test_AC8_13_48 parses UTF-8 and malformed download filenames', async () => {
+    const csvBlob = new Blob(['ok'], { type: 'text/csv' });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(csvBlob),
+        headers: {
+          get: () => "attachment; filename*=UTF-8''cash-flow-%E2%82%AC.csv",
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(csvBlob),
+        headers: {
+          get: () => "attachment; filename*=UTF-8''%E0%A4%A",
+        },
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiDownload } = await import('../lib/api');
+    await expect(apiDownload('api/reports/export')).resolves.toMatchObject({
+      blob: csvBlob,
+      filename: 'cash-flow-€.csv',
+    });
+    await expect(apiDownload('/api/reports/export')).resolves.toMatchObject({
+      blob: csvBlob,
+      filename: '%E0%A4%A',
+    });
+  });
+
+  it('test_AC8_13_48 reports download failures and redirects on 401', async () => {
+    const { apiDownload, resetRedirectGuard } = await import('../lib/api');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: () => Promise.resolve(''),
+    }));
+    await expect(apiDownload('/api/reports/export')).rejects.toThrow('Download failed with 503');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: () => Promise.resolve('Unauthorized'),
+    }));
+    vi.stubGlobal('window', { location: { href: '' } });
+    resetRedirectGuard();
+
+    await expect(apiDownload('/api/reports/export')).rejects.toThrow('Authentication required');
+    expect(window.location.href).toBe('/login');
+  });
 });
