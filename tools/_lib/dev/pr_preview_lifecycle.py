@@ -417,6 +417,13 @@ def deploy_action(args: argparse.Namespace) -> int:
         compose_name=args.compose_name,
         pr_number=args.pr_number,
     )
+    preview_env = build_preview_env(
+        pr_number=args.pr_number,
+        commit_sha=args.commit_sha,
+        registry=args.registry,
+        image_prefix=args.image_prefix,
+        internal_domain=args.internal_domain,
+    )
     update_compose_source(
         config,
         compose_id=compose_id,
@@ -426,24 +433,33 @@ def deploy_action(args: argparse.Namespace) -> int:
     update_compose_env(
         config,
         compose_id=compose_id,
-        env=build_preview_env(
-            pr_number=args.pr_number,
-            commit_sha=args.commit_sha,
-            registry=args.registry,
-            image_prefix=args.image_prefix,
-            internal_domain=args.internal_domain,
-        ),
+        env=preview_env,
     )
+    should_start_existing = existing_compose
     if existing_compose:
         try:
             stop_compose(config, compose_id=compose_id)
         except RuntimeError:
             print(
-                f"Stop request failed for compose {compose_id}; "
-                "continuing to readiness gate"
+                f"Stop request failed for compose {compose_id}; recreating preview compose"
             )
+            delete_compose(config, compose_id=compose_id)
+            compose_id = create_compose(
+                config,
+                environment_id=args.environment_id,
+                compose_name=args.compose_name,
+                pr_number=args.pr_number,
+            )
+            update_compose_source(
+                config,
+                compose_id=compose_id,
+                branch=args.branch,
+                github_integration_id=args.github_integration_id,
+            )
+            update_compose_env(config, compose_id=compose_id, env=preview_env)
+            should_start_existing = False
     deploy_compose(config, compose_id=compose_id)
-    if existing_compose:
+    if should_start_existing:
         start_compose(config, compose_id=compose_id)
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:

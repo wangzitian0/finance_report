@@ -370,7 +370,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.97 | CI change classification exposes table-driven env/stage rules so shared runtime paths cannot drift between PR preview and staging deployed proof | `test_AC8_13_97_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 | AC8.13.98 | Existing PR preview composes preserve compose identity, update allowlisted deploy env, stop stale containers, re-run Dokploy `compose.deploy`, and issue best-effort `compose.start` so readiness can reject stale SHA rollouts without breaking preview routing | `test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.99 | Frontend local and CI gates run full TypeScript checking, including tests, instead of relying only on Next production build type checks | `test_AC8_13_99_frontend_typecheck_is_a_required_gate` | `tests/tooling/test_frontend_typecheck_contract.py` | P0 |
-| AC8.13.100 | Existing PR preview deploys continue to Dokploy deploy/start and readiness when `compose.stop` fails with a redacted Dokploy host command error | `test_AC8_13_100_existing_preview_stop_failure_still_deploys` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.100 | Existing PR preview deploys rebuild the same named compose before deploy/readiness when `compose.stop` fails with a redacted Dokploy host command error | `test_AC8_13_100_existing_preview_stop_failure_still_deploys` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 

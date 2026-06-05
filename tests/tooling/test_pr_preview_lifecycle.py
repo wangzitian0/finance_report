@@ -491,7 +491,7 @@ def test_AC8_13_100_existing_preview_stop_failure_still_deploys(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.100: Dokploy stop failures do not replace readiness as deploy proof."""
+    """AC8.13.100: Broken existing PR previews are rebuilt before readiness."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
@@ -534,6 +534,13 @@ def test_AC8_13_100_existing_preview_stop_failure_still_deploys(
                 stdout='{"message":"Command execution failed: spawn /bin/sh ENOENT"}\n500',
                 stderr="",
             )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"composeId":"cmp-592"}',
+                stderr="",
+            )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
 
     monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
@@ -559,10 +566,18 @@ def test_AC8_13_100_existing_preview_stop_failure_still_deploys(
     captured = capsys.readouterr()
     rendered_calls = "\n".join(" ".join(call) for call in calls)
     assert "compose.stop" in rendered_calls
+    assert "compose.delete" in rendered_calls
+    assert "compose.create" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert "compose.start" in rendered_calls
-    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.deploy")
-    assert "Stop request failed for compose cmp-591; continuing to readiness gate" in (
+    assert "compose.start" not in rendered_calls
+    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.delete")
+    assert rendered_calls.index("compose.delete") < rendered_calls.index(
+        "compose.create"
+    )
+    assert rendered_calls.index("compose.create") < rendered_calls.index(
+        "compose.deploy"
+    )
+    assert "Stop request failed for compose cmp-591; recreating preview compose" in (
         captured.out
     )
     assert "secret-key" not in rendered_calls
