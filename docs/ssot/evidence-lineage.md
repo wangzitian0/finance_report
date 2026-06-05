@@ -133,3 +133,35 @@ Foundation proof is owned by AC18.7 and must cover:
 - downstream traversal;
 - depth limit enforcement;
 - cross-user isolation.
+
+Integration proof is owned by AC18.8. The first product integration path is:
+
+```text
+UploadedDocument / BankStatement
+  -> BankStatementTransaction
+  -> AtomicTransaction
+  -> JournalEntry
+  -> JournalLine
+  -> report line anchor
+```
+
+The corresponding graph nodes and edges are:
+
+```text
+source_document(uploaded_document or bank_statement)
+  -parsed_into->
+extracted_record(bank_statement_transaction)
+  -deduped_into->
+atomic_fact(atomic_transaction)
+  -posted_as->
+ledger_entry(journal_entry)
+  -contains->
+ledger_line(journal_line)
+  -aggregated_into->
+report_line(package_traceability_line)
+```
+
+Report traceability may still use legacy `JournalEntry.source_type/source_id`
+as a compatibility fallback. When a legacy source ID cannot be resolved to an
+owned source, extracted, atomic, or graph node, the caller must return an
+explicit blocker state rather than fabricating a source anchor.

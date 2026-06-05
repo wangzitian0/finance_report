@@ -298,11 +298,14 @@ async def dual_write_layer2(
         )
 
         layer2_count = 0
+        from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+
+        evidence_graph = EvidenceGraphIntegrationService()
         for txn in transactions:
             direction_map = {"IN": TransactionDirection.IN, "OUT": TransactionDirection.OUT}
             l2_direction = direction_map.get(txn.direction, TransactionDirection.IN)
 
-            await dedup_service.upsert_atomic_transaction(
+            atomic_txn = await dedup_service.upsert_atomic_transaction(
                 db=db,
                 user_id=user_id,
                 txn_date=txn.txn_date,
@@ -313,6 +316,14 @@ async def dual_write_layer2(
                 source_doc_id=uploaded_doc.id,
                 source_doc_type=doc_type,
                 reference=txn.reference,
+            )
+            await evidence_graph.record_layer2_dual_write(
+                db,
+                user_id=user_id,
+                uploaded_document=uploaded_doc,
+                source_transaction=txn,
+                atomic_transaction=atomic_txn,
+                document_type=doc_type,
             )
             layer2_count += 1
 

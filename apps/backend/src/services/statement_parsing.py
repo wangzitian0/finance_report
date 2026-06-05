@@ -444,6 +444,22 @@ async def parse_statement_background(
 
             await update_progress(90)
 
+            from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+
+            evidence_graph = EvidenceGraphIntegrationService()
+            await evidence_graph.record_statement_parse(
+                session,
+                user_id=user_id,
+                statement=statement,
+                transactions=list(statement.transactions),
+            )
+            await evidence_graph.record_statement_layer2_lineage(
+                session,
+                user_id=user_id,
+                statement=statement,
+                transactions=list(statement.transactions),
+            )
+
             statement.confidence_score = parsed_statement.confidence_score
             statement.balance_validated = parsed_statement.balance_validated
             statement.validation_error = parsed_statement.validation_error

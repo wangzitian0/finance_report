@@ -449,6 +449,15 @@ async def create_entry_from_txn(
     db.add(entry)
     await db.flush()
     await db.refresh(entry, ["lines"])
+    from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+
+    await EvidenceGraphIntegrationService().record_journal_posting(
+        db,
+        user_id=user_id,
+        source_transaction=txn,
+        journal_entry=entry,
+        atomic_transaction=atomic_txn,
+    )
     return entry
 
 

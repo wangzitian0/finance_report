@@ -308,6 +308,14 @@ async def upload_statement(
 
     db.add(statement)
     try:
+        await db.flush()
+        from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+
+        await EvidenceGraphIntegrationService().record_statement_upload(
+            db,
+            user_id=user_id,
+            statement=statement,
+        )
         await db.commit()
         await db.refresh(statement)
     except Exception as exc:

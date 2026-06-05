@@ -6,12 +6,14 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     Account,
     AccountType,
+    AtomicTransaction,
     BankStatement,
     BankStatementStatus,
     BankStatementTransaction,
@@ -30,8 +32,10 @@ from src.models import (
     ReportType,
     RuleType,
     Stage1Status,
+    UploadedDocument,
 )
 from src.models.journal import JournalEntrySourceType
+from src.models.layer1 import DocumentType
 from src.models.layer2 import AssetType, AtomicPosition
 from src.models.layer3 import (
     CostBasisMethod,
@@ -55,7 +59,9 @@ from src.routers.reports import (
     personal_report_package_traceability,
 )
 from src.schemas import PersonalReportPackageReadinessResponse
+from src.services.deduplication import dual_write_layer2
 from src.services.fx import FxRateError
+from src.services.review_queue import create_entry_from_txn
 
 
 @pytest.fixture(autouse=True)
@@ -1170,11 +1176,97 @@ def test_AC19_10_1_anchor_detail_helpers_keep_auditable_deduped_payloads():
 
 
 @pytest.mark.asyncio
+async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.8.4 AC18.8.7: Report traceability resolves a ledger-backed line to an Evidence Graph source document."""
+    report_date = date(2026, 5, 31)
+    bank = Account(user_id=test_user.id, name="Evidence Trace Bank", type=AccountType.ASSET, currency="SGD")
+    db.add(bank)
+    await db.flush()
+
+    statement = BankStatement(
+        user_id=test_user.id,
+        account_id=bank.id,
+        file_path="s3://trace/evidence-statement.csv",
+        file_hash=f"evidence-trace-{uuid4().hex}",
+        original_filename="evidence-statement.csv",
+        institution="Trace Bank",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=report_date,
+        status=BankStatementStatus.APPROVED,
+        balance_validated=True,
+        stage1_status=Stage1Status.APPROVED,
+    )
+    txn = BankStatementTransaction(
+        statement=statement,
+        txn_date=report_date,
+        description="Evidence graph income",
+        amount=Decimal("120.00"),
+        direction="IN",
+        currency="SGD",
+        reference="EG-INC",
+    )
+    db.add_all([statement, txn])
+    await db.flush()
+
+    await dual_write_layer2(
+        db=db,
+        user_id=test_user.id,
+        file_path=None,
+        file_hash=statement.file_hash,
+        original_filename=statement.original_filename,
+        institution=statement.institution,
+        transactions=[txn],
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    entry = await create_entry_from_txn(
+        db,
+        txn,
+        user_id=test_user.id,
+        auto_post=True,
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        preloaded_statement=statement,
+        preloaded_bank_account=bank,
+    )
+    await db.commit()
+
+    uploaded_doc = (
+        await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
+    ).scalar_one()
+    atomic_txn = (
+        await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
+    ).scalar_one()
+
+    traceability = await personal_report_package_traceability(
+        start_date=date(2026, 5, 1),
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+    lines = {line["line_id"]: line for line in traceability.model_dump(mode="json")["lines"]}
+    total_income = lines["income_statement.total_income"]
+
+    assert f"uploaded_document:{uploaded_doc.id}" in total_income["source_anchor"]["identifiers"]
+    assert f"atomic_transaction:{atomic_txn.id}" in total_income["source_anchor"]["identifiers"]
+    assert any(
+        detail["source_kind"] == "uploaded_document"
+        and detail["source_id"] == str(uploaded_doc.id)
+        and detail["contribution_basis"] == "evidence_graph_upstream"
+        for detail in total_income["source_anchor"]["details"]
+    )
+    assert any(detail["journal_entry_id"] == str(entry.id) for detail in total_income["ledger_anchor"]["details"])
+
+
+@pytest.mark.asyncio
 async def test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC19.10.1: Unknown journal source IDs remain explicit blockers, not fake statement anchors."""
+    """AC18.8.5 AC19.10.1: Unknown journal source IDs remain explicit blockers, not fake statement anchors."""
     report_date = date(2026, 5, 31)
     bank = Account(user_id=test_user.id, name="Unknown Source Bank", type=AccountType.ASSET, currency="SGD")
     income = Account(user_id=test_user.id, name="Unknown Source Income", type=AccountType.INCOME, currency="SGD")
