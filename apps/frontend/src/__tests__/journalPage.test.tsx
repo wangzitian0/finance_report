@@ -60,11 +60,12 @@ describe("JournalPage", () => {
             id: "e1",
             memo: "Draft Memo",
             entry_date: "2026-01-01",
-            status: "draft",
-            source_type: "manual",
-            lines: [
-              { id: "l1", account_id: "a1", direction: "DEBIT", amount: 120, description: "d" },
-              { id: "l2", account_id: "a2", direction: "CREDIT", amount: 120, description: "c" },
+          status: "draft",
+          source_type: "manual",
+          created_at: "2026-01-01T00:00:00Z",
+          lines: [
+              { id: "l1", account_id: "a1", direction: "DEBIT", amount: 120, currency: "SGD", description: "d" },
+              { id: "l2", account_id: "a2", direction: "CREDIT", amount: 120, currency: "SGD", description: "c" },
             ],
           },
         ],
@@ -78,6 +79,37 @@ describe("JournalPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "draft" }))
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("status_filter=draft")))
+  })
+
+  it("AC8.13.92 opens and closes journal entry details from a list row", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "je-detail",
+            memo: "Detail Entry",
+            entry_date: "2026-01-03",
+            status: "void",
+            source_type: "bank_statement",
+            created_at: "2026-01-03T00:00:00Z",
+            lines: [
+              { id: "l1", account_id: "cash", direction: "DEBIT", amount: 50, currency: "SGD", description: "d" },
+              { id: "l2", account_id: "income", direction: "CREDIT", amount: 50, currency: "SGD", description: "c" },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ items: [] })
+
+    render(<JournalPage />)
+
+    fireEvent.click(await screen.findByText("Detail Entry"))
+    const dialog = await screen.findByRole("dialog", { name: "Journal Entry Details" })
+    expect(dialog).toHaveTextContent("bank statement")
+    expect(dialog).toHaveTextContent("void")
+
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Journal Entry Details" })).not.toBeInTheDocument())
   })
 
   it("AC16.16.7 and AC16.16.8 handles draft post/delete and posted void flows", async () => {
