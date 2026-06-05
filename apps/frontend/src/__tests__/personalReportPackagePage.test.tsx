@@ -343,29 +343,26 @@ const traceabilityAppendix = {
   ],
 };
 
-function mockPackageApi(readinessPayload = readiness) {
+function mockPackageApi(
+  readinessPayload = readiness,
+  policyPayload = frameworkPolicy,
+) {
   mockedApiFetch.mockImplementation((path: string) => {
     if (path === "/api/reports/package/contract")
       return Promise.resolve(contract);
-    if (
-      path ===
-      "/api/reports/package/contract?framework_id=personal_us_gaap_like"
-    ) {
+    if (path.startsWith("/api/reports/package/contract?framework_id=")) {
+      const frameworkId = new URL(path, "http://localhost").searchParams.get(
+        "framework_id",
+      );
       return Promise.resolve({
         ...contract,
-        selected_framework_id: "personal_us_gaap_like",
+        selected_framework_id: frameworkId,
       });
     }
-    if (
-      path ===
-      "/api/reports/package/readiness?framework_id=personal_us_gaap_like"
-    )
+    if (path.startsWith("/api/reports/package/readiness?framework_id="))
       return Promise.resolve(readinessPayload);
-    if (
-      path ===
-      "/api/reports/package/framework-policy?framework_id=personal_us_gaap_like"
-    )
-      return Promise.resolve(frameworkPolicy);
+    if (path.startsWith("/api/reports/package/framework-policy?framework_id="))
+      return Promise.resolve(policyPayload);
     if (path === "/api/reports/package/annualized-income-schedule")
       return Promise.resolve(annualizedSchedule);
     if (path === "/api/reports/package/notes")
@@ -398,6 +395,33 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.queryByText("Report Readiness")).not.toBeInTheDocument();
   });
 
+  it("AC20.6.1 renders the API error when the initial package contract cannot load", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("Contract unavailable"));
+
+    render(<PersonalReportPackagePage />);
+
+    expect(await screen.findByText("Contract unavailable")).toBeInTheDocument();
+  });
+
+  it("AC20.6.1 renders the API error when selected framework package output cannot load", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/reports/package/contract")
+        return Promise.resolve(contract);
+      if (path.startsWith("/api/reports/package/contract?framework_id=")) {
+        return Promise.reject(new Error("Framework package unavailable"));
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    expect(
+      await screen.findByText("Framework package unavailable"),
+    ).toBeInTheDocument();
+  });
+
   it("AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework", async () => {
     mockPackageApi();
 
@@ -426,6 +450,39 @@ describe("PersonalReportPackagePage", () => {
       screen.getByText("assets.marketable_securities"),
     ).toBeInTheDocument();
     expect(screen.getByText("unsupported_policy_domain")).toBeInTheDocument();
+  });
+
+  it("AC20.6.1 loads HK-like package output and renders empty evidence bundle metadata", async () => {
+    mockPackageApi(readiness, {
+      ...frameworkPolicy,
+      result_id:
+        "policy-result:personal_hkfrs_like:2025-05-20:2026-05-20:fixture",
+      framework_id: "personal_hkfrs_like",
+      decisions: [],
+      gaps: [],
+    });
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "HK-like" }));
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/reports/package/readiness?framework_id=personal_hkfrs_like",
+      ),
+    );
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      "/api/reports/package/framework-policy?framework_id=personal_hkfrs_like",
+    );
+    expect(
+      screen.getByText("HK-like selected for this package."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("personal_hkfrs_like").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText("Framework Policy")).toBeInTheDocument();
+    expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("none")).toBeInTheDocument();
   });
 
   it("AC5.9.3 renders personal package contract sections from API", async () => {
