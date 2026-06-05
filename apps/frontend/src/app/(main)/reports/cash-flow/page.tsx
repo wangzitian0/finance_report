@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
+import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
-import { API_URL, apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -60,7 +61,7 @@ export default function CashFlowPage() {
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
   const summary = useMemo(() => report?.summary, [report]);
-  const exportUrl = `${API_URL}/api/reports/export?report_type=cash-flow&format=csv&start_date=${startDate}&end_date=${endDate}&currency=${currency}`;
+  const exportPath = `/api/reports/export?report_type=cash-flow&format=csv&start_date=${startDate}&end_date=${endDate}&currency=${currency}`;
   const aiPrompt = useMemo(() => encodeURIComponent(`Analyze my cash flow from ${startDate} to ${endDate} in ${currency}. What are the main sources and uses of cash?`), [currency, endDate, startDate]);
 
   const renderSection = (title: string, items: CashFlowItem[], colorClass: string) => (
@@ -97,7 +98,7 @@ export default function CashFlowPage() {
         <div className="flex gap-2">
           <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
           <Link href="/dashboard" className="btn-secondary text-sm">Dashboard</Link>
-          <a href={exportUrl} className="btn-secondary text-sm">Export CSV</a>
+          <ExportCsvButton path={exportPath} />
         </div>
       </div>
 

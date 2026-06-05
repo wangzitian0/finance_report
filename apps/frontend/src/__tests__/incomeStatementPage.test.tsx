@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import IncomeStatementPage from "@/app/(main)/reports/income-statement/page"
-import { apiFetch } from "@/lib/api"
+import { apiDownload, apiFetch } from "@/lib/api"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -19,13 +19,16 @@ vi.mock("@/hooks/useCurrencies", () => ({
 
 vi.mock("@/lib/api", () => ({
   API_URL: "http://localhost:8000",
+  apiDownload: vi.fn(),
   apiFetch: vi.fn(),
 }))
 
 describe("IncomeStatementPage", () => {
+  const mockedApiDownload = vi.mocked(apiDownload)
   const mockedApiFetch = vi.mocked(apiFetch)
 
   beforeEach(() => {
+    mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
   })
 
@@ -69,10 +72,7 @@ describe("IncomeStatementPage", () => {
       expect.stringContaining("/chat?prompt=")
     )
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard")
-    expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("/api/reports/export?report_type=income-statement")
-    )
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
     expect(screen.getByText("Total Income").closest("div")).toHaveTextContent("5,000.00")
     expect(screen.getByText("Total Expenses").closest("div")).toHaveTextContent("1,200.00")
     expect(screen.getByText("Net Income").closest("div")).toHaveTextContent("3,800.00")

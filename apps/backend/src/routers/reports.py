@@ -131,6 +131,7 @@ class ReportType(str, Enum):
 
     BALANCE_SHEET = "balance-sheet"
     INCOME_STATEMENT = "income-statement"
+    CASH_FLOW = "cash-flow"
 
 
 PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
@@ -1617,6 +1618,41 @@ async def export_report(
             writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
             writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
+        elif report_type == ReportType.CASH_FLOW:
+            if not start_date or not end_date:
+                raise_bad_request("start_date and end_date are required for cash flow export")
+            await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
+            report = await generate_cash_flow(
+                db,
+                user_id,
+                start_date=start_date,
+                end_date=end_date,
+                currency=currency,
+            )
+            writer.writerow(["section", "account", "amount", "currency", "description"])
+            for section, lines in (
+                ("Operating", report["operating"]),
+                ("Investing", report["investing"]),
+                ("Financing", report["financing"]),
+            ):
+                for line in lines:
+                    writer.writerow(
+                        [
+                            section,
+                            line["subcategory"],
+                            line["amount"],
+                            report["currency"],
+                            line.get("description") or "",
+                        ]
+                    )
+            summary = report["summary"]
+            writer.writerow(["Operating Activities", "", summary["operating_activities"], report["currency"], ""])
+            writer.writerow(["Investing Activities", "", summary["investing_activities"], report["currency"], ""])
+            writer.writerow(["Financing Activities", "", summary["financing_activities"], report["currency"], ""])
+            writer.writerow(["Net Cash Flow", "", summary["net_cash_flow"], report["currency"], ""])
+            writer.writerow(["Beginning Cash", "", summary["beginning_cash"], report["currency"], ""])
+            writer.writerow(["Ending Cash", "", summary["ending_cash"], report["currency"], ""])
+            filename = f"cash-flow-{start_date}-to-{end_date}.csv"
         else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")
     except ReportError as exc:

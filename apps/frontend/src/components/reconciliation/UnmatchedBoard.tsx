@@ -5,20 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { apiFetch } from "@/lib/api";
+import { formatCurrencyLocale } from "@/lib/currency";
+import type {
+  BankStatementTransactionSummary,
+  JournalEntrySummary,
+  UnmatchedTransactionsResponse,
+} from "@/lib/types";
 
-interface BankTransactionSummary {
-  id: string;
-  statement_id: string;
-  txn_date: string;
-  description: string;
-  amount: number;
-  direction: "IN" | "OUT";
-  reference?: string | null;
-  status: "pending" | "matched" | "unmatched";
-}
-
-interface UnmatchedTransactionsResponse { items: BankTransactionSummary[]; total: number; }
-interface JournalEntrySummary { id: string; entry_date: string; memo?: string | null; status: string; total_amount: number; }
+type CreatedJournalEntrySummary = JournalEntrySummary & { currency?: string | null };
 interface BatchCreateEntriesResponse { created_count: number; }
 
 const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
@@ -49,10 +43,10 @@ function saveFlaggedToStorage(flagged: Set<string>): void {
 }
 
 export default function UnmatchedBoard() {
-  const [items, setItems] = useState<BankTransactionSummary[]>([]);
-  const [selected, setSelected] = useState<BankTransactionSummary | null>(null);
+  const [items, setItems] = useState<BankStatementTransactionSummary[]>([]);
+  const [selected, setSelected] = useState<BankStatementTransactionSummary | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
-  const [createdEntry, setCreatedEntry] = useState<JournalEntrySummary | null>(null);
+  const [createdEntry, setCreatedEntry] = useState<CreatedJournalEntrySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<Set<string>>(() => loadFlaggedFromStorage());
   const [creatingAll, setCreatingAll] = useState(false);
@@ -75,11 +69,15 @@ export default function UnmatchedBoard() {
   const createEntry = async (txnId: string) => {
     setCreating(txnId);
     setBatchCreatedCount(null);
+    const createdFrom = selected;
     try {
-      const entry = await apiFetch<JournalEntrySummary>(`/api/reconciliation/unmatched/${txnId}/create-entry`, { method: "POST" });
+      const entry = await apiFetch<CreatedJournalEntrySummary>(`/api/reconciliation/unmatched/${txnId}/create-entry`, { method: "POST" });
       setCreatedEntry(entry);
       setError(null);
       await refresh();
+      if (createdFrom?.id === txnId) {
+        setSelected(createdFrom);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create entry.");
     } finally { setCreating(null); }
@@ -125,6 +123,12 @@ export default function UnmatchedBoard() {
       setSelected(null);
     }
   };
+
+  const formatTxnAmount = (item: BankStatementTransactionSummary) =>
+    formatCurrencyLocale(item.amount, item.currency || "SGD");
+
+  const formatCreatedEntryAmount = (entry: CreatedJournalEntrySummary) =>
+    formatCurrencyLocale(entry.total_amount, entry.currency || selected?.currency || "SGD");
 
   const summary = useMemo(() => ({ total: items.length, flagged: flagged.size }), [flagged.size, items.length]);
   const aiPrompt = useMemo(() => {
@@ -183,7 +187,7 @@ export default function UnmatchedBoard() {
                     <p className="text-xs text-muted">{item.txn_date} · {item.direction === "IN" ? "In" : "Out"}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-semibold text-[var(--accent)]">{item.amount?.toLocaleString()}</div>
+                    <div className="font-semibold text-[var(--accent)]">{formatTxnAmount(item)}</div>
                     {flagged.has(item.id) && <span className="badge badge-warning text-[10px]">Flagged locally</span>}
                   </div>
                 </div>
@@ -200,7 +204,7 @@ export default function UnmatchedBoard() {
               <div className="p-3 rounded-md bg-[var(--background-muted)]">
                 <p className="font-medium">{selected.description}</p>
                 <p className="text-xs text-muted">{selected.txn_date} · {selected.direction === "IN" ? "Inflow" : "Outflow"}</p>
-                <p className="text-xl font-semibold text-[var(--accent)] mt-1">{selected.amount?.toLocaleString()}</p>
+                <p className="text-xl font-semibold text-[var(--accent)] mt-1">{formatTxnAmount(selected)}</p>
                 {selected.reference && <p className="text-xs text-muted">Ref: {selected.reference}</p>}
               </div>
 
@@ -213,7 +217,7 @@ export default function UnmatchedBoard() {
 
               {createdEntry && (
                 <div className="p-3 rounded-md bg-[var(--success-muted)] border border-[var(--success)]/30 text-sm">
-                  Created entry <strong>{createdEntry.id}</strong> · {createdEntry.total_amount?.toLocaleString()} on {createdEntry.entry_date}
+                  Created entry <strong>{createdEntry.id}</strong> · {formatCreatedEntryAmount(createdEntry)} on {createdEntry.entry_date}
                 </div>
               )}
             </div>

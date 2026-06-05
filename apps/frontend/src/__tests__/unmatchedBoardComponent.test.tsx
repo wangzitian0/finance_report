@@ -260,4 +260,45 @@ describe("UnmatchedBoard", () => {
     expect(await screen.findByText("create failed")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Create Entry" })).toBeEnabled()
   })
+
+  it("AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "u-precise",
+            statement_id: "s1",
+            txn_date: "2026-01-11",
+            description: "Precise unmatched payment",
+            amount: "12345678901234567890.12",
+            currency: "USD",
+            direction: "OUT",
+            status: "unmatched",
+          },
+        ],
+        total: 1,
+      })
+      .mockResolvedValueOnce({
+        id: "je-precise",
+        entry_date: "2026-01-11",
+        memo: "Generated",
+        status: "draft",
+        total_amount: "12345678901234567890.12",
+        currency: "USD",
+      })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+
+    render(<UnmatchedBoard />)
+
+    const formatted = "$12,345,678,901,234,567,890.12"
+    await waitFor(() => expect(screen.getAllByText(formatted).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getByRole("button", { name: "Create Entry" }))
+
+    expect(
+      await screen.findByText((_content, element) => {
+        const className = typeof element?.className === "string" ? element.className : ""
+        return className.includes("success-muted") && (element?.textContent?.includes(formatted) ?? false)
+      }),
+    ).toBeInTheDocument()
+  })
 })

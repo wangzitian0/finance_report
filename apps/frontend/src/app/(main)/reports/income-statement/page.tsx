@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { API_URL, apiFetch } from "@/lib/api";
 import { BarChart } from "@/components/charts/BarChart";
 import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
+import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
+import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -106,7 +107,7 @@ export default function IncomeStatementPage() {
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
   const barItems = useMemo(() => report ? report.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: amountToChartNumber(t.total_income), expense: amountToChartNumber(t.total_expenses) })) : [], [report]);
-  const exportUrl = useMemo(() => `${API_URL}/api/reports/export?report_type=income-statement&format=csv&${buildQueryParams()}`, [buildQueryParams]);
+  const exportPath = useMemo(() => `/api/reports/export?report_type=income-statement&format=csv&${buildQueryParams()}`, [buildQueryParams]);
   const aiPrompt = useMemo(() => encodeURIComponent(`Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends.`), [currency, endDate, startDate]);
 
   if (loading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading income statement...</span></div>;
@@ -122,7 +123,7 @@ export default function IncomeStatementPage() {
         <div className="flex gap-2 flex-wrap">
           <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
           <Link href="/dashboard" className="btn-secondary text-sm">Dashboard</Link>
-          <a href={exportUrl} className="btn-secondary text-sm">Export CSV</a>
+          <ExportCsvButton path={exportPath} />
         </div>
       </div>
 

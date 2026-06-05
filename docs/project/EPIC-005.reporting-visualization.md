@@ -276,6 +276,16 @@ visible to users.
 | AC5.16.3 | Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 | AC5.16.4 | Personal report package traceability lines expose source classes, proof level, anchor count, and blocker codes for report-line confidence review | `test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors`, `test_AC5_13_2_package_traceability_declares_completeness_warnings` | `api/test_personal_report_package_contract.py` | P0 |
 
+### AC5.17: Authenticated Report CSV Exports
+
+The report export workflow must preserve the authenticated API boundary and
+support every first-class financial statement page that exposes an export
+action.
+
+| AC | Acceptance Criteria | Test(s) | File(s) | Priority |
+|----|--------------------|---------|---------|----------|
+| AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper, and the backend CSV export supports cash-flow reports with date range and currency filters | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload`, `test_AC5_17_1_cash_flow_export_returns_csv` | `frontend/src/__tests__/cashFlowPage.test.tsx`, `reporting/test_reports_router.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

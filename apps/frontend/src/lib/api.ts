@@ -110,6 +110,62 @@ export async function apiFetch<T>(
   return (await res.json()) as T;
 }
 
+export interface DownloadResponse {
+  blob: Blob;
+  filename: string | null;
+}
+
+function getFilenameFromContentDisposition(value: string | null): string | null {
+  if (!value) return null;
+
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+
+  const match = value.match(/filename=(?:"([^"]+)"|([^;]+))/i);
+  return match?.[1]?.trim() ?? match?.[2]?.trim() ?? null;
+}
+
+export async function apiDownload(
+  path: string,
+  options: RequestInit = {}
+): Promise<DownloadResponse> {
+  const token = getAccessToken();
+  const headers: HeadersInit = {
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  const res = await fetch(`${API_URL}${normalizedPath}`, {
+    ...options,
+    headers,
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      handle401Redirect();
+    }
+
+    const errorText = await res.text();
+    throw new Error(errorText || `Download failed with ${res.status}`);
+  }
+
+  return {
+    blob: await res.blob(),
+    filename: getFilenameFromContentDisposition(res.headers.get("Content-Disposition")),
+  };
+}
+
 export interface StreamResponse {
   response: Response;
   sessionId: string | null;

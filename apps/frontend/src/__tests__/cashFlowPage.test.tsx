@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import CashFlowPage from "@/app/(main)/reports/cash-flow/page"
-import { apiFetch } from "@/lib/api"
+import { apiDownload, apiFetch } from "@/lib/api"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -19,14 +19,21 @@ vi.mock("@/hooks/useCurrencies", () => ({
 
 vi.mock("@/lib/api", () => ({
   API_URL: "http://localhost:8000",
+  apiDownload: vi.fn(),
   apiFetch: vi.fn(),
 }))
 
 describe("CashFlowPage", () => {
+  const mockedApiDownload = vi.mocked(apiDownload)
   const mockedApiFetch = vi.mocked(apiFetch)
 
   beforeEach(() => {
+    mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
+    vi.stubGlobal("URL", Object.assign(URL, {
+      createObjectURL: vi.fn(() => "blob:cash-flow-export"),
+      revokeObjectURL: vi.fn(),
+    }))
   })
 
   it("AC16.14.7 renders loading and error retry states", async () => {
@@ -73,10 +80,7 @@ describe("CashFlowPage", () => {
       expect.stringContaining("/chat?prompt=")
     )
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard")
-    expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("/api/reports/export?report_type=cash-flow")
-    )
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
 
     const netCashFlowCard = screen.getByText("Net Cash Flow").closest("div")
     const beginningCashCard = screen.getByText("Beginning Cash").closest("div")
@@ -107,6 +111,47 @@ describe("CashFlowPage", () => {
     render(<CashFlowPage />)
 
     await waitFor(() => expect(screen.getByText("SankeyChartMock")).toBeInTheDocument())
+  })
+
+  it("AC5.17.1 downloads cash-flow CSV through authenticated apiDownload", async () => {
+    mockedApiFetch.mockResolvedValue({
+      start_date: "2026-01-01",
+      end_date: "2026-01-31",
+      currency: "SGD",
+      operating: [],
+      investing: [],
+      financing: [],
+      summary: {
+        operating_activities: "0",
+        investing_activities: "0",
+        financing_activities: "0",
+        net_cash_flow: "0",
+        beginning_cash: "0",
+        ending_cash: "0",
+      },
+    })
+    mockedApiDownload.mockResolvedValue({
+      blob: new Blob(["section,account,amount\n"], { type: "text/csv" }),
+      filename: "cash-flow-2026-01-01-to-2026-01-31.csv",
+    })
+
+    render(<CashFlowPage />)
+
+    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-01-01" } })
+    await waitFor(() => expect(screen.getByLabelText("End date")).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2026-01-31" } })
+    await waitFor(() => expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }))
+
+    await waitFor(() =>
+      expect(mockedApiDownload).toHaveBeenCalledWith(
+        expect.stringContaining("/api/reports/export?report_type=cash-flow"),
+      ),
+    )
+    expect(String(mockedApiDownload.mock.calls[0][0])).toContain("start_date=2026-01-01")
+    expect(String(mockedApiDownload.mock.calls[0][0])).toContain("end_date=2026-01-31")
+    expect(String(mockedApiDownload.mock.calls[0][0])).toContain("currency=SGD")
   })
 
   it("AC16.14.10 / test_AC8_13_48 refetches when filters and dates change", async () => {
