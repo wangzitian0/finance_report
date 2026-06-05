@@ -401,6 +401,75 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
+def test_AC8_13_94_existing_preview_compose_uses_redeploy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.94: Existing PR previews use Dokploy redeploy to avoid stale containers."""
+    lifecycle = lifecycle_module()
+    calls: list[list[str]] = []
+
+    effective_env = "\n".join(
+        [
+            "IMAGE_TAG=pr-591-abc123",
+            "GIT_COMMIT_SHA=abc123",
+            "IAC_CONFIG_HASH=pr-591-abc123",
+            "ENV_SUFFIX=-pr-591",
+            "COMPOSE_PROFILES=infra,app",
+        ]
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                stderr="",
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps({"env": effective_env}),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    args = SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    rendered_calls = "\n".join(" ".join(call) for call in calls)
+    assert "compose.update" in rendered_calls
+    assert "compose.one" in rendered_calls
+    assert "compose.redeploy" in rendered_calls
+    assert "compose.deploy" not in rendered_calls
+    assert "secret-key" not in rendered_calls
+
+
 def test_AC8_13_71_deploy_action_writes_github_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -410,7 +479,9 @@ def test_AC8_13_71_deploy_action_writes_github_output(
 
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
     monkeypatch.setattr(
-        lifecycle, "get_or_create_compose", lambda *args, **kwargs: "cmp-591"
+        lifecycle,
+        "get_or_create_compose_with_status",
+        lambda *args, **kwargs: ("cmp-591", False),
     )
     monkeypatch.setattr(
         lifecycle, "update_compose_source", lambda *args, **kwargs: None

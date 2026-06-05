@@ -282,6 +282,28 @@ def get_or_create_compose(
     )
 
 
+def get_or_create_compose_with_status(
+    config: DokployConfig,
+    *,
+    environment_id: str,
+    compose_name: str,
+    pr_number: int,
+) -> tuple[str, bool]:
+    compose_id = find_compose_id_by_name(config, environment_id, compose_name)
+    if compose_id:
+        print(f"Found existing compose: {compose_id}")
+        return compose_id, True
+    return (
+        create_compose(
+            config,
+            environment_id=environment_id,
+            compose_name=compose_name,
+            pr_number=pr_number,
+        ),
+        False,
+    )
+
+
 def update_compose_source(
     config: DokployConfig,
     *,
@@ -336,14 +358,18 @@ def update_compose_env(
     print(f"Environment variables configured for compose: {compose_id}")
 
 
-def deploy_compose(config: DokployConfig, *, compose_id: str) -> None:
+def deploy_compose(
+    config: DokployConfig, *, compose_id: str, force_redeploy: bool = False
+) -> None:
+    endpoint = "compose.redeploy" if force_redeploy else "compose.deploy"
     dokploy_api_call(
         config,
         "POST",
-        "compose.deploy",
+        endpoint,
         payload={"composeId": compose_id},
     )
-    print(f"Deployment triggered for compose: {compose_id}")
+    action = "Redeployment" if force_redeploy else "Deployment"
+    print(f"{action} triggered for compose: {compose_id}")
 
 
 def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
@@ -358,7 +384,7 @@ def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
 
 def deploy_action(args: argparse.Namespace) -> int:
     config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-    compose_id = get_or_create_compose(
+    compose_id, existing_compose = get_or_create_compose_with_status(
         config,
         environment_id=args.environment_id,
         compose_name=args.compose_name,
@@ -381,7 +407,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             internal_domain=args.internal_domain,
         ),
     )
-    deploy_compose(config, compose_id=compose_id)
+    deploy_compose(config, compose_id=compose_id, force_redeploy=existing_compose)
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")
