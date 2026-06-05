@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import BalanceSheetPage from "@/app/(main)/reports/balance-sheet/page"
-import { apiFetch } from "@/lib/api"
+import { apiDownload, apiFetch } from "@/lib/api"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -15,13 +15,16 @@ vi.mock("@/hooks/useCurrencies", () => ({
 
 vi.mock("@/lib/api", () => ({
   API_URL: "http://localhost:8000",
+  apiDownload: vi.fn(),
   apiFetch: vi.fn(),
 }))
 
 describe("BalanceSheetPage", () => {
+  const mockedApiDownload = vi.mocked(apiDownload)
   const mockedApiFetch = vi.mocked(apiFetch)
 
   beforeEach(() => {
+    mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
   })
 

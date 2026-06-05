@@ -382,3 +382,96 @@ describe('apiUpload', () => {
     await expect(apiUpload('/api/upload', fd)).rejects.toThrow('false');
   });
 });
+
+describe('apiDownload', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+  });
+
+  it('AC5.17.1 downloads authenticated CSV blobs and preserves the server filename', async () => {
+    localStorageMock.setItem('finance_access_token', 'download-token');
+    const csvBlob = new Blob(['section,account,amount\nAssets,Cash,100.00\n'], { type: 'text/csv' });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: () => Promise.resolve(csvBlob),
+      text: () => Promise.resolve(''),
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === 'content-disposition'
+            ? 'attachment; filename="cash-flow-2026-01-01-to-2026-01-31.csv"'
+            : null,
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiDownload } = await import('../lib/api');
+    const result = await apiDownload('/api/reports/export?report_type=cash-flow');
+
+    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(calledHeaders.Authorization).toBe('Bearer download-token');
+    expect(result.blob).toBe(csvBlob);
+    expect(result.filename).toBe('cash-flow-2026-01-01-to-2026-01-31.csv');
+  });
+
+  it('test_AC8_13_48 parses UTF-8 and malformed download filenames', async () => {
+    const csvBlob = new Blob(['ok'], { type: 'text/csv' });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(csvBlob),
+        headers: {
+          get: () => "attachment; filename*=UTF-8''cash-flow-%E2%82%AC.csv",
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: () => Promise.resolve(csvBlob),
+        headers: {
+          get: () => "attachment; filename*=UTF-8''%E0%A4%A",
+        },
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiDownload } = await import('../lib/api');
+    await expect(apiDownload('api/reports/export')).resolves.toMatchObject({
+      blob: csvBlob,
+      filename: 'cash-flow-€.csv',
+    });
+    await expect(apiDownload('/api/reports/export')).resolves.toMatchObject({
+      blob: csvBlob,
+      filename: '%E0%A4%A',
+    });
+  });
+
+  it('test_AC8_13_48 reports download failures and redirects on 401', async () => {
+    const { apiDownload, resetRedirectGuard } = await import('../lib/api');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: () => Promise.resolve(''),
+    }));
+    await expect(apiDownload('/api/reports/export')).rejects.toThrow('Download failed with 503');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: () => Promise.resolve('Unauthorized'),
+    }));
+    vi.stubGlobal('window', { location: { href: '' } });
+    resetRedirectGuard();
+
+    await expect(apiDownload('/api/reports/export')).rejects.toThrow('Authentication required');
+    expect(window.location.href).toBe('/login');
+  });
+});

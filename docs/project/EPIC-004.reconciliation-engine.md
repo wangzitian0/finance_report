@@ -175,6 +175,17 @@ Automatically match bank transactions with journal entries, implementing intelli
 | AC4.10.2 | Audit diagnostics list intentional false positives or wrong auto-accepts with expected-vs-actual route, entry IDs, score, and failure type | `test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive` | `tests/tooling/test_reconciliation_audit.py` | P0 |
 | AC4.10.3 | CI treats reconciliation audit JSON/Markdown as a hard gate for the EPIC-004 accuracy, false-positive, false-negative, and 10,000-transaction runtime targets | `test_AC4_10_3_ci_gates_reconciliation_audit_thresholds` | `tests/tooling/test_reconciliation_audit.py` | P0 |
 
+### AC4.11: Decimal-Safe Unmatched Review UI
+
+Unmatched transaction triage may create ledger entries, so monetary values shown
+in the queue and created-entry confirmation must use the same Decimal-safe
+frontend formatting contract as other accounting surfaces.
+See: docs/ssot/accounting.md#decimal-rule
+
+| AC | Acceptance Criteria | Test(s) | File(s) | Priority |
+|----|--------------------|---------|---------|----------|
+| AC4.11.1 | The unmatched transaction board models unmatched amounts as shared `MoneyValue` payloads and renders queue/detail/created-entry amounts through Decimal-safe currency formatting, not JavaScript number locale formatting | `AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting` | `frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

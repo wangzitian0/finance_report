@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { API_URL, apiFetch } from "@/lib/api";
+import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
+import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -84,7 +85,7 @@ export default function BalanceSheetPage() {
   const liabilitiesTree = useMemo(() => report ? buildTree(report.liabilities) : [], [report]);
   const equityTree = useMemo(() => report ? buildTree(report.equity) : [], [report]);
 
-  const exportUrl = `${API_URL}/api/reports/export?report_type=balance-sheet&format=csv&as_of_date=${asOfDate}&currency=${currency}&include_restricted=${includeRestricted ? "true" : "false"}`;
+  const exportPath = `/api/reports/export?report_type=balance-sheet&format=csv&as_of_date=${asOfDate}&currency=${currency}&include_restricted=${includeRestricted ? "true" : "false"}`;
   const aiPrompt = useMemo(() => encodeURIComponent(`Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`), [asOfDate, currency]);
 
   const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -121,7 +122,7 @@ export default function BalanceSheetPage() {
         <div className="flex gap-2">
           <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
           <Link href="/dashboard" className="btn-secondary text-sm">Dashboard</Link>
-          <a href={exportUrl} className="btn-secondary text-sm">Export CSV</a>
+          <ExportCsvButton path={exportPath} />
         </div>
       </div>
 

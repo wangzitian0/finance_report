@@ -98,9 +98,15 @@ def cmd_dev(args):
         return
 
     if args.backend:
-        run([sys.executable, str(REPO_ROOT / "tools" / "dev_backend.py")], cwd=BACKEND_DIR)
+        run(
+            [sys.executable, str(REPO_ROOT / "tools" / "dev_backend.py")],
+            cwd=BACKEND_DIR,
+        )
     elif args.frontend:
-        run([sys.executable, str(REPO_ROOT / "tools" / "dev_frontend.py")], cwd=FRONTEND_DIR)
+        run(
+            [sys.executable, str(REPO_ROOT / "tools" / "dev_frontend.py")],
+            cwd=FRONTEND_DIR,
+        )
     elif not args.infra:
         print("\n🚀 Infrastructure started. Now run in separate terminals:")
         print("   moon run :dev -- --backend")
@@ -130,8 +136,7 @@ def cmd_test(args, extra_args: list[str]):
         return
     if args.e2e:
         run(
-            uv_run("python", "-m", "pytest", "-m", "e2e", "tests/e2e/")
-            + extra_args,
+            uv_run("python", "-m", "pytest", "-m", "e2e", "tests/e2e/") + extra_args,
             cwd=REPO_ROOT,
         )
         return
@@ -201,6 +206,7 @@ def cmd_lint(args):
             run(["npm", "run", "lint", "--", "--fix"], cwd=FRONTEND_DIR, check=False)
         else:
             run(["npm", "run", "lint"], cwd=FRONTEND_DIR)
+            run(["npm", "run", "typecheck"], cwd=FRONTEND_DIR)
 
 
 def cmd_build(args):

@@ -83,6 +83,7 @@ export interface BankStatementTransactionSummary {
   description: string;
   amount: MoneyValue;
   direction: string;
+  currency?: string | null;
   reference?: string | null;
   status: "pending" | "matched" | "unmatched";
   confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW";

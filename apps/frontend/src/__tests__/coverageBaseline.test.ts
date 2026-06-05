@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import vitestConfig from "../../vitest.config"
 
+interface CoverageConfigWithThresholds {
+  thresholds?: Record<string, unknown>
+}
+
 describe("frontend coverage baseline", () => {
   it("AC8.13.92 keeps the frontend Vitest threshold baseline code-owned", () => {
-    const thresholds = vitestConfig.test?.coverage?.thresholds
+    const coverage = vitestConfig.test?.coverage as CoverageConfigWithThresholds | undefined
+    const thresholds = coverage?.thresholds
 
     expect(thresholds).toMatchObject({
       lines: 98,

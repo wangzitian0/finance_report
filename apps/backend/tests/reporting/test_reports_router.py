@@ -326,6 +326,62 @@ async def test_AC5_16_1_balance_sheet_export_honors_restricted_query(
 
 
 @pytest.mark.asyncio
+async def test_AC5_17_1_cash_flow_export_returns_csv(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC5.17.1: Cash-flow report export is a first-class CSV export type."""
+
+    async def fake_generate_cash_flow(*_args, **kwargs):
+        assert kwargs["start_date"] == date(2026, 1, 1)
+        assert kwargs["end_date"] == date(2026, 1, 31)
+        assert kwargs["currency"] == "SGD"
+        return {
+            "start_date": date(2026, 1, 1),
+            "end_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "operating": [
+                {
+                    "category": "operating",
+                    "subcategory": "Salary",
+                    "amount": Decimal("1000.00"),
+                    "description": "January salary",
+                }
+            ],
+            "investing": [],
+            "financing": [],
+            "summary": {
+                "operating_activities": Decimal("1000.00"),
+                "investing_activities": Decimal("0.00"),
+                "financing_activities": Decimal("0.00"),
+                "net_cash_flow": Decimal("1000.00"),
+                "beginning_cash": Decimal("500.00"),
+                "ending_cash": Decimal("1500.00"),
+            },
+            "fx_warnings": [],
+        }
+
+    monkeypatch.setattr(reports_router, "generate_cash_flow", fake_generate_cash_flow)
+
+    response = await client.get(
+        "/reports/export",
+        params={
+            "report_type": "cash-flow",
+            "format": "csv",
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-31",
+            "currency": "SGD",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    assert "cash-flow-2026-01-01-to-2026-01-31.csv" in response.headers["content-disposition"]
+    assert "Operating,Salary,1000.00,SGD,January salary" in response.text
+    assert "Net Cash Flow,,1000.00,SGD," in response.text
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("path", "attr", "params"),
     [

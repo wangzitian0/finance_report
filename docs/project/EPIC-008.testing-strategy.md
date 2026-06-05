@@ -368,7 +368,8 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.95 | Local verification guidance defaults to affected fast tests and defines risk-triggered escalation for high-impact paths | `test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.96 | PR preview relevance classification includes preview workflow, lifecycle, and config changes while excluding docs-only and app test-only changes | `test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 | AC8.13.97 | CI change classification exposes table-driven env/stage rules so shared runtime paths cannot drift between PR preview and staging deployed proof | `test_AC8_13_97_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
-| AC8.13.98 | Existing PR preview composes preserve compose identity, update allowlisted deploy env, and re-trigger `compose.deploy` so readiness can reject stale SHA rollouts without breaking preview routing | `test_AC8_13_98_existing_preview_compose_is_updated_before_deploy` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.98 | Existing PR preview composes preserve compose identity, update allowlisted deploy env, stop stale containers, re-run Dokploy `compose.deploy`, and issue best-effort `compose.start` so readiness can reject stale SHA rollouts without breaking preview routing | `test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.99 | Frontend local and CI gates run full TypeScript checking, including tests, instead of relying only on Next production build type checks | `test_AC8_13_99_frontend_typecheck_is_a_required_gate` | `tests/tooling/test_frontend_typecheck_contract.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
