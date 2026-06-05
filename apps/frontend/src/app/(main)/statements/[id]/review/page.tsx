@@ -68,6 +68,7 @@ export default function StatementReviewPage() {
 
     const [pendingEdits, setPendingEdits] = useState<Map<string, Partial<{ description: string; amount: string; direction: string; txn_date: string }>>>(new Map());
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+    const [editApproveDialogOpen, setEditApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
     const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
@@ -93,8 +94,8 @@ export default function StatementReviewPage() {
 
     // Mutations
     const editMutation = useMutation({
-        mutationFn: async (edits: any[]) => {
-            return apiFetch(`/api/statements/${statementId}/review/edit`, {
+        mutationFn: async (edits: any[]): Promise<Stage1ApprovalResponse> => {
+            return apiFetch<Stage1ApprovalResponse>(`/api/statements/${statementId}/review/edit`, {
                 method: "POST",
                 body: JSON.stringify({ edits }),
             });
@@ -126,10 +127,12 @@ export default function StatementReviewPage() {
             }
             showToast(err instanceof Error ? err.message : "Failed to save edits", "error");
         },
-        onSuccess: () => {
-            showToast("Edits saved successfully", "success");
+        onSuccess: (result) => {
+            const createdCount = result.journal_entries_created ?? 0;
+            showToast(`Statement approved. ${createdCount} journal entries posted.`, "success");
+            setEditApproveDialogOpen(false);
             setPendingEdits(new Map());
-            refetch();
+            router.push(`/statements/${statementId}?approved=1&entriesCreated=${createdCount}`);
         }
     });
 
@@ -308,7 +311,7 @@ export default function StatementReviewPage() {
                     currency={data.currency || "SGD"}
                     onEdit={handleEditChange}
                     pendingEdits={pendingEdits}
-                    onSave={handleSaveEdits}
+                    onSave={() => setEditApproveDialogOpen(true)}
                     onDiscard={handleDiscardEdits}
                     actionLoading={editMutation.isPending}
                 />
@@ -333,6 +336,16 @@ export default function StatementReviewPage() {
                 }
                 confirmLabel="Approve"
                 loading={approveMutation.isPending}
+            />
+
+            <ConfirmDialog
+                isOpen={editApproveDialogOpen}
+                onCancel={() => !editMutation.isPending && setEditApproveDialogOpen(false)}
+                onConfirm={handleSaveEdits}
+                title="Approve Edited Statement"
+                message="This will save these edits, validate the balance chain, approve the statement, and post journal entries. Proceed?"
+                confirmLabel="Approve Edits"
+                loading={editMutation.isPending}
             />
 
             <ConfirmDialog
