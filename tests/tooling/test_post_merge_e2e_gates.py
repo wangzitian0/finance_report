@@ -1334,6 +1334,7 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     workflow = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     compose = read("docker-compose.yml")
+    preview_compose = read("docker-compose.pr-preview.yml")
     frontend_dockerfile = read("apps/frontend/Dockerfile")
     frontend_version_route = read(
         "apps/frontend/src/app/frontend-version.json/route.ts"
@@ -1424,7 +1425,9 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         "PR preview deploy builds and pushes commit-scoped PR backend and frontend images in parallel jobs before invoking Dokploy"
         in ci_cd
     )
-    assert "--pull always --no-build" in ci_cd
+    assert "docker-compose.pr-preview.yml" in ci_cd
+    assert "pull_policy: always" in preview_compose
+    assert "build:" not in preview_compose
     assert "must not rebuild backend or frontend images on the VPS" in ci_cd
     assert (
         "readiness waits for both `/api/health` and `/frontend-version.json?expected=<sha>`"

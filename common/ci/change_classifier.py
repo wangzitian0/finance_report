@@ -103,6 +103,7 @@ PR_PREVIEW_ONLY_EXACT = frozenset(
     {
         ".github/workflows/pr-preview-cleanup.yml",
         ".github/workflows/pr-test.yml",
+        "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
         "tools/_lib/dev/cleanup_pr_preview_resources.py",
         "tools/_lib/dev/pr_preview_lifecycle.py",
