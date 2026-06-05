@@ -368,6 +368,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.95 | Local verification guidance defaults to affected fast tests and defines risk-triggered escalation for high-impact paths | `test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.96 | PR preview relevance classification includes preview workflow, lifecycle, and config changes while excluding docs-only and app test-only changes | `test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 | AC8.13.97 | CI change classification exposes table-driven env/stage rules so shared runtime paths cannot drift between PR preview and staging deployed proof | `test_AC8_13_97_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
+| AC8.13.98 | Post-merge staging AI/OCR gate tests use isolated users and PR tooling rejects shared mutable user fixtures before provider-backed replay | `test_AC8_13_98_ai_ocr_gate_tests_use_isolated_users` | `tests/tooling/test_staging_ai_ocr_gate_contract.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 

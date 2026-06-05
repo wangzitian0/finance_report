@@ -2080,6 +2080,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
         "/assets/valuation-snapshots",
         "/assets/valuation-components",
         "/reports/balance-sheet",
+        "include_restricted=true",
         "/dashboard",
         'BANK_CASH = Decimal("2500.00")',
         'PROPERTY_VALUE = Decimal("1200000.00")',
