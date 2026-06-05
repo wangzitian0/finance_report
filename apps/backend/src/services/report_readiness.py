@@ -287,7 +287,7 @@ async def _stale_market_data_count(db: AsyncSession, user_id: UUID, *, as_of_dat
     asset_identifiers = list(position_rows.scalars().all())
     if not asset_identifiers:
         return 0
-    normalized_asset_identifiers = [asset_identifier.strip().upper() for asset_identifier in asset_identifiers]
+    normalized_asset_identifiers = sorted({asset_identifier.strip().upper() for asset_identifier in asset_identifiers})
 
     override_rows = await db.execute(
         select(MarketDataOverride)
@@ -302,7 +302,7 @@ async def _stale_market_data_count(db: AsyncSession, user_id: UUID, *, as_of_dat
 
     stock_price_rows = await db.execute(
         select(StockPrice)
-        .where(func.upper(StockPrice.symbol).in_(normalized_asset_identifiers))
+        .where(StockPrice.symbol.in_(normalized_asset_identifiers))
         .where(StockPrice.price_date <= as_of_date)
         .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
     )

@@ -284,6 +284,65 @@ async def test_AC19_7_1_readiness_uses_freshest_stock_price_or_manual_override(
     assert "stale_market_data" not in blockers
 
 
+@pytest.mark.asyncio
+async def test_AC19_7_1_readiness_deduplicates_normalized_market_data_symbols(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC19.7.1: Normalized holdings dedupe while blank identifiers still block readiness."""
+    report_date = date(2026, 5, 31)
+    upper_position = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=report_date,
+        asset_identifier="DUPCASE",
+        broker="Framework Broker",
+        quantity=Decimal("5"),
+        market_value=Decimal("50.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"framework-dup-upper-{uuid4()}",
+        source_documents={"documents": [{"doc_id": "dup-upper-doc", "doc_type": "brokerage_statement"}]},
+    )
+    lower_position = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=report_date,
+        asset_identifier="dupcase",
+        broker="Framework Broker",
+        quantity=Decimal("5"),
+        market_value=Decimal("50.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"framework-dup-lower-{uuid4()}",
+        source_documents={"documents": [{"doc_id": "dup-lower-doc", "doc_type": "brokerage_statement"}]},
+    )
+    blank_position = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=report_date,
+        asset_identifier="   ",
+        broker="Framework Broker",
+        quantity=Decimal("5"),
+        market_value=Decimal("50.00"),
+        currency="SGD",
+        asset_type=AssetType.STOCK,
+        dedup_hash=f"framework-blank-{uuid4()}",
+        source_documents={"documents": [{"doc_id": "blank-doc", "doc_type": "brokerage_statement"}]},
+    )
+    db.add_all([upper_position, lower_position, blank_position])
+    await db.flush()
+
+    response = await personal_report_package_readiness(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+    blockers = {blocker.code: blocker for blocker in response.blockers}
+
+    assert "stale_market_data" in blockers
+    assert blockers["stale_market_data"].count == 2
+
+
 @pytest.mark.no_db
 def test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness() -> None:
     """AC20.6.1: AI suggestions and incomplete policy fields become readiness blocker codes."""

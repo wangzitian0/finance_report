@@ -504,7 +504,7 @@ async def framework_policy_facts_for_user(
 
         stock_price_result = await db.execute(
             select(StockPrice)
-            .where(func.upper(StockPrice.symbol).in_(seen_positions))
+            .where(StockPrice.symbol.in_(sorted(seen_positions)))
             .where(StockPrice.price_date <= as_of_date)
             .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
         )
