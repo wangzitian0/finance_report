@@ -228,7 +228,19 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
     ],
     "export_contract": {
         "formats": ["json", "csv"],
-        "csv_columns": ["package_id", "section_id", "line_id", "label", "amount", "currency", "source_state"],
+        "csv_columns": [
+            "package_id",
+            "section_id",
+            "line_id",
+            "label",
+            "amount",
+            "currency",
+            "source_state",
+            "selected_framework_id",
+            "framework_policy_result_id",
+            "framework_policy_matrix_version",
+            "evidence_bundle_references",
+        ],
     },
 }
 

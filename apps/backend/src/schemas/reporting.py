@@ -367,6 +367,7 @@ class FrameworkPolicyResult(BaseModel):
 
     result_id: str
     framework_id: PersonalReportingFrameworkId
+    matrix_version: str = "1.0"
     report_period_start: date
     report_period_end: date
     generated_at: date

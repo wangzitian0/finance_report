@@ -120,6 +120,10 @@ def test_AC5_9_2_package_contract_marks_decimal_totals_and_period_semantics():
         "amount",
         "currency",
         "source_state",
+        "selected_framework_id",
+        "framework_policy_result_id",
+        "framework_policy_matrix_version",
+        "evidence_bundle_references",
     ]
 
 
