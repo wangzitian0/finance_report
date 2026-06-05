@@ -219,6 +219,12 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
   })
 }
 
+async function waitForDashboardAnalyticsReady() {
+  await waitFor(() =>
+    expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
+  )
+}
+
 describe("DashboardPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
 
@@ -254,7 +260,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Financial analytics")).toBeInTheDocument())
+    await waitForDashboardAnalyticsReady()
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
     expect(screen.getByText("Total Liabilities")).toBeInTheDocument()
     expect(screen.getByText("Net Assets")).toBeInTheDocument()
@@ -426,7 +432,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Financial analytics")).toBeInTheDocument())
+    await waitForDashboardAnalyticsReady()
     expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
     expect(screen.getByText("No income data available.")).toBeInTheDocument()
     expect(screen.getByText("No recent journal entries.")).toBeInTheDocument()
@@ -475,7 +481,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Financial analytics")).toBeInTheDocument())
+    await waitForDashboardAnalyticsReady()
     expect(screen.getByText(/No trend data/)).toBeInTheDocument()
     expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
     expect(screen.getByText("No income data available.")).toBeInTheDocument()
@@ -511,7 +517,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Financial analytics")).toBeInTheDocument())
+    await waitForDashboardAnalyticsReady()
     const selector = screen.getByRole("combobox") as HTMLSelectElement
     expect(selector).toBeInTheDocument()
     expect(screen.getByText("Top Asset")).toBeInTheDocument()
@@ -530,7 +536,7 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Financial analytics")).toBeInTheDocument())
+    await waitForDashboardAnalyticsReady()
     await waitFor(() => expect(screen.getByText(/No trend data/)).toBeInTheDocument())
     expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error))
 
@@ -593,7 +599,8 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />)
 
-    await waitFor(() => expect(screen.getByText("Financial analytics")).toBeInTheDocument())
+    await waitForDashboardAnalyticsReady()
+    await waitFor(() => expect(screen.getByText("Total Assets")).toBeInTheDocument())
     expect(screen.queryByLabelText("Getting started")).not.toBeInTheDocument()
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
   })

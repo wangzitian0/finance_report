@@ -102,6 +102,22 @@ async def _get_statement_for_update(
     return statement
 
 
+def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: bool = False) -> None:
+    if not validation_result["opening_match"]:
+        suffix = " after edits" if after_edits else ""
+        raise ValueError(
+            f"Opening balance mismatch{suffix}: delta={validation_result['opening_delta']} exceeds tolerance "
+            f"{BALANCE_TOLERANCE}"
+        )
+
+    if not validation_result["closing_match"]:
+        if after_edits:
+            raise ValueError(f"Balance still invalid after edits: delta={validation_result['closing_delta']}")
+        raise ValueError(
+            f"Balance mismatch: delta={validation_result['closing_delta']} exceeds tolerance {BALANCE_TOLERANCE}"
+        )
+
+
 async def approve_statement(
     db: AsyncSession,
     statement_id: UUID,
@@ -110,10 +126,7 @@ async def approve_statement(
     statement = await _get_statement_for_update(db, statement_id, user_id)
     validation_result = await validate_balance_chain(db, statement_id)
 
-    if not validation_result["closing_match"]:
-        raise ValueError(
-            f"Balance mismatch: delta={validation_result['closing_delta']} exceeds tolerance {BALANCE_TOLERANCE}"
-        )
+    _raise_if_balance_chain_invalid(validation_result)
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
@@ -165,8 +178,7 @@ async def edit_and_approve(
 
     validation_result = await validate_balance_chain(db, statement_id)
 
-    if not validation_result["closing_match"]:
-        raise ValueError(f"Balance still invalid after edits: delta={validation_result['closing_delta']}")
+    _raise_if_balance_chain_invalid(validation_result, after_edits=True)
 
     statement.stage1_status = Stage1Status.EDITED
     statement.stage1_reviewed_at = datetime.now(UTC)

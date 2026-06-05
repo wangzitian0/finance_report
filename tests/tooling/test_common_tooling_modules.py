@@ -98,9 +98,8 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
         "tools/_lib/coverage/calculate_unified_coverage.py"
         in component.expected_sources(ROOT)
     )
-    assert (
-        "tools/_lib/coverage/strip_lcov_branches.py"
-        in component.expected_sources(ROOT)
+    assert "tools/_lib/coverage/strip_lcov_branches.py" in component.expected_sources(
+        ROOT
     )
     assert "tools/_lib/dev/test_lifecycle.py" in component.expected_sources(ROOT)
 
@@ -217,6 +216,9 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
             "tools._lib.ci.github_workflow_timing_summary"
         ),
         "tools.production_infra_smoke": "common.ci.production_infra_smoke",
+        "tools.wait_post_merge_train_turn": (
+            "tools._lib.ci.wait_post_merge_train_turn"
+        ),
     }
 
     for tool_module, common_module in command_modules.items():

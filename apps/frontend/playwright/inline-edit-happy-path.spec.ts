@@ -27,13 +27,16 @@ test('inline-edit happy path (AC16.11.33)', async ({ page }: { page: Page }) => 
   await descInput.fill('Updated Description via Playwright');
   await descInput.press('Enter');
   
-  // Verify Save button appears
-  const saveButton = page.getByRole('button', { name: /Save Edits/ });
+  // Verify approve-edits button appears because this flow validates and approves.
+  const saveButton = page.getByRole('button', { name: /Approve Edits/ });
   await expect(saveButton).toBeVisible();
   
-  // Click save
+  // Click approve edits and confirm the approval/posting side effect.
   await saveButton.click();
+  const dialog = page.getByRole('dialog', { name: 'Approve Edited Statement' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Approve Edits' }).click();
   
-  // Assert success toast or persistence
-  await expect(page.getByText('Edits saved successfully')).toBeVisible();
+  // Assert approval success.
+  await expect(page.getByText(/Statement approved/)).toBeVisible();
 });

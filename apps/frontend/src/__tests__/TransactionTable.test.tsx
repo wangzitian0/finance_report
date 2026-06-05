@@ -50,7 +50,7 @@ describe("TransactionTable", () => {
         },
     ];
 
-    it("AC16.26.1 renders editable mobile transaction cards with save and discard actions", async () => {
+    it("AC16.26.1 renders editable mobile transaction cards with approve-edits and discard actions", async () => {
         mockMobileViewport();
         type PendingEdit = Partial<{ description: string; amount: string; direction: string; txn_date: string }>;
         const pending: Map<string, PendingEdit> = new Map();
@@ -83,7 +83,7 @@ describe("TransactionTable", () => {
         fireEvent.change(screen.getByLabelText("Amount for t1"), { target: { value: "4.25" } });
         expect(onEdit).toHaveBeenCalledWith("t1", "amount", "4.25");
 
-        fireEvent.click(screen.getByRole("button", { name: /Save Edits/ }));
+        fireEvent.click(screen.getByRole("button", { name: /Approve Edits/ }));
         expect(onSave).toHaveBeenCalled();
         fireEvent.click(screen.getByRole("button", { name: /Discard/ }));
         expect(onDiscard).toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe("TransactionTable", () => {
         expect(table).toHaveStyle({ width: "calc(100% - 4px)" });
     });
 
-    it("renders rows and shows Save/Discard when pending edits exist", () => {
+    it("renders rows and shows Approve Edits/Discard when pending edits exist", () => {
         type PendingEdit = Partial<{ description: string; amount: string; direction: string; txn_date: string }>;
         const pending: Map<string, PendingEdit> = new Map();
         pending.set("t1", { description: "Coffee Shop" });
@@ -174,7 +174,7 @@ describe("TransactionTable", () => {
 
         expect(screen.getByText("Transactions")).toBeInTheDocument();
         expect(screen.getAllByText("Coffee Shop").length).toBeGreaterThan(0);
-        const saveBtn = screen.getByRole("button", { name: /Save Edits/ });
+        const saveBtn = screen.getByRole("button", { name: /Approve Edits/ });
         fireEvent.click(saveBtn);
         expect(onSave).toHaveBeenCalled();
 

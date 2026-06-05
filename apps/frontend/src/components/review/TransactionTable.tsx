@@ -50,7 +50,7 @@ export function TransactionTable({
                     {pendingEdits.size > 0 && (
                         <div className="flex flex-wrap items-center gap-2">
                             <button onClick={onSave} disabled={actionLoading} className="btn-primary btn-sm py-1">
-                                {actionLoading ? "Saving..." : `Save Edits (${pendingEdits.size})`}
+                                {actionLoading ? "Approving..." : `Approve Edits (${pendingEdits.size})`}
                             </button>
                             <button onClick={onDiscard} disabled={actionLoading} className="btn-secondary btn-sm py-1">
                                 Discard

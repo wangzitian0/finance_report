@@ -70,9 +70,9 @@ The following diagram shows how a bank statement travels from upload through to 
 |------|-------|----|-------|
 | `parsed` | system auto-accept | `approved` | Score ≥ 85, balance delta ≤ 0.001 USD, confirmed active asset account in statement currency, non-overlapping source period |
 | `approved` | auto-post guard failure | `pending_review` | Guard failure during high-confidence auto-post; preserve parsed statement and transactions |
-| `pending_review` | `approve_statement()` | `approved` | Balance delta ≤ 0.001 USD |
+| `pending_review` | `approve_statement()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD |
 | `pending_review` | `reject_statement()` | `rejected` | — |
-| `pending_review` | `edit_and_approve()` | `approved` | Balance delta ≤ 0.001 USD after edits |
+| `pending_review` | `edit_and_approve()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD after edits |
 | `rejected` | re-parse triggered | `pending_review` | — |
 
 ### Stage 2 Transitions
@@ -90,7 +90,8 @@ The following diagram shows how a bank statement travels from upload through to 
 
 ### DO
 - ✅ Always pass `user_id` to service methods that mutate `pending_review` state (ownership check)
-- ✅ Validate balance chain (0.001 USD tolerance) before advancing Stage 1
+- ✅ Validate both opening and closing balance-chain checks (0.001 USD tolerance) before advancing Stage 1
+- ✅ Label and confirm Stage 1 edit actions as approve-and-post operations because `/review/edit` persists edits, approves the statement, and posts journal entries when valid
 - ✅ Require confirmed account mapping and source-period uniqueness before Stage 1 auto-posting
 - ✅ Resolve all consistency checks before Stage 2 batch approval
 - ✅ Create journal entry only on `accepted` transition (never on `pending_review`)
@@ -99,7 +100,8 @@ The following diagram shows how a bank statement travels from upload through to 
 ### DO NOT
 - ❌ Combine Stage 1 status and Stage 2 status into a single field — they are independent
 - ❌ Create journal entries from `pending_review` matches
-- ❌ Auto-accept Stage 1 statements without balance chain validation
+- ❌ Auto-accept Stage 1 statements without opening and closing balance-chain validation
+- ❌ Present `/review/edit` as a save-only action; it is an approval operation with posting side effects
 - ❌ Allow `pending_review → approved` bypass when duplicate/transfer checks are unresolved
 - ❌ Hardcode tolerance as `0.10` in Stage 1 — Stage 1 requires `0.001 USD`
 
@@ -114,9 +116,10 @@ The following diagram shows how a bank statement travels from upload through to 
 | Reconciliation statistics comparison | 1% | AGENTS.md |
 
 These tolerances are intentionally separate policies. Stage 1 document approval
-uses the strict 0.001 USD balance-chain threshold; extraction confidence and
-Stage 2 matching may use wider scoring tolerances, but they cannot approve a
-Stage 1 statement with a balance-chain delta above 0.001 USD.
+uses the strict 0.001 USD balance-chain threshold for both the opening continuity
+check and the closing transaction-sum check; extraction confidence and Stage 2
+matching may use wider scoring tolerances, but they cannot approve a Stage 1
+statement with either balance-chain check outside the 0.001 USD tolerance.
 
 ---
 
@@ -126,9 +129,9 @@ Stage 1 statement with a balance-chain delta above 0.001 USD.
 
 | Endpoint | Input | Side Effect |
 |----------|-------|-------------|
-| `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; balance chain validation enforced (≤ 0.001 USD); queues to Stage 2 |
+| `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; opening and closing balance-chain validation enforced (≤ 0.001 USD); queues to Stage 2 |
 | `POST /api/statements/{id}/review/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
-| `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates, approves if valid |
+| `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates opening and closing balance-chain checks, approves if valid, and posts journal entries |
 | `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` where `status=PARSED` and either `stage1_status=PENDING_REVIEW` or `stage1_status` is null for legacy parsed rows |
 ### Stage 2 Endpoints (reconciliation + statements routers)
 
