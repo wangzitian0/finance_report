@@ -52,6 +52,18 @@ describe('API URL Configuration Scenarios', () => {
       const fullPath = `${API_URL}${path}`
       expect(fullPath).toBe('https://report.zitian.party/api/accounts')
     })
+
+    it('AC7.9.5 does not proxy production API routes to localhost', async () => {
+      vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://report.zitian.party')
+      vi.stubEnv('NODE_ENV', 'production')
+
+      const { default: nextConfig } = await import('../../next.config.mjs')
+      const rewrites = typeof nextConfig.rewrites === 'function'
+        ? await nextConfig.rewrites()
+        : []
+
+      expect(JSON.stringify(rewrites)).not.toContain('localhost:8000')
+    })
   })
 
   describe('PR Environment', () => {

@@ -162,7 +162,7 @@ describe("HoldingDetailPage", () => {
   })
 
   it("renders KPI cards and active/disposed lots in the overview tab", async () => {
-    mockHoldingDetailApi({ holdings: [{ ...mockActiveHolding, quantity: "10.500000" }, mockDisposedHolding] })
+    mockHoldingDetailApi({ holdings: [{ ...mockActiveHolding, quantity: "10.123456789" }, mockDisposedHolding] })
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
@@ -172,7 +172,7 @@ describe("HoldingDetailPage", () => {
     expect(screen.getByText("Active Lots")).toBeInTheDocument()
     expect(screen.getByText("Disposed Lots")).toBeInTheDocument()
     expect(screen.getByText("FIFO method")).toBeInTheDocument()
-    expect(screen.getAllByText("10.50").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("10.123456789").length).toBeGreaterThanOrEqual(1)
   })
 
   it("AC17.7.2/AC17.7.6 switches to Dividends tab and renders dividend row labels", async () => {

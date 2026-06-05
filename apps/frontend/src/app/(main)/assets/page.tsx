@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale, parseAmount } from "@/lib/currency";
+import { formatCurrencyLocale, formatQuantity, parseAmount } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 import {
     ManagedPosition,
@@ -37,12 +37,6 @@ function labelForValuationType(type: ManualValuationComponentType): string {
 
 function labelForLiquidityClass(value: string): string {
     return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function formatQuantity(quantity: string): string {
-    const num = parseFloat(quantity);
-    if (Number.isInteger(num)) return num.toLocaleString();
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 }
 
 export default function AssetsPage() {
@@ -132,13 +126,11 @@ export default function AssetsPage() {
         totals[currency] = existing.add(parseAmount(pos.cost_basis));
         return totals;
     }, {} as Record<string, import("decimal.js").Decimal>);
-    const totalCostBasis = Object.values(totalsByCurrency).reduce((s, v) => s.add(v), parseAmount(0));
     const allocationByCurrency = Object.entries(totalsByCurrency)
         .sort((a, b) => b[1].comparedTo(a[1]))
         .map(([currency, total]) => ({
             currency,
             total,
-            pct: totalCostBasis.isZero() ? 0 : total.div(totalCostBasis).times(100).toNumber(),
         }));
 
     return (
@@ -195,7 +187,12 @@ export default function AssetsPage() {
             {/* Currency allocation breakdown */}
             {!isLoading && !error && allocationByCurrency.length > 1 && (
                 <div className="card p-5 mb-6">
-                    <p className="text-xs text-muted uppercase tracking-wide mb-3">Allocation by Currency</p>
+                    <div className="mb-3">
+                        <p className="text-xs text-muted uppercase tracking-wide">Allocation by Currency</p>
+                        <p className="text-xs text-muted mt-1">
+                            FX conversion required before cross-currency percentages are trusted.
+                        </p>
+                    </div>
                     <div className="space-y-2">
                         {allocationByCurrency.map((a) => (
                             <div key={a.currency} className="flex items-center gap-3">
@@ -203,10 +200,9 @@ export default function AssetsPage() {
                                 <div className="flex-1 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
                                     <div
                                         className="h-full rounded-full bg-[var(--accent)]"
-                                        style={{ width: `${Math.min(100, Math.max(0, a.pct))}%` }}
+                                        style={{ width: "100%" }}
                                     />
                                 </div>
-                                <span className="w-14 text-xs text-muted text-right">{a.pct.toFixed(1)}%</span>
                                 <span className="text-xs text-muted">{formatCurrencyLocale(a.total.toString(), a.currency)}</span>
                             </div>
                         ))}

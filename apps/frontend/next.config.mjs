@@ -1,3 +1,7 @@
+export function shouldProxyApiToLocalBackend() {
+    return process.env.NODE_ENV !== 'production' && (process.env.NEXT_PUBLIC_API_URL ?? '') === '';
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: 'standalone',
@@ -10,15 +14,11 @@ const nextConfig = {
             },
         ];
     },
-    // Rewrite for local development only - proxies /api/* to backend on localhost:8000
-    // In containerized/production, frontend and backend share same origin, no rewrite needed
+    // Local development without an explicit API URL proxies /api/* to the backend.
+    // Containerized and production deployments keep same-origin /api/* routes intact.
     async rewrites() {
-        return [
-            {
-                source: '/api/:path*',
-                destination: 'http://localhost:8000/:path*',
-            },
-        ];
+        if (!shouldProxyApiToLocalBackend()) return [];
+        return [{ source: '/api/:path*', destination: 'http://localhost:8000/:path*' }];
     },
 };
 
