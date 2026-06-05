@@ -1424,6 +1424,8 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         "PR preview deploy builds and pushes commit-scoped PR backend and frontend images in parallel jobs before invoking Dokploy"
         in ci_cd
     )
+    assert "--pull always --no-build" in ci_cd
+    assert "must not rebuild backend or frontend images on the VPS" in ci_cd
     assert (
         "readiness waits for both `/api/health` and `/frontend-version.json?expected=<sha>`"
         in ci_cd
