@@ -1,0 +1,106 @@
+version: "1.0"
+description: >
+  Product source coverage matrix for the source classes named by vision.md.
+  This matrix separates deterministic PR proof from post-merge LLM/OCR proof
+  and manual-trusted inputs. It must not contain real financial documents.
+
+required_source_classes:
+  - bank_statement
+  - brokerage_statement
+  - settlement_note
+  - esop_rsu_plan
+  - property_statement
+  - liability_statement
+  - csv_export
+  - manual_record
+
+source_classes:
+  - id: bank_statement
+    owner_epics: [EPIC-003, EPIC-013, EPIC-016]
+    supported_formats: [pdf, csv]
+    supported_institutions: [DBS/POSB, CMB, Maybank, Wise, OCBC, MariBank, GXS]
+    proof_levels: [pr_deterministic, post_merge_llm_ocr]
+    ingestion_path: /api/statements/upload
+    review_requirement: stage1_review_or_auto_post_guard
+    traceability_target: source_document_to_journal_entry_to_report_line
+    test_anchors:
+      - apps/backend/tests/extraction/test_extraction.py::test_dbs_fixture_structure
+      - apps/backend/tests/integration/test_reporting_e2e.py::test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf
+
+  - id: brokerage_statement
+    owner_epics: [EPIC-013, EPIC-017]
+    supported_formats: [pdf, csv, structured_payload]
+    supported_institutions: [generic_brokerage, Moomoo, IBKR, Futu]
+    proof_levels: [pr_deterministic, post_merge_llm_ocr]
+    ingestion_path: /api/statements/upload
+    review_requirement: brokerage_position_import_traceability
+    traceability_target: brokerage_payload_to_atomic_position_to_portfolio_report_line
+    test_anchors:
+      - apps/backend/tests/portfolio/test_portfolio_router.py::test_brokerage_import_creates_atomic_positions
+      - tests/e2e/test_brokerage_upload_to_portfolio_value.py::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value
+
+  - id: settlement_note
+    owner_epics: [EPIC-013, EPIC-017]
+    supported_formats: [pdf, csv, structured_payload]
+    supported_institutions: [generic_brokerage]
+    proof_levels: [pr_deterministic]
+    ingestion_path: /api/portfolio/brokerage/import
+    review_requirement: settlement_facts_must_be_structured_or_reviewed
+    traceability_target: settlement_payload_to_lot_fee_dividend_policy_fact
+    test_anchors:
+      - apps/backend/tests/reporting/test_framework_policy.py::test_AC20_4_1_us_and_hk_matrix_differ_for_same_listed_security_fixture
+
+  - id: esop_rsu_plan
+    owner_epics: [EPIC-011, EPIC-005]
+    supported_formats: [manual_evidence, structured_payload]
+    supported_institutions: [employer_plan_document]
+    proof_levels: [pr_deterministic, manual_trusted]
+    ingestion_path: /api/assets/valuation-snapshots
+    review_requirement: explicit_manual_input_with_vesting_or_unlock_basis
+    traceability_target: manual_restricted_compensation_to_annualized_schedule
+    test_anchors:
+      - apps/backend/tests/api/test_personal_report_package_contract.py::test_AC19_9_1_package_readiness_reports_source_trust_summary
+
+  - id: property_statement
+    owner_epics: [EPIC-011, EPIC-005]
+    supported_formats: [manual_evidence, structured_payload]
+    supported_institutions: [appraisal, property_statement]
+    proof_levels: [pr_deterministic, manual_trusted]
+    ingestion_path: /api/assets/valuation-snapshots
+    review_requirement: explicit_manual_input_with_valuation_basis_and_as_of_date
+    traceability_target: manual_property_valuation_to_balance_sheet_line
+    test_anchors:
+      - apps/backend/tests/api/test_personal_report_package_contract.py::test_AC19_9_1_package_readiness_reports_source_trust_summary
+
+  - id: liability_statement
+    owner_epics: [EPIC-011, EPIC-005]
+    supported_formats: [manual_evidence, structured_payload]
+    supported_institutions: [loan_statement, credit_card_statement, mortgage_statement]
+    proof_levels: [pr_deterministic, manual_trusted]
+    ingestion_path: /api/assets/valuation-snapshots
+    review_requirement: explicit_manual_input_or_approved_statement_coverage
+    traceability_target: liability_source_to_balance_sheet_liability_line
+    test_anchors:
+      - apps/backend/tests/api/test_personal_report_package_contract.py::test_AC19_9_1_package_readiness_reports_source_trust_summary
+
+  - id: csv_export
+    owner_epics: [EPIC-003, EPIC-013, EPIC-008]
+    supported_formats: [csv]
+    supported_institutions: [bank_export, brokerage_export, wallet_export]
+    proof_levels: [pr_deterministic]
+    ingestion_path: /api/statements/upload
+    review_requirement: csv_schema_validation_and_stage1_review
+    traceability_target: csv_row_to_journal_entry_to_report_line
+    test_anchors:
+      - tests/e2e/test_vision_upload_to_dashboard_hard_gate.py::test_statement_upload_to_dashboard_vision_hard_gate
+
+  - id: manual_record
+    owner_epics: [EPIC-002, EPIC-011, EPIC-005]
+    supported_formats: [api_entry, manual_evidence]
+    supported_institutions: [user_supplied]
+    proof_levels: [pr_deterministic, manual_trusted]
+    ingestion_path: /api/journal-entries
+    review_requirement: explicit_user_input_and_decimal_balanced_entry
+    traceability_target: manual_entry_to_ledger_to_report_line
+    test_anchors:
+      - apps/backend/tests/integration/test_reporting_e2e.py::test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf

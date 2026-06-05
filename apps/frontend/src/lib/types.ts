@@ -213,6 +213,14 @@ export interface PersonalReportPackageReadinessResponse {
   blocking_count: number;
   blockers: PersonalReportPackageReadinessBlocker[];
   source_summary: Record<string, number | string>;
+  source_trust_summary?: {
+    source_classes: string[];
+    deterministic_pr_source_classes: string[];
+    post_merge_llm_ocr_source_classes: string[];
+    manual_trusted_source_classes: string[];
+    gap_source_classes: string[];
+    blocker_codes: string[];
+  };
   generated_at?: string | null;
   stale_since?: string | null;
 }
@@ -255,6 +263,10 @@ export interface PersonalReportPackageTraceabilityLine {
   ledger_anchor: PersonalReportPackageTraceabilityAnchor;
   review_state: string;
   confidence_tier: string;
+  source_classes?: string[];
+  proof_level?: string;
+  anchor_count?: number;
+  blocker_codes?: string[];
 }
 
 export interface PersonalReportPackageCompletenessWarning {

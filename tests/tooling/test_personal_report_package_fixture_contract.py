@@ -139,3 +139,27 @@ def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() 
     assert 'schedule["data_freshness"]["latest_price_date"]' in journey
     assert "latest_price_date >= expected.market_price_date" in journey
     assert "assert _has_dynamic_traceability_identifiers(traceability)" in journey
+
+
+def test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror() -> None:
+    """AC8.14.3: Package LLM/OCR critical proof has a deterministic source-trust mirror."""
+    matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    proofs = {proof["id"]: proof for proof in matrix["proofs"]}
+
+    post_merge = proofs["personal-financial-report-package-post-merge"]
+    mirror = proofs[post_merge["mirror_proof_id"]]
+    expected_sources = {
+        "bank_statement",
+        "brokerage_statement",
+        "property_statement",
+        "liability_statement",
+        "esop_rsu_plan",
+        "csv_export",
+        "manual_record",
+    }
+
+    assert post_merge["trust_mode"] == "llm_ocr_post_merge"
+    assert mirror["trust_mode"] == "deterministic_pr"
+    assert mirror["ci_tier"] == "pr_ci"
+    assert expected_sources <= set(mirror["source_classes"])
+    assert "AC8.14.3" in mirror["ac_ids"]

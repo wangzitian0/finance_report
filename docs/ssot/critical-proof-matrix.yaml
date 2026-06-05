@@ -82,6 +82,10 @@ proofs:
   - id: dbs-pdf-full-journey
     scope: behavioral
     ci_tier: post_merge_environment
+    trust_mode: llm_ocr_post_merge
+    source_classes:
+      - bank_statement
+    mirror_proof_id: structured-source-reporting-pr
     issue: "#443"
     file: tests/e2e/test_statement_full_journey.py
     test: test_dbs_statement_full_journey
@@ -100,6 +104,10 @@ proofs:
   - id: deterministic-upload-to-dashboard
     scope: behavioral
     ci_tier: post_merge_environment
+    trust_mode: hybrid
+    source_classes:
+      - bank_statement
+      - csv_export
     issue: "#420"
     file: tests/e2e/test_vision_upload_to_dashboard_hard_gate.py
     test: test_statement_upload_to_dashboard_vision_hard_gate
@@ -117,6 +125,10 @@ proofs:
   - id: brokerage-pdf-to-portfolio-value
     scope: behavioral
     ci_tier: post_merge_environment
+    trust_mode: llm_ocr_post_merge
+    source_classes:
+      - brokerage_statement
+    mirror_proof_id: personal-package-source-trust-pr
     issue: "#404"
     file: tests/e2e/test_brokerage_upload_to_portfolio_value.py
     test: test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value
@@ -131,6 +143,14 @@ proofs:
   - id: four-asset-as-of-net-worth
     scope: behavioral
     ci_tier: post_merge_environment
+    trust_mode: llm_ocr_post_merge
+    source_classes:
+      - bank_statement
+      - brokerage_statement
+      - property_statement
+      - liability_statement
+      - manual_record
+    mirror_proof_id: personal-package-source-trust-pr
     issue: "#444"
     file: tests/e2e/test_four_asset_net_worth_golden_path.py
     test: test_four_asset_as_of_net_worth_golden_path
@@ -151,6 +171,9 @@ proofs:
   - id: market-data-provider-price-path
     scope: behavioral
     ci_tier: post_merge_environment
+    trust_mode: hybrid
+    source_classes:
+      - brokerage_statement
     issue: "#539"
     file: tests/e2e/test_market_data_price_paths.py
     test: test_market_data_provider_sync_feeds_fx_and_stock_price_paths
@@ -165,6 +188,16 @@ proofs:
   - id: personal-financial-report-package-post-merge
     scope: behavioral
     ci_tier: post_merge_environment
+    trust_mode: llm_ocr_post_merge
+    source_classes:
+      - bank_statement
+      - brokerage_statement
+      - property_statement
+      - liability_statement
+      - esop_rsu_plan
+      - csv_export
+      - manual_record
+    mirror_proof_id: personal-package-source-trust-pr
     issue: "#573"
     file: tests/e2e/test_personal_financial_report_package.py
     test: test_personal_financial_report_package_post_merge_journey
@@ -198,3 +231,37 @@ proofs:
       - AC8.13.85
       - AC8.13.87
       - AC8.13.88
+
+  - id: structured-source-reporting-pr
+    scope: behavioral
+    ci_tier: pr_ci
+    trust_mode: deterministic_pr
+    source_classes:
+      - bank_statement
+      - csv_export
+      - manual_record
+    issue: "#696"
+    file: apps/backend/tests/integration/test_reporting_e2e.py
+    test: test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf
+    ac_ids:
+      - AC5.15.1
+      - AC8.14.4
+
+  - id: personal-package-source-trust-pr
+    scope: behavioral
+    ci_tier: pr_ci
+    trust_mode: deterministic_pr
+    source_classes:
+      - bank_statement
+      - brokerage_statement
+      - property_statement
+      - liability_statement
+      - esop_rsu_plan
+      - csv_export
+      - manual_record
+    issue: "#696"
+    file: apps/backend/tests/api/test_personal_report_package_contract.py
+    test: test_AC19_9_1_package_readiness_reports_source_trust_summary
+    ac_ids:
+      - AC19.9.1
+      - AC8.14.3

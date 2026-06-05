@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
@@ -28,6 +28,10 @@ function formatScheduleCurrency(
   }).replace(/\u00a0/g, " ");
 }
 
+function renderCsv(values?: string[]): string {
+  return values && values.length ? values.join(", ") : "none";
+}
+
 function renderAnchorDetail(primary: string, identifiers?: string[]) {
   return (
     <>
@@ -48,9 +52,10 @@ function frameworkQuery(frameworkId: string): string {
 function evidenceBundleReferences(
   policyResult: FrameworkPolicyResult,
 ): string[] {
-  const anchors = policyResult.decisions.flatMap(
-    (decision) => decision.evidence_anchors,
-  );
+  const anchors = [
+    ...policyResult.decisions.flatMap((decision) => decision.evidence_anchors),
+    ...policyResult.gaps.flatMap((gap) => gap.evidence_anchors),
+  ];
   return Array.from(
     new Set(
       anchors.map((anchor) => `${anchor.anchor_type}:${anchor.source_id}`),
@@ -76,6 +81,7 @@ export default function PersonalReportPackagePage() {
   );
   const [isPackageLoading, setIsPackageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const packageRequestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,10 +106,14 @@ export default function PersonalReportPackagePage() {
   }, []);
 
   async function loadFrameworkPackage(frameworkId: string) {
+    packageRequestRef.current?.abort();
+    const controller = new AbortController();
+    packageRequestRef.current = controller;
     setSelectedFrameworkId(frameworkId);
     setIsPackageLoading(true);
     setError(null);
     const query = frameworkQuery(frameworkId);
+    const requestOptions = { signal: controller.signal };
 
     try {
       const [
@@ -116,23 +126,30 @@ export default function PersonalReportPackagePage() {
       ] = await Promise.all([
         apiFetch<PersonalReportPackageContractResponse>(
           `/api/reports/package/contract${query}`,
+          requestOptions,
         ),
         apiFetch<PersonalReportPackageReadinessResponse>(
           `/api/reports/package/readiness${query}`,
+          requestOptions,
         ),
         apiFetch<FrameworkPolicyResult>(
           `/api/reports/package/framework-policy${query}`,
+          requestOptions,
         ),
         apiFetch<AnnualizedIncomeScheduleResponse>(
           "/api/reports/package/annualized-income-schedule",
+          requestOptions,
         ),
         apiFetch<PersonalReportPackageNotesResponse>(
           "/api/reports/package/notes",
+          requestOptions,
         ),
         apiFetch<PersonalReportPackageTraceabilityResponse>(
           "/api/reports/package/traceability",
+          requestOptions,
         ),
       ]);
+      if (packageRequestRef.current !== controller) return;
       setContract(contractData);
       setReadiness(readinessData);
       setFrameworkPolicy(policyData);
@@ -140,11 +157,16 @@ export default function PersonalReportPackagePage() {
       setPackageNotes(notesData);
       setTraceabilityAppendix(traceabilityData);
     } catch (err) {
+      if (packageRequestRef.current !== controller) return;
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(
         err instanceof Error ? err.message : "Failed to load package data.",
       );
     } finally {
-      setIsPackageLoading(false);
+      if (packageRequestRef.current === controller) {
+        packageRequestRef.current = null;
+        setIsPackageLoading(false);
+      }
     }
   }
 
@@ -321,6 +343,64 @@ export default function PersonalReportPackagePage() {
           </div>
         ) : null}
       </section>
+
+      {readiness.source_trust_summary ? (
+        <section className="card p-5 mb-6" aria-label="Source trust summary">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-mono text-muted">
+                source_trust_summary
+              </p>
+              <h2 className="font-semibold mt-1">Source Trust</h2>
+            </div>
+            <span className="badge badge-muted">
+              {readiness.source_trust_summary.source_classes.length} classes
+            </span>
+          </div>
+          <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+            <div>
+              <dt className="text-xs text-muted">Deterministic PR</dt>
+              <dd className="mt-1 font-mono text-xs">
+                {renderCsv(
+                  readiness.source_trust_summary
+                    .deterministic_pr_source_classes,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Post-merge LLM/OCR</dt>
+              <dd className="mt-1 font-mono text-xs">
+                {renderCsv(
+                  readiness.source_trust_summary
+                    .post_merge_llm_ocr_source_classes,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Manual Trusted</dt>
+              <dd className="mt-1 font-mono text-xs">
+                {renderCsv(
+                  readiness.source_trust_summary.manual_trusted_source_classes,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Trust Gaps</dt>
+              <dd className="mt-1 font-mono text-xs">
+                {renderCsv(readiness.source_trust_summary.gap_source_classes)}
+              </dd>
+            </div>
+          </dl>
+          {readiness.source_trust_summary.blocker_codes.length ? (
+            <div className="mt-4">
+              <p className="text-xs text-muted">Blocker Codes</p>
+              <p className="mt-1 font-mono text-xs">
+                {readiness.source_trust_summary.blocker_codes.join(", ")}
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="card p-5 mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -671,9 +751,22 @@ export default function PersonalReportPackagePage() {
                     {line.review_state}
                   </td>
                   <td className="py-3">
-                    <span className="badge badge-muted">
-                      {line.confidence_tier}
-                    </span>
+                    <div className="flex flex-col gap-2">
+                      <span className="badge badge-muted">
+                        {line.confidence_tier}
+                      </span>
+                      <span className="font-mono text-xs text-muted">
+                        {line.proof_level ?? "unclassified"}
+                      </span>
+                      <span className="font-mono text-xs text-muted">
+                        {line.anchor_count ?? 0} anchors
+                      </span>
+                      {line.blocker_codes?.length ? (
+                        <span className="font-mono text-xs text-muted">
+                          {line.blocker_codes.join(", ")}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

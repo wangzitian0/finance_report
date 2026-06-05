@@ -342,6 +342,22 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByText("1 blocker")).toBeInTheDocument()
   })
 
+  it("AC8.13.92 upload home falls back to the generic workflow action label for unknown next actions", () => {
+    render(
+      <UploadToReportHome
+        status={{
+          primary_state: "ready",
+          next_action: { type: "unknown" as WorkflowStatusResponse["next_action"]["type"], count: 0, href: "/events" },
+          report_readiness: { state: "none", blocking_count: 0, href: "/reports" },
+          event_counts: { unread: 0, action_required: 0, blocked: 0 },
+        }}
+        events={[]}
+      />,
+    )
+
+    expect(screen.getByRole("link", { name: "Open workflow" })).toHaveAttribute("href", "/events")
+  })
+
   it("AC19.3.5 renders the events page loading and unavailable states", async () => {
     vi.mocked(fetchWorkflowStatus).mockImplementation(() => new Promise(() => undefined))
     vi.mocked(fetchWorkflowEvents).mockImplementation(() => new Promise(() => undefined))

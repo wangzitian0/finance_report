@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
 import { apiFetch } from "@/lib/api";
@@ -175,6 +175,14 @@ const readiness = {
     framework_policy_decisions: 2,
     framework_policy_gaps: 1,
   },
+  source_trust_summary: {
+    source_classes: ["bank_statement", "brokerage_statement", "property_statement", "liability_statement", "esop_rsu_plan", "csv_export", "manual_record"],
+    deterministic_pr_source_classes: ["bank_statement", "brokerage_statement", "property_statement", "liability_statement", "esop_rsu_plan", "csv_export", "manual_record"],
+    post_merge_llm_ocr_source_classes: ["bank_statement", "brokerage_statement"],
+    manual_trusted_source_classes: ["property_statement", "liability_statement", "esop_rsu_plan", "manual_record"],
+    gap_source_classes: ["manual_record"],
+    blocker_codes: ["missing_source_coverage", "pending_review"],
+  },
   generated_at: null,
   stale_since: null,
 };
@@ -242,7 +250,15 @@ const frameworkPolicy = {
       reason: "No deterministic v1 framework policy rule exists.",
       remediation:
         "Add an explicit reviewed policy rule before trusted output.",
-      evidence_anchors: [],
+      evidence_anchors: [
+        {
+          anchor_id: "atomic_position:private-token",
+          anchor_type: "atomic_position",
+          source_system: "atomic_positions",
+          source_id: "private-token",
+          description: "Unsupported private token holding",
+        },
+      ],
     },
   ],
 };
@@ -309,6 +325,10 @@ const traceabilityAppendix = {
       },
       review_state: "trusted_or_explicit_manual_input",
       confidence_tier: "TRUSTED",
+      source_classes: ["bank_statement", "manual_record"],
+      proof_level: "hybrid",
+      anchor_count: 4,
+      blocker_codes: [],
     },
     {
       line_id: "notes.non_compliance_statement",
@@ -331,6 +351,8 @@ const traceabilityAppendix = {
       },
       review_state: "not_applicable",
       confidence_tier: "UNAVAILABLE",
+      source_classes: [],
+      blocker_codes: ["static_contract_note"],
     },
   ],
   completeness_warnings: [
@@ -374,6 +396,21 @@ function mockPackageApi(
 }
 
 describe("PersonalReportPackagePage", () => {
+  afterEach(() => {
+    mockedApiFetch.mockReset();
+  });
+
+  it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {
+    mockedApiFetch.mockRejectedValue(new Error("package contract unavailable"));
+
+    render(<PersonalReportPackagePage />);
+
+    expect(screen.getByText("Loading package contract...")).toBeInTheDocument();
+    expect(
+      await screen.findByText("package contract unavailable"),
+    ).toBeInTheDocument();
+  });
+
   it("AC20.6.1 requires explicit framework selection before loading framework-scoped package output", async () => {
     mockPackageApi();
 
@@ -403,6 +440,26 @@ describe("PersonalReportPackagePage", () => {
     expect(await screen.findByText("Contract unavailable")).toBeInTheDocument();
   });
 
+  it("AC20.6.1 ignores the initial package contract response after unmount", async () => {
+    let resolveContract!: (value: typeof contract) => void;
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/reports/package/contract") {
+        return new Promise((resolve) => {
+          resolveContract = resolve;
+        });
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    const { unmount } = render(<PersonalReportPackagePage />);
+
+    expect(screen.getByText("Loading package contract...")).toBeInTheDocument();
+    unmount();
+    await act(async () => {
+      resolveContract(contract);
+    });
+  });
+
   it("AC20.6.1 renders the API error when selected framework package output cannot load", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path === "/api/reports/package/contract")
@@ -422,6 +479,28 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
+  it("AC20.6.1 keeps canceled framework package requests from surfacing errors", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/reports/package/contract")
+        return Promise.resolve(contract);
+      if (path.startsWith("/api/reports/package/contract?framework_id=")) {
+        return Promise.reject(new DOMException("Canceled", "AbortError"));
+      }
+      return new Promise(() => undefined);
+    });
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Failed to load package data."),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Loading framework package...")).toBeInTheDocument();
+  });
+
   it("AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework", async () => {
     mockPackageApi();
 
@@ -432,10 +511,12 @@ describe("PersonalReportPackagePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
         "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+        expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
     expect(mockedApiFetch).toHaveBeenCalledWith(
       "/api/reports/package/framework-policy?framework_id=personal_us_gaap_like",
+      expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(screen.getByText("Framework Policy")).toBeInTheDocument();
     expect(
@@ -469,10 +550,12 @@ describe("PersonalReportPackagePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
         "/api/reports/package/readiness?framework_id=personal_hkfrs_like",
+        expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
     expect(mockedApiFetch).toHaveBeenCalledWith(
       "/api/reports/package/framework-policy?framework_id=personal_hkfrs_like",
+      expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(
       screen.getByText("HK-like selected for this package."),
@@ -483,6 +566,99 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("Framework Policy")).toBeInTheDocument();
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("none")).toBeInTheDocument();
+  });
+
+  it("AC20.6.1 ignores stale framework package responses when selection changes", async () => {
+    const usSignals: AbortSignal[] = [];
+    const resolveUsRequests: Array<() => void> = [];
+    const hkPolicy = {
+      ...frameworkPolicy,
+      result_id:
+        "policy-result:personal_hkfrs_like:2025-05-20:2026-05-20:fixture",
+      framework_id: "personal_hkfrs_like",
+      decisions: [],
+      gaps: [],
+    };
+
+    mockedApiFetch.mockImplementation(
+      (path: string, options?: RequestInit) => {
+        if (path === "/api/reports/package/contract")
+          return Promise.resolve(contract);
+        if (path.includes("framework_id=personal_us_gaap_like")) {
+          if (options?.signal) usSignals.push(options.signal);
+          return new Promise((resolve) => {
+            resolveUsRequests.push(() => {
+              if (path.startsWith("/api/reports/package/contract?")) {
+                resolve({
+                  ...contract,
+                  selected_framework_id: "personal_us_gaap_like",
+                });
+                return;
+              }
+              if (path.startsWith("/api/reports/package/readiness?")) {
+                resolve(readiness);
+                return;
+              }
+              resolve(frameworkPolicy);
+            });
+          });
+        }
+        if (path.startsWith("/api/reports/package/contract?framework_id="))
+          return Promise.resolve({
+            ...contract,
+            selected_framework_id: "personal_hkfrs_like",
+          });
+        if (path.startsWith("/api/reports/package/readiness?framework_id="))
+          return Promise.resolve({
+            ...readiness,
+            source_summary: {
+              ...readiness.source_summary,
+              selected_framework_id: "personal_hkfrs_like",
+            },
+          });
+        if (path.startsWith("/api/reports/package/framework-policy?framework_id="))
+          return Promise.resolve(hkPolicy);
+        if (path === "/api/reports/package/annualized-income-schedule")
+          return Promise.resolve(annualizedSchedule);
+        if (path === "/api/reports/package/notes")
+          return Promise.resolve(packageNotes);
+        if (path === "/api/reports/package/traceability")
+          return Promise.resolve(traceabilityAppendix);
+        return Promise.reject(new Error(`Unexpected path ${path}`));
+      },
+    );
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await waitFor(() => expect(usSignals.length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole("button", { name: "HK-like" }));
+
+    await waitFor(() =>
+      expect(usSignals.every((signal) => signal.aborted)).toBe(true),
+    );
+    expect(
+      (
+        await screen.findAllByText(
+          "policy-result:personal_hkfrs_like:2025-05-20:2026-05-20:fixture",
+        )
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.queryByText(
+        "policy-result:personal_us_gaap_like:2025-05-20:2026-05-20:fixture",
+      ),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveUsRequests.forEach((resolve) => resolve());
+    });
+    expect(
+      screen.queryByText(
+        "policy-result:personal_us_gaap_like:2025-05-20:2026-05-20:fixture",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("AC5.9.3 renders personal package contract sections from API", async () => {
@@ -522,6 +698,7 @@ describe("PersonalReportPackagePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
         "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+        expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
     const readinessHeading = await screen.findByText("Report Readiness");
@@ -567,6 +744,42 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.queryByText("Pending source review")).not.toBeInTheDocument();
   });
 
+  it("AC19.9.2 renders compact source trust summary before traceability details", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    const sourceTrust = await screen.findByText("Source Trust");
+    await waitFor(() =>
+      expect(screen.getAllByText("traceability_appendix").length).toBeGreaterThanOrEqual(2),
+    );
+    const traceability = screen.getAllByText("traceability_appendix").at(-1)!;
+    expect(traceability).toBeDefined();
+    expect(
+      sourceTrust.compareDocumentPosition(traceability) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText("7 classes")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "bank_statement, brokerage_statement, property_statement, liability_statement, esop_rsu_plan, csv_export, manual_record",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("bank_statement, brokerage_statement"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "property_statement, liability_statement, esop_rsu_plan, manual_record",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("missing_source_coverage, pending_review"),
+    ).toBeInTheDocument();
+  });
+
   it("AC5.9.4 renders export contract metadata", async () => {
     mockPackageApi();
 
@@ -585,6 +798,9 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("Framework Policy Result")).toBeInTheDocument();
     expect(screen.getAllByText("1.0").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("string")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/atomic_position:private-token/).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("AC5.11.2 renders annualized income schedule values and restricted treatment", async () => {
@@ -633,7 +849,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
-  it("AC5.13.3 AC5.16.3 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
+  it("AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
     mockPackageApi();
 
     render(<PersonalReportPackagePage />);
@@ -662,6 +878,11 @@ describe("PersonalReportPackagePage", () => {
       screen.getByText("trusted_or_explicit_manual_input"),
     ).toBeInTheDocument();
     expect(screen.getAllByText("TRUSTED").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("hybrid")).toBeInTheDocument();
+    expect(screen.getByText("4 anchors")).toBeInTheDocument();
+    expect(screen.getByText("unclassified")).toBeInTheDocument();
+    expect(screen.getByText("0 anchors")).toBeInTheDocument();
+    expect(screen.getByText("static_contract_note")).toBeInTheDocument();
     expect(screen.getByText("manual_only_source")).toBeInTheDocument();
     expect(
       screen.getByText("explicit_manual_input_required"),

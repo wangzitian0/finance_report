@@ -203,6 +203,14 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.10.5 | source_type cannot be downgraded | `test_source_type_no_downgrade` | `apps/backend/tests/reconciliation/test_source_type.py` | P1 |
 | AC13.10.6 | All four source_type values accepted by API | `test_all_four_source_type_values_accepted_by_api` | `apps/backend/tests/reconciliation/test_source_type.py` | P1 |
 
+### AC13.12: Source Coverage Matrix
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.12.1 | Source coverage matrix covers every source class named by vision.md with owner EPICs, proof levels, ingestion path, review requirement, traceability target, and test anchors | `test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
+| AC13.12.2 | Source coverage matrix rejects source classes whose only proof level is post-merge LLM/OCR unless an explicit exception is recorded | `test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
+| AC13.12.3 | Source coverage matrix requires a gap issue for any source class still classified as a gap | `test_AC13_12_3_source_coverage_matrix_requires_gap_issue` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
+
 ---
 
 ## 📌 Future Work (from Vision Recovery Audit)

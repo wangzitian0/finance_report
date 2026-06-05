@@ -1,13 +1,22 @@
-import { render, waitFor } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
+import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-let capturedProps: { option?: Record<string, unknown>; style?: { height?: string; width?: string } } | null = null
-let observerCallback: ((mutations: MutationRecord[]) => void) | null = null
+const sankeyMockState = vi.hoisted(() => ({
+  capturedProps: null as { option?: Record<string, unknown>; style?: { height?: string; width?: string } } | null,
+  capturedLoading: null as ReactNode,
+  observerCallback: null as ((mutations: MutationRecord[]) => void) | null,
+}))
 
 vi.mock("next/dynamic", () => ({
-  default: () => {
+  default: (
+    loader: () => Promise<unknown>,
+    options?: { loading?: () => ReactNode },
+  ) => {
+    sankeyMockState.capturedLoading = options?.loading?.() ?? null
+    void loader()
     const MockChart = (props: { option: Record<string, unknown>; style: { height: string; width: string } }) => {
-      capturedProps = props
+      sankeyMockState.capturedProps = props
       return <div data-testid="mock-echarts" />
     }
     return MockChart
@@ -27,8 +36,8 @@ describe("SankeyChart", () => {
   }
 
   beforeEach(() => {
-    capturedProps = null
-    observerCallback = null
+    sankeyMockState.capturedProps = null
+    sankeyMockState.observerCallback = null
 
     vi.stubGlobal(
       "getComputedStyle",
@@ -41,7 +50,7 @@ describe("SankeyChart", () => {
       "MutationObserver",
       class {
         constructor(cb: (mutations: MutationRecord[]) => void) {
-          observerCallback = cb
+          sankeyMockState.observerCallback = cb
         }
         observe() {}
         disconnect() {}
@@ -52,10 +61,10 @@ describe("SankeyChart", () => {
   it("AC16.21.7 renders empty-state option when no series data is provided", () => {
     render(<SankeyChart title="Cash Flow" height={320} />)
 
-    expect(capturedProps).not.toBeNull()
-    expect(capturedProps?.style).toEqual({ height: "320px", width: "100%" })
+    expect(sankeyMockState.capturedProps).not.toBeNull()
+    expect(sankeyMockState.capturedProps?.style).toEqual({ height: "320px", width: "100%" })
 
-    const option = capturedProps?.option ?? {}
+    const option = sankeyMockState.capturedProps?.option ?? {}
     expect(option.title).toEqual({ text: "Cash Flow", left: "center", textStyle: { color: "#64748b" } })
     expect(option.graphic).toEqual({
       type: "text",
@@ -67,6 +76,12 @@ describe("SankeyChart", () => {
         fontSize: 14,
       },
     })
+  })
+
+  it("AC8.13.92 exposes the chart loading fallback while the dynamic chunk resolves", () => {
+    render(<>{sankeyMockState.capturedLoading}</>)
+
+    expect(screen.getByText("Loading chart...")).toBeInTheDocument()
   })
 
   it("AC16.21.7 / test_AC8_13_48 builds sankey nodes, links, and tooltips", () => {
@@ -83,7 +98,7 @@ describe("SankeyChart", () => {
       />,
     )
 
-    const option = capturedProps?.option as {
+    const option = sankeyMockState.capturedProps?.option as {
       title: { text: string }
       series: Array<{ data: Array<{ name: string }>; links: Array<{ source: string; target: string; value: number }> }>
     }
@@ -108,7 +123,7 @@ describe("SankeyChart", () => {
       ]),
     )
 
-    const formatter = (capturedProps?.option as {
+    const formatter = (sankeyMockState.capturedProps?.option as {
       tooltip: { formatter: (params: { data: { name?: string; value?: number; source?: string; target?: string } }) => string }
     }).tooltip.formatter
     expect(formatter({ data: { source: "Operating-Inflows", target: "Operating-Sales", value: 3000 } })).toBe(
@@ -125,7 +140,7 @@ describe("SankeyChart", () => {
       />,
     )
 
-    const initialOption = capturedProps?.option as {
+    const initialOption = sankeyMockState.capturedProps?.option as {
       series: Array<{ data: Array<{ name: string; itemStyle?: { color: string } }> }>
     }
     const initialNodeColor = initialOption.series[0].data.find((n) => n.name === "Operating")?.itemStyle?.color
@@ -133,10 +148,10 @@ describe("SankeyChart", () => {
 
     colors["--success"] = "#00ff99"
     colors["--foreground-muted"] = "#334155"
-    observerCallback?.([{ attributeName: "class" } as MutationRecord])
+    sankeyMockState.observerCallback?.([{ attributeName: "class" } as MutationRecord])
 
     await waitFor(() => {
-      const updatedOption = capturedProps?.option as {
+      const updatedOption = sankeyMockState.capturedProps?.option as {
         series: Array<{ data: Array<{ name: string; itemStyle?: { color: string } }> }>
       }
       const updatedNodeColor = updatedOption.series[0].data.find((n) => n.name === "Operating")?.itemStyle?.color
