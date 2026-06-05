@@ -407,6 +407,12 @@ workflow state exists.
 |---|---|---|---|
 | AC19.10.1 | Personal report package traceability resolves journal source IDs to typed source anchors, exposes amount-level source and ledger details for report lines, and blocks unknown source IDs instead of presenting them as statement transactions | `test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions`, `test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers` | P0 |
 
+### AC19.11 — Run-Scoped Stage 2 Review
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.11.1 | `/review/run/{runId}` uses run-scoped Stage 2 queue and batch-approval APIs so approving a run cannot approve pending matches from another workflow session or batch | `test_AC19_11_1_stage2_run_queue_filters_by_run_id`, `AC19.11.1 run review uses run-scoped queue and approval endpoints` | P0 |
+
 ## How To Build It
 
 ### Backend

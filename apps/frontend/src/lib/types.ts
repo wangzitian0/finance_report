@@ -2,7 +2,7 @@
  * Shared Type Definitions
  */
 
-export type DecimalValue = string | number;
+export type DecimalValue = string;
 export type MoneyValue = DecimalValue;
 
 export interface Account {

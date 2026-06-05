@@ -237,6 +237,10 @@ export default function StatementReviewPage() {
     const balanceValid = Boolean(
         data.balance_validation_result?.opening_match && data.balance_validation_result?.closing_match
     );
+    const hasUnresolvedConflicts = duplicateCandidates.length > 0 || transferPairCandidates.length > 0;
+    const approvalBlockedReason = hasUnresolvedConflicts
+        ? "Resolve duplicate and transfer-pair candidates before approval"
+        : null;
 
     return (
         <div className="flex min-h-[calc(100vh-2rem)] flex-col p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
@@ -288,15 +292,16 @@ export default function StatementReviewPage() {
                         {data.institution} • {data.currency || "—"} • {data.period_start || "?"} to {data.period_end || "?"}
                     </p>
                 </div>
-                <ReviewActionBar 
+                <ReviewActionBar
                     onApprove={() => setApproveDialogOpen(true)}
                     onReject={() => setRejectDialogOpen(true)}
                     actionLoading={approveMutation.isPending || rejectMutation.isPending}
                     balanceValid={balanceValid}
+                    approvalBlockedReason={approvalBlockedReason}
                 />
             </div>
 
-            <BalanceIndicator 
+            <BalanceIndicator
                 openingBalance={data.opening_balance}
                 closingBalance={data.closing_balance}
                 validationResult={data.balance_validation_result}
@@ -306,7 +311,7 @@ export default function StatementReviewPage() {
             <div className="grid flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
                 <PdfPreviewPane pdfUrl={data.pdf_url} />
 
-                <TransactionTable 
+                <TransactionTable
                     transactions={data.transactions}
                     currency={data.currency || "SGD"}
                     onEdit={handleEditChange}
@@ -317,7 +322,7 @@ export default function StatementReviewPage() {
                 />
             </div>
 
-            <ConflictResolutionDialog 
+            <ConflictResolutionDialog
                 isOpen={conflictDialogOpen}
                 onClose={() => setConflictDialogOpen(false)}
                 duplicateCandidates={duplicateCandidates}

@@ -116,7 +116,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     mockMobileViewport()
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
       }
       if (path.startsWith("/api/statements/consistency-checks/list")) {
@@ -141,7 +141,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.pathname = "/review/run/mobile-run"
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
       }
       if (path === "/api/accounts/processing/summary") {
@@ -168,7 +168,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     })
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
       }
       if (path.startsWith("/api/statements/consistency-checks/list")) {
@@ -192,7 +192,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     })
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
       }
       if (path.startsWith("/api/statements/consistency-checks/list")) {
@@ -209,7 +209,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
   it("AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
       }
       if (path.startsWith("/api/statements/consistency-checks/list")) {
@@ -232,7 +232,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.searchParams = new URLSearchParams("check_type=duplicate&status=pending&severity=high,medium&min_score=60")
 
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch, lowMatch], consistency_checks: [] }) as never)
       }
       if (path === "/api/accounts/processing/summary") {
@@ -284,7 +284,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
   it("test_AC8_13_48_dialog_dismissal_and_resolution_error_paths", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ consistency_checks: [customCheck], has_unresolved_checks: true }) as never)
       }
       if (path.startsWith("/api/statements/consistency-checks/list")) {
@@ -333,7 +333,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.pathname = "/review/run/run-2"
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [] }) as never)
       }
       if (path === "/api/accounts/processing/summary") {
@@ -385,7 +385,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.pathname = "/review/run/run-3"
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck, customCheck] }) as never)
       }
       if (path === "/api/accounts/processing/summary") {
@@ -417,7 +417,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.pathname = "/review/run/run-4"
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck], has_unresolved_checks: true }) as never)
       }
       if (path === "/api/accounts/processing/summary") {
@@ -437,7 +437,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     mockedApiFetch.mockReset()
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [] }) as never)
       }
       if (path === "/api/accounts/processing/summary") {
@@ -457,7 +457,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     mockedApiFetch.mockReset()
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [], consistency_checks: [] }) as never)
       }
       if (path === "/api/accounts/processing/summary") {
@@ -479,7 +479,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.pathname = "/review/run/run-5"
 
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/stage2/queue") {
+      if (path.startsWith("/api/statements/stage2/queue")) {
         return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [] }) as never)
       }
       if (path === "/api/accounts/processing/summary") {

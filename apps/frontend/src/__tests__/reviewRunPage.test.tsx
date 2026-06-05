@@ -48,6 +48,7 @@ describe("RunReviewPage", () => {
 
         mockedApi.mockImplementation((path: string) => {
             if (path.includes("/stage2/queue")) {
+                expect(path).toContain("run_id=run-123");
                 return Promise.resolve({
                     pending_matches: [{ id: "m1", match_score: 90, status: "pending", amount: 10, txn_date: "2024-01-02", description: "Transfer" }],
                     consistency_checks: checks,
@@ -67,7 +68,7 @@ describe("RunReviewPage", () => {
 
         expect(await screen.findByText("Stage 2 Run Review")).toBeInTheDocument();
         expect(screen.getByText("Review the current Stage 2 queue from this run context")).toBeInTheDocument();
-        expect(screen.getByText(/this page uses the shared Stage 2 queue endpoint/i)).toBeInTheDocument();
+        expect(screen.getByText(/this page uses run-scoped Stage 2 APIs/i)).toBeInTheDocument();
         expect(screen.getByText("run-123")).toBeInTheDocument();
         expect(screen.getByText("1 unresolved transfer")).toBeInTheDocument();
         expect(screen.getByText("1 duplicate")).toBeInTheDocument();
@@ -88,13 +89,16 @@ describe("RunReviewPage", () => {
         };
 
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
-            if (path.includes("/stage2/queue")) return Promise.resolve(data as any);
+            if (path.includes("/stage2/queue")) {
+                expect(path).toContain("run_id=run-123");
+                return Promise.resolve(data as any);
+            }
             if (path.includes("consistency-checks/list")) return Promise.resolve({ items: [] } as any);
             if (path.includes("/accounts/processing/summary")) {
                 return Promise.resolve({ pending_count: 0, pending_total: "0.00", currency: "SGD", oldest_pending_date: null } as any);
             }
             if (path.includes("batch-approve-matches")) {
-                expect(JSON.parse(String(options?.body))).toEqual({ match_ids: ["m1", "m2"] });
+                expect(JSON.parse(String(options?.body))).toEqual({ match_ids: ["m1", "m2"], run_id: "run-123" });
                 return Promise.resolve({ success: true, approved_count: 2 } as any);
             }
             return Promise.resolve(null as any);

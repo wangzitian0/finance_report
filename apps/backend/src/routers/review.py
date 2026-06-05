@@ -97,9 +97,10 @@ async def get_review_conflicts(
 async def get_stage2_review_queue(
     db: DbSession,
     user_id: CurrentUserId,
+    run_id: str | None = None,
 ) -> Stage2ReviewQueueResponse:
     """Stage 2: Get review queue (matches + checks)."""
-    matches = await get_stage2_queue(db, user_id)
+    matches = await get_stage2_queue(db, user_id, run_id=run_id)
     pending_matches = []
     for match in matches:
         transaction = match.transaction
@@ -116,12 +117,12 @@ async def get_stage2_review_queue(
             }
         )
 
-    checks = await get_pending_checks(db, user_id)
+    checks = await get_pending_checks(db, user_id, run_id=run_id, limit=None)
 
     return Stage2ReviewQueueResponse(
         pending_matches=pending_matches,
         consistency_checks=[ConsistencyCheckResponse.model_validate(c) for c in checks],
-        has_unresolved_checks=await has_unresolved_checks(db, user_id),
+        has_unresolved_checks=await has_unresolved_checks(db, user_id, run_id=run_id),
     )
 
 
@@ -171,11 +172,20 @@ async def list_consistency_checks(
     user_id: CurrentUserId,
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
+    run_id: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> ConsistencyCheckListResponse:
     """List/filter consistency checks."""
-    checks, total = await list_checks(db, user_id, status=status, check_type=check_type, limit=limit, offset=offset)
+    checks, total = await list_checks(
+        db,
+        user_id,
+        status=status,
+        check_type=check_type,
+        run_id=run_id,
+        limit=limit,
+        offset=offset,
+    )
 
     return ConsistencyCheckListResponse(
         items=[ConsistencyCheckResponse.model_validate(c) for c in checks],
@@ -190,7 +200,7 @@ async def batch_approve_matches(
     user_id: CurrentUserId,
 ) -> dict:
     """Batch approve matches (blocked by unresolved checks)."""
-    if await has_unresolved_checks(db, user_id):
+    if await has_unresolved_checks(db, user_id, run_id=request.run_id):
         return {
             "success": False,
             "error": "Cannot batch approve while there are unresolved consistency checks",
@@ -207,7 +217,7 @@ async def batch_approve_matches(
             "journal_entries_reconciled": 0,
         }
 
-    result = await db.execute(
+    matches_query = (
         select(ReconciliationMatch)
         .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
         .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
@@ -217,6 +227,9 @@ async def batch_approve_matches(
             BankStatement.user_id == user_id,
         )
     )
+    if request.run_id:
+        matches_query = matches_query.where(ReconciliationMatch.run_id == request.run_id)
+    result = await db.execute(matches_query)
     matches = list(result.scalars().all())
 
     approved_count = 0

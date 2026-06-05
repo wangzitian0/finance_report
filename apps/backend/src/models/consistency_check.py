@@ -42,6 +42,7 @@ class ConsistencyCheck(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=False,
         default=CheckStatus.PENDING,
     )
+    run_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
 
     related_txn_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
 

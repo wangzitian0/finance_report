@@ -127,6 +127,7 @@ class ResolveCheckRequest(BaseModel):
 
 class BatchApproveRequest(BaseModel):
     match_ids: list[UUID] = Field(default_factory=list)
+    run_id: str | None = None
 
 
 class BatchRejectRequest(BaseModel):

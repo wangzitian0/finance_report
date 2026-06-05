@@ -28,7 +28,7 @@ describe("AccountDetailsSidebar", () => {
   })
 
   it("shows account details and empty state when no transactions", async () => {
-    const account: Account = { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: 1000 }
+    const account: Account = { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }
     mockedApiFetch.mockResolvedValueOnce({ items: [], total: 0 } satisfies JournalEntryListResponse)
 
     render(<AccountDetailsSidebar account={account} isOpen onClose={vi.fn()} />, { wrapper: createWrapper() })
@@ -41,7 +41,7 @@ describe("AccountDetailsSidebar", () => {
   })
 
   it("shows account code and description when provided", async () => {
-    const account: Account = { id: "a2", name: "Bank", type: "ASSET", currency: "SGD", is_active: true, balance: 200, code: "1001", description: "Main account" }
+    const account: Account = { id: "a2", name: "Bank", type: "ASSET", currency: "SGD", is_active: true, balance: "200", code: "1001", description: "Main account" }
     mockedApiFetch.mockResolvedValueOnce({ items: [], total: 0 } satisfies JournalEntryListResponse)
 
     render(<AccountDetailsSidebar account={account} isOpen onClose={vi.fn()} />, { wrapper: createWrapper() })
@@ -51,8 +51,8 @@ describe("AccountDetailsSidebar", () => {
   })
 
   it("shows loading spinner while fetching and then transaction list", async () => {
-    const account: Account = { id: "a3", name: "Wallet", type: "ASSET", currency: "SGD", is_active: true, balance: 50 }
-    const line: JournalLine = { id: "l1", account_id: "a3", direction: "DEBIT", amount: 25, currency: "SGD" }
+    const account: Account = { id: "a3", name: "Wallet", type: "ASSET", currency: "SGD", is_active: true, balance: "50" }
+    const line: JournalLine = { id: "l1", account_id: "a3", direction: "DEBIT", amount: "25", currency: "SGD" }
     const entry: JournalEntry = { id: "e1", entry_date: "2023-01-01", memo: "Pay", source_type: "bank_import", status: "posted", lines: [line], created_at: "2023-01-01T00:00:00Z" }
     mockedApiFetch.mockResolvedValueOnce({ items: [entry], total: 1 } satisfies JournalEntryListResponse)
 
@@ -70,8 +70,8 @@ describe("JournalEntryDetailsModal", () => {
 
   it("shows entry details and memo fallback and lines with totals", () => {
     const lines: JournalLine[] = [
-      { id: "l1", account_id: "a1", direction: "DEBIT", amount: 100, currency: "SGD" },
-      { id: "l2", account_id: "a2", direction: "CREDIT", amount: 100, currency: "SGD" },
+      { id: "l1", account_id: "a1", direction: "DEBIT", amount: "100", currency: "SGD" },
+      { id: "l2", account_id: "a2", direction: "CREDIT", amount: "100", currency: "SGD" },
     ]
     const entry: JournalEntry = {
       id: "je1",
@@ -89,24 +89,24 @@ describe("JournalEntryDetailsModal", () => {
     expect(screen.getByText(/Status/i)).toBeInTheDocument()
     expect(screen.getByText("posted")).toBeInTheDocument()
     expect(screen.getByText("manual entry")).toBeInTheDocument()
-    
+
     expect(screen.getByText("No memo")).toBeInTheDocument()
 
-    
+
     expect(screen.getAllByText("a1").length).toBeGreaterThan(0)
     expect(screen.getAllByText("DEBIT").length).toBeGreaterThan(0)
     expect(screen.getAllByText("a2").length).toBeGreaterThan(0)
     expect(screen.getAllByText("CREDIT").length).toBeGreaterThan(0)
 
-    
+
     expect(screen.getByText(/DR:/)).toBeInTheDocument()
     expect(screen.getByText(/CR:/)).toBeInTheDocument()
   })
 
   it("AC16.25.3 journal entry details mobile line cards expose all line fields", () => {
     const lines: JournalLine[] = [
-      { id: "line-debit", account_id: "assets:cash:mobile", direction: "DEBIT", amount: 1234.56, currency: "SGD" },
-      { id: "line-credit", account_id: "income:salary:mobile", direction: "CREDIT", amount: 1234.56, currency: "SGD" },
+      { id: "line-debit", account_id: "assets:cash:mobile", direction: "DEBIT", amount: "1234.56", currency: "SGD" },
+      { id: "line-credit", account_id: "income:salary:mobile", direction: "CREDIT", amount: "1234.56", currency: "SGD" },
     ]
     const entry: JournalEntry = {
       id: "je-mobile",
@@ -136,8 +136,8 @@ describe("JournalEntryDetailsModal", () => {
 
   it("AC2.12.1 journal entry details display FX-converted base amounts", () => {
     const lines: JournalLine[] = [
-      { id: "line-usd", account_id: "assets:usd", direction: "DEBIT", amount: 100, currency: "USD", fx_rate: 1.35 },
-      { id: "line-missing-fx", account_id: "income:fx", direction: "CREDIT", amount: 100, currency: "USD" },
+      { id: "line-usd", account_id: "assets:usd", direction: "DEBIT", amount: "100", currency: "USD", fx_rate: "1.35" },
+      { id: "line-missing-fx", account_id: "income:fx", direction: "CREDIT", amount: "100", currency: "USD" },
     ]
     const entry: JournalEntry = {
       id: "je-fx-detail",
@@ -162,7 +162,7 @@ describe("JournalEntryDetailsModal", () => {
   })
 
   it("handles different statuses rendering badge variants", () => {
-    const baseLine: JournalLine = { id: "l3", account_id: "a3", direction: "DEBIT", amount: 10, currency: "SGD" }
+    const baseLine: JournalLine = { id: "l3", account_id: "a3", direction: "DEBIT", amount: "10", currency: "SGD" }
     const statuses: JournalEntry["status"][] = ["draft", "posted", "reconciled", "void"]
     statuses.forEach((status) => {
       const entry: JournalEntry = {

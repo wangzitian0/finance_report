@@ -5,14 +5,19 @@ interface ReviewActionBarProps {
     onReject: () => void;
     actionLoading: boolean;
     balanceValid: boolean;
+    approvalBlockedReason?: string | null;
 }
 
 export function ReviewActionBar({
     onApprove,
     onReject,
     actionLoading,
-    balanceValid
+    balanceValid,
+    approvalBlockedReason = null
 }: ReviewActionBarProps) {
+    const disabledReason =
+        approvalBlockedReason || (!balanceValid ? "Balance validation failed - cannot approve" : "");
+
     return (
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
             <button
@@ -26,9 +31,9 @@ export function ReviewActionBar({
             <button
                 type="button"
                 onClick={onApprove}
-                disabled={actionLoading || !balanceValid}
+                disabled={actionLoading || Boolean(disabledReason)}
                 className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                title={!balanceValid ? "Balance validation failed - cannot approve" : ""}
+                title={disabledReason}
             >
                 {actionLoading ? "Processing..." : "Approve"}
             </button>

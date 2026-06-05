@@ -132,6 +132,7 @@ class ReportType(str, Enum):
     BALANCE_SHEET = "balance-sheet"
     INCOME_STATEMENT = "income-statement"
     CASH_FLOW = "cash-flow"
+    PACKAGE = "package"
 
 
 PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
@@ -1569,6 +1570,7 @@ async def export_report(
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     include_restricted: bool = Query(default=False),
+    framework_id: PersonalReportingFrameworkId | None = Query(default=None),
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> StreamingResponse:
@@ -1653,6 +1655,51 @@ async def export_report(
             writer.writerow(["Beginning Cash", "", summary["beginning_cash"], report["currency"], ""])
             writer.writerow(["Ending Cash", "", summary["ending_cash"], report["currency"], ""])
             filename = f"cash-flow-{start_date}-to-{end_date}.csv"
+        elif report_type == ReportType.PACKAGE:
+            selected_framework = framework_id or PersonalReportingFrameworkId.US_GAAP_LIKE
+            contract = personal_report_package_contract(selected_framework)
+            policy = await personal_report_package_framework_policy(
+                framework_id=selected_framework,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                db=db,
+                user_id=user_id,
+            )
+            traceability = await personal_report_package_traceability(
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                db=db,
+                user_id=user_id,
+            )
+            writer.writerow(contract.export_contract.csv_columns)
+            evidence_references = sorted(
+                {
+                    f"{anchor.anchor_type}:{anchor.source_id}"
+                    for decision in policy.decisions
+                    for anchor in decision.evidence_anchors
+                }
+                | {f"{anchor.anchor_type}:{anchor.source_id}" for gap in policy.gaps for anchor in gap.evidence_anchors}
+            )
+            evidence_bundle_references = "|".join(evidence_references)
+            for line in traceability.lines:
+                writer.writerow(
+                    [
+                        contract.package_id,
+                        line.section_id,
+                        line.line_id,
+                        line.label,
+                        "",
+                        currency or settings.base_currency,
+                        line.source_state,
+                        selected_framework.value,
+                        policy.result_id,
+                        policy.matrix_version,
+                        evidence_bundle_references,
+                    ]
+                )
+            filename = f"personal-report-package-{selected_framework.value}.csv"
         else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")
     except ReportError as exc:

@@ -63,7 +63,7 @@ export function Stage2ReviewQueue() {
     const [resolveNote, setResolveNote] = useState("");
     const [processingSummary, setProcessingSummary] = useState<ProcessingSummary | null>(null);
     const resolveDialogRef = useRef<HTMLDivElement>(null);
-    
+
     // Filters state
     const [checkTypeFilter, setCheckTypeFilter] = useState<string>(searchParams.get("check_type") || "");
     const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("status") || "");
@@ -76,10 +76,13 @@ export function Stage2ReviewQueue() {
     const runIdMatch = pathname.match(/^\/review\/run\/([^/?#]+)/);
     const runId = runIdMatch ? decodeURIComponent(runIdMatch[1]) : null;
     const isRunReview = Boolean(runId);
+    const queuePath = runId
+        ? `/api/statements/stage2/queue?run_id=${encodeURIComponent(runId)}`
+        : "/api/statements/stage2/queue";
 
     const fetchData = useCallback(async () => {
         try {
-            const result = await apiFetch<Stage2Data>("/api/statements/stage2/queue");
+            const result = await apiFetch<Stage2Data>(queuePath);
             setData(result);
             setError(null);
         } catch (err) {
@@ -87,7 +90,7 @@ export function Stage2ReviewQueue() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [queuePath]);
 
     useEffect(() => {
         fetchData();
@@ -114,7 +117,7 @@ export function Stage2ReviewQueue() {
         if (statusFilter) params.set("status", statusFilter);
         if (severityFilter.length > 0) params.set("severity", severityFilter.join(","));
         if (minScore > 0) params.set("min_score", minScore.toString());
-        
+
         const queryString = params.toString();
         router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     }, [checkTypeFilter, statusFilter, severityFilter, minScore, router, pathname]);
@@ -125,6 +128,8 @@ export function Stage2ReviewQueue() {
             const params = new URLSearchParams();
             if (checkTypeFilter) params.append("check_type", checkTypeFilter);
             if (statusFilter) params.append("status", statusFilter);
+            if (runId) params.append("run_id", runId);
+            params.set("limit", "500");
 
             const result = await apiFetch<{ items: ConsistencyCheck[] }>(`/api/statements/consistency-checks/list?${params.toString()}`);
             const severityFilteredItems =
@@ -137,7 +142,7 @@ export function Stage2ReviewQueue() {
         } finally {
             setFiltering(false);
         }
-    }, [checkTypeFilter, statusFilter, severityFilter, showToast]);
+    }, [checkTypeFilter, statusFilter, severityFilter, runId, showToast]);
 
     useEffect(() => {
         fetchFilteredChecks();
@@ -272,7 +277,7 @@ export function Stage2ReviewQueue() {
                 "/api/statements/batch-approve-matches",
                 {
                     method: "POST",
-                    body: JSON.stringify({ match_ids: matchIds }),
+                    body: JSON.stringify({ match_ids: matchIds, run_id: runId }),
                 }
             );
             if (result.success) {
@@ -300,7 +305,7 @@ export function Stage2ReviewQueue() {
                 method: "POST",
                 body: JSON.stringify({ action, note }),
             });
-            
+
             const actionLabels: Record<string, string> = {
                 approve: "approved",
                 reject: "rejected",
@@ -308,7 +313,7 @@ export function Stage2ReviewQueue() {
             };
             const label = actionLabels[action] ?? `${action}ed`;
             showToast(`Check ${label}`, "success");
-            
+
             setResolveDialogOpen(false);
             setSelectedCheck(null);
             setResolveNote("");
@@ -322,9 +327,9 @@ export function Stage2ReviewQueue() {
     };
 
     const toggleSeverity = (severity: string) => {
-        setSeverityFilter(prev => 
-            prev.includes(severity) 
-                ? prev.filter(s => s !== severity) 
+        setSeverityFilter(prev =>
+            prev.includes(severity)
+                ? prev.filter(s => s !== severity)
                 : [...prev, severity]
         );
     };
@@ -446,7 +451,7 @@ export function Stage2ReviewQueue() {
                             <p className="text-sm font-medium">Run approval gate</p>
                             <p className="text-sm text-muted">
                                 Resolve transfer, duplicate, and anomaly checks and clear Processing Account pending transfers before approving current pending matches.
-                                Run ID is shown as context; this page uses the shared Stage 2 queue endpoint.
+                                This page uses run-scoped Stage 2 APIs for the displayed run.
                             </p>
                         </div>
                         <button
@@ -481,7 +486,7 @@ export function Stage2ReviewQueue() {
                         ))}
                     </div>
                 </div>
-                
+
                 <div className="space-y-2">
                     <label className="text-xs font-medium text-muted uppercase">Check Type</label>
                     <select
@@ -511,10 +516,10 @@ export function Stage2ReviewQueue() {
 
                 <div className="space-y-2">
                     <label className="text-xs font-medium text-muted uppercase">Min Match Score: {minScore}</label>
-                    <input 
-                        type="range" 
-                        min="0" 
-                        max="100" 
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
                         step="5"
                         value={minScore}
                         onChange={(e) => setMinScore(parseInt(e.target.value))}

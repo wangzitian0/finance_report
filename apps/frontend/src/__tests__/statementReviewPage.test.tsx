@@ -312,4 +312,76 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         const approveButton = await screen.findByRole("button", { name: "Approve" });
         expect(approveButton).toBeDisabled();
     });
+
+    it("AC16.32.1 disables approval while conflict candidates are unresolved", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve(baseStatement);
+            }
+
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve({
+                    duplicates: [
+                        {
+                            id: "txn-dup",
+                            description: "Duplicate salary",
+                            txn_date: "2024-01-04",
+                            amount: "20.00",
+                            direction: "IN",
+                        },
+                    ],
+                    transfer_pairs: [],
+                });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        const approveButton = await screen.findByRole("button", { name: "Approve" });
+        expect(approveButton).toBeDisabled();
+        expect(approveButton).toHaveAttribute(
+            "title",
+            "Resolve duplicate and transfer-pair candidates before approval",
+        );
+    });
+
+    it("AC16.32.2 shows opening and closing balance validation states separately", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve({
+                    ...baseStatement,
+                    balance_validation_result: {
+                        ...baseStatement.balance_validation_result,
+                        opening_match: false,
+                        closing_match: true,
+                        opening_delta: "5.00",
+                        closing_delta: "0.00",
+                    },
+                });
+            }
+
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        expect(await screen.findByText("Opening Mismatch")).toBeInTheDocument();
+        expect(screen.getByText("Closing Valid")).toBeInTheDocument();
+        expect(screen.getByText("Opening Δ: 5.00")).toBeInTheDocument();
+        expect(screen.getByText("Closing Δ: 0.00")).toBeInTheDocument();
+    });
 });

@@ -2,12 +2,14 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
-import { apiFetch } from "@/lib/api";
+import { apiDownload, apiFetch } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
+  apiDownload: vi.fn(),
   apiFetch: vi.fn(),
 }));
 
+const mockedApiDownload = vi.mocked(apiDownload);
 const mockedApiFetch = vi.mocked(apiFetch);
 
 const contract = {
@@ -397,6 +399,7 @@ function mockPackageApi(
 
 describe("PersonalReportPackagePage", () => {
   afterEach(() => {
+    mockedApiDownload.mockReset();
     mockedApiFetch.mockReset();
   });
 
@@ -531,6 +534,33 @@ describe("PersonalReportPackagePage", () => {
       screen.getByText("assets.marketable_securities"),
     ).toBeInTheDocument();
     expect(screen.getByText("unsupported_policy_domain")).toBeInTheDocument();
+  });
+
+  it("AC5.17.2 downloads package CSV through authenticated apiDownload", async () => {
+    const createObjectUrl = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:package-csv");
+    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    mockedApiDownload.mockResolvedValue({
+      blob: new Blob(["package_id,section_id"], { type: "text/csv" }),
+      filename: "personal-report-package.csv",
+    });
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    const exportButton = await screen.findByRole("button", { name: "Export CSV" });
+    fireEvent.click(exportButton);
+
+    await waitFor(() => {
+      expect(mockedApiDownload).toHaveBeenCalledWith(
+        "/api/reports/export?report_type=package&format=csv&framework_id=personal_us_gaap_like",
+      );
+    });
+
+    createObjectUrl.mockRestore();
+    revokeObjectUrl.mockRestore();
   });
 
   it("AC20.6.1 loads HK-like package output and renders empty evidence bundle metadata", async () => {

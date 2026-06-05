@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, desc, or_, select
@@ -118,6 +119,30 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
         )
 
 
+def _has_unresolved_statement_conflicts(statement: BankStatement) -> bool:
+    seen: dict[tuple, Any] = {}
+    by_abs_amount: dict[tuple, Any] = {}
+
+    for txn in statement.transactions:
+        duplicate_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction)
+        if duplicate_key in seen:
+            return True
+        seen[duplicate_key] = txn
+
+        transfer_key = (txn.txn_date, txn.amount.copy_abs())
+        paired = by_abs_amount.get(transfer_key)
+        if paired is not None and paired.direction != txn.direction:
+            return True
+        by_abs_amount[transfer_key] = txn
+
+    return False
+
+
+def _raise_if_statement_conflicts_unresolved(statement: BankStatement) -> None:
+    if _has_unresolved_statement_conflicts(statement):
+        raise ValueError("Cannot approve statement while unresolved duplicate or transfer-pair candidates remain")
+
+
 async def approve_statement(
     db: AsyncSession,
     statement_id: UUID,
@@ -127,6 +152,7 @@ async def approve_statement(
     validation_result = await validate_balance_chain(db, statement_id)
 
     _raise_if_balance_chain_invalid(validation_result)
+    _raise_if_statement_conflicts_unresolved(statement)
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
@@ -179,6 +205,7 @@ async def edit_and_approve(
     validation_result = await validate_balance_chain(db, statement_id)
 
     _raise_if_balance_chain_invalid(validation_result, after_edits=True)
+    _raise_if_statement_conflicts_unresolved(statement)
 
     statement.stage1_status = Stage1Status.EDITED
     statement.stage1_reviewed_at = datetime.now(UTC)

@@ -22,4 +22,7 @@ it("AC2.8.2 keeps frontend monetary API fields Decimal-serializable instead of b
   for (const field of forbiddenBareNumberFields) {
     expect(typesSource).not.toContain(field);
   }
+
+  expect(typesSource).toContain("export type DecimalValue = string;");
+  expect(typesSource).not.toContain("export type DecimalValue = string | number;");
 });

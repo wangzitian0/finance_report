@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from src.models import Account, AccountType, User
+from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import (
@@ -2762,6 +2763,135 @@ async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user)
 
     assert result["success"] is False
     assert "unresolved" in result["error"]
+
+
+async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_user):
+    """AC16.32.1: Stage 1 approval cannot bypass unresolved duplicate candidates."""
+    account = await create_statement_account(db, test_user.id, "DBS Stage 1 Conflict")
+    statement = build_statement(test_user.id, "hash_stage1_conflict", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.stage1_status = Stage1Status.PENDING_REVIEW
+    statement.account_id = account.id
+    statement.opening_balance = Decimal("100.00")
+    statement.closing_balance = Decimal("140.00")
+    db.add(statement)
+    await db.commit()
+
+    db.add_all(
+        [
+            BankStatementTransaction(
+                statement_id=statement.id,
+                txn_date=date(2025, 1, 15),
+                description="Duplicate deposit",
+                amount=Decimal("20.00"),
+                direction="IN",
+            ),
+            BankStatementTransaction(
+                statement_id=statement.id,
+                txn_date=date(2025, 1, 15),
+                description="Duplicate deposit",
+                amount=Decimal("20.00"),
+                direction="IN",
+            ),
+        ]
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id,
+            request=Stage1ApprovalRequest(notes=None),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
+
+
+async def test_AC16_32_3_stage2_queue_returns_all_pending_checks(db, test_user):
+    """AC16.32.3: Stage 2 queue includes the full unresolved blocker set."""
+    db.add_all(
+        [
+            ConsistencyCheck(
+                user_id=test_user.id,
+                check_type=CheckType.DUPLICATE,
+                status=CheckStatus.PENDING,
+                related_txn_ids=[f"txn-{idx}"],
+                details={"message": f"Duplicate candidate {idx}"},
+                severity="high",
+            )
+            for idx in range(55)
+        ]
+    )
+    await db.commit()
+
+    result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
+
+    assert len(result.consistency_checks) == 55
+
+
+async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
+    """AC19.11.1: Run review queues and approval are scoped to the requested run."""
+    account = await create_statement_account(db, test_user.id, "DBS Run Scope")
+    statement = build_statement(test_user.id, "hash_stage2_run_scope", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
+    db.add(statement)
+    await db.commit()
+
+    txn_in_run = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 16),
+        description="Run scoped payment",
+        amount=Decimal("50.00"),
+        direction="OUT",
+    )
+    txn_other_run = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2025, 1, 17),
+        description="Other run payment",
+        amount=Decimal("60.00"),
+        direction="OUT",
+    )
+    db.add_all([txn_in_run, txn_other_run])
+    await db.commit()
+    await db.refresh(txn_in_run)
+    await db.refresh(txn_other_run)
+
+    in_run_match = ReconciliationMatch(
+        bank_txn_id=txn_in_run.id,
+        run_id="run-123",
+        match_score=95,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    other_run_match = ReconciliationMatch(
+        bank_txn_id=txn_other_run.id,
+        run_id="run-456",
+        match_score=95,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        version=1,
+    )
+    db.add_all([in_run_match, other_run_match])
+    await db.commit()
+
+    queue = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id, run_id="run-123")
+
+    assert [match["id"] for match in queue.pending_matches] == [str(in_run_match.id)]
+
+    result = await review_router.batch_approve_matches(
+        request=BatchApproveRequest(match_ids=[in_run_match.id, other_run_match.id], run_id="run-123"),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result["success"] is True
+    assert result["approved_count"] == 1
+    await db.refresh(in_run_match)
+    await db.refresh(other_run_match)
+    assert in_run_match.status == ReconciliationStatus.ACCEPTED
+    assert other_run_match.status == ReconciliationStatus.PENDING_REVIEW
 
 
 async def test_batch_approve_matches_empty_list(db, test_user):
