@@ -17,16 +17,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 async def get_current_user_id(
-    request: Request,
+    request: Request = None,
     token: str | None = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> UUID:
     """Resolve the current user ID from JWT token."""
-    resolved_token = token or request.cookies.get(AUTH_COOKIE_NAME)
+    resolved_token = token or (request.cookies.get(AUTH_COOKIE_NAME) if request else None)
     if not resolved_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

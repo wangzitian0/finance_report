@@ -1,6 +1,6 @@
 """add normalized email unique index
 
-Revision ID: 0026_add_normalized_email_unique_index
+Revision ID: 0026_user_email_norm_idx
 Revises: 0025_add_evidence_lineage
 Create Date: 2026-06-06 00:00:00.000000
 
@@ -8,8 +8,7 @@ Create Date: 2026-06-06 00:00:00.000000
 
 from alembic import op
 
-
-revision = "0026_add_normalized_email_unique_index"
+revision = "0026_user_email_norm_idx"
 down_revision = "0025_add_evidence_lineage"
 branch_labels = None
 depends_on = None
