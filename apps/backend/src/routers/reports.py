@@ -228,7 +228,19 @@ PERSONAL_REPORT_PACKAGE_CONTRACT: dict = {
     ],
     "export_contract": {
         "formats": ["json", "csv"],
-        "csv_columns": ["package_id", "section_id", "line_id", "label", "amount", "currency", "source_state"],
+        "csv_columns": [
+            "package_id",
+            "section_id",
+            "line_id",
+            "label",
+            "amount",
+            "currency",
+            "source_state",
+            "selected_framework_id",
+            "framework_policy_result_id",
+            "framework_policy_matrix_version",
+            "evidence_bundle_references",
+        ],
     },
 }
 
@@ -361,6 +373,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "trusted_or_explicit_manual_input",
             "confidence_tier": "TRUSTED",
+            "source_classes": ["bank_statement", "brokerage_statement", "manual_record"],
+            "proof_level": "hybrid",
+            "anchor_count": 0,
+            "blocker_codes": [],
         },
         {
             "line_id": "income_statement.total_income",
@@ -381,6 +397,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "trusted_or_reviewed",
             "confidence_tier": "TRUSTED",
+            "source_classes": ["bank_statement", "manual_record"],
+            "proof_level": "deterministic_pr",
+            "anchor_count": 0,
+            "blocker_codes": [],
         },
         {
             "line_id": "income_statement.total_expenses",
@@ -401,6 +421,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "trusted_or_reviewed",
             "confidence_tier": "TRUSTED",
+            "source_classes": ["bank_statement", "manual_record"],
+            "proof_level": "deterministic_pr",
+            "anchor_count": 0,
+            "blocker_codes": [],
         },
         {
             "line_id": "cash_flow.net_cash_flow",
@@ -421,6 +445,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "trusted_or_reviewed",
             "confidence_tier": "TRUSTED",
+            "source_classes": ["bank_statement", "csv_export", "manual_record"],
+            "proof_level": "deterministic_pr",
+            "anchor_count": 0,
+            "blocker_codes": [],
         },
         {
             "line_id": "investment_performance.market_value",
@@ -441,6 +469,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "market_data_fresh_or_disclosed_stale",
             "confidence_tier": "HIGH",
+            "source_classes": ["brokerage_statement"],
+            "proof_level": "hybrid",
+            "anchor_count": 0,
+            "blocker_codes": ["stale_market_data"],
         },
         {
             "line_id": "annualized_income_long_term.annualized_total",
@@ -461,6 +493,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "trusted_or_reviewed",
             "confidence_tier": "TRUSTED",
+            "source_classes": ["bank_statement", "csv_export", "manual_record"],
+            "proof_level": "deterministic_pr",
+            "anchor_count": 0,
+            "blocker_codes": [],
         },
         {
             "line_id": "annualized_income_long_term.restricted_fair_value_total",
@@ -482,6 +518,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "explicit_manual_input",
             "confidence_tier": "MEDIUM",
+            "source_classes": ["esop_rsu_plan", "manual_record"],
+            "proof_level": "manual_trusted",
+            "anchor_count": 0,
+            "blocker_codes": ["manual_only_source"],
         },
         {
             "line_id": "notes.non_compliance_statement",
@@ -503,6 +543,10 @@ PERSONAL_REPORT_PACKAGE_TRACEABILITY: dict = {
             },
             "review_state": "not_applicable",
             "confidence_tier": "UNAVAILABLE",
+            "source_classes": [],
+            "proof_level": "static_contract",
+            "anchor_count": 0,
+            "blocker_codes": [],
         },
     ],
     "completeness_warnings": [
@@ -578,6 +622,9 @@ def _add_anchor_identifiers(
     if line is None:
         return
     line[anchor_name]["identifiers"] = _dedupe_identifiers([*line[anchor_name].get("identifiers", []), *identifiers])
+    source_count = len(line.get("source_anchor", {}).get("identifiers", []))
+    ledger_count = len(line.get("ledger_anchor", {}).get("identifiers", []))
+    line["anchor_count"] = source_count + ledger_count
 
 
 async def _personal_report_package_traceability_payload(

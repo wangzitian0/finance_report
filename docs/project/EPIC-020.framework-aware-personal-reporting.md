@@ -101,13 +101,13 @@ Not owned here:
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC20.6.1 | AI measurement/disclosure suggestions can affect trusted output only after becoming structured fields with source anchor, confidence tier, review state, policy field name, and accepted value | `test_AC20_6_1_ai_suggestions_require_structured_reviewed_policy_fields` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+| AC20.6.1 | AI measurement/disclosure suggestions can affect trusted output only after becoming structured fields with source anchor, confidence tier, review state, policy field name, and accepted value; package UI requires explicit framework selection before loading framework-scoped output | `test_AC20_6_1_ai_suggestions_require_structured_reviewed_policy_fields`, `test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness`, `AC20.6.1 requires explicit framework selection before loading framework-scoped package output` | `tests/tooling/test_framework_reporting_epic_contract.py`, `reporting/test_framework_package_integration.py`, `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
 ### AC20.7: Framework-Differentiated Proof Path
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC20.7.1 | The same settlement and portfolio fixture must be able to produce US-like and HK-like personal report packages with framework-specific line mappings, notes, source anchors, and readiness blockers | `test_AC20_7_1_same_fixture_must_drive_framework_differentiated_reports` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+| AC20.7.1 | The same settlement and portfolio fixture must be able to produce US-like and HK-like personal report packages with framework-specific line mappings, notes, source anchors, export metadata, and readiness blockers | `test_AC20_7_1_same_fixture_must_drive_framework_differentiated_reports`, `test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs`, `AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework` | `tests/tooling/test_framework_reporting_epic_contract.py`, `reporting/test_framework_policy.py`, `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
 ## Implementation Order
 

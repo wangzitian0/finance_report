@@ -85,6 +85,18 @@ groups:
         epic_name: testing-strategy
         description: critical proof matrix validates README and owner EPIC closure
         mandatory: true
+  AC8.14:
+    AC8.14:
+      - id: AC8.14.1
+        epic: 8
+        epic_name: testing-strategy
+        description: critical proof matrix classifies source trust mode
+        mandatory: true
+      - id: AC8.14.2
+        epic: 8
+        epic_name: testing-strategy
+        description: LLM/OCR critical proof requires deterministic PR mirror
+        mandatory: true
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -169,6 +181,8 @@ proofs:
   - id: core-flow
     scope: behavioral
     ci_tier: post_merge_environment
+    trust_mode: hybrid
+    source_classes: [bank_statement]
     file: tests/e2e/test_core.py
     test: test_core_flow
     required_markers: [e2e, critical]
@@ -176,6 +190,8 @@ proofs:
   - id: static-contract
     scope: static_contract
     ci_tier: pr_ci
+    trust_mode: deterministic_pr
+    source_classes: [bank_statement]
     file: tests/tooling/test_contract.py
     test: test_contract_shape
     ac_ids: [AC8.13.41]
@@ -199,6 +215,106 @@ proofs:
     assert "Behavioral proof | 1" in report
     assert "Static/doc check | 1" in report
     assert "Manual-only gate | 1" in report
+    assert "Trust mode" in report
+
+
+def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(tmp_path: Path) -> None:
+    """AC8.14.2: LLM/OCR critical proof must name a deterministic PR mirror."""
+    _write_registry(tmp_path)
+    test_dir = tmp_path / "tests" / "e2e"
+    test_dir.mkdir(parents=True)
+    (test_dir / "test_core.py").write_text(
+        """
+import pytest
+
+@pytest.mark.e2e
+@pytest.mark.critical
+@pytest.mark.llm
+async def test_core_flow():
+    \"\"\"AC8.13.1 AC8.14.2: LLM path proof.\"\"\"
+    assert True
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    matrix_path = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+proofs:
+  - id: llm-flow
+    scope: behavioral
+    ci_tier: post_merge_environment
+    trust_mode: llm_ocr_post_merge
+    source_classes: [bank_statement]
+    file: tests/e2e/test_core.py
+    test: test_core_flow
+    required_markers: [e2e, critical, llm]
+    ac_ids: [AC8.13.1, AC8.14.2]
+""",
+    )
+
+    results = matrix.validate_matrix(tmp_path, matrix_path)
+    errors = [error for result in results for error in result.errors]
+    assert "llm-flow: llm_ocr_post_merge proof requires mirror_proof_id" in errors
+
+
+def test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic(tmp_path: Path) -> None:
+    """AC8.14.2: LLM/OCR mirrors must be deterministic PR proofs for the same sources."""
+    _write_registry(tmp_path)
+    (tmp_path / "tests" / "e2e").mkdir(parents=True)
+    (tmp_path / "apps" / "backend" / "tests").mkdir(parents=True)
+    (tmp_path / "tests" / "e2e" / "test_core.py").write_text(
+        """
+import pytest
+
+@pytest.mark.e2e
+@pytest.mark.critical
+@pytest.mark.llm
+async def test_core_flow():
+    \"\"\"AC8.13.1 AC8.14.2: LLM path proof.\"\"\"
+    assert True
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "apps" / "backend" / "tests" / "test_mirror.py").write_text(
+        """
+def test_mirror_flow():
+    \"\"\"AC8.14.1 AC8.14.2: deterministic mirror proof.\"\"\"
+    assert True
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    matrix_path = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+proofs:
+  - id: deterministic-mirror
+    scope: behavioral
+    ci_tier: pr_ci
+    trust_mode: deterministic_pr
+    source_classes: [bank_statement]
+    file: apps/backend/tests/test_mirror.py
+    test: test_mirror_flow
+    ac_ids: [AC8.14.1, AC8.14.2]
+  - id: llm-flow
+    scope: behavioral
+    ci_tier: post_merge_environment
+    trust_mode: llm_ocr_post_merge
+    source_classes: [bank_statement]
+    mirror_proof_id: deterministic-mirror
+    file: tests/e2e/test_core.py
+    test: test_core_flow
+    required_markers: [e2e, critical, llm]
+    ac_ids: [AC8.13.1, AC8.14.2]
+""",
+    )
+
+    results = matrix.validate_matrix(tmp_path, matrix_path)
+    assert [error for result in results for error in result.errors] == []
 
 
 def test_file_level_ac_reference_does_not_satisfy_core_proof(tmp_path: Path) -> None:

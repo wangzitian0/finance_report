@@ -337,15 +337,21 @@ Framework policy result:
   `framework_id` defaults to `personal_us_gaap_like`; omitted period dates
   default to a trailing 365-day window ending at the selected as-of date.
 - Output: a read-only `FrameworkPolicyResult` with stable `result_id`,
-  selected framework ID, report period, required statements, policy decisions,
-  line mappings, evidence anchors, and explicit gaps. `result_id` fingerprints
-  the selected framework, matrix version, period, full decision content, and gap
-  content. The endpoint derives the result from existing accounts, atomic
+  selected framework ID, `matrix_version`, report period, required statements,
+  policy decisions, line mappings, evidence anchors, and explicit gaps.
+  `result_id` fingerprints the selected framework, matrix version, period, full
+  decision content, and gap content. The endpoint derives the result from existing accounts, atomic
   positions, manual valuations, dividends, synced `StockPrice` rows, and manual
   `MarketDataOverride` rows. It must not mutate source records, journal entries,
   portfolio lots, market data, or report snapshots.
 - Package assembly must consume this policy result and must not infer
   framework-specific report lines directly from raw portfolio market value.
+- The `/reports/package` frontend route loads the package contract first, then
+  requires the user to select `personal_us_gaap_like` or
+  `personal_hkfrs_like` before loading readiness, framework policy, section
+  output, or export metadata. The UI must pass the selected `framework_id` to
+  the contract, readiness, and framework-policy package APIs; it must not
+  silently use the backend framework-policy endpoint default.
 
 Annualized income and long-term compensation schedule:
 
@@ -449,7 +455,12 @@ Export contract:
 
 - Formats: `json`, `csv`
 - CSV columns: `package_id`, `section_id`, `line_id`, `label`, `amount`,
-  `currency`, `source_state`
+  `currency`, `source_state`, `selected_framework_id`,
+  `framework_policy_result_id`, `framework_policy_matrix_version`, and
+  `evidence_bundle_references`.
+- Export metadata displayed by the package UI must include the selected
+  framework, policy result ID, matrix version, and evidence anchor references
+  from the policy result.
 - Decimal fields must serialize as strings so frontend, CSV export, and E2E
   assertions do not lose money precision.
 

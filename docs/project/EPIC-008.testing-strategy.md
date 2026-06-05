@@ -283,7 +283,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.10 | Multi-brokerage PDF upload → position import → latest portfolio value | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value`, `test_statement_import_flows_to_holdings_and_balance_sheet`, `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `apps/backend/tests/portfolio/test_brokerage_position_parsing.py`, `apps/backend/tests/extraction/test_statement_brokerage_import_bridge.py` | P0 |
 | AC8.13.11 | Staging health check diagnoses API route 404 with route probes | `test_AC8_13_11_health_check_diagnoses_staging_api_route_404` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.12 | AI/OCR gate failures include statement validation context | `test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.13 | Staging deploy cancels stale runs and bounds E2E gate duration with phase timing logs | `test_AC8_13_13_staging_deploy_fast_fail_guardrails` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.13 | Staging deploy preserves every successful main CI workflow_run as a FIFO post-merge train and bounds E2E gate duration with phase timing logs | `test_AC8_13_13_staging_deploy_fast_fail_guardrails`, `test_AC8_13_13_post_merge_train_waits_only_for_older_active_runs` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.14 | Provider-backed staging AI/OCR gate runs separately from deploy health | `test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.15 | Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned | `test_*coverage_policy*` / `test_build_unified_lcov*` | `tests/tooling/` | P0 |
 | AC8.13.16 | CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache | `test_AC8_13_16_ci_change_classification_and_frontend_cache` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
@@ -363,6 +363,15 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 |
 | AC8.13.91 | Main post-merge staging deploy failures open or update a persistent GitHub Issue alert, and the next successful staging run closes it | `test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
+
+### AC8.14: Product Trust Proof Mirrors
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.14.1 | Critical proof matrix classifies product proof paths by trust mode and source classes | `test_valid_behavioral_static_and_manual_entries_pass` / `test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
+| AC8.14.2 | Critical post-merge LLM/OCR product proofs must name a PR deterministic mirror proof for the same source classes | `test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror`, `test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
+| AC8.14.3 | Personal report package critical proof has a deterministic PR mirror covering bank, brokerage, manual valuation, restricted-compensation, CSV, and manual-record source classes | `test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
+| AC8.14.4 | Backend reporting integration acts as a deterministic PR mirror from structured/manual source facts through ledger and core statements | `test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf` | `apps/backend/tests/integration/test_reporting_e2e.py` | P0 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

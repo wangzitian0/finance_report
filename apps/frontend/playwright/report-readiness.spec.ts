@@ -11,13 +11,24 @@ async function installReportReadinessMocks(page: Page) {
 
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    const frameworkId = new URL(route.request().url()).searchParams.get(
+      "framework_id",
+    );
     let body: unknown = {};
 
     if (path === "/api/workflow/status") {
       body = {
         primary_state: "blocked",
-        next_action: { type: "resolve_blocker", count: 1, href: "/accounts/processing" },
-        report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
+        next_action: {
+          type: "resolve_blocker",
+          count: 1,
+          href: "/accounts/processing",
+        },
+        report_readiness: {
+          state: "blocked",
+          blocking_count: 1,
+          href: "/reports/package",
+        },
         event_counts: { unread: 1, action_required: 0, blocked: 1 },
       };
     } else if (path === "/api/reports/package/contract") {
@@ -25,6 +36,9 @@ async function installReportReadinessMocks(page: Page) {
         package_id: "personal-financial-report-package",
         version: "1.0",
         period_semantics: {},
+        supported_frameworks: ["personal_us_gaap_like", "personal_hkfrs_like"],
+        selected_framework_id: frameworkId,
+        framework_policy_endpoint: "/api/reports/package/framework-policy",
         export_contract: { formats: ["json"], csv_columns: [] },
         sections: [
           {
@@ -35,6 +49,50 @@ async function installReportReadinessMocks(page: Page) {
             status: "ready",
           },
         ],
+      };
+    } else if (path === "/api/reports/package/framework-policy") {
+      body = {
+        result_id: "policy-result:personal_us_gaap_like:smoke",
+        framework_id: frameworkId ?? "personal_us_gaap_like",
+        matrix_version: "1.0",
+        report_period_start: "2025-05-20",
+        report_period_end: "2026-05-20",
+        generated_at: "2026-05-20",
+        required_statements: [
+          "balance_sheet",
+          "notes",
+          "traceability_appendix",
+        ],
+        decisions: [
+          {
+            domain: "listed_security",
+            recognition: "Recognize listed securities from brokerage evidence.",
+            measurement: "Measure at quoted fair value.",
+            classification: "Marketable investment asset.",
+            presentation: "US-like marketable securities.",
+            disclosure: "Disclose price source.",
+            line_mappings: {
+              balance_sheet: "assets.marketable_securities",
+              notes: "notes.market_price_basis",
+            },
+            evidence_anchors: [
+              {
+                anchor_id: "atomic_position:smoke",
+                anchor_type: "atomic_position",
+                source_system: "atomic_positions",
+                source_id: "smoke",
+                description: "Smoke position",
+              },
+            ],
+            provenance: "deterministic_matrix",
+            confidence_tier: "TRUSTED",
+            review_state: "accepted",
+            policy_field_name: "framework_policy_decision",
+            accepted_value: "listed_security",
+          },
+        ],
+        gaps: [],
+        disclosure_requirements: ["notes.market_price_basis"],
       };
     } else if (path === "/api/reports/package/readiness") {
       body = {
@@ -49,11 +107,16 @@ async function installReportReadinessMocks(page: Page) {
             label: "Processing account unresolved",
             severity: "blocking",
             count: 1,
-            reason: "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.",
+            reason:
+              "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.",
             action_href: "/accounts/processing",
           },
         ],
-        source_summary: { statements: 2, posted_journal_entries: 3, manual_valuations: 1 },
+        source_summary: {
+          statements: 2,
+          posted_journal_entries: 3,
+          manual_valuations: 1,
+        },
       };
     } else if (path === "/api/reports/package/annualized-income-schedule") {
       body = {
@@ -91,7 +154,11 @@ async function installReportReadinessMocks(page: Page) {
       };
     }
 
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
   });
 }
 
@@ -111,18 +178,30 @@ test.describe("AC19.8.7 AC19.8.8 report readiness smoke", () => {
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
-    test(`${scenario.name} renders report readiness blockers before package output`, async ({ page }) => {
+    test(`${scenario.name} renders report readiness blockers before package output`, async ({
+      page,
+    }) => {
       await page.setViewportSize(scenario.viewport);
       await installReportReadinessMocks(page);
 
       await page.goto("/reports/package", { waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "US-like" }).click();
 
-      await expect(page.getByRole("heading", { name: "Report Readiness" })).toBeVisible({
+      await expect(
+        page.getByRole("heading", { name: "Report Readiness" }),
+      ).toBeVisible({
         timeout: COLD_ROUTE_TIMEOUT_MS,
       });
-      await expect(page.getByText("processing_account_unresolved")).toBeVisible();
-      await expect(page.getByRole("link", { name: "Blocked" })).toHaveAttribute("href", "/accounts/processing");
-      await expect(page.getByRole("heading", { name: "Balance Sheet" })).toBeVisible();
+      await expect(
+        page.getByText("processing_account_unresolved"),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Blocked" })).toHaveAttribute(
+        "href",
+        "/accounts/processing",
+      );
+      await expect(
+        page.getByRole("heading", { name: "Balance Sheet" }),
+      ).toBeVisible();
       await expectNoDocumentHorizontalScroll(page);
     });
   }
