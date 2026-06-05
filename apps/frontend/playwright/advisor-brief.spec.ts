@@ -69,7 +69,6 @@ const chatSuggestions = {
 
 async function installAdvisorBriefMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "advisor-brief-token");
     localStorage.setItem("finance_user_id", "advisor-user");
     localStorage.setItem("finance_user_email", "advisor@example.com");
   });

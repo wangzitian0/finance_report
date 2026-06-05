@@ -100,6 +100,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
         working-directory: apps/frontend
+      - name: Audit frontend production dependencies
+        run: npm run audit:prod
+        working-directory: apps/frontend
       - name: Run Frontend Lint
         run: npm run lint
         working-directory: apps/frontend
@@ -466,6 +469,10 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+        working-directory: apps/frontend
+
+      - name: Audit frontend production dependencies
+        run: npm run audit:prod
         working-directory: apps/frontend
 
       - name: Run Frontend Type Check

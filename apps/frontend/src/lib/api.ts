@@ -76,6 +76,7 @@ export async function apiFetch<T>(
 
   const res = await fetch(`${API_URL}${normalizedPath}`, {
     ...options,
+    credentials: options.credentials ?? "include",
     headers,
   });
 
@@ -148,6 +149,7 @@ export async function apiDownload(
 
   const res = await fetch(`${API_URL}${normalizedPath}`, {
     ...options,
+    credentials: options.credentials ?? "include",
     headers,
   });
 
@@ -189,6 +191,7 @@ export async function apiStream(
 
   const res = await fetch(`${API_URL}${normalizedPath}`, {
     ...options,
+    credentials: options.credentials ?? "include",
     headers,
   });
 
@@ -233,6 +236,7 @@ export async function apiDelete(path: string): Promise<void> {
 
   const res = await fetch(`${API_URL}${normalizedPath}`, {
     method: "DELETE",
+    credentials: "include",
     headers,
   });
 
@@ -266,6 +270,7 @@ export async function apiUpload<T>(
     method: "POST",
     body: formData,
     ...options,
+    credentials: options.credentials ?? "include",
     headers,
   });
 

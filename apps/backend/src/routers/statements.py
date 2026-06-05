@@ -826,7 +826,11 @@ async def get_statement_for_review(
     pdf_url = None
     try:
         storage = StorageService()
-        pdf_url = await asyncio.to_thread(storage.generate_presigned_url, key=statement.file_path, expires_in=3600)
+        pdf_url = await asyncio.to_thread(
+            storage.generate_presigned_url,
+            key=statement.file_path,
+            expires_in=settings.statement_review_presign_expiry_seconds,
+        )
     except StorageError as exc:
         logger.warning(
             "Could not generate presigned URL for review",

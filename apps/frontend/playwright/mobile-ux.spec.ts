@@ -109,7 +109,6 @@ const baseAccounts = {
 
 async function installMobileApiMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "mobile-review-token");
     localStorage.setItem("finance_user_id", "mobile-user");
     localStorage.setItem("finance_user_email", "mobile@example.com");
   });

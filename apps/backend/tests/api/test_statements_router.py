@@ -1487,6 +1487,26 @@ async def test_get_statement_for_review_storage_error(db, test_user, monkeypatch
     assert result.pdf_url is None
 
 
+async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(db, test_user, monkeypatch):
+    """AC16.33.4: Statement review PDFs use a short-lived preview URL."""
+    statement = build_statement(test_user.id, "hash_review_short_presign", 75)
+    db.add(statement)
+    await db.commit()
+    await db.refresh(statement)
+
+    mock_storage = MagicMock()
+    mock_storage.generate_presigned_url.return_value = "https://example.com/file"
+    monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
+
+    result = await statements_router.get_statement_for_review(statement_id=statement.id, db=db, user_id=test_user.id)
+
+    assert result.pdf_url == "https://example.com/file"
+    mock_storage.generate_presigned_url.assert_called_once_with(
+        key=statement.file_path,
+        expires_in=statements_router.settings.statement_review_presign_expiry_seconds,
+    )
+
+
 async def test_approve_statement_stage1_success(db, test_user, monkeypatch):
     """Given a parsed statement with matching balances,
     When approve_statement_stage1 is called,

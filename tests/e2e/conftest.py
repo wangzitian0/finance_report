@@ -247,8 +247,9 @@ async def authenticated_page(context: BrowserContext, shared_auth_state: AuthSta
 
     This fixture:
     1. Creates a new page
-    2. Injects auth tokens from shared_auth_state into localStorage
-    3. Navigates to dashboard to verify auth works
+    2. Injects non-secret user metadata into localStorage
+    3. Adds the HttpOnly auth cookie to the browser context
+    4. Navigates to dashboard to verify auth works
 
     PERFORMANCE: 10x faster than per-test registration because auth happens
     once per session via shared_auth_state fixture.
@@ -274,15 +275,26 @@ async def authenticated_page(context: BrowserContext, shared_auth_state: AuthSta
     except Exception as e:
         logger.debug(f"Token expiration check failed: {e}")
 
+    await context.add_cookies(
+        [
+            {
+                "name": "finance_access_token",
+                "value": str(shared_auth_state.access_token),
+                "url": TestConfig.APP_URL,
+                "path": "/",
+                "httpOnly": True,
+                "sameSite": "Lax",
+            }
+        ]
+    )
     await context.add_init_script(
         f"""
         localStorage.setItem('finance_user_id', {json.dumps(str(shared_auth_state.user_id))});
         localStorage.setItem('finance_user_email', {json.dumps(shared_auth_state.email)});
-        localStorage.setItem('finance_access_token', {json.dumps(shared_auth_state.access_token)});
     """
     )
 
-    logger.info("Auth tokens injected into localStorage")
+    logger.info("Auth cookie and user metadata injected")
 
     await page.goto(f"{TestConfig.APP_URL}/dashboard", wait_until="domcontentloaded")
     await page.wait_for_load_state("domcontentloaded")
@@ -290,7 +302,7 @@ async def authenticated_page(context: BrowserContext, shared_auth_state: AuthSta
         pytest.fail(
             f"authenticated_page fixture failed: redirected to login. "
             f"Current URL: {page.url}. "
-            f"Check if auth tokens are being properly injected."
+            f"Check if auth cookie and user metadata are being properly injected."
         )
 
     logger.info("Authentication verified successfully")
@@ -373,17 +385,28 @@ async def authenticated_page_unique(
         # Token might not be JWT or decode failed - not critical, continue
         logger.debug(f"Token expiration check failed: {e}")
 
-    # Inject auth tokens into localStorage before navigating
+    # Inject auth cookie and non-secret user metadata before navigating
     # SECURITY: Use json.dumps() to prevent JavaScript injection
+    await context.add_cookies(
+        [
+            {
+                "name": "finance_access_token",
+                "value": str(access_token),
+                "url": TestConfig.APP_URL,
+                "path": "/",
+                "httpOnly": True,
+                "sameSite": "Lax",
+            }
+        ]
+    )
     await context.add_init_script(
         f"""
         localStorage.setItem('finance_user_id', {json.dumps(str(user_id))});
         localStorage.setItem('finance_user_email', {json.dumps(test_email)});
-        localStorage.setItem('finance_access_token', {json.dumps(access_token)});
     """
     )
 
-    logger.info("Auth tokens injected into localStorage")
+    logger.info("Auth cookie and user metadata injected")
 
     # Navigate to a protected page to verify auth works
     await page.goto(f"{TestConfig.APP_URL}/dashboard", wait_until="domcontentloaded")
@@ -393,7 +416,7 @@ async def authenticated_page_unique(
     if "/login" in page.url:
         pytest.fail(
             f"authenticated_page fixture failed: redirected to login. "
-            f"Current URL: {page.url}. Check if auth tokens are being properly injected."
+            f"Current URL: {page.url}. Check if auth cookie and user metadata are being properly injected."
         )
 
     logger.info("Authentication verified successfully")

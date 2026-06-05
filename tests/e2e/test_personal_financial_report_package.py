@@ -77,11 +77,7 @@ def _money(value: object) -> Decimal:
 
 
 async def _auth_headers(page: Page) -> dict[str, str]:
-    token = await page.evaluate(
-        "() => window.localStorage.getItem('finance_access_token')"
-    )
-    assert token, "Missing finance_access_token in localStorage"
-    return {"Authorization": f"Bearer {token}"}
+    return {}
 
 
 def _statement_timeout_message(statement_id: str, last_payload: dict | None) -> str:

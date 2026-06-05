@@ -29,7 +29,7 @@ export function setUser(userId: string, email: string, token?: string): void {
     localStorage.setItem(USER_KEY, userId);
     localStorage.setItem(USER_EMAIL_KEY, email);
     if (token) {
-        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.removeItem(TOKEN_KEY);
     }
 }
 
@@ -40,5 +40,5 @@ export function clearUser(): void {
 }
 
 export function isAuthenticated(): boolean {
-    return getAccessToken() !== null;
+    return getUserId() !== null;
 }

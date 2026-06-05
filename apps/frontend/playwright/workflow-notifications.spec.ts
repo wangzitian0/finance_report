@@ -84,7 +84,6 @@ const workflowEvents = {
 
 async function installWorkflowMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "workflow-smoke-token");
     localStorage.setItem("finance_user_id", "workflow-user");
     localStorage.setItem("finance_user_email", "workflow@example.com");
   });

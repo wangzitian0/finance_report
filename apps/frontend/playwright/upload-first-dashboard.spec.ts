@@ -66,7 +66,6 @@ const workflowEvents = {
 
 async function installDashboardMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_access_token", "upload-home-token");
     localStorage.setItem("finance_user_id", "upload-home-user");
     localStorage.setItem("finance_user_email", "upload-home@example.com");
   });

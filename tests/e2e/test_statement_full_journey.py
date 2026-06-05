@@ -145,9 +145,6 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     upload_body = await upload_resp.json()
     statement_id = upload_body.get("id")
     assert statement_id, f"Upload response missing 'id' field: {upload_body}"
-    token = await page.evaluate("() => window.localStorage.getItem('finance_access_token')")
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-
     # === AC8.13.2: Poll until "parsed" status badge appears in the list ===
     # The list page polls via TanStack Query every 3 s — we wait up to PARSING_TIMEOUT_MS.
     statement_row = page.locator(f'a[href="/statements/{statement_id}"]')
@@ -165,7 +162,6 @@ async def test_dbs_statement_full_journey(authenticated_page: Page) -> None:
     while asyncio.get_event_loop().time() < deadline:
         api_resp = await page.request.get(
             _get_url(f"/api/statements/{statement_id}"),
-            headers=headers,
         )
         assert api_resp.status == 200, (
             f"GET /api/statements/{statement_id} returned {api_resp.status} — response body: {await api_resp.text()}"

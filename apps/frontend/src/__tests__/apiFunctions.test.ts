@@ -46,7 +46,7 @@ describe('apiFetch', () => {
     expect(result).toEqual({ id: 1, name: 'test' });
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/test'),
-      expect.objectContaining({ headers: expect.any(Object) })
+      expect.objectContaining({ credentials: 'include', headers: expect.any(Object) })
     );
   });
 
@@ -112,6 +112,18 @@ describe('apiFetch', () => {
 
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
     expect(calledHeaders['Authorization']).toBe('Bearer test-jwt-token');
+  });
+
+  it('AC1.10.3 sends HttpOnly auth cookies by default', async () => {
+    const fetchMock = makeFetchMock(200, {});
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiFetch } = await import('../lib/api');
+    await apiFetch('/api/cookie-auth');
+
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include' }));
+    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(calledHeaders.Authorization).toBeUndefined();
   });
 
   it('test_AC8_13_48 uses raw text when apiFetch error JSON is not an object', async () => {
@@ -184,7 +196,7 @@ describe('apiDelete', () => {
     await expect(apiDelete('/api/resource/1')).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/resource/1'),
-      expect.objectContaining({ method: 'DELETE' })
+      expect.objectContaining({ credentials: 'include', method: 'DELETE' })
     );
   });
 
@@ -312,7 +324,7 @@ describe('apiUpload', () => {
     expect(result).toEqual({ uploaded: true });
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/upload'),
-      expect.objectContaining({ method: 'POST', body: fd })
+      expect.objectContaining({ credentials: 'include', method: 'POST', body: fd })
     );
   });
 

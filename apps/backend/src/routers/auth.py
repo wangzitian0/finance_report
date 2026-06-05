@@ -3,11 +3,12 @@
 import os
 
 import bcrypt
-from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Request, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from src.auth import oauth2_scheme
+from src.auth import AUTH_COOKIE_NAME, oauth2_scheme
+from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import User
@@ -22,6 +23,7 @@ logger = get_logger(__name__)
 # SECURITY: Only trust X-Forwarded-For from known proxies
 # Set TRUST_PROXY=true when behind a trusted reverse proxy (nginx, cloudflare, etc.)
 TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() in ("true", "1", "yes")
+COOKIE_SAFE_DEVELOPMENT_ENVS = {"development", "test", "ci"}
 
 
 def _get_client_ip(request: Request) -> str:
@@ -59,9 +61,29 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
+def normalize_email(email: str) -> str:
+    """Return the canonical identity key used for registration and login."""
+    return email.strip().casefold()
+
+
+def _set_auth_cookie(response: Response, access_token: str) -> None:
+    """Set the HttpOnly access token cookie used by browser clients."""
+    environment = str(settings.environment).strip().lower()
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=access_token,
+        max_age=settings.access_token_expire_minutes * 60,
+        httponly=True,
+        secure=environment not in COOKIE_SAFE_DEVELOPMENT_ENVS,
+        samesite="lax",
+        path="/",
+    )
+
+
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     request: Request,
+    response: Response,
     data: RegisterRequest,
     db: DbSession,
 ) -> AuthResponse:
@@ -74,14 +96,15 @@ async def register(
     )
 
     # Check if email already exists
-    result = await db.execute(select(User).where(User.email == data.email))
+    normalized_email = normalize_email(str(data.email))
+    result = await db.execute(select(User).where(func.lower(User.email) == normalized_email))
     existing = result.scalar_one_or_none()
 
     if existing:
         raise_bad_request("Email already registered")
 
     user = User(
-        email=data.email,
+        email=normalized_email,
         name=data.name,
         hashed_password=hash_password(data.password),
     )
@@ -98,6 +121,7 @@ async def register(
     register_rate_limiter.reset(_get_client_ip(request))
 
     access_token = create_access_token(data={"sub": str(user.id)})
+    _set_auth_cookie(response, access_token)
 
     return AuthResponse(
         id=user.id,
@@ -111,6 +135,7 @@ async def register(
 @router.post("/login", response_model=AuthResponse)
 async def login(
     request: Request,
+    response: Response,
     data: LoginRequest,
     db: DbSession,
 ) -> AuthResponse:
@@ -122,7 +147,8 @@ async def login(
         "Too many login attempts. Please try again later.",
     )
 
-    result = await db.execute(select(User).where(User.email == data.email))
+    normalized_email = normalize_email(str(data.email))
+    result = await db.execute(select(User).where(func.lower(User.email) == normalized_email))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(data.password, user.hashed_password):
@@ -142,6 +168,7 @@ async def login(
     auth_rate_limiter.reset(_get_client_ip(request))
 
     access_token = create_access_token(data={"sub": str(user.id)})
+    _set_auth_cookie(response, access_token)
 
     return AuthResponse(
         id=user.id,
@@ -154,7 +181,7 @@ async def login(
 
 @router.get("/me", response_model=AuthResponse)
 async def get_me(
-    token: str = Depends(oauth2_scheme),
+    token: str | None = Depends(oauth2_scheme),
     user_id: CurrentUserId = None,
     db: DbSession = None,
 ) -> AuthResponse:
@@ -170,5 +197,5 @@ async def get_me(
         email=user.email,
         name=user.name,
         created_at=user.created_at,
-        access_token=token,
+        access_token=token or "",
     )
