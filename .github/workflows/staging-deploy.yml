@@ -3,9 +3,9 @@
 # Triggers: successful CI workflow_run on main, or manual dispatch
 # Actions: Build images → Deploy to staging → Smoke/E2E → AI/OCR gate
 #
-# Staging validates post-merge commits as a single serial workflow unit and
-# keeps only the latest pending run when pushes arrive faster than the
-# singleton environment can run.
+# Staging validates post-merge commits as FIFO train units. Each successful
+# main CI workflow_run is preserved; later runs wait before mutating staging
+# until older Deploy Staging workflow runs have fully completed.
 # Data is persisted between deployments.
 
 name: Deploy Staging
@@ -16,10 +16,6 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}
-  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -34,6 +30,37 @@ env:
   UV_VERSION: "0.9.18"
 
 jobs:
+  post-merge-train-turn:
+    name: Post-merge Train Turn
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Wait for FIFO post-merge train turn
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/wait_post_merge_train_turn.py \
+            --timeout-seconds 21600 \
+            --poll-seconds 30
+
+      - name: Report no train wait required
+        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_branch != 'main' }}
+        run: |
+          {
+            echo "## Post-merge Train Turn"
+            echo ""
+            echo "No FIFO wait required for event \`${{ github.event_name }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   ci-not-success-summary:
     name: CI Did Not Pass
     if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success' }}
@@ -128,7 +155,7 @@ jobs:
   build-and-deploy:
     name: Build and Deploy
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && needs.classify-staging.outputs.staging_required == 'true') }}
-    needs: [classify-staging]
+    needs: [post-merge-train-turn, classify-staging]
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -282,7 +309,7 @@ jobs:
           bash tools/health_check.sh \
             "https://report-staging.zitian.party/api/health" \
             "staging" \
-            36 \
+            60 \
             "$IMAGE_TAG"
 
       - name: Setup E2E Tests
