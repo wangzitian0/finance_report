@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
+from src.models.account import Account
 from src.models.correction import CorrectionLog
 from src.models.statement import BankStatement, BankStatementTransaction
 
@@ -54,6 +55,13 @@ async def record_correction(
     txn = result.scalar_one_or_none()
     if not txn:
         raise ValueError(f"Transaction {transaction_id} not found")
+
+    if corrected_account_id is not None:
+        account_result = await db.execute(
+            select(Account.id).where(Account.id == corrected_account_id).where(Account.user_id == user_id)
+        )
+        if account_result.scalar_one_or_none() is None:
+            raise ValueError(f"Account {corrected_account_id} not found")
 
     correction = CorrectionLog(
         user_id=user_id,

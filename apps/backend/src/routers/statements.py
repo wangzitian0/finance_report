@@ -207,6 +207,13 @@ async def upload_statement(
     if extension not in ("pdf", "csv", "png", "jpg", "jpeg"):
         raise_bad_request(f"Unsupported file type: {extension}")
 
+    if account_id is not None:
+        account_result = await db.execute(
+            select(Account.id).where(Account.id == account_id).where(Account.user_id == user_id)
+        )
+        if account_result.scalar_one_or_none() is None:
+            raise_not_found("Account")
+
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise_too_large("File exceeds 10MB limit")
