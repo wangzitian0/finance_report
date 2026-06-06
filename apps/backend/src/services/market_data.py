@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -173,6 +173,22 @@ class _StoredStockPrice:
     currency: str
     price_date: date
     source: str
+
+
+MarketObservation = FxRateObservation | StockPriceObservation
+
+
+@dataclass(frozen=True)
+class _MarketSyncSpec:
+    kind: str
+    parse_scope: Callable[[str], Any | None]
+    scope_name: Callable[[Any], str]
+    latest_date: Callable[[AsyncSession, Any], Awaitable[date | None]]
+    stored_dates: Callable[[AsyncSession, Any, date, date], Awaitable[set[date]]]
+    fetch_series: Callable[[Any, date, date], Awaitable[ValidatedMarketObservationSeries]]
+    persist_observation: Callable[[AsyncSession, MarketObservation], Awaitable[Decimal]]
+    observation_date: Callable[[MarketObservation], date]
+    observation_matches_scope: Callable[[MarketObservation, Any], bool]
 
 
 def _normalize_currency(code: str) -> str:
@@ -728,6 +744,92 @@ async def _persist_stock_price(db: AsyncSession, observation: StockPriceObservat
     return price
 
 
+def _parse_sync_fx_scope(pair: str) -> tuple[str, str] | None:
+    base, quote_currency = _parse_fx_pair(pair)
+    if base == quote_currency:
+        return None
+    return base, quote_currency
+
+
+async def _latest_fx_rate_date_for_scope(db: AsyncSession, scope: tuple[str, str]) -> date | None:
+    base, quote_currency = scope
+    return await _latest_fx_rate_date(db, base, quote_currency)
+
+
+async def _stored_fx_rate_dates_for_scope(
+    db: AsyncSession,
+    scope: tuple[str, str],
+    start_date: date,
+    end_date: date,
+) -> set[date]:
+    base, quote_currency = scope
+    return await _stored_fx_rate_dates(db, base, quote_currency, start_date, end_date)
+
+
+async def _fetch_validated_fx_rate_series_for_scope(
+    scope: tuple[str, str],
+    start_date: date,
+    end_date: date,
+) -> ValidatedMarketObservationSeries:
+    base, quote_currency = scope
+    return await _fetch_validated_fx_rate_series(base, quote_currency, start_date, end_date)
+
+
+async def _sync_market_observation_series(
+    db: AsyncSession,
+    *,
+    raw_scopes: Sequence[str],
+    start_date: date | None,
+    end_date: date,
+    spec: _MarketSyncSpec,
+) -> MarketDataSyncResult:
+    result = MarketDataSyncResult(kind=spec.kind)
+
+    for raw_scope in raw_scopes:
+        scope = spec.parse_scope(raw_scope)
+        if scope is None:
+            continue
+
+        last_date = await spec.latest_date(db, scope)
+        sync_start = _incremental_start(last_date, start_date, end_date)
+        if sync_start is None:
+            continue
+
+        all_dates = set(_iter_dates(sync_start, end_date))
+        stored_dates = await spec.stored_dates(db, scope, sync_start, end_date)
+        requested_dates = all_dates - stored_dates
+        result = replace(result, skipped=result.skipped + len(all_dates & stored_dates))
+        if not requested_dates:
+            continue
+
+        result = replace(result, requested=result.requested + len(requested_dates))
+        validated = await spec.fetch_series(scope, min(requested_dates), max(requested_dates))
+        result.disagreements.extend(validated.disagreements)
+
+        observed_dates: set[date] = {item.observed_date for item in validated.disagreements}
+        persisted_dates: list[date] = []
+        for observation in validated.observations:
+            observation_date = spec.observation_date(observation)
+            if not spec.observation_matches_scope(observation, scope) or observation_date not in requested_dates:
+                continue
+            await spec.persist_observation(db, observation)
+            persisted_dates.append(observation_date)
+            observed_dates.add(observation_date)
+            result = replace(result, inserted=result.inserted + 1)
+
+        result = replace(result, missing=result.missing + len(requested_dates - observed_dates))
+        if validated.provider_success:
+            await _upsert_sync_state(
+                db,
+                kind=spec.kind,
+                scope=spec.scope_name(scope),
+                last_success_date=end_date,
+                last_observation_date=max(persisted_dates) if persisted_dates else last_date,
+            )
+
+    return result
+
+
 async def _active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[str]:
     stmt = (
         select(ManagedPosition.asset_identifier)
@@ -825,52 +927,13 @@ async def sync_fx_rates(
     """Incrementally fill FX rows for explicit or observed business pairs."""
     sync_end = end_date or date.today()
     sync_pairs = list(pairs) if pairs is not None else await _observed_fx_pairs(db, user_id)
-    result = MarketDataSyncResult(kind="fx")
-
-    for raw_pair in sync_pairs:
-        base, quote_currency = _parse_fx_pair(raw_pair)
-        if base == quote_currency:
-            continue
-        last_date = await _latest_fx_rate_date(db, base, quote_currency)
-        sync_start = _incremental_start(last_date, start_date, sync_end)
-        if sync_start is None:
-            continue
-
-        all_dates = set(_iter_dates(sync_start, sync_end))
-        stored_dates = await _stored_fx_rate_dates(db, base, quote_currency, sync_start, sync_end)
-        requested_dates = all_dates - stored_dates
-        result = replace(result, skipped=result.skipped + len(all_dates & stored_dates))
-
-        if not requested_dates:
-            continue
-
-        result = replace(result, requested=result.requested + len(requested_dates))
-        validated = await _fetch_validated_fx_rate_series(
-            base, quote_currency, min(requested_dates), max(requested_dates)
-        )
-        result.disagreements.extend(validated.disagreements)
-
-        observed_dates: set[date] = {item.observed_date for item in validated.disagreements}
-        persisted_dates: list[date] = []
-        for observation in validated.observations:
-            if not isinstance(observation, FxRateObservation) or observation.rate_date not in requested_dates:
-                continue
-            await _persist_fx_rate(db, observation)
-            persisted_dates.append(observation.rate_date)
-            observed_dates.add(observation.rate_date)
-            result = replace(result, inserted=result.inserted + 1)
-
-        result = replace(result, missing=result.missing + len(requested_dates - observed_dates))
-        if validated.provider_success:
-            await _upsert_sync_state(
-                db,
-                kind="fx",
-                scope=_fx_scope(base, quote_currency),
-                last_success_date=sync_end,
-                last_observation_date=max(persisted_dates) if persisted_dates else last_date,
-            )
-
-    return result
+    return await _sync_market_observation_series(
+        db,
+        raw_scopes=sync_pairs,
+        start_date=start_date,
+        end_date=sync_end,
+        spec=_FX_SYNC_SPEC,
+    )
 
 
 async def sync_stock_prices(
@@ -888,49 +951,13 @@ async def sync_stock_prices(
         if symbols is not None
         else await _active_stock_symbols(db, user_id)
     )
-    result = MarketDataSyncResult(kind="stock")
-
-    for symbol in sync_symbols:
-        if not symbol:
-            continue
-        last_date = await _latest_stock_price_date(db, symbol)
-        sync_start = _incremental_start(last_date, start_date, sync_end)
-        if sync_start is None:
-            continue
-
-        all_dates = set(_iter_dates(sync_start, sync_end))
-        stored_dates = await _stored_stock_price_dates(db, symbol, sync_start, sync_end)
-        requested_dates = all_dates - stored_dates
-        result = replace(result, skipped=result.skipped + len(all_dates & stored_dates))
-
-        if not requested_dates:
-            continue
-
-        result = replace(result, requested=result.requested + len(requested_dates))
-        validated = await _fetch_validated_stock_price_series(symbol, min(requested_dates), max(requested_dates))
-        result.disagreements.extend(validated.disagreements)
-
-        observed_dates: set[date] = {item.observed_date for item in validated.disagreements}
-        persisted_dates: list[date] = []
-        for observation in validated.observations:
-            if not isinstance(observation, StockPriceObservation) or observation.price_date not in requested_dates:
-                continue
-            await _persist_stock_price(db, observation)
-            persisted_dates.append(observation.price_date)
-            observed_dates.add(observation.price_date)
-            result = replace(result, inserted=result.inserted + 1)
-
-        result = replace(result, missing=result.missing + len(requested_dates - observed_dates))
-        if validated.provider_success:
-            await _upsert_sync_state(
-                db,
-                kind="stock",
-                scope=_stock_scope(symbol),
-                last_success_date=sync_end,
-                last_observation_date=max(persisted_dates) if persisted_dates else last_date,
-            )
-
-    return result
+    return await _sync_market_observation_series(
+        db,
+        raw_scopes=sync_symbols,
+        start_date=start_date,
+        end_date=sync_end,
+        spec=_STOCK_SYNC_SPEC,
+    )
 
 
 async def ensure_market_data_fresh(
@@ -1093,6 +1120,43 @@ async def _fetch_validated_stock_price_series(
     )
 
 
+_FX_SYNC_SPEC = _MarketSyncSpec(
+    kind="fx",
+    parse_scope=_parse_sync_fx_scope,
+    scope_name=lambda scope: _fx_scope(scope[0], scope[1]),
+    latest_date=_latest_fx_rate_date_for_scope,
+    stored_dates=_stored_fx_rate_dates_for_scope,
+    fetch_series=lambda scope, start_date, end_date: _fetch_validated_fx_rate_series_for_scope(
+        scope,
+        start_date,
+        end_date,
+    ),
+    persist_observation=_persist_fx_rate,
+    observation_date=_observation_date,
+    observation_matches_scope=lambda observation, scope: isinstance(observation, FxRateObservation)
+    and _normalize_currency(observation.base_currency) == scope[0]
+    and _normalize_currency(observation.quote_currency) == scope[1],
+)
+
+
+_STOCK_SYNC_SPEC = _MarketSyncSpec(
+    kind="stock",
+    parse_scope=lambda symbol: _normalize_symbol(symbol) or None,
+    scope_name=_stock_scope,
+    latest_date=_latest_stock_price_date,
+    stored_dates=_stored_stock_price_dates,
+    fetch_series=lambda scope, start_date, end_date: _fetch_validated_stock_price_series(
+        scope,
+        start_date,
+        end_date,
+    ),
+    persist_observation=_persist_stock_price,
+    observation_date=_observation_date,
+    observation_matches_scope=lambda observation, scope: isinstance(observation, StockPriceObservation)
+    and _normalize_symbol(observation.symbol) == scope,
+)
+
+
 async def _fetch_validated_fx_rate(
     base_currency: str,
     quote_currency: str,
@@ -1213,22 +1277,13 @@ async def _fetch_yahoo_or_derived_fx_rate_series(
     return observations
 
 
-async def _fetch_yahoo_fx_rate(
-    base_currency: str,
-    quote_currency: str,
-    requested_date: date,
-) -> FxRateObservation | None:
-    """Fetch the latest Yahoo Finance FX close on or before the requested date."""
-    symbol = f"{base_currency}{quote_currency}"
-    start = requested_date - timedelta(days=7)
-    end = requested_date + timedelta(days=1)
-    params = {
-        "period1": str(_date_to_epoch(start)),
-        "period2": str(_date_to_epoch(end)),
-        "interval": "1d",
-    }
-    url = _YAHOO_FX_CHART_URL.format(symbol=quote(symbol, safe=""))
-
+async def _fetch_provider_response(
+    url: str,
+    params: dict[str, str],
+    *,
+    failure_message: str,
+    log_context: dict[str, str],
+) -> httpx.Response | None:
     try:
         async with httpx.AsyncClient(
             timeout=settings.market_data_yahoo_timeout_seconds,
@@ -1236,17 +1291,42 @@ async def _fetch_yahoo_fx_rate(
         ) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
+            return response
     except httpx.HTTPError as exc:
-        logger.warning(
-            "Yahoo Finance FX fetch failed",
-            base_currency=base_currency,
-            quote_currency=quote_currency,
-            requested_date=requested_date.isoformat(),
-            error=str(exc),
-        )
+        logger.warning(failure_message, **log_context, error=str(exc))
         return None
 
-    return _parse_yahoo_fx_response(response.json(), base_currency, quote_currency, requested_date)
+
+def _yahoo_chart_params(start_date: date, end_date: date) -> dict[str, str]:
+    return {
+        "period1": str(_date_to_epoch(start_date)),
+        "period2": str(_date_to_epoch(end_date + timedelta(days=1))),
+        "interval": "1d",
+    }
+
+
+def _stooq_daily_params(symbol: str, start_date: date, end_date: date) -> dict[str, str]:
+    return {
+        "s": symbol,
+        "d1": start_date.strftime("%Y%m%d"),
+        "d2": end_date.strftime("%Y%m%d"),
+        "i": "d",
+    }
+
+
+async def _fetch_yahoo_fx_rate(
+    base_currency: str,
+    quote_currency: str,
+    requested_date: date,
+) -> FxRateObservation | None:
+    """Fetch the latest Yahoo Finance FX close on or before the requested date."""
+    observations = await _fetch_yahoo_fx_rate_series(
+        base_currency,
+        quote_currency,
+        requested_date - timedelta(days=7),
+        requested_date,
+    )
+    return max(observations, key=lambda item: item.rate_date, default=None) if observations is not None else None
 
 
 async def _fetch_yahoo_fx_rate_series(
@@ -1257,68 +1337,47 @@ async def _fetch_yahoo_fx_rate_series(
 ) -> list[FxRateObservation] | None:
     """Fetch Yahoo Finance FX closes for a bounded date range."""
     symbol = f"{base_currency}{quote_currency}"
-    params = {
-        "period1": str(_date_to_epoch(start_date)),
-        "period2": str(_date_to_epoch(end_date + timedelta(days=1))),
-        "interval": "1d",
-    }
     url = _YAHOO_FX_CHART_URL.format(symbol=quote(symbol, safe=""))
-
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.market_data_yahoo_timeout_seconds,
-            headers={"User-Agent": "finance-report-audit/1.0"},
-        ) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Yahoo Finance FX range fetch failed",
-            base_currency=base_currency,
-            quote_currency=quote_currency,
-            start_date=start_date.isoformat(),
-            end_date=end_date.isoformat(),
-            error=str(exc),
-        )
+    response = await _fetch_provider_response(
+        url,
+        _yahoo_chart_params(start_date, end_date),
+        failure_message="Yahoo Finance FX range fetch failed",
+        log_context={
+            "base_currency": base_currency,
+            "quote_currency": quote_currency,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+    )
+    if response is None:
         return None
 
     return _parse_yahoo_fx_response_series(response.json(), base_currency, quote_currency, start_date, end_date)
 
 
-def _parse_yahoo_fx_response(
+def _parse_yahoo_close_rows(
     payload: dict[str, Any],
-    base_currency: str,
-    quote_currency: str,
-    requested_date: date,
-) -> FxRateObservation | None:
+    *,
+    start_date: date,
+    end_date: date,
+) -> tuple[str, list[tuple[date, Decimal]]]:
     results = payload.get("chart", {}).get("result") or []
     if not results:
-        return None
+        return "USD", []
 
     result = results[0]
+    currency = _normalize_currency((result.get("meta") or {}).get("currency") or "USD")
     timestamps = result.get("timestamp") or []
     closes = ((result.get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
-
-    observations: list[FxRateObservation] = []
+    rows: list[tuple[date, Decimal]] = []
     for timestamp, close in zip(timestamps, closes, strict=False):
         if close is None:
             continue
         observed_date = datetime.fromtimestamp(int(timestamp), UTC).date()
-        if observed_date > requested_date:
+        if observed_date < start_date or observed_date > end_date:
             continue
-        observations.append(
-            FxRateObservation(
-                base_currency=base_currency,
-                quote_currency=quote_currency,
-                rate=_quantize_rate(Decimal(str(close))),
-                rate_date=observed_date,
-                source="yahoo_finance",
-            )
-        )
-
-    if not observations:
-        return None
-    return max(observations, key=lambda item: item.rate_date)
+        rows.append((observed_date, Decimal(str(close))))
+    return currency, rows
 
 
 def _parse_yahoo_fx_response_series(
@@ -1328,61 +1387,28 @@ def _parse_yahoo_fx_response_series(
     start_date: date,
     end_date: date,
 ) -> list[FxRateObservation]:
-    results = payload.get("chart", {}).get("result") or []
-    if not results:
-        return []
-
-    result = results[0]
-    timestamps = result.get("timestamp") or []
-    closes = ((result.get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
-    observations: list[FxRateObservation] = []
-    for timestamp, close in zip(timestamps, closes, strict=False):
-        if close is None:
-            continue
-        observed_date = datetime.fromtimestamp(int(timestamp), UTC).date()
-        if observed_date < start_date or observed_date > end_date:
-            continue
-        observations.append(
-            FxRateObservation(
-                base_currency=base_currency,
-                quote_currency=quote_currency,
-                rate=_quantize_rate(Decimal(str(close))),
-                rate_date=observed_date,
-                source="yahoo_finance",
-            )
+    _, rows = _parse_yahoo_close_rows(payload, start_date=start_date, end_date=end_date)
+    return [
+        FxRateObservation(
+            base_currency=base_currency,
+            quote_currency=quote_currency,
+            rate=_quantize_rate(rate),
+            rate_date=observed_date,
+            source="yahoo_finance",
         )
-    return observations
+        for observed_date, rate in rows
+    ]
 
 
 async def _fetch_yahoo_stock_price(symbol: str, requested_date: date) -> StockPriceObservation | None:
     """Fetch the latest Yahoo Finance stock close on or before the requested date."""
     normalized = _normalize_symbol(symbol)
-    start = requested_date - timedelta(days=7)
-    end = requested_date + timedelta(days=1)
-    params = {
-        "period1": str(_date_to_epoch(start)),
-        "period2": str(_date_to_epoch(end)),
-        "interval": "1d",
-    }
-    url = _YAHOO_STOCK_CHART_URL.format(symbol=quote(normalized, safe=".-"))
-
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.market_data_yahoo_timeout_seconds,
-            headers={"User-Agent": "finance-report-audit/1.0"},
-        ) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Yahoo Finance stock fetch failed",
-            symbol=normalized,
-            requested_date=requested_date.isoformat(),
-            error=str(exc),
-        )
-        return None
-
-    return _parse_yahoo_stock_response(response.json(), normalized, requested_date)
+    observations = await _fetch_yahoo_stock_price_series(
+        normalized,
+        requested_date - timedelta(days=7),
+        requested_date,
+    )
+    return max(observations, key=lambda item: item.price_date, default=None) if observations is not None else None
 
 
 async def _fetch_yahoo_stock_price_series(
@@ -1392,67 +1418,21 @@ async def _fetch_yahoo_stock_price_series(
 ) -> list[StockPriceObservation] | None:
     """Fetch Yahoo Finance stock closes for a bounded date range."""
     normalized = _normalize_symbol(symbol)
-    params = {
-        "period1": str(_date_to_epoch(start_date)),
-        "period2": str(_date_to_epoch(end_date + timedelta(days=1))),
-        "interval": "1d",
-    }
     url = _YAHOO_STOCK_CHART_URL.format(symbol=quote(normalized, safe=".-"))
-
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.market_data_yahoo_timeout_seconds,
-            headers={"User-Agent": "finance-report-audit/1.0"},
-        ) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Yahoo Finance stock range fetch failed",
-            symbol=normalized,
-            start_date=start_date.isoformat(),
-            end_date=end_date.isoformat(),
-            error=str(exc),
-        )
+    response = await _fetch_provider_response(
+        url,
+        _yahoo_chart_params(start_date, end_date),
+        failure_message="Yahoo Finance stock range fetch failed",
+        log_context={
+            "symbol": normalized,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+    )
+    if response is None:
         return None
 
     return _parse_yahoo_stock_response_series(response.json(), normalized, start_date, end_date)
-
-
-def _parse_yahoo_stock_response(
-    payload: dict[str, Any],
-    symbol: str,
-    requested_date: date,
-) -> StockPriceObservation | None:
-    results = payload.get("chart", {}).get("result") or []
-    if not results:
-        return None
-
-    result = results[0]
-    currency = _normalize_currency((result.get("meta") or {}).get("currency") or "USD")
-    timestamps = result.get("timestamp") or []
-    closes = ((result.get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
-
-    observations: list[StockPriceObservation] = []
-    for timestamp, close in zip(timestamps, closes, strict=False):
-        if close is None:
-            continue
-        observed_date = datetime.fromtimestamp(int(timestamp), UTC).date()
-        if observed_date > requested_date:
-            continue
-        observations.append(
-            StockPriceObservation(
-                symbol=symbol,
-                price=_quantize_price(Decimal(str(close))),
-                currency=currency,
-                price_date=observed_date,
-                source="yahoo_finance",
-            )
-        )
-
-    if not observations:
-        return None
-    return max(observations, key=lambda item: item.price_date)
 
 
 def _parse_yahoo_stock_response_series(
@@ -1461,33 +1441,17 @@ def _parse_yahoo_stock_response_series(
     start_date: date,
     end_date: date,
 ) -> list[StockPriceObservation]:
-    results = payload.get("chart", {}).get("result") or []
-    if not results:
-        return []
-
-    result = results[0]
-    currency = _normalize_currency((result.get("meta") or {}).get("currency") or "USD")
-    timestamps = result.get("timestamp") or []
-    closes = ((result.get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
-
-    observations: list[StockPriceObservation] = []
-    for timestamp, close in zip(timestamps, closes, strict=False):
-        if close is None:
-            continue
-        observed_date = datetime.fromtimestamp(int(timestamp), UTC).date()
-        if observed_date < start_date or observed_date > end_date:
-            continue
-        observations.append(
-            StockPriceObservation(
-                symbol=symbol,
-                price=_quantize_price(Decimal(str(close))),
-                currency=currency,
-                price_date=observed_date,
-                source="yahoo_finance",
-            )
+    currency, rows = _parse_yahoo_close_rows(payload, start_date=start_date, end_date=end_date)
+    return [
+        StockPriceObservation(
+            symbol=symbol,
+            price=_quantize_price(price),
+            currency=currency,
+            price_date=observed_date,
+            source="yahoo_finance",
         )
-
-    return observations
+        for observed_date, price in rows
+    ]
 
 
 async def _fetch_stooq_fx_rate(
@@ -1495,30 +1459,13 @@ async def _fetch_stooq_fx_rate(
     quote_currency: str,
     requested_date: date,
 ) -> FxRateObservation | None:
-    params = {
-        "s": _stooq_fx_symbol(base_currency, quote_currency),
-        "d1": (requested_date - timedelta(days=7)).strftime("%Y%m%d"),
-        "d2": requested_date.strftime("%Y%m%d"),
-        "i": "d",
-    }
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.market_data_yahoo_timeout_seconds,
-            headers={"User-Agent": "finance-report-audit/1.0"},
-        ) as client:
-            response = await client.get(_STOOQ_DAILY_URL, params=params)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Stooq FX fetch failed",
-            base_currency=base_currency,
-            quote_currency=quote_currency,
-            requested_date=requested_date.isoformat(),
-            error=str(exc),
-        )
-        return None
-
-    return _parse_stooq_fx_csv(response.text, base_currency, quote_currency, requested_date)
+    observations = await _fetch_stooq_fx_rate_series(
+        base_currency,
+        quote_currency,
+        requested_date - timedelta(days=7),
+        requested_date,
+    )
+    return max(observations, key=lambda item: item.rate_date, default=None) if observations is not None else None
 
 
 async def _fetch_stooq_fx_rate_series(
@@ -1527,60 +1474,35 @@ async def _fetch_stooq_fx_rate_series(
     start_date: date,
     end_date: date,
 ) -> list[FxRateObservation] | None:
-    params = {
-        "s": _stooq_fx_symbol(base_currency, quote_currency),
-        "d1": start_date.strftime("%Y%m%d"),
-        "d2": end_date.strftime("%Y%m%d"),
-        "i": "d",
-    }
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.market_data_yahoo_timeout_seconds,
-            headers={"User-Agent": "finance-report-audit/1.0"},
-        ) as client:
-            response = await client.get(_STOOQ_DAILY_URL, params=params)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Stooq FX range fetch failed",
-            base_currency=base_currency,
-            quote_currency=quote_currency,
-            start_date=start_date.isoformat(),
-            end_date=end_date.isoformat(),
-            error=str(exc),
-        )
+    response = await _fetch_provider_response(
+        _STOOQ_DAILY_URL,
+        _stooq_daily_params(_stooq_fx_symbol(base_currency, quote_currency), start_date, end_date),
+        failure_message="Stooq FX range fetch failed",
+        log_context={
+            "base_currency": base_currency,
+            "quote_currency": quote_currency,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+    )
+    if response is None:
         return None
 
     return _parse_stooq_fx_csv_series(response.text, base_currency, quote_currency, start_date, end_date)
 
 
-def _parse_stooq_fx_csv(
-    payload: str,
-    base_currency: str,
-    quote_currency: str,
-    requested_date: date,
-) -> FxRateObservation | None:
-    observations: list[FxRateObservation] = []
+def _parse_stooq_close_rows(payload: str, *, start_date: date, end_date: date) -> list[tuple[date, Decimal]]:
+    rows: list[tuple[date, Decimal]] = []
     for row in csv.DictReader(StringIO(payload)):
         close = row.get("Close")
         row_date = row.get("Date")
         if not close or not row_date or close == "N/D":
             continue
         observed_date = date.fromisoformat(row_date)
-        if observed_date > requested_date:
+        if observed_date < start_date or observed_date > end_date:
             continue
-        observations.append(
-            FxRateObservation(
-                base_currency=base_currency,
-                quote_currency=quote_currency,
-                rate=_quantize_rate(Decimal(close)),
-                rate_date=observed_date,
-                source="stooq",
-            )
-        )
-    if not observations:
-        return None
-    return max(observations, key=lambda item: item.rate_date)
+        rows.append((observed_date, Decimal(close)))
+    return rows
 
 
 def _parse_stooq_fx_csv_series(
@@ -1590,52 +1512,27 @@ def _parse_stooq_fx_csv_series(
     start_date: date,
     end_date: date,
 ) -> list[FxRateObservation]:
-    observations: list[FxRateObservation] = []
-    for row in csv.DictReader(StringIO(payload)):
-        close = row.get("Close")
-        row_date = row.get("Date")
-        if not close or not row_date or close == "N/D":
-            continue
-        observed_date = date.fromisoformat(row_date)
-        if observed_date < start_date or observed_date > end_date:
-            continue
-        observations.append(
-            FxRateObservation(
-                base_currency=base_currency,
-                quote_currency=quote_currency,
-                rate=_quantize_rate(Decimal(close)),
-                rate_date=observed_date,
-                source="stooq",
-            )
+    rows = _parse_stooq_close_rows(payload, start_date=start_date, end_date=end_date)
+    return [
+        FxRateObservation(
+            base_currency=base_currency,
+            quote_currency=quote_currency,
+            rate=_quantize_rate(rate),
+            rate_date=observed_date,
+            source="stooq",
         )
-    return observations
+        for observed_date, rate in rows
+    ]
 
 
 async def _fetch_stooq_stock_price(symbol: str, requested_date: date) -> StockPriceObservation | None:
     normalized = _normalize_symbol(symbol)
-    params = {
-        "s": _stooq_stock_symbol(normalized),
-        "d1": (requested_date - timedelta(days=7)).strftime("%Y%m%d"),
-        "d2": requested_date.strftime("%Y%m%d"),
-        "i": "d",
-    }
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.market_data_yahoo_timeout_seconds,
-            headers={"User-Agent": "finance-report-audit/1.0"},
-        ) as client:
-            response = await client.get(_STOOQ_DAILY_URL, params=params)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Stooq stock fetch failed",
-            symbol=normalized,
-            requested_date=requested_date.isoformat(),
-            error=str(exc),
-        )
-        return None
-
-    return _parse_stooq_stock_csv(response.text, normalized, requested_date)
+    observations = await _fetch_stooq_stock_price_series(
+        normalized,
+        requested_date - timedelta(days=7),
+        requested_date,
+    )
+    return max(observations, key=lambda item: item.price_date, default=None) if observations is not None else None
 
 
 async def _fetch_stooq_stock_price_series(
@@ -1644,58 +1541,20 @@ async def _fetch_stooq_stock_price_series(
     end_date: date,
 ) -> list[StockPriceObservation] | None:
     normalized = _normalize_symbol(symbol)
-    params = {
-        "s": _stooq_stock_symbol(normalized),
-        "d1": start_date.strftime("%Y%m%d"),
-        "d2": end_date.strftime("%Y%m%d"),
-        "i": "d",
-    }
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.market_data_yahoo_timeout_seconds,
-            headers={"User-Agent": "finance-report-audit/1.0"},
-        ) as client:
-            response = await client.get(_STOOQ_DAILY_URL, params=params)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning(
-            "Stooq stock range fetch failed",
-            symbol=normalized,
-            start_date=start_date.isoformat(),
-            end_date=end_date.isoformat(),
-            error=str(exc),
-        )
+    response = await _fetch_provider_response(
+        _STOOQ_DAILY_URL,
+        _stooq_daily_params(_stooq_stock_symbol(normalized), start_date, end_date),
+        failure_message="Stooq stock range fetch failed",
+        log_context={
+            "symbol": normalized,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+    )
+    if response is None:
         return None
 
     return _parse_stooq_stock_csv_series(response.text, normalized, start_date, end_date)
-
-
-def _parse_stooq_stock_csv(
-    payload: str,
-    symbol: str,
-    requested_date: date,
-) -> StockPriceObservation | None:
-    observations: list[StockPriceObservation] = []
-    for row in csv.DictReader(StringIO(payload)):
-        close = row.get("Close")
-        row_date = row.get("Date")
-        if not close or not row_date or close == "N/D":
-            continue
-        observed_date = date.fromisoformat(row_date)
-        if observed_date > requested_date:
-            continue
-        observations.append(
-            StockPriceObservation(
-                symbol=symbol,
-                price=_quantize_price(Decimal(close)),
-                currency="USD",
-                price_date=observed_date,
-                source="stooq",
-            )
-        )
-    if not observations:
-        return None
-    return max(observations, key=lambda item: item.price_date)
 
 
 def _parse_stooq_stock_csv_series(
@@ -1704,22 +1563,14 @@ def _parse_stooq_stock_csv_series(
     start_date: date,
     end_date: date,
 ) -> list[StockPriceObservation]:
-    observations: list[StockPriceObservation] = []
-    for row in csv.DictReader(StringIO(payload)):
-        close = row.get("Close")
-        row_date = row.get("Date")
-        if not close or not row_date or close == "N/D":
-            continue
-        observed_date = date.fromisoformat(row_date)
-        if observed_date < start_date or observed_date > end_date:
-            continue
-        observations.append(
-            StockPriceObservation(
-                symbol=symbol,
-                price=_quantize_price(Decimal(close)),
-                currency="USD",
-                price_date=observed_date,
-                source="stooq",
-            )
+    rows = _parse_stooq_close_rows(payload, start_date=start_date, end_date=end_date)
+    return [
+        StockPriceObservation(
+            symbol=symbol,
+            price=_quantize_price(price),
+            currency="USD",
+            price_date=observed_date,
+            source="stooq",
         )
-    return observations
+        for observed_date, price in rows
+    ]

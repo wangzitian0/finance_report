@@ -17,16 +17,16 @@ from src.models import (
     JournalLine,
 )
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
-from src.routers.reports import _annualized_income_bucket
+from src.services.reporting import income_bucket
 
 
 def test_AC11_11_1_income_bucket_maps_report_package_income_accounts():
     """AC11.11.1: Schedule income bucket mapping covers report package income labels."""
-    assert _annualized_income_bucket("Salary Income") == "salary"
-    assert _annualized_income_bucket("Monthly Payroll") == "salary"
-    assert _annualized_income_bucket("Annual Bonus") == "bonus"
-    assert _annualized_income_bucket("Dividend Income") == "dividend"
-    assert _annualized_income_bucket("Consulting Income") is None
+    assert income_bucket("Salary Income") == "salary"
+    assert income_bucket("Monthly Payroll") == "salary"
+    assert income_bucket("Annual Bonus") == "bonus"
+    assert income_bucket("Dividend Income") == "dividend"
+    assert income_bucket("Consulting Income") is None
 
 
 @pytest.mark.asyncio

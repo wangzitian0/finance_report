@@ -128,19 +128,25 @@ def test_yahoo_response_parsers_select_latest_valid_observation() -> None:
         }
     }
 
-    fx = market_data._parse_yahoo_fx_response(payload, "USD", "SGD", date(2026, 1, 4))
-    assert fx is not None
-    assert fx.rate == Decimal("1.230000")
-    assert fx.rate_date == date(2026, 1, 3)
+    fx_rows = market_data._parse_yahoo_fx_response_series(payload, "USD", "SGD", date(2026, 1, 3), date(2026, 1, 4))
+    assert len(fx_rows) == 1
+    assert fx_rows[0].rate == Decimal("1.230000")
+    assert fx_rows[0].rate_date == date(2026, 1, 3)
 
-    stock = market_data._parse_yahoo_stock_response(payload, "AAPL", date(2026, 1, 5))
-    assert stock is not None
-    assert stock.price == Decimal("1.250000")
-    assert stock.currency == "USD"
-    assert stock.price_date == date(2026, 1, 5)
+    stock_rows = market_data._parse_yahoo_stock_response_series(
+        payload,
+        "AAPL",
+        date(2026, 1, 3),
+        date(2026, 1, 5),
+    )
+    assert [row.price for row in stock_rows] == [Decimal("1.230000"), Decimal("1.250000")]
+    assert stock_rows[-1].currency == "USD"
+    assert stock_rows[-1].price_date == date(2026, 1, 5)
 
-    assert market_data._parse_yahoo_fx_response({"chart": {"result": []}}, "USD", "SGD", date(2026, 1, 5)) is None
-    assert market_data._parse_yahoo_stock_response({"chart": {"result": []}}, "AAPL", date(2026, 1, 5)) is None
+    assert (
+        market_data._parse_yahoo_fx_response_series({"chart": {"result": []}}, "USD", "SGD", date.min, date.max) == []
+    )
+    assert market_data._parse_yahoo_stock_response_series({"chart": {"result": []}}, "AAPL", date.min, date.max) == []
 
 
 def test_yahoo_response_series_parsers_return_bounded_rows() -> None:
@@ -208,8 +214,8 @@ def test_stock_parsers_return_none_when_only_future_rows_exist() -> None:
     }
     stooq_payload = "Date,Close\n2026-01-06,150.25\n"
 
-    assert market_data._parse_yahoo_stock_response(yahoo_payload, "AAPL", date(2026, 1, 5)) is None
-    assert market_data._parse_stooq_stock_csv(stooq_payload, "AAPL", date(2026, 1, 5)) is None
+    assert market_data._parse_yahoo_stock_response_series(yahoo_payload, "AAPL", date.min, date(2026, 1, 5)) == []
+    assert market_data._parse_stooq_stock_csv_series(stooq_payload, "AAPL", date.min, date(2026, 1, 5)) == []
 
 
 def test_stooq_csv_parsers_skip_invalid_rows_and_select_latest() -> None:
@@ -223,19 +229,20 @@ def test_stooq_csv_parsers_skip_invalid_rows_and_select_latest() -> None:
         ]
     )
 
-    fx = market_data._parse_stooq_fx_csv(payload, "USD", "SGD", date(2026, 1, 4))
-    assert fx is not None
-    assert fx.rate == Decimal("1.350010")
-    assert fx.rate_date == date(2026, 1, 4)
+    fx_rows = market_data._parse_stooq_fx_csv_series(payload, "USD", "SGD", date(2026, 1, 3), date(2026, 1, 4))
+    assert len(fx_rows) == 1
+    assert fx_rows[0].rate == Decimal("1.350010")
+    assert fx_rows[0].rate_date == date(2026, 1, 4)
 
-    stock = market_data._parse_stooq_stock_csv(payload, "AAPL", date(2026, 1, 5))
-    assert stock is not None
-    assert stock.price == Decimal("1.360010")
-    assert stock.currency == "USD"
-    assert stock.price_date == date(2026, 1, 5)
+    stock_rows = market_data._parse_stooq_stock_csv_series(payload, "AAPL", date(2026, 1, 3), date(2026, 1, 5))
+    assert [row.price for row in stock_rows] == [Decimal("1.350010"), Decimal("1.360010")]
+    assert stock_rows[-1].currency == "USD"
+    assert stock_rows[-1].price_date == date(2026, 1, 5)
 
-    assert market_data._parse_stooq_fx_csv("Date,Close\n2026-01-01,N/D\n", "USD", "SGD", date(2026, 1, 5)) is None
-    assert market_data._parse_stooq_stock_csv("Date,Close\n2026-01-01,N/D\n", "AAPL", date(2026, 1, 5)) is None
+    assert (
+        market_data._parse_stooq_fx_csv_series("Date,Close\n2026-01-01,N/D\n", "USD", "SGD", date.min, date.max) == []
+    )
+    assert market_data._parse_stooq_stock_csv_series("Date,Close\n2026-01-01,N/D\n", "AAPL", date.min, date.max) == []
 
 
 def test_stooq_csv_series_parsers_skip_invalid_and_out_of_range_rows() -> None:

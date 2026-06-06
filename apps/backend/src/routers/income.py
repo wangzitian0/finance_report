@@ -11,20 +11,10 @@ from src.deps import CurrentUserId, DbSession
 from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.schemas.income import AnnualizedIncomeResponse
 from src.services.fx import FxRateError, convert_amount
+from src.services.reporting import income_bucket
 from src.utils import raise_bad_request
 
 router = APIRouter(prefix="/income", tags=["income"])
-
-
-def _income_bucket(account_name: str) -> str | None:
-    normalized = account_name.casefold()
-    if "salary" in normalized or "payroll" in normalized:
-        return "salary"
-    if "bonus" in normalized:
-        return "bonus"
-    if "dividend" in normalized:
-        return "dividend"
-    return None
 
 
 @router.get("/annualized", response_model=AnnualizedIncomeResponse)
@@ -70,7 +60,7 @@ async def get_annualized_income(
             )
         except FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
-        bucket = _income_bucket(account.name)
+        bucket = income_bucket(account.name)
         if bucket:
             totals[bucket] += signed_amount
         totals["total"] += signed_amount

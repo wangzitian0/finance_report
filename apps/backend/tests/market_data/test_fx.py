@@ -499,7 +499,8 @@ def test_parse_yahoo_fx_response_selects_latest_on_or_before_requested_date():
         }
     }
 
-    result = market_data._parse_yahoo_fx_response(payload, "HKD", "SGD", date(2025, 6, 30))
+    rows = market_data._parse_yahoo_fx_response_series(payload, "HKD", "SGD", date.min, date(2025, 6, 30))
+    result = max(rows, key=lambda item: item.rate_date, default=None)
 
     assert result == market_data.FxRateObservation(
         base_currency="HKD",
@@ -512,9 +513,9 @@ def test_parse_yahoo_fx_response_selects_latest_on_or_before_requested_date():
 
 def test_parse_yahoo_fx_response_returns_none_for_empty_or_unusable_payloads():
     """[AC5.4.3] Yahoo parser should return None when the payload has no usable close."""
-    assert market_data._parse_yahoo_fx_response({}, "HKD", "SGD", date(2025, 6, 30)) is None
+    assert market_data._parse_yahoo_fx_response_series({}, "HKD", "SGD", date.min, date(2025, 6, 30)) == []
     assert (
-        market_data._parse_yahoo_fx_response(
+        market_data._parse_yahoo_fx_response_series(
             {
                 "chart": {
                     "result": [
@@ -527,9 +528,10 @@ def test_parse_yahoo_fx_response_returns_none_for_empty_or_unusable_payloads():
             },
             "HKD",
             "SGD",
+            date.min,
             date(2025, 6, 30),
         )
-        is None
+        == []
     )
 
 

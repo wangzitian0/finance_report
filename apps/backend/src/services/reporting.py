@@ -67,6 +67,17 @@ def _signed_amount(account_type: AccountType, direction: Direction, amount: Deci
     return amount if direction == Direction.CREDIT else -amount
 
 
+def income_bucket(account_name: str) -> str | None:
+    normalized = account_name.casefold()
+    if "salary" in normalized or "payroll" in normalized:
+        return "salary"
+    if "bonus" in normalized:
+        return "bonus"
+    if "dividend" in normalized:
+        return "dividend"
+    return None
+
+
 def _quantize_money(amount: Decimal | int) -> Decimal:
     if isinstance(amount, int):
         amount = Decimal(amount)
