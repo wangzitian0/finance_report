@@ -12,8 +12,10 @@ from src.services.correction_service import (
     record_correction,
 )
 from tests.factories import (
+    AccountFactory,
     BankStatementFactory,
     BankStatementTransactionFactory,
+    UserFactory,
 )
 
 
@@ -84,6 +86,30 @@ async def test_record_correction_not_found_raises(db, test_user):
             user_id=test_user.id,
             transaction_id=uuid4(),
             corrected_category="Transport",
+        )
+
+
+@pytest.mark.asyncio
+async def test_AC18_2_2_record_correction_rejects_cross_user_corrected_account(db, test_user):
+    """AC18.2.2: Correction feedback must not bind another user's account."""
+    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    txn = await BankStatementTransactionFactory.create_async(
+        db,
+        statement_id=stmt.id,
+        description="Grab taxi",
+        suggested_category="Shopping",
+    )
+    other_user = await UserFactory.create_async(db)
+    other_account = await AccountFactory.create_async(db, user_id=other_user.id, name="Other User Account")
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Account .* not found"):
+        await record_correction(
+            db,
+            user_id=test_user.id,
+            transaction_id=txn.id,
+            corrected_category="Transport",
+            corrected_account_id=other_account.id,
         )
 
 

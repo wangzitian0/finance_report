@@ -53,6 +53,7 @@ from src.services.statement_posting import (
     is_high_confidence_auto_approve_candidate,
     try_auto_approve_high_confidence_statement,
 )
+from tests.factories import AccountFactory, UserFactory
 
 pytestmark = pytest.mark.asyncio
 
@@ -287,6 +288,32 @@ async def test_upload_invalid_extension(db, test_user):
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Unsupported file type" in exc.value.detail
+
+
+async def test_AC3_5_upload_rejects_cross_user_account_id(db, monkeypatch, test_user):
+    """AC3.5: Statement upload must not bind another user's account."""
+    other_user = await UserFactory.create_async(db)
+    other_account = await AccountFactory.create_async(db, user_id=other_user.id, name="Other User Cash")
+    await db.commit()
+
+    mock_storage = MagicMock()
+    monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
+
+    upload_file = make_upload_file("statement.pdf", b"content")
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution="DBS",
+            account_id=other_account.id,
+            model=None,
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+    assert exc.value.detail == "Account not found"
+    assert mock_storage.upload_bytes.call_count == 0
 
 
 async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage_stub, test_user):
