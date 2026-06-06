@@ -4,6 +4,7 @@
 
 export type DecimalValue = string;
 export type MoneyValue = DecimalValue;
+export const MONEY_VALUE_CONTRACT = "decimal-string" as const;
 
 export interface Account {
   id: string;

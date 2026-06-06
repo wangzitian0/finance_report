@@ -1,11 +1,11 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
-import "@/lib/types";
+import { MONEY_VALUE_CONTRACT } from "@/lib/types";
 import { it, expect } from "vitest";
 
 it("types module loads", () => {
-  expect(true).toBe(true);
+  expect(MONEY_VALUE_CONTRACT).toBe("decimal-string");
 });
 
 it("AC2.8.2 keeps frontend monetary API fields Decimal-serializable instead of bare number", () => {
