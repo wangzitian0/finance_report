@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import subprocess
 import sys
@@ -214,11 +215,11 @@ def test_AC8_13_101_compose_summary_sorts_latest_deployment() -> None:
     assert "latest_deployment_status: running" in summary
 
 
-def test_AC8_13_102_dokploy_deploy_waits_for_worker_running_status(
+def test_AC8_13_102_dokploy_deploy_waits_for_worker_done_status(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Readiness starts only after Dokploy starts the deploy."""
+    """AC8.13.102: Readiness starts only after Dokploy finishes the deploy."""
     lifecycle = lifecycle_module()
     states = iter(
         [
@@ -227,6 +228,11 @@ def test_AC8_13_102_dokploy_deploy_waits_for_worker_running_status(
                 "composeId": "cmp-591",
                 "composeStatus": "running",
                 "deployments": [{"deploymentId": "dep-591", "status": "running"}],
+            },
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "done",
+                "deployments": [{"deploymentId": "dep-591", "status": "done"}],
             },
         ]
     )
@@ -243,9 +249,23 @@ def test_AC8_13_102_dokploy_deploy_waits_for_worker_running_status(
 
     out = capsys.readouterr().out
     assert "deployment-rollout-attempt-1" in out
+    assert "Dokploy rollout probe: attempt=1" in out
+    assert "Dokploy rollout probe: attempt=2" in out
+    assert "Dokploy rollout probe: attempt=3" in out
     assert "Dokploy deployment observed: compose_id=cmp-591" in out
     assert "new_deployment_ids=dep-591" in out
     assert "latest_deployment_status=running" in out
+    assert "latest_deployment_status=done" in out
+
+
+def test_AC8_13_102_dokploy_rollout_record_window_allows_worker_queue() -> None:
+    """AC8.13.102: The deployment-record gate is fast, but not shorter than Dokploy queue lag."""
+    lifecycle = lifecycle_module()
+
+    signature = inspect.signature(lifecycle.wait_for_dokploy_deployment_rollout)
+
+    assert signature.parameters["timeout_seconds"].default == 600
+    assert signature.parameters["new_deployment_timeout_seconds"].default == 600
 
 
 def test_AC8_13_102_dokploy_rollout_timeout_fails_before_readiness(
@@ -694,11 +714,11 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_102_deploy_record_lag_continues_to_commit_scoped_readiness(
+def test_AC8_13_102_missing_deploy_record_fails_before_readiness(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Dokploy record lag is advisory, not a readiness blocker."""
+    """AC8.13.102: Missing Dokploy records are platform failures, not app readiness."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
     wait_calls = 0
@@ -773,7 +793,11 @@ def test_AC8_13_102_deploy_record_lag_continues_to_commit_scoped_readiness(
         dry_run=False,
     )
 
-    assert lifecycle.main_from_args(args) == 0
+    with pytest.raises(
+        lifecycle.DokployDeploymentDidNotStart,
+        match="queued deploy was lost",
+    ):
+        lifecycle.main_from_args(args)
 
     rendered_calls = "\n".join(" ".join(call) for call in calls)
     assert "compose.redeploy" in rendered_calls
@@ -782,8 +806,7 @@ def test_AC8_13_102_deploy_record_lag_continues_to_commit_scoped_readiness(
     assert "compose.deploy" not in rendered_calls
     assert wait_calls == 1
     out = capsys.readouterr().out
-    assert "queued deploy was lost" in out
-    assert "proceeding to commit-scoped readiness" in out
+    assert "proceeding to commit-scoped readiness" not in out
 
 
 def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
@@ -879,11 +902,17 @@ def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics(
     assert "platform_failure_domain=" in deploy_block
     assert "repo/tools/dokploy_route_canary.py" in deploy_block
     assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in deploy_block
+    assert "backend-health-missing-sha" in deploy_block
     assert "frontend-route-ready-api-route-missing" in deploy_block
     assert "dokploy-worker-or-deployment-record" in deploy_block
     assert "traefik-public-route" in deploy_block
+    assert "readiness_timeout_seconds = 600" in deploy_block
+    assert "elapsed_seconds=" in deploy_block
     assert "ping_status=" in deploy_block
-    assert "classified_route_failures >= 8" in deploy_block
+    assert "classified_route_failures >= 8 and not route_failure_notice_printed" in deploy_block
+    assert "route_failure_notice_printed = True" in deploy_block
+    assert "::notice::API route is still unavailable after frontend served" in deploy_block
+    assert "::error::API route stayed unavailable after frontend served" not in deploy_block
 
 
 def test_AC8_13_100_infra2_route_canary_is_available() -> None:

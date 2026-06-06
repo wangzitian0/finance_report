@@ -30,6 +30,76 @@ COMPOSE_ID="${1:-}"
 IMAGE_TAG="${2:-}"
 APP_URL="${3:-}"
 
+deployment_ids_from_response() {
+  local response="$1"
+  echo "$response" | jq -r '[.deployments[]? | .deploymentId // empty] | join(",")'
+}
+
+new_deployment_ids_from_response() {
+  local response="$1"
+  local previous_deployment_ids="$2"
+  echo "$response" | jq -r --arg previous ",$previous_deployment_ids," \
+    '[.deployments[]? | .deploymentId // empty | select(($previous | contains("," + . + ",")) | not)] | join(",")'
+}
+
+latest_new_deployment_status_from_response() {
+  local response="$1"
+  local new_deployment_ids="$2"
+  echo "$response" | jq -r --arg ids ",$new_deployment_ids," \
+    '[.deployments[]? | select(.deploymentId and ($ids | contains("," + .deploymentId + ",")))] | sort_by(.createdAt // .startedAt // "") | (last // {}) | .status // "unknown"'
+}
+
+wait_for_dokploy_deployment_rollout() {
+  local compose_id="$1"
+  local previous_deployment_ids="$2"
+  local timeout_seconds="${DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600}"
+  local interval_seconds="${DOKPLOY_ROLLOUT_INTERVAL_SECONDS:-5}"
+  local started="$SECONDS"
+  local attempt=0
+  local rollout_response
+  local compose_status
+  local deployment_count
+  local new_deployment_ids
+  local latest_status
+
+  echo "Waiting for Dokploy deployment record before readiness polling..."
+  echo "previous_deployment_ids=${previous_deployment_ids:-none}"
+
+  while (( SECONDS - started <= timeout_seconds )); do
+    attempt=$((attempt + 1))
+    dokploy_api_call "GET" "compose.one?composeId=$compose_id" "" "$response_file" "Deployment rollout probe"
+    rollout_response=$(cat "$response_file")
+    compose_status=$(safe_jq '.composeStatus // .status // "unknown"' "$rollout_response" "deployment rollout compose status") || exit 1
+    deployment_count=$(safe_jq '(.deployments // []) | length' "$rollout_response" "deployment rollout count") || exit 1
+    new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids")
+
+    echo "Dokploy rollout attempt $attempt: composeStatus=$compose_status deployment_count=$deployment_count new_deployment_ids=${new_deployment_ids:-none}"
+
+    if [[ "$compose_status" == "error" ]]; then
+      echo "ERROR: Dokploy compose entered error before readiness polling" >&2
+      exit 1
+    fi
+
+    if [[ -n "$new_deployment_ids" ]]; then
+      latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids")
+      echo "Dokploy deployment observed: compose_id=$compose_id new_deployment_ids=$new_deployment_ids latest_deployment_status=$latest_status"
+      if [[ "$latest_status" == "error" ]]; then
+        echo "ERROR: Dokploy deployment failed before readiness polling" >&2
+        exit 1
+      fi
+      if [[ "$latest_status" == "done" ]]; then
+        return 0
+      fi
+    fi
+
+    sleep "$interval_seconds"
+  done
+
+  echo "ERROR: Dokploy deployment did not create a new deployment before readiness polling" >&2
+  echo "compose_id=$compose_id composeStatus=${compose_status:-unknown} deployment_count=${deployment_count:-unknown}" >&2
+  exit 1
+}
+
 validate_non_empty "$COMPOSE_ID" "compose_id" 2>/dev/null || missing_args+=("compose_id")
 validate_non_empty "$IMAGE_TAG" "image_tag" 2>/dev/null || missing_args+=("image_tag")
 validate_non_empty "$APP_URL" "app_url" 2>/dev/null || missing_args+=("app_url")
@@ -134,6 +204,7 @@ echo "Environment updated to use image tag: $IMAGE_TAG"
 dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Effective environment verification"
 effective_response=$(cat "$response_file")
 effective_env=$(safe_jq '.env // empty' "$effective_response" "effective environment fetch") || exit 1
+previous_deployment_ids=$(deployment_ids_from_response "$effective_response")
 render_allowlisted_env_diff "$expected_effective_env" "$effective_env" || {
   echo "ERROR: Effective Dokploy environment does not match expected deployment values" >&2
   exit 1
@@ -141,6 +212,7 @@ render_allowlisted_env_diff "$expected_effective_env" "$effective_env" || {
 
 deploy_payload=$(safe_jq_build --arg id "$COMPOSE_ID" '{composeId: $id}') || exit 1
 dokploy_api_call "POST" "compose.deploy" "$deploy_payload" "$deploy_response_file" "Deployment trigger"
+wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"
 
 echo "Deployment triggered successfully"
 exit 0

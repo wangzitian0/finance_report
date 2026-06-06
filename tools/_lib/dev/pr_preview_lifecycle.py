@@ -47,7 +47,7 @@ COMPOSE_SUMMARY_KEYS = (
     "status",
 )
 
-DEPLOYMENT_READY_FOR_READINESS_STATUSES = {"running", "done"}
+DEPLOYMENT_READY_FOR_READINESS_STATUSES = {"done"}
 PR_PREVIEW_COMPOSE_PATH = "docker-compose.pr-preview.yml"
 PR_PREVIEW_COMPOSE_TYPE = "docker-compose"
 PR_PREVIEW_SOURCE_TYPE = "github"
@@ -551,8 +551,8 @@ def wait_for_dokploy_deployment_rollout(
     *,
     compose_id: str,
     previous_deployment_ids: set[str] | None = None,
-    timeout_seconds: int = 300,
-    new_deployment_timeout_seconds: int = 20,
+    timeout_seconds: int = 600,
+    new_deployment_timeout_seconds: int = 600,
     interval_seconds: int = 5,
 ) -> None:
     previous_deployment_ids = previous_deployment_ids or set()
@@ -578,6 +578,13 @@ def wait_for_dokploy_deployment_rollout(
             raise RuntimeError(f"Dokploy compose entered error status: {compose_id}")
         current_ids = deployment_ids(deployments)
         new_deployment_ids = sorted(current_ids - previous_deployment_ids)
+        print(
+            f"Dokploy rollout probe: attempt={attempt} "
+            f"compose_id={compose_id} "
+            f"composeStatus={compose_status or 'unknown'} "
+            f"deployment_count={deployment_count} "
+            f"new_deployment_ids={','.join(new_deployment_ids) or 'none'}"
+        )
         if new_deployment_ids:
             latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
             latest_id = str(latest.get("deploymentId") or new_deployment_ids[-1])
@@ -593,19 +600,14 @@ def wait_for_dokploy_deployment_rollout(
                     "Dokploy deployment failed before readiness polling: "
                     f"compose_id={compose_id} deployment_id={latest_id}"
                 )
-            if (
-                attempt == 1
-                or attempt % 6 == 0
-                or latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES
-            ):
-                print(
-                    f"Dokploy deployment observed: compose_id={compose_id} "
-                    f"composeStatus={compose_status or 'unknown'} "
-                    f"deployment_count={deployment_count} "
-                    f"new_deployment_ids={','.join(new_deployment_ids)} "
-                    f"latest_deployment_id={latest_id} "
-                    f"latest_deployment_status={latest_status}"
-                )
+            print(
+                f"Dokploy deployment observed: compose_id={compose_id} "
+                f"composeStatus={compose_status or 'unknown'} "
+                f"deployment_count={deployment_count} "
+                f"new_deployment_ids={','.join(new_deployment_ids)} "
+                f"latest_deployment_id={latest_id} "
+                f"latest_deployment_status={latest_status}"
+            )
             if latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES:
                 return
         if not new_deployment_ids and now >= new_deployment_deadline:
@@ -617,7 +619,7 @@ def wait_for_dokploy_deployment_rollout(
             )
         if now >= deadline:
             raise RuntimeError(
-                "Dokploy deployment did not reach running/done before readiness "
+                "Dokploy deployment did not reach done before readiness "
                 f"polling: compose_id={compose_id} composeStatus={compose_status or 'unknown'} "
                 f"deployment_count={deployment_count} "
                 f"new_deployment_ids={','.join(new_deployment_ids)}"
@@ -672,17 +674,11 @@ def deploy_action(args: argparse.Namespace) -> int:
     force_redeploy = existing_compose
     deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
     print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
-    try:
-        wait_for_dokploy_deployment_rollout(
-            config,
-            compose_id=compose_id,
-            previous_deployment_ids=previous_deployment_ids,
-        )
-    except DokployDeploymentDidNotStart as exc:
-        print(
-            f"{exc}; proceeding to commit-scoped readiness because Dokploy "
-            "deployment records can lag queued deploys"
-        )
+    wait_for_dokploy_deployment_rollout(
+        config,
+        compose_id=compose_id,
+        previous_deployment_ids=previous_deployment_ids,
+    )
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")

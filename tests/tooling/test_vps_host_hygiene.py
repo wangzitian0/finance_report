@@ -38,10 +38,14 @@ def test_AC8_13_73_hygiene_script_prunes_generic_host_garbage_and_old_previews()
 
     assert "PR_PREVIEW_MAX_AGE_DAYS='3'" in script
     assert "PR_PREVIEW_KEEP_RECENT='3'" in script
+    assert "PR_PREVIEW_CONTAINER_PATTERN='^finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?$'" in script
     assert "CONTAINER_PRUNE_UNTIL='72h'" in script
     assert 'date -u -d "${PR_PREVIEW_MAX_AGE_DAYS} days ago" +%s' in script
     assert 'tail -n "$PR_PREVIEW_KEEP_RECENT"' in script
-    assert "finance-report-(backend|frontend|db|minio)-pr-[0-9]+" in script
+    assert "finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?" in script
+    assert "should_delete_pr_container() {" in script
+    assert 'case "$status" in restarting|exited|dead|created) return 0 ;; esac' in script
+    assert 'if [ "$health" = "unhealthy" ]; then' in script
     assert "finance_report_pr_[0-9]+_" in script
     assert "[dry-run] docker rm -f ${container_name}" in script
     assert "[dry-run] docker volume rm ${volume_name}" in script

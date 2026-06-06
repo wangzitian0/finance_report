@@ -319,6 +319,8 @@ jobs:
                   api_sha = api_payload.get("git_sha") or api_payload.get("version")
                   if api_sha and api_sha != expected_sha:
                       return "stale-backend-route"
+                  if not api_sha:
+                      return "backend-health-missing-sha"
               if ping_result["status"] == 200 and api_result["status"] != 200:
                   return "backend-ping-ready-health-not-ready"
               return "rollout-not-ready"
@@ -335,13 +337,22 @@ jobs:
                   return "traefik-public-route"
               if classification == "frontend-fallback-api-route-missing-or-backend-unhealthy":
                   return "docker-runtime"
-              if classification in {"stale-backend-route", "backend-ping-ready-health-not-ready"}:
+              if classification in {
+                  "stale-backend-route",
+                  "backend-ping-ready-health-not-ready",
+                  "backend-health-missing-sha",
+              }:
                   return "application-runtime"
               return "dokploy-worker-or-deployment-record"
 
-          max_attempts = 18
+          readiness_timeout_seconds = 600
+          started_at = time.monotonic()
           classified_route_failures = 0
-          for attempt in range(1, max_attempts + 1):
+          route_failure_notice_printed = False
+          attempt = 0
+          while True:
+              attempt += 1
+              elapsed_seconds = int(time.monotonic() - started_at)
               delay = min(5 + (attempt // 5) * 5, 30)
               api_result = probe(url)
               ping_result = probe(ping_url)
@@ -359,7 +370,8 @@ jobs:
               )
 
               print(
-                  f"route_probe attempt={attempt}/{max_attempts} "
+                  f"route_probe attempt={attempt} "
+                  f"elapsed_seconds={elapsed_seconds}/{readiness_timeout_seconds} "
                   f"app_readiness_classification={classification} "
                   f"platform_failure_domain={failure_domain} "
                   f"api_status={api_result['status']} api_sha={actual_sha or ''} "
@@ -383,23 +395,29 @@ jobs:
               else:
                   classified_route_failures = 0
 
-              if classified_route_failures >= 8:
+              if classified_route_failures >= 8 and not route_failure_notice_printed:
                   print(
-                      "::error::API route stayed unavailable after frontend served the "
-                      "expected commit. This isolates the failure to backend route, "
-                      "backend container health, or Traefik backend attachment."
+                      "::notice::API route is still unavailable after frontend served "
+                      "the expected commit. Current evidence isolates the active wait "
+                      "to backend route, backend container health, or Traefik backend "
+                      "attachment."
                   )
                   print(
                       "::notice::Run infra2's Dokploy Route Canary workflow or "
                       "repo/tools/dokploy_route_canary.py to split Dokploy control "
                       "plane, deployment record, Docker runtime, and Traefik public route."
                   )
-                  sys.exit(1)
+                  route_failure_notice_printed = True
 
-              print(f"   Retrying in {delay}s...")
-              time.sleep(delay)
+              remaining_seconds = readiness_timeout_seconds - (time.monotonic() - started_at)
+              if remaining_seconds <= 0:
+                  break
 
-          print("::error::API not ready with expected git_sha after all attempts")
+              sleep_seconds = min(delay, max(1, int(remaining_seconds)))
+              print(f"   Retrying in {sleep_seconds}s...")
+              time.sleep(sleep_seconds)
+
+          print("::error::API not ready with expected git_sha after readiness deadline")
           print(
               "::notice::If platform_failure_domain is traefik-public-route or "
               "dokploy-worker-or-deployment-record, run infra2's Dokploy Route "

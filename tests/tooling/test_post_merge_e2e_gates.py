@@ -1935,6 +1935,7 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
 def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> None:
     """AC8.13.72: staging proof checks health git_sha, not just Dokploy trigger."""
     workflow = read(".github/workflows/staging-deploy.yml")
+    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
     health_check = read("tools/_lib/shell/health_check.sh")
 
     deploy_block = workflow.split("- name: Deploy to Staging", 1)[1].split(
@@ -1946,6 +1947,16 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "bash tools/health_check.sh" in deploy_block
     assert deploy_block.index("bash tools/dokploy_deploy.sh") < deploy_block.index(
         "bash tools/health_check.sh"
+    )
+    assert "wait_for_dokploy_deployment_rollout" in deploy_script
+    assert "previous_deployment_ids" in deploy_script
+    assert "Dokploy deployment observed" in deploy_script
+    assert 'DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600' in deploy_script
+    assert "did not create a new deployment before readiness polling" in deploy_script
+    assert 'latest_status" == "done"' in deploy_script
+    assert 'latest_status" == "running" || "$latest_status" == "done"' not in deploy_script
+    assert deploy_script.index('dokploy_api_call "POST" "compose.deploy"') < deploy_script.index(
+        'wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"'
     )
     assert '"https://report-staging.zitian.party/api/health"' in deploy_block
     assert '"$IMAGE_TAG"' in deploy_block

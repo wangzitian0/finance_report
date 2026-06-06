@@ -296,11 +296,14 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "platform_failure_domain=" in readiness_block
     assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in readiness_block
     assert "frontend-route-ready-api-route-missing" in readiness_block
+    assert "backend-health-missing-sha" in readiness_block
     assert "dokploy-worker-or-deployment-record" in readiness_block
     assert "traefik-public-route" in readiness_block
     assert "repo/tools/dokploy_route_canary.py" in readiness_block
     assert "stale-backend-route" in readiness_block
-    assert "classified_route_failures >= 8" in readiness_block
+    assert "readiness_timeout_seconds = 600" in readiness_block
+    assert "classified_route_failures >= 8 and not route_failure_notice_printed" in readiness_block
+    assert "::notice::API route is still unavailable after frontend served" in readiness_block
     assert 'url = app_url + "/api/health"' in workflow
     assert "bash tools/smoke_test.sh" in workflow
     assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm"' in workflow
