@@ -1381,10 +1381,13 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     )
     assert "GIT_COMMIT_SHA=${{ github.sha }}" in backend_build_block
     assert "GIT_COMMIT_SHA=${{ github.sha }}" in frontend_build_block
-    assert (
-        "NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}"
-        in frontend_build_block
+    assert "NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}" in (
+        frontend_build_block
     )
+    assert "NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}" in (
+        frontend_build_block
+    )
+    assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" in deploy_block
     assert "docker/build-push-action@v5" not in deploy_block
     assert "ARG GIT_COMMIT_SHA=unknown" in frontend_dockerfile
     assert "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" in frontend_dockerfile

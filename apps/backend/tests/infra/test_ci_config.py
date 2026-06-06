@@ -80,7 +80,7 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
         image_prefix="wangzitian0/finance_report",
         internal_domain="zitian.party",
     )
-    assert preview_env["S3_ENDPOINT"] == "http://finance-report-minio-pr-489:9000"
+    assert preview_env["S3_ENDPOINT"] == "http://finance-report-minio-pr-489-abc123:9000"
     assert preview_env["MINIO_ROOT_PASSWORD"] == "minio_local_secret"
     assert preview_env["S3_SECRET_KEY"] == "minio_local_secret"
 

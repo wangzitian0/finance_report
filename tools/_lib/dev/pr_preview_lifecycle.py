@@ -12,17 +12,42 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from urllib.parse import quote
+
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except AttributeError:
+    pass
 
 ALLOWLIST_ENV_KEYS = (
     "IMAGE_TAG",
     "GIT_COMMIT_SHA",
     "IAC_CONFIG_HASH",
+    "COMPOSE_PROJECT_NAME",
     "ENV_SUFFIX",
+    "ENV_DOMAIN_SUFFIX",
+    "NEXT_PUBLIC_API_URL",
+    "DB_HOST",
+    "S3_HOST",
     "COMPOSE_PROFILES",
 )
-ROOT_DIR = Path(__file__).resolve().parents[3]
+
+COMPOSE_SUMMARY_KEYS = (
+    "composeId",
+    "name",
+    "sourceType",
+    "repository",
+    "owner",
+    "branch",
+    "composePath",
+    "command",
+    "environmentId",
+    "composeStatus",
+    "status",
+)
+
+DEPLOYMENT_READY_FOR_READINESS_STATUSES = {"running", "done"}
 PR_PREVIEW_COMPOSE_PATH = "docker-compose.pr-preview.yml"
 PR_PREVIEW_COMPOSE_TYPE = "docker-compose"
 PR_PREVIEW_SOURCE_TYPE = "github"
@@ -34,6 +59,10 @@ PR_PREVIEW_OWNER = "wangzitian0"
 class DokployConfig:
     api_url: str
     api_key: str
+
+
+class DokployDeploymentDidNotStart(RuntimeError):
+    """Dokploy accepted a deploy request but did not create a new deployment."""
 
 
 def run_command(
@@ -89,8 +118,110 @@ def render_allowlisted_env_diff(expected: dict[str, str], actual_env_text: str) 
     return "\n".join(lines)
 
 
+def render_compose_summary(data: dict[str, object], *, label: str) -> str:
+    lines = [f"Dokploy compose summary ({label})"]
+    for key in COMPOSE_SUMMARY_KEYS:
+        value = data.get(key)
+        if value is None or value == "":
+            continue
+        lines.append(f"{key}: {str(value)[:160]}")
+    lines.append(f"env_present: {bool(data.get('env'))}")
+    deployments = data.get("deployments")
+    if isinstance(deployments, list):
+        lines.append(f"deployment_count: {len(deployments)}")
+        latest = latest_deployment(deployments)
+        if latest:
+            for key in (
+                "deploymentId",
+                "status",
+                "createdAt",
+                "startedAt",
+                "finishedAt",
+            ):
+                value = latest.get(key)
+                if value:
+                    lines.append(f"latest_deployment_{key}: {str(value)[:160]}")
+    lines.append("raw_compose_printed: false")
+    return "\n".join(lines)
+
+
+def _deployment_timestamp(deployment: dict[str, object]) -> str:
+    for key in ("createdAt", "startedAt", "finishedAt"):
+        value = deployment.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+def latest_deployment(deployments: object) -> dict[str, object] | None:
+    if not isinstance(deployments, list):
+        return None
+    deployment_dicts = [
+        deployment for deployment in deployments if isinstance(deployment, dict)
+    ]
+    if not deployment_dicts:
+        return None
+    return max(deployment_dicts, key=_deployment_timestamp)
+
+
+def deployment_ids(deployments: object) -> set[str]:
+    if not isinstance(deployments, list):
+        return set()
+    ids: set[str] = set()
+    for deployment in deployments:
+        if not isinstance(deployment, dict):
+            continue
+        deployment_id = deployment.get("deploymentId")
+        if deployment_id:
+            ids.add(str(deployment_id))
+    return ids
+
+
+def latest_new_deployment(
+    deployments: object, new_deployment_ids: set[str]
+) -> dict[str, object] | None:
+    if not isinstance(deployments, list):
+        return None
+    candidates = [
+        deployment
+        for deployment in deployments
+        if isinstance(deployment, dict)
+        and str(deployment.get("deploymentId") or "") in new_deployment_ids
+    ]
+    return latest_deployment(candidates)
+
+
 def preview_compose_project(pr_number: int) -> str:
     return f"finance_report_pr_{pr_number}"
+
+
+def preview_commit_slug(commit_sha: str) -> str:
+    if not commit_sha:
+        raise ValueError("commit_sha is required for PR preview routing")
+    slug = re.sub(r"[^a-z0-9]+", "-", commit_sha.lower()).strip("-")
+    if not slug:
+        raise ValueError("commit_sha did not contain any URL-safe characters")
+    return slug[:12]
+
+
+def preview_env_suffix(pr_number: int, commit_sha: str) -> str:
+    return f"-pr-{pr_number}-{preview_commit_slug(commit_sha)}"
+
+
+def preview_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> str:
+    return f"https://report{preview_env_suffix(pr_number, commit_sha)}.{internal_domain}"
+
+
+def preview_compose_command(pr_number: int) -> str:
+    return (
+        f"compose -p {preview_compose_project(pr_number)} "
+        f"-f {PR_PREVIEW_COMPOSE_PATH} up -d --pull always --no-build --remove-orphans"
+    )
+
+
+def preview_port_offset(pr_number: int, commit_sha: str) -> int:
+    seed = f"{pr_number}:{preview_commit_slug(commit_sha)}"
+    return sum((index + 1) * ord(char) for index, char in enumerate(seed)) % 1000
 
 
 def preview_image_tag(pr_number: int, commit_sha: str) -> str:
@@ -107,7 +238,9 @@ def build_preview_env(
     image_prefix: str,
     internal_domain: str,
 ) -> dict[str, str]:
-    pr_mod = pr_number % 1000
+    port_offset = preview_port_offset(pr_number, commit_sha)
+    env_suffix = preview_env_suffix(pr_number, commit_sha)
+    app_url = preview_app_url(pr_number, commit_sha, internal_domain)
     return {
         "PR_PREVIEW_PR_NUMBER": str(pr_number),
         "PR_PREVIEW_COMPOSE_NAME": f"pr-{pr_number}",
@@ -118,16 +251,16 @@ def build_preview_env(
         "IMAGE_PREFIX": image_prefix,
         "IMAGE_TAG": preview_image_tag(pr_number, commit_sha),
         "COMPOSE_PROJECT_NAME": preview_compose_project(pr_number),
-        "ENV_SUFFIX": f"-pr-{pr_number}",
-        "ENV_DOMAIN_SUFFIX": f"-pr-{pr_number}",
+        "ENV_SUFFIX": env_suffix,
+        "ENV_DOMAIN_SUFFIX": env_suffix,
         "INTERNAL_DOMAIN": internal_domain,
         "TRAEFIK_ENABLE": "true",
-        "NEXT_PUBLIC_API_URL": f"https://report-pr-{pr_number}.{internal_domain}",
-        "NEXT_PUBLIC_APP_URL": f"https://report-pr-{pr_number}.{internal_domain}",
+        "NEXT_PUBLIC_API_URL": app_url,
+        "NEXT_PUBLIC_APP_URL": app_url,
         "DEBUG": "true",
-        "DB_PORTS": f"127.0.0.1:{30000 + pr_mod}:5432",
-        "MINIO_API_PORTS": f"127.0.0.1:{32000 + pr_mod}:9000",
-        "MINIO_CONSOLE_PORTS": f"127.0.0.1:{33000 + pr_mod}:9001",
+        "DB_PORTS": f"127.0.0.1:{30000 + port_offset}:5432",
+        "MINIO_API_PORTS": f"127.0.0.1:{32000 + port_offset}:9000",
+        "MINIO_CONSOLE_PORTS": f"127.0.0.1:{33000 + port_offset}:9001",
         "AI_PROVIDER": "zai",
         "ZAI_API_KEY": "",
         "AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
@@ -142,9 +275,9 @@ def build_preview_env(
         "AI_JSON_MAX_TOKENS": "8192",
         "AI_JSON_DISABLE_THINKING": "true",
         "COMPOSE_PROFILES": "infra,app",
-        "DB_HOST": f"finance-report-db-pr-{pr_number}",
-        "S3_HOST": f"finance-report-minio-pr-{pr_number}",
-        "S3_ENDPOINT": f"http://finance-report-minio-pr-{pr_number}:9000",
+        "DB_HOST": f"finance-report-db{env_suffix}",
+        "S3_HOST": f"finance-report-minio{env_suffix}",
+        "S3_ENDPOINT": f"http://finance-report-minio{env_suffix}:9000",
         "MINIO_ROOT_USER": "minio",
         "MINIO_ROOT_PASSWORD": "minio_local_secret",
         "S3_ACCESS_KEY": "minio",
@@ -271,6 +404,7 @@ def create_compose(
             "branch": branch,
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
+            "command": preview_compose_command(pr_number),
         },
     )
     compose_id = json.loads(body or "{}").get("composeId")
@@ -278,6 +412,29 @@ def create_compose(
         raise RuntimeError("Dokploy compose.create response did not include composeId")
     print(f"Created compose: {compose_id}")
     return str(compose_id)
+
+
+def get_or_create_compose(
+    config: DokployConfig,
+    *,
+    environment_id: str,
+    compose_name: str,
+    pr_number: int,
+    branch: str,
+    github_integration_id: str,
+) -> str:
+    compose_id = find_compose_id_by_name(config, environment_id, compose_name)
+    if compose_id:
+        print(f"Found existing compose: {compose_id}")
+        return compose_id
+    return create_compose(
+        config,
+        environment_id=environment_id,
+        compose_name=compose_name,
+        pr_number=pr_number,
+        branch=branch,
+        github_integration_id=github_integration_id,
+    )
 
 
 def get_or_create_compose_with_status(
@@ -310,6 +467,7 @@ def update_compose_source(
     config: DokployConfig,
     *,
     compose_id: str,
+    pr_number: int,
     branch: str,
     github_integration_id: str,
 ) -> None:
@@ -326,18 +484,30 @@ def update_compose_source(
             "branch": branch,
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
+            "command": preview_compose_command(pr_number),
         },
     )
     print(f"GitHub preview compose configured for compose: {compose_id}")
 
 
-def get_compose_env(config: DokployConfig, *, compose_id: str) -> str:
+def get_compose_data(config: DokployConfig, *, compose_id: str) -> dict[str, object]:
     body = dokploy_api_call(
         config,
         "GET",
         f"compose.one?composeId={compose_id}",
     )
     data = json.loads(body or "{}")
+    return data if isinstance(data, dict) else {}
+
+
+def print_compose_summary(
+    config: DokployConfig, *, compose_id: str, label: str
+) -> None:
+    print(render_compose_summary(get_compose_data(config, compose_id=compose_id), label=label))
+
+
+def get_compose_env(config: DokployConfig, *, compose_id: str) -> str:
+    data = get_compose_data(config, compose_id=compose_id)
     env = data.get("env", "")
     return str(env) if env else ""
 
@@ -361,66 +531,98 @@ def update_compose_env(
     print(f"Environment variables configured for compose: {compose_id}")
 
 
-def deploy_compose(config: DokployConfig, *, compose_id: str) -> None:
-    dokploy_api_call(
-        config,
-        "POST",
-        "compose.deploy",
-        payload={"composeId": compose_id},
-    )
-    print(f"Deployment triggered for compose: {compose_id}")
-
-
-def list_compose_deployments(
-    config: DokployConfig, *, compose_id: str
-) -> list[object]:
+def deploy_compose(
+    config: DokployConfig, *, compose_id: str, force_redeploy: bool = False
+) -> None:
+    endpoint = "compose.redeploy" if force_redeploy else "compose.deploy"
     body = dokploy_api_call(
         config,
-        "GET",
-        f"deployment.allByCompose?composeId={quote(compose_id, safe='')}",
+        "POST",
+        endpoint,
+        payload={"composeId": compose_id},
     )
-    data = json.loads(body or "[]")
-    if isinstance(data, list):
-        return data
-    if isinstance(data, dict):
-        for key in ("deployments", "items", "data"):
-            value = data.get(key)
-            if isinstance(value, list):
-                return value
-    return []
+    action = "Redeployment" if force_redeploy else "Deployment"
+    print(f"{action} triggered for compose: {compose_id}")
+    print(f"dokploy_queue_message: {_safe_message(body)}")
 
 
-def wait_for_deployment_record(
+def wait_for_dokploy_deployment_rollout(
     config: DokployConfig,
     *,
     compose_id: str,
-    timeout_seconds: int = 120,
+    previous_deployment_ids: set[str] | None = None,
+    timeout_seconds: int = 300,
+    new_deployment_timeout_seconds: int = 20,
     interval_seconds: int = 5,
 ) -> None:
-    deadline = time.monotonic() + timeout_seconds
+    previous_deployment_ids = previous_deployment_ids or set()
+    started_at = time.monotonic()
+    deadline = started_at + timeout_seconds
+    new_deployment_deadline = started_at + min(
+        timeout_seconds,
+        new_deployment_timeout_seconds,
+    )
+    attempt = 0
     while True:
-        deployments = list_compose_deployments(config, compose_id=compose_id)
-        if deployments:
+        attempt += 1
+        now = time.monotonic()
+        data = get_compose_data(config, compose_id=compose_id)
+        compose_status = str(data.get("composeStatus") or "")
+        deployments = data.get("deployments")
+        deployment_count = len(deployments) if isinstance(deployments, list) else 0
+        if attempt == 1 or attempt % 6 == 0 or compose_status != "idle":
             print(
-                f"Deployment accepted for compose: {compose_id} "
-                f"({len(deployments)} record(s))"
+                render_compose_summary(data, label=f"deployment-rollout-attempt-{attempt}")
             )
-            return
-        if time.monotonic() >= deadline:
+        if compose_status == "error":
+            raise RuntimeError(f"Dokploy compose entered error status: {compose_id}")
+        current_ids = deployment_ids(deployments)
+        new_deployment_ids = sorted(current_ids - previous_deployment_ids)
+        if new_deployment_ids:
+            latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
+            latest_id = str(latest.get("deploymentId") or new_deployment_ids[-1])
+            latest_status = str(latest.get("status") or "unknown")
+            if latest_status == "error":
+                print(
+                    render_compose_summary(
+                        data,
+                        label=f"deployment-error-attempt-{attempt}",
+                    )
+                )
+                raise RuntimeError(
+                    "Dokploy deployment failed before readiness polling: "
+                    f"compose_id={compose_id} deployment_id={latest_id}"
+                )
+            if (
+                attempt == 1
+                or attempt % 6 == 0
+                or latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES
+            ):
+                print(
+                    f"Dokploy deployment observed: compose_id={compose_id} "
+                    f"composeStatus={compose_status or 'unknown'} "
+                    f"deployment_count={deployment_count} "
+                    f"new_deployment_ids={','.join(new_deployment_ids)} "
+                    f"latest_deployment_id={latest_id} "
+                    f"latest_deployment_status={latest_status}"
+                )
+            if latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES:
+                return
+        if not new_deployment_ids and now >= new_deployment_deadline:
+            raise DokployDeploymentDidNotStart(
+                "Dokploy deployment did not create a new deployment before "
+                f"readiness polling: compose_id={compose_id} "
+                f"composeStatus={compose_status or 'unknown'} "
+                f"deployment_count={deployment_count}"
+            )
+        if now >= deadline:
             raise RuntimeError(
-                "Dokploy deployment queue did not create a deployment record "
-                f"for compose: {compose_id}"
+                "Dokploy deployment did not reach running/done before readiness "
+                f"polling: compose_id={compose_id} composeStatus={compose_status or 'unknown'} "
+                f"deployment_count={deployment_count} "
+                f"new_deployment_ids={','.join(new_deployment_ids)}"
             )
-        print(f"Waiting for Dokploy deployment record: {compose_id}")
         time.sleep(interval_seconds)
-
-
-def write_compose_id_output(compose_id: str) -> None:
-    if github_output := os.environ.get("GITHUB_OUTPUT"):
-        with open(github_output, "a", encoding="utf-8") as output:
-            output.write(f"compose_id={compose_id}\n")
-    else:
-        print(f"compose_id={compose_id}")
 
 
 def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
@@ -443,37 +645,53 @@ def deploy_action(args: argparse.Namespace) -> int:
         branch=args.branch,
         github_integration_id=args.github_integration_id,
     )
-    if existing_compose:
-        print(f"Recreating existing PR preview compose: {compose_id}")
-        delete_compose(config, compose_id=compose_id)
-        compose_id = create_compose(
-            config,
-            environment_id=args.environment_id,
-            compose_name=args.compose_name,
-            pr_number=args.pr_number,
-            branch=args.branch,
-            github_integration_id=args.github_integration_id,
-        )
+    preview_env = build_preview_env(
+        pr_number=args.pr_number,
+        commit_sha=args.commit_sha,
+        registry=args.registry,
+        image_prefix=args.image_prefix,
+        internal_domain=args.internal_domain,
+    )
     update_compose_source(
         config,
         compose_id=compose_id,
+        pr_number=args.pr_number,
         branch=args.branch,
         github_integration_id=args.github_integration_id,
     )
+    print_compose_summary(config, compose_id=compose_id, label="after-source-update")
     update_compose_env(
         config,
         compose_id=compose_id,
-        env=build_preview_env(
-            pr_number=args.pr_number,
-            commit_sha=args.commit_sha,
-            registry=args.registry,
-            image_prefix=args.image_prefix,
-            internal_domain=args.internal_domain,
-        ),
+        env=preview_env,
     )
-    deploy_compose(config, compose_id=compose_id)
-    write_compose_id_output(compose_id)
-    wait_for_deployment_record(config, compose_id=compose_id)
+    print_compose_summary(config, compose_id=compose_id, label="after-env-update")
+    previous_deployment_ids = deployment_ids(
+        get_compose_data(config, compose_id=compose_id).get("deployments")
+    )
+    force_redeploy = existing_compose
+    deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
+    print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
+    try:
+        wait_for_dokploy_deployment_rollout(
+            config,
+            compose_id=compose_id,
+            previous_deployment_ids=previous_deployment_ids,
+        )
+    except DokployDeploymentDidNotStart as exc:
+        print(
+            f"{exc}; proceeding to commit-scoped readiness because Dokploy "
+            "deployment records can lag queued deploys"
+        )
+    if github_output := os.environ.get("GITHUB_OUTPUT"):
+        with open(github_output, "a", encoding="utf-8") as output:
+            output.write(f"compose_id={compose_id}\n")
+            output.write(
+                f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}\n"
+            )
+    else:
+        print(f"compose_id={compose_id}")
+        print(f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}")
     return 0
 
 
