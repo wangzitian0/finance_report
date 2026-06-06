@@ -280,29 +280,6 @@ def create_compose(
     return str(compose_id)
 
 
-def get_or_create_compose(
-    config: DokployConfig,
-    *,
-    environment_id: str,
-    compose_name: str,
-    pr_number: int,
-    branch: str,
-    github_integration_id: str,
-) -> str:
-    compose_id = find_compose_id_by_name(config, environment_id, compose_name)
-    if compose_id:
-        print(f"Found existing compose: {compose_id}")
-        return compose_id
-    return create_compose(
-        config,
-        environment_id=environment_id,
-        compose_name=compose_name,
-        pr_number=pr_number,
-        branch=branch,
-        github_integration_id=github_integration_id,
-    )
-
-
 def get_or_create_compose_with_status(
     config: DokployConfig,
     *,
@@ -384,18 +361,14 @@ def update_compose_env(
     print(f"Environment variables configured for compose: {compose_id}")
 
 
-def deploy_compose(
-    config: DokployConfig, *, compose_id: str, force_redeploy: bool = False
-) -> None:
-    endpoint = "compose.redeploy" if force_redeploy else "compose.deploy"
+def deploy_compose(config: DokployConfig, *, compose_id: str) -> None:
     dokploy_api_call(
         config,
         "POST",
-        endpoint,
+        "compose.deploy",
         payload={"composeId": compose_id},
     )
-    action = "Redeployment" if force_redeploy else "Deployment"
-    print(f"{action} triggered for compose: {compose_id}")
+    print(f"Deployment triggered for compose: {compose_id}")
 
 
 def list_compose_deployments(
