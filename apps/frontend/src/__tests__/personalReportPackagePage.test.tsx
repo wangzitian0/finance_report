@@ -717,6 +717,70 @@ describe("PersonalReportPackagePage", () => {
     );
   });
 
+  it("AC20.6.1 uses calendar-year report period starts across leap years", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("Framework Policy");
+
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "2024-03-01" },
+    });
+
+    await waitFor(() =>
+      expect(
+        mockedApiFetch.mock.calls.some(([path]) =>
+          String(path).includes("end_date=2024-03-01"),
+        ),
+      ).toBe(true),
+    );
+
+    mockedApiFetch.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.includes("end_date=2024-03-01"))
+      .forEach((path) => expectPackageDates(path, "2024-03-01", "2023-03-01"));
+
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "2024-02-29" },
+    });
+
+    await waitFor(() =>
+      expect(
+        mockedApiFetch.mock.calls.some(([path]) =>
+          String(path).includes("end_date=2024-02-29"),
+        ),
+      ).toBe(true),
+    );
+
+    mockedApiFetch.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.includes("end_date=2024-02-29"))
+      .forEach((path) => expectPackageDates(path, "2024-02-29", "2023-02-28"));
+  });
+
+  it("AC20.6.1 skips framework package reload while report date input is empty", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("Framework Policy");
+
+    const callCountBeforeEmptyDate = mockedApiFetch.mock.calls.length;
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "" },
+    });
+
+    expect(mockedApiFetch).toHaveBeenCalledTimes(callCountBeforeEmptyDate);
+    expect(
+      mockedApiFetch.mock.calls.some(([path]) =>
+        String(path).includes("end_date=&"),
+      ),
+    ).toBe(false);
+  });
+
   it("AC5.17.2 downloads package CSV through authenticated apiDownload", async () => {
     const createObjectUrl = vi
       .spyOn(URL, "createObjectURL")

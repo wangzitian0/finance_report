@@ -2,6 +2,7 @@
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import case, func, select
@@ -186,7 +187,7 @@ async def calculate_account_balances(
     account_ids = [account.id for account in accounts]
     if use_base_currency:
         base_currency = settings.base_currency.upper()
-        amount_expr = case(
+        amount_expr: Any = case(
             (func.coalesce(func.upper(JournalLine.currency), base_currency) == base_currency, JournalLine.amount),
             else_=JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1")),
         )
@@ -215,7 +216,6 @@ async def calculate_account_balances(
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
         .group_by(JournalLine.account_id)
     )
-
     result = await db.execute(net_query)
     net_by_account = {row.account_id: row.net_balance for row in result.all()}
 
@@ -245,7 +245,7 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     """
     # Get all accounts for user
     result = await db.execute(select(Account).where(Account.user_id == user_id))
-    accounts = result.scalars().all()
+    accounts = list(result.scalars().all())
 
     balances = await calculate_account_balances(db, accounts, user_id, use_base_currency=True)
 
@@ -318,13 +318,14 @@ async def create_journal_entry(
     )
 
     lines: list[JournalLine] = []
+    default_currency = settings.base_currency.upper()
     for line_data in lines_data:
         line = JournalLine(
             journal_entry_id=entry.id,
             account_id=line_data["account_id"],
             direction=line_data["direction"],
             amount=line_data["amount"],
-            currency=line_data.get("currency", "SGD"),
+            currency=(line_data.get("currency") or default_currency).upper(),
             fx_rate=line_data.get("fx_rate"),
             event_type=line_data.get("event_type"),
             tags=line_data.get("tags"),

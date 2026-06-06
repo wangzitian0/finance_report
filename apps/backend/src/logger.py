@@ -374,7 +374,7 @@ def log_external_api(
 
         if inspect.iscoroutinefunction(func):
             return async_wrapper  # type: ignore[return-value]
-        return sync_wrapper  # type: ignore[return-value]
+        return sync_wrapper
 
     return decorator
 

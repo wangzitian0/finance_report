@@ -51,14 +51,26 @@ function renderAnchorDetail(primary: string, identifiers?: string[]) {
   );
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const REPORT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidReportDate(reportDate: string): boolean {
+  if (!REPORT_DATE_PATTERN.test(reportDate)) return false;
+  const [year, month, day] = reportDate.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
 
 function reportPeriodStart(reportDate: string): string {
   const [year, month, day] = reportDate.split("-").map(Number);
   if (!year || !month || !day) return reportDate;
-  return new Date(Date.UTC(year, month - 1, day) - 365 * DAY_MS)
-    .toISOString()
-    .slice(0, 10);
+  const previousYear = year - 1;
+  const lastDayOfMonth = new Date(Date.UTC(previousYear, month, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfMonth);
+  return `${previousYear}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
 }
 
 function packageQuery(frameworkId: string, reportDate: string): string {
@@ -296,7 +308,7 @@ export default function PersonalReportPackagePage() {
 
   function handleReportDateChange(nextReportDate: string) {
     setReportDate(nextReportDate);
-    if (selectedFrameworkId) {
+    if (selectedFrameworkId && isValidReportDate(nextReportDate)) {
       void loadFrameworkPackage(selectedFrameworkId, nextReportDate);
     }
   }

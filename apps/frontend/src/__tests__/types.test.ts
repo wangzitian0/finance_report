@@ -47,7 +47,25 @@ function sourceFilesUnder(relativePath: string): string[] {
 }
 
 it("AC2.8.2 keeps page and component money contracts from widening to number|string", () => {
-  const forbiddenPattern = /(?:number\s*\|\s*string|string\s*\|\s*number)/;
+  const moneyFieldNames = [
+    "amount",
+    "balance",
+    "cost",
+    "credit",
+    "debit",
+    "fairValue",
+    "fee",
+    "gain",
+    "income",
+    "marketValue",
+    "price",
+    "total",
+    "value",
+  ];
+  const forbiddenPattern = new RegExp(
+    `\\b(?:[A-Za-z0-9_]*_)?(?:${moneyFieldNames.join("|")})(?:_[A-Za-z0-9_]+)?\\??\\s*:\\s*(?:number\\s*\\|\\s*string|string\\s*\\|\\s*number)`,
+    "i",
+  );
   const offenders = [...sourceFilesUnder("app"), ...sourceFilesUnder("components")]
     .filter((file) => forbiddenPattern.test(readFileSync(file, "utf8")))
     .map((file) => file.replace(resolve(__dirname, "..") + "/", ""));

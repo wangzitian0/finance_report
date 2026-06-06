@@ -14,6 +14,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -716,6 +717,29 @@ async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_
 
     for line in entry.lines:
         assert line.currency == "SGD"
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_default_currency_uses_configured_base_currency(
+    db: AsyncSession, bank_account, salary_account, test_user_id, monkeypatch: pytest.MonkeyPatch
+):
+    """AC2.2.2: Missing line currency defaults to the configured base currency."""
+    monkeypatch.setattr(settings, "base_currency", "usd")
+    lines_data = [
+        {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("500.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("500.00")},
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Test configured default currency",
+        lines_data=lines_data,
+    )
+
+    assert {line.currency for line in entry.lines} == {"USD"}
     await db.commit()
 
 
