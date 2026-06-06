@@ -11,10 +11,11 @@ import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
 
 import pytest
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
+
+from tests.e2e.auth_cookie import build_auth_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -116,23 +117,10 @@ class AuthState:
 
 
 def auth_cookie(access_token: str) -> dict[str, object]:
-    parsed_app_url = urlparse(TestConfig.APP_URL)
-    if not parsed_app_url.hostname:
-        pytest.fail(
-            f"APP_URL must include a hostname for auth cookie injection: {TestConfig.APP_URL}"
-        )
-
-    cookie: dict[str, object] = {
-        "name": "finance_access_token",
-        "value": str(access_token),
-        "domain": parsed_app_url.hostname,
-        "path": "/",
-        "httpOnly": True,
-        "sameSite": "Lax",
-    }
-    if parsed_app_url.scheme == "https":
-        cookie["secure"] = True
-    return cookie
+    try:
+        return build_auth_cookie(TestConfig.APP_URL, access_token)
+    except ValueError as exc:
+        pytest.fail(str(exc))
 
 
 @pytest.fixture(scope="session")
