@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/api";
 
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
 import { formatAmount } from "@/lib/currency";
+import type { MoneyValue } from "@/lib/types";
 
 interface ConsistencyCheck {
     id: string;
@@ -30,7 +31,7 @@ interface PendingMatch {
     status: string;
     created_at: string | null;
     description?: string;
-    amount?: number | string;
+    amount?: MoneyValue;
     txn_date?: string;
 }
 
@@ -42,7 +43,7 @@ interface Stage2Data {
 
 interface ProcessingSummary {
     pending_count: number;
-    pending_total: string | number;
+    pending_total: MoneyValue;
     currency: string;
     oldest_pending_date: string | null;
 }

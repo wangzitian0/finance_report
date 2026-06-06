@@ -70,8 +70,14 @@ def validate_journal_balance(lines: list[JournalLine]) -> None:
     if len(lines) < 2:
         raise ValidationError("Journal entry must have at least 2 lines")
 
-    total_debit = sum(_line_base_amount(line) for line in lines if line.direction == Direction.DEBIT)
-    total_credit = sum(_line_base_amount(line) for line in lines if line.direction == Direction.CREDIT)
+    total_debit = sum(
+        (_line_base_amount(line) for line in lines if line.direction == Direction.DEBIT),
+        Decimal("0"),
+    )
+    total_credit = sum(
+        (_line_base_amount(line) for line in lines if line.direction == Direction.CREDIT),
+        Decimal("0"),
+    )
 
     if abs(total_debit - total_credit) > Decimal("0.01"):
         raise ValidationError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")
@@ -310,8 +316,6 @@ async def create_journal_entry(
         source_type=normalize_source_type(source_type),
         source_id=source_id,
     )
-    db.add(entry)
-    await db.flush()
 
     lines: list[JournalLine] = []
     for line_data in lines_data:
@@ -327,9 +331,14 @@ async def create_journal_entry(
         )
         lines.append(line)
 
+    validate_journal_balance(lines)
     validate_fx_rates(lines)
 
+    db.add(entry)
+    await db.flush()
+
     for line in lines:
+        line.journal_entry_id = entry.id
         db.add(line)
 
     await db.flush()

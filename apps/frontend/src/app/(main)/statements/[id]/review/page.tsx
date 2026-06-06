@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import type { MoneyValue } from "@/lib/types";
 
 import { BalanceIndicator } from "@/components/review/BalanceIndicator";
 import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
@@ -35,8 +36,8 @@ interface StatementReview {
     currency: string | null;
     period_start: string | null;
     period_end: string | null;
-    opening_balance: string | number | null;
-    closing_balance: string | number | null;
+    opening_balance: MoneyValue | null;
+    closing_balance: MoneyValue | null;
     status: string;
     stage1_status: string | null;
     balance_validation_result: BalanceValidationResult | null;
@@ -47,7 +48,7 @@ interface StatementReview {
 interface ConflictCandidate {
     description: string;
     txn_date: string;
-    amount: string | number;
+    amount: MoneyValue;
 }
 
 interface ReviewConflicts {

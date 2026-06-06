@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrencyLocale } from "@/lib/currency";
+import type { MoneyValue } from "@/lib/types";
 
 interface BalanceValidationResult {
     opening_balance: string;
@@ -14,8 +15,8 @@ interface BalanceValidationResult {
 }
 
 interface BalanceIndicatorProps {
-    openingBalance: string | number | null;
-    closingBalance: string | number | null;
+    openingBalance: MoneyValue | null;
+    closingBalance: MoneyValue | null;
     validationResult: BalanceValidationResult | null;
     currency: string;
 }

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 import "@/lib/types";
@@ -25,4 +25,32 @@ it("AC2.8.2 keeps frontend monetary API fields Decimal-serializable instead of b
 
   expect(typesSource).toContain("export type DecimalValue = string;");
   expect(typesSource).not.toContain("export type DecimalValue = string | number;");
+});
+
+function sourceFilesUnder(relativePath: string): string[] {
+  const root = resolve(__dirname, "..", relativePath);
+  const files: string[] = [];
+  const visit = (path: string) => {
+    const stat = statSync(path);
+    if (stat.isDirectory()) {
+      for (const entry of readdirSync(path)) {
+        visit(resolve(path, entry));
+      }
+      return;
+    }
+    if (/\.(ts|tsx)$/.test(path) && !path.endsWith(".test.tsx") && !path.endsWith(".test.ts")) {
+      files.push(path);
+    }
+  };
+  visit(root);
+  return files;
+}
+
+it("AC2.8.2 keeps page and component money contracts from widening to number|string", () => {
+  const forbiddenPattern = /(?:number\s*\|\s*string|string\s*\|\s*number)/;
+  const offenders = [...sourceFilesUnder("app"), ...sourceFilesUnder("components")]
+    .filter((file) => forbiddenPattern.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(resolve(__dirname, "..") + "/", ""));
+
+  expect(offenders).toEqual([]);
 });

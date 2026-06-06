@@ -172,6 +172,37 @@ export interface IncomeStatementResponse {
   net_income: MoneyValue;
   fx_warnings?: FxWarning[];
   trends: IncomeStatementTrend[];
+  filters_applied?: {
+    tags: string[] | null;
+    account_type: string | null;
+  };
+}
+
+export interface CashFlowItem {
+  category: string;
+  subcategory: string;
+  amount: MoneyValue;
+  description: string | null;
+}
+
+export interface CashFlowSummary {
+  operating_activities: MoneyValue;
+  investing_activities: MoneyValue;
+  financing_activities: MoneyValue;
+  net_cash_flow: MoneyValue;
+  beginning_cash: MoneyValue;
+  ending_cash: MoneyValue;
+}
+
+export interface CashFlowResponse {
+  start_date: string;
+  end_date: string;
+  currency: string;
+  operating: CashFlowItem[];
+  investing: CashFlowItem[];
+  financing: CashFlowItem[];
+  summary: CashFlowSummary;
+  fx_warnings?: FxWarning[];
 }
 
 export interface PersonalReportPackageSectionContract {
