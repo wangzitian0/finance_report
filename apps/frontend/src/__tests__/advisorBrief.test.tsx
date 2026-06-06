@@ -82,4 +82,32 @@ describe("AdvisorBrief", () => {
       expect.stringContaining("/chat?prompt="),
     );
   });
+
+  it("AC21.3.2 renders duplicate source refs without duplicate React keys", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      render(
+        <AdvisorBrief
+          suggestions={[
+            {
+              basis: "Two readiness blockers share the same source.",
+              confidence_tier: "blocked",
+              source_refs: ["workflow.status", "workflow.status"],
+              limitation: "Resolve both blockers before using the report.",
+              next_action_href: "/reports/package",
+            },
+          ]}
+        />,
+      );
+
+      const card = screen.getByTestId("advisor-brief-card-0");
+      expect(within(card).getAllByText("workflow.status")).toHaveLength(2);
+      expect(
+        consoleError.mock.calls.some((call) => call.some((arg) => String(arg).includes("same key"))),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });

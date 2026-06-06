@@ -112,6 +112,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert is_pr_preview_relevant("apps/frontend/package-lock.json") is True
     assert is_pr_preview_relevant("tests/e2e/test_core_journeys.py") is True
     assert is_pr_preview_relevant("docker-compose.yml") is True
+    assert is_pr_preview_relevant("docker-compose.pr-preview.yml") is True
     assert is_pr_preview_relevant("tools/generate_pdf_fixtures.py") is True
     assert (
         is_pr_preview_relevant("tools/_lib/pdf_fixtures/generators/dbs_generator.py")
@@ -177,6 +178,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         ".github/workflows/pr-test.yml",
         ".github/workflows/pr-preview-cleanup.yml",
         ".github/actions/setup-e2e-tests/action.yml",
+        "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
         "tools/_lib/dev/pr_preview_lifecycle.py",
         "tools/_lib/dev/cleanup_pr_preview_resources.py",
@@ -207,6 +209,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
     )
     assert result.pr_preview_reason == "pr-preview-paths-changed"
     assert result.staging_required is False
+    assert is_staging_relevant("docker-compose.pr-preview.yml") is False
 
 
 def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:

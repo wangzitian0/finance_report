@@ -176,10 +176,12 @@ def test_AC8_13_71_create_compose_requires_compose_id(
             environment_id="env-test",
             compose_name="pr-591",
             pr_number=591,
+            branch="feature",
+            github_integration_id="ghid",
         )
 
 
-def test_AC8_13_71_get_or_create_reuses_existing_compose(
+def test_AC8_13_71_get_or_create_with_status_reuses_existing_compose(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -189,14 +191,17 @@ def test_AC8_13_71_get_or_create_reuses_existing_compose(
         lifecycle, "find_compose_id_by_name", lambda *args, **kwargs: "cmp-591"
     )
 
-    compose_id = lifecycle.get_or_create_compose(
+    compose_id, existing = lifecycle.get_or_create_compose_with_status(
         lifecycle.DokployConfig("https://cloud.example/api", "secret"),
         environment_id="env-test",
         compose_name="pr-591",
         pr_number=591,
+        branch="feature",
+        github_integration_id="ghid",
     )
 
     assert compose_id == "cmp-591"
+    assert existing is True
     assert "Found existing compose: cmp-591" in capsys.readouterr().out
 
 
@@ -369,12 +374,12 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
                 stdout=json.dumps({"env": effective_env}),
                 stderr="",
             )
-        if "compose.start" in rendered:
+        if "deployment.allByCompose" in rendered:
             return subprocess.CompletedProcess(
                 cmd,
-                28,
-                stdout="",
-                stderr="curl: (28) Operation timed out",
+                0,
+                stdout='[{"deploymentId":"dep-591"}]',
+                stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
 
@@ -405,15 +410,21 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     assert "compose.update" in rendered_calls
     assert "compose.one" in rendered_calls
     assert "compose.deploy" in rendered_calls
+    assert "deployment.allByCompose" in rendered_calls
+    assert "compose.start" not in rendered_calls
+    assert rendered_calls.index("compose.deploy") < rendered_calls.index(
+        "deployment.allByCompose"
+    )
     assert "secret-key" not in rendered_calls
     assert "VAULT_APP_TOKEN" not in rendered_calls
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started(
+def test_AC8_13_98_existing_deployed_preview_compose_is_recreated_without_start_stop(
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.98: Existing PR previews restart around deploy."""
+    """AC8.13.98: Existing PR previews are disposable and rebuilt before deploy."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
@@ -442,11 +453,25 @@ def test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started(
                 stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
                 stderr="",
             )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"composeId":"cmp-592"}',
+                stderr="",
+            )
         if "compose.one" in rendered:
             return subprocess.CompletedProcess(
                 cmd,
                 0,
                 stdout=json.dumps({"env": effective_env}),
+                stderr="",
+            )
+        if "deployment.allByCompose" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='[{"deploymentId":"dep-591"}]',
                 stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
@@ -471,216 +496,16 @@ def test_AC8_13_98_existing_preview_compose_is_stopped_deployed_and_started(
 
     assert lifecycle.main_from_args(args) == 0
 
+    captured = capsys.readouterr()
     rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert "compose.delete" not in rendered_calls
-    assert "compose.create" not in rendered_calls
+    assert "compose.delete" in rendered_calls
+    assert "compose.create" in rendered_calls
     assert "compose.update" in rendered_calls
-    assert "compose.one" in rendered_calls
-    assert "compose.stop" in rendered_calls
-    assert "compose.redeploy" in rendered_calls
-    assert "compose.start" in rendered_calls
-    assert rendered_calls.index("compose.stop") < rendered_calls.index(
-        "compose.redeploy"
-    )
-    assert rendered_calls.index("compose.redeploy") < rendered_calls.index(
-        "compose.start"
-    )
-    assert "secret-key" not in rendered_calls
-
-
-def test_AC8_13_98_existing_preview_start_failure_rebuilds_compose(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC8.13.98: Existing PR previews rebuild when start fails."""
-    lifecycle = lifecycle_module()
-    calls: list[list[str]] = []
-    start_attempts = 0
-
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "ENV_SUFFIX=-pr-591",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
-
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        rendered = " ".join(cmd)
-        if "environment.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
-                stderr="",
-            )
-        if "compose.create" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"composeId":"cmp-592"}',
-                stderr="",
-            )
-        if "compose.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout=json.dumps({"env": effective_env}),
-                stderr="",
-            )
-        if "compose.start" in rendered:
-            nonlocal start_attempts
-            start_attempts += 1
-            if start_attempts > 1:
-                return subprocess.CompletedProcess(
-                    cmd, 0, stdout='{"ok":true}', stderr=""
-                )
-            return subprocess.CompletedProcess(
-                cmd,
-                28,
-                stdout="",
-                stderr="curl: (28) Operation timed out",
-            )
-        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
-
-    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
-
-    assert lifecycle.main_from_args(args) == 0
-
-    captured = capsys.readouterr()
-    rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert "compose.stop" in rendered_calls
-    assert "compose.redeploy" in rendered_calls
-    assert "compose.start" in rendered_calls
-    assert "compose.delete" in rendered_calls
-    assert "compose.create" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert rendered_calls.index("compose.start") < rendered_calls.index(
-        "compose.delete"
-    )
-    assert rendered_calls.index("compose.delete") < rendered_calls.index(
-        "compose.create"
-    )
-    assert rendered_calls.rindex("compose.deploy") > rendered_calls.index(
-        "compose.create"
-    )
-    assert rendered_calls.rindex("compose.start") > rendered_calls.rindex(
-        "compose.deploy"
-    )
-    assert "Start request failed for compose cmp-591; recreating preview compose" in (
-        captured.out
-    )
-    assert "secret-key" not in rendered_calls
-
-
-def test_AC8_13_100_existing_preview_stop_failure_still_deploys(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC8.13.100: Broken existing PR previews are rebuilt before readiness."""
-    lifecycle = lifecycle_module()
-    calls: list[list[str]] = []
-
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "ENV_SUFFIX=-pr-591",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
-
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        rendered = " ".join(cmd)
-        if "environment.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
-                stderr="",
-            )
-        if "compose.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout=json.dumps({"env": effective_env}),
-                stderr="",
-            )
-        if "compose.stop" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"message":"Command execution failed: spawn /bin/sh ENOENT"}\n500',
-                stderr="",
-            )
-        if "compose.create" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"composeId":"cmp-592"}',
-                stderr="",
-            )
-        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
-
-    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
-
-    assert lifecycle.main_from_args(args) == 0
-
-    captured = capsys.readouterr()
-    rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert "compose.stop" in rendered_calls
-    assert "compose.delete" in rendered_calls
-    assert "compose.create" in rendered_calls
-    assert "compose.deploy" in rendered_calls
-    assert "compose.start" in rendered_calls
-    assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.delete")
+    assert "deployment.allByCompose" in rendered_calls
+    assert "compose.stop" not in rendered_calls
+    assert "compose.start" not in rendered_calls
+    assert "compose.redeploy" not in rendered_calls
     assert rendered_calls.index("compose.delete") < rendered_calls.index(
         "compose.create"
     )
@@ -688,20 +513,19 @@ def test_AC8_13_100_existing_preview_stop_failure_still_deploys(
         "compose.deploy"
     )
     assert rendered_calls.index("compose.deploy") < rendered_calls.index(
-        "compose.start"
+        "deployment.allByCompose"
     )
-    assert "Stop request failed for compose cmp-591; recreating preview compose" in (
-        captured.out
-    )
+    assert "Recreating existing PR preview compose: cmp-591" in captured.out
     assert "secret-key" not in rendered_calls
 
 
-def test_AC8_13_71_deploy_action_writes_github_output(
+def test_AC8_13_98_deploy_action_writes_output_before_deployment_record_wait(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     lifecycle = lifecycle_module()
     output_path = tmp_path / "github-output.txt"
+    events: list[str] = []
 
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
     monkeypatch.setattr(
@@ -713,7 +537,18 @@ def test_AC8_13_71_deploy_action_writes_github_output(
         lifecycle, "update_compose_source", lambda *args, **kwargs: None
     )
     monkeypatch.setattr(lifecycle, "update_compose_env", lambda *args, **kwargs: None)
-    monkeypatch.setattr(lifecycle, "deploy_compose", lambda *args, **kwargs: None)
+
+    def fake_deploy_compose(*args: object, **kwargs: object) -> None:
+        events.append("deploy")
+
+    def fake_wait_for_deployment_record(*args: object, **kwargs: object) -> None:
+        events.append("wait")
+        assert output_path.read_text() == "compose_id=cmp-591\n"
+
+    monkeypatch.setattr(lifecycle, "deploy_compose", fake_deploy_compose)
+    monkeypatch.setattr(
+        lifecycle, "wait_for_deployment_record", fake_wait_for_deployment_record
+    )
     args = SimpleNamespace(
         pr_number=591,
         compose_name="pr-591",
@@ -730,7 +565,30 @@ def test_AC8_13_71_deploy_action_writes_github_output(
 
     assert lifecycle.deploy_action(args) == 0
 
+    assert events == ["deploy", "wait"]
     assert output_path.read_text() == "compose_id=cmp-591\n"
+
+
+def test_AC8_13_98_wait_for_deployment_record_fails_fast_without_raw_response(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(lifecycle, "list_compose_deployments", lambda *args, **kwargs: [])
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(RuntimeError, match="deployment queue"):
+        lifecycle.wait_for_deployment_record(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
+            compose_id="cmp-591",
+            timeout_seconds=0,
+            interval_seconds=0,
+        )
+
+    captured = capsys.readouterr()
+    assert "secret-key" not in captured.out
+    assert "raw_body" not in captured.out
 
 
 def test_AC8_13_74_reconcile_deletes_only_stale_dokploy_composes(

@@ -13,7 +13,8 @@ Finance Report uses **two git repositories** for configuration:
 
 | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
-| **Local/CI/PR** | `/docker-compose.yml` | Development + PR previews |
+| **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
+| **PR preview** | `/docker-compose.pr-preview.yml` | Dokploy GitHub-source PR previews using CI-built images only; services are not profile-gated |
 | **Staging/Production** | `/repo/finance_report/.../compose.yaml` | Production with Vault secrets |
 
 The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2).

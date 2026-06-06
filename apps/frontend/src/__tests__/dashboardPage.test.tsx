@@ -280,6 +280,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />)
 
     await waitForDashboardAnalyticsReady()
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/chat/suggestions?language=en&include_structured=true")
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
     expect(screen.getByText("Total Liabilities")).toBeInTheDocument()
     expect(screen.getByText("Net Assets")).toBeInTheDocument()

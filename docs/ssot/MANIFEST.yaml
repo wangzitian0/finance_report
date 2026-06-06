@@ -230,6 +230,7 @@ concepts:
       - .moon/toolchain.yml
       - .github/workflows/ci.yml
       - docker-compose.yml
+      - docker-compose.pr-preview.yml
 
   local_host_shells:
     owner: docs/ssot/development.md#local-host-shell-matrix

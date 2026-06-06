@@ -60,7 +60,9 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
 
   const fetchSuggestions = useCallback(async () => {
     try { 
-      const data = await apiFetch<ChatSuggestionsResponse>(`/api/chat/suggestions?language=${language}`);
+      const data = await apiFetch<ChatSuggestionsResponse>(
+        `/api/chat/suggestions?language=${language}&include_structured=true`,
+      );
       setSuggestions(data.suggestions || []); 
       setAdvisorSuggestions(data.structured_suggestions || []);
     } catch { 

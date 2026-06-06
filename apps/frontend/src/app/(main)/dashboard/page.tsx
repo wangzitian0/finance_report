@@ -162,7 +162,7 @@ export default function DashboardPage() {
         apiFetch<AccountListResponse>("/api/accounts?limit=1"),
         apiFetch<BankStatementListResponse>("/api/statements"),
         apiFetch<JournalEntryListResponse>("/api/journal-entries?status_filter=posted&limit=1"),
-        apiFetch<ChatSuggestionsResponse>("/api/chat/suggestions?language=en").catch(() => ({
+        apiFetch<ChatSuggestionsResponse>("/api/chat/suggestions?language=en&include_structured=true").catch(() => ({
           suggestions: [],
           structured_suggestions: [],
         })),
