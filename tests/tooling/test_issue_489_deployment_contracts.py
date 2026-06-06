@@ -275,9 +275,12 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
         internal_domain="zitian.party",
     )
     assert preview_env["COMPOSE_PROFILES"] == "infra,app"
-    assert preview_env["DB_HOST"] == "finance-report-db-pr-489"
-    assert preview_env["S3_HOST"] == "finance-report-minio-pr-489"
-    assert preview_env["S3_ENDPOINT"] == "http://finance-report-minio-pr-489:9000"
+    assert preview_env["DB_HOST"] == "finance-report-db-pr-489-abc123"
+    assert preview_env["S3_HOST"] == "finance-report-minio-pr-489-abc123"
+    assert (
+        preview_env["S3_ENDPOINT"]
+        == "http://finance-report-minio-pr-489-abc123:9000"
+    )
     assert 'echo "S3_BUCKET=statements"' in workflow or "S3_BUCKET:-statements" in read(
         "docker-compose.yml"
     )
@@ -288,10 +291,17 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "EXPECTED_SHA: ${{ github.sha }}" in readiness_block
     assert 'expected_sha = os.environ["EXPECTED_SHA"]' in readiness_block
     assert 'payload.get("git_sha") or payload.get("version")' in readiness_block
-    assert (
-        "Existing deployment is still serving; waiting for rollout" in readiness_block
-    )
-    assert 'url = os.environ["APP_URL"] + "/api/health"' in workflow
+    assert "route_probe attempt=" in readiness_block
+    assert "app_readiness_classification=" in readiness_block
+    assert "platform_failure_domain=" in readiness_block
+    assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in readiness_block
+    assert "frontend-route-ready-api-route-missing" in readiness_block
+    assert "dokploy-worker-or-deployment-record" in readiness_block
+    assert "traefik-public-route" in readiness_block
+    assert "repo/tools/dokploy_route_canary.py" in readiness_block
+    assert "stale-backend-route" in readiness_block
+    assert "classified_route_failures >= 8" in readiness_block
+    assert 'url = app_url + "/api/health"' in workflow
     assert "bash tools/smoke_test.sh" in workflow
     assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm"' in workflow
     assert "| API Health | [${url}/api/health](${url}/api/health) |" in workflow

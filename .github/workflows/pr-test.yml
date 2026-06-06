@@ -29,6 +29,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONUNBUFFERED: "1"
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
@@ -45,6 +46,8 @@ jobs:
       pr_number: ${{ steps.info.outputs.pr_number }}
       action: ${{ steps.info.outputs.action }}
       internal_domain: ${{ steps.info.outputs.internal_domain }}
+      preview_app_url: ${{ steps.info.outputs.preview_app_url }}
+      preview_commit_slug: ${{ steps.info.outputs.preview_commit_slug }}
       pr_preview_required: ${{ steps.preview.outputs.pr_preview_required }}
       pr_preview_reason: ${{ steps.preview.outputs.pr_preview_reason }}
     steps:
@@ -59,13 +62,15 @@ jobs:
             echo "internal_domain=${{ env.INTERNAL_DOMAIN }}"
             if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
               echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})" >&2
-              echo "pr_number=${{ github.event.inputs.pr_number }}"
-              echo "compose_name=pr-${{ github.event.inputs.pr_number }}"
+              pr_number="${{ github.event.inputs.pr_number }}"
+              echo "pr_number=${pr_number}"
+              echo "compose_name=pr-${pr_number}"
               echo "action=${{ github.event.inputs.action }}"
             else
               echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})" >&2
-              echo "pr_number=${{ github.event.pull_request.number }}"
-              echo "compose_name=pr-${{ github.event.pull_request.number }}"
+              pr_number="${{ github.event.pull_request.number }}"
+              echo "pr_number=${pr_number}"
+              echo "compose_name=pr-${pr_number}"
 
               if [ "${{ github.event.action }}" == "closed" ]; then
                 echo "action=cleanup"
@@ -73,6 +78,10 @@ jobs:
                 echo "action=deploy"
               fi
             fi
+
+            preview_commit_slug="$(python3 -c 'import os; from tools._lib.dev.pr_preview_lifecycle import preview_commit_slug; print(preview_commit_slug(os.environ["GITHUB_SHA"]))')"
+            echo "preview_commit_slug=${preview_commit_slug}"
+            echo "preview_app_url=https://report-pr-${pr_number}-${preview_commit_slug}.${{ env.INTERNAL_DOMAIN }}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Classify PR preview relevance
@@ -183,8 +192,8 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
-            NEXT_PUBLIC_API_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
-            NEXT_PUBLIC_APP_URL=https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+            NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}
+            NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}
 
   deploy:
     name: Deploy Test Environment
@@ -220,20 +229,32 @@ jobs:
             --image-prefix "${{ env.IMAGE_PREFIX }}" \
             --internal-domain "${{ needs.setup.outputs.internal_domain }}"
 
+      - name: Print preview routing context
+        run: |
+          echo "compose_id=${{ steps.deploy.outputs.compose_id }}"
+          echo "app_url=${{ steps.deploy.outputs.app_url }}"
+          echo "api_health_url=${{ steps.deploy.outputs.app_url }}/api/health"
+          echo "frontend_version_url=${{ steps.deploy.outputs.app_url }}/frontend-version.json?expected=${{ github.sha }}"
+          echo "expected_sha=${{ github.sha }}"
+
       - name: Wait for API readiness
         env:
-          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          APP_URL: ${{ steps.deploy.outputs.app_url }}
           EXPECTED_SHA: ${{ github.sha }}
         run: |
-          python3 - << 'EOF'
+          python3 -u - << 'EOF'
           import json
-          import urllib.request
-          import ssl
-          import time
           import os
+          import ssl
           import sys
+          import time
+          import urllib.error
+          import urllib.request
 
-          url = os.environ["APP_URL"] + "/api/health"
+          app_url = os.environ["APP_URL"].rstrip("/")
+          url = app_url + "/api/health"
+          ping_url = app_url + "/api/ping"
+          frontend_url = app_url + f"/frontend-version.json?expected={os.environ['EXPECTED_SHA']}"
           expected_sha = os.environ["EXPECTED_SHA"]
           print(f"Waiting for API readiness at {url}")
           print(f"Expecting deployed git_sha={expected_sha}")
@@ -242,41 +263,157 @@ jobs:
           ctx.check_hostname = False
           ctx.verify_mode = ssl.CERT_NONE
 
-          max_attempts = 30
+          def probe(probe_url):
+              request = urllib.request.Request(
+                  probe_url,
+                  headers={
+                      "Cache-Control": "no-cache",
+                      "Pragma": "no-cache",
+                      "User-Agent": "finance-report-pr-preview-readiness/1.0",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=15, context=ctx) as response:
+                      body = response.read().decode("utf-8", errors="replace")
+                      return {
+                          "status": response.getcode(),
+                          "body": body[:500],
+                          "headers": dict(response.headers),
+                          "error": "",
+                      }
+              except urllib.error.HTTPError as exc:
+                  body = exc.read().decode("utf-8", errors="replace")
+                  return {
+                      "status": exc.code,
+                      "body": body[:500],
+                      "headers": dict(exc.headers),
+                      "error": type(exc).__name__,
+                  }
+              except Exception as exc:
+                  return {
+                      "status": 0,
+                      "body": "",
+                      "headers": {},
+                      "error": f"{type(exc).__name__}: {exc}",
+                  }
+
+          def parse_json_body(result):
+              try:
+                  return json.loads(result["body"] or "{}")
+              except json.JSONDecodeError:
+                  return {}
+
+          def response_code(payload):
+              value = payload.get("code")
+              return value if isinstance(value, str) else ""
+
+          def classify(api_result, ping_result, frontend_result):
+              api_payload = parse_json_body(api_result)
+              frontend_payload = parse_json_body(frontend_result)
+              frontend_sha = frontend_payload.get("git_sha") or frontend_payload.get("version")
+              if api_result["status"] == 503 and response_code(api_payload) == "SERVICE_UNAVAILABLE":
+                  return "frontend-fallback-api-route-missing-or-backend-unhealthy"
+              if api_result["status"] == 404 and frontend_sha == expected_sha:
+                  return "frontend-route-ready-api-route-missing"
+              if api_result["status"] == 200:
+                  api_sha = api_payload.get("git_sha") or api_payload.get("version")
+                  if api_sha and api_sha != expected_sha:
+                      return "stale-backend-route"
+              if ping_result["status"] == 200 and api_result["status"] != 200:
+                  return "backend-ping-ready-health-not-ready"
+              return "rollout-not-ready"
+
+          def platform_failure_domain(classification, api_result, ping_result, frontend_result):
+              statuses = {
+                  api_result["status"],
+                  ping_result["status"],
+                  frontend_result["status"],
+              }
+              if statuses == {404}:
+                  return "traefik-public-route"
+              if classification == "frontend-route-ready-api-route-missing":
+                  return "traefik-public-route"
+              if classification == "frontend-fallback-api-route-missing-or-backend-unhealthy":
+                  return "docker-runtime"
+              if classification in {"stale-backend-route", "backend-ping-ready-health-not-ready"}:
+                  return "application-runtime"
+              return "dokploy-worker-or-deployment-record"
+
+          max_attempts = 18
+          classified_route_failures = 0
           for attempt in range(1, max_attempts + 1):
               delay = min(5 + (attempt // 5) * 5, 30)
-              try:
-                  with urllib.request.urlopen(url, timeout=15, context=ctx) as response:
-                      if 200 <= response.getcode() < 400:
-                          payload = json.loads(response.read().decode("utf-8"))
-                          actual_sha = payload.get("git_sha") or payload.get("version")
-                          if actual_sha == expected_sha:
-                              print(f"✅ API ready with expected git_sha {actual_sha}")
-                              sys.exit(0)
-                          print(
-                              f"⚠️ Attempt {attempt}/{max_attempts}: "
-                              f"status {response.getcode()}, git_sha={actual_sha}, "
-                              f"expected={expected_sha}"
-                          )
-                          print("   Existing deployment is still serving; waiting for rollout...")
-                      else:
-                          print(f"⚠️ Attempt {attempt}/{max_attempts}: status {response.getcode()}")
-              except Exception as e:
-                  print(f"❌ Attempt {attempt}/{max_attempts}: {type(e).__name__}: {e}")
+              api_result = probe(url)
+              ping_result = probe(ping_url)
+              frontend_result = probe(frontend_url)
+              api_payload = parse_json_body(api_result)
+              frontend_payload = parse_json_body(frontend_result)
+              actual_sha = api_payload.get("git_sha") or api_payload.get("version")
+              frontend_sha = frontend_payload.get("git_sha") or frontend_payload.get("version")
+              classification = classify(api_result, ping_result, frontend_result)
+              failure_domain = platform_failure_domain(
+                  classification,
+                  api_result,
+                  ping_result,
+                  frontend_result,
+              )
+
+              print(
+                  f"route_probe attempt={attempt}/{max_attempts} "
+                  f"app_readiness_classification={classification} "
+                  f"platform_failure_domain={failure_domain} "
+                  f"api_status={api_result['status']} api_sha={actual_sha or ''} "
+                  f"api_code={response_code(api_payload)} "
+                  f"api_error={api_result['error']} "
+                  f"ping_status={ping_result['status']} "
+                  f"frontend_status={frontend_result['status']} "
+                  f"frontend_sha={frontend_sha or ''} "
+                  f"expected_sha={expected_sha}"
+              )
+
+              if api_result["status"] == 200 and actual_sha == expected_sha:
+                  print(f"API ready with expected git_sha {actual_sha}")
+                  sys.exit(0)
+
+              if classification in {
+                  "frontend-fallback-api-route-missing-or-backend-unhealthy",
+                  "frontend-route-ready-api-route-missing",
+              }:
+                  classified_route_failures += 1
+              else:
+                  classified_route_failures = 0
+
+              if classified_route_failures >= 8:
+                  print(
+                      "::error::API route stayed unavailable after frontend served the "
+                      "expected commit. This isolates the failure to backend route, "
+                      "backend container health, or Traefik backend attachment."
+                  )
+                  print(
+                      "::notice::Run infra2's Dokploy Route Canary workflow or "
+                      "repo/tools/dokploy_route_canary.py to split Dokploy control "
+                      "plane, deployment record, Docker runtime, and Traefik public route."
+                  )
+                  sys.exit(1)
 
               print(f"   Retrying in {delay}s...")
               time.sleep(delay)
 
           print("::error::API not ready with expected git_sha after all attempts")
+          print(
+              "::notice::If platform_failure_domain is traefik-public-route or "
+              "dokploy-worker-or-deployment-record, run infra2's Dokploy Route "
+              "Canary before changing application readiness."
+          )
           sys.exit(1)
           EOF
 
       - name: Wait for frontend readiness
         env:
-          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          APP_URL: ${{ steps.deploy.outputs.app_url }}
           EXPECTED_SHA: ${{ github.sha }}
         run: |
-          python3 - << 'EOF'
+          python3 -u - << 'EOF'
           import json
           import os
           import ssl
@@ -343,7 +480,7 @@ jobs:
       - name: End-to-End Tests
         id: e2e_tests
         env:
-          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          APP_URL: ${{ steps.deploy.outputs.app_url }}
           TEST_ENV: staging
           SKIP_UI_TESTS: false
           EXPECTED_SHA: ${{ github.sha }}
@@ -385,7 +522,7 @@ jobs:
       - name: Write PR preview context
         if: ${{ always() }}
         env:
-          APP_URL: https://report-pr-${{ needs.setup.outputs.pr_number }}.${{ needs.setup.outputs.internal_domain }}
+          APP_URL: ${{ steps.deploy.outputs.app_url }}
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
           mkdir -p ci-context
@@ -424,11 +561,11 @@ jobs:
         env:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-          INTERNAL_DOMAIN: ${{ needs.setup.outputs.internal_domain }}
+          APP_URL: ${{ steps.deploy.outputs.app_url }}
           COMPOSE_NAME: ${{ needs.setup.outputs.compose_name }}
         with:
           script: |
-            const url = `https://report-pr-${process.env.PR_NUMBER}.${process.env.INTERNAL_DOMAIN}`;
+            const url = process.env.APP_URL;
             const body = `## 🧪 Test Environment Deployed
 
             | Service | URL |
