@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
 import { BarChart } from "@/components/charts/BarChart";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
-import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import type { IncomeStatementResponse } from "@/lib/types";
 
 const ACCOUNT_TYPE_OPTIONS = [
@@ -30,14 +31,11 @@ const TAG_OPTIONS = [
 ];
 
 export default function IncomeStatementPage() {
-  const [report, setReport] = useState<IncomeStatementResponse | null>(null);
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 11); d.setDate(1); return formatDateInput(d); });
   const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
   const [accountTypeFilter, setAccountTypeFilter] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { currencies } = useCurrencies();
 
   const toggleTag = (tag: string) => {
@@ -46,7 +44,7 @@ export default function IncomeStatementPage() {
     );
   };
 
-  const buildQueryParams = useCallback(() => {
+  const queryString = useMemo(() => {
     const params = new URLSearchParams();
     params.set("start_date", startDate);
     params.set("end_date", endDate);
@@ -59,27 +57,19 @@ export default function IncomeStatementPage() {
     }
     return params.toString();
   }, [startDate, endDate, currency, accountTypeFilter, selectedTags]);
-
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
-    try {
-      const queryString = buildQueryParams();
-      const data = await apiFetch<IncomeStatementResponse>(`/api/reports/income-statement?${queryString}`);
-      setReport(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load income statement.");
-    } finally { setLoading(false); }
-  }, [buildQueryParams]);
-
-  useEffect(() => { fetchReport(); }, [fetchReport]);
+  const reportQuery = useApiQuery<IncomeStatementResponse>(
+    ["report", "income-statement", queryString],
+    `/api/reports/income-statement?${queryString}`,
+    { placeholderData: keepPreviousData },
+  );
+  const report = reportQuery.data ?? null;
 
   const barItems = useMemo(() => report ? report.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: amountToChartNumber(t.total_income), expense: amountToChartNumber(t.total_expenses) })) : [], [report]);
-  const exportPath = useMemo(() => `/api/reports/export?report_type=income-statement&format=csv&${buildQueryParams()}`, [buildQueryParams]);
+  const exportPath = useMemo(() => `/api/reports/export?report_type=income-statement&format=csv&${queryString}`, [queryString]);
   const aiPrompt = useMemo(() => encodeURIComponent(`Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends.`), [currency, endDate, startDate]);
 
-  if (loading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading income statement...</span></div>;
-  if (error) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{error}</p><button onClick={fetchReport} className="btn-secondary">Retry</button></div></div>;
+  if (reportQuery.isLoading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading income statement...</span></div>;
+  if (reportQuery.isError) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>;
 
   return (
     <div className="p-6">

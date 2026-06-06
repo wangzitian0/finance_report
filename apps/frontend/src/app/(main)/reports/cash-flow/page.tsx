@@ -1,41 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
-import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import type { CashFlowItem, CashFlowResponse } from "@/lib/types";
 
 export default function CashFlowPage() {
-  const [report, setReport] = useState<CashFlowResponse | null>(null);
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return formatDateInput(d); });
   const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { currencies } = useCurrencies();
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiFetch<CashFlowResponse>(`/api/reports/cash-flow?start_date=${startDate}&end_date=${endDate}&currency=${currency}`);
-      setReport(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load cash flow statement.");
-    } finally { setLoading(false); }
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate, currency });
+    return params.toString();
   }, [currency, endDate, startDate]);
-
-  useEffect(() => { fetchReport(); }, [fetchReport]);
+  const reportQuery = useApiQuery<CashFlowResponse>(
+    ["report", "cash-flow", queryString],
+    `/api/reports/cash-flow?${queryString}`,
+    { placeholderData: keepPreviousData },
+  );
+  const report = reportQuery.data ?? null;
 
   const summary = useMemo(() => report?.summary, [report]);
-  const exportPath = `/api/reports/export?report_type=cash-flow&format=csv&start_date=${startDate}&end_date=${endDate}&currency=${currency}`;
+  const exportPath = `/api/reports/export?report_type=cash-flow&format=csv&${queryString}`;
   const aiPrompt = useMemo(() => encodeURIComponent(`Analyze my cash flow from ${startDate} to ${endDate} in ${currency}. What are the main sources and uses of cash?`), [currency, endDate, startDate]);
 
   const renderSection = (title: string, items: CashFlowItem[], colorClass: string) => (
@@ -59,8 +55,8 @@ export default function CashFlowPage() {
     </div>
   );
 
-  if (loading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading cash flow...</span></div>;
-  if (error) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{error}</p><button onClick={fetchReport} className="btn-secondary">Retry</button></div></div>;
+  if (reportQuery.isLoading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading cash flow...</span></div>;
+  if (reportQuery.isError) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>;
 
   return (
     <div className="p-6">

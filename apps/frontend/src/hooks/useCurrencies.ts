@@ -1,7 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 const DEFAULT_CURRENCIES = ["SGD", "USD", "EUR"];
 
@@ -11,21 +8,8 @@ type UseCurrenciesResult = {
 };
 
 export function useCurrencies(): UseCurrenciesResult {
-    const [currencies, setCurrencies] = useState<string[]>(DEFAULT_CURRENCIES);
-    const [loading, setLoading] = useState(true);
+    const query = useApiQuery<string[]>(["report-currencies"], "/api/reports/currencies");
+    const currencies = query.data?.length ? query.data : DEFAULT_CURRENCIES;
 
-    useEffect(() => {
-        apiFetch<string[]>("/api/reports/currencies")
-            .then((data) => {
-                if (data && data.length > 0) {
-                    setCurrencies(data);
-                }
-            })
-            .catch((error) => {
-                console.error("[useCurrencies] Failed to load currencies", error);
-            })
-            .finally(() => setLoading(false));
-    }, []);
-
-    return { currencies, loading };
+    return { currencies, loading: query.isLoading };
 }
