@@ -436,6 +436,7 @@ def deploy_action(args: argparse.Namespace) -> int:
         env=preview_env,
     )
     should_start_existing = existing_compose
+    recreated_existing = False
     if existing_compose:
         try:
             stop_compose(config, compose_id=compose_id)
@@ -458,6 +459,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
             update_compose_env(config, compose_id=compose_id, env=preview_env)
             should_start_existing = False
+            recreated_existing = True
     deploy_compose(config, compose_id=compose_id, force_redeploy=should_start_existing)
     if should_start_existing:
         if not start_compose(config, compose_id=compose_id):
@@ -476,6 +478,11 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
             update_compose_env(config, compose_id=compose_id, env=preview_env)
             deploy_compose(config, compose_id=compose_id, force_redeploy=False)
+            if not start_compose(config, compose_id=compose_id):
+                raise RuntimeError(f"Rebuilt compose failed to start: {compose_id}")
+    elif recreated_existing:
+        if not start_compose(config, compose_id=compose_id):
+            raise RuntimeError(f"Rebuilt compose failed to start: {compose_id}")
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")

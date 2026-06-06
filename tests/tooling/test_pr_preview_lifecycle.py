@@ -495,6 +495,7 @@ def test_AC8_13_98_existing_preview_start_failure_rebuilds_compose(
     """AC8.13.98: Existing PR previews rebuild when start fails."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
+    start_attempts = 0
 
     effective_env = "\n".join(
         [
@@ -536,6 +537,12 @@ def test_AC8_13_98_existing_preview_start_failure_rebuilds_compose(
                 stderr="",
             )
         if "compose.start" in rendered:
+            nonlocal start_attempts
+            start_attempts += 1
+            if start_attempts > 1:
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout='{"ok":true}', stderr=""
+                )
             return subprocess.CompletedProcess(
                 cmd,
                 28,
@@ -580,6 +587,9 @@ def test_AC8_13_98_existing_preview_start_failure_rebuilds_compose(
     )
     assert rendered_calls.rindex("compose.deploy") > rendered_calls.index(
         "compose.create"
+    )
+    assert rendered_calls.rindex("compose.start") > rendered_calls.rindex(
+        "compose.deploy"
     )
     assert "Start request failed for compose cmp-591; recreating preview compose" in (
         captured.out
@@ -669,13 +679,16 @@ def test_AC8_13_100_existing_preview_stop_failure_still_deploys(
     assert "compose.delete" in rendered_calls
     assert "compose.create" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert "compose.start" not in rendered_calls
+    assert "compose.start" in rendered_calls
     assert rendered_calls.index("compose.stop") < rendered_calls.index("compose.delete")
     assert rendered_calls.index("compose.delete") < rendered_calls.index(
         "compose.create"
     )
     assert rendered_calls.index("compose.create") < rendered_calls.index(
         "compose.deploy"
+    )
+    assert rendered_calls.index("compose.deploy") < rendered_calls.index(
+        "compose.start"
     )
     assert "Stop request failed for compose cmp-591; recreating preview compose" in (
         captured.out
