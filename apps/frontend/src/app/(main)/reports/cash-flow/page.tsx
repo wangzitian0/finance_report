@@ -5,38 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
-import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
+import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
-
-interface CashFlowItem {
-  category: string;
-  subcategory: string;
-  amount: number | string;
-  description: string | null;
-}
-
-interface CashFlowSummary {
-  operating_activities: number | string;
-  investing_activities: number | string;
-  financing_activities: number | string;
-  net_cash_flow: number | string;
-  beginning_cash: number | string;
-  ending_cash: number | string;
-}
-
-interface CashFlowResponse {
-  start_date: string;
-  end_date: string;
-  currency: string;
-  operating: CashFlowItem[];
-  investing: CashFlowItem[];
-  financing: CashFlowItem[];
-  summary: CashFlowSummary;
-  fx_warnings?: FxWarning[];
-}
+import type { CashFlowItem, CashFlowResponse } from "@/lib/types";
 
 export default function CashFlowPage() {
   const [report, setReport] = useState<CashFlowResponse | null>(null);

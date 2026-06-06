@@ -7,10 +7,12 @@ import { useEffect, useRef, useState } from "react";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
+import { formatDateInput } from "@/lib/date";
 import type {
   AnnualizedIncomeScheduleResponse,
   EvidenceLineageResponse,
   FrameworkPolicyResult,
+  MoneyValue,
   PersonalReportPackageContractResponse,
   PersonalReportPackageNotesResponse,
   PersonalReportPackageReadinessResponse,
@@ -24,7 +26,7 @@ const FRAMEWORK_LABELS: Record<string, string> = {
 };
 
 function formatScheduleCurrency(
-  value: number | string,
+  value: MoneyValue,
   currency: string,
 ): string {
   return formatCurrencyLocale(value, currency, "en-US", {
@@ -49,8 +51,45 @@ function renderAnchorDetail(primary: string, identifiers?: string[]) {
   );
 }
 
-function frameworkQuery(frameworkId: string): string {
-  return `?framework_id=${encodeURIComponent(frameworkId)}`;
+const REPORT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidReportDate(reportDate: string): boolean {
+  if (!REPORT_DATE_PATTERN.test(reportDate)) return false;
+  const [year, month, day] = reportDate.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+function reportPeriodStart(reportDate: string): string {
+  const [year, month, day] = reportDate.split("-").map(Number);
+  if (!year || !month || !day) return reportDate;
+  const previousYear = year - 1;
+  const lastDayOfMonth = new Date(Date.UTC(previousYear, month, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfMonth);
+  return `${previousYear}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
+}
+
+function packageQuery(frameworkId: string, reportDate: string): string {
+  const params = new URLSearchParams({
+    framework_id: frameworkId,
+    start_date: reportPeriodStart(reportDate),
+    end_date: reportDate,
+    as_of_date: reportDate,
+  });
+  return `?${params.toString()}`;
+}
+
+function packageSectionQuery(reportDate: string): string {
+  const params = new URLSearchParams({
+    start_date: reportPeriodStart(reportDate),
+    end_date: reportDate,
+    as_of_date: reportDate,
+  });
+  return `?${params.toString()}`;
 }
 
 function evidenceBundleReferences(
@@ -171,6 +210,7 @@ export default function PersonalReportPackagePage() {
   const [selectedFrameworkId, setSelectedFrameworkId] = useState<string | null>(
     null,
   );
+  const [reportDate, setReportDate] = useState(() => formatDateInput(new Date()));
   const [isPackageLoading, setIsPackageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(
@@ -200,14 +240,15 @@ export default function PersonalReportPackagePage() {
     };
   }, []);
 
-  async function loadFrameworkPackage(frameworkId: string) {
+  async function loadFrameworkPackage(frameworkId: string, requestedReportDate = reportDate) {
     packageRequestRef.current?.abort();
     const controller = new AbortController();
     packageRequestRef.current = controller;
     setSelectedFrameworkId(frameworkId);
     setIsPackageLoading(true);
     setError(null);
-    const query = frameworkQuery(frameworkId);
+    const query = packageQuery(frameworkId, requestedReportDate);
+    const sectionQuery = packageSectionQuery(requestedReportDate);
     const requestOptions = { signal: controller.signal };
 
     try {
@@ -232,7 +273,7 @@ export default function PersonalReportPackagePage() {
           requestOptions,
         ),
         apiFetch<AnnualizedIncomeScheduleResponse>(
-          "/api/reports/package/annualized-income-schedule",
+          `/api/reports/package/annualized-income-schedule${sectionQuery}`,
           requestOptions,
         ),
         apiFetch<PersonalReportPackageNotesResponse>(
@@ -240,7 +281,7 @@ export default function PersonalReportPackagePage() {
           requestOptions,
         ),
         apiFetch<PersonalReportPackageTraceabilityResponse>(
-          "/api/reports/package/traceability",
+          `/api/reports/package/traceability${sectionQuery}`,
           requestOptions,
         ),
       ]);
@@ -262,6 +303,13 @@ export default function PersonalReportPackagePage() {
         packageRequestRef.current = null;
         setIsPackageLoading(false);
       }
+    }
+  }
+
+  function handleReportDateChange(nextReportDate: string) {
+    setReportDate(nextReportDate);
+    if (selectedFrameworkId && isValidReportDate(nextReportDate)) {
+      void loadFrameworkPackage(selectedFrameworkId, nextReportDate);
     }
   }
 
@@ -344,13 +392,31 @@ export default function PersonalReportPackagePage() {
               : "Select a framework before package output is loaded."}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">{frameworkButtons}</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs text-muted uppercase">Report date</span>
+            <input
+              type="date"
+              value={reportDate}
+              onChange={(event) => handleReportDateChange(event.target.value)}
+              className="input w-auto"
+              aria-label="Package report date"
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">{frameworkButtons}</div>
+        </div>
       </div>
       {selectedFrameworkId ? (
-        <dl className="mt-5 grid md:grid-cols-3 gap-3 text-sm">
+        <dl className="mt-5 grid md:grid-cols-4 gap-3 text-sm">
           <div>
             <dt className="text-xs text-muted">Selected Framework</dt>
             <dd className="mt-1 font-mono text-xs">{selectedFrameworkId}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Report Period</dt>
+            <dd className="mt-1 font-mono text-xs">
+              {reportPeriodStart(reportDate)} to {reportDate}
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-muted">Policy Endpoint</dt>
@@ -402,7 +468,15 @@ export default function PersonalReportPackagePage() {
   }
 
   const evidenceReferences = evidenceBundleReferences(frameworkPolicy);
-  const exportPath = `/api/reports/export?report_type=package&format=csv&framework_id=${encodeURIComponent(selectedFrameworkId)}`;
+  const exportParams = new URLSearchParams({
+    report_type: "package",
+    format: "csv",
+    framework_id: selectedFrameworkId,
+    start_date: reportPeriodStart(reportDate),
+    end_date: reportDate,
+    as_of_date: reportDate,
+  });
+  const exportPath = `/api/reports/export?${exportParams.toString()}`;
 
   return (
     <div className="p-6">

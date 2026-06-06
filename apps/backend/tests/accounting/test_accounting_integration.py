@@ -14,6 +14,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -720,6 +721,49 @@ async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_
 
 
 @pytest.mark.asyncio
+async def test_create_journal_entry_default_currency_uses_configured_base_currency(
+    db: AsyncSession, bank_account, salary_account, test_user_id, monkeypatch: pytest.MonkeyPatch
+):
+    """AC2.2.2: Missing line currency defaults to the configured base currency."""
+    monkeypatch.setattr(settings, "base_currency", "usd")
+    lines_data = [
+        {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("500.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("500.00")},
+    ]
+
+    entry = await create_journal_entry(
+        db=db,
+        user_id=test_user_id,
+        entry_date=date.today(),
+        memo="Test configured default currency",
+        lines_data=lines_data,
+    )
+
+    assert {line.currency for line in entry.lines} == {"USD"}
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_journal_entry_rejects_unbalanced_draft(
+    db: AsyncSession, bank_account, salary_account, test_user_id
+):
+    """AC2.2.2: Service-layer draft creation rejects unbalanced debit/credit lines."""
+    lines_data = [
+        {"account_id": bank_account.id, "direction": Direction.DEBIT, "amount": Decimal("100.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("90.00")},
+    ]
+
+    with pytest.raises(ValidationError, match="Journal entry not balanced"):
+        await create_journal_entry(
+            db=db,
+            user_id=test_user_id,
+            entry_date=date.today(),
+            memo="Unbalanced draft",
+            lines_data=lines_data,
+        )
+
+
+@pytest.mark.asyncio
 async def test_create_journal_entry_fx_rate_required_for_foreign_currency(
     db: AsyncSession, bank_account, salary_account, test_user_id
 ):
@@ -731,7 +775,7 @@ async def test_create_journal_entry_fx_rate_required_for_foreign_currency(
             "amount": Decimal("100.00"),
             "currency": "USD",
         },
-        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("100.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("135.00")},
     ]
 
     with pytest.raises(ValidationError, match="fx_rate required for currency USD"):
@@ -755,7 +799,7 @@ async def test_create_journal_entry_with_fx_rate(db: AsyncSession, bank_account,
             "currency": "USD",
             "fx_rate": Decimal("1.35"),
         },
-        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("100.00")},
+        {"account_id": salary_account.id, "direction": Direction.CREDIT, "amount": Decimal("135.00")},
     ]
 
     entry = await create_journal_entry(

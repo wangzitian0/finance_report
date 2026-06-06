@@ -1,8 +1,8 @@
 """Database configuration and session management."""
 
 from collections.abc import AsyncGenerator
+from typing import cast
 
-from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -76,12 +76,14 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
     might be bound to a specific test transaction.
     """
     bind = db.bind or db.get_bind()
+    async_engine: AsyncEngine | None
     if isinstance(bind, AsyncEngine):
         async_engine = bind
-    elif isinstance(bind, Engine) and getattr(bind, "_async_engine", None):
-        async_engine = bind._async_engine
     else:
-        async_engine = getattr(bind, "async_engine", None)
+        async_engine = cast(
+            AsyncEngine | None,
+            getattr(bind, "_async_engine", None) or getattr(bind, "async_engine", None),
+        )
 
     if not isinstance(async_engine, AsyncEngine):
         if _test_session_maker is not None:

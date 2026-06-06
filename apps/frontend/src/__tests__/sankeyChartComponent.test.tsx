@@ -89,12 +89,12 @@ describe("SankeyChart", () => {
       <SankeyChart
         title="Detailed Cash Flow"
         operating={[
-          { category: "operating", subcategory: "Sales", amount: 300 },
-          { category: "operating", subcategory: "Payroll", amount: -120 },
+          { category: "operating", subcategory: "Sales", amount: "300" },
+          { category: "operating", subcategory: "Payroll", amount: "-120" },
           { category: "operating", subcategory: "Invalid", amount: "NaN" },
         ]}
-        investing={[{ category: "investing", subcategory: "Equipment", amount: -80 }]}
-        financing={[{ category: "financing", subcategory: "Loan", amount: 220 }]}
+        investing={[{ category: "investing", subcategory: "Equipment", amount: "-80" }]}
+        financing={[{ category: "financing", subcategory: "Loan", amount: "220" }]}
       />,
     )
 
@@ -135,8 +135,8 @@ describe("SankeyChart", () => {
   it("AC16.21.8 recomputes theme-driven colors on root attribute change", async () => {
     render(
       <SankeyChart
-        operating={[{ category: "operating", subcategory: "Sales", amount: 100 }]}
-        financing={[{ category: "financing", subcategory: "Loan", amount: -20 }]}
+        operating={[{ category: "operating", subcategory: "Sales", amount: "100" }]}
+        financing={[{ category: "financing", subcategory: "Loan", amount: "-20" }]}
       />,
     )
 

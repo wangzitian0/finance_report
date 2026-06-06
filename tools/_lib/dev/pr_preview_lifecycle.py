@@ -382,7 +382,7 @@ def stop_compose(config: DokployConfig, *, compose_id: str) -> None:
     print(f"Stop triggered for compose: {compose_id}")
 
 
-def start_compose(config: DokployConfig, *, compose_id: str) -> None:
+def start_compose(config: DokployConfig, *, compose_id: str) -> bool:
     try:
         dokploy_api_call(
             config,
@@ -392,11 +392,11 @@ def start_compose(config: DokployConfig, *, compose_id: str) -> None:
         )
     except RuntimeError:
         print(
-            f"Start request did not return for compose: {compose_id}; "
-            "continuing to readiness gate"
+            f"Start request failed for compose {compose_id}; recreating preview compose"
         )
-        return
+        return False
     print(f"Start triggered for compose: {compose_id}")
+    return True
 
 
 def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
@@ -436,6 +436,7 @@ def deploy_action(args: argparse.Namespace) -> int:
         env=preview_env,
     )
     should_start_existing = existing_compose
+    recreated_existing = False
     if existing_compose:
         try:
             stop_compose(config, compose_id=compose_id)
@@ -458,9 +459,30 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
             update_compose_env(config, compose_id=compose_id, env=preview_env)
             should_start_existing = False
+            recreated_existing = True
     deploy_compose(config, compose_id=compose_id, force_redeploy=should_start_existing)
     if should_start_existing:
-        start_compose(config, compose_id=compose_id)
+        if not start_compose(config, compose_id=compose_id):
+            delete_compose(config, compose_id=compose_id)
+            compose_id = create_compose(
+                config,
+                environment_id=args.environment_id,
+                compose_name=args.compose_name,
+                pr_number=args.pr_number,
+            )
+            update_compose_source(
+                config,
+                compose_id=compose_id,
+                branch=args.branch,
+                github_integration_id=args.github_integration_id,
+            )
+            update_compose_env(config, compose_id=compose_id, env=preview_env)
+            deploy_compose(config, compose_id=compose_id, force_redeploy=False)
+            if not start_compose(config, compose_id=compose_id):
+                raise RuntimeError(f"Rebuilt compose failed to start: {compose_id}")
+    elif recreated_existing:
+        if not start_compose(config, compose_id=compose_id):
+            raise RuntimeError(f"Rebuilt compose failed to start: {compose_id}")
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")

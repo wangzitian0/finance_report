@@ -2,11 +2,12 @@
 
 import { useId, useRef } from "react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import type { MoneyValue } from "@/lib/types";
 
 interface ConflictCandidate {
     description: string;
     txn_date: string;
-    amount: string | number;
+    amount: MoneyValue;
 }
 
 interface ConflictResolutionDialogProps {

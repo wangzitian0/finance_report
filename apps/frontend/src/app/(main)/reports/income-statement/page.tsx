@@ -4,45 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BarChart } from "@/components/charts/BarChart";
-import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
+import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
-
-interface ReportLine {
-  account_id: string;
-  name: string;
-  type: string;
-  parent_id?: string | null;
-  amount: number | string;
-}
-
-interface IncomeStatementTrend {
-  period_start: string;
-  period_end: string;
-  total_income: number | string;
-  total_expenses: number | string;
-  net_income: number | string;
-}
-
-interface IncomeStatementResponse {
-  start_date: string;
-  end_date: string;
-  currency: string;
-  income: ReportLine[];
-  expenses: ReportLine[];
-  total_income: number | string;
-  total_expenses: number | string;
-  net_income: number | string;
-  fx_warnings?: FxWarning[];
-  trends: IncomeStatementTrend[];
-  filters_applied?: {
-    tags: string[] | null;
-    account_type: string | null;
-  };
-}
+import type { IncomeStatementResponse } from "@/lib/types";
 
 const ACCOUNT_TYPE_OPTIONS = [
   { value: "", label: "All Types" },

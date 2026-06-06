@@ -9,7 +9,8 @@ import { formatAmount } from "@/lib/currency";
 import {
   ReconciliationMatchListResponse,
   ReconciliationMatchResponse,
-  ReconciliationStatsResponse
+  ReconciliationStatsResponse,
+  type MoneyValue
 } from "@/lib/types";
 
 interface AnomalyResponse {
@@ -18,7 +19,7 @@ interface AnomalyResponse {
   message: string;
 }
 
-function formatQueueAmount(value: number | string): string {
+function formatQueueAmount(value: MoneyValue): string {
   const amount = formatAmount(value, 2);
   return amount.endsWith(".00") ? amount.slice(0, -3) : amount;
 }

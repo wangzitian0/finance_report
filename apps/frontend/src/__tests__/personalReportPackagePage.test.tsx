@@ -501,11 +501,11 @@ function mockPackageApi(
       return Promise.resolve(readinessPayload);
     if (path.startsWith("/api/reports/package/framework-policy?framework_id="))
       return Promise.resolve(policyPayload);
-    if (path === "/api/reports/package/annualized-income-schedule")
+    if (path.startsWith("/api/reports/package/annualized-income-schedule?"))
       return Promise.resolve(annualizedSchedule);
     if (path === "/api/reports/package/notes")
       return Promise.resolve(packageNotes);
-    if (path === "/api/reports/package/traceability")
+    if (path.startsWith("/api/reports/package/traceability?"))
       return Promise.resolve(traceabilityPayload);
     if (path.startsWith("/api/evidence/lineage?"))
       return lineagePayload instanceof Error
@@ -513,6 +513,20 @@ function mockPackageApi(
         : Promise.resolve(lineagePayload);
     return Promise.reject(new Error(`Unexpected path ${path}`));
   });
+}
+
+function expectPinnedPackageDates(path: string) {
+  const params = new URL(path, "http://localhost").searchParams;
+  expect(params.get("start_date")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(params.get("end_date")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(params.get("as_of_date")).toBe(params.get("end_date"));
+}
+
+function expectPackageDates(path: string, reportDate: string, startDate: string) {
+  const params = new URL(path, "http://localhost").searchParams;
+  expect(params.get("start_date")).toBe(startDate);
+  expect(params.get("end_date")).toBe(reportDate);
+  expect(params.get("as_of_date")).toBe(reportDate);
 }
 
 describe("PersonalReportPackagePage", () => {
@@ -633,12 +647,21 @@ describe("PersonalReportPackagePage", () => {
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+        expect.stringContaining(
+          "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+        ),
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
+    const readinessCall = mockedApiFetch.mock.calls.find(([path]) =>
+      String(path).startsWith("/api/reports/package/readiness?framework_id=personal_us_gaap_like"),
+    );
+    expect(readinessCall).toBeTruthy();
+    expectPinnedPackageDates(String(readinessCall![0]));
     expect(mockedApiFetch).toHaveBeenCalledWith(
-      "/api/reports/package/framework-policy?framework_id=personal_us_gaap_like",
+      expect.stringContaining(
+        "/api/reports/package/framework-policy?framework_id=personal_us_gaap_like",
+      ),
       expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(screen.getByText("Framework Policy")).toBeInTheDocument();
@@ -654,6 +677,108 @@ describe("PersonalReportPackagePage", () => {
       screen.getByText("assets.marketable_securities"),
     ).toBeInTheDocument();
     expect(screen.getByText("unsupported_policy_domain")).toBeInTheDocument();
+  });
+
+  it("AC20.6.1 keeps framework package sections pinned to the selected report date", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("Framework Policy");
+
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "2026-04-30" },
+    });
+
+    await waitFor(() =>
+      expect(
+        mockedApiFetch.mock.calls.some(([path]) =>
+          String(path).includes("end_date=2026-04-30"),
+        ),
+      ).toBe(true),
+    );
+
+    const selectedDateCalls = mockedApiFetch.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.includes("end_date=2026-04-30"));
+
+    expect(selectedDateCalls).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("/api/reports/package/contract?"),
+        expect.stringContaining("/api/reports/package/readiness?"),
+        expect.stringContaining("/api/reports/package/framework-policy?"),
+        expect.stringContaining("/api/reports/package/annualized-income-schedule?"),
+        expect.stringContaining("/api/reports/package/traceability?"),
+      ]),
+    );
+    selectedDateCalls.forEach((path) =>
+      expectPackageDates(path, "2026-04-30", "2025-04-30"),
+    );
+  });
+
+  it("AC20.6.1 uses calendar-year report period starts across leap years", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("Framework Policy");
+
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "2024-03-01" },
+    });
+
+    await waitFor(() =>
+      expect(
+        mockedApiFetch.mock.calls.some(([path]) =>
+          String(path).includes("end_date=2024-03-01"),
+        ),
+      ).toBe(true),
+    );
+
+    mockedApiFetch.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.includes("end_date=2024-03-01"))
+      .forEach((path) => expectPackageDates(path, "2024-03-01", "2023-03-01"));
+
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "2024-02-29" },
+    });
+
+    await waitFor(() =>
+      expect(
+        mockedApiFetch.mock.calls.some(([path]) =>
+          String(path).includes("end_date=2024-02-29"),
+        ),
+      ).toBe(true),
+    );
+
+    mockedApiFetch.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.includes("end_date=2024-02-29"))
+      .forEach((path) => expectPackageDates(path, "2024-02-29", "2023-02-28"));
+  });
+
+  it("AC20.6.1 skips framework package reload while report date input is empty", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("Framework Policy");
+
+    const callCountBeforeEmptyDate = mockedApiFetch.mock.calls.length;
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "" },
+    });
+
+    expect(mockedApiFetch).toHaveBeenCalledTimes(callCountBeforeEmptyDate);
+    expect(
+      mockedApiFetch.mock.calls.some(([path]) =>
+        String(path).includes("end_date=&"),
+      ),
+    ).toBe(false);
   });
 
   it("AC5.17.2 downloads package CSV through authenticated apiDownload", async () => {
@@ -675,9 +800,12 @@ describe("PersonalReportPackagePage", () => {
 
     await waitFor(() => {
       expect(mockedApiDownload).toHaveBeenCalledWith(
-        "/api/reports/export?report_type=package&format=csv&framework_id=personal_us_gaap_like",
+        expect.stringContaining(
+          "/api/reports/export?report_type=package&format=csv&framework_id=personal_us_gaap_like",
+        ),
       );
     });
+    expectPinnedPackageDates(String(mockedApiDownload.mock.calls[0][0]));
 
     createObjectUrl.mockRestore();
     revokeObjectUrl.mockRestore();
@@ -699,12 +827,16 @@ describe("PersonalReportPackagePage", () => {
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/reports/package/readiness?framework_id=personal_hkfrs_like",
+        expect.stringContaining(
+          "/api/reports/package/readiness?framework_id=personal_hkfrs_like",
+        ),
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
     expect(mockedApiFetch).toHaveBeenCalledWith(
-      "/api/reports/package/framework-policy?framework_id=personal_hkfrs_like",
+      expect.stringContaining(
+        "/api/reports/package/framework-policy?framework_id=personal_hkfrs_like",
+      ),
       expect.objectContaining({ signal: expect.any(Object) }),
     );
     expect(
@@ -768,11 +900,11 @@ describe("PersonalReportPackagePage", () => {
           });
         if (path.startsWith("/api/reports/package/framework-policy?framework_id="))
           return Promise.resolve(hkPolicy);
-        if (path === "/api/reports/package/annualized-income-schedule")
+        if (path.startsWith("/api/reports/package/annualized-income-schedule?"))
           return Promise.resolve(annualizedSchedule);
         if (path === "/api/reports/package/notes")
           return Promise.resolve(packageNotes);
-        if (path === "/api/reports/package/traceability")
+        if (path.startsWith("/api/reports/package/traceability?"))
           return Promise.resolve(traceabilityAppendix);
         return Promise.reject(new Error(`Unexpected path ${path}`));
       },
@@ -847,7 +979,9 @@ describe("PersonalReportPackagePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+        expect.stringContaining(
+          "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+        ),
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );

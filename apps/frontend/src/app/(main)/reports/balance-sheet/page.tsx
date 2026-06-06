@@ -8,32 +8,8 @@ import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
-import { FxWarningBanner, type FxWarning } from "@/components/reports/FxWarningBanner";
-
-interface ReportLine {
-  account_id: string;
-  name: string;
-  type: string;
-  parent_id?: string | null;
-  amount: number | string;
-}
-
-interface BalanceSheetResponse {
-  as_of_date: string;
-  currency: string;
-  assets: ReportLine[];
-  liabilities: ReportLine[];
-  equity: ReportLine[];
-  total_assets: number | string;
-  total_liabilities: number | string;
-  total_equity: number | string;
-  net_income?: number | string;
-  unrealized_fx_gain_loss?: number | string;
-  net_worth_adjustment_gain_loss?: number | string;
-  fx_warnings?: FxWarning[];
-  equation_delta: number | string;
-  is_balanced: boolean;
-}
+import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
+import type { BalanceSheetResponse, ReportLine } from "@/lib/types";
 
 interface AccountNode extends ReportLine { children: AccountNode[]; }
 

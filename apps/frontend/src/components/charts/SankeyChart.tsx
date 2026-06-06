@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { amountToChartNumber, compareAmounts } from "@/lib/currency";
+import type { MoneyValue } from "@/lib/types";
 
 const ReactECharts = dynamic(
   () => import("echarts-for-react").catch(() => {
@@ -34,7 +35,7 @@ function getCSSVar(varName: string): string {
 interface SankeyItem {
   category: string;
   subcategory: string;
-  amount: number | string;
+  amount: MoneyValue;
 }
 
 interface SankeyChartProps {
@@ -85,7 +86,7 @@ export function SankeyChart({
     const addCategory = (items: SankeyItem[], color: string, prefix: string) => {
       const inflowItems = items.filter((i) => compareAmounts(i.amount, "0") > 0);
       const outflowItems = items.filter((i) => compareAmounts(i.amount, "0") < 0);
-      
+
       if (inflowItems.length === 0 && outflowItems.length === 0) return;
 
       nodes.push({ name: prefix, itemStyle: { color } });

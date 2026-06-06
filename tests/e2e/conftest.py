@@ -15,6 +15,8 @@ from pathlib import Path
 import pytest
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
+from tests.e2e.auth_cookie import build_auth_cookie
+
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,7 +27,9 @@ if str(ROOT) not in sys.path:
 class TestConfig:
     """Test configuration from environment variables."""
 
-    APP_URL = os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
+    APP_URL = (
+        os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
+    )
     TEST_ENV = os.getenv("TEST_ENV", "staging").lower()
     EXPECTED_SHA = os.getenv("EXPECTED_SHA")
 
@@ -80,7 +84,9 @@ def fail_or_skip_ai_ocr_gate(
     )
     if _strict_e2e_gates_enabled():
         pytest.fail(failure_message)
-    pytest.skip(f"{failure_message} STRICT_E2E_GATES is not enabled for this environment.")
+    pytest.skip(
+        f"{failure_message} STRICT_E2E_GATES is not enabled for this environment."
+    )
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -108,6 +114,13 @@ class AuthState:
     email: str | None = None
     access_token: str | None = None
     password: str | None = None
+
+
+def auth_cookie(access_token: str) -> dict[str, object]:
+    try:
+        return build_auth_cookie(TestConfig.APP_URL, access_token)
+    except ValueError as exc:
+        pytest.fail(str(exc))
 
 
 @pytest.fixture(scope="session")
@@ -159,15 +172,21 @@ async def shared_auth_state() -> AsyncGenerator[AuthState, None]:
             )
 
             if response.status_code not in (200, 201):
-                pytest.fail(f"[SESSION SETUP] Failed to register shared user: {response.status_code} - {response.text}")
+                pytest.fail(
+                    f"[SESSION SETUP] Failed to register shared user: {response.status_code} - {response.text}"
+                )
 
             try:
                 data = response.json()
             except ValueError as e:
-                pytest.fail(f"[SESSION SETUP] API returned invalid JSON: {response.text[:200]}... Error: {e}")
+                pytest.fail(
+                    f"[SESSION SETUP] API returned invalid JSON: {response.text[:200]}... Error: {e}"
+                )
 
             if not isinstance(data, dict):
-                pytest.fail(f"[SESSION SETUP] API returned non-dict: {type(data).__name__}")
+                pytest.fail(
+                    f"[SESSION SETUP] API returned non-dict: {type(data).__name__}"
+                )
 
             state.user_id = data.get("id")
             state.access_token = data.get("access_token")
@@ -194,7 +213,9 @@ async def shared_auth_state() -> AsyncGenerator[AuthState, None]:
                     headers={"Authorization": f"Bearer {state.access_token}"},
                 )
                 if delete_response.status_code in (200, 204):
-                    logger.info("[SESSION TEARDOWN] Shared user cleaned up successfully")
+                    logger.info(
+                        "[SESSION TEARDOWN] Shared user cleaned up successfully"
+                    )
                 elif delete_response.status_code == 404:
                     logger.debug(
                         f"[SESSION TEARDOWN] DELETE /api/users endpoint not found (status 404). "
@@ -242,7 +263,9 @@ async def page(context: BrowserContext) -> AsyncGenerator[Page, None]:
 
 
 @pytest.fixture
-async def authenticated_page(context: BrowserContext, shared_auth_state: AuthState) -> AsyncGenerator[Page, None]:
+async def authenticated_page(
+    context: BrowserContext, shared_auth_state: AuthState
+) -> AsyncGenerator[Page, None]:
     """Create browser page with authenticated user (using shared session auth).
 
     This fixture:
@@ -264,29 +287,22 @@ async def authenticated_page(context: BrowserContext, shared_auth_state: AuthSta
     try:
         import jwt
 
-        decoded = jwt.decode(shared_auth_state.access_token, options={"verify_signature": False})
+        decoded = jwt.decode(
+            shared_auth_state.access_token, options={"verify_signature": False}
+        )
         exp_timestamp = decoded.get("exp")
         if exp_timestamp:
             time_until_expiry = exp_timestamp - datetime.now().timestamp()
             if time_until_expiry < 300:
-                logger.warning(f"Token expires in {time_until_expiry:.0f}s, test may fail for long runs")
+                logger.warning(
+                    f"Token expires in {time_until_expiry:.0f}s, test may fail for long runs"
+                )
     except ImportError:
         pass
     except Exception as e:
         logger.debug(f"Token expiration check failed: {e}")
 
-    await context.add_cookies(
-        [
-            {
-                "name": "finance_access_token",
-                "value": str(shared_auth_state.access_token),
-                "url": TestConfig.APP_URL,
-                "path": "/",
-                "httpOnly": True,
-                "sameSite": "Lax",
-            }
-        ]
-    )
+    await context.add_cookies([auth_cookie(str(shared_auth_state.access_token))])
     await context.add_init_script(
         f"""
         localStorage.setItem('finance_user_id', {json.dumps(str(shared_auth_state.user_id))});
@@ -345,13 +361,17 @@ async def authenticated_page_unique(
             )
 
             if response.status_code not in (200, 201):
-                pytest.fail(f"Failed to register test user: {response.status_code} - {response.text}")
+                pytest.fail(
+                    f"Failed to register test user: {response.status_code} - {response.text}"
+                )
 
             # Validate JSON response
             try:
                 data = response.json()
             except ValueError as e:
-                pytest.fail(f"API returned invalid JSON: {response.text[:200]}... Error: {e}")
+                pytest.fail(
+                    f"API returned invalid JSON: {response.text[:200]}... Error: {e}"
+                )
 
             # data is guaranteed to be set here if we didn't pytest.fail()
             if not isinstance(data, dict):
@@ -361,7 +381,9 @@ async def authenticated_page_unique(
             access_token = data.get("access_token")
 
             if not user_id or not access_token:
-                pytest.fail(f"Registration response missing id or access_token. Got keys: {list(data.keys())}")
+                pytest.fail(
+                    f"Registration response missing id or access_token. Got keys: {list(data.keys())}"
+                )
 
             logger.info(f"User registered successfully: {user_id}")
 
@@ -377,7 +399,9 @@ async def authenticated_page_unique(
         if exp_timestamp:
             time_until_expiry = exp_timestamp - datetime.now().timestamp()
             if time_until_expiry < 300:  # Less than 5 minutes
-                logger.warning(f"Token expires in {time_until_expiry:.0f}s, test may fail for long runs")
+                logger.warning(
+                    f"Token expires in {time_until_expiry:.0f}s, test may fail for long runs"
+                )
     except ImportError:
         # PyJWT not installed, skip expiration check
         pass
@@ -387,18 +411,7 @@ async def authenticated_page_unique(
 
     # Inject auth cookie and non-secret user metadata before navigating
     # SECURITY: Use json.dumps() to prevent JavaScript injection
-    await context.add_cookies(
-        [
-            {
-                "name": "finance_access_token",
-                "value": str(access_token),
-                "url": TestConfig.APP_URL,
-                "path": "/",
-                "httpOnly": True,
-                "sameSite": "Lax",
-            }
-        ]
-    )
+    await context.add_cookies([auth_cookie(str(access_token))])
     await context.add_init_script(
         f"""
         localStorage.setItem('finance_user_id', {json.dumps(str(user_id))});
@@ -446,6 +459,8 @@ async def authenticated_page_unique(
                             f"Consider implementing user cleanup endpoint."
                         )
                     else:
-                        logger.warning(f"Failed to cleanup test user {user_id}: status {delete_response.status_code}")
+                        logger.warning(
+                            f"Failed to cleanup test user {user_id}: status {delete_response.status_code}"
+                        )
             except Exception as e:
                 logger.debug(f"User cleanup error (non-critical): {e}")
