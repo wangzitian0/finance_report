@@ -522,6 +522,13 @@ function expectPinnedPackageDates(path: string) {
   expect(params.get("as_of_date")).toBe(params.get("end_date"));
 }
 
+function expectPackageDates(path: string, reportDate: string, startDate: string) {
+  const params = new URL(path, "http://localhost").searchParams;
+  expect(params.get("start_date")).toBe(startDate);
+  expect(params.get("end_date")).toBe(reportDate);
+  expect(params.get("as_of_date")).toBe(reportDate);
+}
+
 describe("PersonalReportPackagePage", () => {
   afterEach(() => {
     mockedApiDownload.mockReset();
@@ -670,6 +677,44 @@ describe("PersonalReportPackagePage", () => {
       screen.getByText("assets.marketable_securities"),
     ).toBeInTheDocument();
     expect(screen.getByText("unsupported_policy_domain")).toBeInTheDocument();
+  });
+
+  it("AC20.6.1 keeps framework package sections pinned to the selected report date", async () => {
+    mockPackageApi();
+
+    render(<PersonalReportPackagePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByText("Framework Policy");
+
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "2026-04-30" },
+    });
+
+    await waitFor(() =>
+      expect(
+        mockedApiFetch.mock.calls.some(([path]) =>
+          String(path).includes("end_date=2026-04-30"),
+        ),
+      ).toBe(true),
+    );
+
+    const selectedDateCalls = mockedApiFetch.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.includes("end_date=2026-04-30"));
+
+    expect(selectedDateCalls).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("/api/reports/package/contract?"),
+        expect.stringContaining("/api/reports/package/readiness?"),
+        expect.stringContaining("/api/reports/package/framework-policy?"),
+        expect.stringContaining("/api/reports/package/annualized-income-schedule?"),
+        expect.stringContaining("/api/reports/package/traceability?"),
+      ]),
+    );
+    selectedDateCalls.forEach((path) =>
+      expectPackageDates(path, "2026-04-30", "2025-04-30"),
+    );
   });
 
   it("AC5.17.2 downloads package CSV through authenticated apiDownload", async () => {

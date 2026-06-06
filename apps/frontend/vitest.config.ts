@@ -32,6 +32,7 @@ export default defineConfig({
         '**/vitest.setup.ts',
         '**/*.config.*',
         '**/types/**',
+        'src/lib/types.ts',
       ],
       thresholds: {
         lines: 98,
