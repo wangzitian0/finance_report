@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import quote
 
 try:
@@ -74,6 +75,7 @@ PR_PREVIEW_OWNER = "wangzitian0"
 PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS = 120
 DOKPLOY_API_CONNECT_TIMEOUT_SECONDS = 10
 DOKPLOY_API_MAX_TIME_SECONDS = 20
+PR_PREVIEW_CONTEXT_ENV = "PR_PREVIEW_CONTEXT_PATH"
 
 
 @dataclass(frozen=True)
@@ -270,6 +272,81 @@ def preview_image_tag(pr_number: int, commit_sha: str) -> str:
     if not commit_sha:
         raise ValueError("commit_sha is required for PR preview image tags")
     return f"pr-{pr_number}-{commit_sha}"
+
+
+def validate_deploy_inputs(args: argparse.Namespace) -> None:
+    required_fields = (
+        "pr_number",
+        "compose_name",
+        "environment_id",
+        "api_url",
+        "api_key",
+        "github_integration_id",
+        "branch",
+        "commit_sha",
+        "registry",
+        "image_prefix",
+        "internal_domain",
+    )
+    missing = [
+        field
+        for field in required_fields
+        if not str(getattr(args, field, "") or "").strip()
+    ]
+    if missing:
+        raise ValueError(
+            "Missing required PR preview deploy inputs: " + ", ".join(sorted(missing))
+        )
+    if int(args.pr_number) <= 0:
+        raise ValueError("PR preview deploy requires a positive pr_number")
+    if "/" not in str(args.image_prefix):
+        raise ValueError("PR preview image_prefix must include the registry namespace")
+    if "." not in str(args.internal_domain):
+        raise ValueError("PR preview internal_domain must be a DNS name")
+
+
+def build_preview_context(
+    args: argparse.Namespace,
+    *,
+    phase: str,
+    compose_id: str = "",
+    error: str = "",
+) -> dict[str, str]:
+    app_url = preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)
+    context = {
+        "phase": phase,
+        "pr_number": str(args.pr_number),
+        "compose_name": str(args.compose_name),
+        "compose_id": compose_id,
+        "branch": str(args.branch),
+        "commit_sha": str(args.commit_sha),
+        "expected_sha": str(args.commit_sha),
+        "preview_commit_slug": preview_commit_slug(str(args.commit_sha)),
+        "image_tag": preview_image_tag(args.pr_number, args.commit_sha),
+        "backend_image": f"{args.registry}/{args.image_prefix}-backend:{preview_image_tag(args.pr_number, args.commit_sha)}",
+        "frontend_image": f"{args.registry}/{args.image_prefix}-frontend:{preview_image_tag(args.pr_number, args.commit_sha)}",
+        "app_url": app_url,
+        "api_health_url": f"{app_url}/api/health",
+        "frontend_version_url": f"{app_url}/frontend-version.json?expected={args.commit_sha}",
+        "dokploy_api_url": str(args.api_url).rstrip("/"),
+        "environment_id": str(args.environment_id),
+        "context_schema": "pr-preview-deploy-v1",
+    }
+    if error:
+        context["error"] = redact_diagnostic_value(error)
+    return context
+
+
+def write_preview_context(path: str, context: dict[str, str]) -> None:
+    if not path:
+        return
+    context_path = Path(path)
+    context_path.parent.mkdir(parents=True, exist_ok=True)
+    context_path.write_text(
+        json.dumps(context, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(f"PR preview deploy context written: {context_path}")
 
 
 def build_preview_env(
@@ -724,29 +801,25 @@ def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
 
 
 def deploy_action(args: argparse.Namespace) -> int:
+    validate_deploy_inputs(args)
     config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-    compose_id, existing_compose = get_or_create_compose_with_status(
-        config,
-        environment_id=args.environment_id,
-        compose_name=args.compose_name,
-        pr_number=args.pr_number,
-        branch=args.branch,
-        github_integration_id=args.github_integration_id,
-    )
-    existing_compose_data = (
-        get_compose_data(config, compose_id=compose_id) if existing_compose else {}
-    )
-    if (
-        existing_compose
-        and str(existing_compose_data.get("composeStatus") or "") == "idle"
-        and not deployment_ids(existing_compose_data.get("deployments"))
-    ):
-        print(
-            "Existing preview compose has no deployment records; "
-            "recreating before deploy"
+    context_path = os.environ.get(PR_PREVIEW_CONTEXT_ENV, "")
+    compose_id = ""
+
+    def record_context(phase: str, *, error: str = "") -> None:
+        write_preview_context(
+            context_path,
+            build_preview_context(
+                args,
+                phase=phase,
+                compose_id=compose_id,
+                error=error,
+            ),
         )
-        delete_compose(config, compose_id=compose_id)
-        compose_id = create_compose(
+
+    record_context("preflight")
+    try:
+        compose_id, existing_compose = get_or_create_compose_with_status(
             config,
             environment_id=args.environment_id,
             compose_name=args.compose_name,
@@ -754,73 +827,106 @@ def deploy_action(args: argparse.Namespace) -> int:
             branch=args.branch,
             github_integration_id=args.github_integration_id,
         )
-        existing_compose = False
-    preview_env = build_preview_env(
-        pr_number=args.pr_number,
-        commit_sha=args.commit_sha,
-        registry=args.registry,
-        image_prefix=args.image_prefix,
-        internal_domain=args.internal_domain,
-    )
-    update_compose_source(
-        config,
-        compose_id=compose_id,
-        pr_number=args.pr_number,
-        branch=args.branch,
-        github_integration_id=args.github_integration_id,
-    )
-    print_compose_summary(config, compose_id=compose_id, label="after-source-update")
-    update_compose_env(
-        config,
-        compose_id=compose_id,
-        env=preview_env,
-    )
-    print_compose_summary(config, compose_id=compose_id, label="after-env-update")
-    previous_deployment_ids = deployment_ids(
-        get_compose_data(config, compose_id=compose_id).get("deployments")
-    )
-    force_redeploy = existing_compose
-    deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
-    print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
-    try:
-        wait_for_dokploy_deployment_rollout(
+        record_context("compose-resolved")
+        existing_compose_data = (
+            get_compose_data(config, compose_id=compose_id) if existing_compose else {}
+        )
+        if (
+            existing_compose
+            and str(existing_compose_data.get("composeStatus") or "") == "idle"
+            and not deployment_ids(existing_compose_data.get("deployments"))
+        ):
+            print(
+                "Existing preview compose has no deployment records; "
+                "recreating before deploy"
+            )
+            delete_compose(config, compose_id=compose_id)
+            compose_id = create_compose(
+                config,
+                environment_id=args.environment_id,
+                compose_name=args.compose_name,
+                pr_number=args.pr_number,
+                branch=args.branch,
+                github_integration_id=args.github_integration_id,
+            )
+            existing_compose = False
+            record_context("compose-recreated")
+        preview_env = build_preview_env(
+            pr_number=args.pr_number,
+            commit_sha=args.commit_sha,
+            registry=args.registry,
+            image_prefix=args.image_prefix,
+            internal_domain=args.internal_domain,
+        )
+        update_compose_source(
             config,
             compose_id=compose_id,
-            previous_deployment_ids=previous_deployment_ids,
-            new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+            pr_number=args.pr_number,
+            branch=args.branch,
+            github_integration_id=args.github_integration_id,
         )
-    except DokployDeploymentDidNotStart:
-        if force_redeploy:
-            raise
-        print(
-            "Initial Dokploy deploy did not create a deployment record; "
-            "retrying with compose.redeploy"
+        print_compose_summary(
+            config, compose_id=compose_id, label="after-source-update"
         )
+        update_compose_env(
+            config,
+            compose_id=compose_id,
+            env=preview_env,
+        )
+        print_compose_summary(config, compose_id=compose_id, label="after-env-update")
         previous_deployment_ids = deployment_ids(
             get_compose_data(config, compose_id=compose_id).get("deployments")
         )
-        deploy_compose(config, compose_id=compose_id, force_redeploy=True)
+        force_redeploy = existing_compose
+        deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
         print_compose_summary(
-            config, compose_id=compose_id, label="after-redeploy-trigger"
+            config, compose_id=compose_id, label="after-deploy-trigger"
         )
-        wait_for_dokploy_deployment_rollout(
-            config,
-            compose_id=compose_id,
-            previous_deployment_ids=previous_deployment_ids,
-            new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
-        )
-    if github_output := os.environ.get("GITHUB_OUTPUT"):
-        with open(github_output, "a", encoding="utf-8") as output:
-            output.write(f"compose_id={compose_id}\n")
-            output.write(
-                f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}\n"
+        record_context("deploy-triggered")
+        try:
+            wait_for_dokploy_deployment_rollout(
+                config,
+                compose_id=compose_id,
+                previous_deployment_ids=previous_deployment_ids,
+                new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
             )
-    else:
-        print(f"compose_id={compose_id}")
-        print(
-            f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}"
-        )
-    return 0
+        except DokployDeploymentDidNotStart:
+            if force_redeploy:
+                raise
+            print(
+                "Initial Dokploy deploy did not create a deployment record; "
+                "retrying with compose.redeploy"
+            )
+            previous_deployment_ids = deployment_ids(
+                get_compose_data(config, compose_id=compose_id).get("deployments")
+            )
+            deploy_compose(config, compose_id=compose_id, force_redeploy=True)
+            print_compose_summary(
+                config, compose_id=compose_id, label="after-redeploy-trigger"
+            )
+            record_context("redeploy-triggered")
+            wait_for_dokploy_deployment_rollout(
+                config,
+                compose_id=compose_id,
+                previous_deployment_ids=previous_deployment_ids,
+                new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+            )
+        record_context("rollout-ready")
+        if github_output := os.environ.get("GITHUB_OUTPUT"):
+            with open(github_output, "a", encoding="utf-8") as output:
+                output.write(f"compose_id={compose_id}\n")
+                output.write(
+                    f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}\n"
+                )
+        else:
+            print(f"compose_id={compose_id}")
+            print(
+                f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}"
+            )
+        return 0
+    except Exception as exc:
+        record_context("failed", error=f"{type(exc).__name__}: {exc}")
+        raise
 
 
 def cleanup_action(args: argparse.Namespace) -> int:

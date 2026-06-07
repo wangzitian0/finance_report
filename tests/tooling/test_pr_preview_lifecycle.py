@@ -1334,6 +1334,118 @@ def test_AC8_13_71_deploy_action_writes_github_output(
     )
 
 
+def test_AC8_13_104_deploy_action_fails_fast_on_missing_required_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.104: Missing deploy inputs fail before any Dokploy API call."""
+    lifecycle = lifecycle_module()
+    calls = 0
+
+    def fail_if_called(*args: object, **kwargs: object) -> str:
+        nonlocal calls
+        calls += 1
+        return "{}"
+
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", fail_if_called)
+    args = SimpleNamespace(
+        pr_number=591,
+        compose_name="pr-591",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="",
+        github_integration_id="",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+    )
+
+    with pytest.raises(ValueError, match="api_key, github_integration_id"):
+        lifecycle.deploy_action(args)
+
+    assert calls == 0
+
+
+def test_AC8_13_104_preview_deploy_context_is_written_without_secrets(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.104: Deploy context artifacts contain routing evidence, not credentials."""
+    lifecycle = lifecycle_module()
+    context_path = tmp_path / "ci-context" / "pr-preview-deploy-context.json"
+    context_path.parent.mkdir(parents=True)
+    context_path.write_text('{"old_secret":"do-not-preserve"}\n', encoding="utf-8")
+    args = SimpleNamespace(
+        pr_number=591,
+        compose_name="pr-591",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid-secret",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+    )
+
+    lifecycle.write_preview_context(
+        str(context_path),
+        lifecycle.build_preview_context(
+            args,
+            phase="failed",
+            compose_id="cmp-591",
+            error="AUTHORIZATION=Bearer secret-token hvs.secret",
+        ),
+    )
+
+    context = json.loads(context_path.read_text(encoding="utf-8"))
+    assert context["phase"] == "failed"
+    assert context["compose_id"] == "cmp-591"
+    assert context["expected_sha"] == "abc123"
+    assert context["api_health_url"] == (
+        "https://report-pr-591-abc123.zitian.party/api/health"
+    )
+    assert context["frontend_version_url"] == (
+        "https://report-pr-591-abc123.zitian.party/"
+        "frontend-version.json?expected=abc123"
+    )
+    assert (
+        context["backend_image"] == "ghcr.io/owner/finance_report-backend:pr-591-abc123"
+    )
+    assert "api_key" not in context
+    assert "github_integration_id" not in context
+    rendered = json.dumps(context)
+    assert "secret-key" not in rendered
+    assert "ghid-secret" not in rendered
+    assert "secret-token" not in rendered
+    assert "hvs.secret" not in rendered
+    assert "do-not-preserve" not in rendered
+
+
+def test_AC8_13_104_pr_preview_workflow_fast_fails_missing_images_and_uploads_context() -> (
+    None
+):
+    """AC8.13.104: PR preview logs deploy context and checks images before Dokploy."""
+    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+
+    assert "packages: read" in deploy_block
+    assert "- name: Preflight PR preview image tags" in deploy_block
+    assert "docker buildx imagetools inspect" in deploy_block
+    assert "Both PR preview images are available before Dokploy deploy." in deploy_block
+    assert (
+        "PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json"
+        in deploy_block
+    )
+    assert (
+        "preview_commit_slug=${{ needs.setup.outputs.preview_commit_slug }}"
+        in deploy_block
+    )
+    assert "platform_triage=deploy context JSON" in deploy_block
+    assert "ci-context/" in deploy_block
+
+
 def test_AC8_13_101_pr_test_workflow_uses_commit_scoped_preview_url() -> None:
     """AC8.13.101: Readiness and E2E consume the deployed preview URL output."""
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()

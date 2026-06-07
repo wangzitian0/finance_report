@@ -202,6 +202,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
       pull-requests: write
     steps:
       - name: Checkout repository
@@ -209,11 +210,33 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Log in to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Preflight PR preview image tags
+        env:
+          PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          for service in backend frontend; do
+            image="${REGISTRY}/${IMAGE_PREFIX}-${service}:${PREVIEW_IMAGE_TAG}"
+            echo "Checking commit-scoped preview image: ${image}"
+            docker buildx imagetools inspect "${image}" >/dev/null
+          done
+
+          echo "Both PR preview images are available before Dokploy deploy."
+
       - name: Deploy preview lifecycle
         id: deploy
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+          PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json
         run: |
           python tools/pr_preview_lifecycle.py \
             --action deploy \
@@ -640,10 +663,15 @@ jobs:
             echo "compose_id=${{ steps.deploy.outputs.compose_id }}"
             echo "branch=${BRANCH_NAME}"
             echo "app_url=${APP_URL}"
+            echo "expected_sha=${{ github.sha }}"
+            echo "preview_commit_slug=${{ needs.setup.outputs.preview_commit_slug }}"
+            echo "api_health_url=${APP_URL}/api/health"
+            echo "frontend_version_url=${APP_URL}/frontend-version.json?expected=${{ github.sha }}"
             echo "deploy_outcome=${{ steps.deploy.outcome }}"
             echo "e2e_outcome=${{ steps.e2e_tests.outcome }}"
             echo "strict_e2e_gates=true"
             echo "marker=(smoke or e2e) and not llm"
+            echo "platform_triage=deploy context JSON, API route_probe lines, frontend readiness lines, and E2E JUnit split platform rollout, route readiness, and app behavior"
           } > ci-context/pr-preview-context.txt
 
       - name: Upload PR preview test context
@@ -653,7 +681,7 @@ jobs:
           name: pr-preview-test-context
           path: |
             test-results/
-            ci-context/pr-preview-context.txt
+            ci-context/
           retention-days: 14
 
       - name: Comment on PR
