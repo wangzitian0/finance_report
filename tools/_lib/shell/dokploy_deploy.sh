@@ -34,6 +34,7 @@ deployment_ids_from_response() {
   local response="$1"
   echo "$response" | jq -r '[
     (if (.deployments | type) == "array" then .deployments else [] end)[]
+    | select(type == "object")
     | (.deploymentId? // empty)
     | tostring
   ] | join(",")'
@@ -45,6 +46,7 @@ new_deployment_ids_from_response() {
   echo "$response" | jq -r --arg previous ",$previous_deployment_ids," \
     '[
       (if (.deployments | type) == "array" then .deployments else [] end)[]
+      | select(type == "object")
       | (.deploymentId? // empty)
       | tostring
       | . as $deployment_id
@@ -58,11 +60,20 @@ latest_new_deployment_status_from_response() {
   echo "$response" | jq -r --arg ids ",$new_deployment_ids," \
     '[
       (if (.deployments | type) == "array" then .deployments else [] end)[]
+      | select(type == "object")
       | select(.deploymentId? != null)
       | . + {deploymentId: (.deploymentId | tostring)}
       | .deploymentId as $deployment_id
       | select($ids | contains("," + $deployment_id + ","))
     ] | sort_by(.createdAt // .startedAt // .finishedAt // "") | (last // {}) | .status // "unknown"'
+}
+
+deployment_count_from_response() {
+  local response="$1"
+  echo "$response" | jq -r '[
+    (if (.deployments | type) == "array" then .deployments else [] end)[]
+    | select(type == "object")
+  ] | length'
 }
 
 redact_dokploy_diagnostic_value() {
@@ -97,7 +108,7 @@ render_dokploy_rollout_summary() {
     fi
   done
   echo "env_present: $(echo "$response" | jq -r 'has("env") and (.env != null and .env != "")' 2>/dev/null || echo false)"
-  echo "deployment_count: $(echo "$response" | jq -r '(if (.deployments | type) == "array" then .deployments else [] end) | length' 2>/dev/null || echo unknown)"
+  echo "deployment_count: $(deployment_count_from_response "$response" 2>/dev/null || echo unknown)"
 
   latest=$(latest_deployment_json_from_response "$response")
   if [[ "$latest" != "{}" ]]; then
@@ -145,7 +156,7 @@ wait_for_dokploy_deployment_rollout() {
     dokploy_api_call "GET" "compose.one?composeId=$compose_id" "" "$response_file" "Deployment rollout probe"
     rollout_response=$(cat "$response_file")
     compose_status=$(safe_jq '.composeStatus // .status // "unknown"' "$rollout_response" "deployment rollout compose status") || exit 1
-    deployment_count=$(safe_jq '(.deployments // []) | length' "$rollout_response" "deployment rollout count") || exit 1
+    deployment_count=$(deployment_count_from_response "$rollout_response") || exit 1
     new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1
 
     if (( attempt == 1 || attempt % 6 == 0 )) || [[ "$compose_status" != "idle" ]]; then
@@ -196,6 +207,7 @@ wait_for_dokploy_deployment_rollout() {
 deploy_compose() {
   local endpoint="$1"
   local label="$2"
+  local deploy_payload
 
   deploy_payload=$(safe_jq_build --arg id "$COMPOSE_ID" '{composeId: $id}') || exit 1
   dokploy_api_call "POST" "$endpoint" "$deploy_payload" "$deploy_response_file" "$label"
@@ -328,7 +340,8 @@ if [[ "$rollout_status" -eq 2 || "$rollout_status" -eq 3 ]]; then
   rollout_status=$?
   set -e
   if [[ "$rollout_status" -eq 2 ]]; then
-    echo "Dokploy redeploy did not expose a new deployment record; proceeding to target SHA health check"
+    echo "Dokploy redeploy did not expose a new deployment record" >&2
+    exit "$rollout_status"
   elif [[ "$rollout_status" -eq 3 ]]; then
     echo "Dokploy redeploy left compose in error without a new deployment record" >&2
     exit "$rollout_status"

@@ -98,6 +98,7 @@ jobs:
 
     steps:
       - name: Checkout repository
+        id: checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -113,6 +114,7 @@ jobs:
           echo "Deploying commit: $short_sha"
 
       - name: Wait for FIFO post-merge train turn
+        id: wait_train
         if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -219,22 +221,26 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install moon
+        id: install_moon
         if: steps.classify.outputs.staging_required == 'true'
         uses: moonrepo/setup-toolchain@v0
 
       - name: Install uv
+        id: install_uv
         if: steps.classify.outputs.staging_required == 'true'
         uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
 
       - name: Set up Python
+        id: setup_python
         if: steps.classify.outputs.staging_required == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Log in to Container registry
+        id: registry_login
         if: steps.classify.outputs.staging_required == 'true'
         uses: docker/login-action@v3
         with:
@@ -385,6 +391,8 @@ jobs:
       - name: Classify staging deploy failure context
         id: deploy_failure_context
         if: ${{ always() }}
+        env:
+          STEPS_CONTEXT: ${{ toJSON(steps) }}
         run: |
           set -euo pipefail
 
@@ -399,10 +407,50 @@ jobs:
             failure_summary="$3"
           }
 
-          if [ "$staging_required" != "true" ]; then
+          if [ "${{ steps.checkout.outcome }}" = "failure" ]; then
+            classify_failure \
+              "checkout" \
+              "repository-checkout" \
+              "Repository checkout failed before staging deploy classification."
+          elif [ "${{ steps.get_sha.outcome }}" = "failure" ]; then
+            classify_failure \
+              "get_sha" \
+              "git-sha-resolution" \
+              "Target SHA resolution failed before staging deploy classification."
+          elif [ "${{ steps.wait_train.outcome }}" = "failure" ]; then
+            classify_failure \
+              "wait_train" \
+              "post-merge-train-wait" \
+              "FIFO post-merge train wait failed before staging deploy mutation."
+          elif [ "${{ steps.classify.outcome }}" = "failure" ]; then
+            classify_failure \
+              "classification" \
+              "change-classification" \
+              "Change classification failed before staging relevance could be trusted."
+          elif [ "$staging_required" != "true" ]; then
             failure_domain="not-required"
             failed_step="classification"
             failure_summary="staging deploy was skipped by change classification"
+          elif [ "${{ steps.install_moon.outcome }}" = "failure" ]; then
+            classify_failure \
+              "install_moon" \
+              "toolchain/moon-install" \
+              "Moon toolchain setup failed before image resolution."
+          elif [ "${{ steps.install_uv.outcome }}" = "failure" ]; then
+            classify_failure \
+              "install_uv" \
+              "toolchain/uv-install" \
+              "uv setup failed before E2E dependency setup."
+          elif [ "${{ steps.setup_python.outcome }}" = "failure" ]; then
+            classify_failure \
+              "setup_python" \
+              "toolchain/python-setup" \
+              "Python setup failed before deploy tooling could run."
+          elif [ "${{ steps.registry_login.outcome }}" = "failure" ]; then
+            classify_failure \
+              "registry_login" \
+              "registry/login" \
+              "Container registry login failed before image resolution."
           elif [ "${{ steps.setup_buildx.outcome }}" = "failure" ]; then
             classify_failure \
               "setup_buildx" \
@@ -453,6 +501,11 @@ jobs:
               "staging_e2e_tests" \
               "application-smoke-e2e" \
               "Staging smoke or core non-LLM E2E failed after deployment."
+          elif printf "%s" "$STEPS_CONTEXT" | grep -q '"outcome":"failure"'; then
+            classify_failure \
+              "unknown" \
+              "unclassified-build-deploy-failure" \
+              "A build/deploy job step failed outside the known failure map."
           fi
 
           {
