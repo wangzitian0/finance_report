@@ -2148,6 +2148,10 @@ def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None
         in action
     )
     assert "if [ ! -x .venv/bin/python ]; then" in action
+    assert (
+        'echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}"'
+        ' >> "$GITHUB_ENV"'
+    ) in action
     assert "uv pip install -r tests/e2e/requirements.txt" in action
     assert "shared E2E setup action caches `.venv` and Playwright browsers" in ci_cd
 
