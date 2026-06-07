@@ -432,7 +432,9 @@ Rules:
 The first implementation derives `source.uploaded` from `BankStatement` upload
 state. Workflow status and event reads run this deterministic sync before
 returning data. Repeated reads must not duplicate events or reset read/archive
-lifecycle state.
+lifecycle state. The synthetic active `WorkflowSession` creation path is
+concurrency-safe: overlapping status and event reads reuse the same
+`active-upload-to-report` session instead of surfacing duplicate-key 500s.
 
 Future slices may add deterministic derivation for:
 

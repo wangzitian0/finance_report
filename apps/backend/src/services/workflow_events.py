@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -30,6 +31,8 @@ from src.schemas.workflow import (
     WorkflowStatusResponse,
 )
 from src.services.report_readiness import get_personal_report_package_readiness
+
+ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
 
 
 def _collapse_package_readiness_state(state: str) -> WorkflowReportReadinessState:
@@ -88,30 +91,45 @@ def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, 
     return f"{source_type}:{source_id}:{family.value}"
 
 
-async def get_or_create_active_workflow_session(db: AsyncSession, *, user_id: UUID) -> WorkflowSession:
-    """Return the user's active upload-to-report session, creating the v1 synthetic session when needed."""
+async def _get_active_workflow_session(db: AsyncSession, *, user_id: UUID) -> WorkflowSession | None:
     result = await db.execute(
         select(WorkflowSession)
         .where(WorkflowSession.user_id == user_id)
         .where(WorkflowSession.status == WorkflowSessionStatus.ACTIVE)
-        .where(WorkflowSession.dedupe_key == "active-upload-to-report")
+        .where(WorkflowSession.dedupe_key == ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY)
         .order_by(WorkflowSession.created_at.desc())
         .limit(1)
     )
-    session = result.scalar_one_or_none()
+    return result.scalar_one_or_none()
+
+
+async def get_or_create_active_workflow_session(db: AsyncSession, *, user_id: UUID) -> WorkflowSession:
+    """Return the user's active upload-to-report session, creating the v1 synthetic session when needed."""
+    session = await _get_active_workflow_session(db, user_id=user_id)
     if session is not None:
         return session
 
-    session = WorkflowSession(
-        user_id=user_id,
-        status=WorkflowSessionStatus.ACTIVE,
-        title="Upload-to-report session",
-        summary="Current upload, processing, review, and report-readiness work.",
-        dedupe_key="active-upload-to-report",
-        source_count=0,
+    insert_result = await db.execute(
+        postgresql_insert(WorkflowSession)
+        .values(
+            user_id=user_id,
+            status=WorkflowSessionStatus.ACTIVE,
+            title="Upload-to-report session",
+            summary="Current upload, processing, review, and report-readiness work.",
+            dedupe_key=ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY,
+            source_count=0,
+        )
+        .on_conflict_do_nothing(constraint="uq_workflow_sessions_user_dedupe_key")
+        .returning(WorkflowSession.id)
     )
-    db.add(session)
-    await db.flush()
+    inserted_id = insert_result.scalar_one_or_none()
+    if inserted_id is not None:
+        result = await db.execute(select(WorkflowSession).where(WorkflowSession.id == inserted_id))
+        return result.scalar_one()
+
+    session = await _get_active_workflow_session(db, user_id=user_id)
+    if session is None:
+        raise RuntimeError("active workflow session upsert returned no row and no existing session")
     return session
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import func, inspect, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models import BankStatement, BankStatementStatus, User
 from src.models.workflow import (
@@ -24,6 +26,7 @@ from src.models.workflow import (
 from src.schemas.workflow import WorkflowEventCreate, WorkflowEventResponse
 from src.services.workflow_events import (
     derive_uploaded_statement_event,
+    get_or_create_active_workflow_session,
     get_workflow_status,
     list_workflow_events,
     sync_workflow_events_for_user,
@@ -158,6 +161,39 @@ def test_AC19_8_2_workflow_session_model_contract() -> None:
     )
     assert event_indexes["idx_workflow_events_user_session_occurred"] == ("user_id", "session_id", "occurred_at")
     assert {status.value for status in WorkflowSessionStatus} == {"active", "generated", "archived"}
+
+
+@pytest.mark.asyncio
+async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe(db_engine, test_user) -> None:
+    """AC19.8.9: Concurrent status/events reads share the synthetic active workflow session."""
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with sessionmaker() as first_session, sessionmaker() as second_session:
+        first = await get_or_create_active_workflow_session(first_session, user_id=test_user.id)
+
+        second_task = asyncio.create_task(get_or_create_active_workflow_session(second_session, user_id=test_user.id))
+        await asyncio.sleep(0.2)
+        await first_session.commit()
+
+        second = await asyncio.wait_for(second_task, timeout=5)
+        await second_session.commit()
+
+    async with sessionmaker() as verify_session:
+        sessions = (
+            (
+                await verify_session.execute(
+                    select(WorkflowSession)
+                    .where(WorkflowSession.user_id == test_user.id)
+                    .where(WorkflowSession.dedupe_key == "active-upload-to-report")
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert first.id == second.id
+    assert len(sessions) == 1
+    assert sessions[0].status == WorkflowSessionStatus.ACTIVE
 
 
 def test_AC19_1_2_workflow_event_model_contract() -> None:
