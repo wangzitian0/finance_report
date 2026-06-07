@@ -325,6 +325,28 @@ Dependencies: AC18.7 Evidence Graph foundation and AC18.8 first production sourc
 | AC18.9.5 | Evidence navigation UI | The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present |
 | AC18.9.6 | Evidence navigation proof | Tests cover report line to source document navigation and source document to impacted ledger/report navigation |
 
+### AC18.10: Evidence Graph Lazy Materialization and Consistency Guardrails
+
+MECE task frame:
+
+- Write-through path: new business workflows continue to materialize Evidence Graph nodes and edges inside the same database transaction as the owning business facts.
+- Lazy materialization path: lineage reads may repair missing historical graph anchors on demand, but only from deterministic relationships already present in source-of-truth tables.
+- Consistency detection path: operator checks report graph drift without mutating accounting facts or deleting audit evidence.
+- Blocker handling: incomplete, ambiguous, unsupported, or cross-user provenance remains explicit and user-scoped instead of guessed.
+- Safety limits: request-time materialization is bounded by depth, write count, batch size, and user scope.
+
+Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integration, and AC18.9 navigation API/UI. Out of scope: scheduled production auto-repair, probabilistic amount/date/description matching, graph database adoption, and mutating ledger balances or `JournalEntry.source_type/source_id`.
+
+| AC ID | Phase | Description |
+|-------|-------|-------------|
+| AC18.10.1 | Evidence consistency | Evidence Graph SSOT defines graph as an audit projection, business tables as source of truth, and blocker taxonomy for drift states |
+| AC18.10.2 | Evidence consistency | New source-to-ledger workflows materialize graph nodes and edges in the same database transaction as their owning business facts |
+| AC18.10.3 | Evidence lazy materialization | The lineage API attempts one bounded deterministic materialization pass when an owned anchor or required local path is missing for historical data |
+| AC18.10.4 | Evidence lazy materialization | Lazy materialization is idempotent and only uses strong relationships such as owned source IDs, transaction lineage, and `journal_line.journal_entry_id`; it never infers links from fuzzy amount, date, or description similarity |
+| AC18.10.5 | Evidence consistency detector | An operator-safe dry-run detector reports missing graph nodes, graph nodes pointing to missing business entities, dangling edges, cross-user edges, incomplete lineage, and ambiguous or unsupported provenance |
+| AC18.10.6 | Evidence consistency safety | Detector and lazy repair never mutate accounting facts, report amounts, ledger balances, or legacy `JournalEntry.source_type/source_id` values |
+| AC18.10.7 | Evidence consistency proof | Tests cover request-time lazy repair, repeated-read idempotency, dry-run no-write behavior, cross-user blocking, unknown provenance blockers, dangling/orphan detection, and request-level write caps |
+
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 
 | AC ID | Phase | Description |

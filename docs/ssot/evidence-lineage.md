@@ -18,6 +18,11 @@ This layer does not replace double-entry bookkeeping. Journal entries and
 journal lines remain the accounting source of truth. Evidence lineage records
 how source, extracted, atomic, ledger, and report entities are connected.
 
+Evidence Graph is an audit projection. When graph rows disagree with business
+tables, the owning business table wins. Graph repair must not mutate accounting
+facts, report amounts, ledger balances, or legacy `JournalEntry.source_type` and
+`JournalEntry.source_id` values.
+
 ## Tables
 
 The foundation owns two generic tables:
@@ -190,3 +195,60 @@ ledger-line or source-document identifiers already returned by package
 traceability. The UI must show missing lineage as an explicit empty state and
 must not infer or fabricate source, ledger, or report anchors when the API does
 not return graph evidence.
+
+## Materialization and Consistency
+
+Consistency proof for lazy materialization is owned by AC18.10. Evidence Graph
+consistency is maintained through three mechanisms:
+
+1. Transactional write-through for new facts.
+2. Bounded lazy materialization for historical facts reached by lineage reads.
+3. Operator dry-run detection for global drift reporting.
+
+New source-to-ledger workflows must write graph nodes and edges inside the same
+database transaction as the owning business facts. If the graph write cannot be
+completed, the workflow must either fail the transaction or return an explicit
+blocker. Silent graph omissions are not acceptable for new write paths.
+
+Historical data may be materialized on demand by the lineage API. When a caller
+requests an owned anchor and the expected graph anchor or local path is missing,
+the API may invoke one deterministic materialization pass, then retry graph
+traversal. This pass must be bounded by user scope, maximum traversal depth,
+maximum graph writes, and batch size.
+
+Lazy materialization may only use strong relationships that already exist in
+source-of-truth tables, such as:
+
+- owned uploaded document or bank statement identifiers;
+- bank statement transaction to atomic transaction lineage;
+- journal entry source identifiers when the source entity is owned and resolvable;
+- `journal_line.journal_entry_id`;
+- report traceability anchors that already reference owned ledger lines.
+
+Lazy materialization must not infer links from fuzzy amount, date, description,
+category, or account-name similarity. If provenance is ambiguous, unsupported,
+missing, or cross-user, the caller must return a blocker instead of writing a
+guessed edge.
+
+Operator consistency checks are read-only by default. They report drift across
+the whole graph or a user scope without modifying business tables or graph rows.
+Execution-mode repair, when added, must remain deterministic, idempotent, and
+limited to the same strong relationships allowed for lazy materialization.
+
+## Blocker Taxonomy
+
+Lineage APIs and consistency tooling must use explicit blocker codes for graph
+drift and unsupported provenance:
+
+- `graph_node_missing`: no owned graph node exists for the requested entity identity.
+- `lineage_incomplete`: a graph anchor exists but the requested upstream or downstream path is incomplete.
+- `orphan_graph_node`: a graph node points to a missing business entity.
+- `dangling_edge`: an edge references a missing endpoint node.
+- `entity_missing`: the business entity referenced by an identity cannot be resolved.
+- `ambiguous_provenance`: existing facts do not identify exactly one defensible source or target.
+- `unsupported_provenance`: the source type or entity type is outside the current graph contract.
+- `cross_user_lineage_blocked`: a candidate link would cross user ownership boundaries.
+- `materialization_write_cap_reached`: request-time repair stopped before completion because the write cap was reached.
+
+Blockers are audit facts about missing proof. They must be surfaced instead of
+fabricating source, ledger, or report anchors.

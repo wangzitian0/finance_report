@@ -1,12 +1,22 @@
 """Evidence Graph navigation API tests."""
 
+from datetime import date
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User
+from src.models.account import Account, AccountType
+from src.models.evidence import EvidenceEdge, EvidenceNode
+from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.routers.evidence import _should_attempt_lazy_materialization
+from src.services.deduplication import DeduplicationService
 from src.services.evidence_lineage import EvidenceLineageService
 
 
@@ -178,3 +188,153 @@ async def test_AC18_9_3_lineage_api_returns_blocker_for_missing_or_cross_user_an
             "message": "No owned Evidence Graph node exists for this entity identity.",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_journal_line(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.10.3 AC18.10.4: Lineage reads repair a missing historical graph path once and idempotently."""
+    bank = Account(user_id=test_user.id, name="Lazy API Bank", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=test_user.id, name="Lazy API Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([bank, income])
+    await db.flush()
+
+    statement = BankStatement(
+        user_id=test_user.id,
+        account_id=bank.id,
+        file_path="s3://lazy/api.csv",
+        file_hash=f"lazy-api-{uuid4().hex}",
+        original_filename="lazy-api.csv",
+        institution="Lazy API Bank",
+        currency="SGD",
+        status=BankStatementStatus.APPROVED,
+    )
+    txn = BankStatementTransaction(
+        statement=statement,
+        txn_date=date(2026, 5, 2),
+        description="Lazy API income",
+        amount=Decimal("77.00"),
+        direction="IN",
+        currency="SGD",
+        reference="API-1",
+    )
+    db.add_all([statement, txn])
+    await db.flush()
+
+    atomic = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=txn.txn_date,
+        amount=txn.amount,
+        direction=TransactionDirection.IN,
+        description=txn.description,
+        reference=txn.reference,
+        currency="SGD",
+        dedup_hash=DeduplicationService.calculate_transaction_hash(
+            test_user.id,
+            txn.txn_date,
+            txn.amount,
+            TransactionDirection.IN,
+            txn.description,
+            txn.reference,
+        ),
+        source_documents=[],
+    )
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo="Lazy API posted income",
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        source_id=txn.id,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([atomic, entry])
+    await db.flush()
+    line = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=income.id,
+        direction=Direction.CREDIT,
+        amount=txn.amount,
+        currency="SGD",
+    )
+    db.add(line)
+    await db.commit()
+
+    first = await client.get(
+        "/evidence/lineage",
+        params={
+            "entity_type": "journal_line",
+            "entity_id": str(line.id),
+            "node_kind": "ledger_line",
+            "direction": "upstream",
+            "max_depth": "5",
+        },
+    )
+
+    assert first.status_code == 200
+    payload = first.json()
+    assert payload["blockers"] == []
+    node_keys = {(node["node_kind"], node["entity_type"], node["entity_id"]) for node in payload["nodes"]}
+    assert ("source_document", "bank_statement", str(statement.id)) in node_keys
+    assert ("extracted_record", "bank_statement_transaction", str(txn.id)) in node_keys
+    assert ("atomic_fact", "atomic_transaction", str(atomic.id)) in node_keys
+    assert ("ledger_entry", "journal_entry", str(entry.id)) in node_keys
+    assert ("ledger_line", "journal_line", str(line.id)) in node_keys
+    assert {edge["relation"] for edge in payload["edges"]} >= {"parsed_into", "posted_as", "contains"}
+    db_edges = {
+        (edge.from_node_id, edge.to_node_id, edge.relation)
+        for edge in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == test_user.id))).scalars()
+    }
+    nodes_by_key = {
+        (node.node_kind, node.entity_type, node.entity_id): node
+        for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()
+    }
+    source_node = nodes_by_key[("source_document", "bank_statement", statement.id)]
+    extracted_node = nodes_by_key[("extracted_record", "bank_statement_transaction", txn.id)]
+    atomic_node = nodes_by_key[("atomic_fact", "atomic_transaction", atomic.id)]
+    ledger_entry_node = nodes_by_key[("ledger_entry", "journal_entry", entry.id)]
+    ledger_line_node = nodes_by_key[("ledger_line", "journal_line", line.id)]
+    assert (source_node.id, extracted_node.id, "parsed_into") in db_edges
+    assert (extracted_node.id, atomic_node.id, "deduped_into") in db_edges
+    assert (extracted_node.id, ledger_entry_node.id, "posted_as") in db_edges
+    assert (atomic_node.id, ledger_entry_node.id, "posted_as") in db_edges
+    assert (ledger_entry_node.id, ledger_line_node.id, "contains") in db_edges
+
+    counts_after_first = (
+        (await db.execute(select(func.count(EvidenceNode.id)))).scalar_one(),
+        (await db.execute(select(func.count(EvidenceEdge.id)))).scalar_one(),
+    )
+    second = await client.get(
+        "/evidence/lineage",
+        params={
+            "entity_type": "journal_line",
+            "entity_id": str(line.id),
+            "node_kind": "ledger_line",
+            "direction": "upstream",
+            "max_depth": "5",
+        },
+    )
+    counts_after_second = (
+        (await db.execute(select(func.count(EvidenceNode.id)))).scalar_one(),
+        (await db.execute(select(func.count(EvidenceEdge.id)))).scalar_one(),
+    )
+
+    assert second.status_code == 200
+    assert counts_after_second == counts_after_first
+
+
+def test_AC18_10_7_lazy_materialization_requires_supported_entity_type_and_matching_node_kind() -> None:
+    """AC18.10.7: Lazy materialization is keyed by entity identity, not a free-form node_kind fallback."""
+    assert (
+        _should_attempt_lazy_materialization(entity_type="journal_line", node_kind="ledger_line", anchor=None) is True
+    )
+    assert _should_attempt_lazy_materialization(entity_type="journal_line", node_kind=None, anchor=None) is True
+    assert (
+        _should_attempt_lazy_materialization(entity_type="future_table", node_kind="ledger_line", anchor=None) is False
+    )
+    assert (
+        _should_attempt_lazy_materialization(entity_type="journal_line", node_kind="source_document", anchor=None)
+        is False
+    )

@@ -1196,7 +1196,7 @@ describe("PersonalReportPackagePage", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith(
       `/api/evidence/lineage?entity_type=journal_line&entity_id=${journalLineId}&node_kind=ledger_line&direction=both&max_depth=6`,
     );
-    expect(screen.getByText("source_document")).toBeInTheDocument();
+    expect(await screen.findByText("source_document")).toBeInTheDocument();
     expect(screen.getByText("extracted_record")).toBeInTheDocument();
     expect(screen.getByText("atomic_fact")).toBeInTheDocument();
     expect(screen.getByText("ledger_entry")).toBeInTheDocument();
