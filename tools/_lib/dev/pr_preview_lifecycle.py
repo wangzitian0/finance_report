@@ -46,6 +46,21 @@ COMPOSE_SUMMARY_KEYS = (
     "composeStatus",
     "status",
 )
+DEPLOYMENT_DIAGNOSTIC_KEYS = (
+    "message",
+    "error",
+    "statusMessage",
+    "statusReason",
+    "reason",
+)
+SENSITIVE_ASSIGNMENT_PATTERN = re.compile(
+    r"(?i)\b("
+    r"[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|AUTHORIZATION|COOKIE|"
+    r"DATABASE_URL|REFRESH)[A-Z0-9_]*\s*[:=]\s*"
+    r")([^,\s]+)"
+)
+AUTH_VALUE_PATTERN = re.compile(r"(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/\-]+=*")
+VAULT_TOKEN_PATTERN = re.compile(r"\bhvs\.[A-Za-z0-9._-]+")
 
 DEPLOYMENT_READY_FOR_READINESS_STATUSES = {"done"}
 PR_PREVIEW_COMPOSE_PATH = "docker-compose.pr-preview.yml"
@@ -118,6 +133,23 @@ def render_allowlisted_env_diff(expected: dict[str, str], actual_env_text: str) 
     return "\n".join(lines)
 
 
+def redact_diagnostic_value(value: object) -> str:
+    rendered = str(value)
+    rendered = AUTH_VALUE_PATTERN.sub(r"\1 <redacted>", rendered)
+    rendered = SENSITIVE_ASSIGNMENT_PATTERN.sub(r"\1<redacted>", rendered)
+    rendered = VAULT_TOKEN_PATTERN.sub("hvs.<redacted>", rendered)
+    return rendered[:300]
+
+
+def render_deployment_diagnostics(deployment: dict[str, object]) -> list[str]:
+    lines: list[str] = []
+    for key in DEPLOYMENT_DIAGNOSTIC_KEYS:
+        value = deployment.get(key)
+        if isinstance(value, str) and value:
+            lines.append(f"latest_deployment_{key}: {redact_diagnostic_value(value)}")
+    return lines
+
+
 def render_compose_summary(data: dict[str, object], *, label: str) -> str:
     lines = [f"Dokploy compose summary ({label})"]
     for key in COMPOSE_SUMMARY_KEYS:
@@ -141,7 +173,9 @@ def render_compose_summary(data: dict[str, object], *, label: str) -> str:
                 value = latest.get(key)
                 if value:
                     lines.append(f"latest_deployment_{key}: {str(value)[:160]}")
+            lines.extend(render_deployment_diagnostics(latest))
     lines.append("raw_compose_printed: false")
+    lines.append("raw_deployment_printed: false")
     return "\n".join(lines)
 
 
@@ -570,14 +604,23 @@ def wait_for_dokploy_deployment_rollout(
         compose_status = str(data.get("composeStatus") or "")
         deployments = data.get("deployments")
         deployment_count = len(deployments) if isinstance(deployments, list) else 0
+        current_ids = deployment_ids(deployments)
+        new_deployment_ids = sorted(current_ids - previous_deployment_ids)
         if attempt == 1 or attempt % 6 == 0 or compose_status != "idle":
             print(
                 render_compose_summary(data, label=f"deployment-rollout-attempt-{attempt}")
             )
         if compose_status == "error":
-            raise RuntimeError(f"Dokploy compose entered error status: {compose_id}")
-        current_ids = deployment_ids(deployments)
-        new_deployment_ids = sorted(current_ids - previous_deployment_ids)
+            print(render_compose_summary(data, label=f"compose-error-attempt-{attempt}"))
+            latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
+            latest_id = str(latest.get("deploymentId") or "")
+            deployment_suffix = (
+                f" deployment_id={latest_id}" if latest_id else " deployment_id=unknown"
+            )
+            raise RuntimeError(
+                "Dokploy compose entered error status before readiness polling: "
+                f"compose_id={compose_id}{deployment_suffix}"
+            )
         print(
             f"Dokploy rollout probe: attempt={attempt} "
             f"compose_id={compose_id} "

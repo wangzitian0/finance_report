@@ -167,6 +167,7 @@ def test_AC8_13_101_compose_summary_hides_raw_env() -> None:
                     "deploymentId": "dep-591",
                     "status": "running",
                     "createdAt": "2026-06-06T07:42:00Z",
+                    "error": "image pull failed token=secret-refresh hvs.secret",
                 }
             ],
             "env": "DATABASE_URL=postgres://secret\nrefreshToken=secret",
@@ -180,11 +181,15 @@ def test_AC8_13_101_compose_summary_hides_raw_env() -> None:
     assert "composeStatus: running" in summary
     assert "deployment_count: 1" in summary
     assert "latest_deployment_deploymentId: dep-591" in summary
+    assert "latest_deployment_error: image pull failed token=<redacted>" in summary
     assert "env_present: True" in summary
     assert "raw_compose_printed: false" in summary
+    assert "raw_deployment_printed: false" in summary
     assert "postgres://secret" not in summary
     assert "refreshToken" not in summary
     assert "DATABASE_URL" not in summary
+    assert "secret-refresh" not in summary
+    assert "hvs.secret" not in summary
 
 
 def test_AC8_13_101_compose_summary_sorts_latest_deployment() -> None:
@@ -318,6 +323,51 @@ def test_AC8_13_102_dokploy_rollout_error_fails_before_readiness(
             compose_id="cmp-591",
             previous_deployment_ids={"old-dep"},
         )
+
+
+def test_AC8_13_102_compose_error_logs_redacted_deployment_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(
+        lifecycle,
+        "get_compose_data",
+        lambda *args, **kwargs: {
+            "composeId": "cmp-591",
+            "composeStatus": "error",
+            "deployments": [
+                {
+                    "deploymentId": "dep-591",
+                    "status": "error",
+                    "error": (
+                        "docker compose failed: pull access denied "
+                        "AUTHORIZATION=Bearer secret-token hvs.secret"
+                    ),
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="compose entered error status before readiness polling",
+    ):
+        lifecycle.wait_for_dokploy_deployment_rollout(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+            compose_id="cmp-591",
+            previous_deployment_ids={"old-dep"},
+        )
+
+    out = capsys.readouterr().out
+    assert "compose-error-attempt-1" in out
+    assert "latest_deployment_deploymentId: dep-591" in out
+    assert "latest_deployment_error: docker compose failed: pull access denied" in out
+    assert "AUTHORIZATION=<redacted>" in out
+    assert "raw_deployment_printed: false" in out
+    assert "secret-token" not in out
+    assert "hvs.secret" not in out
 
 
 def test_AC8_13_72_dokploy_failure_log_is_redacted(
