@@ -196,15 +196,20 @@ async def test_stale_model_id_auto_cleanup(authenticated_page: Page) -> None:
     """
     _skip_if_no_url()
     page = authenticated_page
-    await page.goto(_get_url("/statements"))
-    await page.wait_for_load_state("networkidle")
+    await page.goto(_get_url("/statements"), wait_until="domcontentloaded")
+    await expect(page.locator("select#ai-model")).to_be_visible(timeout=15_000)
 
     # Use a guaranteed-nonexistent model ID so the test is catalog-independent.
     # Real model IDs are provider-configured and may change over time; using
     # a clearly fake ID ensures the stale-cleanup logic is always exercised.
     stale_id = "test/nonexistent-model-for-stale-cleanup-test"
     await page.evaluate(f'localStorage.setItem("statement_model_v1", "{stale_id}")')
-    await page.reload()
-    await page.wait_for_load_state("networkidle")
+    await page.reload(wait_until="domcontentloaded")
+    await expect(page.locator("select#ai-model")).to_be_visible(timeout=15_000)
+    await page.wait_for_function(
+        "(staleId) => localStorage.getItem('statement_model_v1') !== staleId",
+        arg=stale_id,
+        timeout=15_000,
+    )
     stored_model: str | None = await page.evaluate('localStorage.getItem("statement_model_v1")')
     assert stored_model != stale_id, f"Stale model ID '{stale_id}' was not cleared from localStorage after reload"
