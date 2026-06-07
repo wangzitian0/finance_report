@@ -49,9 +49,12 @@ COMPOSE_SUMMARY_KEYS = (
 DEPLOYMENT_DIAGNOSTIC_KEYS = (
     "message",
     "error",
+    "errorMessage",
     "statusMessage",
     "statusReason",
     "reason",
+    "description",
+    "logPath",
 )
 SENSITIVE_ASSIGNMENT_PATTERN = re.compile(
     r"(?i)\b("

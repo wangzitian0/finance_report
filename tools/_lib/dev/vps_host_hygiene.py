@@ -218,14 +218,20 @@ def build_hygiene_script(
             f'docker image prune -af --filter "until={image_prune_until}"',
         ),
         (
-            f"docker network prune -f --filter until={network_prune_until}",
-            f'docker network prune -f --filter "until={network_prune_until}"',
-        ),
-        (
             f"journalctl --vacuum-time={journal_vacuum_time} --vacuum-size={journal_vacuum_size}",
             f'journalctl --vacuum-time="{journal_vacuum_time}" --vacuum-size="{journal_vacuum_size}"',
         ),
     ]
+    if network_prune_until == "all":
+        prune_commands.insert(2, ("docker network prune -f", "docker network prune -f"))
+    else:
+        prune_commands.insert(
+            2,
+            (
+                f"docker network prune -f --filter until={network_prune_until}",
+                f'docker network prune -f --filter "until={network_prune_until}"',
+            ),
+        )
     for dry_run_command, command in prune_commands:
         if dry_run:
             lines.append(f'echo "[dry-run] {dry_run_command}"')
@@ -377,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--container-prune-until", default="72h")
     parser.add_argument("--builder-prune-until", default="72h")
     parser.add_argument("--image-prune-until", default="72h")
-    parser.add_argument("--network-prune-until", default="72h")
+    parser.add_argument("--network-prune-until", default="all")
     parser.add_argument("--journal-vacuum-time", default="3d")
     parser.add_argument("--journal-vacuum-size", default="1G")
     parser.add_argument("--docker-log-truncate-size-mib", type=int, default=100)

@@ -168,6 +168,8 @@ def test_AC8_13_101_compose_summary_hides_raw_env() -> None:
                     "status": "running",
                     "createdAt": "2026-06-06T07:42:00Z",
                     "error": "image pull failed token=secret-refresh hvs.secret",
+                    "errorMessage": "network creation failed",
+                    "logPath": "/etc/dokploy/logs/compose-pr-591.log",
                 }
             ],
             "env": "DATABASE_URL=postgres://secret\nrefreshToken=secret",
@@ -182,6 +184,8 @@ def test_AC8_13_101_compose_summary_hides_raw_env() -> None:
     assert "deployment_count: 1" in summary
     assert "latest_deployment_deploymentId: dep-591" in summary
     assert "latest_deployment_error: image pull failed token=<redacted>" in summary
+    assert "latest_deployment_errorMessage: network creation failed" in summary
+    assert "latest_deployment_logPath: /etc/dokploy/logs/compose-pr-591.log" in summary
     assert "env_present: True" in summary
     assert "raw_compose_printed: false" in summary
     assert "raw_deployment_printed: false" in summary

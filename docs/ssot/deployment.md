@@ -136,15 +136,19 @@ responses or full environment templates.
 VPS disk hygiene is not a GitHub Actions SSH responsibility. Dokploy owns the
 operational schedule through a `server` Schedule Job managed by
 `tools/vps_host_hygiene.py --ensure-dokploy-schedule`. The job prunes generic
-Docker and journal garbage, and keeps PR preview Docker resources created within
-the last 3 days or belonging to the most recent 3 PR numbers. PR preview
+Docker and journal garbage, prunes all unused Docker networks, and keeps PR
+preview Docker resources created within the last 3 days or belonging to the
+most recent 3 PR numbers. Unused Docker networks are not age-gated because
+commit-scoped PR preview retries can leave orphan networks that exhaust Docker's
+predefined address pools before disk retention thresholds are reached; Docker
+does not remove networks attached to running containers. PR preview
 commit-scoped container names such as `finance-report-backend-pr-738-<sha12>`
 are recognized as preview resources. Preview containers in `restarting`,
 `exited`, `dead`, `created`, or Docker `unhealthy` state are deleted even inside
 the normal age/recent retention window because those orphaned runtimes already
-fail the infra watchdog and cannot be treated as healthy rollback targets. PR preview
-workflows only create, update, deploy, delete, and reconcile Dokploy compose
-resources.
+fail the infra watchdog and cannot be treated as healthy rollback targets. PR
+preview workflows only create, update, deploy, delete, and reconcile Dokploy
+compose resources.
 
 Install or update the Dokploy host hygiene schedule with:
 
