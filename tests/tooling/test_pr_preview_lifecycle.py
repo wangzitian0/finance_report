@@ -818,6 +818,90 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
     assert "retrying with compose.redeploy" in capsys.readouterr().out
 
 
+def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.102: Existing empty preview composes are recreated before rollout."""
+    lifecycle = lifecycle_module()
+    calls: list[list[str]] = []
+
+    effective_env = "\n".join(
+        [
+            "IMAGE_TAG=pr-591-abc123",
+            "GIT_COMMIT_SHA=abc123",
+            "IAC_CONFIG_HASH=pr-591-abc123",
+            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
+            "ENV_SUFFIX=-pr-591-abc123",
+            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "DB_HOST=finance-report-db-pr-591-abc123",
+            "S3_HOST=finance-report-minio-pr-591-abc123",
+            "COMPOSE_PROFILES=infra,app",
+        ]
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[{"name":"pr-591","composeId":"empty-cmp"}]}',
+                stderr="",
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"recreated-cmp"}', stderr=""
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps(
+                    {"env": effective_env, "composeStatus": "idle", "deployments": []}
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        lifecycle, "wait_for_dokploy_deployment_rollout", lambda *args, **kwargs: None
+    )
+    args = SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+    assert lifecycle.main_from_args(args) == 0
+
+    rendered_calls = "\n".join(" ".join(call) for call in calls)
+    assert "compose.delete" in rendered_calls
+    assert "compose.create" in rendered_calls
+    assert "compose.deploy" in rendered_calls
+    assert "compose.redeploy" not in rendered_calls
+    assert "recreating before deploy" in capsys.readouterr().out
+
+
 def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

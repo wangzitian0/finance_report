@@ -706,6 +706,28 @@ def deploy_action(args: argparse.Namespace) -> int:
         branch=args.branch,
         github_integration_id=args.github_integration_id,
     )
+    existing_compose_data = (
+        get_compose_data(config, compose_id=compose_id) if existing_compose else {}
+    )
+    if (
+        existing_compose
+        and str(existing_compose_data.get("composeStatus") or "") == "idle"
+        and not deployment_ids(existing_compose_data.get("deployments"))
+    ):
+        print(
+            "Existing preview compose has no deployment records; "
+            "recreating before deploy"
+        )
+        delete_compose(config, compose_id=compose_id)
+        compose_id = create_compose(
+            config,
+            environment_id=args.environment_id,
+            compose_name=args.compose_name,
+            pr_number=args.pr_number,
+            branch=args.branch,
+            github_integration_id=args.github_integration_id,
+        )
+        existing_compose = False
     preview_env = build_preview_env(
         pr_number=args.pr_number,
         commit_sha=args.commit_sha,
