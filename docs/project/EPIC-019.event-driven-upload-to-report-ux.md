@@ -393,6 +393,7 @@ workflow state exists.
 | AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
 | AC19.8.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
+| AC19.8.9 | Concurrent `GET /workflow/status` and `GET /workflow/events` reads create or reuse the synthetic active workflow session without duplicate-key 500s | `test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe` | P0 |
 
 ### AC19.9 — Source Trust Readiness
 

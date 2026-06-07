@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer2 import AssetType, AtomicPosition
@@ -400,19 +400,9 @@ class BrokeragePositionImportService:
 
         for snapshot in snapshots:
             dedup_hash = _dedup_hash(user_id, snapshot)
-            existing_row = (
-                await db.execute(
-                    select(AtomicPosition)
-                    .where(AtomicPosition.user_id == user_id)
-                    .where(AtomicPosition.dedup_hash == dedup_hash)
-                )
-            ).scalar_one_or_none()
-            if existing_row:
-                existing += 1
-                continue
-
-            db.add(
-                AtomicPosition(
+            insert_result = await db.execute(
+                postgresql_insert(AtomicPosition)
+                .values(
                     user_id=user_id,
                     snapshot_date=snapshot.snapshot_date,
                     asset_identifier=snapshot.asset_identifier,
@@ -434,10 +424,14 @@ class BrokeragePositionImportService:
                         ]
                     },
                 )
+                .on_conflict_do_nothing(constraint="uq_atomic_positions_user_dedup_hash")
+                .returning(AtomicPosition.id)
             )
-            created += 1
+            if insert_result.scalar_one_or_none() is None:
+                existing += 1
+            else:
+                created += 1
 
-        await db.flush()
         reconcile_result = None
         if reconcile and snapshots:
             reconcile_result = await AssetService().reconcile_positions(db, user_id)

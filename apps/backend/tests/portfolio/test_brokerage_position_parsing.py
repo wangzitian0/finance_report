@@ -1,5 +1,6 @@
 """Tests for brokerage position parsing into AtomicPosition."""
 
+import asyncio
 import json
 from datetime import date
 from decimal import Decimal
@@ -8,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.models import (
     BankStatement,
@@ -359,6 +361,63 @@ async def test_import_interactive_brokers_positions_idempotently_reconciles(db, 
     assert len(managed_rows) == 1
     assert managed_rows[0].asset_identifier == "AAPL"
     assert managed_rows[0].quantity == Decimal("10")
+
+
+@pytest.mark.asyncio
+async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import(db_engine, test_user):
+    """AC17.4.8: Auto parse import and manual statement import race without duplicate-position 500s."""
+    service = BrokeragePositionImportService()
+    payload = {
+        "institution": "Moomoo",
+        "statement": {"period_end": "2026-06-30", "currency": "SGD"},
+        "positions": [
+            {
+                "symbol": "Fullerton SGD Money Market Fund",
+                "quantity": "1",
+                "market_value": "1250.50",
+                "currency": "SGD",
+                "asset_type": "money_market",
+            }
+        ],
+    }
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with sessionmaker() as auto_session, sessionmaker() as manual_session:
+        auto_result = await service.import_positions(
+            auto_session,
+            user_id=test_user.id,
+            payload=payload,
+            source_document_id="auto-parse-doc",
+            reconcile=False,
+        )
+
+        manual_task = asyncio.create_task(
+            service.import_positions(
+                manual_session,
+                user_id=test_user.id,
+                payload=payload,
+                source_document_id="manual-import-doc",
+                reconcile=False,
+            )
+        )
+        await asyncio.sleep(0.2)
+        await auto_session.commit()
+
+        manual_result = await asyncio.wait_for(manual_task, timeout=5)
+        await manual_session.commit()
+
+    async with sessionmaker() as verify_session:
+        positions = (
+            (await verify_session.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id)))
+            .scalars()
+            .all()
+        )
+
+    assert auto_result.created_atomic_positions == 1
+    assert manual_result.created_atomic_positions == 0
+    assert manual_result.existing_atomic_positions == 1
+    assert len(positions) == 1
+    assert positions[0].asset_identifier == "Fullerton SGD Money Market Fund"
 
 
 @pytest.mark.asyncio
