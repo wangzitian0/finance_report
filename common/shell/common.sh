@@ -227,6 +227,8 @@ dokploy_api_call() {
   
   local curl_args=(
     -s
+    --connect-timeout "${DOKPLOY_API_CONNECT_TIMEOUT_SECONDS:-10}"
+    --max-time "${DOKPLOY_API_MAX_TIME_SECONDS:-60}"
     -o "$output_file"
     -w "%{http_code}"
     --config "$curl_config_file"

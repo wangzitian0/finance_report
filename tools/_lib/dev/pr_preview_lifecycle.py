@@ -46,8 +46,26 @@ COMPOSE_SUMMARY_KEYS = (
     "composeStatus",
     "status",
 )
+DEPLOYMENT_DIAGNOSTIC_KEYS = (
+    "message",
+    "error",
+    "errorMessage",
+    "statusMessage",
+    "statusReason",
+    "reason",
+    "description",
+    "logPath",
+)
+SENSITIVE_ASSIGNMENT_PATTERN = re.compile(
+    r"(?i)\b("
+    r"[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|AUTHORIZATION|COOKIE|"
+    r"DATABASE_URL|REFRESH)[A-Z0-9_]*\s*[:=]\s*"
+    r")([^,\s]+)"
+)
+AUTH_VALUE_PATTERN = re.compile(r"(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/\-]+=*")
+VAULT_TOKEN_PATTERN = re.compile(r"\bhvs\.[A-Za-z0-9._-]+")
 
-DEPLOYMENT_READY_FOR_READINESS_STATUSES = {"running", "done"}
+DEPLOYMENT_READY_FOR_READINESS_STATUSES = {"done"}
 PR_PREVIEW_COMPOSE_PATH = "docker-compose.pr-preview.yml"
 PR_PREVIEW_COMPOSE_TYPE = "docker-compose"
 PR_PREVIEW_SOURCE_TYPE = "github"
@@ -118,6 +136,23 @@ def render_allowlisted_env_diff(expected: dict[str, str], actual_env_text: str) 
     return "\n".join(lines)
 
 
+def redact_diagnostic_value(value: object) -> str:
+    rendered = str(value)
+    rendered = AUTH_VALUE_PATTERN.sub(r"\1 <redacted>", rendered)
+    rendered = SENSITIVE_ASSIGNMENT_PATTERN.sub(r"\1<redacted>", rendered)
+    rendered = VAULT_TOKEN_PATTERN.sub("hvs.<redacted>", rendered)
+    return rendered[:300]
+
+
+def render_deployment_diagnostics(deployment: dict[str, object]) -> list[str]:
+    lines: list[str] = []
+    for key in DEPLOYMENT_DIAGNOSTIC_KEYS:
+        value = deployment.get(key)
+        if isinstance(value, str) and value:
+            lines.append(f"latest_deployment_{key}: {redact_diagnostic_value(value)}")
+    return lines
+
+
 def render_compose_summary(data: dict[str, object], *, label: str) -> str:
     lines = [f"Dokploy compose summary ({label})"]
     for key in COMPOSE_SUMMARY_KEYS:
@@ -141,7 +176,9 @@ def render_compose_summary(data: dict[str, object], *, label: str) -> str:
                 value = latest.get(key)
                 if value:
                     lines.append(f"latest_deployment_{key}: {str(value)[:160]}")
+            lines.extend(render_deployment_diagnostics(latest))
     lines.append("raw_compose_printed: false")
+    lines.append("raw_deployment_printed: false")
     return "\n".join(lines)
 
 
@@ -405,6 +442,7 @@ def create_compose(
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
             "command": preview_compose_command(pr_number),
+            "autoDeploy": False,
         },
     )
     compose_id = json.loads(body or "{}").get("composeId")
@@ -485,6 +523,7 @@ def update_compose_source(
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
             "command": preview_compose_command(pr_number),
+            "autoDeploy": False,
         },
     )
     print(f"GitHub preview compose configured for compose: {compose_id}")
@@ -551,8 +590,8 @@ def wait_for_dokploy_deployment_rollout(
     *,
     compose_id: str,
     previous_deployment_ids: set[str] | None = None,
-    timeout_seconds: int = 300,
-    new_deployment_timeout_seconds: int = 20,
+    timeout_seconds: int = 600,
+    new_deployment_timeout_seconds: int = 600,
     interval_seconds: int = 5,
 ) -> None:
     previous_deployment_ids = previous_deployment_ids or set()
@@ -570,14 +609,30 @@ def wait_for_dokploy_deployment_rollout(
         compose_status = str(data.get("composeStatus") or "")
         deployments = data.get("deployments")
         deployment_count = len(deployments) if isinstance(deployments, list) else 0
+        current_ids = deployment_ids(deployments)
+        new_deployment_ids = sorted(current_ids - previous_deployment_ids)
         if attempt == 1 or attempt % 6 == 0 or compose_status != "idle":
             print(
                 render_compose_summary(data, label=f"deployment-rollout-attempt-{attempt}")
             )
         if compose_status == "error":
-            raise RuntimeError(f"Dokploy compose entered error status: {compose_id}")
-        current_ids = deployment_ids(deployments)
-        new_deployment_ids = sorted(current_ids - previous_deployment_ids)
+            print(render_compose_summary(data, label=f"compose-error-attempt-{attempt}"))
+            latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
+            latest_id = str(latest.get("deploymentId") or "")
+            deployment_suffix = (
+                f" deployment_id={latest_id}" if latest_id else " deployment_id=unknown"
+            )
+            raise RuntimeError(
+                "Dokploy compose entered error status before readiness polling: "
+                f"compose_id={compose_id}{deployment_suffix}"
+            )
+        print(
+            f"Dokploy rollout probe: attempt={attempt} "
+            f"compose_id={compose_id} "
+            f"composeStatus={compose_status or 'unknown'} "
+            f"deployment_count={deployment_count} "
+            f"new_deployment_ids={','.join(new_deployment_ids) or 'none'}"
+        )
         if new_deployment_ids:
             latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
             latest_id = str(latest.get("deploymentId") or new_deployment_ids[-1])
@@ -593,19 +648,14 @@ def wait_for_dokploy_deployment_rollout(
                     "Dokploy deployment failed before readiness polling: "
                     f"compose_id={compose_id} deployment_id={latest_id}"
                 )
-            if (
-                attempt == 1
-                or attempt % 6 == 0
-                or latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES
-            ):
-                print(
-                    f"Dokploy deployment observed: compose_id={compose_id} "
-                    f"composeStatus={compose_status or 'unknown'} "
-                    f"deployment_count={deployment_count} "
-                    f"new_deployment_ids={','.join(new_deployment_ids)} "
-                    f"latest_deployment_id={latest_id} "
-                    f"latest_deployment_status={latest_status}"
-                )
+            print(
+                f"Dokploy deployment observed: compose_id={compose_id} "
+                f"composeStatus={compose_status or 'unknown'} "
+                f"deployment_count={deployment_count} "
+                f"new_deployment_ids={','.join(new_deployment_ids)} "
+                f"latest_deployment_id={latest_id} "
+                f"latest_deployment_status={latest_status}"
+            )
             if latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES:
                 return
         if not new_deployment_ids and now >= new_deployment_deadline:
@@ -617,7 +667,7 @@ def wait_for_dokploy_deployment_rollout(
             )
         if now >= deadline:
             raise RuntimeError(
-                "Dokploy deployment did not reach running/done before readiness "
+                "Dokploy deployment did not reach done before readiness "
                 f"polling: compose_id={compose_id} composeStatus={compose_status or 'unknown'} "
                 f"deployment_count={deployment_count} "
                 f"new_deployment_ids={','.join(new_deployment_ids)}"
@@ -672,17 +722,11 @@ def deploy_action(args: argparse.Namespace) -> int:
     force_redeploy = existing_compose
     deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
     print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
-    try:
-        wait_for_dokploy_deployment_rollout(
-            config,
-            compose_id=compose_id,
-            previous_deployment_ids=previous_deployment_ids,
-        )
-    except DokployDeploymentDidNotStart as exc:
-        print(
-            f"{exc}; proceeding to commit-scoped readiness because Dokploy "
-            "deployment records can lag queued deploys"
-        )
+    wait_for_dokploy_deployment_rollout(
+        config,
+        compose_id=compose_id,
+        previous_deployment_ids=previous_deployment_ids,
+    )
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")
