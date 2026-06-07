@@ -953,7 +953,7 @@ describe("PersonalReportPackagePage", () => {
         "/api/reports/package/contract",
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("Balance Sheet");
     expect(screen.getByText("Personal Report Package")).toBeInTheDocument();
     expect(
