@@ -495,16 +495,18 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
 
 
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
-    """AC8.13.13: Staging deploy preserves every post-merge train run."""
+    """AC8.13.13 AC8.13.105: Staging deploy preserves every post-merge train run."""
     workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "concurrency:" not in workflow
-    assert "post-merge-train-turn:" in workflow
-    assert "name: Post-merge Train Turn" in workflow
+    assert "post-merge-train-turn:" not in workflow
+    assert "classify-staging:" not in workflow
+    assert "name: Wait for FIFO post-merge train turn" in workflow
     assert "python tools/wait_post_merge_train_turn.py" in workflow
     assert "--timeout-seconds 21600" in workflow
-    assert "needs: [post-merge-train-turn, classify-staging]" in workflow
+    assert "name: Classify staging and AI/OCR relevance" in workflow
+    assert "staging_required: ${{ steps.classify.outputs.staging_required }}" in workflow
     assert (
         "staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
         not in workflow
@@ -546,6 +548,10 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
 
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
+    assert (
+        "if: ${{ needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' }}"
+        in deploy_workflow
+    )
     assert "name: Staging AI/OCR Gate" in deploy_workflow
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
     assert (
@@ -780,10 +786,14 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert "github.event.workflow_run.conclusion == 'success'" in workflow
     assert "github.event.workflow_run.head_branch == 'main'" in workflow
     assert (
-        'staging_required="${{ needs.classify-staging.outputs.staging_required }}"'
+        'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"'
         in workflow
     )
-    assert '[ "$staging_required" = "true" ]' in workflow
+    assert (
+        'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"'
+        in workflow
+    )
+    assert '[ "$ai_ocr_required" = "true" ]' in workflow
     assert "needs.build-and-deploy.result" in workflow
     assert "needs.ai-ocr-gate.result" in workflow
     assert "gh issue list" in workflow
@@ -802,6 +812,7 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
     assert "Build/deploy result: ${build_result}" in workflow
     assert "AI/OCR result: ${ai_ocr_result}" in workflow
+    assert "AI/OCR required: ${ai_ocr_required:-unknown}" in workflow
     assert "STAGING_APP_URL: https://report-staging.zitian.party" in workflow
     assert "App URL: ${STAGING_APP_URL}" in workflow
     assert "DOKPLOY_API_KEY" not in workflow.split("staging-deploy-alert:", 1)[1]
@@ -826,19 +837,19 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     assert "post-merge-delivery:" in workflow
     assert "name: Post-merge Delivery" in workflow
     assert (
-        "needs: [classify-staging, build-and-deploy, ai-ocr-gate, "
-        "staging-deploy-alert]"
+        "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert]"
     ) in workflow
     assert "Aggregate post-merge delivery result" in workflow
-    assert 'classify_result="${{ needs.classify-staging.result }}"' in workflow
     assert (
-        'staging_required="${{ needs.classify-staging.outputs.staging_required }}"'
+        'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"'
         in workflow
     )
+    assert 'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"' in workflow
     assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
     assert 'alert_result="${{ needs.staging-deploy-alert.result }}"' in workflow
     assert 'delivery_status="skipped-no-staging-required"' in workflow
+    assert '[ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]' in workflow
     assert 'failure_reason="build/deploy gate failed"' in workflow
     assert 'failure_reason="staging AI/OCR gate failed"' in workflow
     assert 'failure_reason="staging alert job failed"' in workflow
@@ -848,8 +859,8 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         "post-merge-summary:", 1
     )[0]
     assert (
-        "needs: [classify-staging, build-and-deploy, ai-ocr-gate, "
-        "staging-deploy-alert, post-merge-delivery]"
+        "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert, "
+        "post-merge-delivery]"
     ) in workflow
     assert "dedicated `Post-merge Delivery` check" in ci_cd
     assert "A green `CI` workflow alone is not sufficient evidence" in ci_cd
@@ -863,8 +874,8 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     classifier_tests = read("tests/tooling/test_ci_change_classifier.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "classify-staging:" in workflow
-    assert "name: Classify Staging Relevance" in workflow
+    assert "classify-staging:" not in workflow
+    assert "name: Classify staging and AI/OCR relevance" in workflow
     assert "fetch-depth: 0" in workflow
     assert "git diff --name-only" in workflow
     assert "tools/ci_change_classifier.py" in workflow
@@ -872,8 +883,8 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
         "staging_required: ${{ steps.classify.outputs.staging_required }}" in workflow
     )
     assert "staging_reason: ${{ steps.classify.outputs.staging_reason }}" in workflow
-    assert "needs: [post-merge-train-turn, classify-staging]" in workflow
-    assert "needs.classify-staging.outputs.staging_required == 'true'" in workflow
+    assert "if: steps.classify.outputs.staging_required == 'true'" in workflow
+    assert "Report staging deploy skip" in workflow
     assert "manual-dispatch" in workflow
 
     assert "STAGING_EXACT" in classifier
@@ -1180,7 +1191,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
     preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
 
-    assert "post-merge-train-turn:" in workflow
+    assert "post-merge-train-turn:" not in workflow
     assert "python tools/wait_post_merge_train_turn.py" in workflow
     assert "workflow_dispatch:" in workflow
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
@@ -1492,10 +1503,14 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "post-merge-train-turn:" in deploy_workflow
-    assert "needs: [post-merge-train-turn, classify-staging]" in deploy_workflow
+    assert "post-merge-train-turn:" not in deploy_workflow
+    assert "name: Classify staging and AI/OCR relevance" in deploy_workflow
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
+    assert (
+        "ai_ocr_required: ${{ steps.classify.outputs.staging_ai_ocr_required }}"
+        in deploy_workflow
+    )
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
@@ -1852,10 +1867,10 @@ def test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run() -> N
         "github.event.workflow_run.head_branch != 'main'"
     )
 
-    assert workflow.count(successful_main_push_guard) >= 5
+    assert workflow.count(successful_main_push_guard) >= 3
 
     skipped_section = workflow.split("ci-not-success-summary:", 1)[1].split(
-        "\n  classify-staging:", 1
+        "\n  build-and-deploy:", 1
     )[0]
     assert ignored_guard in skipped_section
     assert "- Trigger event: ${{ github.event.workflow_run.event }}" in skipped_section
@@ -1977,7 +1992,7 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
 
 
 def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> None:
-    """AC8.13.72: staging proof checks health git_sha, not just Dokploy trigger."""
+    """AC8.13.72 AC8.13.106: staging proof checks health git_sha, not just Dokploy trigger."""
     workflow = read(".github/workflows/staging-deploy.yml")
     deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
     health_check = read("tools/_lib/shell/health_check.sh")
@@ -2008,6 +2023,9 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
         'actual_sha=$(echo "$health_response" | jq -r \'.git_sha // .version // ""\')'
         in health_check
     )
+    assert 'HEALTH_CHECK_MAX_SHA_MISMATCH_ATTEMPTS: "18"' in deploy_block
+    assert "MAX_SHA_MISMATCH_ATTEMPTS" in health_check
+    assert "Stable mismatch attempts" in health_check
     assert "Git SHA Mismatch" in health_check
     assert "exit 1" in health_check
 
@@ -2266,9 +2284,10 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
     assert "post-merge-summary:" in deploy_workflow
     assert (
-        "needs: [classify-staging, build-and-deploy, ai-ocr-gate, "
-        "staging-deploy-alert, post-merge-delivery]"
-    ) in deploy_workflow
+        "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert, "
+        "post-merge-delivery]"
+        in deploy_workflow
+    )
     assert "Write post-merge timing summary" in deploy_workflow
     assert '--title "Post-merge Timing Summary"' in deploy_workflow
     assert "Queue delay" in timing_script
