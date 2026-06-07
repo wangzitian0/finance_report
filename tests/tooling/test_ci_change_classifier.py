@@ -11,6 +11,7 @@ from common.ci.change_classifier import (
     classify_changed_paths,
     is_lightweight,
     is_pr_preview_relevant,
+    is_staging_ai_ocr_relevant,
     is_staging_relevant,
 )  # noqa: E402
 
@@ -35,6 +36,9 @@ def test_AC8_13_20_docs_and_docs_workflow_are_lightweight() -> None:
     assert result.staging_required is False
     assert result.staging_files == ()
     assert result.staging_reason == "no-staging-paths-changed"
+    assert result.staging_ai_ocr_required is False
+    assert result.staging_ai_ocr_files == ()
+    assert result.staging_ai_ocr_reason == "no-staging-ai-ocr-paths-changed"
 
 
 def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:
@@ -63,6 +67,8 @@ def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:
         "apps/backend/src/services/reporting.py",
         "apps/frontend/src/app/page.tsx",
     )
+    assert result.staging_ai_ocr_required is False
+    assert result.staging_ai_ocr_reason == "no-staging-ai-ocr-paths-changed"
 
 
 def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
@@ -71,6 +77,10 @@ def test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow() -> None:
     assert is_lightweight(".github/workflows/ci.yml") is False
     assert classify_changed_paths([".github/workflows/ci.yml"]).heavy_required is True
     assert classify_changed_paths([".github/workflows/ci.yml"]).staging_required is True
+    assert (
+        classify_changed_paths([".github/workflows/ci.yml"]).staging_ai_ocr_required
+        is False
+    )
     assert (
         classify_changed_paths([".github/workflows/ci.yml"]).pr_preview_required
         is False
@@ -101,6 +111,8 @@ def test_AC8_13_20_empty_change_set_requires_heavy_ci() -> None:
     assert result.pr_preview_reason == "no-changed-files-detected"
     assert result.staging_required is True
     assert result.staging_reason == "no-changed-files-detected"
+    assert result.staging_ai_ocr_required is True
+    assert result.staging_ai_ocr_reason == "no-changed-files-detected"
 
 
 def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None:
@@ -156,6 +168,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert result.staging_required is True
     assert result.staging_files == (".github/workflows/ci.yml",)
     assert result.staging_reason == "staging-paths-changed"
+    assert result.staging_ai_ocr_required is False
 
     app_test_or_doc_result = classify_changed_paths(
         [
@@ -210,6 +223,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
     assert result.pr_preview_reason == "pr-preview-paths-changed"
     assert result.staging_required is False
     assert is_staging_relevant("docker-compose.pr-preview.yml") is False
+    assert result.staging_ai_ocr_required is False
 
 
 def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
@@ -232,6 +246,66 @@ def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
     assert result.staging_required is False
     assert result.staging_files == ()
     assert result.staging_reason == "no-staging-paths-changed"
+    assert result.staging_ai_ocr_required is False
+
+
+def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
+    """AC8.13.104: Provider-backed staging proof is risk-triggered."""
+    for path in (
+        ".github/workflows/staging-deploy.yml",
+        ".github/workflows/staging-ai-ocr-gate.yml",
+        "apps/backend/src/config.py",
+        "apps/backend/src/prompts/statement.py",
+        "apps/backend/src/services/extraction.py",
+        "apps/backend/src/services/statement_parsing_supervisor.py",
+        "apps/backend/src/services/ai_advisor.py",
+        "apps/backend/src/routers/statements.py",
+        "tests/e2e/test_statement_full_journey.py",
+        "tests/e2e/test_personal_financial_report_package.py",
+        "tools/staging_ai_ocr_gate_contract.py",
+        "tools/_lib/pdf_fixtures/generators/moomoo_generator.py",
+        "docs/ssot/ai.md",
+        "docs/ssot/critical-proof-matrix.yaml",
+    ):
+        assert is_staging_ai_ocr_relevant(path) is True
+
+    for path in (
+        ".github/workflows/ci.yml",
+        "apps/backend/src/services/reporting.py",
+        "apps/backend/tests/extraction/test_extraction.py",
+        "apps/frontend/src/app/page.tsx",
+        "docker-compose.yml",
+        "repo",
+        "tools/dokploy_deploy.sh",
+        "tools/health_check.sh",
+        "docs/ssot/ci-cd.md",
+    ):
+        assert is_staging_ai_ocr_relevant(path) is False
+
+    runtime_result = classify_changed_paths(
+        [
+            "apps/backend/src/services/reporting.py",
+            "apps/frontend/src/app/page.tsx",
+            "docker-compose.yml",
+        ]
+    )
+    assert runtime_result.staging_required is True
+    assert runtime_result.staging_ai_ocr_required is False
+    assert runtime_result.staging_ai_ocr_reason == "no-staging-ai-ocr-paths-changed"
+
+    provider_result = classify_changed_paths(
+        [
+            "apps/backend/src/services/extraction.py",
+            "tests/e2e/test_statement_full_journey.py",
+        ]
+    )
+    assert provider_result.staging_required is True
+    assert provider_result.staging_ai_ocr_required is True
+    assert provider_result.staging_ai_ocr_files == (
+        "apps/backend/src/services/extraction.py",
+        "tests/e2e/test_statement_full_journey.py",
+    )
+    assert provider_result.staging_ai_ocr_reason == "staging-ai-ocr-paths-changed"
 
 
 def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None:
@@ -319,12 +393,15 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
         "pr_preview_reason=no-pr-preview-paths-changed",
         "staging_required=false",
         "staging_reason=no-staging-paths-changed",
+        "staging_ai_ocr_required=false",
+        "staging_ai_ocr_reason=no-staging-ai-ocr-paths-changed",
     ]
     summary_text = summary.read_text(encoding="utf-8")
     assert "## Change Classification" in summary_text
     assert "- Heavy CI required: `true`" in summary_text
     assert "- PR preview required: `false`" in summary_text
     assert "- Staging deploy required: `false`" in summary_text
+    assert "- Staging AI/OCR required: `false`" in summary_text
     assert "- `tools/ci_change_classifier.py`" in summary_text
 
 

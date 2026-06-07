@@ -1334,10 +1334,10 @@ def test_AC8_13_71_deploy_action_writes_github_output(
     )
 
 
-def test_AC8_13_104_deploy_action_fails_fast_on_missing_required_inputs(
+def test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.104: Missing deploy inputs fail before any Dokploy API call."""
+    """AC8.13.107: Missing deploy inputs fail before any Dokploy API call."""
     lifecycle = lifecycle_module()
     calls = 0
 
@@ -1367,10 +1367,10 @@ def test_AC8_13_104_deploy_action_fails_fast_on_missing_required_inputs(
     assert calls == 0
 
 
-def test_AC8_13_104_preview_deploy_context_is_written_without_secrets(
+def test_AC8_13_107_preview_deploy_context_is_written_without_secrets(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.104: Deploy context artifacts contain routing evidence, not credentials."""
+    """AC8.13.107: Deploy context artifacts contain routing evidence, not credentials."""
     lifecycle = lifecycle_module()
     context_path = tmp_path / "ci-context" / "pr-preview-deploy-context.json"
     context_path.parent.mkdir(parents=True)
@@ -1423,10 +1423,10 @@ def test_AC8_13_104_preview_deploy_context_is_written_without_secrets(
     assert "do-not-preserve" not in rendered
 
 
-def test_AC8_13_104_pr_preview_workflow_fast_fails_missing_images_and_uploads_context() -> (
+def test_AC8_13_107_pr_preview_workflow_fast_fails_missing_images_and_uploads_context() -> (
     None
 ):
-    """AC8.13.104: PR preview logs deploy context and checks images before Dokploy."""
+    """AC8.13.107: PR preview logs deploy context and checks images before Dokploy."""
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
     deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
 

@@ -141,6 +141,35 @@ PDF_FIXTURE_RUNTIME_PREFIXES = (
 STAGING_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | STAGING_ONLY_EXACT
 STAGING_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES + ("repo/",)
 
+STAGING_AI_OCR_EXACT = frozenset(
+    {
+        ".github/workflows/staging-deploy.yml",
+        ".github/workflows/staging-ai-ocr-gate.yml",
+        "apps/backend/src/config.py",
+        "apps/backend/src/prompts/statement.py",
+        "docs/ssot/ai.md",
+        "docs/ssot/critical-proof-matrix.yaml",
+        "docs/ssot/extraction.md",
+        "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+        "tests/e2e/test_four_asset_net_worth_golden_path.py",
+        "tests/e2e/test_personal_financial_report_package.py",
+        "tests/e2e/test_statement_full_journey.py",
+        "tests/e2e/test_statement_upload_e2e.py",
+        "tools/staging_ai_ocr_gate_contract.py",
+    }
+)
+STAGING_AI_OCR_PREFIXES = (
+    "apps/backend/src/services/ai",
+    "apps/backend/src/services/extraction",
+    "apps/backend/src/services/statement",
+    "apps/backend/src/routers/ai",
+    "apps/backend/src/routers/statements",
+    "tools/_lib/pdf_fixtures/data/",
+    "tools/_lib/pdf_fixtures/generators/",
+    "tools/_lib/pdf_fixtures/templates/",
+    "tools/_lib/pdf_fixtures/validators/",
+)
+
 
 @dataclass(frozen=True)
 class EnvStageRule:
@@ -212,6 +241,18 @@ class ChangeClassification:
     def staging_reason(self) -> str:
         return self.envs[Environment.STAGING].reason
 
+    @property
+    def staging_ai_ocr_files(self) -> tuple[str, ...]:
+        return self.envs[Environment.STAGING].provider_gate.files
+
+    @property
+    def staging_ai_ocr_required(self) -> bool:
+        return self.envs[Environment.STAGING].provider_gate.required
+
+    @property
+    def staging_ai_ocr_reason(self) -> str:
+        return self.envs[Environment.STAGING].provider_gate.reason
+
 
 @dataclass(frozen=True)
 class EnvStageClassification:
@@ -219,6 +260,14 @@ class EnvStageClassification:
     required: bool
     reason: str
     stages: tuple[PipelineStage, ...]
+    provider_gate: "ProviderGateClassification"
+
+
+@dataclass(frozen=True)
+class ProviderGateClassification:
+    files: tuple[str, ...]
+    required: bool
+    reason: str
 
 
 def normalize_path(path: str) -> str:
@@ -272,6 +321,32 @@ def is_staging_relevant(path: str) -> bool:
     return _matches_env_stage_rule(path, ENV_STAGE_RULES[Environment.STAGING])
 
 
+def is_staging_ai_ocr_relevant(path: str) -> bool:
+    normalized = normalize_path(path)
+    return normalized in STAGING_AI_OCR_EXACT or normalized.startswith(
+        STAGING_AI_OCR_PREFIXES
+    )
+
+
+def _classify_staging_provider_gate(
+    files: tuple[str, ...],
+) -> ProviderGateClassification:
+    matched_files = tuple(path for path in files if is_staging_ai_ocr_relevant(path))
+    required = bool(matched_files or not files)
+    reason = (
+        "staging-ai-ocr-paths-changed"
+        if matched_files
+        else "no-changed-files-detected"
+        if not files
+        else "no-staging-ai-ocr-paths-changed"
+    )
+    return ProviderGateClassification(
+        files=matched_files,
+        required=required,
+        reason=reason,
+    )
+
+
 def _classify_env_stage(
     files: tuple[str, ...], environment: Environment
 ) -> EnvStageClassification:
@@ -290,6 +365,15 @@ def _classify_env_stage(
         required=required,
         reason=reason,
         stages=rule.stages,
+        provider_gate=(
+            _classify_staging_provider_gate(files)
+            if environment == Environment.STAGING
+            else ProviderGateClassification(
+                files=(),
+                required=False,
+                reason="not-a-staging-provider-gate",
+            )
+        ),
     )
 
 
@@ -327,6 +411,10 @@ def write_github_outputs(
             env_result = classification.envs[environment]
             fh.write(f"{output_prefix}_required={str(env_result.required).lower()}\n")
             fh.write(f"{output_prefix}_reason={env_result.reason}\n")
+        fh.write(
+            f"staging_ai_ocr_required={str(classification.staging_ai_ocr_required).lower()}\n"
+        )
+        fh.write(f"staging_ai_ocr_reason={classification.staging_ai_ocr_reason}\n")
 
 
 def write_github_summary(
@@ -350,6 +438,10 @@ def write_github_summary(
                 f"- {required_label} required: `{str(env_result.required).lower()}`\n"
             )
             fh.write(f"- {reason_label} reason: `{env_result.reason}`\n")
+        fh.write(
+            f"- Staging AI/OCR required: `{str(classification.staging_ai_ocr_required).lower()}`\n"
+        )
+        fh.write(f"- Staging AI/OCR reason: `{classification.staging_ai_ocr_reason}`\n")
         fh.write(f"- Changed files: `{len(classification.files)}`\n")
         if classification.heavy_files:
             fh.write("\nHeavy-triggering files:\n\n")
@@ -367,6 +459,10 @@ def write_github_summary(
                 fh.write(f"\n{files_label}-triggering files:\n\n")
                 for path in env_result.files[:50]:
                     fh.write(f"- `{path}`\n")
+        if classification.staging_ai_ocr_files:
+            fh.write("\nStaging AI/OCR-triggering files:\n\n")
+            for path in classification.staging_ai_ocr_files[:50]:
+                fh.write(f"- `{path}`\n")
 
 
 def main() -> int:

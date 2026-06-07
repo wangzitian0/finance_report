@@ -11,6 +11,7 @@ import {
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
 import {
+  apiFetch,
   fetchWorkflowEvents,
   fetchWorkflowStatus,
   updateWorkflowEventStatus,
@@ -28,11 +29,28 @@ vi.mock("next/link", () => ({
   ),
 }))
 
-vi.mock("@/lib/api", () => ({
-  fetchWorkflowEvents: vi.fn(),
-  fetchWorkflowStatus: vi.fn(),
-  updateWorkflowEventStatus: vi.fn(),
-}))
+vi.mock("@/lib/api", () => {
+  const fetchWorkflowStatus = vi.fn()
+  const fetchWorkflowEvents = vi.fn()
+  const updateWorkflowEventStatus = vi.fn()
+  const apiFetch = vi.fn((path: string, options: RequestInit = {}) => {
+    if (path === "/api/workflow/status") return fetchWorkflowStatus()
+    if (path.startsWith("/api/workflow/events?")) return fetchWorkflowEvents()
+    const eventMatch = path.match(/^\/api\/workflow\/events\/([^/]+)$/)
+    if (eventMatch && options.method === "PATCH") {
+      const body = JSON.parse(String(options.body ?? "{}")) as { status?: string }
+      return updateWorkflowEventStatus(eventMatch[1], body.status)
+    }
+    return Promise.reject(new Error(`Unexpected apiFetch call: ${path}`))
+  })
+
+  return {
+    apiFetch,
+    fetchWorkflowEvents,
+    fetchWorkflowStatus,
+    updateWorkflowEventStatus,
+  }
+})
 
 const statusNeedsAction: WorkflowStatusResponse = {
   primary_state: "needs_action",
@@ -173,6 +191,7 @@ function renderWithQuery(ui: ReactNode) {
 
 describe("workflow notification surfaces", () => {
   beforeEach(() => {
+    vi.mocked(apiFetch).mockClear()
     vi.mocked(fetchWorkflowStatus).mockReset()
     vi.mocked(fetchWorkflowEvents).mockReset()
     vi.mocked(updateWorkflowEventStatus).mockReset()
@@ -213,6 +232,9 @@ describe("workflow notification surfaces", () => {
 
     fireEvent.click(within(dialog).getAllByRole("button", { name: "Archive" })[1])
     await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("review-event", "archived"))
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Workflow events" })).not.toBeInTheDocument())
   })
 
   it("AC19.3.5 shows drawer event load failures without hiding status", async () => {

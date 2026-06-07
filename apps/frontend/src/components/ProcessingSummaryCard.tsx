@@ -1,43 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Clock } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { ProcessingSummaryResponse } from "@/lib/types";
 import { formatCurrency, isAmountZero } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
 
+const EMPTY_PROCESSING_SUMMARY: ProcessingSummaryResponse = {
+  pending_count: 0,
+  pending_total: "0.00",
+  current_balance: "0.00",
+  currency: "SGD",
+  oldest_pending_date: null,
+};
+
 export default function ProcessingSummaryCard() {
-  const [summary, setSummary] = useState<ProcessingSummaryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: summary = EMPTY_PROCESSING_SUMMARY, isError } = useApiQuery<ProcessingSummaryResponse>(
+    ["processing-summary"],
+    "/api/accounts/processing/summary",
+    { placeholderData: EMPTY_PROCESSING_SUMMARY },
+  );
 
-  useEffect(() => {
-    async function fetchSummary() {
-      try {
-        const data = await apiFetch<ProcessingSummaryResponse>("/api/accounts/processing/summary");
-        setSummary(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load summary");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchSummary();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="card p-5 animate-pulse">
-        <div className="h-4 bg-[var(--background-muted)] rounded w-24 mb-2" />
-        <div className="h-8 bg-[var(--background-muted)] rounded w-32 mb-2" />
-        <div className="h-4 bg-[var(--background-muted)] rounded w-20" />
-      </div>
-    );
-  }
-
-  if (error) {
+  if (isError) {
     return (
       <div className="card p-5 border-[var(--error)]/30">
         <p className="text-xs text-muted uppercase">Processing</p>
