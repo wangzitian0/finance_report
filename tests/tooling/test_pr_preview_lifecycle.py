@@ -443,6 +443,52 @@ def test_AC8_13_71_create_compose_requires_compose_id(
         )
 
 
+def test_AC8_13_102_preview_source_disables_dokploy_auto_deploy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: CI owns PR preview rollouts; Dokploy push auto-deploy is disabled."""
+    lifecycle = lifecycle_module()
+    payloads: list[dict[str, object]] = []
+
+    def fake_dokploy_api_call(
+        config,
+        method,
+        endpoint,
+        *,
+        payload=None,
+        expected_status=200,
+    ) -> str:
+        assert config.api_url == "https://cloud.example/api"
+        assert method == "POST"
+        assert expected_status == 200
+        if endpoint in {"compose.create", "compose.update"}:
+            assert payload is not None
+            payloads.append(payload)
+        if endpoint == "compose.create":
+            return '{"composeId":"cmp-591"}'
+        return "{}"
+
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", fake_dokploy_api_call)
+
+    lifecycle.create_compose(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        environment_id="env-test",
+        compose_name="pr-591",
+        pr_number=591,
+        branch="feature",
+        github_integration_id="ghid",
+    )
+    lifecycle.update_compose_source(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        compose_id="cmp-591",
+        pr_number=591,
+        branch="feature",
+        github_integration_id="ghid",
+    )
+
+    assert [payload["autoDeploy"] for payload in payloads] == [False, False]
+
+
 def test_AC8_13_71_get_or_create_reuses_existing_compose(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

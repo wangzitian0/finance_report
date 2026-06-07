@@ -442,6 +442,7 @@ def create_compose(
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
             "command": preview_compose_command(pr_number),
+            "autoDeploy": False,
         },
     )
     compose_id = json.loads(body or "{}").get("composeId")
@@ -522,6 +523,7 @@ def update_compose_source(
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
             "command": preview_compose_command(pr_number),
+            "autoDeploy": False,
         },
     )
     print(f"GitHub preview compose configured for compose: {compose_id}")
