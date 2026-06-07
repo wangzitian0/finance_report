@@ -72,6 +72,8 @@ PR_PREVIEW_SOURCE_TYPE = "github"
 PR_PREVIEW_REPOSITORY = "finance_report"
 PR_PREVIEW_OWNER = "wangzitian0"
 PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS = 120
+DOKPLOY_API_CONNECT_TIMEOUT_SECONDS = 10
+DOKPLOY_API_MAX_TIME_SECONDS = 20
 
 
 @dataclass(frozen=True)
@@ -362,8 +364,10 @@ def dokploy_api_call(
     cmd = [
         "curl",
         "-sS",
+        "--connect-timeout",
+        str(DOKPLOY_API_CONNECT_TIMEOUT_SECONDS),
         "--max-time",
-        "60",
+        str(DOKPLOY_API_MAX_TIME_SECONDS),
         "--config",
         config_path,
         "-w",
@@ -612,7 +616,18 @@ def wait_for_dokploy_deployment_rollout(
     while True:
         attempt += 1
         now = time.monotonic()
-        data = get_compose_data(config, compose_id=compose_id)
+        try:
+            data = get_compose_data(config, compose_id=compose_id)
+        except RuntimeError as exc:
+            if now >= deadline:
+                raise
+            print(
+                "Dokploy rollout probe API failure: "
+                f"attempt={attempt} compose_id={compose_id} "
+                f"error={redact_diagnostic_value(exc)}"
+            )
+            time.sleep(interval_seconds)
+            continue
         compose_status = str(data.get("composeStatus") or "")
         deployments = data.get("deployments")
         deployment_count = len(deployments) if isinstance(deployments, list) else 0

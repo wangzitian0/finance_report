@@ -361,6 +361,40 @@ def test_AC8_13_102_done_compose_without_new_record_proceeds_to_sha_readiness(
     assert "proceeding to commit-scoped readiness" in capsys.readouterr().out
 
 
+def test_AC8_13_102_rollout_poll_retries_transient_dokploy_api_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.102: Transient Dokploy control-plane polling failures stay inside rollout retry."""
+    lifecycle = lifecycle_module()
+    calls = 0
+
+    def fake_get_compose_data(*args: object, **kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("Dokploy request failed for compose.one?api_key=secret")
+        return {
+            "composeStatus": "done",
+            "deployments": [{"deploymentId": "new-dep", "status": "done"}],
+        }
+
+    monkeypatch.setattr(lifecycle, "get_compose_data", fake_get_compose_data)
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+
+    lifecycle.wait_for_dokploy_deployment_rollout(
+        lifecycle.DokployConfig(api_url="https://cloud.example/api", api_key="secret"),
+        compose_id="cmp-1",
+        previous_deployment_ids=set(),
+        timeout_seconds=10,
+    )
+
+    out = capsys.readouterr().out
+    assert calls == 2
+    assert "Dokploy rollout probe API failure" in out
+    assert "api_key=secret" not in out
+
+
 def test_AC8_13_102_compose_error_logs_redacted_deployment_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
