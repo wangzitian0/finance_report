@@ -330,6 +330,37 @@ def test_AC8_13_102_dokploy_rollout_error_fails_before_readiness(
         )
 
 
+def test_AC8_13_102_done_compose_without_new_record_proceeds_to_sha_readiness(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.102: Done composes with old records fall through to commit-scoped readiness."""
+    lifecycle = lifecycle_module()
+    states = iter(
+        [
+            {
+                "composeStatus": "done",
+                "deployments": [{"deploymentId": "old-dep"}],
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        lifecycle, "get_compose_data", lambda *args, **kwargs: next(states)
+    )
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+
+    lifecycle.wait_for_dokploy_deployment_rollout(
+        lifecycle.DokployConfig(api_url="https://cloud.example/api", api_key="secret"),
+        compose_id="cmp-1",
+        previous_deployment_ids={"old-dep"},
+        timeout_seconds=1,
+        new_deployment_timeout_seconds=0,
+    )
+
+    assert "proceeding to commit-scoped readiness" in capsys.readouterr().out
+
+
 def test_AC8_13_102_compose_error_logs_redacted_deployment_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

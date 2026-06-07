@@ -669,6 +669,18 @@ def wait_for_dokploy_deployment_rollout(
             )
             if latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES:
                 return
+        if (
+            not new_deployment_ids
+            and current_ids
+            and compose_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES
+            and now >= new_deployment_deadline
+        ):
+            print(
+                "Dokploy did not expose a new deployment record, but compose "
+                "is done with existing deployment records; proceeding to "
+                "commit-scoped readiness"
+            )
+            return
         if not new_deployment_ids and now >= new_deployment_deadline:
             raise DokployDeploymentDidNotStart(
                 "Dokploy deployment did not create a new deployment before "
