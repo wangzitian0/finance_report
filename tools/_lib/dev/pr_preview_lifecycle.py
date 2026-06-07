@@ -71,6 +71,7 @@ PR_PREVIEW_COMPOSE_TYPE = "docker-compose"
 PR_PREVIEW_SOURCE_TYPE = "github"
 PR_PREVIEW_REPOSITORY = "finance_report"
 PR_PREVIEW_OWNER = "wangzitian0"
+PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS = 120
 
 
 @dataclass(frozen=True)
@@ -246,7 +247,9 @@ def preview_env_suffix(pr_number: int, commit_sha: str) -> str:
 
 
 def preview_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> str:
-    return f"https://report{preview_env_suffix(pr_number, commit_sha)}.{internal_domain}"
+    return (
+        f"https://report{preview_env_suffix(pr_number, commit_sha)}.{internal_domain}"
+    )
 
 
 def preview_compose_command(pr_number: int) -> str:
@@ -542,7 +545,11 @@ def get_compose_data(config: DokployConfig, *, compose_id: str) -> dict[str, obj
 def print_compose_summary(
     config: DokployConfig, *, compose_id: str, label: str
 ) -> None:
-    print(render_compose_summary(get_compose_data(config, compose_id=compose_id), label=label))
+    print(
+        render_compose_summary(
+            get_compose_data(config, compose_id=compose_id), label=label
+        )
+    )
 
 
 def get_compose_env(config: DokployConfig, *, compose_id: str) -> str:
@@ -613,10 +620,14 @@ def wait_for_dokploy_deployment_rollout(
         new_deployment_ids = sorted(current_ids - previous_deployment_ids)
         if attempt == 1 or attempt % 6 == 0 or compose_status != "idle":
             print(
-                render_compose_summary(data, label=f"deployment-rollout-attempt-{attempt}")
+                render_compose_summary(
+                    data, label=f"deployment-rollout-attempt-{attempt}"
+                )
             )
         if compose_status == "error":
-            print(render_compose_summary(data, label=f"compose-error-attempt-{attempt}"))
+            print(
+                render_compose_summary(data, label=f"compose-error-attempt-{attempt}")
+            )
             latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
             latest_id = str(latest.get("deploymentId") or "")
             deployment_suffix = (
@@ -722,11 +733,33 @@ def deploy_action(args: argparse.Namespace) -> int:
     force_redeploy = existing_compose
     deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
     print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
-    wait_for_dokploy_deployment_rollout(
-        config,
-        compose_id=compose_id,
-        previous_deployment_ids=previous_deployment_ids,
-    )
+    try:
+        wait_for_dokploy_deployment_rollout(
+            config,
+            compose_id=compose_id,
+            previous_deployment_ids=previous_deployment_ids,
+            new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+    except DokployDeploymentDidNotStart:
+        if force_redeploy:
+            raise
+        print(
+            "Initial Dokploy deploy did not create a deployment record; "
+            "retrying with compose.redeploy"
+        )
+        previous_deployment_ids = deployment_ids(
+            get_compose_data(config, compose_id=compose_id).get("deployments")
+        )
+        deploy_compose(config, compose_id=compose_id, force_redeploy=True)
+        print_compose_summary(
+            config, compose_id=compose_id, label="after-redeploy-trigger"
+        )
+        wait_for_dokploy_deployment_rollout(
+            config,
+            compose_id=compose_id,
+            previous_deployment_ids=previous_deployment_ids,
+            new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
     if github_output := os.environ.get("GITHUB_OUTPUT"):
         with open(github_output, "a", encoding="utf-8") as output:
             output.write(f"compose_id={compose_id}\n")
@@ -735,7 +768,9 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
     else:
         print(f"compose_id={compose_id}")
-        print(f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}")
+        print(
+            f"app_url={preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)}"
+        )
     return 0
 
 
