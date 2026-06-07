@@ -18,6 +18,10 @@ const uploadedDocumentId = "44444444-4444-4444-8444-444444444444";
 const atomicTransactionId = "55555555-5555-4555-8555-555555555555";
 const reportLineNodeId = "66666666-6666-4666-8666-666666666666";
 
+function renderPackagePage() {
+  return render(<PersonalReportPackagePage />);
+}
+
 const contract = {
   package_id: "personal-financial-report-package",
   version: "1.0",
@@ -538,7 +542,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {
     mockedApiFetch.mockRejectedValue(new Error("package contract unavailable"));
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     expect(screen.getByText("Loading package contract...")).toBeInTheDocument();
     expect(
@@ -549,7 +553,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC20.6.1 requires explicit framework selection before loading framework-scoped package output", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
@@ -572,7 +576,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC20.6.1 renders the API error when the initial package contract cannot load", async () => {
     mockedApiFetch.mockRejectedValueOnce(new Error("Contract unavailable"));
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     expect(await screen.findByText("Contract unavailable")).toBeInTheDocument();
   });
@@ -588,7 +592,7 @@ describe("PersonalReportPackagePage", () => {
       return Promise.reject(new Error(`Unexpected path ${path}`));
     });
 
-    const { unmount } = render(<PersonalReportPackagePage />);
+    const { unmount } = renderPackagePage();
 
     expect(screen.getByText("Loading package contract...")).toBeInTheDocument();
     unmount();
@@ -601,13 +605,13 @@ describe("PersonalReportPackagePage", () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path === "/api/reports/package/contract")
         return Promise.resolve(contract);
-      if (path.startsWith("/api/reports/package/contract?framework_id=")) {
+      if (path.startsWith("/api/reports/package/readiness?framework_id=")) {
         return Promise.reject(new Error("Framework package unavailable"));
       }
       return Promise.reject(new Error(`Unexpected path ${path}`));
     });
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
@@ -626,7 +630,7 @@ describe("PersonalReportPackagePage", () => {
       return new Promise(() => undefined);
     });
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
@@ -641,7 +645,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
@@ -664,7 +668,7 @@ describe("PersonalReportPackagePage", () => {
       ),
       expect.objectContaining({ signal: expect.any(Object) }),
     );
-    expect(screen.getByText("Framework Policy")).toBeInTheDocument();
+    expect(await screen.findByText("Framework Policy")).toBeInTheDocument();
     expect(
       screen.getAllByText("personal_us_gaap_like").length,
     ).toBeGreaterThanOrEqual(1);
@@ -682,7 +686,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC20.6.1 keeps framework package sections pinned to the selected report date", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("Framework Policy");
@@ -705,7 +709,6 @@ describe("PersonalReportPackagePage", () => {
 
     expect(selectedDateCalls).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("/api/reports/package/contract?"),
         expect.stringContaining("/api/reports/package/readiness?"),
         expect.stringContaining("/api/reports/package/framework-policy?"),
         expect.stringContaining("/api/reports/package/annualized-income-schedule?"),
@@ -720,7 +723,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC20.6.1 uses calendar-year report period starts across leap years", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("Framework Policy");
@@ -763,7 +766,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC20.6.1 skips framework package reload while report date input is empty", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("Framework Policy");
@@ -792,7 +795,7 @@ describe("PersonalReportPackagePage", () => {
     });
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     const exportButton = await screen.findByRole("button", { name: "Export CSV" });
@@ -821,7 +824,7 @@ describe("PersonalReportPackagePage", () => {
       gaps: [],
     });
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "HK-like" }));
 
@@ -845,7 +848,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getAllByText("personal_hkfrs_like").length).toBeGreaterThan(
       0,
     );
-    expect(screen.getByText("Framework Policy")).toBeInTheDocument();
+    expect(await screen.findByText("Framework Policy")).toBeInTheDocument();
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("none")).toBeInTheDocument();
   });
@@ -910,7 +913,7 @@ describe("PersonalReportPackagePage", () => {
       },
     );
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await waitFor(() => expect(usSignals.length).toBeGreaterThan(0));
@@ -946,7 +949,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC5.9.3 renders personal package contract sections from API", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
@@ -974,7 +977,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC19.5.4 renders package readiness before report package output", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await waitFor(() =>
@@ -1017,7 +1020,7 @@ describe("PersonalReportPackagePage", () => {
       blockers: [],
     });
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await waitFor(() =>
@@ -1031,7 +1034,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC19.9.2 renders compact source trust summary before traceability details", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
@@ -1067,7 +1070,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC5.9.4 renders export contract metadata", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await waitFor(() =>
@@ -1090,7 +1093,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC5.11.2 renders annualized income schedule values and restricted treatment", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await waitFor(() =>
@@ -1116,7 +1119,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC5.12.3 renders package notes and disclosure basis", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("Basis of Preparation");
@@ -1136,7 +1139,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("balance_sheet.total_assets");
@@ -1178,7 +1181,7 @@ describe("PersonalReportPackagePage", () => {
   it("AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability", async () => {
     mockPackageApi();
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("balance_sheet.total_assets");
@@ -1229,7 +1232,7 @@ describe("PersonalReportPackagePage", () => {
       ],
     });
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("balance_sheet.total_assets");
@@ -1256,7 +1259,7 @@ describe("PersonalReportPackagePage", () => {
       new Error("lineage unavailable"),
     );
 
-    render(<PersonalReportPackagePage />);
+    renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByText("balance_sheet.total_assets");
@@ -1267,7 +1270,7 @@ describe("PersonalReportPackagePage", () => {
     );
 
     await screen.findByRole("dialog", { name: "Evidence Lineage" });
-    expect(screen.getByText("lineage unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("lineage unavailable")).toBeInTheDocument();
   });
 
   it("AC18.9.4 maps source-side graph anchors into Evidence Graph lineage requests", async () => {
@@ -1310,7 +1313,7 @@ describe("PersonalReportPackagePage", () => {
           },
         ],
       });
-      const { unmount } = render(<PersonalReportPackagePage />);
+      const { unmount } = renderPackagePage();
 
       fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
       await screen.findByText("balance_sheet.total_assets");

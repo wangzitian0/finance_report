@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Bell,
@@ -18,12 +18,10 @@ import {
 } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
 import { Alert, Badge, EmptyState, type BadgeVariant } from "@/components/ui";
-import {
-  fetchWorkflowEvents,
-  fetchWorkflowStatus,
-  updateWorkflowEventStatus,
-} from "@/lib/api";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { updateWorkflowEventStatus } from "@/lib/api";
 import type {
+  WorkflowEventListResponse,
   WorkflowEventResponse,
   WorkflowEventSeverity,
   WorkflowEventStatus,
@@ -106,69 +104,115 @@ function readinessVariant(state: WorkflowStatusResponse["report_readiness"]["sta
   return "info";
 }
 
-interface WorkflowEventGroupProps {
-  title: string;
-  events: WorkflowEventResponse[];
+function isWorkflowStatusResponse(value: unknown): value is WorkflowStatusResponse {
+  if (!value || typeof value !== "object") return false;
+  const status = value as Partial<WorkflowStatusResponse>;
+  return Boolean(status.primary_state && status.next_action && status.report_readiness && status.event_counts);
 }
 
-function WorkflowEventGroup({
-  title,
-  events,
-}: WorkflowEventGroupProps) {
-  if (events.length === 0) return null;
+function useWorkflowStatusQuery() {
+  return useApiQuery<WorkflowStatusResponse>(STATUS_QUERY_KEY, "/api/workflow/status", {
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+  });
+}
 
-  return (
-    <section className="space-y-2" aria-label={title}>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <div className="space-y-2">
-        {events.map((event) => {
-          const Icon = severityIcon(event.severity);
-          return (
-            <article
-              key={event.id}
-              className={cx(
-                "rounded-md border p-3 text-sm",
-                event.severity === "blocked" && "border-status-error bg-status-error-muted",
-                event.severity === "action_required" && "border-status-warning bg-status-warning-muted",
-                event.severity !== "blocked" &&
-                  event.severity !== "action_required" &&
-                  "border-border bg-surface-card",
-              )}
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-medium">{event.title}</h4>
-                    <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
-                  </div>
-                  <p className="mt-1 text-sm text-muted">{event.summary}</p>
-                  <time className="mt-2 block text-xs text-muted" dateTime={event.occurred_at}>
-                    {formatEventTime(event.occurred_at)}
-                  </time>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Link
-                      href={event.action_href}
-                      className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                      Open {event.title}
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
+function useWorkflowEventsQuery(limit: number, scope: string, enabled = true) {
+  return useApiQuery<WorkflowEventListResponse>(
+    [...EVENTS_QUERY_KEY, scope, limit],
+    `/api/workflow/events?limit=${limit}`,
+    { enabled },
   );
+}
+
+function useWorkflowLifecycleMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, status }: { eventId: string; status: WorkflowEventStatus }) =>
+      updateWorkflowEventStatus(eventId, status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: STATUS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: EVENTS_QUERY_KEY });
+    },
+  });
 }
 
 interface WorkflowInboxProps {
   events: WorkflowEventResponse[];
   sessions?: WorkflowSessionSummaryResponse[];
   onStatusChange?: (eventId: string, status: WorkflowEventStatus) => void;
+}
+
+function workflowEventCardClass(event: WorkflowEventResponse) {
+  return cx(
+    "rounded-md border p-3 text-sm",
+    event.severity === "blocked" && "border-status-error bg-status-error-muted",
+    event.severity === "action_required" && "border-status-warning bg-status-warning-muted",
+    event.severity !== "blocked" &&
+      event.severity !== "action_required" &&
+      "border-border bg-surface-card",
+  );
+}
+
+function WorkflowEventCard({
+  event,
+  className = workflowEventCardClass(event),
+  openLabel = `Open ${event.title}`,
+  showIcon = true,
+  onStatusChange,
+}: {
+  event: WorkflowEventResponse;
+  className?: string;
+  openLabel?: string;
+  showIcon?: boolean;
+  onStatusChange?: (eventId: string, status: WorkflowEventStatus) => void;
+}) {
+  const Icon = severityIcon(event.severity);
+  return (
+    <article className={className}>
+      <div className="flex min-w-0 items-start gap-3">
+        {showIcon && <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted" aria-hidden="true" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="font-medium">{event.title}</h4>
+            <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
+          </div>
+          <p className="mt-1 text-sm text-muted">{event.summary}</p>
+          <time className="mt-2 block text-xs text-muted" dateTime={event.occurred_at}>
+            {formatEventTime(event.occurred_at)}
+          </time>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Link href={event.action_href} className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              {openLabel}
+            </Link>
+            {event.status === "unread" && onStatusChange && (
+              <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => onStatusChange(event.id, "read")}>
+                Mark as read
+              </button>
+            )}
+            {event.status !== "archived" && onStatusChange && (
+              <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => onStatusChange(event.id, "archived")}>
+                Archive
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function WorkflowEventGroup({ title, events }: { title: string; events: WorkflowEventResponse[] }) {
+  if (events.length === 0) return null;
+  return (
+    <section className="space-y-2" aria-label={title}>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <div className="space-y-2">
+        {events.map((event) => <WorkflowEventCard key={event.id} event={event} />)}
+      </div>
+    </section>
+  );
 }
 
 function fallbackSession(events: WorkflowEventResponse[]): WorkflowSessionSummaryResponse {
@@ -241,40 +285,13 @@ function WorkflowSessionTimeline({
               <div className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-surface-muted">
                 <Icon className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
               </div>
-              <div className="min-w-0 flex-1 rounded-md border border-border bg-surface-muted p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <time className="text-xs text-muted" dateTime={event.occurred_at}>
-                    {formatEventTime(event.occurred_at)}
-                  </time>
-                  <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
-                </div>
-                <h4 className="mt-2 text-sm font-medium">{event.title}</h4>
-                <p className="mt-1 text-sm text-muted">{event.summary}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Link href={event.action_href} className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                    Open
-                  </Link>
-                  {event.status === "unread" && (
-                    <button
-                      type="button"
-                      className="btn-ghost px-3 py-1.5 text-xs"
-                      onClick={() => onStatusChange?.(event.id, "read")}
-                    >
-                      Mark as read
-                    </button>
-                  )}
-                  {event.status !== "archived" && (
-                    <button
-                      type="button"
-                      className="btn-ghost px-3 py-1.5 text-xs"
-                      onClick={() => onStatusChange?.(event.id, "archived")}
-                    >
-                      Archive
-                    </button>
-                  )}
-                </div>
-              </div>
+              <WorkflowEventCard
+                event={event}
+                className="min-w-0 flex-1 rounded-md border border-border bg-surface-muted p-3 text-sm"
+                openLabel="Open"
+                showIcon={false}
+                onStatusChange={onStatusChange}
+              />
             </li>
           );
         })}
@@ -315,72 +332,12 @@ export function WorkflowInbox({ events, sessions = [], onStatusChange }: Workflo
 
 export function WorkflowNotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
-  const [status, setStatus] = useState<WorkflowStatusResponse | null>(null);
-  const [events, setEvents] = useState<WorkflowEventResponse[]>([]);
-  const [sessions, setSessions] = useState<WorkflowSessionSummaryResponse[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [eventsError, setEventsError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadStatus() {
-      try {
-        const nextStatus = await fetchWorkflowStatus();
-        if (!cancelled) setStatus(nextStatus);
-      } catch {
-        if (!cancelled) setStatus(null);
-      }
-    }
-
-    void loadStatus();
-    const interval = window.setInterval(loadStatus, 30000);
-    window.addEventListener("focus", loadStatus);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", loadStatus);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-
-    async function loadEvents() {
-      setEventsLoading(true);
-      setEventsError(false);
-      try {
-        const nextEvents = await fetchWorkflowEvents({ limit: 50 });
-        if (!cancelled) {
-          setEvents(nextEvents.items);
-          setSessions(nextEvents.sessions);
-        }
-      } catch {
-        if (!cancelled) setEventsError(true);
-      } finally {
-        if (!cancelled) setEventsLoading(false);
-      }
-    }
-
-    void loadEvents();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen]);
-
-  async function updateEventLifecycle(eventId: string, nextStatus: WorkflowEventStatus) {
-    await updateWorkflowEventStatus(eventId, nextStatus);
-    const [nextStatusSummary, nextEvents] = await Promise.all([
-      fetchWorkflowStatus(),
-      fetchWorkflowEvents({ limit: 50 }),
-    ]);
-    setStatus(nextStatusSummary);
-    setEvents(nextEvents.items);
-    setSessions(nextEvents.sessions);
-  }
+  const statusQuery = useWorkflowStatusQuery();
+  const eventsQuery = useWorkflowEventsQuery(50, "center", isOpen);
+  const lifecycleMutation = useWorkflowLifecycleMutation();
+  const status = isWorkflowStatusResponse(statusQuery.data) ? statusQuery.data : null;
+  const events = eventsQuery.data?.items ?? [];
+  const sessions = eventsQuery.data?.sessions ?? [];
 
   const counts = status?.event_counts ?? { unread: 0, action_required: 0, blocked: 0 };
   const attentionCount = counts.blocked + counts.action_required;
@@ -421,19 +378,19 @@ export function WorkflowNotificationCenter() {
           {status && (
             <WorkflowStatusSummary status={status} />
           )}
-          {eventsLoading && (
+          {eventsQuery.isLoading && (
             <div className="flex items-center gap-2 text-sm text-muted" role="status">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Loading workflow events...
             </div>
           )}
-          {eventsError && <Alert variant="error">Unable to load workflow events.</Alert>}
-          {!eventsLoading && !eventsError && (
+          {eventsQuery.isError && <Alert variant="error">Unable to load workflow events.</Alert>}
+          {!eventsQuery.isLoading && !eventsQuery.isError && (
             <WorkflowInbox
               events={events}
               sessions={sessions}
               onStatusChange={(eventId, nextStatus) => {
-                void updateEventLifecycle(eventId, nextStatus);
+                lifecycleMutation.mutate({ eventId, status: nextStatus });
               }}
             />
           )}
@@ -696,41 +653,12 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
 }
 
 export function UploadToReportHomePanel() {
-  const [status, setStatus] = useState<WorkflowStatusResponse | null>(null);
-  const [events, setEvents] = useState<WorkflowEventResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const statusQuery = useWorkflowStatusQuery();
+  const eventsQuery = useWorkflowEventsQuery(5, "home");
+  const status = isWorkflowStatusResponse(statusQuery.data) ? statusQuery.data : null;
+  const events = eventsQuery.data?.items ?? [];
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadUploadHome() {
-      setIsLoading(true);
-      setError(false);
-      try {
-        const [nextStatus, nextEvents] = await Promise.all([
-          fetchWorkflowStatus(),
-          fetchWorkflowEvents({ limit: 5 }),
-        ]);
-        if (!cancelled) {
-          setStatus(nextStatus);
-          setEvents(nextEvents.items);
-        }
-      } catch {
-        if (!cancelled) setError(true);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    void loadUploadHome();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (isLoading) {
+  if (statusQuery.isLoading || eventsQuery.isLoading) {
     return (
       <section className="card p-5" aria-label="Upload-to-report home">
         <div className="flex items-center gap-2 text-sm text-muted" role="status">
@@ -741,7 +669,7 @@ export function UploadToReportHomePanel() {
     );
   }
 
-  if (error || !status) {
+  if (statusQuery.isError || eventsQuery.isError || !status) {
     return (
       <section className="card p-5" aria-label="Upload-to-report home">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -762,23 +690,9 @@ export function UploadToReportHomePanel() {
 }
 
 export function WorkflowEventsPageContent() {
-  const queryClient = useQueryClient();
-  const statusQuery = useQuery({
-    queryKey: STATUS_QUERY_KEY,
-    queryFn: fetchWorkflowStatus,
-  });
-  const eventsQuery = useQuery({
-    queryKey: [...EVENTS_QUERY_KEY, "page"],
-    queryFn: () => fetchWorkflowEvents({ limit: 100 }),
-  });
-  const lifecycleMutation = useMutation({
-    mutationFn: ({ eventId, status }: { eventId: string; status: WorkflowEventStatus }) =>
-      updateWorkflowEventStatus(eventId, status),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: STATUS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: EVENTS_QUERY_KEY });
-    },
-  });
+  const statusQuery = useWorkflowStatusQuery();
+  const eventsQuery = useWorkflowEventsQuery(100, "page");
+  const lifecycleMutation = useWorkflowLifecycleMutation();
 
   return (
     <div className="p-6">

@@ -2,22 +2,21 @@
 
 import { Network, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { formatDateInput } from "@/lib/date";
+import {
+  reportPeriodStart,
+  usePersonalReportPackage,
+} from "@/hooks/usePersonalReportPackage";
 import type {
-  AnnualizedIncomeScheduleResponse,
   EvidenceLineageResponse,
   FrameworkPolicyResult,
   MoneyValue,
-  PersonalReportPackageContractResponse,
-  PersonalReportPackageNotesResponse,
-  PersonalReportPackageReadinessResponse,
   PersonalReportPackageTraceabilityLine,
-  PersonalReportPackageTraceabilityResponse,
 } from "@/lib/types";
 
 const FRAMEWORK_LABELS: Record<string, string> = {
@@ -49,47 +48,6 @@ function renderAnchorDetail(primary: string, identifiers?: string[]) {
       ) : null}
     </>
   );
-}
-
-const REPORT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function isValidReportDate(reportDate: string): boolean {
-  if (!REPORT_DATE_PATTERN.test(reportDate)) return false;
-  const [year, month, day] = reportDate.split("-").map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return (
-    parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
-  );
-}
-
-function reportPeriodStart(reportDate: string): string {
-  const [year, month, day] = reportDate.split("-").map(Number);
-  if (!year || !month || !day) return reportDate;
-  const previousYear = year - 1;
-  const lastDayOfMonth = new Date(Date.UTC(previousYear, month, 0)).getUTCDate();
-  const clampedDay = Math.min(day, lastDayOfMonth);
-  return `${previousYear}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
-}
-
-function packageQuery(frameworkId: string, reportDate: string): string {
-  const params = new URLSearchParams({
-    framework_id: frameworkId,
-    start_date: reportPeriodStart(reportDate),
-    end_date: reportDate,
-    as_of_date: reportDate,
-  });
-  return `?${params.toString()}`;
-}
-
-function packageSectionQuery(reportDate: string): string {
-  const params = new URLSearchParams({
-    start_date: reportPeriodStart(reportDate),
-    end_date: reportDate,
-    as_of_date: reportDate,
-  });
-  return `?${params.toString()}`;
 }
 
 function evidenceBundleReferences(
@@ -195,122 +153,26 @@ function nodeLabel(node: {
 }
 
 export default function PersonalReportPackagePage() {
-  const [contract, setContract] =
-    useState<PersonalReportPackageContractResponse | null>(null);
-  const [readiness, setReadiness] =
-    useState<PersonalReportPackageReadinessResponse | null>(null);
-  const [annualizedSchedule, setAnnualizedSchedule] =
-    useState<AnnualizedIncomeScheduleResponse | null>(null);
-  const [packageNotes, setPackageNotes] =
-    useState<PersonalReportPackageNotesResponse | null>(null);
-  const [traceabilityAppendix, setTraceabilityAppendix] =
-    useState<PersonalReportPackageTraceabilityResponse | null>(null);
-  const [frameworkPolicy, setFrameworkPolicy] =
-    useState<FrameworkPolicyResult | null>(null);
   const [selectedFrameworkId, setSelectedFrameworkId] = useState<string | null>(
     null,
   );
   const [reportDate, setReportDate] = useState(() => formatDateInput(new Date()));
-  const [isPackageLoading, setIsPackageLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(
     null,
   );
-  const packageRequestRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    apiFetch<PersonalReportPackageContractResponse>(
-      "/api/reports/package/contract",
-    )
-      .then((contractData) => {
-        if (!isMounted) return;
-        setContract(contractData);
-      })
-      .catch((err) => {
-        if (isMounted)
-          setError(
-            err instanceof Error ? err.message : "Failed to load package data.",
-          );
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  async function loadFrameworkPackage(frameworkId: string, requestedReportDate = reportDate) {
-    packageRequestRef.current?.abort();
-    const controller = new AbortController();
-    packageRequestRef.current = controller;
-    setSelectedFrameworkId(frameworkId);
-    setIsPackageLoading(true);
-    setError(null);
-    const query = packageQuery(frameworkId, requestedReportDate);
-    const sectionQuery = packageSectionQuery(requestedReportDate);
-    const requestOptions = { signal: controller.signal };
-
-    try {
-      const [
-        contractData,
-        readinessData,
-        policyData,
-        scheduleData,
-        notesData,
-        traceabilityData,
-      ] = await Promise.all([
-        apiFetch<PersonalReportPackageContractResponse>(
-          `/api/reports/package/contract${query}`,
-          requestOptions,
-        ),
-        apiFetch<PersonalReportPackageReadinessResponse>(
-          `/api/reports/package/readiness${query}`,
-          requestOptions,
-        ),
-        apiFetch<FrameworkPolicyResult>(
-          `/api/reports/package/framework-policy${query}`,
-          requestOptions,
-        ),
-        apiFetch<AnnualizedIncomeScheduleResponse>(
-          `/api/reports/package/annualized-income-schedule${sectionQuery}`,
-          requestOptions,
-        ),
-        apiFetch<PersonalReportPackageNotesResponse>(
-          "/api/reports/package/notes",
-          requestOptions,
-        ),
-        apiFetch<PersonalReportPackageTraceabilityResponse>(
-          `/api/reports/package/traceability${sectionQuery}`,
-          requestOptions,
-        ),
-      ]);
-      if (packageRequestRef.current !== controller) return;
-      setContract(contractData);
-      setReadiness(readinessData);
-      setFrameworkPolicy(policyData);
-      setAnnualizedSchedule(scheduleData);
-      setPackageNotes(notesData);
-      setTraceabilityAppendix(traceabilityData);
-    } catch (err) {
-      if (packageRequestRef.current !== controller) return;
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setError(
-        err instanceof Error ? err.message : "Failed to load package data.",
-      );
-    } finally {
-      if (packageRequestRef.current === controller) {
-        packageRequestRef.current = null;
-        setIsPackageLoading(false);
-      }
-    }
-  }
+  const {
+    contract,
+    readiness,
+    frameworkPolicy,
+    annualizedSchedule,
+    packageNotes,
+    traceabilityAppendix,
+    isPackageLoading,
+    error,
+  } = usePersonalReportPackage(selectedFrameworkId, reportDate);
 
   function handleReportDateChange(nextReportDate: string) {
     setReportDate(nextReportDate);
-    if (selectedFrameworkId && isValidReportDate(nextReportDate)) {
-      void loadFrameworkPackage(selectedFrameworkId, nextReportDate);
-    }
   }
 
   async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
@@ -369,7 +231,7 @@ export default function PersonalReportPackagePage() {
         type="button"
         className={`${isSelected ? "btn-primary" : "btn-secondary"} text-sm`}
         aria-pressed={isSelected}
-        onClick={() => void loadFrameworkPackage(frameworkId)}
+        onClick={() => setSelectedFrameworkId(frameworkId)}
       >
         {FRAMEWORK_LABELS[frameworkId] ?? frameworkId}
       </button>

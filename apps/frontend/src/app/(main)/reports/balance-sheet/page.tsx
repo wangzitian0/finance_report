@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
-import { apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import type { BalanceSheetResponse, ReportLine } from "@/lib/types";
 
@@ -27,41 +28,41 @@ const buildTree = (lines: ReportLine[]): AccountNode[] => {
 };
 
 export default function BalanceSheetPage() {
-  const [report, setReport] = useState<BalanceSheetResponse | null>(null);
   const [asOfDate, setAsOfDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { currencies } = useCurrencies();
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        as_of_date: asOfDate,
-        currency,
-        include_restricted: includeRestricted ? "true" : "false",
-      });
-      const data = await apiFetch<BalanceSheetResponse>(`/api/reports/balance-sheet?${params.toString()}`);
-      setReport(data);
-      setError(null);
-      const rootIds = new Set<string>();
-      [...data.assets, ...data.liabilities, ...data.equity].forEach((l) => { if (!l.parent_id) rootIds.add(l.account_id); });
-      setExpanded(rootIds);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load balance sheet.");
-    } finally { setLoading(false); }
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams({
+      as_of_date: asOfDate,
+      currency,
+      include_restricted: includeRestricted ? "true" : "false",
+    });
+    return params.toString();
   }, [asOfDate, currency, includeRestricted]);
+  const reportQuery = useApiQuery<BalanceSheetResponse>(
+    ["report", "balance-sheet", queryString],
+    `/api/reports/balance-sheet?${queryString}`,
+    { placeholderData: keepPreviousData },
+  );
+  const report = reportQuery.data ?? null;
 
-  useEffect(() => { fetchReport(); }, [fetchReport]);
+  useEffect(() => {
+    if (!report) return;
+    const rootIds = new Set<string>();
+    [...report.assets, ...report.liabilities, ...report.equity].forEach((line) => {
+      if (!line.parent_id) rootIds.add(line.account_id);
+    });
+    setExpanded(rootIds);
+  }, [report]);
 
   const assetsTree = useMemo(() => report ? buildTree(report.assets) : [], [report]);
   const liabilitiesTree = useMemo(() => report ? buildTree(report.liabilities) : [], [report]);
   const equityTree = useMemo(() => report ? buildTree(report.equity) : [], [report]);
 
-  const exportPath = `/api/reports/export?report_type=balance-sheet&format=csv&as_of_date=${asOfDate}&currency=${currency}&include_restricted=${includeRestricted ? "true" : "false"}`;
+  const exportPath = `/api/reports/export?report_type=balance-sheet&format=csv&${queryString}`;
   const aiPrompt = useMemo(() => encodeURIComponent(`Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`), [asOfDate, currency]);
 
   const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -83,9 +84,9 @@ export default function BalanceSheetPage() {
     );
   };
 
-  if (loading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading balance sheet...</span></div>;
-  if (error) return (
-    <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{error}</p><button onClick={fetchReport} className="btn-secondary">Retry</button></div></div>
+  if (reportQuery.isLoading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading balance sheet...</span></div>;
+  if (reportQuery.isError) return (
+    <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>
   );
 
   return (
