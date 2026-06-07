@@ -769,16 +769,25 @@ def wait_for_dokploy_deployment_rollout(
         ):
             print(
                 "Dokploy did not expose a new deployment record, but compose "
-                "is done with existing deployment records; proceeding to "
-                "commit-scoped readiness"
+                "is done with existing deployment records; failing before "
+                "application readiness. platform_failure_domain="
+                "dokploy-worker-or-deployment-record"
             )
-            return
+            raise DokployDeploymentDidNotStart(
+                "Dokploy compose is done with existing deployment records but "
+                "did not create a new deployment record for this rollout before "
+                f"readiness polling: compose_id={compose_id} "
+                f"composeStatus={compose_status or 'unknown'} "
+                f"deployment_count={deployment_count} "
+                "platform_failure_domain=dokploy-worker-or-deployment-record"
+            )
         if not new_deployment_ids and now >= new_deployment_deadline:
             raise DokployDeploymentDidNotStart(
                 "Dokploy deployment did not create a new deployment before "
                 f"readiness polling: compose_id={compose_id} "
                 f"composeStatus={compose_status or 'unknown'} "
-                f"deployment_count={deployment_count}"
+                f"deployment_count={deployment_count} "
+                "platform_failure_domain=dokploy-worker-or-deployment-record"
             )
         if now >= deadline:
             raise RuntimeError(

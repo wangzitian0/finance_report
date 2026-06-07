@@ -439,6 +439,11 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
     """AC8.13.11: Staging health 404 reports API route diagnostics."""
     health_check = read("tools/_lib/shell/health_check.sh")
 
+    assert "print_health_route_probe" in health_check
+    assert "route_probe attempt=" in health_check
+    assert "platform_failure_domain=traefik-public-route" in health_check
+    assert "api_status=$api_status" in health_check
+    assert "frontend_status=$frontend_status" in health_check
     assert "print_404_route_diagnostics" in health_check
     assert "Traefik API route is missing or shadowed" in health_check
     assert 'probe_route "API ping" "$APP_BASE_URL/api/ping"' in health_check
@@ -723,6 +728,9 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     assert "pr-preview-test-context" in pr_preview
     assert "test-results/pr-preview-e2e.xml" in pr_preview
     assert "ci-context/pr-preview-context.txt" in pr_preview
+    assert "deploy_context_path=ci-context/pr-preview-deploy-context.json" in pr_preview
+    assert "read_deploy_context_field compose_id" in pr_preview
+    assert "read_deploy_context_field app_url" in pr_preview
     assert "deploy_outcome=${{ steps.deploy.outcome }}" in pr_preview
     assert "e2e_outcome=${{ steps.e2e_tests.outcome }}" in pr_preview
 
@@ -2046,6 +2054,9 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     )
     assert "wait_for_dokploy_deployment_rollout" in deploy_script
     assert "previous_deployment_ids" in deploy_script
+    assert "render_dokploy_rollout_summary" in deploy_script
+    assert "latest_deployment_logPath:" in deploy_script
+    assert "raw_deployment_printed: false" in deploy_script
     assert "Dokploy deployment observed" in deploy_script
     assert 'DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600' in deploy_script
     assert 'DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS:-120' in deploy_script

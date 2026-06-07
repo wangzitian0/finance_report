@@ -409,6 +409,43 @@ jobs:
                   return "application-runtime"
               return "dokploy-worker-or-deployment-record"
 
+          def write_readiness_context(
+              *,
+              attempt,
+              elapsed_seconds,
+              classification,
+              failure_domain,
+              api_result,
+              ping_result,
+              frontend_result,
+              api_sha,
+              frontend_sha,
+          ):
+              os.makedirs("ci-context", exist_ok=True)
+              context = {
+                  "context_schema": "pr-preview-readiness-v1",
+                  "app_url": app_url,
+                  "api_health_url": url,
+                  "api_ping_url": ping_url,
+                  "frontend_version_url": frontend_url,
+                  "expected_sha": expected_sha,
+                  "attempt": str(attempt),
+                  "elapsed_seconds": str(elapsed_seconds),
+                  "classification": classification,
+                  "failure_domain": failure_domain,
+                  "last_api_status": str(api_result["status"]),
+                  "last_api_sha": api_sha or "",
+                  "last_api_code": response_code(parse_json_body(api_result)),
+                  "last_api_content_type": content_type(api_result),
+                  "last_api_error": api_result["error"],
+                  "last_ping_status": str(ping_result["status"]),
+                  "last_frontend_status": str(frontend_result["status"]),
+                  "last_frontend_sha": frontend_sha or "",
+              }
+              with open("ci-context/pr-preview-readiness-context.json", "w", encoding="utf-8") as fh:
+                  json.dump(context, fh, indent=2, sort_keys=True)
+                  fh.write("\n")
+
           readiness_timeout_seconds = 600
           started_at = time.monotonic()
           classified_route_failures = 0
@@ -449,12 +486,25 @@ jobs:
                   f"frontend_sha={frontend_sha or ''} "
                   f"expected_sha={expected_sha}"
               )
+              write_readiness_context(
+                  attempt=attempt,
+                  elapsed_seconds=elapsed_seconds,
+                  classification=classification,
+                  failure_domain=failure_domain,
+                  api_result=api_result,
+                  ping_result=ping_result,
+                  frontend_result=frontend_result,
+                  api_sha=actual_sha,
+                  frontend_sha=frontend_sha,
+              )
 
               if api_result["status"] == 200 and actual_sha == expected_sha:
                   print(f"API ready with expected git_sha {actual_sha}")
                   sys.exit(0)
 
-              if classification in {
+              if failure_domain == "traefik-public-route":
+                  classified_route_failures += 1
+              elif classification in {
                   "frontend-fallback-api-route-missing-or-backend-unhealthy",
                   "frontend-route-ready-api-route-missing",
               }:
@@ -465,9 +515,9 @@ jobs:
               if classified_route_failures >= 8 and not route_failure_notice_printed:
                   print(
                       "::notice::API route is still unavailable after frontend served "
-                      "the expected commit. Current evidence isolates the active wait "
-                      "to backend route, backend container health, or Traefik backend "
-                      "attachment."
+                      "the expected commit or after repeated all-404 route probes. "
+                      "Current evidence isolates the active wait to Traefik public "
+                      "routing, backend route attachment, or backend container health."
                   )
                   print(
                       "::notice::Run infra2's Dokploy Route Canary workflow or "
@@ -649,6 +699,35 @@ jobs:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
           mkdir -p ci-context
+          deploy_context_path=ci-context/pr-preview-deploy-context.json
+          read_deploy_context_field() {
+            python3 - "$deploy_context_path" "$1" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          field = sys.argv[2]
+          if not path.exists():
+              print("")
+              raise SystemExit(0)
+          try:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+          except json.JSONDecodeError:
+              print("")
+              raise SystemExit(0)
+          value = payload.get(field, "")
+          print(value if isinstance(value, str) else "")
+          PY
+          }
+          context_compose_id="${{ steps.deploy.outputs.compose_id }}"
+          context_app_url="${APP_URL}"
+          if [[ -z "$context_compose_id" ]]; then
+            context_compose_id="$(read_deploy_context_field compose_id)"
+          fi
+          if [[ -z "$context_app_url" ]]; then
+            context_app_url="$(read_deploy_context_field app_url)"
+          fi
           {
             echo "PR Preview Context"
             echo "=================="
@@ -660,13 +739,13 @@ jobs:
             echo "run_attempt=${{ github.run_attempt }}"
             echo "pr_number=${{ needs.setup.outputs.pr_number }}"
             echo "compose_name=${{ needs.setup.outputs.compose_name }}"
-            echo "compose_id=${{ steps.deploy.outputs.compose_id }}"
+            echo "compose_id=${context_compose_id}"
             echo "branch=${BRANCH_NAME}"
-            echo "app_url=${APP_URL}"
+            echo "app_url=${context_app_url}"
             echo "expected_sha=${{ github.sha }}"
             echo "preview_commit_slug=${{ needs.setup.outputs.preview_commit_slug }}"
-            echo "api_health_url=${APP_URL}/api/health"
-            echo "frontend_version_url=${APP_URL}/frontend-version.json?expected=${{ github.sha }}"
+            echo "api_health_url=${context_app_url}/api/health"
+            echo "frontend_version_url=${context_app_url}/frontend-version.json?expected=${{ github.sha }}"
             echo "deploy_outcome=${{ steps.deploy.outcome }}"
             echo "e2e_outcome=${{ steps.e2e_tests.outcome }}"
             echo "strict_e2e_gates=true"
