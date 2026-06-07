@@ -353,6 +353,13 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
         entity_type="future_table",
         entity_id=uuid4(),
     )
+    unsupported_with_supported_node_kind = await service.materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="future_table",
+        entity_id=uuid4(),
+        node_kind="ledger_line",
+    )
 
     assert statement_result.blockers == []
     assert transaction_result.blockers == []
@@ -362,6 +369,7 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     assert atomic_entry_result.blockers == []
     assert statement_result.has_writes
     assert [blocker.code for blocker in unsupported.blockers] == ["unsupported_provenance"]
+    assert [blocker.code for blocker in unsupported_with_supported_node_kind.blockers] == ["unsupported_provenance"]
     nodes = {
         (node.node_kind, node.entity_type, node.entity_id): node
         for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()

@@ -90,13 +90,13 @@ class EvidenceGraphMaterializationService:
             )
             return result
 
-        if entity_type == "journal_line" or node_kind == "ledger_line":
+        if entity_type == "journal_line":
             await self._materialize_journal_line(db, user_id=user_id, line_id=entity_id, result=result, cap=max_writes)
-        elif entity_type == "journal_entry" or node_kind == "ledger_entry":
+        elif entity_type == "journal_entry":
             await self._materialize_journal_entry(
                 db, user_id=user_id, entry_id=entity_id, result=result, cap=max_writes
             )
-        elif entity_type == "bank_statement_transaction" or node_kind == "extracted_record":
+        elif entity_type == "bank_statement_transaction":
             await self._materialize_statement_transaction(
                 db, user_id=user_id, transaction_id=entity_id, result=result, cap=max_writes
             )
@@ -108,7 +108,7 @@ class EvidenceGraphMaterializationService:
             await self._materialize_uploaded_document(
                 db, user_id=user_id, document_id=entity_id, result=result, cap=max_writes
             )
-        elif entity_type == "atomic_transaction" or node_kind == "atomic_fact":
+        elif entity_type == "atomic_transaction":
             await self._materialize_atomic_transaction(
                 db, user_id=user_id, atomic_id=entity_id, result=result, cap=max_writes
             )
@@ -877,7 +877,7 @@ class EvidenceGraphMaterializationService:
                 continue
             findings.append(
                 EvidenceConsistencyFinding(
-                    code="dangling_graph_edge",
+                    code="dangling_edge",
                     severity="high",
                     entity_type="evidence_edge",
                     entity_id=edge.id,

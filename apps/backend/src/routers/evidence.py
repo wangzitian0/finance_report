@@ -27,12 +27,13 @@ _LAZY_MATERIALIZATION_ENTITY_TYPES = {
     "uploaded_document",
     "atomic_transaction",
 }
-_LAZY_MATERIALIZATION_NODE_KINDS = {
-    "ledger_line",
-    "ledger_entry",
-    "extracted_record",
-    "source_document",
-    "atomic_fact",
+_LAZY_MATERIALIZATION_ENTITY_NODE_KINDS = {
+    "journal_line": {"ledger_line"},
+    "journal_entry": {"ledger_entry"},
+    "bank_statement_transaction": {"extracted_record"},
+    "bank_statement": {"source_document"},
+    "uploaded_document": {"source_document"},
+    "atomic_transaction": {"atomic_fact"},
 }
 
 
@@ -134,7 +135,12 @@ def _should_attempt_lazy_materialization(
 ) -> bool:
     if anchor is not None:
         return False
-    return entity_type in _LAZY_MATERIALIZATION_ENTITY_TYPES or node_kind in _LAZY_MATERIALIZATION_NODE_KINDS
+    expected_node_kinds = _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS.get(entity_type)
+    if expected_node_kinds is None:
+        return False
+    if node_kind is not None and node_kind not in expected_node_kinds:
+        return False
+    return True
 
 
 def _visible_missing_anchor_blockers(

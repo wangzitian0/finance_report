@@ -15,6 +15,7 @@ from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.routers.evidence import _should_attempt_lazy_materialization
 from src.services.deduplication import DeduplicationService
 from src.services.evidence_lineage import EvidenceLineageService
 
@@ -322,3 +323,18 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
 
     assert second.status_code == 200
     assert counts_after_second == counts_after_first
+
+
+def test_AC18_10_7_lazy_materialization_requires_supported_entity_type_and_matching_node_kind() -> None:
+    """AC18.10.7: Lazy materialization is keyed by entity identity, not a free-form node_kind fallback."""
+    assert (
+        _should_attempt_lazy_materialization(entity_type="journal_line", node_kind="ledger_line", anchor=None) is True
+    )
+    assert _should_attempt_lazy_materialization(entity_type="journal_line", node_kind=None, anchor=None) is True
+    assert (
+        _should_attempt_lazy_materialization(entity_type="future_table", node_kind="ledger_line", anchor=None) is False
+    )
+    assert (
+        _should_attempt_lazy_materialization(entity_type="journal_line", node_kind="source_document", anchor=None)
+        is False
+    )
