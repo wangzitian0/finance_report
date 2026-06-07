@@ -2064,6 +2064,12 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "retrying with compose.redeploy" in deploy_script
     assert 'deploy_compose "compose.redeploy" "Redeployment trigger"' in deploy_script
     assert "proceeding to target SHA health check" in deploy_script
+    assert "entered error before creating a new deployment record" in deploy_script
+    assert 'return 3' in deploy_script
+    assert 'rollout_status" -eq 2 || "$rollout_status" -eq 3' in deploy_script
+    assert "Dokploy redeploy left compose in error without a new deployment record" in deploy_script
+    assert "render_dokploy_rollout_summary" in deploy_script
+    assert "raw_deployment_printed: false" in deploy_script
     assert 'latest_status" == "done"' in deploy_script
     assert 'latest_status" == "running" || "$latest_status" == "done"' not in deploy_script
     assert deploy_script.index('deploy_compose "compose.deploy"') < deploy_script.index(

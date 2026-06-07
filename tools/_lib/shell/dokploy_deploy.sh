@@ -155,6 +155,10 @@ wait_for_dokploy_deployment_rollout() {
 
     if [[ "$compose_status" == "error" ]]; then
       render_dokploy_rollout_summary "$rollout_response" "compose-error-attempt-$attempt"
+      if [[ -z "$new_deployment_ids" ]]; then
+        echo "ERROR: Dokploy compose entered error before creating a new deployment record" >&2
+        return 3
+      fi
       echo "ERROR: Dokploy compose entered error before readiness polling" >&2
       exit 1
     fi
@@ -163,6 +167,7 @@ wait_for_dokploy_deployment_rollout() {
       latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1
       echo "Dokploy deployment observed: compose_id=$compose_id new_deployment_ids=$new_deployment_ids latest_deployment_status=$latest_status"
       if [[ "$latest_status" == "error" ]]; then
+        render_dokploy_rollout_summary "$rollout_response" "deployment-error-attempt-$attempt"
         echo "ERROR: Dokploy deployment failed before readiness polling" >&2
         exit 1
       fi
@@ -312,7 +317,7 @@ wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"
 rollout_status=$?
 set -e
 
-if [[ "$rollout_status" -eq 2 ]]; then
+if [[ "$rollout_status" -eq 2 || "$rollout_status" -eq 3 ]]; then
   echo "Initial Dokploy deploy did not create a deployment record; retrying with compose.redeploy"
   dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Pre-redeploy deployment snapshot"
   redeploy_response=$(cat "$response_file")
@@ -324,6 +329,9 @@ if [[ "$rollout_status" -eq 2 ]]; then
   set -e
   if [[ "$rollout_status" -eq 2 ]]; then
     echo "Dokploy redeploy did not expose a new deployment record; proceeding to target SHA health check"
+  elif [[ "$rollout_status" -eq 3 ]]; then
+    echo "Dokploy redeploy left compose in error without a new deployment record" >&2
+    exit "$rollout_status"
   elif [[ "$rollout_status" -ne 0 ]]; then
     exit "$rollout_status"
   fi
