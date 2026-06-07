@@ -65,6 +65,63 @@ latest_new_deployment_status_from_response() {
     ] | sort_by(.createdAt // .startedAt // .finishedAt // "") | (last // {}) | .status // "unknown"'
 }
 
+redact_dokploy_diagnostic_value() {
+  local value="$1"
+  printf "%s" "$value" | perl -pe '
+    s/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/\-]+=*/$1 <redacted>/gi;
+    s/\bhvs\.[A-Za-z0-9._-]+/hvs.<redacted>/g;
+    s/\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|AUTHORIZATION|COOKIE|DATABASE_URL|REFRESH)[A-Z0-9_]*\s*[:=]\s*)([^,\s]+)/$1<redacted>/gi;
+  ' | head -c 300
+}
+
+latest_deployment_json_from_response() {
+  local response="$1"
+  echo "$response" | jq -c '[
+    (if (.deployments | type) == "array" then .deployments else [] end)[]
+    | select(type == "object")
+  ] | sort_by(.createdAt // .startedAt // .finishedAt // "") | (last // {})'
+}
+
+render_dokploy_rollout_summary() {
+  local response="$1"
+  local label="$2"
+  local key
+  local value
+  local latest
+
+  echo "Dokploy rollout summary ($label)"
+  for key in composeId name sourceType repository owner branch composePath command environmentId composeStatus status; do
+    value=$(echo "$response" | jq -r --arg key "$key" '.[$key] // empty' 2>/dev/null | head -c 160)
+    if [[ -n "$value" ]]; then
+      echo "$key: $value"
+    fi
+  done
+  echo "env_present: $(echo "$response" | jq -r 'has("env") and (.env != null and .env != "")' 2>/dev/null || echo false)"
+  echo "deployment_count: $(echo "$response" | jq -r '(if (.deployments | type) == "array" then .deployments else [] end) | length' 2>/dev/null || echo unknown)"
+
+  latest=$(latest_deployment_json_from_response "$response")
+  if [[ "$latest" != "{}" ]]; then
+    for key in deploymentId status createdAt startedAt finishedAt; do
+      value=$(echo "$latest" | jq -r --arg key "$key" '.[$key] // empty' 2>/dev/null | head -c 160)
+      if [[ -n "$value" ]]; then
+        echo "latest_deployment_${key}: $(redact_dokploy_diagnostic_value "$value")"
+      fi
+    done
+    value=$(echo "$latest" | jq -r '.logPath // empty' 2>/dev/null | head -c 160)
+    if [[ -n "$value" ]]; then
+      echo "latest_deployment_logPath: $(redact_dokploy_diagnostic_value "$value")"
+    fi
+    for key in message error errorMessage statusMessage statusReason reason description; do
+      value=$(echo "$latest" | jq -r --arg key "$key" '.[$key] // empty' 2>/dev/null | head -c 300)
+      if [[ -n "$value" ]]; then
+        echo "latest_deployment_${key}: $(redact_dokploy_diagnostic_value "$value")"
+      fi
+    done
+  fi
+  echo "raw_compose_printed: false"
+  echo "raw_deployment_printed: false"
+}
+
 wait_for_dokploy_deployment_rollout() {
   local compose_id="$1"
   local previous_deployment_ids="$2"
@@ -91,9 +148,13 @@ wait_for_dokploy_deployment_rollout() {
     deployment_count=$(safe_jq '(.deployments // []) | length' "$rollout_response" "deployment rollout count") || exit 1
     new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1
 
+    if (( attempt == 1 || attempt % 6 == 0 )) || [[ "$compose_status" != "idle" ]]; then
+      render_dokploy_rollout_summary "$rollout_response" "deployment-rollout-attempt-$attempt"
+    fi
     echo "Dokploy rollout attempt $attempt: composeStatus=$compose_status deployment_count=$deployment_count new_deployment_ids=${new_deployment_ids:-none}"
 
     if [[ "$compose_status" == "error" ]]; then
+      render_dokploy_rollout_summary "$rollout_response" "compose-error-attempt-$attempt"
       echo "ERROR: Dokploy compose entered error before readiness polling" >&2
       exit 1
     fi
@@ -121,6 +182,9 @@ wait_for_dokploy_deployment_rollout() {
 
   echo "ERROR: Dokploy deployment did not reach done before readiness polling" >&2
   echo "compose_id=$compose_id composeStatus=${compose_status:-unknown} deployment_count=${deployment_count:-unknown} new_deployment_ids=${new_deployment_ids:-none}" >&2
+  if [[ -n "${rollout_response:-}" ]]; then
+    render_dokploy_rollout_summary "$rollout_response" "deployment-rollout-timeout" >&2
+  fi
   exit 1
 }
 

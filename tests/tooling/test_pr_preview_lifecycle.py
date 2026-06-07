@@ -330,11 +330,11 @@ def test_AC8_13_102_dokploy_rollout_error_fails_before_readiness(
         )
 
 
-def test_AC8_13_102_done_compose_without_new_record_proceeds_to_sha_readiness(
+def test_AC8_13_102_done_compose_without_new_record_fails_before_readiness(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Done composes with old records fall through to commit-scoped readiness."""
+    """AC8.13.102: Done composes with old records fail before app readiness."""
     lifecycle = lifecycle_module()
     states = iter(
         [
@@ -350,15 +350,24 @@ def test_AC8_13_102_done_compose_without_new_record_proceeds_to_sha_readiness(
     )
     monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
 
-    lifecycle.wait_for_dokploy_deployment_rollout(
-        lifecycle.DokployConfig(api_url="https://cloud.example/api", api_key="secret"),
-        compose_id="cmp-1",
-        previous_deployment_ids={"old-dep"},
-        timeout_seconds=1,
-        new_deployment_timeout_seconds=0,
-    )
+    with pytest.raises(
+        lifecycle.DokployDeploymentDidNotStart,
+        match="did not create a new deployment record for this rollout",
+    ):
+        lifecycle.wait_for_dokploy_deployment_rollout(
+            lifecycle.DokployConfig(
+                api_url="https://cloud.example/api",
+                api_key="secret",
+            ),
+            compose_id="cmp-1",
+            previous_deployment_ids={"old-dep"},
+            timeout_seconds=1,
+            new_deployment_timeout_seconds=0,
+        )
 
-    assert "proceeding to commit-scoped readiness" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "proceeding to commit-scoped readiness" not in out
+    assert "platform_failure_domain=dokploy-worker-or-deployment-record" in out
 
 
 def test_AC8_13_102_rollout_poll_retries_transient_dokploy_api_failure(
@@ -1247,6 +1256,11 @@ def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics() -> None:
     assert "route_probe attempt=" in deploy_block
     assert "app_readiness_classification=" in deploy_block
     assert "platform_failure_domain=" in deploy_block
+    assert "write_readiness_context(" in deploy_block
+    assert "pr-preview-readiness-context.json" in deploy_block
+    assert '"failure_domain": failure_domain' in deploy_block
+    assert '"last_api_status": str(api_result["status"])' in deploy_block
+    assert '"last_frontend_status": str(frontend_result["status"])' in deploy_block
     assert "api_content_type=" in deploy_block
     assert "api_body_bytes=" in deploy_block
     assert "api_body_prefix=" in deploy_block
@@ -1265,6 +1279,7 @@ def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics() -> None:
         "classified_route_failures >= 8 and not route_failure_notice_printed"
         in deploy_block
     )
+    assert 'if failure_domain == "traefik-public-route":' in deploy_block
     assert "route_failure_notice_printed = True" in deploy_block
     assert (
         "::notice::API route is still unavailable after frontend served" in deploy_block
@@ -1457,8 +1472,10 @@ def test_AC8_13_101_pr_test_workflow_uses_commit_scoped_preview_url() -> None:
     assert "NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}" in workflow
     assert "- name: Print preview routing context" in deploy_block
     assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" in deploy_block
-    assert 'echo "app_url=${APP_URL}"' in deploy_block
-    assert "api_health_url=${{ steps.deploy.outputs.app_url }}/api/health" in (
+    assert 'context_app_url="${APP_URL}"' in deploy_block
+    assert 'context_app_url="$(read_deploy_context_field app_url)"' in deploy_block
+    assert 'echo "app_url=${context_app_url}"' in deploy_block
+    assert "api_health_url=${context_app_url}/api/health" in (
         deploy_block
     )
     assert deploy_block.count("APP_URL: ${{ steps.deploy.outputs.app_url }}") >= 4

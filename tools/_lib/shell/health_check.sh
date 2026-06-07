@@ -71,6 +71,30 @@ probe_route() {
   rm -f "$probe_file" "$probe_error_file"
 }
 
+route_probe_status() {
+  local url="$1"
+  local probe_file
+  local probe_error_file
+  local code
+
+  probe_file=$(mktemp)
+  probe_error_file=$(mktemp)
+  code=$(curl -sS --max-time 5 -o "$probe_file" -w "%{http_code}" "$url" 2>"$probe_error_file" || echo "000")
+  rm -f "$probe_file" "$probe_error_file"
+  printf "%s" "$code"
+}
+
+print_health_route_probe() {
+  local attempt="$1"
+  local api_status="$2"
+  local ping_status
+  local frontend_status
+
+  ping_status=$(route_probe_status "$APP_BASE_URL/api/ping")
+  frontend_status=$(route_probe_status "$APP_BASE_URL/")
+  echo "route_probe attempt=$attempt platform_failure_domain=traefik-public-route api_status=$api_status ping_status=$ping_status frontend_status=$frontend_status api_url=$HEALTH_URL frontend_url=$APP_BASE_URL/"
+}
+
 print_404_route_diagnostics() {
   echo ""
   echo "Route diagnostics:"
@@ -128,6 +152,9 @@ while (( attempt <= MAX_ATTEMPTS )); do
   
   if ! check_http_code "$http_code" "200" "Health check" 2>/dev/null; then
     echo "[WARNING] HTTP $http_code (attempt $attempt/$MAX_ATTEMPTS)"
+    if [[ "$http_code" == "404" ]] && (( attempt == 1 || attempt % 6 == 0 || attempt == MAX_ATTEMPTS )); then
+      print_health_route_probe "$attempt" "$http_code"
+    fi
     
     if (( attempt == MAX_ATTEMPTS )); then
       timeout=$((MAX_ATTEMPTS * 10))
