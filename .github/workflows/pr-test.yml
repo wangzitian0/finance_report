@@ -238,6 +238,7 @@ jobs:
           echo "expected_sha=${{ github.sha }}"
 
       - name: Wait for API readiness
+        timeout-minutes: 12
         env:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
           EXPECTED_SHA: ${{ github.sha }}
@@ -245,11 +246,9 @@ jobs:
           python3 -u - << 'EOF'
           import json
           import os
-          import ssl
+          import subprocess
           import sys
           import time
-          import urllib.error
-          import urllib.request
 
           app_url = os.environ["APP_URL"].rstrip("/")
           url = app_url + "/api/health"
@@ -259,35 +258,58 @@ jobs:
           print(f"Waiting for API readiness at {url}")
           print(f"Expecting deployed git_sha={expected_sha}")
 
-          ctx = ssl.create_default_context()
-          ctx.check_hostname = False
-          ctx.verify_mode = ssl.CERT_NONE
+          curl_timeout_seconds = 15
+          subprocess_timeout_seconds = 20
 
           def probe(probe_url):
-              request = urllib.request.Request(
+              command = [
+                  "curl",
+                  "--silent",
+                  "--show-error",
+                  "--location",
+                  "--connect-timeout",
+                  "5",
+                  "--max-time",
+                  str(curl_timeout_seconds),
+                  "--header",
+                  "Cache-Control: no-cache",
+                  "--header",
+                  "Pragma: no-cache",
+                  "--header",
+                  "User-Agent: finance-report-pr-preview-readiness/1.0",
+                  "--write-out",
+                  "\n%{http_code}",
                   probe_url,
-                  headers={
-                      "Cache-Control": "no-cache",
-                      "Pragma": "no-cache",
-                      "User-Agent": "finance-report-pr-preview-readiness/1.0",
-                  },
-              )
+              ]
               try:
-                  with urllib.request.urlopen(request, timeout=15, context=ctx) as response:
-                      body = response.read().decode("utf-8", errors="replace")
-                      return {
-                          "status": response.getcode(),
-                          "body": body[:500],
-                          "headers": dict(response.headers),
-                          "error": "",
-                      }
-              except urllib.error.HTTPError as exc:
-                  body = exc.read().decode("utf-8", errors="replace")
+                  completed = subprocess.run(
+                      command,
+                      check=False,
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                      text=True,
+                      timeout=subprocess_timeout_seconds,
+                  )
+                  body, _, status_text = (completed.stdout or "").rpartition("\n")
+                  try:
+                      status = int(status_text.strip())
+                  except ValueError:
+                      status = 0
+                  error = (completed.stderr or "").strip()[:300]
+                  if completed.returncode != 0 and not error:
+                      error = f"curl exited {completed.returncode}"
                   return {
-                      "status": exc.code,
+                      "status": status,
                       "body": body[:500],
-                      "headers": dict(exc.headers),
-                      "error": type(exc).__name__,
+                      "headers": {},
+                      "error": error,
+                  }
+              except subprocess.TimeoutExpired as exc:
+                  return {
+                      "status": 0,
+                      "body": "",
+                      "headers": {},
+                      "error": f"curl timeout after {subprocess_timeout_seconds}s: {exc}",
                   }
               except Exception as exc:
                   return {
@@ -427,6 +449,7 @@ jobs:
           EOF
 
       - name: Wait for frontend readiness
+        timeout-minutes: 12
         env:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
           EXPECTED_SHA: ${{ github.sha }}
@@ -434,10 +457,9 @@ jobs:
           python3 -u - << 'EOF'
           import json
           import os
-          import ssl
+          import subprocess
           import sys
           import time
-          import urllib.request
 
           app_url = os.environ["APP_URL"].rstrip("/")
           expected_sha = os.environ["EXPECTED_SHA"]
@@ -445,38 +467,68 @@ jobs:
           print(f"Waiting for frontend readiness at {url}")
           print(f"Expecting frontend git_sha={expected_sha}")
 
-          ctx = ssl.create_default_context()
-          ctx.check_hostname = False
-          ctx.verify_mode = ssl.CERT_NONE
+          curl_timeout_seconds = 15
+          subprocess_timeout_seconds = 20
+
+          def probe(probe_url):
+              command = [
+                  "curl",
+                  "--silent",
+                  "--show-error",
+                  "--location",
+                  "--connect-timeout",
+                  "5",
+                  "--max-time",
+                  str(curl_timeout_seconds),
+                  "--header",
+                  "Cache-Control: no-cache",
+                  "--header",
+                  "Pragma: no-cache",
+                  "--header",
+                  "User-Agent: finance-report-pr-preview-readiness/1.0",
+                  "--write-out",
+                  "\n%{http_code}",
+                  probe_url,
+              ]
+              completed = subprocess.run(
+                  command,
+                  check=False,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  text=True,
+                  timeout=subprocess_timeout_seconds,
+              )
+              body, _, status_text = (completed.stdout or "").rpartition("\n")
+              try:
+                  status = int(status_text.strip())
+              except ValueError:
+                  status = 0
+              error = (completed.stderr or "").strip()
+              if completed.returncode != 0 and not error:
+                  error = f"curl exited {completed.returncode}"
+              return status, body, error
 
           max_attempts = 30
           for attempt in range(1, max_attempts + 1):
               delay = min(5 + (attempt // 5) * 5, 30)
               try:
-                  request = urllib.request.Request(
-                      url,
-                      headers={
-                          "Cache-Control": "no-cache",
-                          "Pragma": "no-cache",
-                          "User-Agent": "finance-report-pr-preview-readiness/1.0",
-                      },
-                  )
-                  with urllib.request.urlopen(request, timeout=15, context=ctx) as response:
-                      body = response.read().decode("utf-8")
-                      if 200 <= response.getcode() < 400:
-                          payload = json.loads(body)
-                          actual_sha = payload.get("git_sha") or payload.get("version")
-                          if actual_sha == expected_sha:
-                              print(f"✅ Frontend ready with expected git_sha {actual_sha}")
-                              sys.exit(0)
-                          print(
-                              f"⚠️ Attempt {attempt}/{max_attempts}: "
-                              f"status {response.getcode()}, frontend git_sha={actual_sha}, "
-                              f"expected={expected_sha}"
-                          )
-                          print("   Existing frontend bundle is still serving; waiting for rollout...")
-                      else:
-                          print(f"⚠️ Attempt {attempt}/{max_attempts}: status {response.getcode()}")
+                  status, body, error = probe(url)
+                  if 200 <= status < 400:
+                      payload = json.loads(body)
+                      actual_sha = payload.get("git_sha") or payload.get("version")
+                      if actual_sha == expected_sha:
+                          print(f"✅ Frontend ready with expected git_sha {actual_sha}")
+                          sys.exit(0)
+                      print(
+                          f"⚠️ Attempt {attempt}/{max_attempts}: "
+                          f"status {status}, frontend git_sha={actual_sha}, "
+                          f"expected={expected_sha}"
+                      )
+                      print("   Existing frontend bundle is still serving; waiting for rollout...")
+                  else:
+                      print(f"⚠️ Attempt {attempt}/{max_attempts}: status {status}, error={error}")
+              except subprocess.TimeoutExpired as e:
+                  print(f"❌ Attempt {attempt}/{max_attempts}: curl timeout after {subprocess_timeout_seconds}s: {e}")
               except Exception as e:
                   print(f"❌ Attempt {attempt}/{max_attempts}: {type(e).__name__}: {e}")
 

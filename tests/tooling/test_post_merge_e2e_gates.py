@@ -1418,9 +1418,10 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         'payload.get("git_sha") or payload.get("version")' in frontend_readiness_block
     )
     assert (
-        '"User-Agent": "finance-report-pr-preview-readiness/1.0"'
+        '"User-Agent: finance-report-pr-preview-readiness/1.0"'
         in frontend_readiness_block
     )
+    assert "subprocess_timeout_seconds = 20" in frontend_readiness_block
     assert "Frontend not ready with expected git_sha" in frontend_readiness_block
     assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in cleanup_block
     assert 'startswith(\\"${TAG_PREFIX}\\")' in cleanup_block

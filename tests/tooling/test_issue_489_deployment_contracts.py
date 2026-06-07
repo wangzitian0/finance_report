@@ -302,6 +302,10 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "repo/tools/dokploy_route_canary.py" in readiness_block
     assert "stale-backend-route" in readiness_block
     assert "readiness_timeout_seconds = 600" in readiness_block
+    assert "timeout-minutes: 12" in readiness_block
+    assert '"--connect-timeout"' in readiness_block
+    assert '"--max-time"' in readiness_block
+    assert "subprocess_timeout_seconds = 20" in readiness_block
     assert "classified_route_failures >= 8 and not route_failure_notice_printed" in readiness_block
     assert "::notice::API route is still unavailable after frontend served" in readiness_block
     assert 'url = app_url + "/api/health"' in workflow

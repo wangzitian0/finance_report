@@ -897,6 +897,10 @@ def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics(
 
     assert 'PYTHONUNBUFFERED: "1"' in workflow
     assert "python3 -u - << 'EOF'" in deploy_block
+    assert "timeout-minutes: 12" in deploy_block
+    assert 'subprocess.run(' in deploy_block
+    assert '"--max-time"' in deploy_block
+    assert "subprocess_timeout_seconds = 20" in deploy_block
     assert "route_probe attempt=" in deploy_block
     assert "app_readiness_classification=" in deploy_block
     assert "platform_failure_domain=" in deploy_block
