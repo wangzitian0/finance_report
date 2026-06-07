@@ -92,6 +92,9 @@ jobs:
       staging_reason: ${{ steps.classify.outputs.staging_reason }}
       ai_ocr_required: ${{ steps.classify.outputs.staging_ai_ocr_required }}
       ai_ocr_reason: ${{ steps.classify.outputs.staging_ai_ocr_reason }}
+      failure_domain: ${{ steps.deploy_failure_context.outputs.failure_domain }}
+      failed_step: ${{ steps.deploy_failure_context.outputs.failed_step }}
+      failure_summary: ${{ steps.deploy_failure_context.outputs.failure_summary }}
 
     steps:
       - name: Checkout repository
@@ -240,6 +243,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
+        id: setup_buildx
         if: steps.classify.outputs.staging_required == 'true'
         uses: docker/setup-buildx-action@v3
 
@@ -251,6 +255,7 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Build and push Backend
+        id: build_backend
         if: steps.classify.outputs.staging_required == 'true' && steps.backend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
@@ -270,6 +275,7 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Build and push Frontend
+        id: build_frontend
         if: steps.classify.outputs.staging_required == 'true' && steps.frontend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
@@ -284,6 +290,7 @@ jobs:
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
 
       - name: Promote Backend Image to Staging Tag
+        id: promote_backend
         if: steps.classify.outputs.staging_required == 'true'
         run: |
           docker buildx imagetools create \
@@ -291,6 +298,7 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Promote Frontend Image to Staging Tag
+        id: promote_frontend
         if: steps.classify.outputs.staging_required == 'true'
         run: |
           docker buildx imagetools create \
@@ -298,6 +306,7 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Deploy to Staging
+        id: deploy_staging
         if: steps.classify.outputs.staging_required == 'true'
         env:
           IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
@@ -321,6 +330,7 @@ jobs:
             "$IMAGE_TAG"
 
       - name: Setup E2E Tests
+        id: setup_e2e
         if: steps.classify.outputs.staging_required == 'true'
         uses: ./.github/actions/setup-e2e-tests
 
@@ -372,6 +382,93 @@ jobs:
 
           echo "✅ Staging deploy health gate passed!"
 
+      - name: Classify staging deploy failure context
+        id: deploy_failure_context
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+
+          staging_required="${{ steps.classify.outputs.staging_required }}"
+          failure_domain="none"
+          failed_step="none"
+          failure_summary="no staging deploy failure"
+
+          classify_failure() {
+            failed_step="$1"
+            failure_domain="$2"
+            failure_summary="$3"
+          }
+
+          if [ "$staging_required" != "true" ]; then
+            failure_domain="not-required"
+            failed_step="classification"
+            failure_summary="staging deploy was skipped by change classification"
+          elif [ "${{ steps.setup_buildx.outcome }}" = "failure" ]; then
+            classify_failure \
+              "setup_buildx" \
+              "runner/docker-buildx-bootstrap" \
+              "Docker Buildx bootstrap failed before image resolution; inspect the Set up Docker Buildx log for runner or Docker Hub errors."
+          elif [ "${{ steps.backend_image.outcome }}" = "failure" ]; then
+            classify_failure \
+              "backend_image" \
+              "registry/backend-image-resolution" \
+              "Backend SHA image lookup failed before build or promotion."
+          elif [ "${{ steps.build_backend.outcome }}" = "failure" ]; then
+            classify_failure \
+              "build_backend" \
+              "image-build/backend" \
+              "Backend image build or push failed."
+          elif [ "${{ steps.frontend_image.outcome }}" = "failure" ]; then
+            classify_failure \
+              "frontend_image" \
+              "registry/frontend-image-resolution" \
+              "Frontend SHA image lookup failed before build or promotion."
+          elif [ "${{ steps.build_frontend.outcome }}" = "failure" ]; then
+            classify_failure \
+              "build_frontend" \
+              "image-build/frontend" \
+              "Frontend image build or push failed."
+          elif [ "${{ steps.promote_backend.outcome }}" = "failure" ]; then
+            classify_failure \
+              "promote_backend" \
+              "registry/backend-staging-tag" \
+              "Backend staging tag promotion failed."
+          elif [ "${{ steps.promote_frontend.outcome }}" = "failure" ]; then
+            classify_failure \
+              "promote_frontend" \
+              "registry/frontend-staging-tag" \
+              "Frontend staging tag promotion failed."
+          elif [ "${{ steps.deploy_staging.outcome }}" = "failure" ]; then
+            classify_failure \
+              "deploy_staging" \
+              "dokploy-rollout-or-health" \
+              "Dokploy rollout, route readiness, or target SHA health check failed."
+          elif [ "${{ steps.setup_e2e.outcome }}" = "failure" ]; then
+            classify_failure \
+              "setup_e2e" \
+              "e2e-setup" \
+              "E2E dependency setup failed after staging health."
+          elif [ "${{ steps.staging_e2e_tests.outcome }}" = "failure" ]; then
+            classify_failure \
+              "staging_e2e_tests" \
+              "application-smoke-e2e" \
+              "Staging smoke or core non-LLM E2E failed after deployment."
+          fi
+
+          {
+            echo "failure_domain=${failure_domain}"
+            echo "failed_step=${failed_step}"
+            echo "failure_summary=${failure_summary}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Staging Deploy Failure Context"
+            echo ""
+            echo "- Failure domain: ${failure_domain}"
+            echo "- Failed step: ${failed_step}"
+            echo "- Failure summary: ${failure_summary}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Write staging deploy context
         if: ${{ always() }}
         env:
@@ -403,6 +500,9 @@ jobs:
             echo "backend_image_build_required=${{ steps.backend_image.outputs.build_required }}"
             echo "frontend_image_build_required=${{ steps.frontend_image.outputs.build_required }}"
             echo "staging_e2e_outcome=${{ steps.staging_e2e_tests.outcome }}"
+            echo "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}"
+            echo "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}"
+            echo "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
             echo "strict_e2e_gates=true"
             echo "marker=(smoke or e2e) and not llm"
           } > ci-context/staging-deploy-context.txt
@@ -609,6 +709,9 @@ jobs:
           staging_reason="${{ needs.build-and-deploy.outputs.staging_reason }}"
           ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"
           ai_ocr_reason="${{ needs.build-and-deploy.outputs.ai_ocr_reason }}"
+          failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"
+          failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"
+          failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"
           build_result="${{ needs.build-and-deploy.result }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           TARGET_SHA="${{ github.event.workflow_run.head_sha }}"
@@ -664,6 +767,9 @@ jobs:
               echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
               echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
               echo "- Build/deploy result: ${build_result}"
+              echo "- Build/deploy failure domain: ${failure_domain:-unknown}"
+              echo "- Build/deploy failed step: ${failed_step:-unknown}"
+              echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
               echo "- AI/OCR result: ${ai_ocr_result}"
               echo "- Current staging SHA: ${current_staging_sha}"
               echo ""
@@ -695,6 +801,9 @@ jobs:
               echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
               echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
               echo "- Build/deploy result: ${build_result}"
+              echo "- Build/deploy failure domain: ${failure_domain:-unknown}"
+              echo "- Build/deploy failed step: ${failed_step:-unknown}"
+              echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
               echo "- AI/OCR result: ${ai_ocr_result}"
               echo "- Current staging SHA: ${current_staging_sha}"
             } > staging-recovery.md
@@ -719,6 +828,9 @@ jobs:
           staging_reason="${{ needs.build-and-deploy.outputs.staging_reason }}"
           ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"
           ai_ocr_reason="${{ needs.build-and-deploy.outputs.ai_ocr_reason }}"
+          failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"
+          failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"
+          failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"
           build_result="${{ needs.build-and-deploy.result }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           alert_result="${{ needs.staging-deploy-alert.result }}"
@@ -758,6 +870,9 @@ jobs:
             echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
             echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
             echo "- Build/deploy result: ${build_result}"
+            echo "- Build/deploy failure domain: ${failure_domain:-unknown}"
+            echo "- Build/deploy failed step: ${failed_step:-unknown}"
+            echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
             echo "- AI/OCR result: ${ai_ocr_result}"
             echo "- Alert result: ${alert_result}"
           } >> "$GITHUB_STEP_SUMMARY"
