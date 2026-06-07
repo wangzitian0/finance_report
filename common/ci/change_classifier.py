@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -209,6 +210,68 @@ LEGACY_ENV_OUTPUTS = (
 )
 
 
+def _json_output(value: object) -> str:
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+
+
+def _env_stage_required(classification: "ChangeClassification") -> dict[str, bool]:
+    return {
+        environment.value: env_result.required
+        for environment, env_result in classification.envs.items()
+    }
+
+
+def _env_stage_reasons(classification: "ChangeClassification") -> dict[str, str]:
+    return {
+        environment.value: env_result.reason
+        for environment, env_result in classification.envs.items()
+    }
+
+
+def _env_stage_stages(
+    classification: "ChangeClassification",
+) -> dict[str, list[str]]:
+    return {
+        environment.value: [stage.value for stage in env_result.stages]
+        for environment, env_result in classification.envs.items()
+    }
+
+
+def _env_stage_files(classification: "ChangeClassification") -> dict[str, list[str]]:
+    return {
+        environment.value: list(env_result.files)
+        for environment, env_result in classification.envs.items()
+    }
+
+
+def _provider_gate_required(
+    classification: "ChangeClassification",
+) -> dict[str, bool]:
+    return {
+        environment.value: env_result.provider_gate.required
+        for environment, env_result in classification.envs.items()
+        if PipelineStage.PROVIDER_GATE in env_result.stages
+    }
+
+
+def _provider_gate_reasons(classification: "ChangeClassification") -> dict[str, str]:
+    return {
+        environment.value: env_result.provider_gate.reason
+        for environment, env_result in classification.envs.items()
+        if PipelineStage.PROVIDER_GATE in env_result.stages
+    }
+
+
+def _provider_gate_files(
+    classification: "ChangeClassification",
+) -> dict[str, list[str]]:
+    return {
+        environment.value: list(env_result.provider_gate.files)
+        for environment, env_result in classification.envs.items()
+        if PipelineStage.PROVIDER_GATE in env_result.stages
+    }
+
+
 @dataclass(frozen=True)
 class ChangeClassification:
     files: tuple[str, ...]
@@ -407,6 +470,25 @@ def write_github_outputs(
     with output_path.open("a", encoding="utf-8") as fh:
         fh.write(f"heavy_required={str(classification.heavy_required).lower()}\n")
         fh.write(f"reason={classification.reason}\n")
+        fh.write(
+            f"env_stage_required={_json_output(_env_stage_required(classification))}\n"
+        )
+        fh.write(
+            f"env_stage_reasons={_json_output(_env_stage_reasons(classification))}\n"
+        )
+        fh.write(
+            f"env_stage_stages={_json_output(_env_stage_stages(classification))}\n"
+        )
+        fh.write(f"env_stage_files={_json_output(_env_stage_files(classification))}\n")
+        fh.write(
+            f"provider_gate_required={_json_output(_provider_gate_required(classification))}\n"
+        )
+        fh.write(
+            f"provider_gate_reasons={_json_output(_provider_gate_reasons(classification))}\n"
+        )
+        fh.write(
+            f"provider_gate_files={_json_output(_provider_gate_files(classification))}\n"
+        )
         for environment, output_prefix, *_labels in LEGACY_ENV_OUTPUTS:
             env_result = classification.envs[environment]
             fh.write(f"{output_prefix}_required={str(env_result.required).lower()}\n")
@@ -443,6 +525,24 @@ def write_github_summary(
         )
         fh.write(f"- Staging AI/OCR reason: `{classification.staging_ai_ocr_reason}`\n")
         fh.write(f"- Changed files: `{len(classification.files)}`\n")
+        fh.write("\n### Env x Stage Matrix\n\n")
+        fh.write("| Environment | Required | Reason | Stages | Changed files |\n")
+        fh.write("|---|---|---|---|---|\n")
+        for environment, env_result in classification.envs.items():
+            stages = ", ".join(stage.value for stage in env_result.stages)
+            fh.write(
+                f"| `{environment.value}` | `{str(env_result.required).lower()}` | "
+                f"`{env_result.reason}` | `{stages}` | `{len(env_result.files)}` |\n"
+            )
+        provider_gate = classification.envs[Environment.STAGING].provider_gate
+        fh.write("\n### Provider Gate Matrix\n\n")
+        fh.write("| Environment | Required | Reason | Changed files |\n")
+        fh.write("|---|---|---|---|\n")
+        fh.write(
+            f"| `{Environment.STAGING.value}` | "
+            f"`{str(provider_gate.required).lower()}` | "
+            f"`{provider_gate.reason}` | `{len(provider_gate.files)}` |\n"
+        )
         if classification.heavy_files:
             fh.write("\nHeavy-triggering files:\n\n")
             for path in classification.heavy_files[:50]:
@@ -483,6 +583,10 @@ def main() -> int:
 
     print(f"heavy_required={str(classification.heavy_required).lower()}")
     print(f"reason={classification.reason}")
+    print(f"env_stage_required={_json_output(_env_stage_required(classification))}")
+    print(f"env_stage_reasons={_json_output(_env_stage_reasons(classification))}")
+    print(f"env_stage_stages={_json_output(_env_stage_stages(classification))}")
+    print(f"provider_gate_required={_json_output(_provider_gate_required(classification))}")
     for environment, output_prefix, *_labels in LEGACY_ENV_OUTPUTS:
         env_result = classification.envs[environment]
         print(f"{output_prefix}_required={str(env_result.required).lower()}")
