@@ -909,6 +909,8 @@ def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics(
     assert "api_content_type=" in deploy_block
     assert "api_body_bytes=" in deploy_block
     assert "api_body_prefix=" in deploy_block
+    assert '"body": body,' in deploy_block
+    assert '"body": body[:500]' not in deploy_block
     assert "repo/tools/dokploy_route_canary.py" in deploy_block
     assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in deploy_block
     assert "backend-health-missing-sha" in deploy_block

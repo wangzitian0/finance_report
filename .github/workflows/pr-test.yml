@@ -310,7 +310,7 @@ jobs:
                       error = f"curl exited {completed.returncode}"
                   return {
                       "status": status,
-                      "body": body[:500],
+                      "body": body,
                       "headers": {"content_type": content_type},
                       "error": error,
                   }

@@ -311,6 +311,8 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "api_content_type=" in readiness_block
     assert "api_body_bytes=" in readiness_block
     assert "api_body_prefix=" in readiness_block
+    assert '"body": body,' in readiness_block
+    assert '"body": body[:500]' not in readiness_block
     assert "classified_route_failures >= 8 and not route_failure_notice_printed" in readiness_block
     assert "::notice::API route is still unavailable after frontend served" in readiness_block
     assert 'url = app_url + "/api/health"' in workflow
