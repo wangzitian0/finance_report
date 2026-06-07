@@ -2063,7 +2063,8 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "did not create a new deployment before readiness polling" in deploy_script
     assert "retrying with compose.redeploy" in deploy_script
     assert 'deploy_compose "compose.redeploy" "Redeployment trigger"' in deploy_script
-    assert "proceeding to target SHA health check" in deploy_script
+    assert "Dokploy redeploy did not expose a new deployment record" in deploy_script
+    assert "proceeding to target SHA health check" not in deploy_script
     assert "entered error before creating a new deployment record" in deploy_script
     assert 'return 3' in deploy_script
     assert 'rollout_status" -eq 2 || "$rollout_status" -eq 3' in deploy_script
@@ -2099,6 +2100,7 @@ def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> N
         {
             "deployments": [
                 {"deploymentId": 123, "status": "running", "createdAt": "2026-01-01T00:00:00Z"},
+                "not-a-deployment-object",
                 {"deploymentId": "dep-456", "status": "done", "finishedAt": "2026-01-01T00:01:00Z"},
             ]
         }
@@ -2119,7 +2121,9 @@ non_array_response="$DOKPLOY_NON_ARRAY_RESPONSE"
 printf 'ids=%s\\n' "$(deployment_ids_from_response "$response")"
 printf 'new=%s\\n' "$(new_deployment_ids_from_response "$response" "123")"
 printf 'latest=%s\\n' "$(latest_new_deployment_status_from_response "$response" "dep-456")"
+printf 'count=%s\\n' "$(deployment_count_from_response "$response")"
 printf 'non_array=%s\\n' "$(deployment_ids_from_response "$non_array_response")"
+printf 'non_array_count=%s\\n' "$(deployment_count_from_response "$non_array_response")"
 """,
         ],
         cwd=ROOT,
@@ -2136,11 +2140,67 @@ printf 'non_array=%s\\n' "$(deployment_ids_from_response "$non_array_response")"
         "ids=123,dep-456",
         "new=dep-456",
         "latest=done",
+        "count=2",
         "non_array=",
+        "non_array_count=0",
     ]
+    assert "select(type == \"object\")" in deploy_script
+    assert "local deploy_payload" in deploy_script
     assert 'new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1' in deploy_script
     assert 'latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1' in deploy_script
     assert 'previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1' in deploy_script
+    assert 'deployment_count=$(deployment_count_from_response "$rollout_response") || exit 1' in deploy_script
+
+
+def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> None:
+    """AC8.13.72: staging fails when Dokploy accepts deploys without rollout records."""
+    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "Dokploy redeploy did not expose a new deployment record" in deploy_script
+    assert "target SHA health check" not in deploy_script.split(
+        'if [[ "$rollout_status" -eq 2 ]]; then', 1
+    )[1].split('elif [[ "$rollout_status" -eq 3 ]]; then', 1)[0]
+    assert 'exit "$rollout_status"' in deploy_script.split(
+        'if [[ "$rollout_status" -eq 2 ]]; then', 1
+    )[1].split('elif [[ "$rollout_status" -eq 3 ]]; then', 1)[0]
+    assert "fails before application readiness when no deployment record materializes" in ci_cd
+
+
+def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unknown_failures() -> None:
+    """AC8.13.108: staging failure context does not hide real failures as skips."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    failure_context = workflow.split(
+        "Classify staging deploy failure context", 1
+    )[1].split("Write staging deploy context", 1)[0]
+
+    for step_id in [
+        "checkout",
+        "get_sha",
+        "wait_train",
+        "classify",
+        "install_moon",
+        "install_uv",
+        "setup_python",
+        "registry_login",
+        "setup_buildx",
+    ]:
+        assert f"id: {step_id}" in workflow
+
+    assert '"classification"' in failure_context
+    assert '"change-classification"' in failure_context
+    assert "Change classification failed before staging relevance could be trusted." in failure_context
+    assert '"toolchain/moon-install"' in failure_context
+    assert '"toolchain/uv-install"' in failure_context
+    assert '"toolchain/python-setup"' in failure_context
+    assert '"registry/login"' in failure_context
+    assert '"unclassified-build-deploy-failure"' in failure_context
+    assert "A build/deploy job step failed outside the known failure map." in failure_context
+    assert "STEPS_CONTEXT: ${{ toJSON(steps) }}" in failure_context
+    assert 'grep -q \'"outcome":"failure"\'' in failure_context
+    assert failure_context.index('"change-classification"') < failure_context.index(
+        'staging_required" != "true"'
+    )
 
 
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
