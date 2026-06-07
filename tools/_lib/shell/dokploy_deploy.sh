@@ -69,8 +69,10 @@ wait_for_dokploy_deployment_rollout() {
   local compose_id="$1"
   local previous_deployment_ids="$2"
   local timeout_seconds="${DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600}"
+  local new_deployment_timeout_seconds="${DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS:-120}"
   local interval_seconds="${DOKPLOY_ROLLOUT_INTERVAL_SECONDS:-5}"
   local started="$SECONDS"
+  local new_deployment_deadline=$((started + new_deployment_timeout_seconds))
   local attempt=0
   local rollout_response
   local compose_status
@@ -108,12 +110,26 @@ wait_for_dokploy_deployment_rollout() {
       fi
     fi
 
+    if [[ -z "$new_deployment_ids" ]] && (( SECONDS >= new_deployment_deadline )); then
+      echo "ERROR: Dokploy deployment did not create a new deployment before readiness polling" >&2
+      echo "compose_id=$compose_id composeStatus=${compose_status:-unknown} deployment_count=${deployment_count:-unknown}" >&2
+      return 2
+    fi
+
     sleep "$interval_seconds"
   done
 
-  echo "ERROR: Dokploy deployment did not create a new deployment before readiness polling" >&2
-  echo "compose_id=$compose_id composeStatus=${compose_status:-unknown} deployment_count=${deployment_count:-unknown}" >&2
+  echo "ERROR: Dokploy deployment did not reach done before readiness polling" >&2
+  echo "compose_id=$compose_id composeStatus=${compose_status:-unknown} deployment_count=${deployment_count:-unknown} new_deployment_ids=${new_deployment_ids:-none}" >&2
   exit 1
+}
+
+deploy_compose() {
+  local endpoint="$1"
+  local label="$2"
+
+  deploy_payload=$(safe_jq_build --arg id "$COMPOSE_ID" '{composeId: $id}') || exit 1
+  dokploy_api_call "POST" "$endpoint" "$deploy_payload" "$deploy_response_file" "$label"
 }
 
 validate_non_empty "$COMPOSE_ID" "compose_id" 2>/dev/null || missing_args+=("compose_id")
@@ -226,9 +242,30 @@ render_allowlisted_env_diff "$expected_effective_env" "$effective_env" || {
   exit 1
 }
 
-deploy_payload=$(safe_jq_build --arg id "$COMPOSE_ID" '{composeId: $id}') || exit 1
-dokploy_api_call "POST" "compose.deploy" "$deploy_payload" "$deploy_response_file" "Deployment trigger"
+deploy_compose "compose.deploy" "Deployment trigger"
+set +e
 wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"
+rollout_status=$?
+set -e
+
+if [[ "$rollout_status" -eq 2 ]]; then
+  echo "Initial Dokploy deploy did not create a deployment record; retrying with compose.redeploy"
+  dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Pre-redeploy deployment snapshot"
+  redeploy_response=$(cat "$response_file")
+  previous_deployment_ids=$(deployment_ids_from_response "$redeploy_response") || exit 1
+  deploy_compose "compose.redeploy" "Redeployment trigger"
+  set +e
+  wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"
+  rollout_status=$?
+  set -e
+  if [[ "$rollout_status" -eq 2 ]]; then
+    echo "Dokploy redeploy did not expose a new deployment record; proceeding to target SHA health check"
+  elif [[ "$rollout_status" -ne 0 ]]; then
+    exit "$rollout_status"
+  fi
+elif [[ "$rollout_status" -ne 0 ]]; then
+  exit "$rollout_status"
+fi
 
 echo "Deployment triggered successfully"
 exit 0
