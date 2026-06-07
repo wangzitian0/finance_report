@@ -74,3 +74,26 @@ def test_AC8_13_72_deploy_script_logs_allowlisted_env_diff_only() -> None:
     assert "--max-time" in common_shell
     assert "--config \"$curl_config_file\"" in common_shell
     assert "--data-binary \"@$data_file\"" in common_shell
+
+
+def test_AC8_13_72_rollout_diagnostics_redact_deployment_fields() -> None:
+    script = r'''
+      export LC_ALL=C
+      export LANG=C
+      source <(sed -n '/^redact_dokploy_diagnostic_value()/,/^wait_for_dokploy_deployment_rollout()/p' tools/_lib/shell/dokploy_deploy.sh | sed '$d')
+      response='{"composeStatus":"error","deployments":[{"deploymentId":"dep-1","status":"error","message":"token=hvs.secret password=pw-secret","errorMessage":"safe reason","env":"PASSWORD=hidden"}]}'
+      render_dokploy_rollout_summary "$response" "unit-test"
+    '''
+
+    result = run_bash(script)
+
+    combined = result.stdout + result.stderr
+    assert "Dokploy rollout summary (unit-test)" in combined
+    assert "env_present: false" in combined
+    assert "latest_deployment_message: token=<redacted> password=<redacted>" in combined
+    assert "latest_deployment_errorMessage: safe reason" in combined
+    assert "raw_compose_printed: false" in combined
+    assert "raw_deployment_printed: false" in combined
+    assert "hvs.secret" not in combined
+    assert "pw-secret" not in combined
+    assert "PASSWORD=hidden" not in combined
