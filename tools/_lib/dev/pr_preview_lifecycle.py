@@ -720,14 +720,14 @@ def deploy_compose_and_wait_for_rollout(
     )
 
 
-def proceed_with_commit_scoped_readiness_after_missing_record(
+def fail_before_readiness_after_missing_record(
     *,
     compose_id: str,
     error: DokployDeploymentDidNotStart,
 ) -> None:
     print(
         "Dokploy deployment record was not created after the deploy request, "
-        "but the workflow will continue to commit-scoped public readiness. "
+        "so readiness will not start. "
         "platform_failure_domain=dokploy-control-plane-record-missing "
         f"compose_id={compose_id} reason={redact_diagnostic_value(error)}"
     )
@@ -893,7 +893,6 @@ def deploy_action(args: argparse.Namespace) -> int:
         )
 
     record_context("preflight")
-    readiness_fallback = False
     try:
         compose_id, existing_compose = get_or_create_compose_with_status(
             config,
@@ -991,12 +990,12 @@ def deploy_action(args: argparse.Namespace) -> int:
                 try:
                     trigger_and_wait(force_redeploy=False)
                 except DokployDeploymentDidNotStart as retry_error:
-                    proceed_with_commit_scoped_readiness_after_missing_record(
+                    fail_before_readiness_after_missing_record(
                         compose_id=compose_id,
                         error=retry_error,
                     )
-                    readiness_fallback = True
-                    record_context("readiness-fallback")
+                    record_context("failed", error=str(retry_error))
+                    raise
             else:
                 print(
                     "Initial Dokploy deploy did not create a deployment record; "
@@ -1005,12 +1004,12 @@ def deploy_action(args: argparse.Namespace) -> int:
                 try:
                     trigger_and_wait(force_redeploy=True)
                 except DokployDeploymentDidNotStart as retry_error:
-                    proceed_with_commit_scoped_readiness_after_missing_record(
+                    fail_before_readiness_after_missing_record(
                         compose_id=compose_id,
                         error=retry_error,
                     )
-                    readiness_fallback = True
-                    record_context("readiness-fallback")
+                    record_context("failed", error=str(retry_error))
+                    raise
         except DokployDeploymentFailed:
             if not existing_compose:
                 raise
@@ -1032,8 +1031,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             configure_current_compose()
             trigger_and_wait(force_redeploy=False)
 
-        if not readiness_fallback:
-            record_context("rollout-ready")
+        record_context("rollout-ready")
 
         if github_output := os.environ.get("GITHUB_OUTPUT"):
             with open(github_output, "a", encoding="utf-8") as output:
@@ -1049,7 +1047,11 @@ def deploy_action(args: argparse.Namespace) -> int:
         return 0
     except Exception as exc:
         record_context("failed", error=f"{type(exc).__name__}: {exc}")
-        raise
+        print(
+            "PR preview deploy failed: "
+            f"{type(exc).__name__}: {redact_diagnostic_value(exc)}"
+        )
+        return 1
 
 
 def cleanup_action(args: argparse.Namespace) -> int:
