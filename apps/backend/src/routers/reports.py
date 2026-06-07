@@ -72,6 +72,7 @@ from src.services.reporting import (
     get_account_trend,
     get_category_breakdown,
     get_net_worth_timeseries,
+    income_bucket,
 )
 from src.utils import raise_bad_request
 
@@ -1201,17 +1202,6 @@ async def _personal_report_package_traceability_payload(
     return payload
 
 
-def _annualized_income_bucket(account_name: str) -> str | None:
-    normalized = account_name.casefold()
-    if "salary" in normalized or "payroll" in normalized:
-        return "salary"
-    if "bonus" in normalized:
-        return "bonus"
-    if "dividend" in normalized:
-        return "dividend"
-    return None
-
-
 @router.get("/package/contract", response_model=PersonalReportPackageContractResponse)
 def personal_report_package_contract(
     framework_id: PersonalReportingFrameworkId | None = None,
@@ -1334,7 +1324,7 @@ async def annualized_income_schedule(
             )
         except FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
-        bucket = _annualized_income_bucket(account.name)
+        bucket = income_bucket(account.name)
         if bucket:
             totals[bucket] += signed_amount
         totals["total"] += signed_amount
