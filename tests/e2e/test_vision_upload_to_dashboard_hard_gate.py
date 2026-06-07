@@ -273,7 +273,8 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     await _goto_ready(page, "/dashboard")
     await expect(page.get_by_label("Upload-to-report home")).to_be_visible(timeout=10_000)
-    await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("status", name="Dashboard analytics loading")).to_be_hidden(timeout=30_000)
+    await expect(page.get_by_role("region", name="Dashboard analytics")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")
         .filter(has_text="Processing")
