@@ -901,9 +901,14 @@ def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics(
     assert 'subprocess.run(' in deploy_block
     assert '"--max-time"' in deploy_block
     assert "subprocess_timeout_seconds = 20" in deploy_block
+    assert "__FINANCE_REPORT_HTTP_STATUS__" in deploy_block
+    assert '"Accept: application/json"' in deploy_block
     assert "route_probe attempt=" in deploy_block
     assert "app_readiness_classification=" in deploy_block
     assert "platform_failure_domain=" in deploy_block
+    assert "api_content_type=" in deploy_block
+    assert "api_body_bytes=" in deploy_block
+    assert "api_body_prefix=" in deploy_block
     assert "repo/tools/dokploy_route_canary.py" in deploy_block
     assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in deploy_block
     assert "backend-health-missing-sha" in deploy_block

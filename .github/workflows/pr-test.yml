@@ -260,6 +260,7 @@ jobs:
 
           curl_timeout_seconds = 15
           subprocess_timeout_seconds = 20
+          status_marker = "\n__FINANCE_REPORT_HTTP_STATUS__:"
 
           def probe(probe_url):
               command = [
@@ -276,9 +277,11 @@ jobs:
                   "--header",
                   "Pragma: no-cache",
                   "--header",
+                  "Accept: application/json",
+                  "--header",
                   "User-Agent: finance-report-pr-preview-readiness/1.0",
                   "--write-out",
-                  "\n%{http_code}",
+                  status_marker + "%{http_code}:%{content_type}",
                   probe_url,
               ]
               try:
@@ -290,18 +293,25 @@ jobs:
                       text=True,
                       timeout=subprocess_timeout_seconds,
                   )
-                  body, _, status_text = (completed.stdout or "").rpartition("\n")
+                  stdout = completed.stdout or ""
+                  if status_marker in stdout:
+                      body, status_text = stdout.rsplit(status_marker, 1)
+                  else:
+                      body = stdout
+                      status_text = ""
+                  status_parts = status_text.strip().split(":", 1)
                   try:
-                      status = int(status_text.strip())
+                      status = int(status_parts[0])
                   except ValueError:
                       status = 0
+                  content_type = status_parts[1] if len(status_parts) > 1 else ""
                   error = (completed.stderr or "").strip()[:300]
                   if completed.returncode != 0 and not error:
                       error = f"curl exited {completed.returncode}"
                   return {
                       "status": status,
                       "body": body[:500],
-                      "headers": {},
+                      "headers": {"content_type": content_type},
                       "error": error,
                   }
               except subprocess.TimeoutExpired as exc:
@@ -321,9 +331,18 @@ jobs:
 
           def parse_json_body(result):
               try:
-                  return json.loads(result["body"] or "{}")
+                  return json.loads((result["body"] or "").strip() or "{}")
               except json.JSONDecodeError:
                   return {}
+
+          def body_prefix(result):
+              body = result["body"] or ""
+              return json.dumps(body[:160].replace("\n", "\\n"), ensure_ascii=True)
+
+          def content_type(result):
+              headers = result.get("headers") or {}
+              value = headers.get("content_type")
+              return value if isinstance(value, str) else ""
 
           def response_code(payload):
               value = payload.get("code")
@@ -398,6 +417,9 @@ jobs:
                   f"platform_failure_domain={failure_domain} "
                   f"api_status={api_result['status']} api_sha={actual_sha or ''} "
                   f"api_code={response_code(api_payload)} "
+                  f"api_content_type={content_type(api_result)} "
+                  f"api_body_bytes={len(api_result['body'])} "
+                  f"api_body_prefix={body_prefix(api_result) if api_result['status'] == 200 and not actual_sha else json.dumps('')} "
                   f"api_error={api_result['error']} "
                   f"ping_status={ping_result['status']} "
                   f"frontend_status={frontend_result['status']} "
@@ -469,6 +491,7 @@ jobs:
 
           curl_timeout_seconds = 15
           subprocess_timeout_seconds = 20
+          status_marker = "\n__FINANCE_REPORT_HTTP_STATUS__:"
 
           def probe(probe_url):
               command = [
@@ -485,9 +508,11 @@ jobs:
                   "--header",
                   "Pragma: no-cache",
                   "--header",
+                  "Accept: application/json",
+                  "--header",
                   "User-Agent: finance-report-pr-preview-readiness/1.0",
                   "--write-out",
-                  "\n%{http_code}",
+                  status_marker + "%{http_code}",
                   probe_url,
               ]
               completed = subprocess.run(
@@ -498,7 +523,12 @@ jobs:
                   text=True,
                   timeout=subprocess_timeout_seconds,
               )
-              body, _, status_text = (completed.stdout or "").rpartition("\n")
+              stdout = completed.stdout or ""
+              if status_marker in stdout:
+                  body, status_text = stdout.rsplit(status_marker, 1)
+              else:
+                  body = stdout
+                  status_text = ""
               try:
                   status = int(status_text.strip())
               except ValueError:

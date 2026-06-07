@@ -1422,6 +1422,8 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         in frontend_readiness_block
     )
     assert "subprocess_timeout_seconds = 20" in frontend_readiness_block
+    assert "__FINANCE_REPORT_HTTP_STATUS__" in frontend_readiness_block
+    assert '"Accept: application/json"' in frontend_readiness_block
     assert "Frontend not ready with expected git_sha" in frontend_readiness_block
     assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in cleanup_block
     assert 'startswith(\\"${TAG_PREFIX}\\")' in cleanup_block
