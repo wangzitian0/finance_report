@@ -693,10 +693,72 @@ jobs:
             echo "No open staging alert issue to close."
           fi
 
+  post-merge-delivery:
+    name: Post-merge Delivery
+    runs-on: ubuntu-latest
+    needs: [classify-staging, build-and-deploy, ai-ocr-gate, staging-deploy-alert]
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
+    steps:
+      - name: Aggregate post-merge delivery result
+        run: |
+          set -euo pipefail
+
+          classify_result="${{ needs.classify-staging.result }}"
+          staging_required="${{ needs.classify-staging.outputs.staging_required }}"
+          build_result="${{ needs.build-and-deploy.result }}"
+          ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
+          alert_result="${{ needs.staging-deploy-alert.result }}"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          target_sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          target_short="${target_sha:0:7}"
+          failed=false
+          delivery_status="passed"
+          failure_reason="none"
+
+          if [ "$classify_result" != "success" ]; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="staging classification failed"
+          elif [ "$staging_required" != "true" ]; then
+            delivery_status="skipped-no-staging-required"
+          elif [ "$build_result" != "success" ]; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="build/deploy gate failed"
+          elif [ "$ai_ocr_result" != "success" ]; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="staging AI/OCR gate failed"
+          elif [ "${{ github.event_name }}" = "workflow_run" ] && [ "$alert_result" != "success" ]; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="staging alert job failed"
+          fi
+
+          {
+            echo "## Post-merge Delivery"
+            echo ""
+            echo "- Delivery status: ${delivery_status}"
+            echo "- Failure reason: ${failure_reason}"
+            echo "- Target SHA: ${target_sha}"
+            echo "- Target short SHA: ${target_short}"
+            echo "- Run URL: ${run_url}"
+            echo "- Staging required: ${staging_required:-unknown}"
+            echo "- Classify result: ${classify_result}"
+            echo "- Build/deploy result: ${build_result}"
+            echo "- AI/OCR result: ${ai_ocr_result}"
+            echo "- Alert result: ${alert_result}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$failed" = "true" ]; then
+            echo "::error::Post-merge delivery failed: ${failure_reason}"
+            exit 1
+          fi
+
   post-merge-summary:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
-    needs: [classify-staging, build-and-deploy, ai-ocr-gate, staging-deploy-alert]
+    needs: [classify-staging, build-and-deploy, ai-ocr-gate, staging-deploy-alert, post-merge-delivery]
     if: ${{ always() }}
     permissions:
       actions: read
