@@ -2048,10 +2048,14 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "previous_deployment_ids" in deploy_script
     assert "Dokploy deployment observed" in deploy_script
     assert 'DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600' in deploy_script
+    assert 'DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS:-120' in deploy_script
     assert "did not create a new deployment before readiness polling" in deploy_script
+    assert "retrying with compose.redeploy" in deploy_script
+    assert 'deploy_compose "compose.redeploy" "Redeployment trigger"' in deploy_script
+    assert "proceeding to target SHA health check" in deploy_script
     assert 'latest_status" == "done"' in deploy_script
     assert 'latest_status" == "running" || "$latest_status" == "done"' not in deploy_script
-    assert deploy_script.index('dokploy_api_call "POST" "compose.deploy"') < deploy_script.index(
+    assert deploy_script.index('deploy_compose "compose.deploy"') < deploy_script.index(
         'wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"'
     )
     assert '"https://report-staging.zitian.party/api/health"' in deploy_block
