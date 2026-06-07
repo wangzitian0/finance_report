@@ -1971,6 +1971,61 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "exit 1" in health_check
 
 
+def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> None:
+    """AC8.13.72: staging rollout parsing handles Dokploy shape drift clearly."""
+    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    function_block = "deployment_ids_from_response()" + deploy_script.split(
+        "deployment_ids_from_response()", 1
+    )[1].split("wait_for_dokploy_deployment_rollout()", 1)[0]
+
+    response = json.dumps(
+        {
+            "deployments": [
+                {"deploymentId": 123, "status": "running", "createdAt": "2026-01-01T00:00:00Z"},
+                {"deploymentId": "dep-456", "status": "done", "finishedAt": "2026-01-01T00:01:00Z"},
+            ]
+        }
+    )
+    non_array_response = json.dumps({"deployments": {"deploymentId": "ignored"}})
+    probe = subprocess.run(
+        [
+            "bash",
+            "-e",
+            "-u",
+            "-o",
+            "pipefail",
+            "-c",
+            function_block
+            + """
+response="$DOKPLOY_RESPONSE"
+non_array_response="$DOKPLOY_NON_ARRAY_RESPONSE"
+printf 'ids=%s\\n' "$(deployment_ids_from_response "$response")"
+printf 'new=%s\\n' "$(new_deployment_ids_from_response "$response" "123")"
+printf 'latest=%s\\n' "$(latest_new_deployment_status_from_response "$response" "dep-456")"
+printf 'non_array=%s\\n' "$(deployment_ids_from_response "$non_array_response")"
+""",
+        ],
+        cwd=ROOT,
+        env={
+            "DOKPLOY_RESPONSE": response,
+            "DOKPLOY_NON_ARRAY_RESPONSE": non_array_response,
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert probe.stdout.splitlines() == [
+        "ids=123,dep-456",
+        "new=dep-456",
+        "latest=done",
+        "non_array=",
+    ]
+    assert 'new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1' in deploy_script
+    assert 'latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1' in deploy_script
+    assert 'previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1' in deploy_script
+
+
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
     """AC8.13.47: remaining delivery-engine work is captured outside mutable SSOT."""
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")

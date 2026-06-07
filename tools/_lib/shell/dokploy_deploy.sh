@@ -32,21 +32,37 @@ APP_URL="${3:-}"
 
 deployment_ids_from_response() {
   local response="$1"
-  echo "$response" | jq -r '[.deployments[]? | .deploymentId // empty] | join(",")'
+  echo "$response" | jq -r '[
+    (if (.deployments | type) == "array" then .deployments else [] end)[]
+    | (.deploymentId? // empty)
+    | tostring
+  ] | join(",")'
 }
 
 new_deployment_ids_from_response() {
   local response="$1"
   local previous_deployment_ids="$2"
   echo "$response" | jq -r --arg previous ",$previous_deployment_ids," \
-    '[.deployments[]? | .deploymentId // empty | select(($previous | contains("," + . + ",")) | not)] | join(",")'
+    '[
+      (if (.deployments | type) == "array" then .deployments else [] end)[]
+      | (.deploymentId? // empty)
+      | tostring
+      | . as $deployment_id
+      | select(($previous | contains("," + $deployment_id + ",")) | not)
+    ] | join(",")'
 }
 
 latest_new_deployment_status_from_response() {
   local response="$1"
   local new_deployment_ids="$2"
   echo "$response" | jq -r --arg ids ",$new_deployment_ids," \
-    '[.deployments[]? | select(.deploymentId and ($ids | contains("," + .deploymentId + ",")))] | sort_by(.createdAt // .startedAt // "") | (last // {}) | .status // "unknown"'
+    '[
+      (if (.deployments | type) == "array" then .deployments else [] end)[]
+      | select(.deploymentId? != null)
+      | . + {deploymentId: (.deploymentId | tostring)}
+      | .deploymentId as $deployment_id
+      | select($ids | contains("," + $deployment_id + ","))
+    ] | sort_by(.createdAt // .startedAt // .finishedAt // "") | (last // {}) | .status // "unknown"'
 }
 
 wait_for_dokploy_deployment_rollout() {
@@ -71,7 +87,7 @@ wait_for_dokploy_deployment_rollout() {
     rollout_response=$(cat "$response_file")
     compose_status=$(safe_jq '.composeStatus // .status // "unknown"' "$rollout_response" "deployment rollout compose status") || exit 1
     deployment_count=$(safe_jq '(.deployments // []) | length' "$rollout_response" "deployment rollout count") || exit 1
-    new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids")
+    new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1
 
     echo "Dokploy rollout attempt $attempt: composeStatus=$compose_status deployment_count=$deployment_count new_deployment_ids=${new_deployment_ids:-none}"
 
@@ -81,7 +97,7 @@ wait_for_dokploy_deployment_rollout() {
     fi
 
     if [[ -n "$new_deployment_ids" ]]; then
-      latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids")
+      latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1
       echo "Dokploy deployment observed: compose_id=$compose_id new_deployment_ids=$new_deployment_ids latest_deployment_status=$latest_status"
       if [[ "$latest_status" == "error" ]]; then
         echo "ERROR: Dokploy deployment failed before readiness polling" >&2
@@ -204,7 +220,7 @@ echo "Environment updated to use image tag: $IMAGE_TAG"
 dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Effective environment verification"
 effective_response=$(cat "$response_file")
 effective_env=$(safe_jq '.env // empty' "$effective_response" "effective environment fetch") || exit 1
-previous_deployment_ids=$(deployment_ids_from_response "$effective_response")
+previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1
 render_allowlisted_env_diff "$expected_effective_env" "$effective_env" || {
   echo "ERROR: Effective Dokploy environment does not match expected deployment values" >&2
   exit 1
