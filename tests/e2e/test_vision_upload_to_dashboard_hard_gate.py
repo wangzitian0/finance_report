@@ -272,16 +272,21 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     )
 
     await _goto_ready(page, "/dashboard")
-    await expect(page.get_by_label("Upload-to-report home")).to_be_visible(timeout=10_000)
-    await expect(page.get_by_role("status", name="Dashboard analytics loading")).to_be_hidden(timeout=30_000)
-    await expect(page.get_by_role("region", name="Dashboard analytics")).to_be_visible(timeout=10_000)
+    upload_home = page.get_by_label("Upload-to-report home")
+    dashboard_analytics = page.get_by_role("region", name="Dashboard analytics")
+    await expect(upload_home).to_be_visible(timeout=10_000)
+    await expect(dashboard_analytics).to_be_visible(timeout=10_000)
+    await expect(upload_home.get_by_text("Loading upload-to-report workflow...")).to_be_hidden(timeout=30_000)
+    await expect(
+        dashboard_analytics.get_by_role("status", name="Dashboard analytics loading")
+    ).to_be_hidden(timeout=30_000)
     await expect(
         page.locator(".card")
         .filter(has_text="Processing")
         .filter(has_text="SGD 0.00")
         .filter(has_text="0 Pending")
         .filter(has_text="Balanced")
-    ).to_be_visible()
+    ).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")
         .filter(has_text="Total Assets")

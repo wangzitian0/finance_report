@@ -144,7 +144,7 @@ Delegate ONLY for:
 ## Operational Guidelines
 
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API; SSH only for reading, never modifying.
-2. **Shared network isolation**: Use unique container names (e.g., `finance-report-db-pr-47`) as hostnames.
+2. **Shared network isolation**: Use compose service DNS on project-scoped networks for PR previews; do not use fixed container names as hostnames.
 3. **Infrastructure Submodule Sync**: Before creating PR, verify `repo/` points to latest `infra2` main:
    ```bash
    cd repo && git fetch origin main && git log --oneline -1 origin/main && git log --oneline -1 HEAD

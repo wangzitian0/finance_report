@@ -28,6 +28,7 @@ ALLOWLIST_ENV_KEYS = (
     "COMPOSE_PROJECT_NAME",
     "ENV_SUFFIX",
     "ENV_DOMAIN_SUFFIX",
+    "NETWORK_SUFFIX",
     "NEXT_PUBLIC_API_URL",
     "DB_HOST",
     "S3_HOST",
@@ -86,6 +87,10 @@ class DokployConfig:
 
 class DokployDeploymentDidNotStart(RuntimeError):
     """Dokploy accepted a deploy request but did not create a new deployment."""
+
+
+class DokployDeploymentFailed(RuntimeError):
+    """Dokploy created a deployment record but the rollout failed."""
 
 
 def run_command(
@@ -372,6 +377,7 @@ def build_preview_env(
         "COMPOSE_PROJECT_NAME": preview_compose_project(pr_number),
         "ENV_SUFFIX": env_suffix,
         "ENV_DOMAIN_SUFFIX": env_suffix,
+        "NETWORK_SUFFIX": f"-pr-{pr_number}",
         "INTERNAL_DOMAIN": internal_domain,
         "TRAEFIK_ENABLE": "true",
         "NEXT_PUBLIC_API_URL": app_url,
@@ -658,6 +664,29 @@ def update_compose_env(
     print(f"Environment variables configured for compose: {compose_id}")
 
 
+def configure_preview_compose(
+    config: DokployConfig,
+    *,
+    compose_id: str,
+    args: argparse.Namespace,
+    preview_env: dict[str, str],
+) -> None:
+    update_compose_source(
+        config,
+        compose_id=compose_id,
+        pr_number=args.pr_number,
+        branch=args.branch,
+        github_integration_id=args.github_integration_id,
+    )
+    print_compose_summary(config, compose_id=compose_id, label="after-source-update")
+    update_compose_env(
+        config,
+        compose_id=compose_id,
+        env=preview_env,
+    )
+    print_compose_summary(config, compose_id=compose_id, label="after-env-update")
+
+
 def deploy_compose(
     config: DokployConfig, *, compose_id: str, force_redeploy: bool = False
 ) -> None:
@@ -673,12 +702,45 @@ def deploy_compose(
     print(f"dokploy_queue_message: {_safe_message(body)}")
 
 
+def deploy_compose_and_wait_for_rollout(
+    config: DokployConfig,
+    *,
+    compose_id: str,
+    force_redeploy: bool,
+) -> None:
+    previous_deployment_ids = deployment_ids(
+        get_compose_data(config, compose_id=compose_id).get("deployments")
+    )
+    deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
+    print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
+    wait_for_dokploy_deployment_rollout(
+        config,
+        compose_id=compose_id,
+        previous_deployment_ids=previous_deployment_ids,
+    )
+
+
+def fail_before_readiness_after_missing_record(
+    *,
+    compose_id: str,
+    error: DokployDeploymentDidNotStart,
+) -> None:
+    print(
+        "Dokploy deployment record was not created after the deploy request, "
+        "so readiness will not start. "
+        "platform_failure_domain=dokploy-control-plane-record-missing "
+        f"compose_id={compose_id} reason={redact_diagnostic_value(error)}"
+    )
+    print("raw_compose_printed: false")
+    print("raw_deployment_printed: false")
+
+
 def wait_for_dokploy_deployment_rollout(
     config: DokployConfig,
     *,
     compose_id: str,
     previous_deployment_ids: set[str] | None = None,
-    timeout_seconds: int = 600,
+    timeout_seconds: int = 900,
     new_deployment_timeout_seconds: int = 600,
     interval_seconds: int = 5,
 ) -> None:
@@ -720,14 +782,18 @@ def wait_for_dokploy_deployment_rollout(
             print(
                 render_compose_summary(data, label=f"compose-error-attempt-{attempt}")
             )
-            latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
-            latest_id = str(latest.get("deploymentId") or "")
-            deployment_suffix = (
-                f" deployment_id={latest_id}" if latest_id else " deployment_id=unknown"
-            )
-            raise RuntimeError(
-                "Dokploy compose entered error status before readiness polling: "
-                f"compose_id={compose_id}{deployment_suffix}"
+            if new_deployment_ids:
+                latest = (
+                    latest_new_deployment(deployments, set(new_deployment_ids)) or {}
+                )
+                latest_id = str(latest.get("deploymentId") or new_deployment_ids[-1])
+                raise DokployDeploymentFailed(
+                    "Dokploy compose entered error status before readiness polling: "
+                    f"compose_id={compose_id} deployment_id={latest_id}"
+                )
+            print(
+                "Dokploy compose still reports a stale error before the queued "
+                "redeploy has created a new deployment record; continuing rollout poll."
             )
         print(
             f"Dokploy rollout probe: attempt={attempt} "
@@ -747,7 +813,7 @@ def wait_for_dokploy_deployment_rollout(
                         label=f"deployment-error-attempt-{attempt}",
                     )
                 )
-                raise RuntimeError(
+                raise DokployDeploymentFailed(
                     "Dokploy deployment failed before readiness polling: "
                     f"compose_id={compose_id} deployment_id={latest_id}"
                 )
@@ -860,6 +926,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
             existing_compose = False
             record_context("compose-recreated")
+
         preview_env = build_preview_env(
             pr_number=args.pr_number,
             commit_sha=args.commit_sha,
@@ -867,60 +934,105 @@ def deploy_action(args: argparse.Namespace) -> int:
             image_prefix=args.image_prefix,
             internal_domain=args.internal_domain,
         )
-        update_compose_source(
-            config,
-            compose_id=compose_id,
-            pr_number=args.pr_number,
-            branch=args.branch,
-            github_integration_id=args.github_integration_id,
-        )
-        print_compose_summary(
-            config, compose_id=compose_id, label="after-source-update"
-        )
-        update_compose_env(
-            config,
-            compose_id=compose_id,
-            env=preview_env,
-        )
-        print_compose_summary(config, compose_id=compose_id, label="after-env-update")
-        previous_deployment_ids = deployment_ids(
-            get_compose_data(config, compose_id=compose_id).get("deployments")
-        )
-        force_redeploy = existing_compose
-        deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
-        print_compose_summary(
-            config, compose_id=compose_id, label="after-deploy-trigger"
-        )
-        record_context("deploy-triggered")
-        try:
-            wait_for_dokploy_deployment_rollout(
+
+        def configure_current_compose() -> None:
+            configure_preview_compose(
                 config,
                 compose_id=compose_id,
-                previous_deployment_ids=previous_deployment_ids,
-                new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+                args=args,
+                preview_env=preview_env,
             )
-        except DokployDeploymentDidNotStart:
-            if force_redeploy:
-                raise
-            print(
-                "Initial Dokploy deploy did not create a deployment record; "
-                "retrying with compose.redeploy"
-            )
+
+        def trigger_and_wait(*, force_redeploy: bool) -> None:
             previous_deployment_ids = deployment_ids(
                 get_compose_data(config, compose_id=compose_id).get("deployments")
             )
-            deploy_compose(config, compose_id=compose_id, force_redeploy=True)
+            deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
             print_compose_summary(
-                config, compose_id=compose_id, label="after-redeploy-trigger"
+                config,
+                compose_id=compose_id,
+                label="after-redeploy-trigger"
+                if force_redeploy
+                else "after-deploy-trigger",
             )
-            record_context("redeploy-triggered")
+            record_context(
+                "redeploy-triggered" if force_redeploy else "deploy-triggered"
+            )
             wait_for_dokploy_deployment_rollout(
                 config,
                 compose_id=compose_id,
                 previous_deployment_ids=previous_deployment_ids,
                 new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
             )
+
+        configure_current_compose()
+
+        try:
+            trigger_and_wait(force_redeploy=existing_compose)
+        except DokployDeploymentDidNotStart:
+            if existing_compose:
+                print(
+                    "Existing PR preview compose did not complete a new Dokploy "
+                    "rollout; recreating compose before retry."
+                )
+                delete_compose(config, compose_id=compose_id)
+                compose_id = create_compose(
+                    config,
+                    environment_id=args.environment_id,
+                    compose_name=args.compose_name,
+                    pr_number=args.pr_number,
+                    branch=args.branch,
+                    github_integration_id=args.github_integration_id,
+                )
+                existing_compose = False
+                record_context("compose-recreated")
+                configure_current_compose()
+                try:
+                    trigger_and_wait(force_redeploy=False)
+                except DokployDeploymentDidNotStart as retry_error:
+                    fail_before_readiness_after_missing_record(
+                        compose_id=compose_id,
+                        error=retry_error,
+                    )
+                    record_context("failed", error=str(retry_error))
+                    raise
+            else:
+                print(
+                    "Initial Dokploy deploy did not create a deployment record; "
+                    "retrying with compose.redeploy"
+                )
+                try:
+                    trigger_and_wait(force_redeploy=True)
+                except DokployDeploymentDidNotStart as retry_error:
+                    fail_before_readiness_after_missing_record(
+                        compose_id=compose_id,
+                        error=retry_error,
+                    )
+                    record_context("failed", error=str(retry_error))
+                    raise
+        except DokployDeploymentFailed:
+            if not existing_compose:
+                raise
+            print(
+                "Existing PR preview compose did not complete a new Dokploy "
+                "rollout; recreating compose before retry."
+            )
+            delete_compose(config, compose_id=compose_id)
+            compose_id = create_compose(
+                config,
+                environment_id=args.environment_id,
+                compose_name=args.compose_name,
+                pr_number=args.pr_number,
+                branch=args.branch,
+                github_integration_id=args.github_integration_id,
+            )
+            existing_compose = False
+            record_context("compose-recreated")
+            configure_current_compose()
+            trigger_and_wait(force_redeploy=False)
+
         record_context("rollout-ready")
+
         if github_output := os.environ.get("GITHUB_OUTPUT"):
             with open(github_output, "a", encoding="utf-8") as output:
                 output.write(f"compose_id={compose_id}\n")
@@ -935,7 +1047,11 @@ def deploy_action(args: argparse.Namespace) -> int:
         return 0
     except Exception as exc:
         record_context("failed", error=f"{type(exc).__name__}: {exc}")
-        raise
+        print(
+            "PR preview deploy failed: "
+            f"{type(exc).__name__}: {redact_diagnostic_value(exc)}"
+        )
+        return 1
 
 
 def cleanup_action(args: argparse.Namespace) -> int:

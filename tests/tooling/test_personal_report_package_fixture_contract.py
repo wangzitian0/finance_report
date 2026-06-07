@@ -135,6 +135,7 @@ def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() 
     assert "expected.market_price" in journey
     assert "expected.market_price_date" in journey
     assert "manual_override_basis" in journey
+    assert "_has_price_source_link" in journey
     assert "latest_price_date = date.fromisoformat(" in journey
     assert 'schedule["data_freshness"]["latest_price_date"]' in journey
     assert "latest_price_date >= expected.market_price_date" in journey

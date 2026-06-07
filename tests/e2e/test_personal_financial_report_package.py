@@ -242,6 +242,10 @@ def _has_dynamic_traceability_identifiers(traceability: dict) -> bool:
     )
 
 
+def _has_price_source_link(source_links: list[str]) -> bool:
+    return any(source_link.startswith("price_source:") for source_link in source_links)
+
+
 def _line_total(lines: list[dict], token: str | None = None) -> Decimal:
     filtered = (
         lines
@@ -523,9 +527,8 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert schedule["source_links"], (
             f"investment schedule missing source links: {schedule}"
         )
-        assert any(
-            "market_data_override" in source_link
-            for source_link in schedule["source_links"]
+        assert _has_price_source_link(schedule["source_links"]), (
+            f"investment schedule missing price source evidence: {schedule}"
         )
         assert schedule["notes"], f"investment schedule missing notes: {schedule}"
 

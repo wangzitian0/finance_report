@@ -105,11 +105,11 @@ before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 | **Local Dev** | `finance-report-backend` | `finance-report-frontend` | `finance_report` | `statements` |
 | **Local CI** | *(uses Local Dev containers)* | *(uses Local Dev containers)* | `finance_report_test_{namespace}` | `statements-{namespace}` |
 | **GitHub CI** | *(GitHub Services)* | *(N/A)* | `finance_report_test` | `statements` (mock) |
-| **PR Preview** | `finance-report-backend-pr-123` | `finance-report-frontend-pr-123` | `finance-report-db-pr-123` | *(dedicated MinIO)* |
+| **PR Preview** | Dokploy compose-scoped backend service | Dokploy compose-scoped frontend service | `postgres` service DNS | `minio` service DNS |
 | **Staging** | `finance-report-backend-staging` | `finance-report-frontend-staging` | `finance-report-db-staging` | `finance-report-staging` |
 | **Production** | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-production` |
 
-**Note**: Container names follow the pattern `finance-report-{service}${ENV_SUFFIX}` from `docker-compose.yml`. `ENV_SUFFIX` is `-pr-{N}` for PR Preview and `-staging` for Staging; empty for Production.
+**Note**: Container names follow the pattern `finance-report-{service}${ENV_SUFFIX}` from `docker-compose.yml` for fixed-name environments. PR Preview raw compose removes fixed container names and uses compose service DNS on a project-scoped internal network, because Dokploy compose project names can change across retries while the PR route remains stable. `ENV_SUFFIX` is `-pr-{N}` for PR Preview and `-staging` for Staging; empty for Production.
 
 ---
 

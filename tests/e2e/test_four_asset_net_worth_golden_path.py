@@ -514,6 +514,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
     await page.goto(
         _get_url(
             f"/reports/balance-sheet?as_of_date={report_date.isoformat()}&currency=SGD"
+            "&include_restricted=true"
         )
     )
     await page.wait_for_load_state("networkidle")
