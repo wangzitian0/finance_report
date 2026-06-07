@@ -374,6 +374,9 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.101 | PR preview readiness, frontend build args, E2E, and PR comments consume the lifecycle-generated commit-scoped preview URL instead of a PR-scoped URL that can be satisfied by stale containers | `test_AC8_13_101_preview_app_url_is_commit_scoped`, `test_AC8_13_101_pr_test_workflow_uses_commit_scoped_preview_url` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.102 | PR preview Dokploy deploys consume CI-built GHCR images with `--pull always --no-build`, disable Dokploy source auto-deploy so CI is the only rollout owner, require a new Dokploy deployment record to finish within the worker-queue window before readiness, emit redacted deployment diagnostics on rollout errors, and use commit-scoped readiness as the final public-route and expected-SHA proof | `test_AC8_13_102_dokploy_deploy_waits_for_worker_done_status`, `test_AC8_13_102_dokploy_rollout_record_window_allows_worker_queue`, `test_AC8_13_102_dokploy_rollout_timeout_fails_before_readiness`, `test_AC8_13_102_dokploy_rollout_error_fails_before_readiness`, `test_AC8_13_102_compose_error_logs_redacted_deployment_diagnostics`, `test_AC8_13_102_preview_source_disables_dokploy_auto_deploy`, `test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids`, `test_AC8_13_102_missing_deploy_record_fails_before_readiness` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.103 | Main post-merge staging publishes one commit-level `Post-merge Delivery` check that fails when staging classification, build/deploy, AI/OCR, or alert propagation fails, so a green `CI` workflow cannot hide a red delivery gate | `test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.104 | Automatic staging AI/OCR runs only for provider, extraction, statement parsing, PDF fixture, AI/OCR workflow, or critical LLM proof path changes; normal runtime deploys keep staging smoke/E2E but skip provider spend | `test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths` | `tests/tooling/test_ci_change_classifier.py` | P0 |
+| AC8.13.105 | Post-merge staging keeps FIFO ordering but collapses train wait, staging classification, and deploy into one runner job to avoid a second GitHub Actions scheduling gap before staging mutation | `test_AC8_13_13_staging_deploy_fast_fail_guardrails`, `test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.106 | Staging health fails fast when a reachable health endpoint repeatedly reports the same stale SHA, while preserving the full health window for cold starts, route misses, and unhealthy dependency responses | `test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -417,7 +420,7 @@ be filled just for symmetry.
 | `local` | default | focused/static contracts | risk-triggered | risk-triggered | not default | no | no | no | no |
 | `pr` | covered by full gates | required | required for heavy changes | required for heavy changes | Tier-1/provider-free required | dry-run for heavy changes | no | no | no |
 | `pr-preview` | no | no | no | no | runtime/UI/API preview-relevant subset | push PR images | required health/version | no | no |
-| `staging` | no | no | no | no | merged-SHA non-LLM plus provider-backed regression | reuse or build missing SHA images | required | required when real-provider proof is needed | no |
+| `staging` | no | no | no | no | merged-SHA non-LLM plus risk-triggered provider-backed regression | reuse or build missing SHA images | required | required only for provider, extraction, statement parsing, PDF fixture, AI/OCR workflow, or critical LLM proof changes | no |
 | `prd` | no | no | no | no | prod-safe smoke only | release image proof | required | no first-time proof | required |
 
 Operational interpretation:
@@ -427,8 +430,9 @@ Operational interpretation:
   traceability, and image build proof.
 - PR preview proves PR images can boot, route, report the expected version, and
   pass provider-free deployed E2E for preview-relevant changes.
-- Staging consumes only successful `main` SHAs and proves real infra/provider
-  behavior for the exact merged commit.
+- Staging consumes only successful `main` SHAs, always proves real infra and
+  non-LLM deployed behavior for deploy-relevant changes, and runs provider
+  proof only for AI/OCR or extraction risk changes.
 - Production proves release integrity and availability; it must not be the first
   proof of deterministic business correctness.
 

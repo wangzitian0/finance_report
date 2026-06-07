@@ -30,38 +30,6 @@ env:
   UV_VERSION: "0.9.18"
 
 jobs:
-  post-merge-train-turn:
-    name: Post-merge Train Turn
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
-      - name: Wait for FIFO post-merge train turn
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python tools/wait_post_merge_train_turn.py \
-            --timeout-seconds 21600 \
-            --poll-seconds 30
-
-      - name: Report no train wait required
-        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.event != 'push' || github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_branch != 'main' }}
-        run: |
-          {
-            echo "## Post-merge Train Turn"
-            echo ""
-            echo "No FIFO wait required for event \`${{ github.event_name }}\`."
-          } >> "$GITHUB_STEP_SUMMARY"
-
   ci-not-success-summary:
     name: CI Workflow Run Ignored
     if: ${{ github.event_name == 'workflow_run' && (github.event.workflow_run.event != 'push' || github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_branch != 'main') }}
@@ -108,59 +76,9 @@ jobs:
             echo "No FIFO wait, image promotion, Dokploy change, smoke test, or AI/OCR validation ran."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  classify-staging:
-    name: Classify Staging Relevance
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
-    runs-on: ubuntu-latest
-    outputs:
-      staging_required: ${{ steps.classify.outputs.staging_required }}
-      staging_reason: ${{ steps.classify.outputs.staging_reason }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 0
-
-      - name: Classify staging relevance
-        id: classify
-        env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            {
-              echo "staging_required=true"
-              echo "staging_reason=manual-dispatch"
-            } >> "$GITHUB_OUTPUT"
-            {
-              echo "## Staging Change Classification"
-              echo ""
-              echo "- Staging deploy required: \`true\`"
-              echo "- Staging reason: \`manual-dispatch\`"
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          head_sha="${HEAD_SHA:-$(git rev-parse HEAD)}"
-          base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || true)"
-          if [ -z "$base_sha" ]; then
-            echo "::warning::Could not resolve parent for $head_sha; failing closed into staging deploy."
-            : > changed-files.txt
-          else
-            git diff --name-only "$base_sha" "$head_sha" > changed-files.txt
-          fi
-
-          python tools/ci_change_classifier.py \
-            --changed-files changed-files.txt \
-            --github-output "$GITHUB_OUTPUT" \
-            --github-summary "$GITHUB_STEP_SUMMARY"
-
   build-and-deploy:
     name: Build and Deploy
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && needs.classify-staging.outputs.staging_required == 'true') }}
-    needs: [post-merge-train-turn, classify-staging]
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -170,14 +88,17 @@ jobs:
     outputs:
       commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}
       commit_sha: ${{ steps.get_sha.outputs.short_sha }}
-    
+      staging_required: ${{ steps.classify.outputs.staging_required }}
+      staging_reason: ${{ steps.classify.outputs.staging_reason }}
+      ai_ocr_required: ${{ steps.classify.outputs.staging_ai_ocr_required }}
+      ai_ocr_reason: ${{ steps.classify.outputs.staging_ai_ocr_reason }}
 
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
 
       - name: Get Commit SHA
         id: get_sha
@@ -188,7 +109,78 @@ jobs:
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"
 
+      - name: Wait for FIFO post-merge train turn
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/wait_post_merge_train_turn.py \
+            --timeout-seconds 21600 \
+            --poll-seconds 30
+
+      - name: Report no train wait required
+        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.event != 'push' || github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_branch != 'main' }}
+        run: |
+          {
+            echo "## Post-merge Train Turn"
+            echo ""
+            echo "No FIFO wait required for event \`${{ github.event_name }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Classify staging and AI/OCR relevance
+        id: classify
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "staging_required=true"
+              echo "staging_reason=manual-dispatch"
+              echo "staging_ai_ocr_required=true"
+              echo "staging_ai_ocr_reason=manual-dispatch"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "## Staging Change Classification"
+              echo ""
+              echo "- Staging deploy required: \`true\`"
+              echo "- Staging reason: \`manual-dispatch\`"
+              echo "- Staging AI/OCR required: \`true\`"
+              echo "- Staging AI/OCR reason: \`manual-dispatch\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          head_sha="${HEAD_SHA:-$(git rev-parse HEAD)}"
+          base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || true)"
+          if [ -z "$base_sha" ]; then
+            echo "::warning::Could not resolve parent for $head_sha; failing closed into staging deploy and AI/OCR."
+            : > changed-files.txt
+          else
+            git diff --name-only "$base_sha" "$head_sha" > changed-files.txt
+          fi
+
+          python tools/ci_change_classifier.py \
+            --changed-files changed-files.txt \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Report staging deploy skip
+        if: steps.classify.outputs.staging_required != 'true'
+        run: |
+          {
+            echo "## Staging Deploy Skipped"
+            echo ""
+            echo "- Staging deploy required: \`${{ steps.classify.outputs.staging_required }}\`"
+            echo "- Staging reason: \`${{ steps.classify.outputs.staging_reason }}\`"
+            echo "- Target main SHA: \`${{ steps.get_sha.outputs.short_sha }}\`"
+            echo ""
+            echo "No image promotion, Dokploy mutation, smoke/E2E, or AI/OCR validation ran."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Probe current staging version
+        if: steps.classify.outputs.staging_required == 'true'
         id: staging_before
         continue-on-error: true
         env:
@@ -224,19 +216,23 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install moon
+        if: steps.classify.outputs.staging_required == 'true'
         uses: moonrepo/setup-toolchain@v0
 
       - name: Install uv
+        if: steps.classify.outputs.staging_required == 'true'
         uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
 
       - name: Set up Python
+        if: steps.classify.outputs.staging_required == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Log in to Container registry
+        if: steps.classify.outputs.staging_required == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -244,16 +240,18 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
+        if: steps.classify.outputs.staging_required == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Resolve Backend Image
+        if: steps.classify.outputs.staging_required == 'true'
         id: backend_image
         run: |
           bash tools/check_ghcr_image_tag.sh \
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Build and push Backend
-        if: steps.backend_image.outputs.build_required == 'true'
+        if: steps.classify.outputs.staging_required == 'true' && steps.backend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/backend
@@ -265,13 +263,14 @@ jobs:
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
 
       - name: Resolve Frontend Image
+        if: steps.classify.outputs.staging_required == 'true'
         id: frontend_image
         run: |
           bash tools/check_ghcr_image_tag.sh \
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Build and push Frontend
-        if: steps.frontend_image.outputs.build_required == 'true'
+        if: steps.classify.outputs.staging_required == 'true' && steps.frontend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/frontend
@@ -285,18 +284,21 @@ jobs:
             NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
 
       - name: Promote Backend Image to Staging Tag
+        if: steps.classify.outputs.staging_required == 'true'
         run: |
           docker buildx imagetools create \
             --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging" \
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Promote Frontend Image to Staging Tag
+        if: steps.classify.outputs.staging_required == 'true'
         run: |
           docker buildx imagetools create \
             --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging" \
             "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
 
       - name: Deploy to Staging
+        if: steps.classify.outputs.staging_required == 'true'
         env:
           IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
@@ -304,6 +306,7 @@ jobs:
           DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}
           DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}
           DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}
+          HEALTH_CHECK_MAX_SHA_MISMATCH_ATTEMPTS: "18"
         run: |
           bash tools/dokploy_deploy.sh \
             "${{ env.STAGING_COMPOSE_ID }}" \
@@ -318,9 +321,11 @@ jobs:
             "$IMAGE_TAG"
 
       - name: Setup E2E Tests
+        if: steps.classify.outputs.staging_required == 'true'
         uses: ./.github/actions/setup-e2e-tests
 
       - name: End-to-End Tests
+        if: steps.classify.outputs.staging_required == 'true'
         id: staging_e2e_tests
         timeout-minutes: 22
         env:
@@ -416,6 +421,7 @@ jobs:
     name: Staging AI/OCR Gate
     runs-on: ubuntu-latest
     needs: [build-and-deploy]
+    if: ${{ needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -583,7 +589,7 @@ jobs:
   staging-deploy-alert:
     name: Staging Deploy Alert
     runs-on: ubuntu-latest
-    needs: [classify-staging, build-and-deploy, ai-ocr-gate]
+    needs: [build-and-deploy, ai-ocr-gate]
     if: ${{ always() && github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     permissions:
       contents: read
@@ -599,16 +605,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          classify_result="${{ needs.classify-staging.result }}"
-          staging_required="${{ needs.classify-staging.outputs.staging_required }}"
+          staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"
+          staging_reason="${{ needs.build-and-deploy.outputs.staging_reason }}"
+          ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"
+          ai_ocr_reason="${{ needs.build-and-deploy.outputs.ai_ocr_reason }}"
           build_result="${{ needs.build-and-deploy.result }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           TARGET_SHA="${{ github.event.workflow_run.head_sha }}"
           target_short="${TARGET_SHA:0:7}"
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          if [ "$classify_result" = "success" ] && [ "$staging_required" != "true" ]; then
-            echo "No staging alert needed: staging_required=${staging_required}."
+          if [ "$build_result" = "success" ] && [ "$staging_required" != "true" ]; then
+            echo "No staging alert needed: staging_required=${staging_required} staging_reason=${staging_reason}."
             exit 0
           fi
 
@@ -637,11 +645,9 @@ jobs:
           )"
 
           failed=false
-          if [ "$classify_result" != "success" ]; then
+          if [ "$build_result" != "success" ]; then
             failed=true
-          elif [ "$staging_required" = "true" ] && [ "$build_result" != "success" ]; then
-            failed=true
-          elif [ "$staging_required" = "true" ] && [ "$ai_ocr_result" != "success" ]; then
+          elif [ "$staging_required" = "true" ] && [ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]; then
             failed=true
           fi
 
@@ -654,7 +660,9 @@ jobs:
               echo "- Run URL: ${run_url}"
               echo "- App URL: ${STAGING_APP_URL}"
               echo "- Staging required: ${staging_required:-unknown}"
-              echo "- Classify result: ${classify_result}"
+              echo "- Staging reason: ${staging_reason:-unknown}"
+              echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
+              echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
               echo "- Build/deploy result: ${build_result}"
               echo "- AI/OCR result: ${ai_ocr_result}"
               echo "- Current staging SHA: ${current_staging_sha}"
@@ -682,6 +690,10 @@ jobs:
               echo "- Target short SHA: ${target_short}"
               echo "- Run URL: ${run_url}"
               echo "- App URL: ${STAGING_APP_URL}"
+              echo "- Staging required: ${staging_required:-unknown}"
+              echo "- Staging reason: ${staging_reason:-unknown}"
+              echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
+              echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
               echo "- Build/deploy result: ${build_result}"
               echo "- AI/OCR result: ${ai_ocr_result}"
               echo "- Current staging SHA: ${current_staging_sha}"
@@ -696,15 +708,17 @@ jobs:
   post-merge-delivery:
     name: Post-merge Delivery
     runs-on: ubuntu-latest
-    needs: [classify-staging, build-and-deploy, ai-ocr-gate, staging-deploy-alert]
+    needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert]
     if: ${{ always() && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
     steps:
       - name: Aggregate post-merge delivery result
         run: |
           set -euo pipefail
 
-          classify_result="${{ needs.classify-staging.result }}"
-          staging_required="${{ needs.classify-staging.outputs.staging_required }}"
+          staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"
+          staging_reason="${{ needs.build-and-deploy.outputs.staging_reason }}"
+          ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"
+          ai_ocr_reason="${{ needs.build-and-deploy.outputs.ai_ocr_reason }}"
           build_result="${{ needs.build-and-deploy.result }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           alert_result="${{ needs.staging-deploy-alert.result }}"
@@ -715,17 +729,13 @@ jobs:
           delivery_status="passed"
           failure_reason="none"
 
-          if [ "$classify_result" != "success" ]; then
-            failed=true
-            delivery_status="failed"
-            failure_reason="staging classification failed"
-          elif [ "$staging_required" != "true" ]; then
-            delivery_status="skipped-no-staging-required"
-          elif [ "$build_result" != "success" ]; then
+          if [ "$build_result" != "success" ]; then
             failed=true
             delivery_status="failed"
             failure_reason="build/deploy gate failed"
-          elif [ "$ai_ocr_result" != "success" ]; then
+          elif [ "$staging_required" != "true" ]; then
+            delivery_status="skipped-no-staging-required"
+          elif [ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]; then
             failed=true
             delivery_status="failed"
             failure_reason="staging AI/OCR gate failed"
@@ -744,7 +754,9 @@ jobs:
             echo "- Target short SHA: ${target_short}"
             echo "- Run URL: ${run_url}"
             echo "- Staging required: ${staging_required:-unknown}"
-            echo "- Classify result: ${classify_result}"
+            echo "- Staging reason: ${staging_reason:-unknown}"
+            echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
+            echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
             echo "- Build/deploy result: ${build_result}"
             echo "- AI/OCR result: ${ai_ocr_result}"
             echo "- Alert result: ${alert_result}"
@@ -758,7 +770,7 @@ jobs:
   post-merge-summary:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
-    needs: [classify-staging, build-and-deploy, ai-ocr-gate, staging-deploy-alert, post-merge-delivery]
+    needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert, post-merge-delivery]
     if: ${{ always() }}
     permissions:
       actions: read

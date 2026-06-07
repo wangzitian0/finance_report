@@ -88,6 +88,9 @@ echo "Max attempts: $MAX_ATTEMPTS (timeout: $((MAX_ATTEMPTS * 10))s)"
 echo ""
 
 attempt=1
+SHA_MISMATCH_ATTEMPTS=0
+LAST_MISMATCH_SHA=""
+MAX_SHA_MISMATCH_ATTEMPTS="${HEALTH_CHECK_MAX_SHA_MISMATCH_ATTEMPTS:-24}"
 
 while (( attempt <= MAX_ATTEMPTS )); do
   echo "[WAITING] Health check attempt $attempt/$MAX_ATTEMPTS..."
@@ -159,17 +162,28 @@ while (( attempt <= MAX_ATTEMPTS )); do
       
       # Handle short/long SHA comparison (prefix match)
       if [[ "$actual_sha" != "$IMAGE_TAG"* ]] && [[ "$IMAGE_TAG" != "$actual_sha"* ]]; then
+        if [[ "$actual_sha" == "$LAST_MISMATCH_SHA" ]]; then
+          SHA_MISMATCH_ATTEMPTS=$((SHA_MISMATCH_ATTEMPTS + 1))
+        else
+          LAST_MISMATCH_SHA="$actual_sha"
+          SHA_MISMATCH_ATTEMPTS=1
+        fi
         echo "[WARNING] SHA Mismatch (attempt $attempt/$MAX_ATTEMPTS)"
+        echo "  Stable mismatch attempts: $SHA_MISMATCH_ATTEMPTS/$MAX_SHA_MISMATCH_ATTEMPTS"
         echo "  Expected: $IMAGE_TAG"
         echo "  Got:      $actual_sha"
         
-        if (( attempt == MAX_ATTEMPTS )); then
+        if (( SHA_MISMATCH_ATTEMPTS >= MAX_SHA_MISMATCH_ATTEMPTS || attempt == MAX_ATTEMPTS )); then
            echo ""
            echo "========================================="
            echo "[FAIL] Deployment Failed: Git SHA Mismatch"
            echo "========================================="
            echo "Expected: $IMAGE_TAG"
            echo "Actual:   $actual_sha"
+           echo "Stable mismatch attempts: $SHA_MISMATCH_ATTEMPTS/$MAX_SHA_MISMATCH_ATTEMPTS"
+           echo ""
+           echo "The health endpoint is reachable but still reports a different deployed SHA."
+           echo "This usually means Dokploy, Docker image pull, or Traefik routing is still serving an older deployment."
            echo "========================================="
            exit 1
         fi
