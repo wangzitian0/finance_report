@@ -815,6 +815,47 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert "AC8.13.91" in epic
 
 
+def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates() -> (
+    None
+):
+    """AC8.13.103: A single post-merge delivery check aggregates staging gates."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+
+    assert "post-merge-delivery:" in workflow
+    assert "name: Post-merge Delivery" in workflow
+    assert (
+        "needs: [classify-staging, build-and-deploy, ai-ocr-gate, "
+        "staging-deploy-alert]"
+    ) in workflow
+    assert "Aggregate post-merge delivery result" in workflow
+    assert 'classify_result="${{ needs.classify-staging.result }}"' in workflow
+    assert (
+        'staging_required="${{ needs.classify-staging.outputs.staging_required }}"'
+        in workflow
+    )
+    assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
+    assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
+    assert 'alert_result="${{ needs.staging-deploy-alert.result }}"' in workflow
+    assert 'delivery_status="skipped-no-staging-required"' in workflow
+    assert 'failure_reason="build/deploy gate failed"' in workflow
+    assert 'failure_reason="staging AI/OCR gate failed"' in workflow
+    assert 'failure_reason="staging alert job failed"' in workflow
+    assert "## Post-merge Delivery" in workflow
+    assert "Post-merge delivery failed" in workflow
+    assert "exit 1" in workflow.split("post-merge-delivery:", 1)[1].split(
+        "post-merge-summary:", 1
+    )[0]
+    assert (
+        "needs: [classify-staging, build-and-deploy, ai-ocr-gate, "
+        "staging-deploy-alert, post-merge-delivery]"
+    ) in workflow
+    assert "dedicated `Post-merge Delivery` check" in ci_cd
+    assert "A green `CI` workflow alone is not sufficient evidence" in ci_cd
+    assert "AC8.13.103" in epic
+
+
 def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> None:
     """AC8.13.55: Post-merge staging only runs for deploy-relevant changes."""
     workflow = read(".github/workflows/staging-deploy.yml")
@@ -2224,7 +2265,10 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert '--run-id "${{ github.run_id }}"' in ci_workflow
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
     assert "post-merge-summary:" in deploy_workflow
-    assert "needs: [classify-staging, build-and-deploy, ai-ocr-gate]" in deploy_workflow
+    assert (
+        "needs: [classify-staging, build-and-deploy, ai-ocr-gate, "
+        "staging-deploy-alert, post-merge-delivery]"
+    ) in deploy_workflow
     assert "Write post-merge timing summary" in deploy_workflow
     assert '--title "Post-merge Timing Summary"' in deploy_workflow
     assert "Queue delay" in timing_script
