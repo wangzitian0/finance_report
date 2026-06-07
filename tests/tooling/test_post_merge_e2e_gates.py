@@ -1418,9 +1418,12 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         'payload.get("git_sha") or payload.get("version")' in frontend_readiness_block
     )
     assert (
-        '"User-Agent": "finance-report-pr-preview-readiness/1.0"'
+        '"User-Agent: finance-report-pr-preview-readiness/1.0"'
         in frontend_readiness_block
     )
+    assert "subprocess_timeout_seconds = 20" in frontend_readiness_block
+    assert "__FINANCE_REPORT_HTTP_STATUS__" in frontend_readiness_block
+    assert '"Accept: application/json"' in frontend_readiness_block
     assert "Frontend not ready with expected git_sha" in frontend_readiness_block
     assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in cleanup_block
     assert 'startswith(\\"${TAG_PREFIX}\\")' in cleanup_block
@@ -1935,6 +1938,7 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
 def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> None:
     """AC8.13.72: staging proof checks health git_sha, not just Dokploy trigger."""
     workflow = read(".github/workflows/staging-deploy.yml")
+    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
     health_check = read("tools/_lib/shell/health_check.sh")
 
     deploy_block = workflow.split("- name: Deploy to Staging", 1)[1].split(
@@ -1947,6 +1951,16 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert deploy_block.index("bash tools/dokploy_deploy.sh") < deploy_block.index(
         "bash tools/health_check.sh"
     )
+    assert "wait_for_dokploy_deployment_rollout" in deploy_script
+    assert "previous_deployment_ids" in deploy_script
+    assert "Dokploy deployment observed" in deploy_script
+    assert 'DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600' in deploy_script
+    assert "did not create a new deployment before readiness polling" in deploy_script
+    assert 'latest_status" == "done"' in deploy_script
+    assert 'latest_status" == "running" || "$latest_status" == "done"' not in deploy_script
+    assert deploy_script.index('dokploy_api_call "POST" "compose.deploy"') < deploy_script.index(
+        'wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"'
+    )
     assert '"https://report-staging.zitian.party/api/health"' in deploy_block
     assert '"$IMAGE_TAG"' in deploy_block
     assert (
@@ -1955,6 +1969,61 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     )
     assert "Git SHA Mismatch" in health_check
     assert "exit 1" in health_check
+
+
+def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> None:
+    """AC8.13.72: staging rollout parsing handles Dokploy shape drift clearly."""
+    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    function_block = "deployment_ids_from_response()" + deploy_script.split(
+        "deployment_ids_from_response()", 1
+    )[1].split("wait_for_dokploy_deployment_rollout()", 1)[0]
+
+    response = json.dumps(
+        {
+            "deployments": [
+                {"deploymentId": 123, "status": "running", "createdAt": "2026-01-01T00:00:00Z"},
+                {"deploymentId": "dep-456", "status": "done", "finishedAt": "2026-01-01T00:01:00Z"},
+            ]
+        }
+    )
+    non_array_response = json.dumps({"deployments": {"deploymentId": "ignored"}})
+    probe = subprocess.run(
+        [
+            "bash",
+            "-e",
+            "-u",
+            "-o",
+            "pipefail",
+            "-c",
+            function_block
+            + """
+response="$DOKPLOY_RESPONSE"
+non_array_response="$DOKPLOY_NON_ARRAY_RESPONSE"
+printf 'ids=%s\\n' "$(deployment_ids_from_response "$response")"
+printf 'new=%s\\n' "$(new_deployment_ids_from_response "$response" "123")"
+printf 'latest=%s\\n' "$(latest_new_deployment_status_from_response "$response" "dep-456")"
+printf 'non_array=%s\\n' "$(deployment_ids_from_response "$non_array_response")"
+""",
+        ],
+        cwd=ROOT,
+        env={
+            "DOKPLOY_RESPONSE": response,
+            "DOKPLOY_NON_ARRAY_RESPONSE": non_array_response,
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert probe.stdout.splitlines() == [
+        "ids=123,dep-456",
+        "new=dep-456",
+        "latest=done",
+        "non_array=",
+    ]
+    assert 'new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1' in deploy_script
+    assert 'latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1' in deploy_script
+    assert 'previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1' in deploy_script
 
 
 def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
@@ -2134,6 +2203,10 @@ def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None
         in action
     )
     assert "if [ ! -x .venv/bin/python ]; then" in action
+    assert (
+        'echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}"'
+        ' >> "$GITHUB_ENV"'
+    ) in action
     assert "uv pip install -r tests/e2e/requirements.txt" in action
     assert "shared E2E setup action caches `.venv` and Playwright browsers" in ci_cd
 

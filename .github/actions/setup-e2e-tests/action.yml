@@ -40,10 +40,14 @@ runs:
           uv venv
         fi
         uv pip install -r tests/e2e/requirements.txt
-        
+
         # Add venv bin to PATH so subsequent steps can use 'pytest' and 'playwright' directly
-        echo "$PWD/.venv/bin" >> $GITHUB_PATH
-        
+        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+        # Keep absolute imports such as tests.e2e.auth_cookie stable when
+        # pytest chooses tests/e2e as its rootdir.
+        echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
+
         # Install playwright browsers
         # Note: We must use the venv's python/playwright explicitly if PATH update hasn't propagated to current shell
         ./.venv/bin/playwright install chromium --with-deps

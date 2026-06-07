@@ -26,7 +26,7 @@ def test_AC8_13_73_hygiene_script_prunes_generic_host_garbage_and_old_previews()
         container_prune_until="72h",
         builder_prune_until="72h",
         image_prune_until="72h",
-        network_prune_until="72h",
+        network_prune_until="all",
         journal_vacuum_time="3d",
         journal_vacuum_size="1G",
         docker_log_truncate_size_mib=100,
@@ -38,10 +38,14 @@ def test_AC8_13_73_hygiene_script_prunes_generic_host_garbage_and_old_previews()
 
     assert "PR_PREVIEW_MAX_AGE_DAYS='3'" in script
     assert "PR_PREVIEW_KEEP_RECENT='3'" in script
+    assert "PR_PREVIEW_CONTAINER_PATTERN='^finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?$'" in script
     assert "CONTAINER_PRUNE_UNTIL='72h'" in script
     assert 'date -u -d "${PR_PREVIEW_MAX_AGE_DAYS} days ago" +%s' in script
     assert 'tail -n "$PR_PREVIEW_KEEP_RECENT"' in script
-    assert "finance-report-(backend|frontend|db|minio)-pr-[0-9]+" in script
+    assert "finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?" in script
+    assert "should_delete_pr_container() {" in script
+    assert 'case "$status" in restarting|exited|dead|created) return 0 ;; esac' in script
+    assert 'if [ "$health" = "unhealthy" ]; then' in script
     assert "finance_report_pr_[0-9]+_" in script
     assert "[dry-run] docker rm -f ${container_name}" in script
     assert "[dry-run] docker volume rm ${volume_name}" in script
@@ -49,7 +53,8 @@ def test_AC8_13_73_hygiene_script_prunes_generic_host_garbage_and_old_previews()
     assert "docker container prune" not in script
     assert "[dry-run] docker builder prune -af --filter until=72h" in script
     assert "[dry-run] docker image prune -af --filter until=72h" in script
-    assert "[dry-run] docker network prune -f --filter until=72h" in script
+    assert "[dry-run] docker network prune -f" in script
+    assert "[dry-run] docker network prune -f --filter" not in script
     assert "[dry-run] journalctl --vacuum-time=3d --vacuum-size=1G" in script
     assert "DOCKER_LOG_TRUNCATE_SIZE_MIB='100'" in script
     assert "DISK_WARNING_PERCENT='85'" in script
@@ -96,6 +101,27 @@ def test_AC8_13_73_hygiene_script_runs_real_prune_commands_without_credentials()
     assert "GITHUB" not in script
 
 
+def test_AC8_13_73_hygiene_script_can_filter_unused_network_prune_window() -> None:
+    hygiene = hygiene_module()
+
+    script = hygiene.build_hygiene_script(
+        dry_run=True,
+        container_prune_until="48h",
+        builder_prune_until="72h",
+        image_prune_until="240h",
+        network_prune_until="240h",
+        journal_vacuum_time="30d",
+        journal_vacuum_size="512M",
+        docker_log_truncate_size_mib=50,
+        disk_warning_percent=80,
+        disk_error_percent=90,
+        pr_preview_max_age_days=3,
+        pr_preview_keep_recent=3,
+    )
+
+    assert "[dry-run] docker network prune -f --filter until=240h" in script
+
+
 def test_AC8_13_73_hygiene_script_skips_unparseable_resource_timestamps() -> None:
     hygiene = hygiene_module()
 
@@ -129,7 +155,7 @@ def test_AC8_13_73_hygiene_script_is_shell_parseable() -> None:
         container_prune_until="72h",
         builder_prune_until="72h",
         image_prune_until="72h",
-        network_prune_until="72h",
+        network_prune_until="all",
         journal_vacuum_time="3d",
         journal_vacuum_size="1G",
         docker_log_truncate_size_mib=100,

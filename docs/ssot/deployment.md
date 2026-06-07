@@ -74,6 +74,16 @@ Non-`push`, failed, cancelled, timed-out, or non-main CI workflow runs write a
 skipped summary before FIFO wait, image promotion, Dokploy rollout, smoke tests,
 or AI/OCR validation can run.
 
+The staging deploy gate separates platform rollout from application readiness.
+`tools/dokploy_deploy.sh` updates the allowlisted Dokploy environment, triggers
+`compose.deploy`, then waits up to 600 seconds for a new Dokploy deployment
+record to reach `done` before `tools/health_check.sh` starts polling
+`/api/health` for the target SHA. `running` only proves Dokploy's worker has
+started; it does not prove Docker containers and Traefik routes have
+materialized the target SHA. A missing or unfinished deployment record after
+that worker-queue window is a platform rollout failure, not an application
+health timeout.
+
 ### production-release.yml
 
 ```yaml
@@ -126,10 +136,19 @@ responses or full environment templates.
 VPS disk hygiene is not a GitHub Actions SSH responsibility. Dokploy owns the
 operational schedule through a `server` Schedule Job managed by
 `tools/vps_host_hygiene.py --ensure-dokploy-schedule`. The job prunes generic
-Docker and journal garbage, and keeps PR preview Docker resources created within
-the last 3 days or belonging to the most recent 3 PR numbers. PR preview
-workflows only create, update, deploy, delete, and reconcile Dokploy compose
-resources.
+Docker and journal garbage, prunes all unused Docker networks, and keeps PR
+preview Docker resources created within the last 3 days or belonging to the
+most recent 3 PR numbers. Unused Docker networks are not age-gated because
+commit-scoped PR preview retries can leave orphan networks that exhaust Docker's
+predefined address pools before disk retention thresholds are reached; Docker
+does not remove networks attached to running containers. PR preview
+commit-scoped container names such as `finance-report-backend-pr-738-<sha12>`
+are recognized as preview resources. Preview containers in `restarting`,
+`exited`, `dead`, `created`, or Docker `unhealthy` state are deleted even inside
+the normal age/recent retention window because those orphaned runtimes already
+fail the infra watchdog and cannot be treated as healthy rollback targets. PR
+preview workflows only create, update, deploy, delete, and reconcile Dokploy
+compose resources.
 
 Install or update the Dokploy host hygiene schedule with:
 

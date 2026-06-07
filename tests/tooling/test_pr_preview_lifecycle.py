@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import subprocess
 import sys
@@ -166,6 +167,9 @@ def test_AC8_13_101_compose_summary_hides_raw_env() -> None:
                     "deploymentId": "dep-591",
                     "status": "running",
                     "createdAt": "2026-06-06T07:42:00Z",
+                    "error": "image pull failed token=secret-refresh hvs.secret",
+                    "errorMessage": "network creation failed",
+                    "logPath": "/etc/dokploy/logs/compose-pr-591.log",
                 }
             ],
             "env": "DATABASE_URL=postgres://secret\nrefreshToken=secret",
@@ -179,11 +183,17 @@ def test_AC8_13_101_compose_summary_hides_raw_env() -> None:
     assert "composeStatus: running" in summary
     assert "deployment_count: 1" in summary
     assert "latest_deployment_deploymentId: dep-591" in summary
+    assert "latest_deployment_error: image pull failed token=<redacted>" in summary
+    assert "latest_deployment_errorMessage: network creation failed" in summary
+    assert "latest_deployment_logPath: /etc/dokploy/logs/compose-pr-591.log" in summary
     assert "env_present: True" in summary
     assert "raw_compose_printed: false" in summary
+    assert "raw_deployment_printed: false" in summary
     assert "postgres://secret" not in summary
     assert "refreshToken" not in summary
     assert "DATABASE_URL" not in summary
+    assert "secret-refresh" not in summary
+    assert "hvs.secret" not in summary
 
 
 def test_AC8_13_101_compose_summary_sorts_latest_deployment() -> None:
@@ -214,11 +224,11 @@ def test_AC8_13_101_compose_summary_sorts_latest_deployment() -> None:
     assert "latest_deployment_status: running" in summary
 
 
-def test_AC8_13_102_dokploy_deploy_waits_for_worker_running_status(
+def test_AC8_13_102_dokploy_deploy_waits_for_worker_done_status(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Readiness starts only after Dokploy starts the deploy."""
+    """AC8.13.102: Readiness starts only after Dokploy finishes the deploy."""
     lifecycle = lifecycle_module()
     states = iter(
         [
@@ -227,6 +237,11 @@ def test_AC8_13_102_dokploy_deploy_waits_for_worker_running_status(
                 "composeId": "cmp-591",
                 "composeStatus": "running",
                 "deployments": [{"deploymentId": "dep-591", "status": "running"}],
+            },
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "done",
+                "deployments": [{"deploymentId": "dep-591", "status": "done"}],
             },
         ]
     )
@@ -243,9 +258,23 @@ def test_AC8_13_102_dokploy_deploy_waits_for_worker_running_status(
 
     out = capsys.readouterr().out
     assert "deployment-rollout-attempt-1" in out
+    assert "Dokploy rollout probe: attempt=1" in out
+    assert "Dokploy rollout probe: attempt=2" in out
+    assert "Dokploy rollout probe: attempt=3" in out
     assert "Dokploy deployment observed: compose_id=cmp-591" in out
     assert "new_deployment_ids=dep-591" in out
     assert "latest_deployment_status=running" in out
+    assert "latest_deployment_status=done" in out
+
+
+def test_AC8_13_102_dokploy_rollout_record_window_allows_worker_queue() -> None:
+    """AC8.13.102: The deployment-record gate is fast, but not shorter than Dokploy queue lag."""
+    lifecycle = lifecycle_module()
+
+    signature = inspect.signature(lifecycle.wait_for_dokploy_deployment_rollout)
+
+    assert signature.parameters["timeout_seconds"].default == 600
+    assert signature.parameters["new_deployment_timeout_seconds"].default == 600
 
 
 def test_AC8_13_102_dokploy_rollout_timeout_fails_before_readiness(
@@ -298,6 +327,51 @@ def test_AC8_13_102_dokploy_rollout_error_fails_before_readiness(
             compose_id="cmp-591",
             previous_deployment_ids={"old-dep"},
         )
+
+
+def test_AC8_13_102_compose_error_logs_redacted_deployment_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setattr(
+        lifecycle,
+        "get_compose_data",
+        lambda *args, **kwargs: {
+            "composeId": "cmp-591",
+            "composeStatus": "error",
+            "deployments": [
+                {
+                    "deploymentId": "dep-591",
+                    "status": "error",
+                    "error": (
+                        "docker compose failed: pull access denied "
+                        "AUTHORIZATION=Bearer secret-token hvs.secret"
+                    ),
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="compose entered error status before readiness polling",
+    ):
+        lifecycle.wait_for_dokploy_deployment_rollout(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+            compose_id="cmp-591",
+            previous_deployment_ids={"old-dep"},
+        )
+
+    out = capsys.readouterr().out
+    assert "compose-error-attempt-1" in out
+    assert "latest_deployment_deploymentId: dep-591" in out
+    assert "latest_deployment_error: docker compose failed: pull access denied" in out
+    assert "AUTHORIZATION=<redacted>" in out
+    assert "raw_deployment_printed: false" in out
+    assert "secret-token" not in out
+    assert "hvs.secret" not in out
 
 
 def test_AC8_13_72_dokploy_failure_log_is_redacted(
@@ -367,6 +441,52 @@ def test_AC8_13_71_create_compose_requires_compose_id(
             branch="feature",
             github_integration_id="ghid",
         )
+
+
+def test_AC8_13_102_preview_source_disables_dokploy_auto_deploy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: CI owns PR preview rollouts; Dokploy push auto-deploy is disabled."""
+    lifecycle = lifecycle_module()
+    payloads: list[dict[str, object]] = []
+
+    def fake_dokploy_api_call(
+        config,
+        method,
+        endpoint,
+        *,
+        payload=None,
+        expected_status=200,
+    ) -> str:
+        assert config.api_url == "https://cloud.example/api"
+        assert method == "POST"
+        assert expected_status == 200
+        if endpoint in {"compose.create", "compose.update"}:
+            assert payload is not None
+            payloads.append(payload)
+        if endpoint == "compose.create":
+            return '{"composeId":"cmp-591"}'
+        return "{}"
+
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", fake_dokploy_api_call)
+
+    lifecycle.create_compose(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        environment_id="env-test",
+        compose_name="pr-591",
+        pr_number=591,
+        branch="feature",
+        github_integration_id="ghid",
+    )
+    lifecycle.update_compose_source(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        compose_id="cmp-591",
+        pr_number=591,
+        branch="feature",
+        github_integration_id="ghid",
+    )
+
+    assert [payload["autoDeploy"] for payload in payloads] == [False, False]
 
 
 def test_AC8_13_71_get_or_create_reuses_existing_compose(
@@ -694,11 +814,11 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
     assert "MINIO_ROOT_PASSWORD" not in rendered_calls
 
 
-def test_AC8_13_102_deploy_record_lag_continues_to_commit_scoped_readiness(
+def test_AC8_13_102_missing_deploy_record_fails_before_readiness(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Dokploy record lag is advisory, not a readiness blocker."""
+    """AC8.13.102: Missing Dokploy records are platform failures, not app readiness."""
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
     wait_calls = 0
@@ -773,7 +893,11 @@ def test_AC8_13_102_deploy_record_lag_continues_to_commit_scoped_readiness(
         dry_run=False,
     )
 
-    assert lifecycle.main_from_args(args) == 0
+    with pytest.raises(
+        lifecycle.DokployDeploymentDidNotStart,
+        match="queued deploy was lost",
+    ):
+        lifecycle.main_from_args(args)
 
     rendered_calls = "\n".join(" ".join(call) for call in calls)
     assert "compose.redeploy" in rendered_calls
@@ -782,8 +906,7 @@ def test_AC8_13_102_deploy_record_lag_continues_to_commit_scoped_readiness(
     assert "compose.deploy" not in rendered_calls
     assert wait_calls == 1
     out = capsys.readouterr().out
-    assert "queued deploy was lost" in out
-    assert "proceeding to commit-scoped readiness" in out
+    assert "proceeding to commit-scoped readiness" not in out
 
 
 def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
@@ -874,16 +997,33 @@ def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics(
 
     assert 'PYTHONUNBUFFERED: "1"' in workflow
     assert "python3 -u - << 'EOF'" in deploy_block
+    assert "timeout-minutes: 12" in deploy_block
+    assert 'subprocess.run(' in deploy_block
+    assert '"--max-time"' in deploy_block
+    assert "subprocess_timeout_seconds = 20" in deploy_block
+    assert "__FINANCE_REPORT_HTTP_STATUS__" in deploy_block
+    assert '"Accept: application/json"' in deploy_block
     assert "route_probe attempt=" in deploy_block
     assert "app_readiness_classification=" in deploy_block
     assert "platform_failure_domain=" in deploy_block
+    assert "api_content_type=" in deploy_block
+    assert "api_body_bytes=" in deploy_block
+    assert "api_body_prefix=" in deploy_block
+    assert '"body": body,' in deploy_block
+    assert '"body": body[:500]' not in deploy_block
     assert "repo/tools/dokploy_route_canary.py" in deploy_block
     assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in deploy_block
+    assert "backend-health-missing-sha" in deploy_block
     assert "frontend-route-ready-api-route-missing" in deploy_block
     assert "dokploy-worker-or-deployment-record" in deploy_block
     assert "traefik-public-route" in deploy_block
+    assert "readiness_timeout_seconds = 600" in deploy_block
+    assert "elapsed_seconds=" in deploy_block
     assert "ping_status=" in deploy_block
-    assert "classified_route_failures >= 8" in deploy_block
+    assert "classified_route_failures >= 8 and not route_failure_notice_printed" in deploy_block
+    assert "route_failure_notice_printed = True" in deploy_block
+    assert "::notice::API route is still unavailable after frontend served" in deploy_block
+    assert "::error::API route stayed unavailable after frontend served" not in deploy_block
 
 
 def test_AC8_13_100_infra2_route_canary_is_available() -> None:

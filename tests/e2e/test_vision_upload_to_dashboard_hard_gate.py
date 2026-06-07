@@ -90,6 +90,10 @@ async def _api_json(
     return await response.json()
 
 
+async def _goto_ready(page: Page, path: str) -> None:
+    await page.goto(_get_url(path), wait_until="domcontentloaded")
+
+
 async def _wait_for_statement_status(page: Page, statement_id: str, target_status: str) -> dict:
     headers = await _auth_headers(page)
     deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
@@ -121,8 +125,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     page = authenticated_page_unique
     fixture_path = _require_fixture_path()
 
-    await page.goto(_get_url("/statements"))
-    await page.wait_for_load_state("networkidle")
+    await _goto_ready(page, "/statements")
 
     await page.locator("#institution").fill(INSTITUTION_LABEL)
     await page.set_input_files("#file-upload", str(fixture_path))
@@ -229,8 +232,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     assert stage2_queue["consistency_checks"] == []
     assert stage2_queue["has_unresolved_checks"] is False
 
-    await page.goto(_get_url(f"/review/run/{statement_id}"))
-    await page.wait_for_load_state("networkidle")
+    await _goto_ready(page, f"/review/run/{statement_id}")
     await expect(page.get_by_role("heading", name="Stage 2 Run Review")).to_be_visible(timeout=10_000)
     await expect(page.get_by_text("No pending matches")).to_be_visible(timeout=10_000)
     run_approve_button = page.get_by_role("button", name="Approve Run")
@@ -246,8 +248,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         "oldest_pending_date": None,
     }
 
-    await page.goto(_get_url("/processing"))
-    await page.wait_for_load_state("networkidle")
+    await _goto_ready(page, "/processing")
     await expect(page.get_by_role("heading", name="Processing Transfers")).to_be_visible(timeout=10_000)
     await expect(page.get_by_text("No pending transfers found.")).to_be_visible(timeout=10_000)
 
@@ -270,10 +271,10 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         ("net_cash_flow", "beginning_cash", "ending_cash"),
     )
 
-    await page.goto(_get_url("/dashboard"))
-    await page.wait_for_load_state("networkidle")
+    await _goto_ready(page, "/dashboard")
     await expect(page.get_by_label("Upload-to-report home")).to_be_visible(timeout=10_000)
-    await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("status", name="Dashboard analytics loading")).to_be_hidden(timeout=30_000)
+    await expect(page.get_by_role("region", name="Dashboard analytics")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")
         .filter(has_text="Processing")
@@ -307,8 +308,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))
     ).to_be_visible()
 
-    await page.goto(_get_url(f"/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD"))
-    await page.wait_for_load_state("networkidle")
+    await _goto_ready(page, f"/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD")
     await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(timeout=10_000)
     await expect(page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")).to_contain_text(
         _format_grouped_int(EXPECTED_TOTALS["total_assets"])
@@ -317,12 +317,10 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         _format_grouped_int(EXPECTED_TOTALS["total_liabilities"])
     )
 
-    await page.goto(
-        _get_url(
-            f"/reports/income-statement?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD"
-        )
+    await _goto_ready(
+        page,
+        f"/reports/income-statement?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD",
     )
-    await page.wait_for_load_state("networkidle")
     await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")
@@ -340,10 +338,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))
     ).to_be_visible()
 
-    await page.goto(
-        _get_url(f"/reports/cash-flow?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD")
-    )
-    await page.wait_for_load_state("networkidle")
+    await _goto_ready(page, f"/reports/cash-flow?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD")
     await expect(page.get_by_role("heading", name="Cash Flow Statement")).to_be_visible(timeout=10_000)
     await expect(
         page.locator(".card")

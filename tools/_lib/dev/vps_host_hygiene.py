@@ -59,6 +59,7 @@ def build_hygiene_script(
         f"CONTAINER_PRUNE_UNTIL='{container_prune_until}'",
         f"PR_PREVIEW_MAX_AGE_DAYS='{pr_preview_max_age_days}'",
         f"PR_PREVIEW_KEEP_RECENT='{pr_preview_keep_recent}'",
+        "PR_PREVIEW_CONTAINER_PATTERN='^finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?$'",
         'DISK_PATHS="/"',
         'if [ -d /data ]; then DISK_PATHS="$DISK_PATHS /data"; fi',
         'echo "Disk usage before host hygiene:"',
@@ -79,7 +80,7 @@ def build_hygiene_script(
             '  recent_prs="$(',
             "    {",
             "      docker ps -a --format '{{.Names}}' | "
-            "sed -n 's/^finance-report-[^-]*-pr-\\([0-9][0-9]*\\)$/\\1/p'",
+            "sed -En 's/^finance-report-[^-]+-pr-([0-9]+)(-[a-z0-9]+)?$/\\1/p'",
             "      docker volume ls --format '{{.Name}}' | "
             "sed -n 's/^finance_report_pr_\\([0-9][0-9]*\\)_.*/\\1/p'",
             '    } | sort -nu | tail -n "$PR_PREVIEW_KEEP_RECENT"',
@@ -107,13 +108,26 @@ def build_hygiene_script(
             "    fi",
             '    [ "$created_epoch" -lt "$cutoff_epoch" ]',
             "  }",
+            "  should_delete_pr_container() {",
+            '    pr_number="$1"',
+            '    created_at="$2"',
+            '    status="$3"',
+            '    health="$4"',
+            '    case "$status" in restarting|exited|dead|created) return 0 ;; esac',
+            '    if [ "$health" = "unhealthy" ]; then',
+            "      return 0",
+            "    fi",
+            '    should_delete_pr_resource "$pr_number" "$created_at"',
+            "  }",
             "  docker ps -a --format '{{.Names}}' | "
-            "grep -E '^finance-report-(backend|frontend|db|minio)-pr-[0-9]+$' | "
+            'grep -E "$PR_PREVIEW_CONTAINER_PATTERN" | '
             "while read -r container_name; do",
             '    pr_number="$(printf "%s\\n" "$container_name" | '
-            "sed -n 's/^finance-report-[^-]*-pr-\\([0-9][0-9]*\\)$/\\1/p')\"",
+            "sed -En 's/^finance-report-[^-]+-pr-([0-9]+)(-[a-z0-9]+)?$/\\1/p')\"",
             '    created_at="$(docker inspect --format "{{.Created}}" "$container_name" 2>/dev/null || echo "")"',
-            '    if [ -n "$pr_number" ] && should_delete_pr_resource "$pr_number" "$created_at"; then',
+            '    status="$(docker inspect --format "{{.State.Status}}" "$container_name" 2>/dev/null || echo "")"',
+            '    health="$(docker inspect --format "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}" "$container_name" 2>/dev/null || echo "")"',
+            '    if [ -n "$pr_number" ] && should_delete_pr_container "$pr_number" "$created_at" "$status" "$health"; then',
             (
                 '      echo "[dry-run] docker rm -f ${container_name}"'
                 if dry_run
@@ -147,7 +161,7 @@ def build_hygiene_script(
             "if command -v docker >/dev/null 2>&1; then",
             '  container_cutoff_epoch="$(date -u -d "${CONTAINER_PRUNE_UNTIL} ago" +%s)"',
             "  docker ps -a --format '{{.Names}}' | "
-            "grep -Ev '^finance-report-(backend|frontend|db|minio)-pr-[0-9]+$' | "
+            'grep -Ev "$PR_PREVIEW_CONTAINER_PATTERN" | '
             "while read -r non_preview_container; do",
             '    status="$(docker inspect --format "{{.State.Status}}" "$non_preview_container" 2>/dev/null || echo "")"',
             '    case "$status" in exited|created|dead) ;; *) continue ;; esac',
@@ -204,14 +218,20 @@ def build_hygiene_script(
             f'docker image prune -af --filter "until={image_prune_until}"',
         ),
         (
-            f"docker network prune -f --filter until={network_prune_until}",
-            f'docker network prune -f --filter "until={network_prune_until}"',
-        ),
-        (
             f"journalctl --vacuum-time={journal_vacuum_time} --vacuum-size={journal_vacuum_size}",
             f'journalctl --vacuum-time="{journal_vacuum_time}" --vacuum-size="{journal_vacuum_size}"',
         ),
     ]
+    if network_prune_until == "all":
+        prune_commands.insert(2, ("docker network prune -f", "docker network prune -f"))
+    else:
+        prune_commands.insert(
+            2,
+            (
+                f"docker network prune -f --filter until={network_prune_until}",
+                f'docker network prune -f --filter "until={network_prune_until}"',
+            ),
+        )
     for dry_run_command, command in prune_commands:
         if dry_run:
             lines.append(f'echo "[dry-run] {dry_run_command}"')
@@ -363,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--container-prune-until", default="72h")
     parser.add_argument("--builder-prune-until", default="72h")
     parser.add_argument("--image-prune-until", default="72h")
-    parser.add_argument("--network-prune-until", default="72h")
+    parser.add_argument("--network-prune-until", default="all")
     parser.add_argument("--journal-vacuum-time", default="3d")
     parser.add_argument("--journal-vacuum-size", default="1G")
     parser.add_argument("--docker-log-truncate-size-mib", type=int, default=100)

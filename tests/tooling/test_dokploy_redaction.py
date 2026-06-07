@@ -70,5 +70,7 @@ def test_AC8_13_72_deploy_script_logs_allowlisted_env_diff_only() -> None:
     assert "echo \"$current_env\"" not in deploy_script
     assert '-H "x-api-key: $DOKPLOY_API_KEY"' not in common_shell
     assert '-d "$data"' not in common_shell
+    assert "--connect-timeout" in common_shell
+    assert "--max-time" in common_shell
     assert "--config \"$curl_config_file\"" in common_shell
     assert "--data-binary \"@$data_file\"" in common_shell
