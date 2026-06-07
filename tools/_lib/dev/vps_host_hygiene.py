@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 from urllib.parse import quote
@@ -50,7 +51,9 @@ def build_hygiene_script(
     disk_error_percent: int,
     pr_preview_max_age_days: int,
     pr_preview_keep_recent: int,
+    github_repository: str,
 ) -> str:
+    github_repository_literal = shlex.quote(github_repository)
     lines = [
         "set -eu",
         f"DOCKER_LOG_TRUNCATE_SIZE_MIB='{docker_log_truncate_size_mib}'",
@@ -59,14 +62,22 @@ def build_hygiene_script(
         f"CONTAINER_PRUNE_UNTIL='{container_prune_until}'",
         f"PR_PREVIEW_MAX_AGE_DAYS='{pr_preview_max_age_days}'",
         f"PR_PREVIEW_KEEP_RECENT='{pr_preview_keep_recent}'",
+        f"GITHUB_REPOSITORY={github_repository_literal}",
         "PR_PREVIEW_CONTAINER_PATTERN='^finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?$'",
+        "docker_usage_summary() {",
+        "  if command -v timeout >/dev/null 2>&1; then",
+        '    timeout 20 docker system df -v || timeout 20 docker system df || echo "::warning::docker system df unavailable within 20s"',
+        "  else",
+        '    docker system df -v || docker system df || echo "::warning::docker system df unavailable"',
+        "  fi",
+        "}",
         'DISK_PATHS="/"',
         'if [ -d /data ]; then DISK_PATHS="$DISK_PATHS /data"; fi',
         'echo "Disk usage before host hygiene:"',
         "df -h $DISK_PATHS",
         'echo "Docker usage before host hygiene:"',
         "if command -v docker >/dev/null 2>&1; then",
-        '  docker system df -v || docker system df || echo "::warning::docker system df unavailable"',
+        "  docker_usage_summary",
         "else",
         '  echo "::warning::docker unavailable; skipping Docker usage summary"',
         "fi",
@@ -77,6 +88,44 @@ def build_hygiene_script(
             'echo "Cleaning old PR preview Docker resources"',
             "if command -v docker >/dev/null 2>&1; then",
             '  cutoff_epoch="$(date -u -d "${PR_PREVIEW_MAX_AGE_DAYS} days ago" +%s)"',
+            "  fetch_open_prs() {",
+            '    if [ -z "$GITHUB_REPOSITORY" ]; then',
+            '      echo "::warning::GitHub repository is empty; falling back to retention" >&2',
+            "      return 1",
+            "    fi",
+            "    if ! command -v python3 >/dev/null 2>&1; then",
+            '      echo "::warning::python3 unavailable; falling back to retention for open-PR discovery" >&2',
+            "      return 1",
+            "    fi",
+            "    page=1",
+            '    while [ "$page" -le 10 ]; do',
+            '      api_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100&page=${page}"',
+            '      page_json="$(curl -fsSL --connect-timeout 5 --max-time 15 "$api_url")" || { echo "::warning::GitHub open-PR discovery failed on page ${page}; falling back to retention" >&2; return 1; }',
+            '      page_numbers="$(printf "%s" "$page_json" | python3 -c \'import json, sys; data = json.load(sys.stdin); sys.exit(1) if not isinstance(data, list) else print("\\n".join(str(item["number"]) for item in data if "number" in item))\')" || { echo "::warning::GitHub open-PR discovery returned invalid JSON on page ${page}; falling back to retention" >&2; return 1; }',
+            '      if [ -n "$page_numbers" ]; then',
+            '        printf "%s\\n" "$page_numbers"',
+            "      fi",
+            '      full_page="$(printf "%s" "$page_json" | python3 -c \'import json, sys; data = json.load(sys.stdin); sys.exit(1) if not isinstance(data, list) else print("1" if len(data) == 100 else "0")\')" || { echo "::warning::GitHub open-PR discovery returned invalid JSON on page ${page}; falling back to retention" >&2; return 1; }',
+            '      if [ "$full_page" != "1" ]; then',
+            "        return 0",
+            "      fi",
+            '      page="$((page + 1))"',
+            "    done",
+            '    echo "::warning::GitHub open-PR discovery hit page cap; falling back to retention" >&2',
+            "    return 1",
+            "  }",
+            '  open_prs_raw=""',
+            '  if open_prs_raw="$(fetch_open_prs)"; then',
+            '    open_prs="$(printf "%s\\n" "$open_prs_raw" | sort -nu)"',
+            '    OPEN_PR_NUMBERS_SOURCE="github"',
+            "  else",
+            '    open_prs=""',
+            '    OPEN_PR_NUMBERS_SOURCE="fallback-retention"',
+            "  fi",
+            '  echo "Open PR source: ${OPEN_PR_NUMBERS_SOURCE}"',
+            '  if [ -n "$open_prs" ]; then',
+            '    echo "Open PRs: $(printf "%s" "$open_prs" | tr "\\n" " ")"',
+            "  fi",
             '  recent_prs="$(',
             "    {",
             "      docker ps -a --format '{{.Names}}' | "
@@ -85,6 +134,9 @@ def build_hygiene_script(
             "sed -n 's/^finance_report_pr_\\([0-9][0-9]*\\)_.*/\\1/p'",
             '    } | sort -nu | tail -n "$PR_PREVIEW_KEEP_RECENT"',
             '  )"',
+            "  is_open_pr() {",
+            '    printf "%s\\n" "$open_prs" | grep -qx "$1"',
+            "  }",
             "  is_recent_pr() {",
             '    printf "%s\\n" "$recent_prs" | grep -qx "$1"',
             "  }",
@@ -95,9 +147,29 @@ def build_hygiene_script(
             "    fi",
             '    date -u -d "$timestamp" +%s 2>/dev/null',
             "  }",
+            "  relative_cutoff_epoch() {",
+            '    value="$1"',
+            '    now_epoch="$(date -u +%s)"',
+            '    amount=""',
+            '    case "$value" in',
+            '      *h) amount="${value%h}"; multiplier=3600 ;;',
+            '      *d) amount="${value%d}"; multiplier=86400 ;;',
+            '      *) date -u -d "${value} ago" +%s; return ;;',
+            "    esac",
+            '    case "$amount" in',
+            '      ""|*[!0-9]*) date -u -d "${value} ago" +%s ;;',
+            '      *) echo "$((now_epoch - amount * multiplier))" ;;',
+            "    esac",
+            "  }",
             "  should_delete_pr_resource() {",
             '    pr_number="$1"',
             '    created_at="$2"',
+            '    if [ "$OPEN_PR_NUMBERS_SOURCE" = "github" ]; then',
+            '      if is_open_pr "$pr_number"; then',
+            "        return 1",
+            "      fi",
+            "      return 0",
+            "    fi",
             '    if is_recent_pr "$pr_number"; then',
             "      return 1",
             "    fi",
@@ -159,7 +231,7 @@ def build_hygiene_script(
         [
             'echo "Cleaning old non-preview stopped containers"',
             "if command -v docker >/dev/null 2>&1; then",
-            '  container_cutoff_epoch="$(date -u -d "${CONTAINER_PRUNE_UNTIL} ago" +%s)"',
+            '  container_cutoff_epoch="$(relative_cutoff_epoch "$CONTAINER_PRUNE_UNTIL")"',
             "  docker ps -a --format '{{.Names}}' | "
             'grep -Ev "$PR_PREVIEW_CONTAINER_PATTERN" | '
             "while read -r non_preview_container; do",
@@ -254,7 +326,7 @@ def build_hygiene_script(
             "df -h $DISK_PATHS",
             'echo "Docker usage after host hygiene:"',
             "if command -v docker >/dev/null 2>&1; then",
-            '  docker system df -v || docker system df || echo "::warning::docker system df unavailable"',
+            "  docker_usage_summary",
             "else",
             '  echo "::warning::docker unavailable; skipping Docker usage summary"',
             "fi",
@@ -284,13 +356,16 @@ def build_schedule_payload(
     schedule_id: str = "",
     pr_preview_max_age_days: int = 3,
     pr_preview_keep_recent: int = 3,
+    github_repository: str = "wangzitian0/finance_report",
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "name": name,
         "description": (
             "Finance Report VPS host hygiene. Keeps PR preview resources created "
             f"within {pr_preview_max_age_days} days or among the most recent "
-            f"{pr_preview_keep_recent} PRs; prunes older host garbage."
+            f"{pr_preview_keep_recent} PRs when GitHub open-PR discovery is "
+            "unavailable; closed PR previews are removed by comparing against "
+            f"open PRs from {github_repository}; prunes older host garbage."
         ),
         "cronExpression": cron_expression,
         "shellType": "bash",
@@ -351,6 +426,7 @@ def ensure_dokploy_schedule(
     enabled: bool,
     pr_preview_max_age_days: int = 3,
     pr_preview_keep_recent: int = 3,
+    github_repository: str = "wangzitian0/finance_report",
 ) -> str:
     schedule_id = find_schedule_id_by_name(config, server_id=server_id, name=name)
     payload = build_schedule_payload(
@@ -363,6 +439,7 @@ def ensure_dokploy_schedule(
         schedule_id=schedule_id or "",
         pr_preview_max_age_days=pr_preview_max_age_days,
         pr_preview_keep_recent=pr_preview_keep_recent,
+        github_repository=github_repository,
     )
     endpoint = "schedule.update" if schedule_id else "schedule.create"
     body = dokploy_api_call(config, "POST", endpoint, payload=payload)
@@ -391,6 +468,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--disk-error-percent", type=int, default=95)
     parser.add_argument("--pr-preview-max-age-days", type=int, default=3)
     parser.add_argument("--pr-preview-keep-recent", type=int, default=3)
+    parser.add_argument("--github-repository", default="wangzitian0/finance_report")
     parser.add_argument("--print-dokploy-schedule-payload", action="store_true")
     parser.add_argument("--ensure-dokploy-schedule", action="store_true")
     parser.add_argument("--api-url", default="https://cloud.zitian.party/api")
@@ -415,6 +493,7 @@ def main(argv: list[str] | None = None) -> int:
         disk_error_percent=args.disk_error_percent,
         pr_preview_max_age_days=args.pr_preview_max_age_days,
         pr_preview_keep_recent=args.pr_preview_keep_recent,
+        github_repository=args.github_repository,
     )
     if args.print_dokploy_schedule_payload:
         if not args.server_id:
@@ -430,6 +509,7 @@ def main(argv: list[str] | None = None) -> int:
                     enabled=not args.disabled,
                     pr_preview_max_age_days=args.pr_preview_max_age_days,
                     pr_preview_keep_recent=args.pr_preview_keep_recent,
+                    github_repository=args.github_repository,
                 ),
                 indent=2,
                 sort_keys=True,
@@ -451,6 +531,7 @@ def main(argv: list[str] | None = None) -> int:
             enabled=not args.disabled,
             pr_preview_max_age_days=args.pr_preview_max_age_days,
             pr_preview_keep_recent=args.pr_preview_keep_recent,
+            github_repository=args.github_repository,
         )
         return 0
 

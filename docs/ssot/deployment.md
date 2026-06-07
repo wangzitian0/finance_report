@@ -136,9 +136,12 @@ responses or full environment templates.
 VPS disk hygiene is not a GitHub Actions SSH responsibility. Dokploy owns the
 operational schedule through a `server` Schedule Job managed by
 `tools/vps_host_hygiene.py --ensure-dokploy-schedule`. The job prunes generic
-Docker and journal garbage, prunes all unused Docker networks, and keeps PR
-preview Docker resources created within the last 3 days or belonging to the
-most recent 3 PR numbers. Unused Docker networks are not age-gated because
+Docker and journal garbage, prunes all unused Docker networks, and removes PR
+preview Docker resources whose PR number is absent from the open-PR allowlist
+fetched from the public GitHub pulls API. If GitHub open-PR discovery is
+unavailable, the job falls back to keeping PR preview Docker resources created
+within the last 3 days or belonging to the most recent 3 PR numbers. Unused
+Docker networks are not age-gated because
 commit-scoped PR preview retries can leave orphan networks that exhaust Docker's
 predefined address pools before disk retention thresholds are reached; Docker
 does not remove networks attached to running containers. PR preview
@@ -162,7 +165,9 @@ python tools/vps_host_hygiene.py \
 
 Use `--print-dokploy-schedule-payload --server-id "$DOKPLOY_SERVER_ID"` to
 inspect the exact payload without mutating Dokploy. The default retention policy
-is `--pr-preview-max-age-days 3 --pr-preview-keep-recent 3`.
+uses `--github-repository wangzitian0/finance_report` for open-PR discovery and
+falls back to `--pr-preview-max-age-days 3 --pr-preview-keep-recent 3` only when
+GitHub discovery is unavailable.
 
 **Hotfix flow**:
 ```bash
