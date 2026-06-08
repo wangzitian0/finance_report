@@ -10,6 +10,23 @@ ERROR_LOG_ALERT_RULE_NAME = "FinanceReportBackendErrorLogs"
 ERROR_LOG_ALERT_SERVICE_NAME = "finance-report-backend"
 ALERTING_PIPELINE = "component->otel->signoz->lark"
 
+# Runtime flag set by the app once FastAPI request instrumentation is actually
+# applied to the app instance. This is real init state, not configuration: a
+# misconfigured instrumentor leaves this False even when the exporter endpoint
+# is configured, so /health and startup logs can no longer look green while
+# request tracing is silently absent.
+_fastapi_instrumentation_active = False
+
+
+def mark_fastapi_instrumentation_active(active: bool = True) -> None:
+    """Record whether FastAPI request instrumentation was applied to the app."""
+    global _fastapi_instrumentation_active
+    _fastapi_instrumentation_active = active
+
+
+def is_fastapi_instrumentation_active() -> bool:
+    return _fastapi_instrumentation_active
+
 
 def _deployment_environment(resource_attributes: dict[str, str]) -> str:
     return resource_attributes.get("deployment.environment") or settings.environment
@@ -28,7 +45,11 @@ def get_observability_status() -> dict[str, Any]:
         "otel_exporter_configured": exporter_configured,
         "logs_export_enabled": exporter_configured,
         "traces_export_enabled": exporter_configured,
+        # Real init state: True only when FastAPI request instrumentation was
+        # actually applied to the app instance (not merely configured).
+        "request_instrumentation_active": _fastapi_instrumentation_active,
         "service_name": settings.otel_service_name,
+        "service_version": settings.git_commit_sha,
         "deployment_environment": _deployment_environment(resource_attributes),
         "resource_attributes": resource_attributes,
         "alert_rule_name": ERROR_LOG_ALERT_RULE_NAME,

@@ -22,7 +22,11 @@ from src.config import settings
 from src.database import engine, get_db, init_db
 from src.logger import configure_logging, get_logger
 from src.models import PingState
-from src.observability import get_observability_status, log_observability_startup
+from src.observability import (
+    get_observability_status,
+    log_observability_startup,
+    mark_fastapi_instrumentation_active,
+)
 from src.rate_limit import api_rate_limiter
 from src.routers import (
     accounts,
@@ -58,23 +62,21 @@ logger = get_logger(__name__)
 
 
 def _init_otel_instrumentation() -> None:
-    """Initialize OpenTelemetry auto-instrumentation for FastAPI, SQLAlchemy, and HTTPX.
+    """Initialize OpenTelemetry auto-instrumentation for SQLAlchemy and HTTPX.
 
-    This enables distributed tracing across HTTP requests, database queries,
-    and outbound HTTP calls. Must be called after TracerProvider is configured.
+    These are global instrumentors that do not require the FastAPI app instance,
+    so they are wired here. FastAPI request instrumentation is bound to the app
+    instance in `_instrument_fastapi_app` after the app is created.
+    Must be called after the TracerProvider is configured.
     """
     if not settings.otel_exporter_otlp_endpoint:
         return
 
     try:
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # pyright: ignore[reportMissingImports]
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # pyright: ignore[reportMissingImports]
         from opentelemetry.instrumentation.sqlalchemy import (
             SQLAlchemyInstrumentor,  # pyright: ignore[reportMissingImports]
         )
-
-        # Instrument FastAPI - will be applied to app after creation
-        FastAPIInstrumentor.instrument()
 
         # Instrument SQLAlchemy with the async engine
         SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
@@ -82,12 +84,34 @@ def _init_otel_instrumentation() -> None:
         # Instrument HTTPX for outbound HTTP calls
         HTTPXClientInstrumentor().instrument()
 
-        logger.info("OTEL instrumentation initialized", components=["fastapi", "sqlalchemy", "httpx"])
+        logger.info("OTEL instrumentation initialized", components=["sqlalchemy", "httpx"])
     except Exception:  # pragma: no cover - defensive import guard
         logger.warning("OTEL instrumentation not available", exc_info=True)
 
 
-# Initialize instrumentation after logging is configured
+def _instrument_fastapi_app(app: FastAPI) -> None:
+    """Apply OpenTelemetry request instrumentation to the FastAPI app instance.
+
+    Uses ``FastAPIInstrumentor.instrument_app(app)`` (the supported per-app API).
+    The previous code used the base instrumentor's no-arg classmethod with no
+    instance and before the app existed, which raised and silently disabled
+    request tracing in production (see issue #768/#576).
+    """
+    if not settings.otel_exporter_otlp_endpoint:
+        return
+
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # pyright: ignore[reportMissingImports]
+
+        FastAPIInstrumentor.instrument_app(app)
+        mark_fastapi_instrumentation_active(True)
+        logger.info("OTEL FastAPI request instrumentation applied")
+    except Exception:  # pragma: no cover - defensive import guard
+        mark_fastapi_instrumentation_active(False)
+        logger.warning("OTEL FastAPI instrumentation not available", exc_info=True)
+
+
+# Initialize global (app-independent) instrumentation after logging is configured
 _init_otel_instrumentation()
 
 
@@ -129,6 +153,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Apply OTEL request instrumentation to the app instance (issue #768/#576).
+_instrument_fastapi_app(app)
 
 
 @app.middleware("http")

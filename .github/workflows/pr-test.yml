@@ -678,6 +678,26 @@ jobs:
 
           echo "✅ E2E Pipeline passed!"
 
+      - name: Capture platform failure snapshot
+        if: ${{ failure() && steps.deploy.outputs.compose_id != '' }}
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          mkdir -p ci-context
+          # Diagnostic only: surface Dokploy platform state so triage can tell a
+          # platform failure (worker/route/rollout) from an app failure without
+          # SSH. Never fails the job (issue #768).
+          python tools/dokploy_failure_snapshot.py \
+            --compose-id "${{ steps.deploy.outputs.compose_id }}" \
+            --api-url "${{ env.DOKPLOY_API_URL }}" \
+            --markdown | tee ci-context/platform-failure-snapshot.txt
+          {
+            echo "## Platform failure snapshot"
+            echo '```'
+            cat ci-context/platform-failure-snapshot.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Rollback on E2E Failure
         if: failure() && steps.e2e_tests.outcome == 'failure'
         env:
