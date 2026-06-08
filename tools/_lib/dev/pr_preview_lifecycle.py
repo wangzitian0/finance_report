@@ -437,7 +437,11 @@ def dokploy_api_call(
     expected_status: int = 200,
 ) -> str:
     max_attempts = 4 if method == "GET" else 1
-    retry_delay = float(os.environ.get("DOKPLOY_API_RETRY_DELAY_SECONDS", "2.0"))
+    retry_delay_str = os.environ.get("DOKPLOY_API_RETRY_DELAY_SECONDS", "2.0")
+    try:
+        retry_delay = float(retry_delay_str)
+    except ValueError:
+        retry_delay = 2.0
 
     for attempt in range(1, max_attempts + 1):
         config_file = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False)
@@ -486,7 +490,7 @@ def dokploy_api_call(
             status = expected_status if result.returncode == 0 else 0
             body = result.stdout
 
-        is_transient = result.returncode != 0 or status in (500, 502, 503, 504)
+        is_transient = (result.returncode == 28) or (status in (500, 502, 503, 504))
         if (result.returncode != 0 or status != expected_status) and (attempt < max_attempts) and is_transient:
             print(
                 f"Dokploy API call failed (attempt {attempt}/{max_attempts}): "
@@ -1085,7 +1089,7 @@ def cleanup_action(args: argparse.Namespace) -> int:
             delete_compose(config, compose_id=compose_id)
         else:
             print(f"Compose not found: {args.compose_name}")
-    except Exception as exc:
+    except RuntimeError as exc:
         print(
             f"WARNING: Cleanup action failed for {args.compose_name} (ignoring): {exc}",
             file=sys.stderr
@@ -1105,7 +1109,7 @@ def delete_action(args: argparse.Namespace) -> int:
             print(f"Compose not found: {args.compose_name}")
             return 0
         delete_compose(config, compose_id=compose_id)
-    except Exception as exc:
+    except RuntimeError as exc:
         print(
             f"WARNING: Delete action failed for {args.compose_name} (ignoring): {exc}",
             file=sys.stderr

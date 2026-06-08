@@ -2212,3 +2212,116 @@ def test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions(
         )
     )
     assert delete_res == 0
+
+
+def test_AC8_13_102_dokploy_api_call_invalid_retry_delay_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: Fallback to default retry delay when DOKPLOY_API_RETRY_DELAY_SECONDS is invalid."""
+    import time
+    lifecycle = lifecycle_module()
+    calls = 0
+
+    def fake_run_command(
+        cmd: list[str], *, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        if calls < 2:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"message":"Bad Gateway"}\n502',
+                stderr="curl transient error",
+            )
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout='{"ok":true}\n200',
+            stderr="",
+        )
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    # Set to invalid float
+    monkeypatch.setenv("DOKPLOY_API_RETRY_DELAY_SECONDS", "invalid-float")
+
+    start_time = time.monotonic()
+    res = lifecycle.dokploy_api_call(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
+        "GET",
+        "environment.one?environmentId=env-1",
+    )
+    end_time = time.monotonic()
+    assert res == '{"ok":true}'
+    assert calls == 2
+    # Verify delay fallback (it should sleep 2.0s)
+    assert end_time - start_time >= 1.9
+
+
+def test_AC8_13_102_dokploy_api_call_non_transient_curl_error_does_not_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: Non-timeout curl error should not trigger transient retry."""
+    lifecycle = lifecycle_module()
+    calls = 0
+
+    def fake_run_command(
+        cmd: list[str], *, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        # exit code 7 = CURLE_COULDNT_CONNECT, which is not 28 (timeout)
+        return subprocess.CompletedProcess(
+            cmd,
+            7,
+            stdout="",
+            stderr="curl: (7) Failed to connect to host",
+        )
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setenv("DOKPLOY_API_RETRY_DELAY_SECONDS", "0.0")
+
+    with pytest.raises(RuntimeError):
+        lifecycle.dokploy_api_call(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
+            "GET",
+            "environment.one?environmentId=env-1",
+        )
+    # Should fail immediately on 1st attempt, not retrying up to 4 times
+    assert calls == 1
+
+
+def test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.102: Non-RuntimeError exceptions are not swallowed by cleanup_action and delete_action."""
+    lifecycle = lifecycle_module()
+
+    def fake_find_compose_id(*args: object, **kwargs: object) -> str:
+        # A programming/TypeError, not a RuntimeError
+        raise TypeError("Unexpected argument type")
+
+    monkeypatch.setattr(lifecycle, "find_compose_id_by_name", fake_find_compose_id)
+
+    with pytest.raises(TypeError):
+        lifecycle.cleanup_action(
+            SimpleNamespace(
+                api_url="https://cloud.example/api",
+                api_key="secret",
+                compose_id=None,
+                environment_id="env-1",
+                compose_name="pr-123",
+            )
+        )
+
+    with pytest.raises(TypeError):
+        lifecycle.delete_action(
+            SimpleNamespace(
+                api_url="https://cloud.example/api",
+                api_key="secret",
+                compose_id=None,
+                environment_id="env-1",
+                compose_name="pr-123",
+            )
+        )
+
