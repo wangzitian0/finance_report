@@ -86,7 +86,7 @@ function nextActionLabel(status: WorkflowStatusResponse) {
 }
 
 function nextActionSummary(status: WorkflowStatusResponse) {
-  return status.next_action.summary || workflowStateCopy(status);
+  return status.next_action.summary;
 }
 
 function workflowStateCopy(status: WorkflowStatusResponse) {
@@ -182,7 +182,11 @@ function WorkflowEventCard({
             {formatEventTime(event.occurred_at)}
           </time>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Link href={event.action_href} className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
+            <Link
+              href={event.action_href}
+              className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+              aria-label={`Open ${event.title}`}
+            >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               {openLabel}
             </Link>
@@ -490,7 +494,11 @@ export function WorkflowStatusFeed({ status, events }: WorkflowStatusFeedProps) 
                   <h3 className="font-medium">{event.title}</h3>
                   <p className="mt-1 text-sm text-muted">{event.summary}</p>
                 </div>
-                <Link href={event.action_href} className="btn-secondary shrink-0 px-3 py-1.5 text-xs">
+                <Link
+                  href={event.action_href}
+                  className="btn-secondary shrink-0 px-3 py-1.5 text-xs"
+                  aria-label={`Open ${event.title}`}
+                >
                   Open
                 </Link>
               </div>
@@ -527,6 +535,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
     routine: routineEvents(events),
   };
   const primaryLabel = nextActionLabel(status);
+  const primarySummary = nextActionSummary(status);
   const readinessLabel = `Report ${sentenceFromSnake(status.report_readiness.state)}`;
   const blockerLabel = countLabel(status.report_readiness.blocking_count, "blocker");
   const primaryIsUpload = status.next_action.type === "upload";
@@ -544,7 +553,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold">{activeSession?.title ?? "Upload to report"}</h1>
               <p className="mt-2 max-w-2xl text-sm text-muted">{workflowStateCopy(status)}</p>
-              <p className="mt-2 max-w-2xl text-sm font-medium">{nextActionSummary(status)}</p>
+              {primarySummary && <p className="mt-2 max-w-2xl text-sm font-medium">{primarySummary}</p>}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge variant={severityBadgeVariant(status.primary_state === "blocked" ? "blocked" : "info")}>
                   {labelFromSnake(status.primary_state)}
@@ -580,7 +589,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
 
         <Link
           href={status.report_readiness.href}
-          className="card block p-5 transition-colors hover:border-[var(--accent)]"
+          className="card block p-5 transition-colors hover:border-accent"
           aria-label="Report readiness"
         >
           <div className="flex items-start justify-between gap-3">

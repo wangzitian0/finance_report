@@ -207,7 +207,7 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.12.1 | Source coverage matrix covers every source class named by vision.md with owner EPICs, proof levels, ingestion path, review requirement, traceability target, and test anchors | `test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
+| AC13.12.1 | Source coverage matrix covers every source class named by vision.md with owner EPICs, proof levels, ingestion path, review requirement, traceability target, and test anchors | `test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes`, `test_AC13_12_1_source_coverage_matrix_rejects_non_list_required_classes_and_proof_levels` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
 | AC13.12.2 | Source coverage matrix rejects source classes whose only proof level is post-merge LLM/OCR unless an explicit exception is recorded | `test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
 | AC13.12.3 | Source coverage matrix requires a gap issue for any source class still classified as a gap | `test_AC13_12_3_source_coverage_matrix_requires_gap_issue` | `tests/tooling/test_source_coverage_matrix.py` | P0 |
 

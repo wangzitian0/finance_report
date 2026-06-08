@@ -387,7 +387,7 @@ job inventories or scenario counts into this EPIC.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
-| AC8.14.1 | Critical proof matrix classifies product proof paths by trust mode and source classes | `test_valid_behavioral_static_and_manual_entries_pass` / `test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
+| AC8.14.1 | Critical proof matrix classifies product proof paths by trust mode and source classes | `test_valid_behavioral_static_and_manual_entries_pass`, `test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids`, `test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
 | AC8.14.2 | Critical post-merge LLM/OCR product proofs must name a PR deterministic mirror proof for the same source classes | `test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror`, `test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic` | `tests/tooling/test_check_critical_proof_matrix.py` | P0 |
 | AC8.14.3 | Personal report package critical proof has a deterministic PR mirror covering bank, brokerage, manual valuation, restricted-compensation, CSV, and manual-record source classes | `test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.14.4 | Backend reporting integration acts as a deterministic PR mirror from structured/manual source facts through ledger and core statements | `test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf` | `apps/backend/tests/integration/test_reporting_e2e.py` | P0 |

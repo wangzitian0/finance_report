@@ -434,7 +434,9 @@ state. Workflow status and event reads run this deterministic sync before
 returning data. Repeated reads must not duplicate events or reset read/archive
 lifecycle state. The synthetic active `WorkflowSession` creation path is
 concurrency-safe: overlapping status and event reads reuse the same
-`active-upload-to-report` session instead of surfacing duplicate-key 500s.
+`active-upload-to-report` session instead of surfacing duplicate-key 500s. If a
+historical synthetic row with the same dedupe key is no longer active, sync
+reactivates that row rather than failing on the user/dedupe uniqueness rule.
 
 AC19.12 completes the first lightweight user-facing derivation set. Workflow
 events are a product attention projection, not a low-level event log. Raw
@@ -449,8 +451,10 @@ events that answer one of these user-facing questions:
 
 The lightweight derivation set includes:
 
-- Stage 1 source review required and completed.
-- Statement parsing failure when user action is needed.
+- Stage 1 source review required and completed. Parsed statements with legacy
+  `NULL` Stage 1 status are treated as pending review.
+- Statement parsing failure when user action is needed. Stage 1 review
+  rejection is a review-completed outcome, not a parsing failure.
 - Reconciliation blockers that affect trusted report readiness.
 - Processing account blockers exposed through package readiness.
 - Report blocked and report ready states from package readiness.

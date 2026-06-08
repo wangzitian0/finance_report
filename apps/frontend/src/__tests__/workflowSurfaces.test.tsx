@@ -222,7 +222,7 @@ describe("workflow notification surfaces", () => {
 
     await waitFor(() => expect(within(dialog).getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument())
     expect(within(dialog).getByRole("list", { name: "Upload-to-report session timeline" })).toBeInTheDocument()
-    expect(within(dialog).getAllByRole("link", { name: "Open" })[0]).toHaveAttribute(
+    expect(within(dialog).getAllByRole("link", { name: "Open Reconciliation blocked" })[0]).toHaveAttribute(
       "href",
       "/reconciliation/unmatched",
     )
@@ -406,6 +406,28 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByText("1 blocker")).toBeInTheDocument()
   })
 
+  it("AC19.4.8 AC19.12.5 does not duplicate the workflow-state sentence when next-action summary is absent", () => {
+    render(
+      <UploadToReportHome
+        status={{
+          primary_state: "ready",
+          next_action: {
+            type: "open_report",
+            count: 0,
+            href: "/reports/package",
+            label: "Open report package",
+            summary: "",
+          },
+          report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
+          event_counts: { unread: 0, action_required: 0, blocked: 0 },
+        }}
+        events={[]}
+      />,
+    )
+
+    expect(screen.getAllByText("Reports are ready to inspect.")).toHaveLength(1)
+  })
+
   it("AC8.13.92 upload home falls back to the generic workflow action label for unknown next actions", () => {
     render(
       <UploadToReportHome
@@ -495,7 +517,7 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByText("4 total")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Workflow events" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "Open" })[0]).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "Open Reconciliation blocked" })[0]).toHaveAttribute(
       "href",
       "/reconciliation/unmatched",
     )

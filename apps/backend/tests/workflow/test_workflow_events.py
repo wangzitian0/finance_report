@@ -217,6 +217,28 @@ async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_saf
     assert sessions[0].status == WorkflowSessionStatus.ACTIVE
 
 
+@pytest.mark.asyncio
+async def test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_dedupe_row(db, test_user) -> None:
+    """AC19.8.9: Inactive synthetic sessions do not make active-session creation fail."""
+    archived_session = WorkflowSession(
+        user_id=test_user.id,
+        status=WorkflowSessionStatus.ARCHIVED,
+        title="Upload-to-report session",
+        summary="Archived synthetic session.",
+        dedupe_key="active-upload-to-report",
+        source_count=0,
+    )
+    db.add(archived_session)
+    await db.flush()
+
+    active_session = await get_or_create_active_workflow_session(db, user_id=test_user.id)
+    await db.flush()
+
+    assert active_session.id == archived_session.id
+    assert active_session.status == WorkflowSessionStatus.ACTIVE
+    assert active_session.summary == "Current upload, processing, review, and report-readiness work."
+
+
 def test_AC19_1_2_workflow_event_model_contract() -> None:
     """AC19.1.2: workflow_events model exposes lifecycle, dedupe, and read indexes."""
     table = WorkflowEvent.__table__
@@ -541,6 +563,81 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
     assert completed_event.status == WorkflowEventStatus.UNREAD
     assert completed_event.severity == WorkflowEventSeverity.SUCCESS
     assert completed_event.action_href == f"/statements/{statement.id}"
+
+
+@pytest.mark.asyncio
+async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure(db, test_user) -> None:
+    """AC19.12.2 AC19.12.6: legacy NULL Stage 1 rows derive the correct review event."""
+    pending_statement = BankStatement(
+        user_id=test_user.id,
+        file_path="statements/null-stage1.csv",
+        file_hash="6" * 64,
+        original_filename="null-stage1.csv",
+        institution="Review Bank",
+        status=BankStatementStatus.PARSED,
+        stage1_status=None,
+    )
+    rejected_by_review = BankStatement(
+        user_id=test_user.id,
+        file_path="statements/review-rejected.csv",
+        file_hash="7" * 64,
+        original_filename="review-rejected.csv",
+        institution="Review Bank",
+        status=BankStatementStatus.REJECTED,
+        stage1_status=Stage1Status.REJECTED,
+        stage1_reviewed_at=datetime.now(UTC),
+    )
+    rejected_by_parser = BankStatement(
+        user_id=test_user.id,
+        file_path="statements/parser-rejected.csv",
+        file_hash="8" * 64,
+        original_filename="parser-rejected.csv",
+        institution="Review Bank",
+        status=BankStatementStatus.REJECTED,
+        stage1_status=None,
+    )
+    db.add_all([pending_statement, rejected_by_review, rejected_by_parser])
+    await db.flush()
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+
+    pending_review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+            .where(WorkflowEvent.source_id == pending_statement.id)
+        )
+    ).scalar_one()
+    review_completed_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_COMPLETED)
+            .where(WorkflowEvent.source_id == rejected_by_review.id)
+        )
+    ).scalar_one()
+    parsing_failed_count = await db.scalar(
+        select(func.count(WorkflowEvent.id))
+        .where(WorkflowEvent.user_id == test_user.id)
+        .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_PARSING_FAILED)
+        .where(WorkflowEvent.source_id == rejected_by_review.id)
+    )
+    parsing_failed_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_PARSING_FAILED)
+            .where(WorkflowEvent.source_id == rejected_by_parser.id)
+        )
+    ).scalar_one()
+
+    assert pending_review_event.status == WorkflowEventStatus.UNREAD
+    assert pending_review_event.action_href == "/review"
+    assert review_completed_event.status == WorkflowEventStatus.UNREAD
+    assert parsing_failed_count == 0
+    assert parsing_failed_event.status == WorkflowEventStatus.UNREAD
+    assert parsing_failed_event.action_href == f"/statements/{rejected_by_parser.id}"
 
 
 @pytest.mark.asyncio

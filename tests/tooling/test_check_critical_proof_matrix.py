@@ -218,7 +218,9 @@ proofs:
     assert "Trust mode" in report
 
 
-def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(tmp_path: Path) -> None:
+def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(
+    tmp_path: Path,
+) -> None:
     """AC8.14.2: LLM/OCR critical proof must name a deterministic PR mirror."""
     _write_registry(tmp_path)
     test_dir = tmp_path / "tests" / "e2e"
@@ -315,6 +317,56 @@ proofs:
 
     results = matrix.validate_matrix(tmp_path, matrix_path)
     assert [error for result in results for error in result.errors] == []
+
+
+def test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids(
+    tmp_path: Path,
+) -> None:
+    """AC8.14.1: Critical proof IDs are unique so mirrors cannot resolve ambiguously."""
+    _write_registry(tmp_path)
+    (tmp_path / "apps" / "backend" / "tests").mkdir(parents=True)
+    (tmp_path / "apps" / "backend" / "tests" / "test_mirror.py").write_text(
+        """
+def test_first_mirror():
+    \"\"\"AC8.14.1: first deterministic mirror proof.\"\"\"
+    assert True
+
+
+def test_second_mirror():
+    \"\"\"AC8.14.1: duplicate deterministic mirror proof.\"\"\"
+    assert True
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    matrix_path = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+proofs:
+  - id: duplicate-proof
+    scope: behavioral
+    ci_tier: pr_ci
+    trust_mode: deterministic_pr
+    source_classes: [bank_statement]
+    file: apps/backend/tests/test_mirror.py
+    test: test_first_mirror
+    ac_ids: [AC8.14.1]
+  - id: duplicate-proof
+    scope: behavioral
+    ci_tier: pr_ci
+    trust_mode: deterministic_pr
+    source_classes: [brokerage_statement]
+    file: apps/backend/tests/test_mirror.py
+    test: test_second_mirror
+    ac_ids: [AC8.14.1]
+""",
+    )
+
+    results = matrix.validate_matrix(tmp_path, matrix_path)
+    errors = [error for result in results for error in result.errors]
+
+    assert "critical proof matrix duplicate proof ids: duplicate-proof" in errors
 
 
 def test_file_level_ac_reference_does_not_satisfy_core_proof(tmp_path: Path) -> None:
@@ -539,9 +591,7 @@ proofs: []
         matrix.validate_matrix(tmp_path, empty_matrix)
 
 
-def test_AC8_13_54_readme_outcome_table_parser_handles_empty_and_split_rows() -> (
-    None
-):
+def test_AC8_13_54_readme_outcome_table_parser_handles_empty_and_split_rows() -> None:
     """AC8.13.54: README macro table parsing handles empty and interrupted tables."""
     ids, errors = matrix._readme_outcome_ids("no table here")
     assert ids == []
@@ -572,9 +622,7 @@ not part of the table
     assert errors == []
 
 
-def test_AC8_13_54_macro_ownership_section_parser_handles_absent_and_bounded() -> (
-    None
-):
+def test_AC8_13_54_macro_ownership_section_parser_handles_absent_and_bounded() -> None:
     """AC8.13.54: Owner EPIC macro declarations are section-scoped."""
     assert matrix._macro_ownership_section("# EPIC\n\nNo ownership here") is None
 
@@ -936,9 +984,7 @@ def test_AC8_13_54_readme_contract_reports_missing_duplicate_and_drift(
     assert "README.md missing" in missing.errors
     assert "README.md missing `## Core Proof Paths` section" in missing.errors
     assert "README.md missing critical proof matrix source link" in missing.errors
-    assert "README.md missing critical proof matrix checker command" in (
-        missing.errors
-    )
+    assert "README.md missing critical proof matrix checker command" in (missing.errors)
 
     (tmp_path / "README.md").write_text(
         """
