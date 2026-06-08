@@ -131,9 +131,7 @@ def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
 def test_AC19_12_1_lightweight_derivation_boundary_is_documented() -> None:
     """AC19.12.1: workflow events stay lightweight and user-facing."""
     ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
-    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(
-        encoding="utf-8"
-    )
+    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
     normalized_ssot = " ".join(ssot.split())
 
     for phrase in (
@@ -626,6 +624,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
 @pytest.mark.asyncio
 async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
     """AC19.12.4 AC19.12.6: reconciliation and Processing blockers are lightweight user actions."""
+
     async def fake_readiness(_db, **_kwargs):
         return {
             "state": "blocked",
