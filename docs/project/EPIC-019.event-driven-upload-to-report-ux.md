@@ -394,7 +394,7 @@ workflow state exists.
 | AC19.8.6 | `/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings | `chatPanelComponent.test.tsx`, `ChatPageClient.test.tsx` | P1 |
 | AC19.8.7 | Report readiness has route-level Playwright smoke coverage before package output | `report-readiness.spec.ts` | P1 |
 | AC19.8.8 | CR cleanup fixes mixed-currency investment schedule fallback, missing Processing FX readiness blocker coverage, stale SSOT paths, and stale navigation docs | `test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency`, `test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails`, `report-readiness.spec.ts` | P0 |
-| AC19.8.9 | Concurrent `GET /workflow/status` and `GET /workflow/events` reads create or reuse the synthetic active workflow session without duplicate-key 500s | `test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe` | P0 |
+| AC19.8.9 | Concurrent `GET /workflow/status` and `GET /workflow/events` reads create or reuse the synthetic active workflow session without duplicate-key 500s | `test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe`, `test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_dedupe_row` | P0 |
 
 ### AC19.9 — Source Trust Readiness
 
@@ -420,7 +420,7 @@ workflow state exists.
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC19.12.1 | EPIC-019 and workflow-events SSOT define lightweight user-facing derivation boundaries, keep low-level source/review/reconciliation/report facts in normalized owner tables, and exclude low-level event logging from workflow events | `test_AC19_12_1_lightweight_derivation_boundary_is_documented` | P0 |
-| AC19.12.2 | Workflow sync derives review-required and review-completed user action events from existing review state without duplicating events or resetting read/archive lifecycle | `test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved` | P0 |
+| AC19.12.2 | Workflow sync derives review-required and review-completed user action events from existing review state without duplicating events or resetting read/archive lifecycle | `test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved`, `test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure` | P0 |
 | AC19.12.3 | Workflow sync derives report-blocked and report-ready events from package readiness without duplicating report-readiness financial logic | `test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers` | P0 |
 | AC19.12.4 | Workflow sync derives reconciliation and Processing account blocker events only when they affect user action or trusted report readiness | `test_AC19_12_4_readiness_blocker_events_are_user_action_scoped` | P0 |
 | AC19.12.5 | Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent | `workflowSurfaces.test.tsx` | P0 |

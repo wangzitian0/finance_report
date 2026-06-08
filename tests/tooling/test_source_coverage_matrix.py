@@ -11,7 +11,9 @@ from common.ssot import check_source_coverage_matrix as source_matrix
 
 def _write_repo_fixture(tmp_path: Path) -> Path:
     (tmp_path / "docs" / "project").mkdir(parents=True)
-    (tmp_path / "docs" / "project" / "EPIC-003.statement-parsing.md").write_text("# EPIC-003\n", encoding="utf-8")
+    (tmp_path / "docs" / "project" / "EPIC-003.statement-parsing.md").write_text(
+        "# EPIC-003\n", encoding="utf-8"
+    )
     anchor = tmp_path / "tests" / "e2e" / "test_source.py"
     anchor.parent.mkdir(parents=True)
     anchor.write_text("def test_source():\n    pass\n", encoding="utf-8")
@@ -66,7 +68,9 @@ def test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes() -> None
     assert "manual_trusted" in sources["esop_rsu_plan"]
 
 
-def test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources(tmp_path: Path) -> None:
+def test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources(
+    tmp_path: Path,
+) -> None:
     """AC13.12.2: LLM/OCR-only source coverage fails without an explicit exception."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
@@ -120,7 +124,9 @@ source_classes:
     assert "settlement_note: gap proof level requires gap_issue like #696" in errors
 
 
-def test_AC13_12_1_source_coverage_matrix_rejects_invalid_shape_and_global_drift(tmp_path: Path) -> None:
+def test_AC13_12_1_source_coverage_matrix_rejects_invalid_shape_and_global_drift(
+    tmp_path: Path,
+) -> None:
     """AC13.12.1: Matrix validation rejects malformed entries and source-class drift."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
@@ -145,7 +151,9 @@ source_classes:
     assert "duplicate source classes: bank_statement" in errors
 
 
-def test_AC13_12_1_source_coverage_matrix_rejects_source_field_errors(tmp_path: Path) -> None:
+def test_AC13_12_1_source_coverage_matrix_rejects_source_field_errors(
+    tmp_path: Path,
+) -> None:
     """AC13.12.1: Source entries must carry valid owners, anchors, proof levels, and IDs."""
     matrix = _write_matrix(
         tmp_path,
@@ -187,7 +195,9 @@ source_classes:
     assert "bank_statement: test_anchors must be a non-empty list" in errors
 
 
-def test_AC13_12_1_source_coverage_matrix_rejects_non_mapping_and_non_list_sources(tmp_path: Path) -> None:
+def test_AC13_12_1_source_coverage_matrix_rejects_non_mapping_and_non_list_sources(
+    tmp_path: Path,
+) -> None:
     """AC13.12.1: Matrix root and source_classes must have the expected YAML shape."""
     scalar_matrix = _write_matrix(tmp_path, "[]")
     with pytest.raises(ValueError, match="must contain a YAML mapping"):
@@ -203,10 +213,45 @@ source_classes: invalid
     )
 
     results = source_matrix.validate_source_coverage(tmp_path, non_list_matrix)
-    assert results == [SourceCoverageResult("__matrix__", errors=["source_classes must be a list"])]
+    assert results == [
+        SourceCoverageResult("__matrix__", errors=["source_classes must be a list"])
+    ]
 
 
-def test_AC13_12_2_source_coverage_matrix_allows_explicit_llm_only_exception(tmp_path: Path) -> None:
+def test_AC13_12_1_source_coverage_matrix_rejects_non_list_required_classes_and_proof_levels(
+    tmp_path: Path,
+) -> None:
+    """AC13.12.1: Matrix list fields reject scalar values instead of iterating characters."""
+    _write_repo_fixture(tmp_path)
+    matrix = _write_matrix(
+        tmp_path,
+        """
+version: "1.0"
+required_source_classes: bank_statement
+source_classes:
+  - id: bank_statement
+    owner_epics: [EPIC-003]
+    supported_formats: [pdf]
+    supported_institutions: [DBS]
+    proof_levels: pr_deterministic
+    ingestion_path: /api/statements/upload
+    review_requirement: review
+    traceability_target: source_to_report
+    test_anchors:
+      - tests/e2e/test_source.py::test_source
+""",
+    )
+
+    results = source_matrix.validate_source_coverage(tmp_path, matrix)
+    errors = [error for result in results for error in result.errors]
+
+    assert "required_source_classes must be a list" in errors
+    assert "bank_statement: proof_levels must be a list" in errors
+
+
+def test_AC13_12_2_source_coverage_matrix_allows_explicit_llm_only_exception(
+    tmp_path: Path,
+) -> None:
     """AC13.12.2: Explicit exceptions can document rare LLM/OCR-only post-merge gates."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
@@ -234,7 +279,9 @@ source_classes:
     assert errors == []
 
 
-def test_AC13_12_3_source_coverage_matrix_accepts_gap_with_issue(tmp_path: Path) -> None:
+def test_AC13_12_3_source_coverage_matrix_accepts_gap_with_issue(
+    tmp_path: Path,
+) -> None:
     """AC13.12.3: Gap entries are accepted when they point to an explicit issue."""
     _write_repo_fixture(tmp_path)
     matrix = _write_matrix(
@@ -289,20 +336,40 @@ source_classes: invalid
     assert "No source coverage errors found." in source_matrix.render_report(
         [SourceCoverageResult("bank_statement", ["pr_deterministic"], [])]
     )
-    assert "- broken" in source_matrix.render_report([SourceCoverageResult("bank_statement", errors=["broken"])])
+    assert "- broken" in source_matrix.render_report(
+        [SourceCoverageResult("bank_statement", errors=["broken"])]
+    )
 
     monkeypatch.setattr(
         "sys.argv",
-        ["check_source_coverage_matrix.py", "--repo-root", str(tmp_path), "--matrix", str(matrix)],
+        [
+            "check_source_coverage_matrix.py",
+            "--repo-root",
+            str(tmp_path),
+            "--matrix",
+            str(matrix),
+        ],
     )
     assert source_matrix.main() == 0
-    assert "Source coverage matrix passed: 1 source class(es) validated." in capsys.readouterr().out
+    assert (
+        "Source coverage matrix passed: 1 source class(es) validated."
+        in capsys.readouterr().out
+    )
 
     monkeypatch.setattr(
         "sys.argv",
-        ["check_source_coverage_matrix.py", "--repo-root", str(tmp_path), "--matrix", str(failing_matrix)],
+        [
+            "check_source_coverage_matrix.py",
+            "--repo-root",
+            str(tmp_path),
+            "--matrix",
+            str(failing_matrix),
+        ],
     )
     assert source_matrix.main() == 1
     captured = capsys.readouterr()
     assert "source_classes must be a list" in captured.out
-    assert "::error title=Source coverage matrix::source_classes must be a list" in captured.err
+    assert (
+        "::error title=Source coverage matrix::source_classes must be a list"
+        in captured.err
+    )

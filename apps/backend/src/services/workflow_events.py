@@ -141,7 +141,19 @@ async def get_or_create_active_workflow_session(db: AsyncSession, *, user_id: UU
 
     session = await _get_active_workflow_session(db, user_id=user_id)
     if session is None:
-        raise RuntimeError("active workflow session upsert returned no row and no existing session")
+        result = await db.execute(
+            select(WorkflowSession)
+            .where(WorkflowSession.user_id == user_id)
+            .where(WorkflowSession.dedupe_key == ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY)
+        )
+        session = result.scalar_one_or_none()
+        if session is None:
+            raise RuntimeError("active workflow session upsert returned no row and no existing session")
+        session.status = WorkflowSessionStatus.ACTIVE
+        session.title = "Upload-to-report session"
+        session.summary = "Current upload, processing, review, and report-readiness work."
+        if session.source_count is None:
+            session.source_count = 0
     return session
 
 
@@ -382,9 +394,11 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
             _apply_workflow_event_payload(event, payload)
             if event.session_id is None:
                 event.session_id = workflow_session.id
-        if statement.status == BankStatementStatus.REJECTED:
+        if statement.status == BankStatementStatus.REJECTED and statement.stage1_status is None:
             derived_payloads.append(build_statement_parsing_failed_event_payload(statement))
-        if statement.stage1_status == Stage1Status.PENDING_REVIEW:
+        if statement.status == BankStatementStatus.PARSED and statement.stage1_status is None:
+            derived_payloads.append(build_review_required_event_payload(statement))
+        elif statement.stage1_status == Stage1Status.PENDING_REVIEW:
             derived_payloads.append(build_review_required_event_payload(statement))
         elif statement.stage1_status in {Stage1Status.APPROVED, Stage1Status.REJECTED, Stage1Status.EDITED}:
             derived_payloads.append(build_review_completed_event_payload(statement))

@@ -270,7 +270,9 @@ def _validate_proof(
     ci_tier = str(proof.get("ci_tier", ""))
     ac_ids = [str(ac_id) for ac_id in proof.get("ac_ids", [])]
     trust_mode = str(proof.get("trust_mode", ""))
-    source_classes = [str(source_class) for source_class in proof.get("source_classes", [])]
+    source_classes = [
+        str(source_class) for source_class in proof.get("source_classes", [])
+    ]
     mirror_proof_id = str(proof.get("mirror_proof_id", ""))
     rel_file = str(proof.get("file", ""))
     test_name = str(proof.get("test", ""))
@@ -280,9 +282,13 @@ def _validate_proof(
         if trust_mode not in VALID_TRUST_MODES:
             errors.append(f"{proof_id}: invalid trust_mode {trust_mode!r}")
         if not source_classes:
-            errors.append(f"{proof_id}: source_classes are required when trust_mode is set")
+            errors.append(
+                f"{proof_id}: source_classes are required when trust_mode is set"
+            )
         if trust_mode == "llm_ocr_post_merge" and not mirror_proof_id:
-            errors.append(f"{proof_id}: llm_ocr_post_merge proof requires mirror_proof_id")
+            errors.append(
+                f"{proof_id}: llm_ocr_post_merge proof requires mirror_proof_id"
+            )
 
     for ac_id in ac_ids:
         if ac_id not in registry_ids:
@@ -395,19 +401,48 @@ def validate_matrix(repo_root: Path, matrix_path: Path) -> list[ProofResult]:
         for index, proof in enumerate(proofs)
         if isinstance(proof, dict)
     ]
+    seen_proof_ids: set[str] = set()
+    duplicate_proof_ids: set[str] = set()
+    for result in results:
+        if result.proof_id in seen_proof_ids:
+            duplicate_proof_ids.add(result.proof_id)
+        seen_proof_ids.add(result.proof_id)
+    if duplicate_proof_ids:
+        results.append(
+            ProofResult(
+                proof_id="__matrix__",
+                scope="static_contract",
+                ci_tier="pr_ci",
+                trust_mode="",
+                source_classes=[],
+                file="",
+                test="",
+                ac_ids=[],
+                status="fail",
+                mirror_proof_id="",
+                errors=[
+                    "critical proof matrix duplicate proof ids: "
+                    + ", ".join(sorted(duplicate_proof_ids))
+                ],
+            )
+        )
     by_id = {result.proof_id: result for result in results}
     for result in results:
         if not result.mirror_proof_id:
             continue
         mirror = by_id.get(result.mirror_proof_id)
         if mirror is None:
-            result.errors.append(f"{result.proof_id}: unknown mirror_proof_id {result.mirror_proof_id}")
+            result.errors.append(
+                f"{result.proof_id}: unknown mirror_proof_id {result.mirror_proof_id}"
+            )
             continue
         if mirror.trust_mode != "deterministic_pr" or mirror.ci_tier != "pr_ci":
             result.errors.append(
                 f"{result.proof_id}: mirror proof {result.mirror_proof_id} must be deterministic_pr in pr_ci"
             )
-        missing_classes = sorted(set(result.source_classes) - set(mirror.source_classes))
+        missing_classes = sorted(
+            set(result.source_classes) - set(mirror.source_classes)
+        )
         if missing_classes:
             result.errors.append(
                 f"{result.proof_id}: mirror proof {result.mirror_proof_id} missing source classes: {', '.join(missing_classes)}"
@@ -689,7 +724,10 @@ def render_report(
         ac_cell = ", ".join(f"`{ac_id}`" for ac_id in result.ac_ids)
         anchor = f"`{result.file}::{result.test}`" if result.file else "_manual_"
         status = "fail" if result.errors else result.scope
-        source_cell = ", ".join(f"`{source_class}`" for source_class in result.source_classes) or "-"
+        source_cell = (
+            ", ".join(f"`{source_class}`" for source_class in result.source_classes)
+            or "-"
+        )
         trust_cell = result.trust_mode or "-"
         lines.append(
             f"| `{result.proof_id}` | {result.scope} | {result.ci_tier} | "
