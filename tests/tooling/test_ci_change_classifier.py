@@ -1,4 +1,5 @@
 import sys
+import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -386,16 +387,22 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
     classifier.write_github_outputs(result, output)
     classifier.write_github_summary(result, summary)
 
-    assert output.read_text(encoding="utf-8").splitlines() == [
-        "heavy_required=true",
-        "reason=runtime-or-ci-paths-changed",
-        "pr_preview_required=false",
-        "pr_preview_reason=no-pr-preview-paths-changed",
-        "staging_required=false",
-        "staging_reason=no-staging-paths-changed",
-        "staging_ai_ocr_required=false",
-        "staging_ai_ocr_reason=no-staging-ai-ocr-paths-changed",
-    ]
+    output_lines = dict(
+        line.split("=", maxsplit=1)
+        for line in output.read_text(encoding="utf-8").splitlines()
+    )
+    assert output_lines["heavy_required"] == "true"
+    assert output_lines["reason"] == "runtime-or-ci-paths-changed"
+    assert json.loads(output_lines["env_stage_required"]) == {
+        "pr-preview": False,
+        "staging": False,
+    }
+    assert output_lines["pr_preview_required"] == "false"
+    assert output_lines["pr_preview_reason"] == "no-pr-preview-paths-changed"
+    assert output_lines["staging_required"] == "false"
+    assert output_lines["staging_reason"] == "no-staging-paths-changed"
+    assert output_lines["staging_ai_ocr_required"] == "false"
+    assert output_lines["staging_ai_ocr_reason"] == "no-staging-ai-ocr-paths-changed"
     summary_text = summary.read_text(encoding="utf-8")
     assert "## Change Classification" in summary_text
     assert "- Heavy CI required: `true`" in summary_text
@@ -520,3 +527,63 @@ def test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules() -> None
         PipelineStage.E2E,
         PipelineStage.PROVIDER_GATE,
     )
+
+
+def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.110: GitHub outputs expose Env x Stage JSON as the primary contract."""
+    result = classify_changed_paths(
+        [
+            "apps/backend/src/services/reporting.py",
+            ".github/workflows/pr-test.yml",
+            "docs/ssot/ci-cd.md",
+        ]
+    )
+    output = tmp_path / "github-output.txt"
+
+    classifier.write_github_outputs(result, output)
+
+    lines = dict(
+        line.split("=", maxsplit=1)
+        for line in output.read_text(encoding="utf-8").splitlines()
+    )
+    assert json.loads(lines["env_stage_required"]) == {
+        "pr-preview": True,
+        "staging": True,
+    }
+    assert json.loads(lines["env_stage_reasons"]) == {
+        "pr-preview": "pr-preview-paths-changed",
+        "staging": "staging-paths-changed",
+    }
+    assert json.loads(lines["env_stage_stages"]) == {
+        "pr-preview": ["image-build", "deploy-smoke", "e2e"],
+        "staging": ["image-build", "deploy-smoke", "e2e", "provider-gate"],
+    }
+    assert json.loads(lines["env_stage_files"]) == {
+        "pr-preview": [
+            "apps/backend/src/services/reporting.py",
+            ".github/workflows/pr-test.yml",
+        ],
+        "staging": ["apps/backend/src/services/reporting.py"],
+    }
+    assert json.loads(lines["provider_gate_required"]) == {"staging": False}
+
+    # Legacy workflow outputs stay during migration.
+    assert lines["pr_preview_required"] == "true"
+    assert lines["staging_required"] == "true"
+    assert lines["staging_ai_ocr_required"] == "false"
+
+
+def test_AC8_13_110_summary_prints_env_stage_matrix(tmp_path: Path) -> None:
+    """AC8.13.110: Summaries make env/stage decisions visible as a matrix."""
+    result = classify_changed_paths(["docs/ssot/ci-cd.md"])
+    summary = tmp_path / "github-summary.md"
+
+    classifier.write_github_summary(result, summary)
+
+    summary_text = summary.read_text(encoding="utf-8")
+    assert "### Env x Stage Matrix" in summary_text
+    assert "| Environment | Required | Reason | Stages | Changed files |" in summary_text
+    assert "| `pr-preview` | `false` | `no-pr-preview-paths-changed` | `image-build, deploy-smoke, e2e` | `0` |" in summary_text
+    assert "| `staging` | `false` | `no-staging-paths-changed` | `image-build, deploy-smoke, e2e, provider-gate` | `0` |" in summary_text
