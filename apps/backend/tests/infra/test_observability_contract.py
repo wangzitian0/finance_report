@@ -266,10 +266,7 @@ def test_AC10_4_3_instrumentation_state_reflected_in_status() -> None:
         assert "service_version" in status
 
         observability_module.mark_fastapi_instrumentation_active(True)
-        assert (
-            observability_module.get_observability_status()["request_instrumentation_active"]
-            is True
-        )
+        assert observability_module.get_observability_status()["request_instrumentation_active"] is True
     finally:
         observability_module.mark_fastapi_instrumentation_active(original)
 
@@ -297,9 +294,7 @@ def test_AC10_4_3_instrument_app_applies_to_instance(monkeypatch) -> None:
     fake_instrumentor = Mock()
     fake_module.FastAPIInstrumentor = fake_instrumentor
     monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.fastapi", fake_module)
-    monkeypatch.setattr(
-        main_module.settings, "otel_exporter_otlp_endpoint", "http://collector:4318", raising=False
-    )
+    monkeypatch.setattr(main_module.settings, "otel_exporter_otlp_endpoint", "http://collector:4318", raising=False)
     observability_module.mark_fastapi_instrumentation_active(False)
 
     app = FastAPI()
@@ -315,9 +310,7 @@ def test_AC10_4_3_instrument_app_skips_without_endpoint(monkeypatch) -> None:
 
     from src import main as main_module
 
-    monkeypatch.setattr(
-        main_module.settings, "otel_exporter_otlp_endpoint", None, raising=False
-    )
+    monkeypatch.setattr(main_module.settings, "otel_exporter_otlp_endpoint", None, raising=False)
     observability_module.mark_fastapi_instrumentation_active(False)
 
     main_module._instrument_fastapi_app(FastAPI())

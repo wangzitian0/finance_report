@@ -25,6 +25,11 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 # Compose/deployment states Dokploy reports once a rollout has actually started.
 _ACTIVE_STATES = {"running", "done", "success", "successful"}
@@ -49,7 +54,9 @@ def _classify(compose_status: str, deployments: list[dict]) -> str:
     """Classify the platform failure domain from Dokploy state."""
     latest_status = ""
     if deployments:
-        latest = sorted(deployments, key=lambda d: str(d.get("startedAt") or ""), reverse=True)[0]
+        latest = sorted(
+            deployments, key=lambda d: str(d.get("startedAt") or ""), reverse=True
+        )[0]
         latest_status = str(latest.get("status") or "").lower()
 
     if compose_status == "error" or latest_status == "error":
@@ -74,7 +81,9 @@ def build_snapshot(api_url: str, api_key: str, compose_id: str) -> dict:
     deployments = [d for d in (data.get("deployments") or []) if isinstance(d, dict)]
     compose_status = str(data.get("composeStatus") or "unknown")
     latest = (
-        sorted(deployments, key=lambda d: str(d.get("startedAt") or ""), reverse=True)[0]
+        sorted(deployments, key=lambda d: str(d.get("startedAt") or ""), reverse=True)[
+            0
+        ]
         if deployments
         else {}
     )
@@ -90,7 +99,12 @@ def build_snapshot(api_url: str, api_key: str, compose_id: str) -> dict:
 
 
 def render_markdown(snapshot: dict) -> str:
-    lines = ["### Platform failure snapshot (Dokploy)", "", "| field | value |", "|---|---|"]
+    lines = [
+        "### Platform failure snapshot (Dokploy)",
+        "",
+        "| field | value |",
+        "|---|---|",
+    ]
     for key in (
         "compose_id",
         "compose_status",
@@ -111,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--compose-id", required=True)
     parser.add_argument("--api-url", default=os.getenv("DOKPLOY_API_URL", ""))
     parser.add_argument("--api-key", default=os.getenv("DOKPLOY_API_KEY", ""))
-    parser.add_argument("--markdown", action="store_true", help="Also print a Markdown table")
+    parser.add_argument(
+        "--markdown", action="store_true", help="Also print a Markdown table"
+    )
     args = parser.parse_args(argv)
 
     if not args.compose_id or not args.api_url or not args.api_key:
