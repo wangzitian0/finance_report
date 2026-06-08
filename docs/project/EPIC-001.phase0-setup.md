@@ -105,7 +105,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.5.1 | Backend startup command path is valid | `test_moon_project_graph()` | `infra/test_ci_config.py` |
+| AC1.5.1 | Backend startup command path is valid | `test_moon_project_graph_static_contract()` | `infra/test_ci_config.py` |
 | AC1.5.2 | Frontend startup command path is valid | `test_epic_001_frontend_moon_tasks_configured()` | `infra/test_epic_001_contracts.py` |
 | AC1.5.3 | Health endpoint returns 200 | `test_health_when_all_services_healthy()` | `infra/test_main.py` |
 | AC1.5.4 | Backend ping-pong endpoint toggles state correctly | `test_ping_toggle()` | `infra/test_main.py` |

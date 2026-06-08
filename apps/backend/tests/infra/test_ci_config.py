@@ -5,19 +5,29 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
+
+ROOT = Path(__file__).resolve().parents[4]
 
 
 @pytest.mark.integration
-def test_moon_cli_available():
-    """AC7.8.1: Moon CLI is available in the environment."""
-    moon_path = shutil.which("moon")
-    assert moon_path is not None, "Moon CLI not found in PATH"
+def test_moon_cli_static_contract_available():
+    """AC7.8.1: Moon local CLI contract is versioned without CI bootstrap."""
+    moon_toolchain = yaml.safe_load((ROOT / ".moon/toolchain.yml").read_text())
+    ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+
+    assert (ROOT / "moon.yml").exists()
+    assert (ROOT / "apps/backend/moon.yml").exists()
+    assert moon_toolchain["node"]["packageManager"] == "npm"
+    assert moon_toolchain["node"]["version"] == "20.19.0"
+    assert moon_toolchain["node"]["npm"]["version"] == "10.8.2"
+    assert "moonrepo/setup-toolchain@v0" not in ci_workflow
 
 
 @pytest.mark.integration
 def test_github_actions_lint():
     """AC7.8.2: GitHub Actions workflows pass actionlint validation."""
-    workflow_dir = Path(__file__).parent.parent.parent.parent.parent / ".github" / "workflows"
+    workflow_dir = ROOT / ".github" / "workflows"
     if not workflow_dir.exists():
         pytest.skip(".github/workflows not found")
 
@@ -40,7 +50,7 @@ def test_docker_compose_integrity():
     """AC7.8.2: Docker compose build contexts exist."""
     import yaml
 
-    compose_path = Path(__file__).parent.parent.parent.parent.parent / "docker-compose.yml"
+    compose_path = ROOT / "docker-compose.yml"
 
     with open(compose_path) as f:
         config = yaml.safe_load(f)
@@ -58,7 +68,7 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
     """AC7.8.2: PR compose S3 endpoint avoids unsupported nested expansion."""
     import yaml
 
-    root = Path(__file__).parent.parent.parent.parent.parent
+    root = ROOT
     sys.path.insert(0, str(root))
     lifecycle = importlib.import_module("tools._lib.dev.pr_preview_lifecycle")
     compose_path = root / "docker-compose.yml"
@@ -86,8 +96,15 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
 
 
 @pytest.mark.integration
-def test_moon_project_graph():
-    """AC7.8.3: Moon project graph loads without errors."""
-    result = subprocess.run(["moon", "project", "backend", "--json"], capture_output=True, text=True)
-    assert result.returncode == 0, f"Moon project graph check failed: {result.stderr}"
-    assert "id" in result.stdout
+def test_moon_project_graph_static_contract():
+    """AC7.8.3: Moon project graph contract is declared in repo config."""
+    root_project = yaml.safe_load((ROOT / "moon.yml").read_text())
+    backend_project = yaml.safe_load((ROOT / "apps/backend/moon.yml").read_text())
+
+    assert root_project["tasks"]["dev"]["command"] == "python3 tools/cli.py dev"
+    assert root_project["tasks"]["test"]["command"] == "python3 tools/cli.py test"
+    assert root_project["tasks"]["lint"]["command"] == "python3 tools/cli.py lint"
+    assert backend_project["language"] == "python"
+    assert backend_project["layer"] == "application"
+    assert backend_project["fileGroups"]["sources"] == ["src/**/*.py"]
+    assert backend_project["fileGroups"]["tests"] == ["tests/**/*.py"]

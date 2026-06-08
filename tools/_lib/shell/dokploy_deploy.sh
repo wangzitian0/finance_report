@@ -166,12 +166,11 @@ wait_for_dokploy_deployment_rollout() {
 
     if [[ "$compose_status" == "error" ]]; then
       render_dokploy_rollout_summary "$rollout_response" "compose-error-attempt-$attempt"
-      if [[ -z "$new_deployment_ids" ]]; then
-        echo "ERROR: Dokploy compose entered error before creating a new deployment record" >&2
-        return 3
+      if [[ -n "$new_deployment_ids" ]]; then
+        echo "ERROR: Dokploy compose entered error before readiness polling" >&2
+        exit 1
       fi
-      echo "ERROR: Dokploy compose entered error before readiness polling" >&2
-      exit 1
+      echo "Dokploy compose still reports a stale error before the rollout has created a new deployment record; continuing rollout poll."
     fi
 
     if [[ -n "$new_deployment_ids" ]]; then
@@ -190,6 +189,10 @@ wait_for_dokploy_deployment_rollout() {
     if [[ -z "$new_deployment_ids" ]] && (( SECONDS >= new_deployment_deadline )); then
       echo "ERROR: Dokploy deployment did not create a new deployment before readiness polling" >&2
       echo "compose_id=$compose_id composeStatus=${compose_status:-unknown} deployment_count=${deployment_count:-unknown}" >&2
+      if [[ "$compose_status" == "error" ]]; then
+        echo "ERROR: Dokploy compose entered error before creating a new deployment record" >&2
+        return 3
+      fi
       return 2
     fi
 
