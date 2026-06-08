@@ -2,6 +2,8 @@ import sys
 import json
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.ci import change_classifier as classifier  # noqa: E402
@@ -394,8 +396,11 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
     assert output_lines["heavy_required"] == "true"
     assert output_lines["reason"] == "runtime-or-ci-paths-changed"
     assert json.loads(output_lines["env_stage_required"]) == {
+        "local": True,
+        "pr": True,
         "pr-preview": False,
         "staging": False,
+        "prd": False,
     }
     assert output_lines["pr_preview_required"] == "false"
     assert output_lines["pr_preview_reason"] == "no-pr-preview-paths-changed"
@@ -549,23 +554,49 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
         for line in output.read_text(encoding="utf-8").splitlines()
     )
     assert json.loads(lines["env_stage_required"]) == {
+        "local": True,
+        "pr": True,
         "pr-preview": True,
         "staging": True,
+        "prd": False,
     }
     assert json.loads(lines["env_stage_reasons"]) == {
+        "local": "local-advisory-default",
+        "pr": "runtime-or-ci-paths-changed",
         "pr-preview": "pr-preview-paths-changed",
         "staging": "staging-paths-changed",
+        "prd": "production-release-dispatch-only",
     }
     assert json.loads(lines["env_stage_stages"]) == {
+        "local": ["changed-unit", "static"],
+        "pr": [
+            "static",
+            "full-unit",
+            "integration",
+            "regression",
+            "e2e",
+            "image-build",
+        ],
         "pr-preview": ["image-build", "deploy-smoke", "e2e"],
         "staging": ["image-build", "deploy-smoke", "e2e", "provider-gate"],
+        "prd": ["release-integrity", "deploy-smoke"],
     }
     assert json.loads(lines["env_stage_files"]) == {
+        "local": [
+            "apps/backend/src/services/reporting.py",
+            ".github/workflows/pr-test.yml",
+            "docs/ssot/ci-cd.md",
+        ],
+        "pr": [
+            "apps/backend/src/services/reporting.py",
+            ".github/workflows/pr-test.yml",
+        ],
         "pr-preview": [
             "apps/backend/src/services/reporting.py",
             ".github/workflows/pr-test.yml",
         ],
         "staging": ["apps/backend/src/services/reporting.py"],
+        "prd": [],
     }
     assert json.loads(lines["provider_gate_required"]) == {"staging": False}
 
@@ -573,6 +604,36 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
     assert lines["pr_preview_required"] == "true"
     assert lines["staging_required"] == "true"
     assert lines["staging_ai_ocr_required"] == "false"
+
+
+def test_AC8_13_111_structured_env_stage_outputs_cover_complete_environment_axis() -> (
+    None
+):
+    """AC8.13.111: Structured Env x Stage outputs cover every environment."""
+    result = classify_changed_paths(["docs/ssot/ci-cd.md"])
+    required = classifier._env_stage_required(result)
+    reasons = classifier._env_stage_reasons(result)
+    files = classifier._env_stage_files(result)
+
+    assert list(required) == ["local", "pr", "pr-preview", "staging", "prd"]
+    assert required == {
+        "local": True,
+        "pr": False,
+        "pr-preview": False,
+        "staging": False,
+        "prd": False,
+    }
+    assert reasons["local"] == "local-advisory-default"
+    assert reasons["pr"] == "lightweight-docs-or-docs-workflow-only"
+    assert reasons["prd"] == "production-release-dispatch-only"
+    assert files["local"] == ["docs/ssot/ci-cd.md"]
+    assert files["pr"] == []
+
+
+def test_AC8_13_111_static_stage_rejects_non_static_environments() -> None:
+    """AC8.13.111: Static env helper is limited to local and production cells."""
+    with pytest.raises(ValueError, match="Unsupported static environment: staging"):
+        classifier._classify_static_stage((), Environment.STAGING)
 
 
 def test_AC8_13_110_summary_prints_env_stage_matrix(tmp_path: Path) -> None:
@@ -584,6 +645,46 @@ def test_AC8_13_110_summary_prints_env_stage_matrix(tmp_path: Path) -> None:
 
     summary_text = summary.read_text(encoding="utf-8")
     assert "### Env x Stage Matrix" in summary_text
-    assert "| Environment | Required | Reason | Stages | Changed files |" in summary_text
-    assert "| `pr-preview` | `false` | `no-pr-preview-paths-changed` | `image-build, deploy-smoke, e2e` | `0` |" in summary_text
-    assert "| `staging` | `false` | `no-staging-paths-changed` | `image-build, deploy-smoke, e2e, provider-gate` | `0` |" in summary_text
+    assert (
+        "| Environment | Required | Reason | Stages | Changed files |" in summary_text
+    )
+    assert (
+        "| `local` | `true` | `local-advisory-default` | `changed-unit, static` | `1` |"
+        in summary_text
+    )
+    assert (
+        "| `pr` | `false` | `lightweight-docs-or-docs-workflow-only` | `static, full-unit, integration, regression, e2e, image-build` | `0` |"
+        in summary_text
+    )
+    assert (
+        "| `pr-preview` | `false` | `no-pr-preview-paths-changed` | `image-build, deploy-smoke, e2e` | `0` |"
+        in summary_text
+    )
+    assert (
+        "| `staging` | `false` | `no-staging-paths-changed` | `image-build, deploy-smoke, e2e, provider-gate` | `0` |"
+        in summary_text
+    )
+    assert (
+        "| `prd` | `false` | `production-release-dispatch-only` | `release-integrity, deploy-smoke` | `0` |"
+        in summary_text
+    )
+
+
+def test_AC8_13_111_summary_prints_staging_provider_gate_files(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.111: Provider-gate staging proof remains visible in summaries."""
+    result = classify_changed_paths(
+        [
+            "apps/backend/src/services/extraction.py",
+            "tests/e2e/test_statement_full_journey.py",
+        ]
+    )
+    summary = tmp_path / "github-summary.md"
+
+    classifier.write_github_summary(result, summary)
+
+    summary_text = summary.read_text(encoding="utf-8")
+    assert "Staging AI/OCR-triggering files:" in summary_text
+    assert "- `apps/backend/src/services/extraction.py`" in summary_text
+    assert "- `tests/e2e/test_statement_full_journey.py`" in summary_text

@@ -410,6 +410,55 @@ def _classify_staging_provider_gate(
     )
 
 
+def _empty_provider_gate() -> ProviderGateClassification:
+    return ProviderGateClassification(
+        files=(),
+        required=False,
+        reason="not-a-staging-provider-gate",
+    )
+
+
+def _classify_pr_stage(
+    files: tuple[str, ...], heavy_files: tuple[str, ...], heavy_required: bool
+) -> EnvStageClassification:
+    reason = (
+        "runtime-or-ci-paths-changed"
+        if heavy_files
+        else "no-changed-files-detected"
+        if not files
+        else "lightweight-docs-or-docs-workflow-only"
+    )
+    return EnvStageClassification(
+        files=heavy_files,
+        required=heavy_required,
+        reason=reason,
+        stages=ENV_STAGE_MATRIX[Environment.PR],
+        provider_gate=_empty_provider_gate(),
+    )
+
+
+def _classify_static_stage(
+    files: tuple[str, ...], environment: Environment
+) -> EnvStageClassification:
+    if environment == Environment.LOCAL:
+        return EnvStageClassification(
+            files=files,
+            required=True,
+            reason="local-advisory-default",
+            stages=ENV_STAGE_MATRIX[environment],
+            provider_gate=_empty_provider_gate(),
+        )
+    if environment == Environment.PRODUCTION:
+        return EnvStageClassification(
+            files=(),
+            required=False,
+            reason="production-release-dispatch-only",
+            stages=ENV_STAGE_MATRIX[environment],
+            provider_gate=_empty_provider_gate(),
+        )
+    raise ValueError(f"Unsupported static environment: {environment}")
+
+
 def _classify_env_stage(
     files: tuple[str, ...], environment: Environment
 ) -> EnvStageClassification:
@@ -431,11 +480,7 @@ def _classify_env_stage(
         provider_gate=(
             _classify_staging_provider_gate(files)
             if environment == Environment.STAGING
-            else ProviderGateClassification(
-                files=(),
-                required=False,
-                reason="not-a-staging-provider-gate",
-            )
+            else _empty_provider_gate()
         ),
     )
 
@@ -451,9 +496,12 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
         if not files
         else "lightweight-docs-or-docs-workflow-only"
     )
-    envs = {
-        environment: _classify_env_stage(files, environment)
-        for environment in ENV_STAGE_RULES
+    envs: dict[Environment, EnvStageClassification] = {
+        Environment.LOCAL: _classify_static_stage(files, Environment.LOCAL),
+        Environment.PR: _classify_pr_stage(files, heavy_files, heavy_required),
+        Environment.PR_PREVIEW: _classify_env_stage(files, Environment.PR_PREVIEW),
+        Environment.STAGING: _classify_env_stage(files, Environment.STAGING),
+        Environment.PRODUCTION: _classify_static_stage(files, Environment.PRODUCTION),
     }
     return ChangeClassification(
         files=files,
@@ -586,7 +634,9 @@ def main() -> int:
     print(f"env_stage_required={_json_output(_env_stage_required(classification))}")
     print(f"env_stage_reasons={_json_output(_env_stage_reasons(classification))}")
     print(f"env_stage_stages={_json_output(_env_stage_stages(classification))}")
-    print(f"provider_gate_required={_json_output(_provider_gate_required(classification))}")
+    print(
+        f"provider_gate_required={_json_output(_provider_gate_required(classification))}"
+    )
     for environment, output_prefix, *_labels in LEGACY_ENV_OUTPUTS:
         env_result = classification.envs[environment]
         print(f"{output_prefix}_required={str(env_result.required).lower()}")

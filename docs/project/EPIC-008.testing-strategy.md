@@ -381,6 +381,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.108 | Main post-merge staging deploy failures publish structured failure domain, failed step, and failure summary in the deploy context artifact, alert issue, and Post-merge Delivery summary so runner/Buildx, registry, Dokploy health, E2E setup, and application E2E failures can be separated without manual log scraping | `test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run`, `test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.109 | Post-merge staging AI/OCR gate tests use isolated users and PR tooling rejects shared mutable user fixtures before provider-backed replay | `test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users` | `tests/tooling/test_staging_ai_ocr_gate_contract.py` | P0 |
 | AC8.13.110 | CI change classification emits structured Env x Stage JSON outputs and matrix summaries while preserving legacy workflow outputs during migration | `test_AC8_13_110_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
+| AC8.13.111 | CI change classification structured Env x Stage outputs cover the complete environment axis (`local`, `pr`, `pr-preview`, `staging`, `prd`) while keeping PR heavy gating and deployed-environment gates represented as matrix cells | `test_AC8_13_111_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -421,10 +422,10 @@ be filled just for symmetry.
 
 | Env \ Stage | Changed/Affected UT | Lint/Static | Full UT | Integration | Regression/E2E | Image Build | Deploy Smoke | Provider Gate | Release Integrity |
 |---|---|---|---|---|---|---|---|---|---|
-| `local` | default | focused/static contracts | risk-triggered | risk-triggered | not default | no | no | no | no |
-| `pr` | covered by full gates | required | required for heavy changes | required for heavy changes | Tier-1/provider-free required | dry-run for heavy changes | no | no | no |
+| `local` | default | focused/static contracts | risk-triggered only | risk-triggered only | not default | no | no | no | no |
+| `pr` | covered by full gates | required | required for heavy changes | required for heavy changes | Tier-1/provider-free required for heavy changes | dry-run for heavy changes | no | no | no |
 | `pr-preview` | no | no | no | no | runtime/UI/API preview-relevant subset | push PR images | required health/version | no | no |
-| `staging` | no | no | no | no | merged-SHA non-LLM plus risk-triggered provider-backed regression | reuse or build missing SHA images | required | required only for provider, extraction, statement parsing, PDF fixture, AI/OCR workflow, or critical LLM proof changes | no |
+| `staging` | no | no | no | no | merged-SHA non-LLM plus provider-backed regression when required | reuse or build missing SHA images | required | runs when real provider proof is required | no |
 | `prd` | no | no | no | no | prod-safe smoke only | release image proof | required | no first-time proof | required |
 
 Operational interpretation:
@@ -436,7 +437,8 @@ Operational interpretation:
   pass provider-free deployed E2E for preview-relevant changes.
 - Staging consumes only successful `main` SHAs, always proves real infra and
   non-LLM deployed behavior for deploy-relevant changes, and runs provider
-  proof only for AI/OCR or extraction risk changes.
+  proof only when real provider evidence is required for AI/OCR, extraction,
+  statement parsing, PDF fixture, or critical LLM proof changes.
 - Production proves release integrity and availability; it must not be the first
   proof of deterministic business correctness.
 
