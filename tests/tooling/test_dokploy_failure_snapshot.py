@@ -25,7 +25,10 @@ def test_classify_no_deployments_is_worker_record_domain() -> None:
 
 def test_classify_done_is_platform_ok() -> None:
     deployments = [{"status": "done", "startedAt": "2"}]
-    assert snapshot._classify("done", deployments) == "platform-ok-check-application-or-route"
+    assert (
+        snapshot._classify("done", deployments)
+        == "platform-ok-check-application-or-route"
+    )
 
 
 def test_classify_picks_latest_deployment_by_started_at() -> None:
@@ -48,3 +51,99 @@ def test_render_markdown_includes_failure_domain() -> None:
     )
     assert "platform_failure_domain" in md
     assert "dokploy-deployment-error" in md
+
+
+class _FakeResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
+def test_api_get_parses_json(monkeypatch) -> None:
+    import json as _json
+
+    captured: dict = {}
+
+    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+        captured["headers"] = req.headers
+        return _FakeResponse(_json.dumps({"composeStatus": "done"}).encode())
+
+    monkeypatch.setattr(snapshot.urllib.request, "urlopen", fake_urlopen)
+    data = snapshot._api_get("https://api/", "k", "compose.one?composeId=x")
+    assert data["composeStatus"] == "done"
+    # Non-default User-Agent must be set to avoid Cloudflare bot blocking.
+    assert any("User-agent" in h or "User-Agent" in h for h in captured["headers"])
+
+
+def test_build_snapshot_success(monkeypatch) -> None:
+    monkeypatch.setattr(
+        snapshot,
+        "_api_get",
+        lambda *a, **k: {
+            "composeStatus": "done",
+            "deployments": [
+                {"status": "done", "startedAt": "2026-01-02T00:00:00Z", "title": "t"},
+                {"status": "error", "startedAt": "2026-01-01T00:00:00Z"},
+            ],
+        },
+    )
+    snap = snapshot.build_snapshot("https://api", "k", "cid")
+    assert snap["compose_status"] == "done"
+    assert snap["deployment_count"] == 2
+    assert snap["latest_deployment_status"] == "done"
+    assert snap["platform_failure_domain"] == "platform-ok-check-application-or-route"
+
+
+def test_build_snapshot_api_unreachable(monkeypatch) -> None:
+    def boom(*a, **k):  # noqa: ANN002, ANN003
+        raise snapshot.urllib.error.URLError("down")
+
+    monkeypatch.setattr(snapshot, "_api_get", boom)
+    snap = snapshot.build_snapshot("https://api", "k", "cid")
+    assert snap["platform_failure_domain"] == "dokploy-api-unreachable"
+    assert "could not read" in snap["error"]
+
+
+def test_main_happy_path_prints_snapshot(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        snapshot,
+        "build_snapshot",
+        lambda *a, **k: {
+            "compose_id": "cid",
+            "platform_failure_domain": "dokploy-deployment-error",
+        },
+    )
+    rc = snapshot.main(
+        [
+            "--compose-id",
+            "cid",
+            "--api-url",
+            "https://api",
+            "--api-key",
+            "k",
+            "--markdown",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "dokploy-deployment-error" in out
+
+
+def test_build_snapshot_no_deployments(monkeypatch) -> None:
+    monkeypatch.setattr(
+        snapshot,
+        "_api_get",
+        lambda *a, **k: {"composeStatus": "idle", "deployments": []},
+    )
+    snap = snapshot.build_snapshot("https://api", "k", "cid")
+    assert snap["deployment_count"] == 0
+    assert snap["latest_deployment_status"] == "none"
+    assert snap["platform_failure_domain"] == "dokploy-worker-or-deployment-record"
