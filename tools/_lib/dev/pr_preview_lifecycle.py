@@ -436,59 +436,78 @@ def dokploy_api_call(
     payload: dict[str, object] | None = None,
     expected_status: int = 200,
 ) -> str:
-    config_file = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False)
-    data_file: tempfile.NamedTemporaryFile[str] | None = None
-    config_path = config_file.name
-    data_path = ""
-    escaped_api_key = config.api_key.replace("\\", "\\\\").replace('"', '\\"')
-    config_file.write(f'header = "x-api-key: {escaped_api_key}"\n')
-    config_file.close()
+    max_attempts = 4 if method == "GET" else 1
+    retry_delay = float(os.environ.get("DOKPLOY_API_RETRY_DELAY_SECONDS", "2.0"))
 
-    cmd = [
-        "curl",
-        "-sS",
-        "--connect-timeout",
-        str(DOKPLOY_API_CONNECT_TIMEOUT_SECONDS),
-        "--max-time",
-        str(DOKPLOY_API_MAX_TIME_SECONDS),
-        "--config",
-        config_path,
-        "-w",
-        "\n%{http_code}",
-    ]
-    try:
-        if method == "POST":
-            cmd.extend(["-X", "POST", "-H", "Content-Type: application/json"])
-            if payload is not None:
-                data_file = tempfile.NamedTemporaryFile(
-                    "w", encoding="utf-8", delete=False
-                )
-                data_path = data_file.name
-                json.dump(payload, data_file)
-                data_file.close()
-                cmd.extend(["--data-binary", f"@{data_path}"])
-        cmd.append(f"{config.api_url.rstrip('/')}/{endpoint}")
+    for attempt in range(1, max_attempts + 1):
+        config_file = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False)
+        data_file: tempfile.NamedTemporaryFile[str] | None = None
+        config_path = config_file.name
+        data_path = ""
+        escaped_api_key = config.api_key.replace("\\", "\\\\").replace('"', '\\"')
+        config_file.write(f'header = "x-api-key: {escaped_api_key}"\n')
+        config_file.close()
 
-        result = run_command(cmd, check=False)
-    finally:
-        os.unlink(config_path)
-        if data_path:
-            os.unlink(data_path)
-    body, _, status_text = result.stdout.rpartition("\n")
-    try:
-        status = int(status_text.strip())
-    except ValueError:
-        status = expected_status if result.returncode == 0 else 0
-        body = result.stdout
-    if result.returncode != 0 or status != expected_status:
-        print(f"Dokploy request failed: endpoint={endpoint}", file=sys.stderr)
-        print(f"http_code: {status or '000'}", file=sys.stderr)
-        print(f"safe_message: {_safe_message(body)}", file=sys.stderr)
-        print("raw_body_printed: false", file=sys.stderr)
-        if result.stderr:
-            print(result.stderr.strip(), file=sys.stderr)
-        raise RuntimeError(f"Dokploy request failed for {endpoint}")
-    return body
+        cmd = [
+            "curl",
+            "-sS",
+            "--connect-timeout",
+            str(DOKPLOY_API_CONNECT_TIMEOUT_SECONDS),
+            "--max-time",
+            str(DOKPLOY_API_MAX_TIME_SECONDS),
+            "--config",
+            config_path,
+            "-w",
+            "\n%{http_code}",
+        ]
+        try:
+            if method == "POST":
+                cmd.extend(["-X", "POST", "-H", "Content-Type: application/json"])
+                if payload is not None:
+                    data_file = tempfile.NamedTemporaryFile(
+                        "w", encoding="utf-8", delete=False
+                    )
+                    data_path = data_file.name
+                    json.dump(payload, data_file)
+                    data_file.close()
+                    cmd.extend(["--data-binary", f"@{data_path}"])
+            cmd.append(f"{config.api_url.rstrip('/')}/{endpoint}")
+
+            result = run_command(cmd, check=False)
+        finally:
+            os.unlink(config_path)
+            if data_path:
+                os.unlink(data_path)
+
+        body, _, status_text = result.stdout.rpartition("\n")
+        try:
+            status = int(status_text.strip())
+        except ValueError:
+            status = expected_status if result.returncode == 0 else 0
+            body = result.stdout
+
+        is_transient = result.returncode != 0 or status in (500, 502, 503, 504)
+        if (result.returncode != 0 or status != expected_status) and (attempt < max_attempts) and is_transient:
+            print(
+                f"Dokploy API call failed (attempt {attempt}/{max_attempts}): "
+                f"endpoint={endpoint} http_code={status or '000'} "
+                f"returncode={result.returncode}. Retrying in {retry_delay}s...",
+                file=sys.stderr
+            )
+            time.sleep(retry_delay)
+            continue
+
+        if result.returncode != 0 or status != expected_status:
+            print(f"Dokploy request failed: endpoint={endpoint}", file=sys.stderr)
+            print(f"http_code: {status or '000'}", file=sys.stderr)
+            print(f"safe_message: {_safe_message(body)}", file=sys.stderr)
+            print("raw_body_printed: false", file=sys.stderr)
+            if result.stderr:
+                print(result.stderr.strip(), file=sys.stderr)
+            raise RuntimeError(f"Dokploy request failed for {endpoint}")
+        return body
+
+    raise RuntimeError(f"Dokploy request failed for {endpoint}")
 
 
 def find_compose_id_by_name(
@@ -1055,30 +1074,42 @@ def deploy_action(args: argparse.Namespace) -> int:
 
 
 def cleanup_action(args: argparse.Namespace) -> int:
-    config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-    compose_id = args.compose_id or find_compose_id_by_name(
-        config,
-        args.environment_id,
-        args.compose_name,
-    )
-    if compose_id:
-        delete_compose(config, compose_id=compose_id)
-    else:
-        print(f"Compose not found: {args.compose_name}")
+    try:
+        config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
+        compose_id = args.compose_id or find_compose_id_by_name(
+            config,
+            args.environment_id,
+            args.compose_name,
+        )
+        if compose_id:
+            delete_compose(config, compose_id=compose_id)
+        else:
+            print(f"Compose not found: {args.compose_name}")
+    except Exception as exc:
+        print(
+            f"WARNING: Cleanup action failed for {args.compose_name} (ignoring): {exc}",
+            file=sys.stderr
+        )
     return 0
 
 
 def delete_action(args: argparse.Namespace) -> int:
-    config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
-    compose_id = args.compose_id or find_compose_id_by_name(
-        config,
-        args.environment_id,
-        args.compose_name,
-    )
-    if not compose_id:
-        print(f"Compose not found: {args.compose_name}")
-        return 0
-    delete_compose(config, compose_id=compose_id)
+    try:
+        config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
+        compose_id = args.compose_id or find_compose_id_by_name(
+            config,
+            args.environment_id,
+            args.compose_name,
+        )
+        if not compose_id:
+            print(f"Compose not found: {args.compose_name}")
+            return 0
+        delete_compose(config, compose_id=compose_id)
+    except Exception as exc:
+        print(
+            f"WARNING: Delete action failed for {args.compose_name} (ignoring): {exc}",
+            file=sys.stderr
+        )
     return 0
 
 
