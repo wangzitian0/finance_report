@@ -1,6 +1,7 @@
 # EPIC-019: Event-Driven Upload-to-Report UX
 
-> **Status**: Planned
+> **Status**: In Progress — core UI/API slices complete; AC19.12 lightweight
+> derivation remains before Core Complete
 > **Vision Anchor**: `decision-2-event-middle-layer`, `decision-3-record-layer`,
 > `decision-filter-accuracy-auditability`
 > **Phase**: Product workflow hardening
@@ -413,6 +414,17 @@ workflow state exists.
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC19.11.1 | `/review/run/{runId}` uses run-scoped Stage 2 queue and batch-approval APIs so approving a run cannot approve pending matches from another workflow session or batch | `test_AC19_11_1_stage2_run_queue_filters_by_run_id`, `AC19.11.1 run review uses run-scoped queue and approval endpoints` | P0 |
+
+### AC19.12 — Lightweight Workflow Derivation Completion
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.12.1 | EPIC-019 and workflow-events SSOT define lightweight user-facing derivation boundaries, keep low-level source/review/reconciliation/report facts in normalized owner tables, and exclude low-level event logging from workflow events | `test_AC19_12_1_lightweight_derivation_boundary_is_documented` | P0 |
+| AC19.12.2 | Workflow sync derives review-required and review-completed user action events from existing review state without duplicating events or resetting read/archive lifecycle | `test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved` | P0 |
+| AC19.12.3 | Workflow sync derives report-blocked and report-ready events from package readiness without duplicating report-readiness financial logic | `test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers` | P0 |
+| AC19.12.4 | Workflow sync derives reconciliation and Processing-account blocker events only when they affect user action or trusted report readiness | `test_AC19_12_4_readiness_blocker_events_are_user_action_scoped` | P0 |
+| AC19.12.5 | Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent | `workflowSurfaces.test.tsx` | P0 |
+| AC19.12.6 | Lightweight derivation tests cover multi-user isolation, repeated sync idempotency, lifecycle preservation, and resolved-blocker archival | `test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved`, `test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers`, `test_AC19_12_4_readiness_blocker_events_are_user_action_scoped` | P0 |
 
 ## How To Build It
 

@@ -1,13 +1,14 @@
 """Deterministic user-facing workflow event derivation."""
 
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from src.models import BankStatement
+from src.models import BankStatement, BankStatementStatus, Stage1Status
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -33,6 +34,17 @@ from src.schemas.workflow import (
 from src.services.report_readiness import get_personal_report_package_readiness
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
+PACKAGE_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:personal-financial-report-package")
+MUTABLE_DERIVED_EVENT_SOURCE_TYPES = {"bank_statement", "readiness_blocker", "report_package"}
+MUTABLE_DERIVED_EVENT_FAMILIES = {
+    WorkflowEventFamily.SOURCE_PARSING_FAILED,
+    WorkflowEventFamily.REVIEW_REQUIRED,
+    WorkflowEventFamily.REVIEW_COMPLETED,
+    WorkflowEventFamily.RECONCILIATION_BLOCKED,
+    WorkflowEventFamily.REPORT_READY,
+    WorkflowEventFamily.REPORT_BLOCKED,
+    WorkflowEventFamily.REPORT_GENERATED,
+}
 
 
 def _collapse_package_readiness_state(state: str) -> WorkflowReportReadinessState:
@@ -178,6 +190,123 @@ def build_uploaded_statement_event_payload(statement: BankStatement) -> Workflow
     )
 
 
+def build_statement_parsing_failed_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+    """Build the user-action event for a failed statement parse."""
+    family = WorkflowEventFamily.SOURCE_PARSING_FAILED
+    return WorkflowEventCreate(
+        occurred_at=statement.updated_at or statement.created_at,
+        family=family,
+        severity=WorkflowEventSeverity.ACTION_REQUIRED,
+        title="Statement parsing failed",
+        summary=f"{statement.original_filename} could not be parsed and needs attention.",
+        source_type="bank_statement",
+        source_id=statement.id,
+        action_href=f"/statements/{statement.id}",
+        report_impact=WorkflowReportImpact.BLOCKED,
+        dedupe_key=build_workflow_dedupe_key(
+            family=family,
+            source_type="bank_statement",
+            source_id=statement.id,
+        ),
+    )
+
+
+def build_review_required_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+    """Build the user-action event for pending Stage 1 review."""
+    family = WorkflowEventFamily.REVIEW_REQUIRED
+    return WorkflowEventCreate(
+        occurred_at=statement.updated_at or statement.created_at,
+        family=family,
+        severity=WorkflowEventSeverity.ACTION_REQUIRED,
+        title="Source review required",
+        summary=f"{statement.original_filename} needs source review before report readiness can advance.",
+        source_type="bank_statement",
+        source_id=statement.id,
+        action_href="/review",
+        report_impact=WorkflowReportImpact.BLOCKED,
+        dedupe_key=build_workflow_dedupe_key(
+            family=family,
+            source_type="bank_statement",
+            source_id=statement.id,
+        ),
+    )
+
+
+def build_review_completed_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+    """Build the routine success event for completed Stage 1 review."""
+    family = WorkflowEventFamily.REVIEW_COMPLETED
+    reviewed_at = statement.stage1_reviewed_at or statement.updated_at or statement.created_at
+    return WorkflowEventCreate(
+        occurred_at=reviewed_at,
+        family=family,
+        severity=WorkflowEventSeverity.SUCCESS,
+        title="Source review completed",
+        summary=f"{statement.original_filename} source review is complete.",
+        source_type="bank_statement",
+        source_id=statement.id,
+        action_href=f"/statements/{statement.id}",
+        report_impact=WorkflowReportImpact.NONE,
+        dedupe_key=build_workflow_dedupe_key(
+            family=family,
+            source_type="bank_statement",
+            source_id=statement.id,
+        ),
+    )
+
+
+def _readiness_blocker_source_id(code: str) -> UUID:
+    return uuid5(NAMESPACE_URL, f"finance-report:readiness-blocker:{code}")
+
+
+def build_readiness_blocker_event_payload(blocker: dict[str, str | int]) -> WorkflowEventCreate:
+    """Build a lightweight user-facing event from a report-readiness blocker."""
+    code = str(blocker["code"])
+    family = (
+        WorkflowEventFamily.RECONCILIATION_BLOCKED
+        if code == "reconciliation_blocked"
+        else WorkflowEventFamily.REPORT_BLOCKED
+    )
+    count = int(blocker.get("count", 1))
+    return WorkflowEventCreate(
+        occurred_at=datetime.now(UTC),
+        family=family,
+        severity=WorkflowEventSeverity.BLOCKED,
+        title=str(blocker["label"]),
+        summary=f"{blocker['reason']} ({count} item{'s' if count != 1 else ''}).",
+        source_type="readiness_blocker",
+        source_id=_readiness_blocker_source_id(code),
+        action_href=str(blocker["action_href"]),
+        report_impact=WorkflowReportImpact.BLOCKED,
+        dedupe_key=f"readiness-blocker:{code}:{family.value}",
+    )
+
+
+def build_report_state_event_payload(package_readiness: dict) -> WorkflowEventCreate | None:
+    """Build report ready/generated events from package readiness."""
+    state = str(package_readiness["state"])
+    if state not in {"ready", "generated"}:
+        return None
+    family = WorkflowEventFamily.REPORT_GENERATED if state == "generated" else WorkflowEventFamily.REPORT_READY
+    title = "Report package generated" if state == "generated" else "Report package ready"
+    summary = (
+        "The personal report package has been generated."
+        if state == "generated"
+        else "The personal report package is ready to review."
+    )
+    return WorkflowEventCreate(
+        occurred_at=datetime.now(UTC),
+        family=family,
+        severity=WorkflowEventSeverity.SUCCESS,
+        title=title,
+        summary=summary,
+        source_type="report_package",
+        source_id=PACKAGE_WORKFLOW_SOURCE_ID,
+        action_href=str(package_readiness["action_href"]),
+        report_impact=WorkflowReportImpact.READY,
+        dedupe_key=f"report-package:{family.value}",
+    )
+
+
 async def upsert_workflow_event(
     db: AsyncSession,
     *,
@@ -242,6 +371,7 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
         .where(BankStatement.user_id == user_id)
         .order_by(BankStatement.created_at.asc())
     )
+    derived_payloads: list[WorkflowEventCreate] = []
     for statement, event in result.all():
         if workflow_session is None:
             workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
@@ -252,6 +382,77 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
             _apply_workflow_event_payload(event, payload)
             if event.session_id is None:
                 event.session_id = workflow_session.id
+        if statement.status == BankStatementStatus.REJECTED:
+            derived_payloads.append(build_statement_parsing_failed_event_payload(statement))
+        if statement.stage1_status == Stage1Status.PENDING_REVIEW:
+            derived_payloads.append(build_review_required_event_payload(statement))
+        elif statement.stage1_status in {Stage1Status.APPROVED, Stage1Status.REJECTED, Stage1Status.EDITED}:
+            derived_payloads.append(build_review_completed_event_payload(statement))
+
+    package_readiness = await get_personal_report_package_readiness(db, user_id=user_id)
+    for blocker in package_readiness.get("blockers", []):
+        derived_payloads.append(build_readiness_blocker_event_payload(blocker))
+    report_state_payload = build_report_state_event_payload(package_readiness)
+    if report_state_payload is not None:
+        existing_report_state_count = await db.scalar(
+            select(func.count(WorkflowEvent.id))
+            .where(WorkflowEvent.user_id == user_id)
+            .where(WorkflowEvent.family.in_([WorkflowEventFamily.REPORT_READY, WorkflowEventFamily.REPORT_GENERATED]))
+            .where(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
+        )
+        if not int(existing_report_state_count or 0):
+            derived_payloads.append(report_state_payload)
+
+    if derived_payloads and workflow_session is None:
+        workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
+
+    active_derived_dedupe_keys = {payload.dedupe_key for payload in derived_payloads}
+    if derived_payloads and workflow_session is not None:
+        existing_payload_events = (
+            (
+                await db.execute(
+                    select(WorkflowEvent)
+                    .where(WorkflowEvent.user_id == user_id)
+                    .where(WorkflowEvent.dedupe_key.in_(active_derived_dedupe_keys))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        event_by_dedupe_key = {event.dedupe_key: event for event in existing_payload_events}
+        for payload in derived_payloads:
+            event = event_by_dedupe_key.get(payload.dedupe_key)
+            if event is None:
+                db.add(_workflow_event_from_payload(user_id=user_id, payload=payload, session_id=workflow_session.id))
+            else:
+                _apply_workflow_event_payload(event, payload)
+                if event.session_id is None:
+                    event.session_id = workflow_session.id
+
+    stale_events: list[WorkflowEvent] = []
+    if derived_payloads:
+        stale_events = (
+            (
+                await db.execute(
+                    select(WorkflowEvent)
+                    .where(WorkflowEvent.user_id == user_id)
+                    .where(WorkflowEvent.family.in_(MUTABLE_DERIVED_EVENT_FAMILIES))
+                    .where(WorkflowEvent.source_type.in_(MUTABLE_DERIVED_EVENT_SOURCE_TYPES))
+                    .where(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
+                    .where(WorkflowEvent.dedupe_key.not_in(active_derived_dedupe_keys))
+                    .where(
+                        or_(
+                            WorkflowEvent.source_type != "bank_statement",
+                            WorkflowEvent.dedupe_key.like("bank_statement:%"),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    for event in stale_events:
+        event.status = WorkflowEventStatus.ARCHIVED
 
     await db.flush()
     if workflow_session is not None:
@@ -455,10 +656,17 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
     if blocked_count or package_readiness_state == WorkflowReportReadinessState.BLOCKED:
         blocked_event = await representative_event(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
         primary_state = WorkflowPrimaryState.BLOCKED
+        blocked_href = (
+            str(package_readiness["action_href"])
+            if package_readiness_state == WorkflowReportReadinessState.BLOCKED
+            else blocked_event.action_href
+            if blocked_event
+            else str(package_readiness["action_href"])
+        )
         next_action = _next_action(
             WorkflowNextActionType.RESOLVE_BLOCKER,
             count=max(blocked_count, package_blocking_count),
-            href=blocked_event.action_href if blocked_event else str(package_readiness["action_href"]),
+            href=blocked_href,
         )
     elif action_required_count:
         action_required_event = await representative_event(
@@ -484,7 +692,7 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
         primary_state = WorkflowPrimaryState.READY
         next_action = _next_action(
             WorkflowNextActionType.OPEN_REPORT,
-            count=max(ready_count, 1),
+            count=1,
             href="/reports/package",
         )
     elif active_count:

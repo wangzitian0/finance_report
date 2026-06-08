@@ -297,6 +297,17 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/statements/upload")
   })
 
+  it("AC19.12.5 renders lightweight derived workflow events as user actions, not internal logs", () => {
+    render(<WorkflowStatusFeed status={statusNeedsAction} events={workflowEvents.items} />)
+
+    expect(screen.getAllByText("Reconciliation blocked").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("Review required").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
+    expect(screen.getByText("2 routine events")).toBeInTheDocument()
+    expect(screen.queryByText(/raw audit/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/journal line id/i)).not.toBeInTheDocument()
+  })
+
   it("AC19.4.2 renders the upload-to-report home as the first workflow entry surface", () => {
     render(<UploadToReportHome status={statusNeedsAction} events={workflowEvents.items} />)
 
