@@ -438,7 +438,7 @@ concurrency-safe: overlapping status and event reads reuse the same
 
 AC19.12 completes the first lightweight user-facing derivation set. Workflow
 events are a product attention projection, not a low-level event log. Raw
-source, review, reconciliation, Processing-account, report snapshot, and audit
+source, review, reconciliation, Processing account, report snapshot, and audit
 facts remain in their normalized owner tables. Workflow derivation only emits
 events that answer one of these user-facing questions:
 
@@ -452,7 +452,7 @@ The lightweight derivation set includes:
 - Stage 1 source review required and completed.
 - Statement parsing failure when user action is needed.
 - Reconciliation blockers that affect trusted report readiness.
-- Processing-account blockers exposed through package readiness.
+- Processing account blockers exposed through package readiness.
 - Report blocked and report ready states from package readiness.
 
 Workflow sync may archive mutable derived action/blocker events when the

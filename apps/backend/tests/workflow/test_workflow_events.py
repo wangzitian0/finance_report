@@ -139,7 +139,7 @@ def test_AC19_12_1_lightweight_derivation_boundary_is_documented() -> None:
         "not a low-level event log",
         "normalized owner tables",
         "What needs my action now?",
-        "Processing-account blockers exposed through package readiness",
+        "Processing account blockers exposed through package readiness",
         "archive mutable derived action/blocker events when the underlying condition is resolved",
     ):
         assert phrase in normalized_ssot
@@ -570,6 +570,12 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
         "blocking_count": 0,
         "blockers": [],
     }
+    generated_payload = {
+        "state": "generated",
+        "action_href": "/reports/package",
+        "blocking_count": 0,
+        "blockers": [],
+    }
     current_payload = blocker_payload
 
     async def fake_readiness(_db, **_kwargs):
@@ -619,6 +625,113 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     assert archived_blocker.status == WorkflowEventStatus.ARCHIVED
     assert ready_event.status == WorkflowEventStatus.UNREAD
     assert ready_event.action_href == "/reports/package"
+
+    current_payload = generated_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    generated_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_GENERATED)
+        )
+    ).scalar_one()
+    ready_event_after_generation = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_READY)
+        )
+    ).scalar_one()
+    assert generated_event.status == WorkflowEventStatus.UNREAD
+    assert generated_event.action_href == "/reports/package"
+    assert ready_event_after_generation.status == WorkflowEventStatus.ARCHIVED
+
+
+@pytest.mark.asyncio
+async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_payloads(
+    db,
+    test_user,
+    monkeypatch,
+) -> None:
+    """AC19.12.3 AC19.12.6: stale blockers archive when no current derived payload remains."""
+    blocker_payload = {
+        "state": "blocked",
+        "action_href": "/review",
+        "blocking_count": 1,
+        "blockers": [
+            {
+                "code": "pending_review",
+                "label": "Pending source review",
+                "count": 1,
+                "reason": "Statement review must be completed before the package can be marked ready.",
+                "action_href": "/review",
+            }
+        ],
+    }
+    empty_payload = {
+        "state": "draft",
+        "action_href": "/statements/upload",
+        "blocking_count": 0,
+        "blockers": [],
+    }
+    current_payload = blocker_payload
+
+    async def fake_readiness(_db, **_kwargs):
+        return current_payload
+
+    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    blocked_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+
+    current_payload = empty_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+
+    assert blocked_event.status == WorkflowEventStatus.ARCHIVED
+
+
+@pytest.mark.asyncio
+async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_processing(
+    db,
+    test_user,
+    monkeypatch,
+) -> None:
+    """AC19.12.3: package readiness drives the primary open-report action once ready."""
+    db.add(
+        BankStatement(
+            user_id=test_user.id,
+            file_path="statements/ready.csv",
+            file_hash="2" * 64,
+            original_filename="ready.csv",
+            institution="Ready Bank",
+            status=BankStatementStatus.PARSED,
+            stage1_status=Stage1Status.APPROVED,
+            stage1_reviewed_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+
+    async def fake_readiness(_db, **_kwargs):
+        return {
+            "state": "ready",
+            "action_href": "/reports/package",
+            "blocking_count": 0,
+            "blockers": [],
+        }
+
+    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+
+    status = await get_workflow_status(db, user_id=test_user.id)
+
+    assert status.primary_state.value == "ready"
+    assert status.next_action.type.value == "open_report"
+    assert status.next_action.href == "/reports/package"
 
 
 @pytest.mark.asyncio
@@ -773,7 +886,11 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
 
     count_queries = [statement for statement in statements if "count(" in statement]
     representative_queries = [
-        statement for statement in statements if "select workflow_events." in statement and "count(" not in statement
+        statement
+        for statement in statements
+        if "select workflow_events." in statement
+        and "count(" not in statement
+        and "order by workflow_events.occurred_at desc" in statement
     ]
 
     assert status.primary_state.value == "needs_action"

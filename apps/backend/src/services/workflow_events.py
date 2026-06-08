@@ -394,19 +394,25 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
         derived_payloads.append(build_readiness_blocker_event_payload(blocker))
     report_state_payload = build_report_state_event_payload(package_readiness)
     if report_state_payload is not None:
-        existing_report_state_count = await db.scalar(
+        existing_same_report_state_count = await db.scalar(
             select(func.count(WorkflowEvent.id))
             .where(WorkflowEvent.user_id == user_id)
-            .where(WorkflowEvent.family.in_([WorkflowEventFamily.REPORT_READY, WorkflowEventFamily.REPORT_GENERATED]))
+            .where(WorkflowEvent.family == report_state_payload.family)
             .where(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
         )
-        if not int(existing_report_state_count or 0):
+        if not int(existing_same_report_state_count or 0):
             derived_payloads.append(report_state_payload)
 
     if derived_payloads and workflow_session is None:
         workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
 
     active_derived_dedupe_keys = {payload.dedupe_key for payload in derived_payloads}
+    should_archive_stale_events = derived_payloads or str(package_readiness["state"]) in {
+        "draft",
+        "ready",
+        "generated",
+        "stale",
+    }
     if derived_payloads and workflow_session is not None:
         existing_payload_events = (
             (
@@ -430,33 +436,35 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
                     event.session_id = workflow_session.id
 
     stale_events: list[WorkflowEvent] = []
-    if derived_payloads:
-        stale_events = (
-            (
-                await db.execute(
-                    select(WorkflowEvent)
-                    .where(WorkflowEvent.user_id == user_id)
-                    .where(WorkflowEvent.family.in_(MUTABLE_DERIVED_EVENT_FAMILIES))
-                    .where(WorkflowEvent.source_type.in_(MUTABLE_DERIVED_EVENT_SOURCE_TYPES))
-                    .where(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
-                    .where(WorkflowEvent.dedupe_key.not_in(active_derived_dedupe_keys))
-                    .where(
-                        or_(
-                            WorkflowEvent.source_type != "bank_statement",
-                            WorkflowEvent.dedupe_key.like("bank_statement:%"),
-                        )
-                    )
+    if should_archive_stale_events:
+        bank_statement_dedupe_prefix = "bank_statement:"
+        stale_event_query = (
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == user_id)
+            .where(WorkflowEvent.family.in_(MUTABLE_DERIVED_EVENT_FAMILIES))
+            .where(WorkflowEvent.source_type.in_(MUTABLE_DERIVED_EVENT_SOURCE_TYPES))
+            .where(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
+            .where(
+                or_(
+                    WorkflowEvent.source_type != "bank_statement",
+                    func.substr(WorkflowEvent.dedupe_key, 1, len(bank_statement_dedupe_prefix))
+                    == bank_statement_dedupe_prefix,
                 )
             )
-            .scalars()
-            .all()
         )
+        if active_derived_dedupe_keys:
+            stale_event_query = stale_event_query.where(WorkflowEvent.dedupe_key.not_in(active_derived_dedupe_keys))
+        stale_events = (await db.execute(stale_event_query)).scalars().all()
+    stale_session_ids = {event.session_id for event in stale_events if event.session_id is not None}
     for event in stale_events:
         event.status = WorkflowEventStatus.ARCHIVED
 
     await db.flush()
     if workflow_session is not None:
         await refresh_workflow_session_summary(db, user_id=user_id, session_id=workflow_session.id)
+        stale_session_ids.discard(workflow_session.id)
+    for session_id in stale_session_ids:
+        await refresh_workflow_session_summary(db, user_id=user_id, session_id=session_id)
 
 
 async def refresh_workflow_session_summary(
@@ -678,13 +686,6 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
             count=action_required_count,
             href=action_required_event.action_href if action_required_event else "/review",
         )
-    elif processing_count or package_readiness_state == WorkflowReportReadinessState.PROCESSING:
-        primary_state = WorkflowPrimaryState.PROCESSING
-        next_action = _next_action(
-            WorkflowNextActionType.WAIT,
-            count=max(processing_count, 1),
-            href="/events",
-        )
     elif ready_count or package_readiness_state in {
         WorkflowReportReadinessState.READY,
         WorkflowReportReadinessState.STALE,
@@ -694,6 +695,13 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
             WorkflowNextActionType.OPEN_REPORT,
             count=1,
             href="/reports/package",
+        )
+    elif processing_count or package_readiness_state == WorkflowReportReadinessState.PROCESSING:
+        primary_state = WorkflowPrimaryState.PROCESSING
+        next_action = _next_action(
+            WorkflowNextActionType.WAIT,
+            count=max(processing_count, 1),
+            href="/events",
         )
     elif active_count:
         primary_state = WorkflowPrimaryState.READY
