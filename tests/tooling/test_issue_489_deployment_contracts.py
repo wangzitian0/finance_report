@@ -278,8 +278,7 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert preview_env["DB_HOST"] == "finance-report-db-pr-489-abc123"
     assert preview_env["S3_HOST"] == "finance-report-minio-pr-489-abc123"
     assert (
-        preview_env["S3_ENDPOINT"]
-        == "http://finance-report-minio-pr-489-abc123:9000"
+        preview_env["S3_ENDPOINT"] == "http://finance-report-minio-pr-489-abc123:9000"
     )
     assert 'echo "S3_BUCKET=statements"' in workflow or "S3_BUCKET:-statements" in read(
         "docker-compose.yml"
@@ -313,11 +312,23 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "api_body_prefix=" in readiness_block
     assert '"body": body,' in readiness_block
     assert '"body": body[:500]' not in readiness_block
-    assert "classified_route_failures >= 8 and not route_failure_notice_printed" in readiness_block
-    assert "::notice::API route is still unavailable after frontend served" in readiness_block
+    assert (
+        "classified_route_failures >= 8 and not route_failure_notice_printed"
+        in readiness_block
+    )
+    assert (
+        "::notice::API route is still unavailable after frontend served"
+        in readiness_block
+    )
     assert 'url = app_url + "/api/health"' in workflow
     assert "bash tools/smoke_test.sh" in workflow
-    assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm"' in workflow
+    assert "PR_PREVIEW_E2E_TESTS=(" in workflow
+    assert "tests/e2e/test_core_journeys.py" in workflow
+    assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in workflow
+    assert (
+        'pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm"'
+        in workflow
+    )
     assert "| API Health | [${url}/api/health](${url}/api/health) |" in workflow
 
     assert 'wait_for_endpoint "API Health" "$BASE_URL/api/health"' in smoke

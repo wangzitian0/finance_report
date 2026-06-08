@@ -511,7 +511,9 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "python tools/wait_post_merge_train_turn.py" in workflow
     assert "--timeout-seconds 21600" in workflow
     assert "name: Classify staging and AI/OCR relevance" in workflow
-    assert "staging_required: ${{ steps.classify.outputs.staging_required }}" in workflow
+    assert (
+        "staging_required: ${{ steps.classify.outputs.staging_required }}" in workflow
+    )
     assert (
         "staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
         not in workflow
@@ -737,9 +739,17 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     assert "staging-deploy-test-context" in staging
     assert "test-results/staging-core-e2e.xml" in staging
     assert "ci-context/staging-deploy-context.txt" in staging
-    assert "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}" in staging
-    assert "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}" in staging
-    assert "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}" in staging
+    assert (
+        "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}"
+        in staging
+    )
+    assert (
+        "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}" in staging
+    )
+    assert (
+        "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
+        in staging
+    )
     assert "staging-ai-ocr-test-context" in staging
     assert "test-results/staging-ai-ocr-version.xml" in staging
     assert "test-results/staging-ai-ocr-gate.xml" in staging
@@ -821,9 +831,15 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert "Target SHA: ${TARGET_SHA}" in workflow
     assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
-    assert 'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"' in workflow
+    assert (
+        'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"'
+        in workflow
+    )
     assert 'failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"' in workflow
-    assert 'failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"' in workflow
+    assert (
+        'failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"'
+        in workflow
+    )
     assert "Build/deploy result: ${build_result}" in workflow
     assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
     assert "Build/deploy failed step: ${failed_step:-unknown}" in workflow
@@ -853,23 +869,33 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
 
     assert "post-merge-delivery:" in workflow
     assert "name: Post-merge Delivery" in workflow
-    assert (
-        "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert]"
-    ) in workflow
+    assert ("needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert]") in workflow
     assert "Aggregate post-merge delivery result" in workflow
     assert (
         'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"'
         in workflow
     )
-    assert 'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"' in workflow
+    assert (
+        'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"'
+        in workflow
+    )
     assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
     assert 'alert_result="${{ needs.staging-deploy-alert.result }}"' in workflow
-    assert 'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"' in workflow
+    assert (
+        'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"'
+        in workflow
+    )
     assert 'failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"' in workflow
-    assert 'failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"' in workflow
+    assert (
+        'failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"'
+        in workflow
+    )
     assert 'delivery_status="skipped-no-staging-required"' in workflow
-    assert '[ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]' in workflow
+    assert (
+        '[ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]'
+        in workflow
+    )
     assert 'failure_reason="build/deploy gate failed"' in workflow
     assert 'failure_reason="staging AI/OCR gate failed"' in workflow
     assert 'failure_reason="staging alert job failed"' in workflow
@@ -878,9 +904,12 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     assert "Build/deploy failed step: ${failed_step:-unknown}" in workflow
     assert "Build/deploy failure summary: ${failure_summary:-unknown}" in workflow
     assert "Post-merge delivery failed" in workflow
-    assert "exit 1" in workflow.split("post-merge-delivery:", 1)[1].split(
-        "post-merge-summary:", 1
-    )[0]
+    assert (
+        "exit 1"
+        in workflow.split("post-merge-delivery:", 1)[1].split("post-merge-summary:", 1)[
+            0
+        ]
+    )
     assert (
         "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert, "
         "post-merge-delivery]"
@@ -1087,6 +1116,46 @@ def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
     )
     assert "Generated API reference" in ci_cd
     assert "FastAPI OpenAPI" in ci_cd
+
+
+def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
+    """AC8.13.53: PR CI avoids Moon bootstrap when direct commands suffice."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "moonrepo/setup-toolchain@v0" not in workflow
+    assert "moon run :build" not in workflow
+    assert "Build Frontend (via Moon)" not in workflow
+
+    backend_block = workflow.split("  backend:", 1)[1].split(
+        "  backend-integration:",
+        1,
+    )[0]
+    integration_block = workflow.split("  backend-integration:", 1)[1].split(
+        "  backend-e2e-tier1:",
+        1,
+    )[0]
+    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
+        "  frontend:",
+        1,
+    )[0]
+    frontend_block = workflow.split("  frontend:", 1)[1].split(
+        "  container-images:",
+        1,
+    )[0]
+
+    assert "moonrepo/setup-toolchain@v0" not in backend_block
+    assert "moonrepo/setup-toolchain@v0" not in integration_block
+    assert "moonrepo/setup-toolchain@v0" not in tier1_block
+    assert "moonrepo/setup-toolchain@v0" not in frontend_block
+    assert "name: Build Frontend" in frontend_block
+    assert "run: npm run build" in frontend_block
+    assert "working-directory: apps/frontend" in frontend_block
+    assert "PR CI avoids Moon bootstrap" in ci_cd
+    assert "direct `pytest` and `npm` commands" in ci_cd
+    assert (
+        "Moon CLI availability and project graph coverage are static contracts" in ci_cd
+    )
 
 
 def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
@@ -1927,11 +1996,11 @@ def test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run() -> N
     ]:
         assert expected_line in deploy_context
 
-    failure_context = workflow.split(
-        "Classify staging deploy failure context", 1
-    )[1].split("Write staging deploy context", 1)[0]
+    failure_context = workflow.split("Classify staging deploy failure context", 1)[
+        1
+    ].split("Write staging deploy context", 1)[0]
     for expected_line in [
-        'id: deploy_failure_context',
+        "id: deploy_failure_context",
         '"runner/docker-buildx-bootstrap"',
         '"registry/backend-image-resolution"',
         '"image-build/backend"',
@@ -1989,7 +2058,7 @@ def test_AC8_13_45_root_moon_tasks_do_not_hash_repo_submodule() -> None:
 
 
 def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
-    """AC8.13.46: PR preview non-LLM E2E mirrors staging strictness and workers."""
+    """AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
     preview = read(".github/workflows/pr-test.yml")
     staging = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
@@ -2003,9 +2072,17 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
 
     for block in (preview_block, staging_block):
         assert "STRICT_E2E_GATES: true" in block
-        assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in block
+        assert '-m "(smoke or e2e) and not llm" -n 4' in block
 
-    assert "PR preview non-LLM E2E mirrors the staging non-LLM command shape" in ci_cd
+    assert "PR_PREVIEW_E2E_TESTS=(" in preview_block
+    assert "tests/e2e/test_core_journeys.py" in preview_block
+    assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in preview_block
+    assert 'pytest "${PR_PREVIEW_E2E_TESTS[@]}"' in preview_block
+    assert "pytest tests/e2e -v" not in preview_block
+
+    assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in staging_block
+
+    assert "PR preview non-LLM E2E is a strict preview-relevant subset" in ci_cd
 
 
 def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
@@ -2058,21 +2135,26 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "latest_deployment_logPath:" in deploy_script
     assert "raw_deployment_printed: false" in deploy_script
     assert "Dokploy deployment observed" in deploy_script
-    assert 'DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600' in deploy_script
-    assert 'DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS:-120' in deploy_script
+    assert "DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600" in deploy_script
+    assert "DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS:-120" in deploy_script
     assert "did not create a new deployment before readiness polling" in deploy_script
     assert "retrying with compose.redeploy" in deploy_script
     assert 'deploy_compose "compose.redeploy" "Redeployment trigger"' in deploy_script
     assert "Dokploy redeploy did not expose a new deployment record" in deploy_script
     assert "proceeding to target SHA health check" not in deploy_script
     assert "entered error before creating a new deployment record" in deploy_script
-    assert 'return 3' in deploy_script
+    assert "return 3" in deploy_script
     assert 'rollout_status" -eq 2 || "$rollout_status" -eq 3' in deploy_script
-    assert "Dokploy redeploy left compose in error without a new deployment record" in deploy_script
+    assert (
+        "Dokploy redeploy left compose in error without a new deployment record"
+        in deploy_script
+    )
     assert "render_dokploy_rollout_summary" in deploy_script
     assert "raw_deployment_printed: false" in deploy_script
     assert 'latest_status" == "done"' in deploy_script
-    assert 'latest_status" == "running" || "$latest_status" == "done"' not in deploy_script
+    assert (
+        'latest_status" == "running" || "$latest_status" == "done"' not in deploy_script
+    )
     assert deploy_script.index('deploy_compose "compose.deploy"') < deploy_script.index(
         'wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"'
     )
@@ -2092,16 +2174,27 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
 def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> None:
     """AC8.13.72: staging rollout parsing handles Dokploy shape drift clearly."""
     deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
-    function_block = "deployment_ids_from_response()" + deploy_script.split(
-        "deployment_ids_from_response()", 1
-    )[1].split("wait_for_dokploy_deployment_rollout()", 1)[0]
+    function_block = (
+        "deployment_ids_from_response()"
+        + deploy_script.split("deployment_ids_from_response()", 1)[1].split(
+            "wait_for_dokploy_deployment_rollout()", 1
+        )[0]
+    )
 
     response = json.dumps(
         {
             "deployments": [
-                {"deploymentId": 123, "status": "running", "createdAt": "2026-01-01T00:00:00Z"},
+                {
+                    "deploymentId": 123,
+                    "status": "running",
+                    "createdAt": "2026-01-01T00:00:00Z",
+                },
                 "not-a-deployment-object",
-                {"deploymentId": "dep-456", "status": "done", "finishedAt": "2026-01-01T00:01:00Z"},
+                {
+                    "deploymentId": "dep-456",
+                    "status": "done",
+                    "finishedAt": "2026-01-01T00:01:00Z",
+                },
             ]
         }
     )
@@ -2144,12 +2237,24 @@ printf 'non_array_count=%s\\n' "$(deployment_count_from_response "$non_array_res
         "non_array=",
         "non_array_count=0",
     ]
-    assert "select(type == \"object\")" in deploy_script
+    assert 'select(type == "object")' in deploy_script
     assert "local deploy_payload" in deploy_script
-    assert 'new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1' in deploy_script
-    assert 'latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1' in deploy_script
-    assert 'previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1' in deploy_script
-    assert 'deployment_count=$(deployment_count_from_response "$rollout_response") || exit 1' in deploy_script
+    assert (
+        'new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1'
+        in deploy_script
+    )
+    assert (
+        'latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1'
+        in deploy_script
+    )
+    assert (
+        'previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1'
+        in deploy_script
+    )
+    assert (
+        'deployment_count=$(deployment_count_from_response "$rollout_response") || exit 1'
+        in deploy_script
+    )
 
 
 def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> None:
@@ -2158,21 +2263,32 @@ def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> 
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "Dokploy redeploy did not expose a new deployment record" in deploy_script
-    assert "target SHA health check" not in deploy_script.split(
-        'if [[ "$rollout_status" -eq 2 ]]; then', 1
-    )[1].split('elif [[ "$rollout_status" -eq 3 ]]; then', 1)[0]
-    assert 'exit "$rollout_status"' in deploy_script.split(
-        'if [[ "$rollout_status" -eq 2 ]]; then', 1
-    )[1].split('elif [[ "$rollout_status" -eq 3 ]]; then', 1)[0]
-    assert "fails before application readiness when no deployment record materializes" in ci_cd
+    assert (
+        "target SHA health check"
+        not in deploy_script.split('if [[ "$rollout_status" -eq 2 ]]; then', 1)[
+            1
+        ].split('elif [[ "$rollout_status" -eq 3 ]]; then', 1)[0]
+    )
+    assert (
+        'exit "$rollout_status"'
+        in deploy_script.split('if [[ "$rollout_status" -eq 2 ]]; then', 1)[1].split(
+            'elif [[ "$rollout_status" -eq 3 ]]; then', 1
+        )[0]
+    )
+    assert (
+        "fails before application readiness when no deployment record materializes"
+        in ci_cd
+    )
 
 
-def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unknown_failures() -> None:
+def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unknown_failures() -> (
+    None
+):
     """AC8.13.108: staging failure context does not hide real failures as skips."""
     workflow = read(".github/workflows/staging-deploy.yml")
-    failure_context = workflow.split(
-        "Classify staging deploy failure context", 1
-    )[1].split("Write staging deploy context", 1)[0]
+    failure_context = workflow.split("Classify staging deploy failure context", 1)[
+        1
+    ].split("Write staging deploy context", 1)[0]
 
     for step_id in [
         "checkout",
@@ -2189,13 +2305,19 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
 
     assert '"classification"' in failure_context
     assert '"change-classification"' in failure_context
-    assert "Change classification failed before staging relevance could be trusted." in failure_context
+    assert (
+        "Change classification failed before staging relevance could be trusted."
+        in failure_context
+    )
     assert '"toolchain/moon-install"' in failure_context
     assert '"toolchain/uv-install"' in failure_context
     assert '"toolchain/python-setup"' in failure_context
     assert '"registry/login"' in failure_context
     assert '"unclassified-build-deploy-failure"' in failure_context
-    assert "A build/deploy job step failed outside the known failure map." in failure_context
+    assert (
+        "A build/deploy job step failed outside the known failure map."
+        in failure_context
+    )
     assert "STEPS_CONTEXT: ${{ toJSON(steps) }}" in failure_context
     assert 'grep -q \'"outcome":"failure"\'' in failure_context
     assert failure_context.index('"change-classification"') < failure_context.index(
@@ -2404,8 +2526,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert "post-merge-summary:" in deploy_workflow
     assert (
         "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert, "
-        "post-merge-delivery]"
-        in deploy_workflow
+        "post-merge-delivery]" in deploy_workflow
     )
     assert "Write post-merge timing summary" in deploy_workflow
     assert '--title "Post-merge Timing Summary"' in deploy_workflow

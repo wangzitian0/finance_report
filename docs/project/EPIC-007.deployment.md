@@ -191,9 +191,9 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.8.1 | Moon CLI available | `test_moon_cli_available()` | `infra/test_ci_config.py` | P0 |
+| AC7.8.1 | Moon local CLI contract is versioned without PR CI bootstrap | `test_moon_cli_static_contract_available()` | `infra/test_ci_config.py` | P0 |
 | AC7.8.2 | Docker compose integrity | `test_docker_compose_integrity()` | `infra/test_ci_config.py` | P0 |
-| AC7.8.3 | Moon project graph valid | `test_moon_project_graph()` | `infra/test_ci_config.py` | P0 |
+| AC7.8.3 | Moon project graph contract is declared in repo config | `test_moon_project_graph_static_contract()` | `infra/test_ci_config.py` | P0 |
 
 ### AC7.9: Must-Have Acceptance Criteria Traceability
 

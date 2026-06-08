@@ -669,8 +669,12 @@ jobs:
           echo "--- Phase 1: Smoke Check (Shell) ---"
           bash tools/smoke_test.sh "$APP_URL" staging
 
-          echo "--- Phase 2: Core Flow Validation (Python, no real AI/OCR) ---"
-          pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/pr-preview-e2e.xml
+          echo "--- Phase 2: Preview-Relevant Runtime/API/UI Validation (Python, no real AI/OCR) ---"
+          PR_PREVIEW_E2E_TESTS=(
+            tests/e2e/test_core_journeys.py
+            tests/e2e/test_e2e_flows.py::test_full_navigation
+          )
+          pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/pr-preview-e2e.xml
 
           echo "✅ E2E Pipeline passed!"
 

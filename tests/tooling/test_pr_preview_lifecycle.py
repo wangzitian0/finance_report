@@ -434,7 +434,9 @@ def test_AC8_13_102_rollout_poll_retries_transient_dokploy_api_failure(
         nonlocal calls
         calls += 1
         if calls == 1:
-            raise RuntimeError("Dokploy request failed for compose.one?api_key=secret")
+            raise lifecycle.DokployRequestError(
+                "Dokploy request failed for compose.one?api_key=secret"
+            )
         return {
             "composeStatus": "done",
             "deployments": [{"deploymentId": "new-dep", "status": "done"}],
@@ -1984,9 +1986,7 @@ def test_AC8_13_101_pr_test_workflow_uses_commit_scoped_preview_url() -> None:
     assert 'context_app_url="${APP_URL}"' in deploy_block
     assert 'context_app_url="$(read_deploy_context_field app_url)"' in deploy_block
     assert 'echo "app_url=${context_app_url}"' in deploy_block
-    assert "api_health_url=${context_app_url}/api/health" in (
-        deploy_block
-    )
+    assert "api_health_url=${context_app_url}/api/health" in (deploy_block)
     assert deploy_block.count("APP_URL: ${{ steps.deploy.outputs.app_url }}") >= 4
     assert "https://report-pr-${{ needs.setup.outputs.pr_number }}" not in deploy_block
 
@@ -2182,11 +2182,11 @@ def test_AC8_13_102_api_call_retries_transient_failures_on_get(
 def test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.102: cleanup_action and delete_action ignore API exceptions and return 0."""
+    """AC8.13.102: cleanup_action and delete_action ignore Dokploy API exceptions."""
     lifecycle = lifecycle_module()
 
     def fake_find_compose_id(*args: object, **kwargs: object) -> str:
-        raise RuntimeError("Transient API connection failure")
+        raise lifecycle.DokployRequestError("Transient API connection failure")
 
     monkeypatch.setattr(lifecycle, "find_compose_id_by_name", fake_find_compose_id)
 
@@ -2218,9 +2218,9 @@ def test_AC8_13_102_dokploy_api_call_invalid_retry_delay_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.102: Fallback to default retry delay when DOKPLOY_API_RETRY_DELAY_SECONDS is invalid."""
-    import time
     lifecycle = lifecycle_module()
     calls = 0
+    sleeps: list[float] = []
 
     def fake_run_command(
         cmd: list[str], *, check: bool = True
@@ -2242,20 +2242,18 @@ def test_AC8_13_102_dokploy_api_call_invalid_retry_delay_fallback(
         )
 
     monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: sleeps.append(seconds))
     # Set to invalid float
     monkeypatch.setenv("DOKPLOY_API_RETRY_DELAY_SECONDS", "invalid-float")
 
-    start_time = time.monotonic()
     res = lifecycle.dokploy_api_call(
         lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
         "GET",
         "environment.one?environmentId=env-1",
     )
-    end_time = time.monotonic()
     assert res == '{"ok":true}'
     assert calls == 2
-    # Verify delay fallback (it should sleep 2.0s)
-    assert end_time - start_time >= 1.9
+    assert sleeps == [2.0]
 
 
 def test_AC8_13_102_dokploy_api_call_non_transient_curl_error_does_not_retry(
@@ -2294,16 +2292,15 @@ def test_AC8_13_102_dokploy_api_call_non_transient_curl_error_does_not_retry(
 def test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.102: Non-RuntimeError exceptions are not swallowed by cleanup_action and delete_action."""
+    """AC8.13.102: Non-Dokploy exceptions are not swallowed by cleanup/delete."""
     lifecycle = lifecycle_module()
 
     def fake_find_compose_id(*args: object, **kwargs: object) -> str:
-        # A programming/TypeError, not a RuntimeError
-        raise TypeError("Unexpected argument type")
+        raise RuntimeError("Unexpected lifecycle bug")
 
     monkeypatch.setattr(lifecycle, "find_compose_id_by_name", fake_find_compose_id)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(RuntimeError):
         lifecycle.cleanup_action(
             SimpleNamespace(
                 api_url="https://cloud.example/api",
@@ -2314,7 +2311,7 @@ def test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions
             )
         )
 
-    with pytest.raises(TypeError):
+    with pytest.raises(RuntimeError):
         lifecycle.delete_action(
             SimpleNamespace(
                 api_url="https://cloud.example/api",
@@ -2324,4 +2321,3 @@ def test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions
                 compose_name="pr-123",
             )
         )
-

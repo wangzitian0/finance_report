@@ -93,6 +93,10 @@ class DokployDeploymentFailed(RuntimeError):
     """Dokploy created a deployment record but the rollout failed."""
 
 
+class DokployRequestError(RuntimeError):
+    """Dokploy API request failed after applying the bounded retry policy."""
+
+
 def run_command(
     cmd: list[str],
     *,
@@ -428,6 +432,15 @@ def _safe_message(body: str) -> str:
     return "unavailable"
 
 
+def dokploy_api_retry_delay_seconds() -> float:
+    raw_value = os.environ.get("DOKPLOY_API_RETRY_DELAY_SECONDS", "2.0")
+    try:
+        retry_delay = float(raw_value)
+    except ValueError:
+        return 2.0
+    return retry_delay if retry_delay >= 0 else 2.0
+
+
 def dokploy_api_call(
     config: DokployConfig,
     method: str,
@@ -437,11 +450,7 @@ def dokploy_api_call(
     expected_status: int = 200,
 ) -> str:
     max_attempts = 4 if method == "GET" else 1
-    retry_delay_str = os.environ.get("DOKPLOY_API_RETRY_DELAY_SECONDS", "2.0")
-    try:
-        retry_delay = float(retry_delay_str)
-    except ValueError:
-        retry_delay = 2.0
+    retry_delay = dokploy_api_retry_delay_seconds()
 
     for attempt in range(1, max_attempts + 1):
         config_file = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False)
@@ -491,12 +500,16 @@ def dokploy_api_call(
             body = result.stdout
 
         is_transient = (result.returncode == 28) or (status in (500, 502, 503, 504))
-        if (result.returncode != 0 or status != expected_status) and (attempt < max_attempts) and is_transient:
+        if (
+            (result.returncode != 0 or status != expected_status)
+            and (attempt < max_attempts)
+            and is_transient
+        ):
             print(
                 f"Dokploy API call failed (attempt {attempt}/{max_attempts}): "
                 f"endpoint={endpoint} http_code={status or '000'} "
                 f"returncode={result.returncode}. Retrying in {retry_delay}s...",
-                file=sys.stderr
+                file=sys.stderr,
             )
             time.sleep(retry_delay)
             continue
@@ -508,10 +521,10 @@ def dokploy_api_call(
             print("raw_body_printed: false", file=sys.stderr)
             if result.stderr:
                 print(result.stderr.strip(), file=sys.stderr)
-            raise RuntimeError(f"Dokploy request failed for {endpoint}")
+            raise DokployRequestError(f"Dokploy request failed for {endpoint}")
         return body
 
-    raise RuntimeError(f"Dokploy request failed for {endpoint}")
+    raise DokployRequestError(f"Dokploy request failed for {endpoint}")
 
 
 def find_compose_id_by_name(
@@ -780,7 +793,7 @@ def wait_for_dokploy_deployment_rollout(
         now = time.monotonic()
         try:
             data = get_compose_data(config, compose_id=compose_id)
-        except RuntimeError as exc:
+        except DokployRequestError as exc:
             if now >= deadline:
                 raise
             print(
@@ -1089,10 +1102,10 @@ def cleanup_action(args: argparse.Namespace) -> int:
             delete_compose(config, compose_id=compose_id)
         else:
             print(f"Compose not found: {args.compose_name}")
-    except RuntimeError as exc:
+    except DokployRequestError as exc:
         print(
             f"WARNING: Cleanup action failed for {args.compose_name} (ignoring): {exc}",
-            file=sys.stderr
+            file=sys.stderr,
         )
     return 0
 
@@ -1109,10 +1122,10 @@ def delete_action(args: argparse.Namespace) -> int:
             print(f"Compose not found: {args.compose_name}")
             return 0
         delete_compose(config, compose_id=compose_id)
-    except RuntimeError as exc:
+    except DokployRequestError as exc:
         print(
             f"WARNING: Delete action failed for {args.compose_name} (ignoring): {exc}",
-            file=sys.stderr
+            file=sys.stderr,
         )
     return 0
 
