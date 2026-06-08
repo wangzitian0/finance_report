@@ -74,6 +74,8 @@ Non-`push`, failed, cancelled, timed-out, or non-main CI workflow runs write a
 skipped summary before FIFO wait, image promotion, Dokploy rollout, smoke tests,
 or AI/OCR validation can run.
 
+The production release workflow strictly promotes the staging-validated image digest to the release version tag (`vX.Y.Z`) instead of rebuilding from source. This creates a promote-not-rebuild consistency ladder: `pr (SHA image) → staging (promotes SHA to staging tag, validates digest) → prod (promotes staging-validated SHA to version tag)`. By keeping the exact same image digest across all three environments, we eliminate drift from base images, build-time dependencies, or workflow changes, ensuring that production only runs artifacts that have been fully tested and validated.
+
 The staging deploy gate separates platform rollout from application readiness.
 `tools/dokploy_deploy.sh` updates the allowlisted Dokploy environment, triggers
 `compose.deploy`, then waits up to 600 seconds for a new Dokploy deployment
@@ -88,12 +90,12 @@ health timeout.
 
 ```yaml
 Triggers:
-  - Tag push (v*.*.*): Build release images
+  - Tag push (v*.*.*): Promote staging-validated images
   - Manual dispatch:   Deploy to production
   - Manual dry-run:    Validate release prerequisites without deploy
 
-Build job:  Tag → Verify successful main CI for SHA → Release lint → Build backend + frontend → Push to GHCR
-Dry-run:    Manual → Verify successful main CI for SHA → Release lint → Build production images with push=false → Skip Dokploy
+Build job:  Tag → Verify successful main CI for SHA → Verify successful staging run → Release lint → Promote staging-validated SHA images to version tag → Skip rebuild
+Dry-run:    Manual → Verify successful main CI for SHA → Verify successful staging run → Release lint → Verify SHA images exist and fetch digests → Skip promotion and rebuild
 Deploy job: Verify images → Deploy → Health (4min) → Smoke test
 
 URL: https://report.zitian.party

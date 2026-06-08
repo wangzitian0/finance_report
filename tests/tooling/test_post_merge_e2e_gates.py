@@ -994,14 +994,15 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "--workflow ci.yml" in workflow
     assert '--commit "$GITHUB_SHA"' in workflow
     assert '.headBranch == "main"' in workflow
-    assert "push: false" in workflow
+    assert "Verify SHA Images Dry Run" in workflow
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
     assert "environment:" not in dry_run_section
     assert "dokploy_deploy.sh" not in dry_run_section
     assert "inputs.dry_run" in workflow.split("deploy:", 1)[1].split("steps:", 1)[0]
     assert "Production release dry-run" in ci_cd
-    assert "without changing Dokploy or production tags" in ci_cd
+    assert "Verify SHA Images Dry Run" in workflow
+    assert "docker buildx imagetools create" not in dry_run_section
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
@@ -1235,27 +1236,16 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
     app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
 
-    backend_build_blocks = re.findall(
-        r"- name: Build Backend(?: Image Without Push)?\n(?:(?!\n      - name:).)*",
-        workflow,
-        flags=re.S,
+    # In the promote-not-rebuild pattern, we promote staging-validated images instead of rebuilding.
+    # We verify that promotion uses docker buildx imagetools create.
+    promote_blocks = re.findall(
+        r"docker buildx imagetools create --tag",
+        workflow
     )
-    assert len(backend_build_blocks) == 2
-    for block in backend_build_blocks:
-        assert "context: ./apps/backend" in block
-        assert "build-args:" in block
-        assert "GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}" in block
+    assert len(promote_blocks) == 2
 
-    frontend_build_blocks = re.findall(
-        r"- name: Build Frontend(?: Image Without Push)?\n(?:(?!\n      - name:).)*",
-        workflow,
-        flags=re.S,
-    )
-    assert len(frontend_build_blocks) == 2
-    for block in frontend_build_blocks:
-        assert "context: ./apps/frontend" in block
-        assert "build-args:" in block
-        assert "GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}" in block
+    assert "Verify staging passed" in workflow
+    assert "Verify SHA Images Dry Run" in workflow
 
     config_hash_update = 'new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" "deploy-${IMAGE_TAG}-$(date +%s)")'
     assert config_hash_update in deploy_script
@@ -1269,6 +1259,37 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     assert app_compose.index("backend:") < app_compose.index(
         "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}"
     )
+
+
+def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
+    """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
+    workflow = read(".github/workflows/production-release.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    deployment = read("docs/ssot/deployment.md")
+
+    # AC7.10.1: promotes staging-validated image instead of rebuilding
+    assert "docker buildx imagetools create --tag" in workflow
+    assert "docker/build-push-action" not in workflow
+
+    # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
+    assert "Verify staging passed" in workflow
+    assert "docker buildx imagetools inspect" in workflow
+    assert 'backend_sha_digest" != "$backend_promoted_digest' in workflow
+    assert 'frontend_sha_digest" != "$frontend_promoted_digest' in workflow
+
+    # AC7.10.3: summary records released commit, source CI run, digest, and no rebuild
+    assert "Released commit: ${{ github.sha }}" in workflow
+    assert "Source CI run: ${{ env.staging_run_id }}" in workflow
+    assert "Promoted backend image digest" in workflow
+    assert "No rebuild occurred" in workflow
+
+    # AC7.10.4: SSOTs document promote-not-rebuild consistency ladder
+    assert "promote-not-rebuild consistency ladder" in deployment
+    assert "promote-not-rebuild consistency ladder" in ci_cd
+
+    # AC7.10.5: workflow_dispatch dry-run proves promote path without mutating
+    assert "Verify SHA Images Dry Run" in workflow
+    assert "dry_run:" in workflow
 
 
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
