@@ -960,7 +960,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
     def fake_wait_for_rollout(*args: object, **kwargs: object) -> None:
         nonlocal wait_calls
         wait_calls += 1
-        assert kwargs.get("new_deployment_timeout_seconds") == 120
+        assert kwargs.get("new_deployment_timeout_seconds") == 300
         if wait_calls == 1:
             raise lifecycle.DokployDeploymentDidNotStart("queued deploy was lost")
 

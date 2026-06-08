@@ -384,7 +384,7 @@ jobs:
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.
           run_timed_phase "Phase 2: Core Flow Validation (Python)" \
-            pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/staging-core-e2e.xml
+            pytest tests/e2e --ignore=tests/e2e/test_version_check.py -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/staging-core-e2e.xml
 
           echo "✅ Staging deploy health gate passed!"
 

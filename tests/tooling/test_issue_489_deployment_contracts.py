@@ -317,7 +317,10 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "::notice::API route is still unavailable after frontend served" in readiness_block
     assert 'url = app_url + "/api/health"' in workflow
     assert "bash tools/smoke_test.sh" in workflow
-    assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm"' in workflow
+    assert (
+        "pytest tests/e2e --ignore=tests/e2e/test_version_check.py "
+        '-v -m "(smoke or e2e) and not llm"'
+    ) in workflow
     assert "| API Health | [${url}/api/health](${url}/api/health) |" in workflow
 
     assert 'wait_for_endpoint "API Health" "$BASE_URL/api/health"' in smoke

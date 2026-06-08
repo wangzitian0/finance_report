@@ -2003,9 +2003,13 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
 
     for block in (preview_block, staging_block):
         assert "STRICT_E2E_GATES: true" in block
-        assert 'pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4' in block
+        assert (
+            "pytest tests/e2e --ignore=tests/e2e/test_version_check.py "
+            '-v -m "(smoke or e2e) and not llm" -n 4'
+        ) in block
 
     assert "PR preview non-LLM E2E mirrors the staging non-LLM command shape" in ci_cd
+    assert "Deploy-smoke version checks are excluded from the parallel non-LLM E2E subset" in ci_cd
 
 
 def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
