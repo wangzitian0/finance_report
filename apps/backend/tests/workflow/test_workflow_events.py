@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.models import BankStatement, BankStatementStatus, User
+from src.models import BankStatement, BankStatementStatus, Stage1Status, User
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -126,6 +126,27 @@ def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
 
     assert "AC19.8.1" in epic
     assert "AC19.8.8" in epic
+
+
+def test_AC19_12_1_lightweight_derivation_boundary_is_documented() -> None:
+    """AC19.12.1: workflow events stay lightweight and user-facing."""
+    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
+    normalized_ssot = " ".join(ssot.split())
+
+    for phrase in (
+        "AC19.12 completes the first lightweight user-facing derivation set",
+        "not a low-level event log",
+        "normalized owner tables",
+        "What needs my action now?",
+        "Processing account blockers exposed through package readiness",
+        "archive mutable derived action/blocker events when the underlying condition is resolved",
+    ):
+        assert phrase in normalized_ssot
+
+    assert "AC19.12 — Lightweight Workflow Derivation Completion" in epic
+    assert "AC19.12.1" in epic
+    assert "AC19.12.6" in epic
 
 
 def test_AC19_8_2_workflow_session_model_contract() -> None:
@@ -459,6 +480,320 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
 
 
 @pytest.mark.asyncio
+async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
+    """AC19.12.2 AC19.12.6: review events are idempotent, current, and lifecycle-safe."""
+    statement = BankStatement(
+        user_id=test_user.id,
+        file_path="statements/review.csv",
+        file_hash="1" * 64,
+        original_filename="review.csv",
+        institution="Review Bank",
+        status=BankStatementStatus.PARSED,
+        stage1_status=Stage1Status.PENDING_REVIEW,
+    )
+    db.add(statement)
+    await db.flush()
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+        )
+    ).scalar_one()
+    review_event.status = WorkflowEventStatus.READ
+    await db.flush()
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    same_review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+        )
+    ).scalar_one()
+    assert same_review_event.id == review_event.id
+    assert same_review_event.status == WorkflowEventStatus.READ
+    assert same_review_event.severity == WorkflowEventSeverity.ACTION_REQUIRED
+    assert same_review_event.action_href == "/review"
+
+    statement.stage1_status = Stage1Status.APPROVED
+    statement.stage1_reviewed_at = datetime.now(UTC)
+    await db.flush()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+
+    resolved_review_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_REQUIRED)
+        )
+    ).scalar_one()
+    completed_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REVIEW_COMPLETED)
+        )
+    ).scalar_one()
+    assert resolved_review_event.status == WorkflowEventStatus.ARCHIVED
+    assert completed_event.status == WorkflowEventStatus.UNREAD
+    assert completed_event.severity == WorkflowEventSeverity.SUCCESS
+    assert completed_event.action_href == f"/statements/{statement.id}"
+
+
+@pytest.mark.asyncio
+async def test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers(
+    db,
+    test_user,
+    monkeypatch,
+) -> None:
+    """AC19.12.3 AC19.12.6: readiness events follow package state and archive stale blockers."""
+    blocker_payload = {
+        "state": "blocked",
+        "action_href": "/review",
+        "blocking_count": 2,
+        "blockers": [
+            {
+                "code": "pending_review",
+                "label": "Pending source review",
+                "count": 2,
+                "reason": "Statement review must be completed before the package can be marked ready.",
+                "action_href": "/review",
+            }
+        ],
+    }
+    ready_payload = {
+        "state": "ready",
+        "action_href": "/reports/package",
+        "blocking_count": 0,
+        "blockers": [],
+    }
+    generated_payload = {
+        "state": "generated",
+        "action_href": "/reports/package",
+        "blocking_count": 0,
+        "blockers": [],
+    }
+    current_payload = blocker_payload
+
+    async def fake_readiness(_db, **_kwargs):
+        return current_payload
+
+    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    blocked_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+    blocked_event.status = WorkflowEventStatus.READ
+    await db.flush()
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    same_blocked_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+    assert same_blocked_event.id == blocked_event.id
+    assert same_blocked_event.status == WorkflowEventStatus.READ
+    assert same_blocked_event.report_impact == WorkflowReportImpact.BLOCKED
+
+    current_payload = ready_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    archived_blocker = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+    ready_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_READY)
+        )
+    ).scalar_one()
+    assert archived_blocker.status == WorkflowEventStatus.ARCHIVED
+    assert ready_event.status == WorkflowEventStatus.UNREAD
+    assert ready_event.action_href == "/reports/package"
+
+    current_payload = generated_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    generated_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_GENERATED)
+        )
+    ).scalar_one()
+    ready_event_after_generation = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_READY)
+        )
+    ).scalar_one()
+    assert generated_event.status == WorkflowEventStatus.UNREAD
+    assert generated_event.action_href == "/reports/package"
+    assert ready_event_after_generation.status == WorkflowEventStatus.ARCHIVED
+
+
+@pytest.mark.asyncio
+async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_payloads(
+    db,
+    test_user,
+    monkeypatch,
+) -> None:
+    """AC19.12.3 AC19.12.6: stale blockers archive when no current derived payload remains."""
+    blocker_payload = {
+        "state": "blocked",
+        "action_href": "/review",
+        "blocking_count": 1,
+        "blockers": [
+            {
+                "code": "pending_review",
+                "label": "Pending source review",
+                "count": 1,
+                "reason": "Statement review must be completed before the package can be marked ready.",
+                "action_href": "/review",
+            }
+        ],
+    }
+    empty_payload = {
+        "state": "draft",
+        "action_href": "/statements/upload",
+        "blocking_count": 0,
+        "blockers": [],
+    }
+    current_payload = blocker_payload
+
+    async def fake_readiness(_db, **_kwargs):
+        return current_payload
+
+    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    blocked_event = (
+        await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.user_id == test_user.id)
+            .where(WorkflowEvent.family == WorkflowEventFamily.REPORT_BLOCKED)
+        )
+    ).scalar_one()
+
+    current_payload = empty_payload
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+
+    assert blocked_event.status == WorkflowEventStatus.ARCHIVED
+
+
+@pytest.mark.asyncio
+async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_processing(
+    db,
+    test_user,
+    monkeypatch,
+) -> None:
+    """AC19.12.3: package readiness drives the primary open-report action once ready."""
+    db.add(
+        BankStatement(
+            user_id=test_user.id,
+            file_path="statements/ready.csv",
+            file_hash="2" * 64,
+            original_filename="ready.csv",
+            institution="Ready Bank",
+            status=BankStatementStatus.PARSED,
+            stage1_status=Stage1Status.APPROVED,
+            stage1_reviewed_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+
+    async def fake_readiness(_db, **_kwargs):
+        return {
+            "state": "ready",
+            "action_href": "/reports/package",
+            "blocking_count": 0,
+            "blockers": [],
+        }
+
+    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+
+    status = await get_workflow_status(db, user_id=test_user.id)
+
+    assert status.primary_state.value == "ready"
+    assert status.next_action.type.value == "open_report"
+    assert status.next_action.href == "/reports/package"
+
+
+@pytest.mark.asyncio
+async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
+    """AC19.12.4 AC19.12.6: reconciliation and Processing blockers are lightweight user actions."""
+
+    async def fake_readiness(_db, **_kwargs):
+        return {
+            "state": "blocked",
+            "action_href": "/reconciliation/review-queue",
+            "blocking_count": 3,
+            "blockers": [
+                {
+                    "code": "reconciliation_blocked",
+                    "label": "Reconciliation blockers",
+                    "count": 2,
+                    "reason": "Pending reconciliation matches must be accepted or rejected.",
+                    "action_href": "/reconciliation/review-queue",
+                },
+                {
+                    "code": "processing_account_unresolved",
+                    "label": "Processing account unresolved",
+                    "count": 1,
+                    "reason": "In-transit transfer legs must net to zero.",
+                    "action_href": "/accounts/processing",
+                },
+            ],
+        }
+
+    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events = (
+        (
+            await db.execute(
+                select(WorkflowEvent)
+                .where(WorkflowEvent.user_id == test_user.id)
+                .where(
+                    WorkflowEvent.family.in_(
+                        [WorkflowEventFamily.RECONCILIATION_BLOCKED, WorkflowEventFamily.REPORT_BLOCKED]
+                    )
+                )
+                .order_by(WorkflowEvent.family)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert [(event.family, event.action_href, event.source_type) for event in events] == [
+        (
+            WorkflowEventFamily.RECONCILIATION_BLOCKED,
+            "/reconciliation/review-queue",
+            "readiness_blocker",
+        ),
+        (WorkflowEventFamily.REPORT_BLOCKED, "/accounts/processing", "readiness_blocker"),
+    ]
+    assert all(event.severity == WorkflowEventSeverity.BLOCKED for event in events)
+    assert all(event.report_impact == WorkflowReportImpact.BLOCKED for event in events)
+
+
+@pytest.mark.asyncio
 async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, test_user) -> None:
     """AC19.3.1: derived sync avoids per-statement workflow event lookups."""
     from sqlalchemy import event as sqlalchemy_event
@@ -551,7 +886,11 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
 
     count_queries = [statement for statement in statements if "count(" in statement]
     representative_queries = [
-        statement for statement in statements if "select workflow_events." in statement and "count(" not in statement
+        statement
+        for statement in statements
+        if "select workflow_events." in statement
+        and "count(" not in statement
+        and "order by workflow_events.occurred_at desc" in statement
     ]
 
     assert status.primary_state.value == "needs_action"

@@ -436,11 +436,34 @@ lifecycle state. The synthetic active `WorkflowSession` creation path is
 concurrency-safe: overlapping status and event reads reuse the same
 `active-upload-to-report` session instead of surfacing duplicate-key 500s.
 
+AC19.12 completes the first lightweight user-facing derivation set. Workflow
+events are a product attention projection, not a low-level event log. Raw
+source, review, reconciliation, Processing account, report snapshot, and audit
+facts remain in their normalized owner tables. Workflow derivation only emits
+events that answer one of these user-facing questions:
+
+- What needs my action now?
+- What is blocking trusted report readiness?
+- Can I open a trusted report package?
+- What recent automation matters enough to summarize?
+
+The lightweight derivation set includes:
+
+- Stage 1 source review required and completed.
+- Statement parsing failure when user action is needed.
+- Reconciliation blockers that affect trusted report readiness.
+- Processing account blockers exposed through package readiness.
+- Report blocked and report ready states from package readiness.
+
+Workflow sync may archive mutable derived action/blocker events when the
+underlying condition is resolved so they no longer drive current inbox or
+status state. User read/archive lifecycle is otherwise preserved across
+repeated syncs, and sync must not unarchive a user-archived event.
+
 Future slices may add deterministic derivation for:
 
-- Stage 1 review required/completed.
-- Reconciliation blockers.
-- Processing-account blockers.
+- Additional routine automation summaries.
+- More granular source parsing progress when it is useful to users.
 
 Stage 2 run review uses workflow/session scope without changing event
 lifecycle semantics:
