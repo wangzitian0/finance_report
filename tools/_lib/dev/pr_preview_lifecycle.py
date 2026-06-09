@@ -74,6 +74,7 @@ PR_PREVIEW_SOURCE_TYPE = "github"
 PR_PREVIEW_REPOSITORY = "finance_report"
 PR_PREVIEW_OWNER = "wangzitian0"
 PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS = 120
+PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV = "PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS"
 DOKPLOY_API_CONNECT_TIMEOUT_SECONDS = 10
 DOKPLOY_API_MAX_TIME_SECONDS = 20
 PR_PREVIEW_CONTEXT_ENV = "PR_PREVIEW_CONTEXT_PATH"
@@ -110,6 +111,29 @@ def run_command(
         text=True,
         check=check,
     )
+
+
+def parse_positive_int_env(var_name: str, default: int) -> int:
+    """Return a positive integer from env, otherwise fallback to default."""
+
+    value = os.environ.get(var_name)
+    if value is None or value == "":
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        print(
+            f"Invalid value for {var_name}; expected integer. "
+            f"falling back to {default}."
+        )
+        return default
+    if parsed <= 0:
+        print(
+            f"Invalid value for {var_name}; expected positive integer. "
+            f"falling back to {default}."
+        )
+        return default
+    return parsed
 
 
 def parse_env(env_text: str) -> dict[str, str]:
@@ -226,6 +250,26 @@ def deployment_ids(deployments: object) -> set[str]:
         if deployment_id:
             ids.add(str(deployment_id))
     return ids
+
+
+def deployment_signatures(deployments: object) -> dict[str, tuple[str, str, str, str]]:
+    """Capture fields that change when a deployment record is actively updated."""
+
+    if not isinstance(deployments, list):
+        return {}
+    signatures: dict[str, tuple[str, str, str, str]] = {}
+    for deployment in deployments:
+        if not isinstance(deployment, dict):
+            continue
+        deployment_id = deployment.get("deploymentId")
+        if deployment_id:
+            signatures[str(deployment_id)] = (
+                str(deployment.get("status") or ""),
+                str(deployment.get("createdAt") or ""),
+                str(deployment.get("startedAt") or ""),
+                str(deployment.get("finishedAt") or ""),
+            )
+    return signatures
 
 
 def latest_new_deployment(
@@ -744,15 +788,16 @@ def deploy_compose_and_wait_for_rollout(
     compose_id: str,
     force_redeploy: bool,
 ) -> None:
-    previous_deployment_ids = deployment_ids(
-        get_compose_data(config, compose_id=compose_id).get("deployments")
-    )
+    compose_data = get_compose_data(config, compose_id=compose_id)
+    previous_deployment_ids = deployment_ids(compose_data.get("deployments"))
+    previous_deployment_signatures = deployment_signatures(compose_data.get("deployments"))
     deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
     print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
     wait_for_dokploy_deployment_rollout(
         config,
         compose_id=compose_id,
         previous_deployment_ids=previous_deployment_ids,
+        previous_deployment_signatures=previous_deployment_signatures,
     )
 
 
@@ -791,11 +836,13 @@ def wait_for_dokploy_deployment_rollout(
     *,
     compose_id: str,
     previous_deployment_ids: set[str] | None = None,
+    previous_deployment_signatures: dict[str, tuple[str, str, str, str]] | None = None,
     timeout_seconds: int = 900,
     new_deployment_timeout_seconds: int = 600,
     interval_seconds: int = 5,
 ) -> None:
     previous_deployment_ids = previous_deployment_ids or set()
+    previous_deployment_signatures = previous_deployment_signatures or {}
     started_at = time.monotonic()
     deadline = started_at + timeout_seconds
     new_deployment_deadline = started_at + min(
@@ -823,6 +870,17 @@ def wait_for_dokploy_deployment_rollout(
         deployment_count = len(deployments) if isinstance(deployments, list) else 0
         current_ids = deployment_ids(deployments)
         new_deployment_ids = sorted(current_ids - previous_deployment_ids)
+        current_deployment_signatures = deployment_signatures(deployments)
+        existing_deployment_updates = sorted(
+            deployment_id
+            for deployment_id in previous_deployment_ids
+            if (
+                deployment_id in current_deployment_signatures
+                and deployment_id in previous_deployment_signatures
+                and current_deployment_signatures[deployment_id]
+                != previous_deployment_signatures[deployment_id]
+            )
+        )
         if attempt == 1 or attempt % 6 == 0 or compose_status != "idle":
             print(
                 render_compose_summary(
@@ -853,6 +911,39 @@ def wait_for_dokploy_deployment_rollout(
             f"deployment_count={deployment_count} "
             f"new_deployment_ids={','.join(new_deployment_ids) or 'none'}"
         )
+        if (
+            not new_deployment_ids
+            and existing_deployment_updates
+            and compose_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES
+        ):
+            existing_latest = latest_new_deployment(
+                deployments, set(existing_deployment_updates)
+            ) or {}
+            existing_latest_id = str(
+                existing_latest.get("deploymentId")
+                or existing_deployment_updates[-1]
+            )
+            existing_latest_status = str(existing_latest.get("status") or "unknown")
+            print(
+                "Dokploy rollout observed as existing deployment record update: "
+                f"compose_id={compose_id} "
+                f"existing_deployment_ids={','.join(existing_deployment_updates)} "
+                f"latest_deployment_id={existing_latest_id} "
+                f"latest_deployment_status={existing_latest_status}"
+            )
+            if existing_latest_status == "error":
+                print(
+                    render_compose_summary(
+                        data,
+                        label=f"existing-deployment-error-attempt-{attempt}",
+                    )
+                )
+                raise DokployDeploymentFailed(
+                    "Dokploy deployment failed before readiness polling: "
+                    f"compose_id={compose_id} deployment_id={existing_latest_id}"
+                )
+            if existing_latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES:
+                return
         if new_deployment_ids:
             latest = latest_new_deployment(deployments, set(new_deployment_ids)) or {}
             latest_id = str(latest.get("deploymentId") or new_deployment_ids[-1])
@@ -1003,8 +1094,10 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
 
         def trigger_and_wait(*, force_redeploy: bool) -> None:
-            previous_deployment_ids = deployment_ids(
-                get_compose_data(config, compose_id=compose_id).get("deployments")
+            compose_data = get_compose_data(config, compose_id=compose_id)
+            previous_deployment_ids = deployment_ids(compose_data.get("deployments"))
+            previous_deployment_signatures = deployment_signatures(
+                compose_data.get("deployments")
             )
             deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
             print_compose_summary(
@@ -1021,7 +1114,11 @@ def deploy_action(args: argparse.Namespace) -> int:
                 config,
                 compose_id=compose_id,
                 previous_deployment_ids=previous_deployment_ids,
-                new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+                previous_deployment_signatures=previous_deployment_signatures,
+                new_deployment_timeout_seconds=parse_positive_int_env(
+                    PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+                    PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+                ),
             )
 
         def recreate_compose_before_retry() -> None:

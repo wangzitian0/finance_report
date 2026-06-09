@@ -274,6 +274,7 @@ jobs:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json
+          PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "300"
         run: |
           python tools/pr_preview_lifecycle.py \
             --action deploy \
