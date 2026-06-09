@@ -61,6 +61,53 @@ The next code simplification should remove the scalar compatibility shims after
 branch protection, required-check behavior, and any external ad hoc consumers
 are confirmed to rely only on the structured consumers.
 
+### Sparse matrix evidence audit
+
+June 9, 2026 evidence sample: the review checked the three newest successful
+and three newest failed available logs for each active delivery lane. Cancelled
+runs were ignored because they prove supersession behavior, not a gate result.
+
+| Lane | Three newest successful samples | Three newest failed samples | Observed signal |
+|---|---|---|---|
+| `CI` | `27186502313`, `27183789200`, `27183466331` | `27184608585`, `27183552389`, `27183418593` | Failures concentrated in deterministic pre-deploy gates, especially unified coverage, while successful runs kept lint, AC traceability, backend shards, integration, Tier-1 E2E, frontend, image dry-run, tooling coverage, unified coverage, and `finish` aligned. |
+| `PR Test Environment` | `27186502312`, `27183466349`, `27183418552` | `27184608593`, `27183789205`, `27183223104` | Failures concentrated in deploy/readiness before browser E2E. This supports keeping preview scoped to image, route, health/version, and provider-free UI/API subset proof. |
+| `Deploy Staging` | `27182443187`, `27150045338`, `27135967250` | `27136569205`, `27133497263`, `27115009456` | Failures were environment/deploy-health/E2E class failures, not first-time deterministic business-proof failures. Staging remains the right post-merge proof for exact merged SHA, real routing, Dokploy, GHCR, and provider wiring. |
+| `Staging AI/OCR Gate` | `26140468725`, `26139861002`, `26100318347` | `26099478674`, `26099042516`, `26097549636` | The gate is sparse and provider-backed. It should stay narrow because it spends external quota and validates provider realism after deterministic PR and staging proof. |
+| `Production Release` | `26636834757`, `26636314940`, `26635994623` | `26636451107`, `26632124221`, `26631695544` | Failures were release/deploy integrity issues such as stale version health mismatch, which is appropriate for production. Production should not become the first business-correctness proof. |
+
+Balance conclusion:
+
+- delivery-speed balance: local and PR stay fast because deterministic work runs
+  in parallel after classification, PR preview is deploy-relevant only, staging
+  consumes successful `main` SHAs, and production promotes previously validated
+  images.
+- end-to-end consistency: version/SHA checks connect PR images, preview URLs,
+  staging image promotion, and production release health so stale deployments
+  cannot silently satisfy a newer gate.
+- quality fallback: PR `finish` remains the merge authority for deterministic
+  behavior, staging proves real infrastructure/provider paths, and production
+  proves release integrity and availability only.
+
+resource leak candidates:
+
+- PR preview Dokploy compose, network, container, and volume leftovers when PRs
+  close, deploy creation fails before a deployment record, or GitHub cleanup is
+  cancelled.
+- GHCR PR images and SHA images when preview branches churn quickly.
+- Docker build cache and stopped containers on the Dokploy host after repeated
+  image build, redeploy, or failed rollout loops.
+- stale staging or production routes/images where health reports an older SHA or
+  version, as seen in release failure logs.
+- Provider-backed runs that retry externally visible OCR/LLM work without tight
+  path gating or isolated users.
+
+safe simplification boundary: workflow consumers already read the structured
+Env x Stage matrix, so the next real code reduction is to remove legacy scalar
+classifier outputs only after external ad hoc consumers and required-check
+configuration are confirmed. Image-build topology can also be simplified by
+splitting backend and frontend builds into separate jobs, but that is a separate
+branch-protection and GHCR-cache change.
+
 ### Coveralls reporting split
 
 Implemented in PR #627. Pull requests no longer call Coveralls, and main pushes
