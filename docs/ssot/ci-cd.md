@@ -275,9 +275,11 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`. PR CI also runs `npm run audit:prod` after install so production frontend dependency advisories fail before merge; dev-only advisories remain outside this production gate.
 - GitHub JavaScript action runtime is explicitly validated on Node 24 by setting `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"` at the workflow level. This does not change the application toolchain `NODE_VERSION`; it only opts GitHub-hosted JavaScript actions into the runtime that GitHub will make the default.
 - Production release tag builds and dry-runs verify that the target SHA already
-  has a successful `main` CI `finish` result, then run release lint and image
-  build validation. They do not rerun the container-backed `moon run :test`
-  lifecycle in the release lane.
+  has a successful `main` CI `finish` result and a successful post-merge `staging`
+  deployment, then run release lint and image promotion/validation. They do not
+  rebuild images from source or rerun the container-backed `moon run :test`
+  lifecycle in the release lane, maintaining the promote-not-rebuild consistency ladder
+  where the exact same staging-validated image digest is promoted to production.
 - The `finish` job appends a GitHub Step Summary from `tools/github_workflow_timing_summary.py` with queue delay, execution window, run wall time, longest completed job, and per-job durations.
 - The `finish` job appends a coverage gate summary so reviewers can identify the authoritative local coverage gate.
 - The `tooling-coverage` job uploads `coverage-tooling`; the `unified-coverage` job downloads it and uploads the `unified-coverage-context` artifact so reviewers can inspect raw line-count inputs instead of inferring failures from rounded percentages.
@@ -352,10 +354,10 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 **Production release dry-run** (`.github/workflows/production-release.yml`):
-- Manual `workflow_dispatch` with `dry_run=true` verifies the target SHA's successful `main` CI result, runs release lint, and builds production images with `push: false`.
-- The dry-run uses production frontend build arguments without changing Dokploy or production tags, and does not enter the `production` environment or push GHCR images. Its summary reports the validated ref/tag and states that production mutation was skipped.
-- Tag pushes remain the only automatic path that pushes versioned release images. Manual dispatch with `dry_run=false` remains the production deploy path for an existing version.
-- Production backend release images bake `GIT_COMMIT_SHA` from the release tag, and Dokploy deploys also inject the same runtime `GIT_COMMIT_SHA` so `/api/health` can prove the deployed version even after a same-tag redeploy.
+- Manual `workflow_dispatch` with `dry_run=true` verifies the target SHA's successful `main` CI result, a successful staging deployment, runs release lint, and dry-runs image promotion by verifying that staging-validated SHA-tagged images exist on GHCR and retrieving their digests without pushing any tags.
+- The dry-run reports the validated ref/tag, the staging run checked, the target image digests, and states that production mutation was skipped. No rebuild occurs.
+- Tag pushes remain the only automatic path that promotes versioned release images. Manual dispatch with `dry_run=false` remains the production deploy path for an existing version.
+- Production backend release images carry the original commit's `GIT_COMMIT_SHA`, and Dokploy deploys inject the release version tag as the runtime `IMAGE_TAG` / `GIT_COMMIT_SHA` so `/api/health` can prove the deployed version even after a same-tag redeploy.
 - Production deploys run `tools/production_infra_smoke.py` after health check. That gate verifies the deployed version, `/api/health` dependency checks for database and S3, read-only `/api/ping`, frontend reachability, and the shared SigNoz health/version endpoints before production smoke and read-only E2E run.
 
 The remaining higher-risk CI and post-merge optimization candidates are tracked
