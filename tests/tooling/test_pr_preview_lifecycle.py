@@ -2321,3 +2321,96 @@ def test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions
                 compose_name="pr-123",
             )
         )
+
+
+def test_get_running_deployments_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    lifecycle = lifecycle_module()
+
+    # Test valid JSON with running and deploying statuses
+    fake_body = (
+        '{"environments": ['
+        '  {"compose": [{"composeStatus": "running"}, {"composeStatus": "deploying"}, {"composeStatus": "error"}]}'
+        ']}'
+    )
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", lambda *a, **k: fake_body)
+    config = lifecycle.DokployConfig("https://cloud.example/api", "secret-key")
+    assert lifecycle.get_running_deployments_count(config, "proj-123") == 2
+
+    # Test exception handling (e.g. invalid JSON)
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", lambda *a, **k: "invalid json")
+    assert lifecycle.get_running_deployments_count(config, "proj-123") == 0
+
+
+def test_wait_for_dokploy_deployment_rollout_extends_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lifecycle = lifecycle_module()
+
+    # Mock time and sleep
+    current_time = [1000.0]
+    sleep_calls = []
+
+    def fake_time() -> float:
+        return current_time[0]
+
+    def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+        current_time[0] += seconds
+
+    monkeypatch.setattr(lifecycle.time, "time", fake_time)
+    monkeypatch.setattr(lifecycle.time, "monotonic", fake_time)
+    monkeypatch.setattr(lifecycle.time, "sleep", fake_sleep)
+
+    # get_compose_data returns composeStatus running, but no new deployments yet
+    get_compose_data_calls = 0
+    def fake_get_compose_data(*args, **kwargs):
+        nonlocal get_compose_data_calls
+        get_compose_data_calls += 1
+        if get_compose_data_calls == 1:
+            # First call: return running compose, no new deployment.
+            # We mock time forward by 10.0 seconds so the next iteration's now will exceed the deadline.
+            current_time[0] += 10.0
+            return {
+                "composeId": "cmp-1",
+                "composeStatus": "running",
+                "environment": {"projectId": "proj-123"},
+                "deployments": [{"deploymentId": "old-dep", "status": "error"}],
+            }
+        elif get_compose_data_calls == 2:
+            # Second call: still running, no new deployment.
+            # now (1010.0) is >= new_deployment_deadline (1005.0), triggering extension.
+            return {
+                "composeId": "cmp-1",
+                "composeStatus": "running",
+                "environment": {"projectId": "proj-123"},
+                "deployments": [{"deploymentId": "old-dep", "status": "error"}],
+            }
+        else:
+            # Third call: new deployment found
+            return {
+                "composeId": "cmp-1",
+                "composeStatus": "done",
+                "environment": {"projectId": "proj-123"},
+                "deployments": [
+                    {"deploymentId": "old-dep", "status": "error"},
+                    {"deploymentId": "dep-new", "status": "done"},
+                ],
+            }
+
+    monkeypatch.setattr(lifecycle, "get_compose_data", fake_get_compose_data)
+
+    # Mock get_running_deployments_count to return 1 (busy)
+    monkeypatch.setattr(lifecycle, "get_running_deployments_count", lambda *a, **k: 1)
+
+    lifecycle.wait_for_dokploy_deployment_rollout(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
+        compose_id="cmp-1",
+        previous_deployment_ids={"old-dep"},
+        new_deployment_timeout_seconds=5,
+    )
+
+    out = capsys.readouterr().out
+    assert "Dokploy is currently busy with other deployments" in out
+    assert "Extending the new deployment timeout deadline" in out
+
