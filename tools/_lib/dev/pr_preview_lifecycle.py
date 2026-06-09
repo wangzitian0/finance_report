@@ -931,6 +931,17 @@ def wait_for_dokploy_deployment_rollout(
                 f"latest_deployment_id={existing_latest_id} "
                 f"latest_deployment_status={existing_latest_status}"
             )
+            if existing_latest_status == "error":
+                print(
+                    render_compose_summary(
+                        data,
+                        label=f"existing-deployment-error-attempt-{attempt}",
+                    )
+                )
+                raise DokployDeploymentFailed(
+                    "Dokploy deployment failed before readiness polling: "
+                    f"compose_id={compose_id} deployment_id={existing_latest_id}"
+                )
             if existing_latest_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES:
                 return
         if new_deployment_ids:

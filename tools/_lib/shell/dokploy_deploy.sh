@@ -213,6 +213,11 @@ wait_for_dokploy_deployment_rollout() {
     elif [[ -n "$existing_deployment_updates" ]] && [[ "$compose_status" == "done" ]]; then
       existing_deployment_status=$(latest_new_deployment_status_from_response "$rollout_response" "$existing_deployment_updates") || exit 1
       echo "Dokploy deployment observed via existing deployment record update: compose_id=$compose_id existing_deployment_ids=$existing_deployment_updates latest_deployment_status=$existing_deployment_status"
+      if [[ "$existing_deployment_status" == "error" ]]; then
+        render_dokploy_rollout_summary "$rollout_response" "existing-deployment-error-attempt-$attempt"
+        echo "ERROR: Dokploy existing deployment record failed before readiness polling" >&2
+        exit 1
+      fi
       if [[ "$existing_deployment_status" == "done" ]]; then
         return 0
       fi
