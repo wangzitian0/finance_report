@@ -771,6 +771,21 @@ def fail_before_readiness_after_missing_record(
     print("raw_deployment_printed: false")
 
 
+def get_running_deployments_count(config: DokployConfig, project_id: str) -> int:
+    try:
+        body = dokploy_api_call(config, "GET", f"project.one?projectId={project_id}")
+        data = json.loads(body or "{}")
+        running_count = 0
+        for env in data.get("environments", []):
+            for comp in env.get("compose", []):
+                if comp.get("composeStatus") in ("running", "deploying"):
+                    running_count += 1
+        return running_count
+    except Exception as exc:
+        print(f"Warning: Failed to check project deployment status: {exc}")
+    return 0
+
+
 def wait_for_dokploy_deployment_rollout(
     config: DokployConfig,
     *,
@@ -884,6 +899,14 @@ def wait_for_dokploy_deployment_rollout(
                 "platform_failure_domain=dokploy-worker-or-deployment-record"
             )
         if not new_deployment_ids and now >= new_deployment_deadline:
+            project_id = data.get("environment", {}).get("projectId") if isinstance(data, dict) else None
+            if project_id and get_running_deployments_count(config, project_id) > 0:
+                print(
+                    "Warning: Dokploy is currently busy with other deployments. "
+                    "Extending the new deployment timeout deadline."
+                )
+                new_deployment_deadline = now + 60.0
+                continue
             raise DokployDeploymentDidNotStart(
                 "Dokploy deployment did not create a new deployment before "
                 f"readiness polling: compose_id={compose_id} "

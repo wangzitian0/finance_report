@@ -187,6 +187,23 @@ wait_for_dokploy_deployment_rollout() {
     fi
 
     if [[ -z "$new_deployment_ids" ]] && (( SECONDS >= new_deployment_deadline )); then
+      project_id=$(echo "$rollout_response" | jq -r '.environment?.projectId? // empty' 2>/dev/null)
+      if [[ -n "$project_id" ]]; then
+        project_response_file=$(mktemp)
+        if dokploy_api_call "GET" "project.one?projectId=$project_id" "" "$project_response_file" "Queue congestion check" 2>/dev/null; then
+          running_count=$(cat "$project_response_file" | jq '[.environments[].compose[] | select(.composeStatus == "running" or .composeStatus == "deploying")] | length' 2>/dev/null || echo 0)
+          rm -f "$project_response_file"
+          if (( running_count > 0 )); then
+            echo "Warning: Dokploy is currently busy with $running_count other deployments. Extending queue timeout."
+            new_deployment_deadline=$((SECONDS + 60))
+            sleep "$interval_seconds"
+            continue
+          fi
+        else
+          rm -f "$project_response_file"
+        fi
+      fi
+
       echo "ERROR: Dokploy deployment did not create a new deployment before readiness polling" >&2
       echo "compose_id=$compose_id composeStatus=${compose_status:-unknown} deployment_count=${deployment_count:-unknown}" >&2
       if [[ "$compose_status" == "error" ]]; then
