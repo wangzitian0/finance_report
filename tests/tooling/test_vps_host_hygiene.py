@@ -46,26 +46,34 @@ def test_AC8_13_73_hygiene_script_prunes_generic_host_garbage_and_old_previews()
     assert "docker_usage_summary" in script
     assert "fetch_open_prs() {" in script
     assert "if ! command -v python3 >/dev/null 2>&1; then" in script
-    assert "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100&page=${page}" in script
+    assert (
+        "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100&page=${page}"
+        in script
+    )
     assert 'curl -fsSL --connect-timeout 5 --max-time 15 "$api_url"' in script
     assert 'while [ "$page" -le 10 ]; do' in script
     assert 'page="$((page + 1))"' in script
-    assert "sed -n 's/.*\"number\"" not in script
+    assert 'sed -n \'s/.*"number"' not in script
     assert 'if open_prs_raw="$(fetch_open_prs)"; then' in script
     assert "GitHub open-PR discovery failed on page ${page}" in script
     assert "python3 unavailable; falling back to retention" in script
     assert 'OPEN_PR_NUMBERS_SOURCE="github"' in script
     assert 'OPEN_PR_NUMBERS_SOURCE="fallback-retention"' in script
     assert 'if [ "$OPEN_PR_NUMBERS_SOURCE" = "github" ]; then' in script
-    assert 'return 0' in script
-    assert "PR_PREVIEW_CONTAINER_PATTERN='^finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?$'" in script
+    assert "return 0" in script
+    assert (
+        "PR_PREVIEW_CONTAINER_PATTERN='^finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?$'"
+        in script
+    )
     assert "CONTAINER_PRUNE_UNTIL='72h'" in script
     assert 'date -u -d "${PR_PREVIEW_MAX_AGE_DAYS} days ago" +%s' in script
-    assert 'timeout 20 docker system df -v' in script
+    assert "timeout 20 docker system df -v" in script
     assert 'tail -n "$PR_PREVIEW_KEEP_RECENT"' in script
     assert "finance-report-(backend|frontend|db|minio)-pr-[0-9]+(-[a-z0-9]+)?" in script
     assert "should_delete_pr_container() {" in script
-    assert 'case "$status" in restarting|exited|dead|created) return 0 ;; esac' in script
+    assert (
+        'case "$status" in restarting|exited|dead|created) return 0 ;; esac' in script
+    )
     assert 'if [ "$health" = "unhealthy" ]; then' in script
     assert "finance_report_pr_[0-9]+_" in script
     assert "[dry-run] docker rm -f ${container_name}" in script
@@ -109,14 +117,17 @@ def test_AC8_13_73_hygiene_script_runs_real_prune_commands_without_credentials()
     assert 'docker image prune -af --filter "until=240h"' in script
     assert 'docker network prune -f --filter "until=240h"' in script
     assert 'journalctl --vacuum-time="30d" --vacuum-size="512M"' in script
-    assert 'timeout 20 docker system df' in script
+    assert "timeout 20 docker system df" in script
     assert "if command -v timeout >/dev/null 2>&1; then" in script
     assert ': > "$log_path"' in script
     assert 'docker rm -f "$container_name" || true' in script
     assert 'docker rm -f "$non_preview_container" || true' in script
     assert 'docker volume rm "$volume_name" || true' in script
     assert "relative_cutoff_epoch() {" in script
-    assert 'container_cutoff_epoch="$(relative_cutoff_epoch "$CONTAINER_PRUNE_UNTIL")"' in script
+    assert (
+        'container_cutoff_epoch="$(relative_cutoff_epoch "$CONTAINER_PRUNE_UNTIL")"'
+        in script
+    )
     assert 'date -u -d "${CONTAINER_PRUNE_UNTIL} ago" +%s' not in script
     assert 'date -u -d "$created_at" +%s 2>/dev/null || echo 0' not in script
     assert 'parse_utc_epoch "$created_at" || true' in script
@@ -350,8 +361,9 @@ def test_AC8_13_73_dokploy_schedule_payload_is_server_job_with_retention() -> No
     assert "GITHUB_REPOSITORY=wangzitian0/finance_report" in str(payload["command"])
     assert "within 3 days" in str(payload["description"])
     assert "most recent 3 PRs" in str(payload["description"])
-    assert "closed PR previews are removed by comparing against open PRs from wangzitian0/finance_report" in str(
-        payload["description"]
+    assert (
+        "closed PR previews are removed by comparing against open PRs from wangzitian0/finance_report"
+        in str(payload["description"])
     )
     assert "VPS_SSH_KEY" not in json.dumps(payload)
 
@@ -438,6 +450,40 @@ def test_AC8_13_73_ensure_schedule_creates_missing_named_job(monkeypatch) -> Non
 
     assert result == "sch-new"
     assert calls == ["schedule.list?id=srv-1&scheduleType=server", "schedule.create"]
+
+
+def test_AC8_13_73_dokploy_schedule_payload_normalizes_null_and_empty_server_ids(
+    monkeypatch,
+) -> None:
+    hygiene = hygiene_module()
+
+    # 1. Test build_schedule_payload
+    for sid in ("null", "undefined", "", None):
+        payload = hygiene.build_schedule_payload(
+            server_id=sid,
+            script="echo clean",
+        )
+        assert payload["serverId"] is None
+
+    # 2. Test find_schedule_id_by_name uses "null" in GET query parameters
+    calls: list[str] = []
+
+    def fake_api_call(config, method, endpoint, *, payload=None, expected_status=200):
+        calls.append(endpoint)
+        return json.dumps({"schedules": []})
+
+    monkeypatch.setattr(hygiene, "dokploy_api_call", fake_api_call)
+
+    for sid in ("null", "undefined", "", None):
+        hygiene.find_schedule_id_by_name(
+            hygiene.DokployConfig("https://cloud.example/api", "secret"),
+            server_id=sid,
+            name="test-schedule",
+        )
+
+    assert len(calls) == 4
+    for call in calls:
+        assert "id=null&" in call
 
 
 def test_AC8_13_74_pr_preview_cleanup_workflow_has_no_host_hygiene() -> None:

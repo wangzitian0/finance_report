@@ -347,7 +347,7 @@ def build_hygiene_script(
 
 def build_schedule_payload(
     *,
-    server_id: str,
+    server_id: str | None,
     script: str,
     name: str = DEFAULT_SCHEDULE_NAME,
     cron_expression: str = DEFAULT_CRON_EXPRESSION,
@@ -358,6 +358,9 @@ def build_schedule_payload(
     pr_preview_keep_recent: int = 3,
     github_repository: str = "wangzitian0/finance_report",
 ) -> dict[str, object]:
+    payload_server_id = (
+        None if server_id in (None, "null", "undefined", "") else server_id
+    )
     payload: dict[str, object] = {
         "name": name,
         "description": (
@@ -372,7 +375,7 @@ def build_schedule_payload(
         "scheduleType": DEFAULT_SCHEDULE_TYPE,
         "command": script,
         "script": script,
-        "serverId": server_id,
+        "serverId": payload_server_id,
         "enabled": enabled,
         "timezone": timezone,
     }
@@ -397,16 +400,17 @@ def extract_schedules(payload: str) -> list[dict[str, object]]:
 def find_schedule_id_by_name(
     config: DokployConfig,
     *,
-    server_id: str,
+    server_id: str | None,
     name: str,
     schedule_type: str = DEFAULT_SCHEDULE_TYPE,
 ) -> str | None:
+    query_id = "null" if server_id in (None, "null", "undefined", "") else server_id
     body = dokploy_api_call(
         config,
         "GET",
         (
             "schedule.list?"
-            f"id={quote(server_id, safe='')}&scheduleType={quote(schedule_type, safe='')}"
+            f"id={quote(query_id, safe='')}&scheduleType={quote(schedule_type, safe='')}"
         ),
     )
     for schedule in extract_schedules(body):
@@ -418,7 +422,7 @@ def find_schedule_id_by_name(
 def ensure_dokploy_schedule(
     config: DokployConfig,
     *,
-    server_id: str,
+    server_id: str | None,
     script: str,
     name: str,
     cron_expression: str,
