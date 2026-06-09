@@ -552,8 +552,8 @@ jobs:
         with:
           context: ./apps/backend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
           build-args: |
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
@@ -564,8 +564,8 @@ jobs:
         with:
           context: ./apps/frontend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
           build-args: |
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}

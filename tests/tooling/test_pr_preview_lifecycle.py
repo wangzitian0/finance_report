@@ -510,6 +510,57 @@ def test_AC8_13_102_deployment_signatures_preserve_rollout_activity_fields() -> 
     assert signatures["dep-2"] == ("running", "t2", "", "")
 
 
+def test_AC8_13_102_rollout_timeout_uses_environment_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "300",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == 300
+    )
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "not-a-number",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS
+    )
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "0",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS
+    )
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "-5",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS
+    )
+
+
 def test_AC8_13_102_rollout_poll_retries_transient_dokploy_api_failure(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

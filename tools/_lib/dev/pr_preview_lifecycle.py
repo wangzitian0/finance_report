@@ -74,6 +74,7 @@ PR_PREVIEW_SOURCE_TYPE = "github"
 PR_PREVIEW_REPOSITORY = "finance_report"
 PR_PREVIEW_OWNER = "wangzitian0"
 PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS = 120
+PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV = "PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS"
 DOKPLOY_API_CONNECT_TIMEOUT_SECONDS = 10
 DOKPLOY_API_MAX_TIME_SECONDS = 20
 PR_PREVIEW_CONTEXT_ENV = "PR_PREVIEW_CONTEXT_PATH"
@@ -110,6 +111,29 @@ def run_command(
         text=True,
         check=check,
     )
+
+
+def parse_positive_int_env(var_name: str, default: int) -> int:
+    """Return a positive integer from env, otherwise fallback to default."""
+
+    value = os.environ.get(var_name)
+    if value is None or value == "":
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        print(
+            f"Invalid value for {var_name}; expected integer. "
+            f"falling back to {default}."
+        )
+        return default
+    if parsed <= 0:
+        print(
+            f"Invalid value for {var_name}; expected positive integer. "
+            f"falling back to {default}."
+        )
+        return default
+    return parsed
 
 
 def parse_env(env_text: str) -> dict[str, str]:
@@ -1080,7 +1104,10 @@ def deploy_action(args: argparse.Namespace) -> int:
                 compose_id=compose_id,
                 previous_deployment_ids=previous_deployment_ids,
                 previous_deployment_signatures=previous_deployment_signatures,
-                new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+                new_deployment_timeout_seconds=parse_positive_int_env(
+                    PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+                    PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+                ),
             )
 
         configure_current_compose()
