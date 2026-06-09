@@ -750,6 +750,8 @@ jobs:
             echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
             echo "vision_model=${STAGING_E2E_VISION_MODEL}"
             echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outcome }}"
+            echo "provider_resource_boundary=isolated-users-provider-gate-only"
+            echo "provider_replay_cleanup_contract=gate tests must not use shared mutable user fixtures; retries remain scoped to staging AI/OCR relevance"
             echo "strict_e2e_gates=true"
             echo "marker=llm"
           } > ci-context/staging-ai-ocr-context.txt
