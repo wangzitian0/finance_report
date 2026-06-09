@@ -1372,8 +1372,9 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
     assert "compose.delete" in rendered_calls
     assert "compose.create" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert wait_calls == 2
+    assert wait_calls == 3
     out = capsys.readouterr().out
+    assert "New PR preview compose still did not create a Dokploy deployment record" in out
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "raw_deployment_printed: false" in out
@@ -1488,11 +1489,11 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
     assert wait_calls == 2
 
 
-def test_AC8_13_102_new_preview_missing_after_redeploy_fails_before_readiness(
+def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Missing Dokploy records fail after one new-preview redeploy retry."""
+    """AC8.13.102: A stuck new preview compose is recreated once before failing."""
     lifecycle = lifecycle_module()
     monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
     calls: list[list[str]] = []
@@ -1577,12 +1578,13 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_fails_before_readiness(
     assert lifecycle.main_from_args(args) == 1
 
     rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert rendered_calls.count("compose.create") == 1
-    assert "compose.delete" not in rendered_calls
+    assert rendered_calls.count("compose.create") == 2
+    assert "compose.delete" in rendered_calls
     assert "compose.redeploy" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert wait_calls == 2
+    assert wait_calls == 3
     out = capsys.readouterr().out
+    assert "New PR preview compose still did not create a Dokploy deployment record" in out
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "new deploy was lost" in out

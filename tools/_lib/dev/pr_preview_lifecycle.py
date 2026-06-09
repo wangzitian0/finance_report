@@ -1024,6 +1024,21 @@ def deploy_action(args: argparse.Namespace) -> int:
                 new_deployment_timeout_seconds=PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
             )
 
+        def recreate_compose_before_retry() -> None:
+            nonlocal compose_id, existing_compose
+            delete_compose(config, compose_id=compose_id)
+            compose_id = create_compose(
+                config,
+                environment_id=args.environment_id,
+                compose_name=args.compose_name,
+                pr_number=args.pr_number,
+                branch=args.branch,
+                github_integration_id=args.github_integration_id,
+            )
+            existing_compose = False
+            record_context("compose-recreated")
+            configure_current_compose()
+
         configure_current_compose()
 
         try:
@@ -1034,18 +1049,7 @@ def deploy_action(args: argparse.Namespace) -> int:
                     "Existing PR preview compose did not complete a new Dokploy "
                     "rollout; recreating compose before retry."
                 )
-                delete_compose(config, compose_id=compose_id)
-                compose_id = create_compose(
-                    config,
-                    environment_id=args.environment_id,
-                    compose_name=args.compose_name,
-                    pr_number=args.pr_number,
-                    branch=args.branch,
-                    github_integration_id=args.github_integration_id,
-                )
-                existing_compose = False
-                record_context("compose-recreated")
-                configure_current_compose()
+                recreate_compose_before_retry()
                 try:
                     trigger_and_wait(force_redeploy=False)
                 except DokployDeploymentDidNotStart as retry_error:
@@ -1063,12 +1067,21 @@ def deploy_action(args: argparse.Namespace) -> int:
                 try:
                     trigger_and_wait(force_redeploy=True)
                 except DokployDeploymentDidNotStart as retry_error:
-                    fail_before_readiness_after_missing_record(
-                        compose_id=compose_id,
-                        error=retry_error,
+                    print(
+                        "New PR preview compose still did not create a Dokploy "
+                        "deployment record after redeploy; recreating compose "
+                        "before final retry."
                     )
-                    record_context("failed", error=str(retry_error))
-                    raise
+                    recreate_compose_before_retry()
+                    try:
+                        trigger_and_wait(force_redeploy=False)
+                    except DokployDeploymentDidNotStart as recreate_error:
+                        fail_before_readiness_after_missing_record(
+                            compose_id=compose_id,
+                            error=recreate_error,
+                        )
+                        record_context("failed", error=str(recreate_error))
+                        raise
         except DokployDeploymentFailed:
             if not existing_compose:
                 raise
@@ -1076,18 +1089,7 @@ def deploy_action(args: argparse.Namespace) -> int:
                 "Existing PR preview compose did not complete a new Dokploy "
                 "rollout; recreating compose before retry."
             )
-            delete_compose(config, compose_id=compose_id)
-            compose_id = create_compose(
-                config,
-                environment_id=args.environment_id,
-                compose_name=args.compose_name,
-                pr_number=args.pr_number,
-                branch=args.branch,
-                github_integration_id=args.github_integration_id,
-            )
-            existing_compose = False
-            record_context("compose-recreated")
-            configure_current_compose()
+            recreate_compose_before_retry()
             trigger_and_wait(force_redeploy=False)
 
         record_context("rollout-ready")

@@ -101,6 +101,46 @@ resource leak candidates:
 - Provider-backed runs that retry externally visible OCR/LLM work without tight
   path gating or isolated users.
 
+### Resource leak hardening bundle
+
+This follow-up is intentionally one PR because the controls are operationally
+coupled but do not require a topology rewrite:
+
+- PR preview leftovers: closed-PR cleanup still deletes the Dokploy compose on
+  PR close, while closed-PR Dokploy reconciliation in the scheduled cleanup
+  reconciles Dokploy preview composes against open PRs every six hours. When a
+  newly created preview compose accepts deploy and redeploy requests but never
+  creates a deployment record, the lifecycle deletes that empty compose shell,
+  recreates it once, and still fails before readiness if the recreated compose
+  cannot produce a deployment record.
+  Host-level Docker leftovers remain owned by the
+  `finance-report-vps-host-hygiene` Dokploy server schedule instead of GitHub
+  Actions SSH.
+- GHCR PR tag accumulation: the PR-close cleanup deletes backend/frontend
+  `pr-<number>-<sha>` images, and scheduled cleanup now prunes closed-PR PR preview GHCR tags
+  older than 14 days while preserving tags for open PRs.
+- stale staging or production routes: staging already records before-SHA,
+  image build, deploy, E2E, failed step, and failure-domain context. Production
+  deploy context now records `production_before_version`, deploy-health
+  outcome, smoke outcomes, and a production failure domain so stale version
+  mismatches are diagnosable without turning production into the first
+  correctness proof.
+- provider-backed external-state residue: staging AI/OCR remains gated by the
+  structured provider relevance output and records
+  `isolated-users-provider-gate-only`; the contract test rejects shared mutable
+  user fixtures before provider-backed replay.
+- Docker build cache and stopped containers: generic host garbage is still
+  pruned by the Dokploy schedule, including stopped non-preview containers,
+  build cache, old unused images, unused networks, oversized Docker json logs,
+  and journal retention.
+
+The speed boundary is unchanged: PR remains the deterministic merge authority,
+PR Preview proves runtime/image/route/version and provider-free behavior,
+staging proves merged-SHA infrastructure/provider realism, and production proves
+release integrity plus health. The quality fallback improves because each leak
+path now has either cleanup or failure context attached to the narrowest stage
+that owns it.
+
 safe simplification boundary: workflow consumers already read the structured
 Env x Stage matrix, so the next real code reduction is to remove legacy scalar
 classifier outputs only after external ad hoc consumers and required-check
