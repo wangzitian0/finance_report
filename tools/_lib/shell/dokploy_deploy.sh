@@ -68,6 +68,21 @@ latest_new_deployment_status_from_response() {
     ] | sort_by(.createdAt // .startedAt // .finishedAt // "") | (last // {}) | .status // "unknown"'
 }
 
+deployment_signature_map_from_response() {
+  local response="$1"
+  echo "$response" | jq -c 'reduce (if (.deployments | type) == "array" then .deployments else [] end)[] as $deployment ({ };
+    if ($deployment | type) == "object" and ($deployment.deploymentId? != null) then
+      .[$deployment.deploymentId | tostring] = [
+        ($deployment.status // ""),
+        ($deployment.createdAt // ""),
+        ($deployment.startedAt // ""),
+        ($deployment.finishedAt // "")
+      ]
+    else
+      .
+    end)'
+}
+
 deployment_count_from_response() {
   local response="$1"
   echo "$response" | jq -r '[
@@ -136,6 +151,7 @@ render_dokploy_rollout_summary() {
 wait_for_dokploy_deployment_rollout() {
   local compose_id="$1"
   local previous_deployment_ids="$2"
+  local previous_deployment_signatures="${3:-{}}"
   local timeout_seconds="${DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600}"
   local new_deployment_timeout_seconds="${DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS:-120}"
   local interval_seconds="${DOKPLOY_ROLLOUT_INTERVAL_SECONDS:-5}"
@@ -146,7 +162,10 @@ wait_for_dokploy_deployment_rollout() {
   local compose_status
   local deployment_count
   local new_deployment_ids
+  local current_deployment_signatures
+  local existing_deployment_updates
   local latest_status
+  local existing_deployment_status
 
   echo "Waiting for Dokploy deployment record before readiness polling..."
   echo "previous_deployment_ids=${previous_deployment_ids:-none}"
@@ -158,6 +177,13 @@ wait_for_dokploy_deployment_rollout() {
     compose_status=$(safe_jq '.composeStatus // .status // "unknown"' "$rollout_response" "deployment rollout compose status") || exit 1
     deployment_count=$(deployment_count_from_response "$rollout_response") || exit 1
     new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1
+    current_deployment_signatures=$(deployment_signature_map_from_response "$rollout_response")
+    existing_deployment_updates=$(echo "$current_deployment_signatures" | jq -r --argjson prev "$previous_deployment_signatures" '
+      [to_entries[]
+      | select(.value != ($prev[.key] // []))
+      | .key]
+      | join(",")
+    ')
 
     if (( attempt == 1 || attempt % 6 == 0 )) || [[ "$compose_status" != "idle" ]]; then
       render_dokploy_rollout_summary "$rollout_response" "deployment-rollout-attempt-$attempt"
@@ -182,6 +208,12 @@ wait_for_dokploy_deployment_rollout() {
         exit 1
       fi
       if [[ "$latest_status" == "done" ]]; then
+        return 0
+      fi
+    elif [[ -n "$existing_deployment_updates" ]] && [[ "$compose_status" == "done" ]]; then
+      existing_deployment_status=$(latest_new_deployment_status_from_response "$rollout_response" "$existing_deployment_updates") || exit 1
+      echo "Dokploy deployment observed via existing deployment record update: compose_id=$compose_id existing_deployment_ids=$existing_deployment_updates latest_deployment_status=$existing_deployment_status"
+      if [[ "$existing_deployment_status" == "done" ]]; then
         return 0
       fi
     fi
@@ -338,6 +370,7 @@ dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "
 effective_response=$(cat "$response_file")
 effective_env=$(safe_jq '.env // empty' "$effective_response" "effective environment fetch") || exit 1
 previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1
+previous_deployment_signatures=$(deployment_signature_map_from_response "$effective_response") || exit 1
 render_allowlisted_env_diff "$expected_effective_env" "$effective_env" || {
   echo "ERROR: Effective Dokploy environment does not match expected deployment values" >&2
   exit 1
@@ -345,7 +378,7 @@ render_allowlisted_env_diff "$expected_effective_env" "$effective_env" || {
 
 deploy_compose "compose.deploy" "Deployment trigger"
 set +e
-wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"
+wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids" "$previous_deployment_signatures"
 rollout_status=$?
 set -e
 
@@ -354,9 +387,10 @@ if [[ "$rollout_status" -eq 2 || "$rollout_status" -eq 3 ]]; then
   dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Pre-redeploy deployment snapshot"
   redeploy_response=$(cat "$response_file")
   previous_deployment_ids=$(deployment_ids_from_response "$redeploy_response") || exit 1
+  previous_deployment_signatures=$(deployment_signature_map_from_response "$redeploy_response") || exit 1
   deploy_compose "compose.redeploy" "Redeployment trigger"
   set +e
-  wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"
+  wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids" "$previous_deployment_signatures"
   rollout_status=$?
   set -e
   if [[ "$rollout_status" -eq 2 ]]; then

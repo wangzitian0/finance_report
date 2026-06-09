@@ -82,7 +82,9 @@ The staging deploy gate separates platform rollout from application readiness.
 record to reach `done` before `tools/health_check.sh` starts polling
 `/api/health` for the target SHA. `running` only proves Dokploy's worker has
 started; it does not prove Docker containers and Traefik routes have
-materialized the target SHA. A missing or unfinished deployment record after
+materialized the target SHA. A deployment that reuses an existing deployment id
+and advances it to `done` is accepted as ready state; if no record appears and
+no existing record advances, a missing or unfinished deployment record after
 that worker-queue window is a platform rollout failure, not an application
 health timeout.
 
