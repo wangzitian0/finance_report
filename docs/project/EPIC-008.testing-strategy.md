@@ -384,6 +384,11 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.111 | CI change classification structured Env x Stage outputs cover the complete environment axis (`local`, `pr`, `pr-preview`, `staging`, `prd`) while keeping PR heavy gating and deployed-environment gates represented as matrix cells | `test_AC8_13_111_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 | AC8.13.112 | Delivery-engine recommendations, SSOT, workflow gates, and contract tests stay aligned around structured Env x Stage consumers while legacy scalar outputs remain compatibility-only shims | `test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path`, `test_AC8_13_112_workflows_consume_structured_env_stage_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.113 | Sparse Env x Stage reviews record the three newest successful and three newest failed evidence samples for active delivery lanes, then summarize delivery-speed balance, end-to-end consistency, quality fallback, resource leak candidates, and the safe simplification boundary | `test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.114 | PR preview build/deploy does not start until `ci.yml` lint + ac-traceability succeed for the same head SHA | `test_AC8_13_114_pr_preview_gated_on_cheap_ci` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.115 | A deploy that cannot become ready fails within a bounded short window (not the full 12-min) with a classified failure domain | `test_AC8_13_115_readiness_fail_fast` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.116 | Post-merge → staging start latency is reduced by removing redundant heavy re-run on push to main | `test_AC8_13_116_skip_heavy_ci_on_main_push` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.117 | Staging FIFO worst-case wait is bounded/parameterized and documented; a path to parallel staging is proposed | `test_AC8_13_117_parameterized_staging_fifo_timeout` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.118 | Critical-path timeouts and retries are documented in `docs/ssot/ci-cd.md` | `test_AC8_13_118_timeouts_and_retries_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 

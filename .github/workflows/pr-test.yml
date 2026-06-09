@@ -136,10 +136,30 @@ jobs:
           print(f"pr_preview_reason={reasons['pr-preview']}")
           PY
 
+  gate-cheap-ci:
+    name: Gate on Cheap CI
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Wait for Lint and AC Traceability
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/wait_for_cheap_ci.py \
+            --repository "${{ github.repository }}" \
+            --token "$GITHUB_TOKEN" \
+            --commit-sha "${{ github.event.pull_request.head.sha || github.sha }}"
+
   build-preview-backend-image:
     name: Build Backend PR Preview Image
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: setup
+    needs: [setup, gate-cheap-ci]
     runs-on: ubuntu-latest
     env:
       PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
@@ -176,7 +196,7 @@ jobs:
   build-preview-frontend-image:
     name: Build Frontend PR Preview Image
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: setup
+    needs: [setup, gate-cheap-ci]
     runs-on: ubuntu-latest
     env:
       PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
@@ -468,6 +488,8 @@ jobs:
           classified_route_failures = 0
           route_failure_notice_printed = False
           attempt = 0
+          consecutive_dokploy_failures = 0
+          consecutive_404_failures = 0
           while True:
               attempt += 1
               elapsed_seconds = int(time.monotonic() - started_at)
@@ -518,6 +540,29 @@ jobs:
               if api_result["status"] == 200 and actual_sha == expected_sha:
                   print(f"API ready with expected git_sha {actual_sha}")
                   sys.exit(0)
+
+              if failure_domain == "dokploy-worker-or-deployment-record":
+                  consecutive_dokploy_failures += 1
+              else:
+                  consecutive_dokploy_failures = 0
+
+              statuses = {
+                  api_result["status"],
+                  ping_result["status"],
+                  frontend_result["status"],
+              }
+              if statuses == {404}:
+                  consecutive_404_failures += 1
+              else:
+                  consecutive_404_failures = 0
+
+              if consecutive_dokploy_failures >= 8:
+                  print("::error::Fail-fast: Dokploy worker or deployment record failure occurred consecutively 8 times.")
+                  sys.exit(1)
+
+              if consecutive_404_failures >= 15:
+                  print("::error::Fail-fast: All three readiness endpoints (/api/health, /api/ping, and frontend version endpoint) returned HTTP 404 consecutively 15 times.")
+                  sys.exit(1)
 
               if failure_domain == "traefik-public-route":
                   classified_route_failures += 1

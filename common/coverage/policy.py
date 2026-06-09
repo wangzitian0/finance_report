@@ -128,6 +128,8 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "tools/**/__init__.py",
             "tools/**/__pycache__/**",
             "tools/tests/**",
+            "tools/wait_for_cheap_ci.py",
+            "tools/_lib/ci/wait_for_cheap_ci.py",
         ),
     ),
     CoverageComponent(
