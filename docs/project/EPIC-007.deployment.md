@@ -208,6 +208,17 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.9.7 | Backend health endpoint | `test_health_when_all_services_healthy()` | `infra/test_main.py` | P0 |
 | AC7.9.8 | Config contract validation | `TestConfigContract` class | `infra/test_config_contract.py` | P0 |
 
+### AC7.10: Promote and Release Pipeline Integrity
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.10.1 | `production-release.yml` promotes the staging-validated image to `vX.Y.Z` instead of rebuilding from source | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC7.10.2 | Release fails closed if no staging-validated SHA image exists or if digests differ | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC7.10.3 | Workflow summary records released commit, source CI run, promoted image digest, and no rebuild | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC7.10.4 | Deployment and CI SSOTs document the promote-not-rebuild consistency ladder | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC7.10.5 | Retain `workflow_dispatch` dry-run to prove the release/promote path without mutating production | `test_AC7_10_production_release_promotes_not_rebuilds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have

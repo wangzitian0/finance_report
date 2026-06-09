@@ -97,6 +97,26 @@ jobs:
           fi
           echo "Using successful main CI run: $run_id"
 
+      - name: Verify staging passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          staging_run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow staging-deploy.yml \
+              --commit "$GITHUB_SHA" \
+              --limit 20 \
+              --json databaseId,status,conclusion \
+              --jq '[.[] | select(.status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$staging_run_id" ]; then
+            echo "::error::No successful Deploy Staging run found for $GITHUB_SHA"
+            exit 1
+          fi
+          echo "Using successful Deploy Staging run: $staging_run_id"
+          echo "staging_run_id=$staging_run_id" >> "$GITHUB_ENV"
+
       - name: Verify Release Codebase
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -116,30 +136,63 @@ jobs:
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Backend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/backend
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
-
-      - name: Build Frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/frontend
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
-            NEXT_PUBLIC_API_URL=https://report.zitian.party
-            NEXT_PUBLIC_APP_URL=https://report.zitian.party
+      - name: Promote Images
+        id: promote
+        run: |
+          short_sha=$(git rev-parse --short "$GITHUB_SHA")
+          tag="${{ steps.version.outputs.tag }}"
+          
+          backend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${short_sha}"
+          frontend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${short_sha}"
+          
+          backend_version_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${tag}"
+          frontend_version_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${tag}"
+          
+          # Inspect and check SHA images exist
+          backend_sha_digest="$(docker buildx imagetools inspect "$backend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
+          frontend_sha_digest="$(docker buildx imagetools inspect "$frontend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
+          
+          if [ -z "$backend_sha_digest" ] || [ -z "$frontend_sha_digest" ]; then
+            echo "::error::Staging-validated SHA images not found for SHA $short_sha"
+            exit 1
+          fi
+          
+          echo "Found backend SHA image digest: $backend_sha_digest"
+          echo "Found frontend SHA image digest: $frontend_sha_digest"
+          
+          # Promote images
+          docker buildx imagetools create --tag "$backend_version_image" "$backend_sha_image"
+          docker buildx imagetools create --tag "$frontend_version_image" "$frontend_sha_image"
+          
+          # Verify digests
+          backend_promoted_digest="$(docker buildx imagetools inspect "$backend_version_image" | grep -i '^Digest:' | awk '{print $2}')"
+          frontend_promoted_digest="$(docker buildx imagetools inspect "$frontend_version_image" | grep -i '^Digest:' | awk '{print $2}')"
+          
+          if [ "$backend_sha_digest" != "$backend_promoted_digest" ]; then
+            echo "::error::Backend digests differ! Expected $backend_sha_digest, got $backend_promoted_digest"
+            exit 1
+          fi
+          
+          if [ "$frontend_sha_digest" != "$frontend_promoted_digest" ]; then
+            echo "::error::Frontend digests differ! Expected $frontend_sha_digest, got $frontend_promoted_digest"
+            exit 1
+          fi
+          
+          echo "backend_digest=$backend_sha_digest" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$frontend_sha_digest" >> "$GITHUB_OUTPUT"
+          echo "✅ Release $tag promoted successfully"
 
       - name: Summary
         run: |
-          echo "✅ Release ${{ steps.version.outputs.tag }} built"
-          echo "Deploy: Actions → Production Release → Run workflow"
+          {
+            echo "## Production Release Promoted"
+            echo ""
+            echo "- Released commit: ${{ github.sha }}"
+            echo "- Source CI run: ${{ env.staging_run_id }}"
+            echo "- Promoted backend image digest: ${{ steps.promote.outputs.backend_digest }}"
+            echo "- Promoted frontend image digest: ${{ steps.promote.outputs.frontend_digest }}"
+            echo "- No rebuild occurred: true"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write production release build context
         if: ${{ always() }}
@@ -157,6 +210,9 @@ jobs:
             echo "tag=${{ steps.version.outputs.tag }}"
             echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
             echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+            echo "backend_digest=${{ steps.promote.outputs.backend_digest }}"
+            echo "frontend_digest=${{ steps.promote.outputs.frontend_digest }}"
+            echo "no_rebuild=true"
           } > ci-context/production-release-build-context.txt
 
       - name: Upload production release build context
@@ -232,6 +288,26 @@ jobs:
           fi
           echo "Using successful main CI run: $run_id"
 
+      - name: Verify staging passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          staging_run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow staging-deploy.yml \
+              --commit "$GITHUB_SHA" \
+              --limit 20 \
+              --json databaseId,status,conclusion \
+              --jq '[.[] | select(.status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$staging_run_id" ]; then
+            echo "::error::No successful Deploy Staging run found for $GITHUB_SHA"
+            exit 1
+          fi
+          echo "Using successful Deploy Staging run: $staging_run_id"
+          echo "staging_run_id=$staging_run_id" >> "$GITHUB_ENV"
+
       - name: Verify Release Codebase
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -241,35 +317,39 @@ jobs:
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Backend Image Without Push
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/backend
-          push: false
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
-
-      - name: Build Frontend Image Without Push
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/frontend
-          push: false
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}
-            NEXT_PUBLIC_API_URL=https://report.zitian.party
-            NEXT_PUBLIC_APP_URL=https://report.zitian.party
+      - name: Verify SHA Images Dry Run
+        id: promote_dry
+        run: |
+          short_sha=$(git rev-parse --short "$GITHUB_SHA")
+          backend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${short_sha}"
+          frontend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${short_sha}"
+          
+          # Inspect and check SHA images exist
+          backend_sha_digest="$(docker buildx imagetools inspect "$backend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
+          frontend_sha_digest="$(docker buildx imagetools inspect "$frontend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
+          
+          if [ -z "$backend_sha_digest" ] || [ -z "$frontend_sha_digest" ]; then
+            echo "::error::Staging-validated SHA images not found for SHA $short_sha"
+            exit 1
+          fi
+          
+          echo "Found backend SHA image digest: $backend_sha_digest"
+          echo "Found frontend SHA image digest: $frontend_sha_digest"
+          
+          echo "backend_digest=$backend_sha_digest" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$frontend_sha_digest" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
           {
             echo "## Production Release Dry Run"
             echo ""
-            echo "- Ref: ${{ github.ref_name }}"
-            echo "- Validation tag: ${{ steps.version.outputs.tag }}"
+            echo "- Released commit: ${{ github.sha }}"
+            echo "- Source CI run: ${{ env.staging_run_id }}"
+            echo "- Promoted backend image digest: ${{ steps.promote_dry.outputs.backend_digest }}"
+            echo "- Promoted frontend image digest: ${{ steps.promote_dry.outputs.frontend_digest }}"
+            echo "- No rebuild occurred: true"
             echo "- Production mutation skipped: true"
-            echo "- Production mutation skipped because dry_run=true"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Production mutation skipped"
 
@@ -290,6 +370,9 @@ jobs:
             echo "production_mutation_skipped=true"
             echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
             echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+            echo "backend_digest=${{ steps.promote_dry.outputs.backend_digest }}"
+            echo "frontend_digest=${{ steps.promote_dry.outputs.frontend_digest }}"
+            echo "no_rebuild=true"
           } > ci-context/production-dry-run-context.txt
 
       - name: Upload production dry-run context

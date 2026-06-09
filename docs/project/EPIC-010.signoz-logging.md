@@ -119,6 +119,8 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 |----|-----------|---------------|------|----------|
 | AC10.4.1 | Configure OTEL logging warns on missing dependency | `test_configure_otel_logging_missing_dependency_warns()` | `infra/test_logger.py` | P0 |
 | AC10.4.2 | Configure OTEL logging with fake exporter | `test_configure_otel_logging_with_fake_exporter()` | `infra/test_logger.py` | P1 |
+| AC10.4.3 | FastAPI request instrumentation binds the app instance (not the no-op classmethod) | `test_AC10_4_3_main_instruments_fastapi_app_instance()` | `infra/test_observability_contract.py` | P0 |
+| AC10.4.4 | OTEL resource carries deploy commit for run-to-trace correlation | `test_AC10_4_4_otel_resource_includes_commit_version()` | `infra/test_observability_contract.py` | P0 |
 
 ### AC10.5: Documentation (SSOT)
 

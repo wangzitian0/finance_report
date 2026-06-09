@@ -511,9 +511,8 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "python tools/wait_post_merge_train_turn.py" in workflow
     assert "--timeout-seconds 21600" in workflow
     assert "name: Classify staging and AI/OCR relevance" in workflow
-    assert (
-        "staging_required: ${{ steps.classify.outputs.staging_required }}" in workflow
-    )
+    assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
+    assert "provider_gate_required" in workflow
     assert (
         "staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
         not in workflow
@@ -931,11 +930,13 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     assert "fetch-depth: 0" in workflow
     assert "git diff --name-only" in workflow
     assert "tools/ci_change_classifier.py" in workflow
+    assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
+    assert "staging_reason: ${{ steps.gates.outputs.staging_reason }}" in workflow
+    assert "if: steps.gates.outputs.staging_required == 'true'" in workflow
     assert (
-        "staging_required: ${{ steps.classify.outputs.staging_required }}" in workflow
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in workflow
     )
-    assert "staging_reason: ${{ steps.classify.outputs.staging_reason }}" in workflow
-    assert "if: steps.classify.outputs.staging_required == 'true'" in workflow
     assert "Report staging deploy skip" in workflow
     assert "manual-dispatch" in workflow
 
@@ -994,14 +995,15 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "--workflow ci.yml" in workflow
     assert '--commit "$GITHUB_SHA"' in workflow
     assert '.headBranch == "main"' in workflow
-    assert "push: false" in workflow
+    assert "Verify SHA Images Dry Run" in workflow
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
     assert "environment:" not in dry_run_section
     assert "dokploy_deploy.sh" not in dry_run_section
     assert "inputs.dry_run" in workflow.split("deploy:", 1)[1].split("steps:", 1)[0]
     assert "Production release dry-run" in ci_cd
-    assert "without changing Dokploy or production tags" in ci_cd
+    assert "Verify SHA Images Dry Run" in workflow
+    assert "docker buildx imagetools create" not in dry_run_section
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
@@ -1013,7 +1015,11 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     environments = read("docs/ssot/environments.md")
 
     assert "name: Classify Changes" in workflow
-    assert "heavy_required: ${{ steps.classify.outputs.heavy_required }}" in workflow
+    assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in workflow
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in workflow
+    )
     assert "tools/ci_change_classifier.py" in workflow
     assert "--changed-files changed-files.txt" in workflow
     assert '"docs/"' in classifier
@@ -1026,12 +1032,13 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "pr-preview-paths-changed" in classifier
     assert "no-pr-preview-paths-changed" in classifier
     assert "needs: [changes]" in workflow
-    assert "if: needs.changes.outputs.heavy_required == 'true'" in workflow
+    assert "if: needs.changes.outputs.pr_required == 'true'" in workflow
     assert (
-        "pr_preview_required: ${{ steps.preview.outputs.pr_preview_required }}"
+        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}"
         in pr_workflow
     )
     assert "name: Classify PR preview relevance" in pr_workflow
+    assert "name: Normalize PR preview gate" in pr_workflow
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
@@ -1235,27 +1242,13 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
     app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
 
-    backend_build_blocks = re.findall(
-        r"- name: Build Backend(?: Image Without Push)?\n(?:(?!\n      - name:).)*",
-        workflow,
-        flags=re.S,
-    )
-    assert len(backend_build_blocks) == 2
-    for block in backend_build_blocks:
-        assert "context: ./apps/backend" in block
-        assert "build-args:" in block
-        assert "GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}" in block
+    # In the promote-not-rebuild pattern, we promote staging-validated images instead of rebuilding.
+    # We verify that promotion uses docker buildx imagetools create.
+    promote_blocks = re.findall(r"docker buildx imagetools create --tag", workflow)
+    assert len(promote_blocks) == 2
 
-    frontend_build_blocks = re.findall(
-        r"- name: Build Frontend(?: Image Without Push)?\n(?:(?!\n      - name:).)*",
-        workflow,
-        flags=re.S,
-    )
-    assert len(frontend_build_blocks) == 2
-    for block in frontend_build_blocks:
-        assert "context: ./apps/frontend" in block
-        assert "build-args:" in block
-        assert "GIT_COMMIT_SHA=${{ steps.version.outputs.tag }}" in block
+    assert "Verify staging passed" in workflow
+    assert "Verify SHA Images Dry Run" in workflow
 
     config_hash_update = 'new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" "deploy-${IMAGE_TAG}-$(date +%s)")'
     assert config_hash_update in deploy_script
@@ -1269,6 +1262,37 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     assert app_compose.index("backend:") < app_compose.index(
         "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}"
     )
+
+
+def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
+    """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
+    workflow = read(".github/workflows/production-release.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    deployment = read("docs/ssot/deployment.md")
+
+    # AC7.10.1: promotes staging-validated image instead of rebuilding
+    assert "docker buildx imagetools create --tag" in workflow
+    assert "docker/build-push-action" not in workflow
+
+    # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
+    assert "Verify staging passed" in workflow
+    assert "docker buildx imagetools inspect" in workflow
+    assert 'backend_sha_digest" != "$backend_promoted_digest' in workflow
+    assert 'frontend_sha_digest" != "$frontend_promoted_digest' in workflow
+
+    # AC7.10.3: summary records released commit, source CI run, digest, and no rebuild
+    assert "Released commit: ${{ github.sha }}" in workflow
+    assert "Source CI run: ${{ env.staging_run_id }}" in workflow
+    assert "Promoted backend image digest" in workflow
+    assert "No rebuild occurred" in workflow
+
+    # AC7.10.4: SSOTs document promote-not-rebuild consistency ladder
+    assert "promote-not-rebuild consistency ladder" in deployment
+    assert "promote-not-rebuild consistency ladder" in ci_cd
+
+    # AC7.10.5: workflow_dispatch dry-run proves promote path without mutating
+    assert "Verify SHA Images Dry Run" in workflow
+    assert "dry_run:" in workflow
 
 
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
@@ -1385,7 +1409,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "needs: [changes]" in container_block
     assert "lint" not in container_block.split("steps:", 1)[0]
     assert "ac-traceability" not in container_block.split("steps:", 1)[0]
-    assert "needs.changes.outputs.heavy_required == 'true'" in ci_workflow
+    assert "needs.changes.outputs.pr_required == 'true'" in ci_workflow
     assert (
         "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
         in ci_workflow
@@ -1454,7 +1478,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
         1
     ].split("- name: Set up Docker Buildx", 1)[0]
 
-    assert "if: needs.changes.outputs.heavy_required == 'true'" in container_block
+    assert "if: needs.changes.outputs.pr_required == 'true'" in container_block
     assert (
         "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
         in login_block
@@ -1600,7 +1624,10 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
     assert (
-        "ai_ocr_required: ${{ steps.classify.outputs.staging_ai_ocr_required }}"
+        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}" in deploy_workflow
+    )
+    assert (
+        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
         in deploy_workflow
     )
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
@@ -2342,6 +2369,136 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
 
     assert "DELIVERY_ENGINE_RECOMMENDATIONS.md" in project_readme
     assert "delivery-engine recommendation note" in ci_cd
+
+
+def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() -> None:
+    """AC8.13.112: sparse-matrix audit keeps the simplification path explicit."""
+    recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    classifier = read("common/ci/change_classifier.py")
+
+    for token in (
+        "Structured matrix consumer migration",
+        "Env x Stage",
+        "env_stage_required",
+        "env_stage_reasons",
+        "env_stage_stages",
+        "env_stage_files",
+        "legacy scalar outputs",
+        "compatibility shims",
+        "GitHub Actions jobs now",
+        "branch protection",
+        "CI",
+        "PR Test Environment",
+        "Deploy Staging",
+        "Staging AI/OCR Gate",
+        "Production Release",
+    ):
+        assert token in recommendation
+
+    assert "Env x Stage Contract" in ci_cd
+    assert "Legacy scalar outputs" in ci_cd
+    assert (
+        "GitHub Actions consumers normalize gates from the structured matrix" in ci_cd
+    )
+    assert "ENV_STAGE_MATRIX" in classifier
+    assert "LEGACY_ENV_OUTPUTS" in classifier
+
+
+def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
+    """AC8.13.112: workflows consume structured gates, not legacy scalar gates."""
+    ci_workflow = read(".github/workflows/ci.yml")
+    pr_workflow = read(".github/workflows/pr-test.yml")
+    staging_workflow = read(".github/workflows/staging-deploy.yml")
+
+    assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in ci_workflow
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in ci_workflow
+    )
+    assert (
+        "ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}"
+        in ci_workflow
+    )
+    assert "if: needs.changes.outputs.pr_required == 'true'" in ci_workflow
+    assert "needs.changes.outputs.heavy_required" not in ci_workflow
+    assert (
+        "heavy_required: ${{ steps.classify.outputs.heavy_required }}"
+        not in ci_workflow
+    )
+
+    assert (
+        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}"
+        in pr_workflow
+    )
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.preview.outputs.env_stage_required }}"
+        in pr_workflow
+    )
+    assert (
+        "ENV_STAGE_REASONS: ${{ steps.preview.outputs.env_stage_reasons }}"
+        in pr_workflow
+    )
+    assert "required['pr-preview']" in pr_workflow
+    assert "steps.preview.outputs.pr_preview_required" not in pr_workflow
+
+    assert (
+        "staging_required: ${{ steps.gates.outputs.staging_required }}"
+        in staging_workflow
+    )
+    assert (
+        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}"
+        in staging_workflow
+    )
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in staging_workflow
+    )
+    assert (
+        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
+        in staging_workflow
+    )
+    assert "env_required['staging']" in staging_workflow
+    assert "provider_required['staging']" in staging_workflow
+    assert "steps.classify.outputs.staging_required" not in staging_workflow
+    assert "steps.classify.outputs.staging_ai_ocr_required" not in staging_workflow
+
+
+def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded() -> (
+    None
+):
+    """AC8.13.113: sparse-matrix review records log evidence and leak risks."""
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
+
+    for token in (
+        "AC8.13.113",
+        "three newest successful and three newest failed",
+        "delivery-speed balance",
+        "end-to-end consistency",
+        "quality fallback",
+        "resource leak candidates",
+    ):
+        assert token in epic
+
+    for token in (
+        "June 9, 2026 evidence sample",
+        "27186502313",
+        "27184608585",
+        "27186502312",
+        "27184608593",
+        "27182443187",
+        "27136569205",
+        "26636834757",
+        "26636451107",
+        "resource leak candidates",
+        "PR preview Dokploy compose",
+        "GHCR PR images",
+        "Docker build cache",
+        "stale staging or production routes",
+        "safe simplification boundary",
+    ):
+        assert token in recommendation
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:

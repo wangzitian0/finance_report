@@ -80,7 +80,13 @@ def _build_otel_resource() -> Any:
     """Build OTEL resource with service name and attributes."""
     from opentelemetry.sdk.resources import Resource
 
-    resource_attributes = {"service.name": settings.otel_service_name}
+    resource_attributes = {
+        "service.name": settings.otel_service_name,
+        # Version correlation: every span/log carries the deployed commit so a
+        # CI/CD run can pivot directly to this version's traces in SigNoz.
+        "service.version": settings.git_commit_sha,
+        "git.commit": settings.git_commit_sha,
+    }
     resource_attributes.update(parse_key_value_pairs(settings.otel_resource_attributes))
     return Resource.create(resource_attributes)
 

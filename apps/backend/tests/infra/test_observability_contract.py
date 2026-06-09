@@ -239,3 +239,80 @@ def test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline() -> None:
 
     assert "alerting.shared.ensure-log-error-rule" in infra_alerting
     assert "First live instance via shared rule automation" in infra_alerting
+
+
+def test_AC10_4_3_main_instruments_fastapi_app_instance() -> None:
+    """AC10.4.3: main wires FastAPI request instrumentation to the app instance.
+
+    Regression guard for #768/#576: the broken `FastAPIInstrumentor.instrument()`
+    (no instance, before the app existed) must not return, and the per-app
+    `instrument_app(app)` API must be used after app creation.
+    """
+    source = _read(REPO_ROOT / "apps" / "backend" / "src" / "main.py")
+
+    assert "FastAPIInstrumentor.instrument_app(app)" in source
+    assert "_instrument_fastapi_app(app)" in source
+    # The no-op base-class form must never be reintroduced.
+    assert "FastAPIInstrumentor.instrument()" not in source
+
+
+def test_AC10_4_3_instrumentation_state_reflected_in_status() -> None:
+    """AC10.4.3: observability status reports REAL instrumentation init, not config."""
+    original = observability_module.is_fastapi_instrumentation_active()
+    try:
+        observability_module.mark_fastapi_instrumentation_active(False)
+        status = observability_module.get_observability_status()
+        assert status["request_instrumentation_active"] is False
+        assert "service_version" in status
+
+        observability_module.mark_fastapi_instrumentation_active(True)
+        assert observability_module.get_observability_status()["request_instrumentation_active"] is True
+    finally:
+        observability_module.mark_fastapi_instrumentation_active(original)
+
+
+def test_AC10_4_4_otel_resource_includes_commit_version(monkeypatch) -> None:
+    """AC10.4.4: trace/log resource carries the deploy commit for correlation."""
+    monkeypatch.setattr(logger_module.settings, "git_commit_sha", "abc1234", raising=False)
+    resource = logger_module._build_otel_resource()
+    attributes = dict(resource.attributes)
+    assert attributes.get("service.version") == "abc1234"
+    assert attributes.get("git.commit") == "abc1234"
+    assert attributes.get("service.name") == logger_module.settings.otel_service_name
+
+
+def test_AC10_4_3_instrument_app_applies_to_instance(monkeypatch) -> None:
+    """AC10.4.3: _instrument_fastapi_app applies instrumentation to the app instance."""
+    import sys
+    import types
+
+    from fastapi import FastAPI
+
+    from src import main as main_module
+
+    fake_module = types.ModuleType("opentelemetry.instrumentation.fastapi")
+    fake_instrumentor = Mock()
+    fake_module.FastAPIInstrumentor = fake_instrumentor
+    monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.fastapi", fake_module)
+    monkeypatch.setattr(main_module.settings, "otel_exporter_otlp_endpoint", "http://collector:4318", raising=False)
+    observability_module.mark_fastapi_instrumentation_active(False)
+
+    app = FastAPI()
+    main_module._instrument_fastapi_app(app)
+
+    fake_instrumentor.instrument_app.assert_called_once_with(app)
+    assert observability_module.is_fastapi_instrumentation_active() is True
+
+
+def test_AC10_4_3_instrument_app_skips_without_endpoint(monkeypatch) -> None:
+    """AC10.4.3: instrumentation is a no-op (and stays inactive) without an endpoint."""
+    from fastapi import FastAPI
+
+    from src import main as main_module
+
+    monkeypatch.setattr(main_module.settings, "otel_exporter_otlp_endpoint", None, raising=False)
+    observability_module.mark_fastapi_instrumentation_active(False)
+
+    main_module._instrument_fastapi_app(FastAPI())
+
+    assert observability_module.is_fastapi_instrumentation_active() is False
