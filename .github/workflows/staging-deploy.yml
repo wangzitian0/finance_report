@@ -23,6 +23,7 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
+  STAGING_FIFO_TIMEOUT_SECONDS: "7200"
   STAGING_E2E_PRIMARY_MODEL: glm-5.1
   STAGING_E2E_OCR_MODEL: glm-4.6v
   STAGING_E2E_VISION_MODEL: glm-4.6v
@@ -118,9 +119,10 @@ jobs:
         if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TIMEOUT_SECONDS: ${{ env.STAGING_FIFO_TIMEOUT_SECONDS || '21600' }}
         run: |
           python tools/wait_post_merge_train_turn.py \
-            --timeout-seconds 21600 \
+            --timeout-seconds "$TIMEOUT_SECONDS" \
             --poll-seconds 30
 
       - name: Report no train wait required

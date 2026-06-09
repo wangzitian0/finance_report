@@ -509,7 +509,7 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "classify-staging:" not in workflow
     assert "name: Wait for FIFO post-merge train turn" in workflow
     assert "python tools/wait_post_merge_train_turn.py" in workflow
-    assert "--timeout-seconds 21600" in workflow
+    assert '--timeout-seconds "$TIMEOUT_SECONDS"' in workflow
     assert "name: Classify staging and AI/OCR relevance" in workflow
     assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
     assert "provider_gate_required" in workflow
@@ -1518,8 +1518,8 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     cleanup_block = workflow.split("  cleanup:", 1)[1]
     frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
-    assert "needs: setup" in backend_build_block
-    assert "needs: setup" in frontend_build_block
+    assert "needs: [setup, gate-cheap-ci]" in backend_build_block
+    assert "needs: [setup, gate-cheap-ci]" in frontend_build_block
     assert (
         "needs: [setup, build-preview-backend-image, build-preview-frontend-image]"
         in deploy_block
@@ -2690,3 +2690,134 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert "Queue delay" in timing_script
     assert "Longest completed job" in timing_script
     assert "GitHub Step Summary" in ci_cd
+
+
+def test_AC8_13_114_pr_preview_gated_on_cheap_ci() -> None:
+    """AC8.13.114: PR preview build/deploy does not start until ci.yml lint + ac-traceability succeed."""
+    workflow = read(".github/workflows/pr-test.yml")
+    assert "gate-cheap-ci:" in workflow
+    assert "tools/wait_for_cheap_ci.py" in workflow
+    # check that build backend/frontend jobs need gate-cheap-ci
+    backend_build = workflow.split("  build-preview-backend-image:", 1)[1].split("  build-preview-frontend-image:", 1)[0]
+    frontend_build = workflow.split("  build-preview-frontend-image:", 1)[1].split("  deploy:", 1)[0]
+    assert "needs: [setup, gate-cheap-ci]" in backend_build
+    assert "needs: [setup, gate-cheap-ci]" in frontend_build
+    
+    # Verify actions: read permission is present in gate-cheap-ci job
+    gate_cheap_ci_job = workflow.split("  gate-cheap-ci:", 1)[1].split("  build-preview-backend-image:", 1)[0]
+    assert "permissions:" in gate_cheap_ci_job
+    assert "actions: read" in gate_cheap_ci_job
+
+
+def test_AC8_13_115_readiness_fail_fast() -> None:
+    """AC8.13.115: A deploy that cannot become ready fails within a bounded short window with classified failure domain."""
+    workflow = read(".github/workflows/pr-test.yml")
+    assert "consecutive_dokploy_failures >= 8" in workflow
+    assert "consecutive_404_failures >= 15" in workflow
+    assert "Fail-fast: Dokploy worker or deployment record failure occurred consecutively 8 times" in workflow
+    assert "Fail-fast: All three readiness endpoints (/api/health, /api/ping, and frontend version endpoint) returned HTTP 404 consecutively 15 times" in workflow
+
+
+def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
+    """AC8.13.116: Post-merge -> staging start latency is reduced by removing redundant heavy re-run on push to main."""
+    workflow = read(".github/workflows/ci.yml")
+    
+    # Check that heavy jobs skip on push to main by checking pr_required gate
+    for job in ["backend:", "backend-integration:", "backend-e2e-tier1:", "frontend:", "tooling-coverage:", "unified-coverage:"]:
+        job_block = workflow.split(job, 1)[1].split("\n\n", 1)[0]
+        assert "if: needs.changes.outputs.pr_required == 'true'" in job_block
+
+    # Check container-images has pr_required gate
+    container_images_block = workflow.split("  container-images:", 1)[1].split("\n\n", 1)[0]
+    assert "if: needs.changes.outputs.pr_required == 'true'" in container_images_block
+
+    # Check finish job handles skipped tests on push via pr_required output
+    finish_block = workflow.split("  finish:", 1)[1]
+    assert 'if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then' in finish_block
+
+
+def test_AC8_13_117_parameterized_staging_fifo_timeout() -> None:
+    """AC8.13.117: Staging FIFO worst-case wait is bounded/parameterized and documented."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    assert 'STAGING_FIFO_TIMEOUT_SECONDS: "7200"' in workflow
+    assert "TIMEOUT_SECONDS: ${{ env.STAGING_FIFO_TIMEOUT_SECONDS || '21600' }}" in workflow
+    assert '--timeout-seconds "$TIMEOUT_SECONDS"' in workflow
+
+
+def test_AC8_13_118_timeouts_and_retries_documented() -> None:
+    """AC8.13.118: Critical-path timeouts and retries are documented in docs/ssot/ci-cd.md."""
+    ci_cd = read("docs/ssot/ci-cd.md")
+    assert "STAGING_FIFO_TIMEOUT_SECONDS" in ci_cd
+    assert "7200 seconds" in ci_cd
+    assert "consecutive Dokploy worker or deployment record failures reach 8" in ci_cd
+    assert "all three readiness endpoints (/api/health, /api/ping, and frontend version endpoint) return HTTP 404 consecutively 15 times" in ci_cd
+    assert "parallel staging" in ci_cd
+
+
+def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
+    """Test wait_for_cheap_ci with mock urlopen to get full test coverage."""
+    import importlib
+    importlib.import_module("tools.wait_for_cheap_ci")
+    from tools._lib.ci.wait_for_cheap_ci import GitHubActionsClient, main
+    import urllib.request
+    import urllib.error
+    from io import BytesIO
+    import json
+
+    class MockResponse:
+        def __init__(self, data: bytes, code: int = 200):
+            self.data = data
+            self.code = code
+        def read(self) -> bytes:
+            return self.data
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    def mock_urlopen(request, timeout=None):
+        url = request.full_url
+        if "jobs" in url:
+            res_data = {
+                "jobs": [
+                    {"name": "Lint", "status": "completed", "conclusion": "success"},
+                    {"name": "AC Traceability Check", "status": "completed", "conclusion": "success"},
+                ]
+            }
+            return MockResponse(json.dumps(res_data).encode("utf-8"))
+        elif "runs" in url:
+            res_data = {
+                "workflow_runs": [
+                    {"id": 3, "status": "completed", "conclusion": "success", "created_at": "2026-06-08T10:00:00Z"},
+                    {"id": 4, "status": "queued", "conclusion": None, "created_at": "2026-06-08T10:01:00Z"},
+                ]
+            }
+            return MockResponse(json.dumps(res_data).encode("utf-8"))
+        return MockResponse(b"{}")
+        
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    
+    # Test error handling path
+    client = GitHubActionsClient(repository="owner/repo", token="tok")
+    def mock_urlopen_error(request, timeout=None):
+        raise urllib.error.HTTPError(
+            url=request.full_url,
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=BytesIO(b"Forbidden error body")
+        )
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen_error)
+    try:
+        client.get_workflow_runs("abc")
+    except RuntimeError as e:
+        assert "GitHub API HTTP 403" in str(e)
+        
+    # Restore normal mock_urlopen
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    
+    argv = ["--repository", "owner/repo", "--token", "tok", "--commit-sha", "abc123", "--poll-seconds", "1", "--timeout-seconds", "5"]
+    res = main(argv)
+    assert res == 0
+
+

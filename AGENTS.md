@@ -77,6 +77,7 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ❌ Agents never merge PRs
 - ✅ Install pre-commit hooks: `make install`
 - ✅ Run `moon run :lint && moon run :test` before pushing
+- ✅ A mergeable PR must resolve all Copilot auto-review comments (either by fixing them or providing a justification for not doing so). Once resolved, resolve the comment threads on GitHub.
 
 ---
 
