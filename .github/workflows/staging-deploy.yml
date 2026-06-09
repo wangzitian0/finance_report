@@ -88,10 +88,10 @@ jobs:
     outputs:
       commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}
       commit_sha: ${{ steps.get_sha.outputs.short_sha }}
-      staging_required: ${{ steps.classify.outputs.staging_required }}
-      staging_reason: ${{ steps.classify.outputs.staging_reason }}
-      ai_ocr_required: ${{ steps.classify.outputs.staging_ai_ocr_required }}
-      ai_ocr_reason: ${{ steps.classify.outputs.staging_ai_ocr_reason }}
+      staging_required: ${{ steps.gates.outputs.staging_required }}
+      staging_reason: ${{ steps.gates.outputs.staging_reason }}
+      ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}
+      ai_ocr_reason: ${{ steps.gates.outputs.ai_ocr_reason }}
       failure_domain: ${{ steps.deploy_failure_context.outputs.failure_domain }}
       failed_step: ${{ steps.deploy_failure_context.outputs.failed_step }}
       failure_summary: ${{ steps.deploy_failure_context.outputs.failure_summary }}
@@ -141,10 +141,10 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             {
-              echo "staging_required=true"
-              echo "staging_reason=manual-dispatch"
-              echo "staging_ai_ocr_required=true"
-              echo "staging_ai_ocr_reason=manual-dispatch"
+              echo 'env_stage_required={"staging":true}'
+              echo 'env_stage_reasons={"staging":"manual-dispatch"}'
+              echo 'provider_gate_required={"staging":true}'
+              echo 'provider_gate_reasons={"staging":"manual-dispatch"}'
             } >> "$GITHUB_OUTPUT"
             {
               echo "## Staging Change Classification"
@@ -171,21 +171,44 @@ jobs:
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
 
+      - name: Normalize staging gates
+        id: gates
+        env:
+          ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}
+          ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}
+          PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}
+          PROVIDER_GATE_REASONS: ${{ steps.classify.outputs.provider_gate_reasons }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          env_required = json.loads(os.environ["ENV_STAGE_REQUIRED"])
+          env_reasons = json.loads(os.environ["ENV_STAGE_REASONS"])
+          provider_required = json.loads(os.environ["PROVIDER_GATE_REQUIRED"])
+          provider_reasons = json.loads(os.environ["PROVIDER_GATE_REASONS"])
+          print(f"staging_required={str(env_required['staging']).lower()}")
+          print(f"staging_reason={env_reasons['staging']}")
+          print(f"ai_ocr_required={str(provider_required['staging']).lower()}")
+          print(f"ai_ocr_reason={provider_reasons['staging']}")
+          PY
+
       - name: Report staging deploy skip
-        if: steps.classify.outputs.staging_required != 'true'
+        if: steps.gates.outputs.staging_required != 'true'
         run: |
           {
             echo "## Staging Deploy Skipped"
             echo ""
-            echo "- Staging deploy required: \`${{ steps.classify.outputs.staging_required }}\`"
-            echo "- Staging reason: \`${{ steps.classify.outputs.staging_reason }}\`"
+            echo "- Staging deploy required: \`${{ steps.gates.outputs.staging_required }}\`"
+            echo "- Staging reason: \`${{ steps.gates.outputs.staging_reason }}\`"
             echo "- Target main SHA: \`${{ steps.get_sha.outputs.short_sha }}\`"
             echo ""
             echo "No image promotion, Dokploy mutation, smoke/E2E, or AI/OCR validation ran."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Probe current staging version
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         id: staging_before
         continue-on-error: true
         env:
@@ -222,26 +245,26 @@ jobs:
 
       - name: Install moon
         id: install_moon
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         uses: moonrepo/setup-toolchain@v0
 
       - name: Install uv
         id: install_uv
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         uses: astral-sh/setup-uv@v5
         with:
           version: ${{ env.UV_VERSION }}
 
       - name: Set up Python
         id: setup_python
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Log in to Container registry
         id: registry_login
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -250,11 +273,11 @@ jobs:
 
       - name: Set up Docker Buildx
         id: setup_buildx
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Resolve Backend Image
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         id: backend_image
         run: |
           bash tools/check_ghcr_image_tag.sh \
@@ -262,7 +285,7 @@ jobs:
 
       - name: Build and push Backend
         id: build_backend
-        if: steps.classify.outputs.staging_required == 'true' && steps.backend_image.outputs.build_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true' && steps.backend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/backend
@@ -274,7 +297,7 @@ jobs:
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
 
       - name: Resolve Frontend Image
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         id: frontend_image
         run: |
           bash tools/check_ghcr_image_tag.sh \
@@ -282,7 +305,7 @@ jobs:
 
       - name: Build and push Frontend
         id: build_frontend
-        if: steps.classify.outputs.staging_required == 'true' && steps.frontend_image.outputs.build_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true' && steps.frontend_image.outputs.build_required == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./apps/frontend
@@ -297,7 +320,7 @@ jobs:
 
       - name: Promote Backend Image to Staging Tag
         id: promote_backend
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         run: |
           docker buildx imagetools create \
             --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging" \
@@ -305,7 +328,7 @@ jobs:
 
       - name: Promote Frontend Image to Staging Tag
         id: promote_frontend
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         run: |
           docker buildx imagetools create \
             --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging" \
@@ -313,7 +336,7 @@ jobs:
 
       - name: Deploy to Staging
         id: deploy_staging
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         env:
           IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
@@ -337,11 +360,11 @@ jobs:
 
       - name: Setup E2E Tests
         id: setup_e2e
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         uses: ./.github/actions/setup-e2e-tests
 
       - name: End-to-End Tests
-        if: steps.classify.outputs.staging_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         id: staging_e2e_tests
         timeout-minutes: 22
         env:
@@ -396,7 +419,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          staging_required="${{ steps.classify.outputs.staging_required }}"
+          staging_required="${{ steps.gates.outputs.staging_required }}"
           failure_domain="none"
           failed_step="none"
           failure_summary="no staging deploy failure"

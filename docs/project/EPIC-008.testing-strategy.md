@@ -382,6 +382,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.109 | Post-merge staging AI/OCR gate tests use isolated users and PR tooling rejects shared mutable user fixtures before provider-backed replay | `test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users` | `tests/tooling/test_staging_ai_ocr_gate_contract.py` | P0 |
 | AC8.13.110 | CI change classification emits structured Env x Stage JSON outputs and matrix summaries while preserving legacy workflow outputs during migration | `test_AC8_13_110_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 | AC8.13.111 | CI change classification structured Env x Stage outputs cover the complete environment axis (`local`, `pr`, `pr-preview`, `staging`, `prd`) while keeping PR heavy gating and deployed-environment gates represented as matrix cells | `test_AC8_13_111_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
+| AC8.13.112 | Delivery-engine recommendations, SSOT, workflow gates, and contract tests stay aligned around structured Env x Stage consumers while legacy scalar outputs remain compatibility-only shims | `test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path`, `test_AC8_13_112_workflows_consume_structured_env_stage_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 

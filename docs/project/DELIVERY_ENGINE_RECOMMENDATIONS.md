@@ -20,6 +20,47 @@ Observed on May 27, 2026:
 
 ## Recommended follow-ups
 
+### Structured matrix consumer migration
+
+The current sparse Env x Stage model is documented in
+`docs/ssot/ci-cd.md#env-x-stage-contract` and implemented in
+`common/ci/change_classifier.py` through structured outputs:
+`env_stage_required`, `env_stage_reasons`, `env_stage_stages`,
+`env_stage_files`, and provider-gate JSON outputs. GitHub Actions jobs now
+normalize their gates from that structured matrix:
+
+- PR CI reads `env_stage_required.pr` instead of the legacy `heavy_required`
+  output.
+- PR Preview reads `env_stage_required["pr-preview"]` instead of the legacy
+  `pr_preview_required` output.
+- Staging reads `env_stage_required.staging` and
+  `provider_gate_required.staging` instead of the legacy `staging_required` and
+  `staging_ai_ocr_required` outputs.
+
+The legacy scalar outputs remain only as external compatibility shims while
+downstream ad hoc consumers migrate.
+
+Latest evidence review on June 9, 2026 sampled the three newest successful and
+three newest failed logs for the active CI lanes: `CI`,
+`PR Test Environment`, `Deploy Staging`, `Staging AI/OCR Gate`, and
+`Production Release`. The pattern supports the current balance:
+
+- PR CI is the deterministic merge authority; recent failures were unified
+  coverage regressions, which are cheap to diagnose before deploy.
+- PR Preview is the noisiest deployed lane; recent failures concentrated in
+  `Deploy preview lifecycle` before browser E2E, so it should stay scoped to
+  runtime/API/UI preview-relevant paths.
+- Staging is correctly acting as the post-merge environment gate; recent
+  failures were split between Dokploy deploy health and application E2E, then
+  surfaced through `Post-merge Delivery`.
+- Provider-backed AI/OCR and production release checks are appropriately
+  narrow. They prove provider or release integrity only after deterministic PR
+  and staging proof exists.
+
+The next code simplification should remove the scalar compatibility shims after
+branch protection, required-check behavior, and any external ad hoc consumers
+are confirmed to rely only on the structured consumers.
+
 ### Coveralls reporting split
 
 Implemented in PR #627. Pull requests no longer call Coveralls, and main pushes
@@ -43,6 +84,8 @@ main pushes.
 
 - Changing branch-protection required contexts.
 - Reworking Docker image build topology.
+- Removing legacy scalar change-classifier outputs before all workflows consume
+  the structured Env x Stage matrix.
 
 ## Implemented follow-ups
 

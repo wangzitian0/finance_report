@@ -48,8 +48,8 @@ jobs:
       internal_domain: ${{ steps.info.outputs.internal_domain }}
       preview_app_url: ${{ steps.info.outputs.preview_app_url }}
       preview_commit_slug: ${{ steps.info.outputs.preview_commit_slug }}
-      pr_preview_required: ${{ steps.preview.outputs.pr_preview_required }}
-      pr_preview_reason: ${{ steps.preview.outputs.pr_preview_reason }}
+      pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}
+      pr_preview_reason: ${{ steps.preview_gate.outputs.pr_preview_reason }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,14 +93,14 @@ jobs:
           set -euo pipefail
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "pr_preview_required=true" >> "$GITHUB_OUTPUT"
-            echo "pr_preview_reason=manual-dispatch" >> "$GITHUB_OUTPUT"
+            echo 'env_stage_required={"pr-preview":true}' >> "$GITHUB_OUTPUT"
+            echo 'env_stage_reasons={"pr-preview":"manual-dispatch"}' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           if [ "${{ github.event.action }}" = "closed" ]; then
-            echo "pr_preview_required=false" >> "$GITHUB_OUTPUT"
-            echo "pr_preview_reason=cleanup-only" >> "$GITHUB_OUTPUT"
+            echo 'env_stage_required={"pr-preview":false}' >> "$GITHUB_OUTPUT"
+            echo 'env_stage_reasons={"pr-preview":"cleanup-only"}' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -118,6 +118,23 @@ jobs:
             --changed-files changed-files.txt \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Normalize PR preview gate
+        id: preview_gate
+        env:
+          ENV_STAGE_REQUIRED: ${{ steps.preview.outputs.env_stage_required }}
+          ENV_STAGE_REASONS: ${{ steps.preview.outputs.env_stage_reasons }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          required = json.loads(os.environ["ENV_STAGE_REQUIRED"])
+          reasons = json.loads(os.environ["ENV_STAGE_REASONS"])
+          print(f"pr_preview_required={str(required['pr-preview']).lower()}")
+          print(f"pr_preview_reason={reasons['pr-preview']}")
+          PY
 
   build-preview-backend-image:
     name: Build Backend PR Preview Image
