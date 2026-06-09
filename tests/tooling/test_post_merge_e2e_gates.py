@@ -933,7 +933,10 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
     assert "staging_reason: ${{ steps.gates.outputs.staging_reason }}" in workflow
     assert "if: steps.gates.outputs.staging_required == 'true'" in workflow
-    assert "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}" in workflow
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in workflow
+    )
     assert "Report staging deploy skip" in workflow
     assert "manual-dispatch" in workflow
 
@@ -1013,7 +1016,10 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
 
     assert "name: Classify Changes" in workflow
     assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in workflow
-    assert "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}" in workflow
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in workflow
+    )
     assert "tools/ci_change_classifier.py" in workflow
     assert "--changed-files changed-files.txt" in workflow
     assert '"docs/"' in classifier
@@ -1238,10 +1244,7 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 
     # In the promote-not-rebuild pattern, we promote staging-validated images instead of rebuilding.
     # We verify that promotion uses docker buildx imagetools create.
-    promote_blocks = re.findall(
-        r"docker buildx imagetools create --tag",
-        workflow
-    )
+    promote_blocks = re.findall(r"docker buildx imagetools create --tag", workflow)
     assert len(promote_blocks) == 2
 
     assert "Verify staging passed" in workflow
@@ -1620,8 +1623,13 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     assert "name: Classify staging and AI/OCR relevance" in deploy_workflow
     assert "ai-ocr-gate:" in deploy_workflow
     assert "needs: [build-and-deploy]" in deploy_workflow
-    assert "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}" in deploy_workflow
-    assert "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}" in deploy_workflow
+    assert (
+        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}" in deploy_workflow
+    )
+    assert (
+        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
+        in deploy_workflow
+    )
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
@@ -2390,7 +2398,9 @@ def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() ->
 
     assert "Env x Stage Contract" in ci_cd
     assert "Legacy scalar outputs" in ci_cd
-    assert "GitHub Actions consumers normalize gates from the structured matrix" in ci_cd
+    assert (
+        "GitHub Actions consumers normalize gates from the structured matrix" in ci_cd
+    )
     assert "ENV_STAGE_MATRIX" in classifier
     assert "LEGACY_ENV_OUTPUTS" in classifier
 
@@ -2402,21 +2412,48 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
     staging_workflow = read(".github/workflows/staging-deploy.yml")
 
     assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in ci_workflow
-    assert "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}" in ci_workflow
-    assert "ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}" in ci_workflow
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in ci_workflow
+    )
+    assert (
+        "ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}"
+        in ci_workflow
+    )
     assert "if: needs.changes.outputs.pr_required == 'true'" in ci_workflow
     assert "needs.changes.outputs.heavy_required" not in ci_workflow
-    assert "heavy_required: ${{ steps.classify.outputs.heavy_required }}" not in ci_workflow
+    assert (
+        "heavy_required: ${{ steps.classify.outputs.heavy_required }}"
+        not in ci_workflow
+    )
 
-    assert "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}" in pr_workflow
-    assert "ENV_STAGE_REQUIRED: ${{ steps.preview.outputs.env_stage_required }}" in pr_workflow
-    assert "ENV_STAGE_REASONS: ${{ steps.preview.outputs.env_stage_reasons }}" in pr_workflow
+    assert (
+        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}"
+        in pr_workflow
+    )
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.preview.outputs.env_stage_required }}"
+        in pr_workflow
+    )
+    assert (
+        "ENV_STAGE_REASONS: ${{ steps.preview.outputs.env_stage_reasons }}"
+        in pr_workflow
+    )
     assert "required['pr-preview']" in pr_workflow
     assert "steps.preview.outputs.pr_preview_required" not in pr_workflow
 
-    assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in staging_workflow
-    assert "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}" in staging_workflow
-    assert "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}" in staging_workflow
+    assert (
+        "staging_required: ${{ steps.gates.outputs.staging_required }}"
+        in staging_workflow
+    )
+    assert (
+        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}"
+        in staging_workflow
+    )
+    assert (
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
+        in staging_workflow
+    )
     assert (
         "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
         in staging_workflow
@@ -2425,6 +2462,43 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
     assert "provider_required['staging']" in staging_workflow
     assert "steps.classify.outputs.staging_required" not in staging_workflow
     assert "steps.classify.outputs.staging_ai_ocr_required" not in staging_workflow
+
+
+def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded() -> (
+    None
+):
+    """AC8.13.113: sparse-matrix review records log evidence and leak risks."""
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
+
+    for token in (
+        "AC8.13.113",
+        "three newest successful and three newest failed",
+        "delivery-speed balance",
+        "end-to-end consistency",
+        "quality fallback",
+        "resource leak candidates",
+    ):
+        assert token in epic
+
+    for token in (
+        "June 9, 2026 evidence sample",
+        "27186502313",
+        "27184608585",
+        "27186502312",
+        "27184608593",
+        "27182443187",
+        "27136569205",
+        "26636834757",
+        "26636451107",
+        "resource leak candidates",
+        "PR preview Dokploy compose",
+        "GHCR PR images",
+        "Docker build cache",
+        "stale staging or production routes",
+        "safe simplification boundary",
+    ):
+        assert token in recommendation
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
