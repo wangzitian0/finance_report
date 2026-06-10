@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openai/gpt-5.5",
+  "model": "github-copilot/claude-sonnet-4.6",
   "plugin": [
     "oh-my-opencode@3.17.6"
   ],
@@ -11,64 +11,6 @@
       "oauth": false,
       "headers": {
         "Authorization": "Bearer {env:GITHUB_PAT}"
-      }
-    }
-  },
-  "provider": {
-    "google": {
-      "name": "Google",
-      "models": {
-        "antigravity-gemini-3-flash": {
-          "name": "Gemini 3 Flash (Antigravity)",
-          "attachment": true,
-          "limit": { "context": 1048576, "output": 65536 },
-          "modalities": {
-            "input": ["text", "image", "pdf"],
-            "output": ["text"]
-          }
-        }
-      }
-    },
-    "openai": {
-      "name": "OpenAI",
-      "models": {
-        "gpt-5.5": {
-          "name": "GPT 5.5 (OAuth)",
-          "limit": { "context": 272000, "output": 128000 },
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"]
-          },
-          "variants": {
-            "none": { "reasoningEffort": "none", "reasoningSummary": "auto", "textVerbosity": "medium" },
-            "low": { "reasoningEffort": "low", "reasoningSummary": "auto", "textVerbosity": "medium" },
-            "medium": { "reasoningEffort": "medium", "reasoningSummary": "auto", "textVerbosity": "medium" },
-            "high": { "reasoningEffort": "high", "reasoningSummary": "detailed", "textVerbosity": "medium" },
-            "xhigh": { "reasoningEffort": "xhigh", "reasoningSummary": "detailed", "textVerbosity": "medium" }
-          }
-        },
-        "gpt-5.4": {
-          "name": "GPT 5.4 (OAuth)",
-          "limit": { "context": 272000, "output": 128000 },
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"]
-          },
-          "variants": {
-            "none": { "reasoningEffort": "none", "reasoningSummary": "auto", "textVerbosity": "medium" },
-            "low": { "reasoningEffort": "low", "reasoningSummary": "auto", "textVerbosity": "medium" },
-            "medium": { "reasoningEffort": "medium", "reasoningSummary": "auto", "textVerbosity": "medium" },
-            "high": { "reasoningEffort": "high", "reasoningSummary": "detailed", "textVerbosity": "medium" },
-            "xhigh": { "reasoningEffort": "xhigh", "reasoningSummary": "detailed", "textVerbosity": "medium" }
-          }
-        }
-      },
-      "options": {
-        "reasoningEffort": "medium",
-        "reasoningSummary": "auto",
-        "textVerbosity": "medium",
-        "include": ["reasoning.encrypted_content"],
-        "store": false
       }
     }
   }
