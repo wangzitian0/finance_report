@@ -113,7 +113,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
 
     # === AC8.13.1: Upload PDF ===
     await page.goto(_get_url("/statements"))
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
 
     if "/login" in page.url:
         pytest.fail(f"Redirected to /login despite authenticated_page fixture. URL: {page.url}")
@@ -186,8 +186,8 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
 
     # === AC8.13.3: Detail page shows transactions ===
     await statement_row.click()
-    # Wait for navigation to /statements/{id} explicitly — wait_for_load_state('networkidle')
-    # can resolve before the Next.js router commits the URL change.
+    # Wait for navigation to /statements/{id} explicitly; generic load-state
+    # waits can resolve before the Next.js router commits the URL change.
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
 
     await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(timeout=10_000)
@@ -213,7 +213,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
 
     # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
 
     await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(timeout=10_000)
     await expect(page.get_by_text("Assets", exact=False).first).to_be_visible(timeout=10_000)

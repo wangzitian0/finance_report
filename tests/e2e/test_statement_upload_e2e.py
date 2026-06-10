@@ -106,7 +106,7 @@ async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> No
 
     page = authenticated_page_unique
     await page.goto(_get_url("/statements"))
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     await page.locator("#institution").fill("E2E Upload Test Bank")
     # Wait for AI model dropdown options to load, then explicitly select one.
     model_select = page.locator("select#ai-model")
@@ -163,7 +163,7 @@ async def test_model_selection_and_upload(authenticated_page_unique: Page) -> No
 
     page = authenticated_page_unique
     await page.goto(_get_url("/statements"))
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
 
     model_select = page.locator("select#ai-model")
     await expect(model_select).to_be_visible(timeout=5_000)

@@ -414,6 +414,45 @@ jobs:
 
           echo "✅ Staging deploy health gate passed!"
 
+      - name: AI Provider Connectivity Smoke
+        if: steps.gates.outputs.staging_required == 'true'
+        id: ai_provider_connectivity
+        timeout-minutes: 5
+        env:
+          APP_URL: https://report-staging.zitian.party
+          TEST_ENV: staging
+          SKIP_UI_TESTS: false
+          STRICT_E2E_GATES: true
+          EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
+          PROVIDER_CONNECTIVITY_TIMEOUT_MS: 90000
+        run: |
+          run_timed_phase() {
+            local phase_name="$1"
+            shift
+            local start
+            local end
+            local duration
+            local status
+
+            start=$(date +%s)
+            echo "::group::${phase_name}"
+            printf '[phase:start] %s at %s\n' "$phase_name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            set +e
+            "$@"
+            status=$?
+            set -e
+            end=$(date +%s)
+            duration=$((end - start))
+            printf '[phase:end] %s status=%s duration=%ss\n' "$phase_name" "$status" "$duration"
+            echo "::endgroup::"
+            return "$status"
+          }
+
+          mkdir -p test-results
+          run_timed_phase "AI Provider Connectivity Smoke" \
+            pytest tests/e2e/test_ai_provider_connectivity.py \
+              -v -m "llm" --junit-xml=test-results/staging-provider-connectivity.xml
+
       - name: Classify staging deploy failure context
         id: deploy_failure_context
         if: ${{ always() }}
@@ -527,6 +566,11 @@ jobs:
               "staging_e2e_tests" \
               "application-smoke-e2e" \
               "Staging smoke or core non-LLM E2E failed after deployment."
+          elif [ "${{ steps.ai_provider_connectivity.outcome }}" = "failure" ]; then
+            classify_failure \
+              "ai_provider_connectivity" \
+              "provider-connectivity" \
+              "Staging AI provider connectivity smoke failed after deployed app health and non-LLM E2E passed."
           elif printf "%s" "$STEPS_CONTEXT" | grep -q '"outcome":"failure"'; then
             classify_failure \
               "unknown" \
@@ -579,11 +623,12 @@ jobs:
             echo "backend_image_build_required=${{ steps.backend_image.outputs.build_required }}"
             echo "frontend_image_build_required=${{ steps.frontend_image.outputs.build_required }}"
             echo "staging_e2e_outcome=${{ steps.staging_e2e_tests.outcome }}"
+            echo "ai_provider_connectivity_outcome=${{ steps.ai_provider_connectivity.outcome }}"
             echo "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}"
             echo "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}"
             echo "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
             echo "strict_e2e_gates=true"
-            echo "marker=(smoke or e2e) and not llm"
+            echo "marker=(smoke or e2e) and not llm; llm connectivity smoke"
           } > ci-context/staging-deploy-context.txt
 
       - name: Upload staging deploy test context

@@ -536,7 +536,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         await expect(
             page.get_by_text("Investment Performance Report Schedule")
         ).to_be_visible()
-        await expect(page.get_by_text("investment_performance")).to_be_visible()
+        await expect(page.get_by_text("investment_performance", exact=True)).to_be_visible()
 
         property_snapshot = await _create_manual_snapshot(
             client,
@@ -868,7 +868,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         )
 
     await page.goto(_get_url("/dashboard"))
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_label("Upload-to-report home")).to_be_visible(
         timeout=10_000
     )
@@ -882,7 +882,7 @@ async def test_personal_financial_report_package_post_merge_journey(
             f"/reports/balance-sheet?as_of_date={fixture_period_end.isoformat()}&currency=SGD"
         )
     )
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
         timeout=10_000
     )
@@ -892,7 +892,7 @@ async def test_personal_financial_report_package_post_merge_journey(
             f"/reports/income-statement?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
         )
     )
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(
         timeout=10_000
     )
@@ -902,7 +902,7 @@ async def test_personal_financial_report_package_post_merge_journey(
             f"/reports/cash-flow?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
         )
     )
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_role("heading", name="Cash Flow Statement")).to_be_visible(
         timeout=10_000
     )

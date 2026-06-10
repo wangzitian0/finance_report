@@ -134,3 +134,34 @@ def test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users() -> None:
                 offenders.append(f"{relative_path}::{node.name} uses {', '.join(shared)}")
 
     assert offenders == []
+
+
+def test_AC8_13_109_ai_ocr_gate_tests_use_cookie_auth_for_api_calls() -> None:
+    """AC8.13.109: Provider-backed E2E API calls must use HttpOnly cookie auth."""
+    offenders: list[str] = []
+    forbidden_snippets = [
+        "localStorage.getItem('finance_access_token')",
+        'localStorage.getItem("finance_access_token")',
+        '"Authorization": f"Bearer {access_token}"',
+        "'Authorization': f'Bearer {access_token}'",
+    ]
+
+    for relative_path in contract.gate_files():
+        source = (ROOT / relative_path).read_text(encoding="utf-8")
+        for snippet in forbidden_snippets:
+            if snippet in source:
+                offenders.append(f"{relative_path} contains {snippet}")
+
+    assert offenders == []
+
+
+def test_AC8_13_109_ai_ocr_gate_tests_avoid_networkidle_waits() -> None:
+    """AC8.13.109: Deployed browser gates wait on explicit UI, not networkidle."""
+    offenders: list[str] = []
+
+    for relative_path in contract.gate_files():
+        source = (ROOT / relative_path).read_text(encoding="utf-8")
+        if "networkidle" in source:
+            offenders.append(f"{relative_path} waits for networkidle")
+
+    assert offenders == []

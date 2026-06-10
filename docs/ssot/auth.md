@@ -426,6 +426,7 @@ the HttpOnly cookie; frontend storage must not persist bearer tokens.
 
 ### Testing
 - Browser tests must create a user via `/api/auth/register`, keep the auth cookie in the browser context, and avoid localStorage bearer tokens.
+- Browser tests that issue direct API calls from Playwright must reuse the browser context cookie jar or send the `finance_access_token` cookie explicitly; they must not read bearer tokens from localStorage.
 - Backend and API-client tests may include `Authorization: Bearer <token>` headers for direct request coverage.
 - Example test setup:
   ```python
