@@ -288,6 +288,7 @@ def test_AC8_13_56_python_tool_wrappers_bootstrap_repo_root_when_run_directly():
         "generate_pdf_fixtures.py": "reportlab",
         "generate_test_pdfs.py": "reportlab",
         "seed_fx_rates.py": "sqlalchemy",
+        "backfill_layer2.py": "sqlalchemy",
     }
     wrappers = sorted(
         path for path in (ROOT / "tools").glob("*.py") if path.name != "__init__.py"

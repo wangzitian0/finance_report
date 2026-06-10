@@ -419,9 +419,7 @@ async def backfill_atomic_transactions_from_statements(
             statements_scanned += 1
             owner_id = stmt.user_id
             if owner_id is None:
-                logger.warning(
-                    "Skipping statement without owner during backfill", extra={"statement_id": str(stmt.id)}
-                )
+                logger.warning("Skipping statement without owner during backfill", extra={"statement_id": str(stmt.id)})
                 continue
 
             doc_type = (

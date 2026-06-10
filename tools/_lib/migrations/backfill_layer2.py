@@ -28,7 +28,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
+# Append (do not insert at 0) so a wrapper that bootstraps the repo root keeps it
+# at sys.path[0]; see tests/tooling/test_common_tooling_modules.py.
+_BACKEND_PATH = str(REPO_ROOT / "apps" / "backend")
+if _BACKEND_PATH not in sys.path:
+    sys.path.append(_BACKEND_PATH)
 
 from src.config import settings  # noqa: E402
 from src.services.deduplication import backfill_atomic_transactions_from_statements  # noqa: E402

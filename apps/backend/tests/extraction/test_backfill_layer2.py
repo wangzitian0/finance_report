@@ -69,14 +69,16 @@ class TestBackfillLayer2:
         assert result["atomic_transactions_upserted"] == 2
 
         docs = (
-            await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
-        ).scalars().all()
+            (await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))).scalars().all()
+        )
         assert len(docs) == 1
         assert docs[0].file_hash == "hash-backfill-1"
 
         atomic = (
-            await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
-        ).scalars().all()
+            (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)))
+            .scalars()
+            .all()
+        )
         assert {t.amount for t in atomic} == {Decimal("3000.00"), Decimal("2500.00")}
 
     async def test_backfill_is_idempotent(self, db, test_user):
@@ -92,13 +94,15 @@ class TestBackfillLayer2:
         assert second["documents_created"] == 0
 
         docs = (
-            await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
-        ).scalars().all()
+            (await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))).scalars().all()
+        )
         assert len(docs) == 1
 
         atomic = (
-            await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
-        ).scalars().all()
+            (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)))
+            .scalars()
+            .all()
+        )
         assert len(atomic) == 2
 
     async def test_backfill_scopes_to_requested_user(self, db, test_user):
@@ -114,6 +118,8 @@ class TestBackfillLayer2:
 
         assert result["statements_scanned"] == 1
         atomic = (
-            await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == other_user.id))
-        ).scalars().all()
+            (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == other_user.id)))
+            .scalars()
+            .all()
+        )
         assert len(atomic) == 0
