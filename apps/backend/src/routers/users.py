@@ -95,3 +95,23 @@ async def update_user(
     await db.refresh(user)
 
     return UserResponse.model_validate(user)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: UUID,
+    db: DbSession = None,
+    current_user_id: CurrentUserId = None,
+) -> None:
+    """Delete the authenticated user's own account."""
+    if user_id != current_user_id:
+        raise_not_found("User")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise_not_found("User")
+
+    await db.delete(user)
+    await db.commit()

@@ -34,6 +34,16 @@ def _api_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}/api{path}"
 
 
+async def _auth_headers(page: Page) -> dict[str, str]:
+    cookies = await page.context.cookies(APP_URL)
+    auth_cookie = next(
+        (cookie for cookie in cookies if cookie["name"] == "finance_access_token"),
+        None,
+    )
+    assert auth_cookie, "authenticated Playwright context is missing auth cookie"
+    return {"Cookie": f"finance_access_token={auth_cookie['value']}"}
+
+
 def _get_pdf_path(source: str) -> Path:
     from datetime import datetime
 
@@ -326,10 +336,7 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
 
     AC8.13.10: two brokerage PDFs -> real OCR -> positions -> balance sheet value.
     """
-    access_token = await authenticated_page_unique.evaluate(
-        "() => window.localStorage.getItem('finance_access_token')"
-    )
-    headers = {"Authorization": f"Bearer {access_token}"}
+    headers = await _auth_headers(authenticated_page_unique)
     async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
         model = await _default_image_model(client)
         uploads = [

@@ -572,11 +572,12 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in deploy_workflow
     assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in deploy_workflow
     assert '-v -m "llm"' in deploy_workflow
+    deploy_e2e_block = deploy_workflow.split("name: End-to-End Tests", 1)[1].split(
+        "name: AI Provider Connectivity Smoke", 1
+    )[0]
     assert (
         '-v -m "llm"'
-        not in deploy_workflow.split("name: End-to-End Tests", 1)[1].split(
-            "ai-ocr-gate:", 1
-        )[0]
+        not in deploy_e2e_block
     )
     assert "name: Staging AI/OCR Gate" in ai_workflow
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
@@ -1361,13 +1362,37 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
 def test_AC8_13_21_post_merge_ai_ocr_requires_successful_ci_workflow_run() -> None:
     """AC8.13.21: Provider-backed post-merge AI/OCR runs only after successful main CI."""
     workflow = read(".github/workflows/staging-deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "workflow_run:" in workflow
     assert 'workflows: ["CI"]' in workflow
     assert "types: [completed]" in workflow
     assert "github.event.workflow_run.conclusion == 'success'" in workflow
     assert "ref: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
+
+
+def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> None:
+    """AC8.13.120: staging always proves a minimal real provider round trip."""
+    workflow = read(".github/workflows/staging-deploy.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    provider_test = read("tests/e2e/test_ai_provider_connectivity.py")
+
+    assert "name: AI Provider Connectivity Smoke" in workflow
+    assert "id: ai_provider_connectivity" in workflow
+    assert "timeout-minutes: 5" in workflow
+    assert "pytest tests/e2e/test_ai_provider_connectivity.py" in workflow
+    assert '-v -m "llm"' in workflow
+    assert "test-results/staging-provider-connectivity.xml" in workflow
+    assert "provider-connectivity" in workflow
+    assert "ai_provider_connectivity_outcome=" in workflow
+    assert workflow.index("id: staging_e2e_tests") < workflow.index(
+        "id: ai_provider_connectivity"
+    )
+    assert "provider connectivity smoke" in ci_cd
+    assert "full OCR/LLM replay remains gated" in ci_cd
+    assert "@pytest.mark.llm" in provider_test
+    assert "authenticated_page_unique" in provider_test
+    assert 'authenticated_page_unique.request.post' in provider_test
+    assert '"/chat"' in provider_test
     assert "Wait for matching CI success" not in workflow
     assert "wait_for_github_ci.py" not in workflow
     assert (

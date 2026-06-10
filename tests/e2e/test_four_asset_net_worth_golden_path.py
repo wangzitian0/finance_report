@@ -483,7 +483,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
         assert balance_sheet["is_balanced"] is True
 
     await page.goto(_get_url("/dashboard"))
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_label("Upload-to-report home")).to_be_visible(
         timeout=10_000
     )
@@ -517,7 +517,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
             "&include_restricted=true"
         )
     )
-    await page.wait_for_load_state("networkidle")
+    await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
         timeout=10_000
     )
