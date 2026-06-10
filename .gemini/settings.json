@@ -2,7 +2,7 @@
   "mcpServers": {
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": ["-y", "@upstash/context7-mcp@3.1.0"]
     },
     "github": {
       "httpUrl": "https://api.githubcopilot.com/mcp/",
@@ -12,11 +12,11 @@
     },
     "basic-memory": {
       "command": "uvx",
-      "args": ["basic-memory", "mcp"]
+      "args": ["--from", "basic-memory==0.21.6", "basic-memory", "mcp"]
     },
     "sequential-thinking": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking@2025.12.18"]
     }
   }
 }

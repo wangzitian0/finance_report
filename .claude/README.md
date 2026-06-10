@@ -1,8 +1,10 @@
 # Multi-runtime agent bridge
 
 This repo is open-and-develop for **Claude Code**, **Codex**, **OpenCode**, and
-the **Gemini / Antigravity CLI**. The single source of truth is `AGENTS.md`;
-everything else is a symlink, so there is nothing to keep in sync by hand.
+the **Gemini / Antigravity CLI**. The single source of truth is `AGENTS.md`. The
+instruction docs and skill libraries are symlinks (nothing to sync by hand); a
+few small committed config files (`.claude/settings.json`, `.mcp.json`,
+`.gemini/settings.json`, `opencode.json`) declare per-runtime MCP/approval.
 
 | Runtime | Instructions | Skills | MCP |
 |---|---|---|---|
@@ -47,9 +49,11 @@ happens to have configured globally — the project ships an MCP baseline:
   repo-level baseline, so configure it there once per machine. (Codex *skills*,
   unlike its MCP, are project-level via `.codex/skills`.)
 
-`github` needs a `GITHUB_PAT` environment variable (a GitHub PAT with repo +
-read scopes); it is referenced as `${GITHUB_PAT}` and never committed. The
-baseline is drift-guarded by `tests/tooling/test_agent_runtime_symlinks.py`.
+`github` needs a `GITHUB_PAT` environment variable. Use a least-privilege
+**fine-grained** PAT scoped to only the repos you need, with read-only
+permissions unless an action requires write; avoid classic broad-scope tokens.
+It is referenced as `${GITHUB_PAT}` and never committed. The baseline is
+drift-guarded by `tests/tooling/test_agent_runtime_symlinks.py`.
 
 Work-environment MCP servers (Skynet, etc.) are deliberately kept out of the
 project baseline — they live in personal global config only.
