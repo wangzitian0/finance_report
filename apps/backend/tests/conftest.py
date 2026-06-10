@@ -197,13 +197,20 @@ async def ensure_database(db_url: str):
         await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db_engine(test_database_url, request):
-    """Create a test database engine with worker-specific isolation."""
-    if request.node.get_closest_marker("no_db"):
-        yield None
-        return
+@pytest_asyncio.fixture(scope="session")
+async def _schema_engine(test_database_url):
+    """Build the test schema once per xdist worker and share one engine.
 
+    Each xdist worker owns its own database (see get_test_db_url), so the schema
+    only needs to be created a single time per worker rather than on every test.
+    Per-test isolation is provided by db_engine, which truncates all tables.
+
+    The engine keeps NullPool because pytest-asyncio runs each test in its own
+    event loop (asyncio_default_test_loop_scope = "function") and asyncpg
+    connections are bound to the loop that created them; NullPool guarantees no
+    connection is reused across loops. Only the (expensive) schema build is moved
+    to session scope — not connection pooling.
+    """
     await ensure_database(test_database_url)
 
     from src.database import Base
@@ -230,7 +237,7 @@ async def db_engine(test_database_url, request):
         poolclass=NullPool,
     )
 
-    # Create all tables
+    # Create all tables once for this worker.
     async with engine.begin() as conn:
         # Ensure clean slate - drop all tables with CASCADE to handle foreign keys
         await conn.execute(text("DROP SCHEMA public CASCADE"))
@@ -258,6 +265,30 @@ async def db_engine(test_database_url, request):
     yield engine
 
     await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_engine(request, _schema_engine):
+    """Provide the shared per-worker engine with a pristine database per test.
+
+    The schema is built once by `_schema_engine`; here each test only truncates
+    all tables (RESTART IDENTITY CASCADE) so it starts from an empty, pristine
+    state with sequences reset. This replaces the previous per-test
+    DROP SCHEMA + create_all + full reflect, which measured ~205ms/test versus
+    ~49ms for truncate. No test performs its own schema DDL, so a data-only reset
+    is equivalent to the old schema rebuild for isolation purposes.
+    """
+    if request.node.get_closest_marker("no_db"):
+        yield None
+        return
+
+    from src.database import Base
+
+    tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
+    async with _schema_engine.begin() as conn:
+        await conn.execute(text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
+
+    yield _schema_engine
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)

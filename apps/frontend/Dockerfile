@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 ARG NODE_IMAGE=node:20.19.0-alpine
 
 # Build stage
@@ -8,8 +9,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies. The npm cache mount keeps the package store warm across
+# builds (the layer itself is still reused when package-lock.json is unchanged).
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 # Copy source files
 COPY . .
@@ -26,8 +28,10 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ARG GIT_COMMIT_SHA=unknown
 ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
 
-# Build the application
-RUN npm run build
+# Build the application. The Next.js build cache mount makes the production
+# build incremental across CI runs (persisted via the buildx gha cache), so the
+# `next build` step reuses prior compilation instead of rebuilding from scratch.
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # Runtime stage
 FROM ${NODE_IMAGE}
