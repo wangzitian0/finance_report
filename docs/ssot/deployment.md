@@ -43,6 +43,29 @@ Production deployments use Vault sidecar pattern:
 
 Health check timeout (6 min) accounts for this entire flow.
 
+### Secret Contract (cross-repo seam)
+
+One contract ties the three repos together; each owns only its part:
+
+| Repo | Owns | Knows about others |
+|------|------|--------------------|
+| **finance_report** (app) | `apps/backend/src/config.py` declares every variable and its default; `apps/backend/src/boot.py` enforces which secrets must be real at boot. | Nothing at build time; reads `os.environ` regardless of source. |
+| **dev_env** (local tooling) | Injects local secrets from 1Password (no plaintext at rest); source-agnostic. | Nothing about app schemas. |
+| **infra2** (`repo/`) | Vault `secrets.ctmpl` — supplies the deployed values. | The env vars a deployed app requires. |
+
+Consistency is **not** enforced by cross-repo CI gates. It is enforced where it
+matters: the app **fails loudly at boot** in a *protected* runtime.
+`apps/backend/src/boot.py` (`Bootloader._check_static_config`, the single source
+of truth for environment validation) treats a runtime as protected when the
+environment is `staging`/`production`, is **not** one of the local environments
+(`development`, `test`, `ci`), or the app is served from a public (non-localhost
+`https://`) `NEXT_PUBLIC_APP_URL`. In a protected runtime it rejects a
+missing/short/default `SECRET_KEY`, a default `DATABASE_URL`, or a default
+`S3_SECRET_KEY`. Startup runs it via `apps/backend/src/main.py` →
+`await Bootloader.validate(BootMode.CRITICAL)`, which `sys.exit(1)`s on failure
+(the deploy readiness gate catches it). Local/CI keep convenience defaults.
+Proven by AC1.10.1.
+
 ---
 
 ## CI Deployment Workflows
