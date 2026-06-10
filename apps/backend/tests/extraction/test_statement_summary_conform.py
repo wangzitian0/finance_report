@@ -129,6 +129,23 @@ class TestStatementSummaryConform:
         resolved = await resolve_custody_account_id(db, atomic)
         assert resolved == account.id
 
+    async def test_resolve_returns_none_without_source_documents(self, db, test_user):
+        """AC11.15.4: resolver returns None when the atomic txn has no source documents."""
+        atomic = AtomicTransaction(
+            user_id=test_user.id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("500.00"),
+            direction=TransactionDirection.OUT,
+            description="NO SOURCE",
+            currency="SGD",
+            dedup_hash="dedup-no-source",
+            source_documents=[],
+        )
+        db.add(atomic)
+        await db.commit()
+
+        assert await resolve_custody_account_id(db, atomic) is None
+
     async def test_resolve_returns_none_without_account(self, db, test_user):
         """AC11.15.4: resolver returns None when the source statement has no custody account."""
         atomic = AtomicTransaction(
