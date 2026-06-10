@@ -505,6 +505,39 @@ submodule sync process.
   classification. The highest-impact remaining simplification is to move away from
   scalar compatibility shims once external consumers are proven to be matrix-native.
 
+### 5.6 Residual Drift to Simplify Next
+
+- **Residual A: Compatibility scalar outputs**
+  - `heavy_required`, `pr_preview_required`, `staging_required`, and
+    `staging_ai_ocr_required` are still emitted as migration shims from
+    `ci_change_classifier`.
+  - They are **not** used for primary control decisions in core workflows, but
+    they still exist as temporary compatibility contract for ad hoc tools and
+    scripts that have not been migrated.
+
+- **Residual B: Legacy gate normalization step wrappers**
+  - `pr-test.yml` and `staging-deploy.yml` still deserialize
+    `env_stage_required` and `provider_gate_required` into legacy scalar outputs
+    before job-level `if:` checks.
+  - Functionally correct, but it adds one wrapper hop and keeps the code path
+    slightly non-linear.
+
+- **Residual C: Unused matrix dimensions in runtime decisions**
+  - `env_stage_stages` and `env_stage_files` are currently used for reporting and
+    audit evidence, not as direct runtime gating inputs.
+  - The CI now remains correct because each workflow only consumes the stage
+    cells it owns, but this is a traceability-complete model versus strict
+    direct-gate-driven model.
+
+The simplification priority remains:
+
+1. Remove Residual B (single-step expression gating from structured outputs).
+2. Add explicit external consumer migration audit for Residual A, then remove
+   scalar shims in one bounded PR.
+3. Add a narrow enforcement test that each lane consumes only matrix cells it
+   is authorized for, and that unused matrix dimensions are intentionally
+   read-only.
+
 ### 5.3 CI Logic Review Findings
 
 - Current CI logic is logically consistent with the target sparse Env×Stage model:
