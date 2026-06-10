@@ -195,6 +195,11 @@ ODS `bank_statements.account_id` reach-back. Additive — no flags flipped.
 | AC11.15.2 | Re-sync updates the conform in place and links the source UploadedDocument | `test_sync_is_idempotent_and_links_uploaded_document()` | `extraction/test_statement_summary_conform.py` | P0 |
 | AC11.15.3 | Custody account resolves from a Layer-2 atomic transaction via the conform (DWD-native) | `test_resolve_custody_account_from_atomic_txn()` | `extraction/test_statement_summary_conform.py` | P0 |
 | AC11.15.4 | The resolver returns None when the source statement has no confirmed custody account | `test_resolve_returns_none_without_account()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.5 | The resolver normalizes a `{"documents": [...]}` source-documents wrapper | `test_resolve_handles_dict_wrapper_source_documents()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.6 | The resolver skips junk entries, non-bank-statement sources, and invalid UUIDs | `test_resolve_ignores_invalid_and_non_bank_sources()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.7 | A non-list/non-dict source_documents value resolves to None | `test_resolve_returns_none_for_non_list_source_documents()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.8 | The first source document (in order) with a confirmed account wins | `test_resolve_preserves_source_document_order()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.9 | A known source document with no confirmed custody account resolves to None | `test_resolve_returns_none_when_no_source_has_account()` | `extraction/test_statement_summary_conform.py` | P0 |
 
 ## Implementation Pattern Ownership
 

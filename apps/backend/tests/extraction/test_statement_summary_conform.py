@@ -129,6 +129,100 @@ class TestStatementSummaryConform:
         resolved = await resolve_custody_account_id(db, atomic)
         assert resolved == account.id
 
+    async def _confirmed_doc(self, db, user_id, *, file_hash, account_id):
+        statement = await _make_statement(db, user_id, file_hash=file_hash, account_id=account_id)
+        doc = UploadedDocument(
+            user_id=user_id,
+            file_path=f"statements/{file_hash}.pdf",
+            file_hash=file_hash,
+            original_filename="dbs.pdf",
+            document_type=DocumentType.BANK_STATEMENT,
+        )
+        db.add(doc)
+        await db.flush()
+        await sync_statement_summary(db, statement)
+        return doc
+
+    def _atomic(self, user_id, *, source_documents, dedup_hash):
+        return AtomicTransaction(
+            user_id=user_id,
+            txn_date=date(2024, 1, 15),
+            amount=Decimal("500.00"),
+            direction=TransactionDirection.OUT,
+            description="TRANSFER",
+            currency="SGD",
+            dedup_hash=dedup_hash,
+            source_documents=source_documents,
+        )
+
+    async def test_resolve_handles_dict_wrapper_source_documents(self, db, test_user):
+        """AC11.15.5: a {"documents": [...]} wrapper is normalized before resolution."""
+        account = await _make_account(db, test_user.id)
+        doc = await self._confirmed_doc(db, test_user.id, file_hash="hash-wrap", account_id=account.id)
+        atomic = self._atomic(
+            test_user.id,
+            source_documents={"documents": [{"doc_id": str(doc.id), "doc_type": "bank_statement"}]},
+            dedup_hash="dedup-wrap",
+        )
+        db.add(atomic)
+        await db.commit()
+        assert await resolve_custody_account_id(db, atomic) == account.id
+
+    async def test_resolve_ignores_invalid_and_non_bank_sources(self, db, test_user):
+        """AC11.15.6: junk entries, non-bank doc types, and invalid UUIDs are skipped."""
+        atomic = self._atomic(
+            test_user.id,
+            source_documents=[
+                "junk",
+                {"doc_type": "bank_statement"},  # missing doc_id
+                {"doc_id": "not-a-uuid", "doc_type": "bank_statement"},
+                {"doc_id": str(uuid4()), "doc_type": "brokerage_statement"},
+            ],
+            dedup_hash="dedup-junk",
+        )
+        db.add(atomic)
+        await db.commit()
+        assert await resolve_custody_account_id(db, atomic) is None
+
+    async def test_resolve_returns_none_when_no_source_has_account(self, db, test_user):
+        """AC11.15.9: a known source document with no confirmed custody account resolves to None."""
+        doc = await self._confirmed_doc(db, test_user.id, file_hash="hash-noacct", account_id=None)
+        atomic = self._atomic(
+            test_user.id,
+            source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
+            dedup_hash="dedup-noacct",
+        )
+        db.add(atomic)
+        await db.commit()
+        assert await resolve_custody_account_id(db, atomic) is None
+
+    async def test_resolve_returns_none_for_non_list_source_documents(self, db, test_user):
+        """AC11.15.7: a non-list/non-dict source_documents value resolves to None."""
+        atomic = self._atomic(test_user.id, source_documents="weird", dedup_hash="dedup-weird")
+        db.add(atomic)
+        await db.commit()
+        assert await resolve_custody_account_id(db, atomic) is None
+
+    async def test_resolve_preserves_source_document_order(self, db, test_user):
+        """AC11.15.8: the first source document (in order) with a confirmed account wins."""
+        second = Account(user_id=test_user.id, name="OCBC", type=AccountType.ASSET, currency="SGD")
+        db.add(second)
+        await db.flush()
+        # First source has NO confirmed account; second does -> resolver returns the second.
+        doc_unconfirmed = await self._confirmed_doc(db, test_user.id, file_hash="hash-ord-1", account_id=None)
+        doc_confirmed = await self._confirmed_doc(db, test_user.id, file_hash="hash-ord-2", account_id=second.id)
+        atomic = self._atomic(
+            test_user.id,
+            source_documents=[
+                {"doc_id": str(doc_unconfirmed.id), "doc_type": "bank_statement"},
+                {"doc_id": str(doc_confirmed.id), "doc_type": "bank_statement"},
+            ],
+            dedup_hash="dedup-order",
+        )
+        db.add(atomic)
+        await db.commit()
+        assert await resolve_custody_account_id(db, atomic) == second.id
+
     async def test_resolve_returns_none_without_source_documents(self, db, test_user):
         """AC11.15.4: resolver returns None when the atomic txn has no source documents."""
         atomic = AtomicTransaction(
