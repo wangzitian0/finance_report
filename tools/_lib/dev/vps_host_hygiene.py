@@ -482,6 +482,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cron-expression", default=DEFAULT_CRON_EXPRESSION)
     parser.add_argument("--timezone", default=DEFAULT_TIMEZONE)
     parser.add_argument("--disabled", action="store_true")
+    parser.add_argument(
+        "--emit-script",
+        action="store_true",
+        help=(
+            "Print the hygiene script to stdout instead of running it locally, "
+            "so post-merge CI can run it on the VPS over SSH and see the result."
+        ),
+    )
     args = parser.parse_args(argv)
 
     script = build_hygiene_script(
@@ -499,6 +507,9 @@ def main(argv: list[str] | None = None) -> int:
         pr_preview_keep_recent=args.pr_preview_keep_recent,
         github_repository=args.github_repository,
     )
+    if args.emit_script:
+        print(script)
+        return 0
     if args.print_dokploy_schedule_payload:
         if not args.server_id:
             parser.error("--server-id is required for Dokploy schedule payloads")

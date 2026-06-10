@@ -327,6 +327,40 @@ def test_AC8_13_73_hygiene_main_streams_output_and_returns_command_status(
     assert captured_scripts and "DISK_ERROR_PERCENT='99'" in captured_scripts[0]
 
 
+def test_AC8_13_73_emit_script_prints_without_running_locally(monkeypatch, capsys) -> None:
+    """AC8.13.73: --emit-script prints the hygiene script (for post-merge CI to
+    run on the VPS over SSH) and does NOT execute it locally."""
+    hygiene = hygiene_module()
+    ran = []
+    monkeypatch.setattr(hygiene, "run_command", lambda *a, **k: ran.append(a) or None)
+
+    assert hygiene.main(["--emit-script"]) == 0
+
+    out = capsys.readouterr().out
+    assert "PR_PREVIEW_CONTAINER_PATTERN" in out
+    assert "should_delete_pr_container" in out
+    assert ran == []  # emit must not run the script locally
+
+
+def test_AC8_13_73_post_merge_workflow_runs_hygiene_on_vps_over_ssh() -> None:
+    """AC8.13.73: host hygiene runs from post-merge CI (visible), over SSH,
+    reusing the emit-script path — not bolted onto the reconciliation-only PR
+    preview cleanup workflow."""
+    workflow = (
+        ROOT / ".github/workflows/pr-preview-host-hygiene.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "push:" in workflow and "branches: [main]" in workflow
+    assert "--emit-script" in workflow
+    assert "ssh -o BatchMode=yes" in workflow
+    assert "tools/vps_host_hygiene.py" in workflow
+    # Stays out of the reconciliation-only cleanup workflow (AC8.13.74).
+    cleanup = (
+        ROOT / ".github/workflows/pr-preview-cleanup.yml"
+    ).read_text(encoding="utf-8")
+    assert "vps_host_hygiene" not in cleanup
+
+
 def test_AC8_13_73_dokploy_schedule_payload_is_server_job_with_retention() -> None:
     hygiene = hygiene_module()
 
