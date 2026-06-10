@@ -185,8 +185,12 @@ class Settings(BaseSettings):
         default=True,
         validation_alias="ENABLE_4_LAYER_WRITE",
     )
+    # Stage 2b / PR-B cutover: reconciliation now reads Layer 2 (atomic_transactions)
+    # by default. Requires the Stage 2a backfill (historical Layer-0 -> Layer-2) and
+    # the PR-A StatementSummary conform (custody account) to be populated. Set
+    # ENABLE_4_LAYER_READ=false to fall back to reading legacy Layer 0.
     enable_4_layer_read: bool = Field(
-        default=False,
+        default=True,
         validation_alias="ENABLE_4_LAYER_READ",
     )
     enable_layer_0_write: bool = Field(

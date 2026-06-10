@@ -24,6 +24,7 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/assets/__init__.py` | Package marker |
 | `apps/backend/tests/auth/__init__.py` | Package marker |
 | `apps/backend/tests/conftest.py` | Shared backend pytest fixtures |
+| `apps/backend/tests/reconciliation/conftest.py` | EPIC-011 PR-B Layer-2 read bridge fixture |
 | `apps/backend/tests/e2e/conftest.py` | Shared E2E fixtures |
 | `apps/backend/tests/extraction/__init__.py` | Package marker |
 | `apps/backend/tests/factories.py` | Shared backend test factories |

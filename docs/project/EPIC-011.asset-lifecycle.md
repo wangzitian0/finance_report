@@ -201,6 +201,31 @@ ODS `bank_statements.account_id` reach-back. Additive — no flags flipped.
 | AC11.15.8 | The first source document (in order) with a confirmed account wins | `test_resolve_preserves_source_document_order()` | `extraction/test_statement_summary_conform.py` | P0 |
 | AC11.15.9 | A known source document with no confirmed custody account resolves to None | `test_resolve_returns_none_when_no_source_has_account()` | `extraction/test_statement_summary_conform.py` | P0 |
 
+### AC11.16: 4-Layer Migration — Balance-aware Layer 2 dedup
+
+The Layer 2 `dedup_hash` includes the statement running balance (`balance_after`)
+so two real, otherwise-identical transactions (same date/amount/direction/
+description, no reference) stay distinct — their running balances differ — while
+genuine duplicate extractions (same running balance) still collapse. This keeps
+many-to-one reconciliation correct on the Layer-2 read path.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.16.1 | Distinct running balances hash differently; identical/absent balances collapse | `test_running_balance_distinguishes_identical_transactions()` | `extraction/test_deduplication.py` | P0 |
+| AC11.16.2 | Many-to-one matching works on Layer 2 when running balances keep batch txns distinct | `test_execute_matching_many_to_one_batch()` | `reconciliation/test_reconciliation_matching_unit.py` | P0 |
+
+### AC11.17: 4-Layer Migration — PR-B DWD read cutover
+
+PR-B activates `ENABLE_4_LAYER_READ` by default: reconciliation reads Layer 2
+(`atomic_transactions`) and transfer detection resolves the custody account from
+the `StatementSummary` conform (DWD) instead of `bank_statements.account_id`
+(ODS). The legacy Layer-0 read path remains available via the flag until Stage 3.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.17.1 | Transfer OUT/IN detection resolves custody account from DWD and creates the Processing entry under the Layer-2 read path | `test_transfer_out_creates_match()`, `test_transfer_in_creates_match()` | `reconciliation/test_reconciliation_matching_unit.py` | P0 |
+| AC11.17.2 | Mixed transfer + normal transactions both reconcile under the Layer-2 read path | `test_mixed_transactions_both_phases_execute()` | `reconciliation/test_transfer_integration.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

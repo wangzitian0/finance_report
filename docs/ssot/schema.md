@@ -65,12 +65,12 @@ sits in the wrong layer, that is drift to be fixed, not worked around.
 4. **DWM stays thin.** Add a DWM table only for a genuinely complex cross-fact
    domain (today: reconciliation/transfer matching). Default new work to DWD or DWS.
 
-> **Known drift (being closed):** reconciliation transfer detection (a DWM
-> concern) still resolves the source account from ODS
-> (`bank_statements.account_id`). PR-A adds the DWD-native custody conform —
-> `statement_summaries` (with `resolve_custody_account_id`) — so PR-B can switch
-> transfer detection to read the custody account from DWD and flip the read
-> cutover. See `docs/project/EPIC-011.asset-lifecycle.md`.
+> **Drift closed (PR-B):** under the default Layer-2 read path
+> (`ENABLE_4_LAYER_READ=true`), reconciliation transfer detection now resolves
+> the custody account from DWD (`statement_summaries` via
+> `resolve_custody_account_id`), not from ODS (`bank_statements.account_id`).
+> The legacy Layer-0 read path remains behind the flag until Stage 3 removes
+> the `bank_statement*` tables. See `docs/project/EPIC-011.asset-lifecycle.md`.
 
 ---
 

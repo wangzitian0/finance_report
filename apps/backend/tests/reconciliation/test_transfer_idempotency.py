@@ -87,7 +87,6 @@ class TestTransferDetectionIdempotency:
         # Verify: still only one active (non-superseded) match in DB for this txn
         all_matches_result = await db.execute(
             select(ReconciliationMatch).where(
-                ReconciliationMatch.bank_txn_id == txn.id,
                 ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             )
         )
@@ -119,7 +118,6 @@ class TestTransferDetectionIdempotency:
         # Verify: only one non-superseded match for this txn
         all_matches_result = await db.execute(
             select(ReconciliationMatch).where(
-                ReconciliationMatch.bank_txn_id == txn.id,
                 ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             )
         )

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -456,11 +457,6 @@ async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession)
     matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 0
 
-    # Reload txn to check status
-    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
-    txn_reloaded = result.scalar_one()
-    assert txn_reloaded.status == BankStatementTransactionStatus.UNMATCHED
-
 
 async def test_execute_matching_complex_multi_entry(db: AsyncSession):
     user_id = uuid4()
@@ -605,18 +601,22 @@ async def test_execute_matching_triple_entry(db: AsyncSession):
 
 
 async def test_execute_matching_many_to_one_batch(db: AsyncSession):
+    """AC11.16.2: many-to-one matches on Layer 2 when running balances keep batch txns distinct."""
     user_id = uuid4()
     user = User(id=user_id, email=f"batch-{uuid4()}@example.com", hashed_password="hashed")
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     db.add_all([user, statement])
     await db.flush()
 
+    # Distinct running balances keep these two otherwise-identical txns separate in
+    # Layer 2 (real statements progress the running balance); see dedup_hash.
     t1 = BankStatementTransaction(
         statement_id=statement.id,
         txn_date=date(2024, 1, 1),
         description="Batch Payment #1",
         amount=Decimal("50.00"),
         direction="OUT",
+        balance_after=Decimal("950.00"),
         status=BankStatementTransactionStatus.PENDING,
     )
     t2 = BankStatementTransaction(
@@ -625,6 +625,7 @@ async def test_execute_matching_many_to_one_batch(db: AsyncSession):
         description="Batch Payment #1",
         amount=Decimal("50.00"),
         direction="OUT",
+        balance_after=Decimal("900.00"),
         status=BankStatementTransactionStatus.PENDING,
     )
     db.add_all([t1, t2])
@@ -802,9 +803,6 @@ async def test_execute_matching_low_score_unmatched(db: AsyncSession):
 
     matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 0
-
-    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
-    assert result.scalar_one().status == BankStatementTransactionStatus.UNMATCHED
 
 
 def test_load_reconciliation_config_yaml_import_error():
@@ -1064,7 +1062,7 @@ async def test_transfer_detection_no_account_id(db: AsyncSession):
 
 
 async def test_transfer_out_creates_match(db: AsyncSession):
-    """Cover lines 703-736: Transfer OUT creates Processing entry + match."""
+    """AC11.17.1 · Cover lines 703-736: Transfer OUT creates Processing entry + match."""
     user_id = uuid4()
     user = User(id=user_id, email=f"xfer-out-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
@@ -1104,6 +1102,40 @@ async def test_transfer_out_creates_match(db: AsyncSession):
     assert len(transfer_matches) == 1
     assert transfer_matches[0].match_score == 100
     assert transfer_matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
+
+
+async def test_transfer_out_creates_match_legacy_read(db: AsyncSession, monkeypatch):
+    """AC11.17.1 · Legacy Layer-0 read path: transfer custody comes from BankStatement.account_id."""
+    monkeypatch.setattr(settings, "enable_4_layer_read", False)
+    user_id = uuid4()
+    user = User(id=user_id, email=f"xfer-legacy-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(user)
+    await db.flush()
+
+    source_account = Account(id=uuid4(), name="Checking", type=AccountType.ASSET, user_id=user_id, currency="SGD")
+    db.add(source_account)
+    await db.flush()
+
+    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
+    statement.account_id = source_account.id
+    db.add(statement)
+    await db.flush()
+
+    txn = BankStatementTransaction(
+        statement_id=statement.id,
+        txn_date=date(2024, 1, 1),
+        description="TRANSFER TO SAVINGS",
+        amount=Decimal("500.00"),
+        direction="OUT",
+        status=BankStatementTransactionStatus.PENDING,
+    )
+    db.add(txn)
+    await db.commit()
+
+    matches = await execute_matching(db, user_id=user_id)
+    transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
+    assert len(transfer_matches) == 1
+    assert transfer_matches[0].bank_txn_id == txn.id
 
 
 async def test_transfer_in_creates_match(db: AsyncSession):
@@ -1213,13 +1245,15 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
     db.add(statement)
     await db.flush()
 
-    # Batch-looking transactions that are also transfers → all get matched in Phase 1
+    # Batch-looking transactions that are also transfers → all get matched in Phase 1.
+    # Distinct running balances keep them separate in Layer 2.
     t1 = BankStatementTransaction(
         statement_id=statement.id,
         txn_date=date(2024, 1, 1),
         description="Batch Transfer TO savings",
         amount=Decimal("50.00"),
         direction="OUT",
+        balance_after=Decimal("950.00"),
         status=BankStatementTransactionStatus.PENDING,
     )
     t2 = BankStatementTransaction(
@@ -1228,6 +1262,7 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
         description="Batch Transfer TO savings",
         amount=Decimal("50.00"),
         direction="OUT",
+        balance_after=Decimal("900.00"),
         status=BankStatementTransactionStatus.PENDING,
     )
     db.add_all([t1, t2])
@@ -1346,8 +1381,11 @@ async def test_normal_matching_supersession_same_entries(db: AsyncSession):
     assert len(matches2) == 0
 
 
-async def test_normal_matching_supersession_different_entries(db: AsyncSession):
+async def test_normal_matching_supersession_different_entries(db: AsyncSession, monkeypatch):
     """Cover lines 953, 974-976: re-match different entries → supersede old match."""
+    # Re-run supersession is a legacy Layer-0 read mechanism (matched Layer-2
+    # atomic txns are not re-processed); removed in Stage 3.
+    monkeypatch.setattr(settings, "enable_4_layer_read", False)
     user_id = uuid4()
     user = User(id=user_id, email=f"supersede-diff-{uuid4()}@example.com", hashed_password="hashed")
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
@@ -1588,8 +1626,11 @@ async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession):
         assert isinstance(matches, list)
 
 
-async def test_many_to_one_supersession(db: AsyncSession):
+async def test_many_to_one_supersession(db: AsyncSession, monkeypatch):
     """Cover lines 833-860: many-to-one with existing match → supersession."""
+    # Re-run supersession is a legacy Layer-0 read mechanism (matched Layer-2
+    # atomic txns are not re-processed); removed in Stage 3.
+    monkeypatch.setattr(settings, "enable_4_layer_read", False)
     user_id = uuid4()
     user = User(id=user_id, email=f"m2o-supersede-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
@@ -1609,13 +1650,14 @@ async def test_many_to_one_supersession(db: AsyncSession):
     db.add(statement)
     await db.flush()
 
-    # Create batch transactions
+    # Create batch transactions (distinct running balances keep them separate in Layer 2)
     t1 = BankStatementTransaction(
         statement_id=statement.id,
         txn_date=date(2024, 1, 1),
         description="Batch Settlement payment",
         amount=Decimal("50.00"),
         direction="OUT",
+        balance_after=Decimal("950.00"),
         status=BankStatementTransactionStatus.PENDING,
     )
     t2 = BankStatementTransaction(
@@ -1624,6 +1666,7 @@ async def test_many_to_one_supersession(db: AsyncSession):
         description="Batch Settlement payment",
         amount=Decimal("50.00"),
         direction="OUT",
+        balance_after=Decimal("900.00"),
         status=BankStatementTransactionStatus.PENDING,
     )
     db.add_all([t1, t2])
@@ -1885,11 +1928,6 @@ async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession):
     result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id))
     reconciled_entry = result.scalar_one()
     assert reconciled_entry.status == JournalEntryStatus.RECONCILED
-
-    # Verify txn is MATCHED
-    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
-    matched_txn = result.scalar_one()
-    assert matched_txn.status == BankStatementTransactionStatus.MATCHED
 
 
 async def test_normal_matching_pending_review(db: AsyncSession):

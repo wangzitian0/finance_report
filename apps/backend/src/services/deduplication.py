@@ -30,10 +30,17 @@ class DeduplicationService:
         direction: TransactionDirection,
         description: str,
         reference: str | None = None,
+        balance_after: Decimal | None = None,
     ) -> str:
         """Calculate deduplication hash for atomic transaction.
 
-        Hash = SHA256(user_id|date|amount|direction|description|reference)
+        Hash = SHA256(user_id|date|amount|direction|description|reference|balance_after)
+
+        ``balance_after`` (the statement running balance) is included so two real,
+        otherwise-identical transactions (same date/amount/direction/description, no
+        reference) stay distinct — their running balances differ. Genuine duplicate
+        extractions share the same running balance and still collapse. When the
+        source has no running balance the field is empty and behaviour is unchanged.
         """
         components = [
             str(user_id),
@@ -42,6 +49,7 @@ class DeduplicationService:
             direction.value,
             description.strip().lower(),
             reference or "",
+            str(balance_after) if balance_after is not None else "",
         ]
         hash_input = "|".join(components).encode("utf-8")
         return hashlib.sha256(hash_input).hexdigest()
@@ -78,13 +86,16 @@ class DeduplicationService:
         source_doc_id: UUID,
         source_doc_type: DocumentType,
         reference: str | None = None,
+        balance_after: Decimal | None = None,
     ) -> AtomicTransaction:
         """Upsert atomic transaction with deduplication.
 
         If dedup_hash exists -> Append to source_documents array
         If dedup_hash new -> Insert new record
         """
-        dedup_hash = self.calculate_transaction_hash(user_id, txn_date, amount, direction, description, reference)
+        dedup_hash = self.calculate_transaction_hash(
+            user_id, txn_date, amount, direction, description, reference, balance_after
+        )
 
         stmt = select(AtomicTransaction).where(
             AtomicTransaction.user_id == user_id,
@@ -319,6 +330,7 @@ async def dual_write_layer2(
                 source_doc_id=uploaded_doc.id,
                 source_doc_type=doc_type,
                 reference=txn.reference,
+                balance_after=txn.balance_after,
             )
             await evidence_graph.record_layer2_dual_write(
                 db,
@@ -479,6 +491,7 @@ async def backfill_atomic_transactions_from_statements(
                     source_doc_id=existing_doc.id,
                     source_doc_type=doc_type,
                     reference=txn.reference,
+                    balance_after=txn.balance_after,
                 )
                 atomic_upserted += 1
 
