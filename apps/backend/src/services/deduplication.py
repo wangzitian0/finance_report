@@ -417,10 +417,7 @@ async def backfill_atomic_transactions_from_statements(
 
         for stmt in batch:
             statements_scanned += 1
-            owner_id = stmt.user_id
-            if owner_id is None:
-                logger.warning("Skipping statement without owner during backfill", extra={"statement_id": str(stmt.id)})
-                continue
+            owner_id = stmt.user_id  # BankStatement.user_id is NOT NULL
 
             doc_type = (
                 DocumentType.BROKERAGE_STATEMENT
@@ -452,7 +449,7 @@ async def backfill_atomic_transactions_from_statements(
                             extraction_metadata=stmt.extraction_metadata,
                         )
                     documents_created += 1
-                except IntegrityError:
+                except IntegrityError:  # pragma: no cover - concurrent-writer race, not deterministically unit-testable
                     # Concurrent writer created it first; reload the existing row.
                     existing_doc = (
                         await db.execute(
