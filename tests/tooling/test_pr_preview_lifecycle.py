@@ -2111,6 +2111,40 @@ def test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs(
     assert calls == 0
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    [
+        ("pr_number", -1, "positive pr_number"),
+        ("image_prefix", "finance_report", "include the registry namespace"),
+        ("internal_domain", "localhost", "must be a DNS name"),
+    ],
+)
+def test_AC8_13_107_deploy_input_validation_rejects_invalid_values(
+    field: str,
+    value: object,
+    expected_error: str,
+) -> None:
+    """AC8.13.107: Invalid deploy input values fail before rollout mutation."""
+    lifecycle = lifecycle_module()
+    args = SimpleNamespace(
+        pr_number=591,
+        compose_name="pr-591",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+    )
+    setattr(args, field, value)
+
+    with pytest.raises(ValueError, match=expected_error):
+        lifecycle.validate_deploy_inputs(args)
+
+
 def test_AC8_13_107_preview_deploy_context_is_written_without_secrets(
     tmp_path: Path,
 ) -> None:
@@ -2168,6 +2202,19 @@ def test_AC8_13_107_preview_deploy_context_is_written_without_secrets(
     assert "secret-token" not in rendered
     assert "hvs.secret" not in rendered
     assert "do-not-preserve" not in rendered
+
+
+def test_AC8_13_107_empty_preview_context_path_is_noop(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC8.13.107: Missing context path does not create stray local artifacts."""
+    lifecycle = lifecycle_module()
+    monkeypatch.chdir(tmp_path)
+
+    lifecycle.write_preview_context("", {"phase": "preflight"})
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_AC8_13_107_pr_preview_workflow_fast_fails_missing_images_and_uploads_context() -> (

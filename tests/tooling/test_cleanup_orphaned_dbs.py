@@ -90,6 +90,20 @@ def test_AC16_11_13_cleanup_orphaned_no_databases(monkeypatch):
     assert cod.cleanup_orphaned() == 0
 
 
+def test_AC16_11_13_cleanup_orphaned_returns_error_when_container_is_missing(
+    monkeypatch,
+):
+    monkeypatch.setattr(cod, "get_container_runtime", lambda: "docker")
+
+    def fake_run(cmd, capture_output=True):
+        if cmd[:3] == ["docker", "ps", "-q"]:
+            return SimpleNamespace(stdout="")
+        return SimpleNamespace(stdout="")
+
+    monkeypatch.setattr(cod.subprocess, "run", fake_run)
+    assert cod.cleanup_orphaned() == 1
+
+
 def test_AC16_11_14_cleanup_orphaned_skips_active(monkeypatch):
     monkeypatch.setattr(cod, "get_container_runtime", lambda: "docker")
     monkeypatch.setattr(
@@ -145,6 +159,41 @@ def test_AC16_11_15_cleanup_orphaned_clean_all(monkeypatch):
 
 def test_AC16_11_30_drop_database_dry_run_returns_true():
     assert cod.drop_database("docker", "finance_report_test_x", dry_run=True) is True
+
+
+def test_AC16_11_30_drop_database_returns_false_on_subprocess_error(monkeypatch):
+    def fake_run(*args, **kwargs):
+        raise cod.subprocess.CalledProcessError(1, "psql")
+
+    monkeypatch.setattr(cod.subprocess, "run", fake_run)
+    assert cod.drop_database("docker", "finance_report_test_x") is False
+
+
+def test_AC16_11_14_cleanup_orphaned_attempts_all_drops_when_one_fails(monkeypatch):
+    monkeypatch.setattr(cod, "get_container_runtime", lambda: "docker")
+    monkeypatch.setattr(
+        cod,
+        "list_test_databases",
+        lambda runtime: ["finance_report_test_a", "finance_report_test_b"],
+    )
+    monkeypatch.setattr(cod, "load_active_namespaces", lambda: [])
+
+    attempted = []
+
+    def fake_drop(runtime, db_name, dry_run=False):
+        attempted.append(db_name)
+        return db_name.endswith("_a")
+
+    def fake_run(cmd, capture_output=True):
+        if cmd[:3] == ["docker", "ps", "-q"]:
+            return SimpleNamespace(stdout="container-id\n")
+        return SimpleNamespace(stdout="")
+
+    monkeypatch.setattr(cod, "drop_database", fake_drop)
+    monkeypatch.setattr(cod.subprocess, "run", fake_run)
+
+    assert cod.cleanup_orphaned() == 0
+    assert attempted == ["finance_report_test_a", "finance_report_test_b"]
 
 
 def test_AC16_11_31_main_calls_cleanup_orphaned(monkeypatch):

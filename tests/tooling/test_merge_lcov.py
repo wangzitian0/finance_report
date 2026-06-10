@@ -71,6 +71,13 @@ end_of_record
         records = ml.parse_lcov_to_records(f)
         assert records["/repo/x.py"]["lines"].get(1) == 1
 
+    def test_ignores_short_da_line(self, tmp_path):
+        content = "SF:/repo/x.py\nDA:1\nDA:2,3\nend_of_record\n"
+        f = tmp_path / "short.lcov"
+        f.write_text(content)
+        records = ml.parse_lcov_to_records(f)
+        assert records["/repo/x.py"]["lines"] == {2: 3}
+
     def test_handles_last_record_without_end_of_record(self, tmp_path):
         content = "SF:/repo/z.py\nDA:1,1\n"
         f = tmp_path / "partial.lcov"
@@ -78,6 +85,19 @@ end_of_record
         records = ml.parse_lcov_to_records(f)
         assert "/repo/z.py" in records
         assert records["/repo/z.py"]["lines"][1] == 1
+
+    def test_merges_duplicate_records_without_end_of_record(self, tmp_path):
+        content = """\
+SF:/repo/dup.py
+DA:1,0
+end_of_record
+SF:/repo/dup.py
+DA:1,4
+"""
+        f = tmp_path / "duplicate-partial.lcov"
+        f.write_text(content)
+        records = ml.parse_lcov_to_records(f)
+        assert records["/repo/dup.py"]["lines"] == {1: 4}
 
     def test_empty_lcov(self, tmp_path):
         f = tmp_path / "empty.lcov"
@@ -204,6 +224,8 @@ class TestMain:
         ml.main()
         captured = capsys.readouterr()
         assert "not found" in captured.out or "Warning" in captured.out
+        assert out.exists()
+        assert ml.parse_lcov_to_records(out) == {}
 
     def test_main_exits_on_no_args(self, monkeypatch):
         monkeypatch.setattr("sys.argv", ["merge_lcov.py"])
