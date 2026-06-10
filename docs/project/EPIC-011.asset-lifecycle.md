@@ -181,6 +181,21 @@ before `ENABLE_4_LAYER_READ` is activated. Idempotent and re-runnable via
 | AC11.14.2 | Re-running the backfill upserts by dedup hash instead of duplicating rows | `test_backfill_is_idempotent()` | `extraction/test_backfill_layer2.py` | P0 |
 | AC11.14.3 | A user-scoped backfill ignores other users' statements | `test_backfill_scopes_to_requested_user()` | `extraction/test_backfill_layer2.py` | P0 |
 
+### AC11.15: 4-Layer Migration — PR-A StatementSummary Conform (custody account)
+
+PR-A introduces the durable `StatementSummary` conform: it binds an uploaded
+statement document to its custody account (DIM) and carries the confirmed
+statement envelope (period, balances, review state). This is the DWD-native home
+for the account context reconciliation transfer detection needs, replacing the
+ODS `bank_statements.account_id` reach-back. Additive — no flags flipped.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.15.1 | Syncing projects the BankStatement envelope into the StatementSummary conform | `test_sync_mirrors_bank_statement_envelope()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.2 | Re-sync updates the conform in place and links the source UploadedDocument | `test_sync_is_idempotent_and_links_uploaded_document()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.3 | Custody account resolves from a Layer-2 atomic transaction via the conform (DWD-native) | `test_resolve_custody_account_from_atomic_txn()` | `extraction/test_statement_summary_conform.py` | P0 |
+| AC11.15.4 | The resolver returns None when the source statement has no confirmed custody account | `test_resolve_returns_none_without_account()` | `extraction/test_statement_summary_conform.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

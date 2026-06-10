@@ -44,7 +44,7 @@ sits in the wrong layer, that is drift to be fixed, not worked around.
 |-------|--------|
 | **DIM** | `accounts` (chart of accounts, including the account-type enum column); `classification_rules`; `fx_rates`, `stock_prices`, `market_data_sync_state`, `market_data_overrides`; security / institution master data |
 | **ODS** | `uploaded_documents`; `manual_valuation_snapshots`; *(legacy, deprecating)* `bank_statements`, `bank_statement_transactions` |
-| **DWD** | `atomic_transactions`, `atomic_positions`; `transaction_classification` (account conform); `journal_entries`, `journal_lines` (double-entry ledger); `investment_transactions`; `dividend_income` |
+| **DWD** | `atomic_transactions`, `atomic_positions`; `transaction_classification` (posting-account conform); `statement_summaries` (statement envelope + custody-account conform); `journal_entries`, `journal_lines` (double-entry ledger); `investment_transactions`; `dividend_income` |
 | **DWM** | `reconciliation_matches`, `consistency_checks` (matching + transfer-pair / Processing-account resolution) |
 | **DWS** | `managed_positions`; `investment_lots`; derived account balances / period aggregates |
 | **ADS** | `report_snapshots` (balance sheet, income statement, cash flow) |
@@ -65,12 +65,12 @@ sits in the wrong layer, that is drift to be fixed, not worked around.
 4. **DWM stays thin.** Add a DWM table only for a genuinely complex cross-fact
    domain (today: reconciliation/transfer matching). Default new work to DWD or DWS.
 
-> **Known drift (tracked):** reconciliation transfer detection (a DWM concern)
-> currently resolves the source account from ODS (`bank_statements.account_id`)
-> instead of from the DWD account conform. The DWD conform step
-> (`transaction_classification` account assignment) is not yet wired into the
-> live flow, which is why the Layer-2/DWD read cutover is blocked. See
-> `docs/project/EPIC-011.asset-lifecycle.md`.
+> **Known drift (being closed):** reconciliation transfer detection (a DWM
+> concern) still resolves the source account from ODS
+> (`bank_statements.account_id`). PR-A adds the DWD-native custody conform —
+> `statement_summaries` (with `resolve_custody_account_id`) — so PR-B can switch
+> transfer detection to read the custody account from DWD and flip the read
+> cutover. See `docs/project/EPIC-011.asset-lifecycle.md`.
 
 ---
 

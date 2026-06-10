@@ -17,6 +17,7 @@ from src.models import BankStatement, BankStatementStatus
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
 from src.services.statement_posting import try_auto_approve_high_confidence_statement
+from src.services.statement_summary import sync_statement_summary
 
 if TYPE_CHECKING:
     pass
@@ -464,6 +465,8 @@ async def parse_statement_background(
             statement.balance_validated = parsed_statement.balance_validated
             statement.validation_error = parsed_statement.validation_error
             statement.status = parsed_statement.status
+
+            await sync_statement_summary(session, statement)
 
             await update_progress(100)
             auto_posted_count = await try_auto_approve_high_confidence_statement(session, statement.id, user_id)

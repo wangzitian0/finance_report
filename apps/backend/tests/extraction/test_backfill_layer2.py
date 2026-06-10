@@ -67,6 +67,7 @@ class TestBackfillLayer2:
         assert result["statements_scanned"] == 1
         assert result["documents_created"] == 1
         assert result["atomic_transactions_upserted"] == 2
+        assert result["statement_summaries_synced"] == 1
 
         docs = (
             (await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))).scalars().all()

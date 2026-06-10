@@ -14,6 +14,7 @@ from src.logger import get_logger
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.statement import BankStatement, BankStatementTransaction
+from src.services.statement_summary import sync_statement_summary
 
 logger = get_logger(__name__)
 
@@ -399,6 +400,7 @@ async def backfill_atomic_transactions_from_statements(
     statements_scanned = 0
     documents_created = 0
     atomic_upserted = 0
+    summaries_synced = 0
 
     for offset in range(0, len(statement_ids), batch_size):
         batch_ids = statement_ids[offset : offset + batch_size]
@@ -480,12 +482,18 @@ async def backfill_atomic_transactions_from_statements(
                 )
                 atomic_upserted += 1
 
+            # Project the confirmed statement envelope (custody account, period,
+            # balances, review state) into the StatementSummary conform.
+            await sync_statement_summary(db, stmt)
+            summaries_synced += 1
+
     logger.info(
         "Layer 2 backfill completed",
         extra={
             "statements_scanned": statements_scanned,
             "documents_created": documents_created,
             "atomic_transactions_upserted": atomic_upserted,
+            "statement_summaries_synced": summaries_synced,
             "user_scope": str(user_id) if user_id else "all",
         },
     )
@@ -494,4 +502,5 @@ async def backfill_atomic_transactions_from_statements(
         "statements_scanned": statements_scanned,
         "documents_created": documents_created,
         "atomic_transactions_upserted": atomic_upserted,
+        "statement_summaries_synced": summaries_synced,
     }
