@@ -2402,10 +2402,13 @@ def test_AC8_13_102_api_call_retries_transient_failures_on_get(
     assert calls == 1
 
 
-def test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions(
+def test_AC8_13_102_cleanup_surfaces_but_delete_ignores_api_exceptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC8.13.102: cleanup_action and delete_action ignore Dokploy API exceptions."""
+    """cleanup_action MUST surface a failed delete (non-zero) so a timed-out
+    teardown cannot silently leak a preview into an untracked orphan. The
+    redeploy-path delete_action stays tolerant so a stale-cleanup failure does
+    not block a new deploy."""
     lifecycle = lifecycle_module()
 
     def fake_find_compose_id(*args: object, **kwargs: object) -> str:
@@ -2413,7 +2416,7 @@ def test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions(
 
     monkeypatch.setattr(lifecycle, "find_compose_id_by_name", fake_find_compose_id)
 
-    # Both actions should catch the exception and return 0
+    # cleanup: a real API failure must NOT masquerade as a clean teardown.
     cleanup_res = lifecycle.cleanup_action(
         SimpleNamespace(
             api_url="https://cloud.example/api",
@@ -2423,8 +2426,9 @@ def test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions(
             compose_name="pr-123",
         )
     )
-    assert cleanup_res == 0
+    assert cleanup_res == 1
 
+    # delete (redeploy path): stays tolerant.
     delete_res = lifecycle.delete_action(
         SimpleNamespace(
             api_url="https://cloud.example/api",

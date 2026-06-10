@@ -1,8 +1,13 @@
 name: PR Preview Cleanup
 
+# Runs the orphan sweep on every merge to main (post-merge), not on a cron.
+# A per-merge sweep is at most a few deletes, runs visibly (a failure shows red
+# in CI, unlike a silently-failing daily cron), and is global so it heals
+# orphans from any close type. Closed-unmerged PRs are still caught by the next
+# merge's sweep.
 on:
-  schedule:
-    - cron: "37 */6 * * *"
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -35,6 +40,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Configure SSH key for runtime orphan sweep
+        if: ${{ secrets.INFRA2_WATCHDOG_SSH_PRIVATE_KEY != '' }}
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.INFRA2_WATCHDOG_SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.INFRA2_WATCHDOG_SSH_HOST }}
+          SSH_USER: ${{ secrets.INFRA2_WATCHDOG_SSH_USER }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/preview_sweep
+          chmod 600 ~/.ssh/preview_sweep
+          printf 'Host preview-sweep-host\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/preview_sweep\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new\n' \
+            "$SSH_HOST" "$SSH_USER" >> ~/.ssh/config
+          echo "RECONCILE_SSH_TARGET=preview-sweep-host" >> "$GITHUB_ENV"
+
       - name: Remove stale preview resources
         env:
           GH_TOKEN: ${{ github.token }}
@@ -48,6 +68,7 @@ jobs:
             --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY" \
+            ${RECONCILE_SSH_TARGET:+--ssh-target "$RECONCILE_SSH_TARGET"} \
             ${DRY_RUN:+"$DRY_RUN"}
 
       - name: Prune stale PR preview GHCR tags

@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -1029,11 +1030,15 @@ def wait_for_dokploy_deployment_rollout(
 
 
 def delete_compose(config: DokployConfig, *, compose_id: str) -> None:
+    # deleteVolumes so preview data (per-PR Postgres/MinIO) is reclaimed, not
+    # just the Dokploy record. Dokploy's delete is still not guaranteed to tear
+    # down already-running containers, so the runtime sweep in reconcile_action
+    # is the safety net for orphans.
     dokploy_api_call(
         config,
         "POST",
         "compose.delete",
-        payload={"composeId": compose_id},
+        payload={"composeId": compose_id, "deleteVolumes": True},
     )
     print(f"Compose deleted: {compose_id}")
 
@@ -1176,7 +1181,7 @@ def deploy_action(args: argparse.Namespace) -> int:
                 )
                 try:
                     trigger_and_wait(force_redeploy=True)
-                except DokployDeploymentDidNotStart as retry_error:
+                except DokployDeploymentDidNotStart:
                     print(
                         "New PR preview compose still did not create a Dokploy "
                         "deployment record after redeploy; recreating compose "
@@ -1226,22 +1231,35 @@ def deploy_action(args: argparse.Namespace) -> int:
 
 
 def cleanup_action(args: argparse.Namespace) -> int:
+    config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
     try:
-        config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
         compose_id = args.compose_id or find_compose_id_by_name(
             config,
             args.environment_id,
             args.compose_name,
         )
-        if compose_id:
-            delete_compose(config, compose_id=compose_id)
-        else:
-            print(f"Compose not found: {args.compose_name}")
     except DokployRequestError as exc:
+        # A failed lookup must not masquerade as a clean teardown. Surfacing it
+        # (non-zero) is what keeps a timed-out delete from silently leaking a
+        # preview into an untracked orphan. The post-merge runtime sweep still
+        # backstops it, but the failure must be visible.
         print(
-            f"WARNING: Cleanup action failed for {args.compose_name} (ignoring): {exc}",
+            f"ERROR: cleanup could not resolve compose {args.compose_name}: {exc}",
             file=sys.stderr,
         )
+        return 1
+    if not compose_id:
+        # Already gone is a legitimately clean outcome, not a failure.
+        print(f"Compose not found: {args.compose_name}")
+        return 0
+    try:
+        delete_compose(config, compose_id=compose_id)
+    except DokployRequestError as exc:
+        print(
+            f"ERROR: cleanup delete failed for {args.compose_name}: {exc}",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
@@ -1310,6 +1328,71 @@ def list_preview_composes(config: DokployConfig, environment_id: str) -> dict[in
     return previews
 
 
+# Strict: only a preview container has the `finance-report-<svc>-pr-<N>-<hex>`
+# shape. The trailing hex commit slug is required so this can NEVER match a
+# platform/prod container (e.g. `finance_report-backend`, `platform-prefect-server`).
+_PREVIEW_CONTAINER_RE = re.compile(
+    r"^finance-report-[a-z0-9-]+-pr-([1-9][0-9]*)-[0-9a-f]{6,}$"
+)
+
+
+def parse_preview_pr_from_container(name: str) -> int | None:
+    """Return the PR number for a preview container name, else None.
+
+    Safety-critical: anything that is not unmistakably a PR-preview container
+    (including prod/staging/platform containers) returns None and is never
+    touched.
+    """
+    match = _PREVIEW_CONTAINER_RE.match(name.strip())
+    return int(match.group(1)) if match else None
+
+
+def compute_orphan_containers(
+    running_containers: list[str], open_prs: set[int]
+) -> list[str]:
+    """Preview containers whose PR is no longer open. Pure + tested.
+
+    A container is only ever an orphan candidate if it parses as a preview
+    container AND its PR is not in the open set. Non-preview names are skipped.
+    """
+    orphans = []
+    for name in running_containers:
+        pr_number = parse_preview_pr_from_container(name)
+        if pr_number is not None and pr_number not in open_prs:
+            orphans.append(name)
+    return orphans
+
+
+def list_running_preview_containers(ssh_target: str) -> list[str]:
+    """List running container names on the VPS via SSH (runtime truth)."""
+    result = run_command(
+        [
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            ssh_target,
+            "docker ps --format '{{.Names}}'",
+        ]
+    )
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def remove_orphan_containers(
+    ssh_target: str, names: list[str], *, dry_run: bool
+) -> None:
+    """Force-remove orphan containers (and their anonymous volumes) over SSH."""
+    if not names:
+        return
+    if dry_run:
+        print(f"[dry-run] Would remove {len(names)} orphan container(s): {names}")
+        return
+    quoted = " ".join(shlex.quote(name) for name in names)
+    run_command(["ssh", "-o", "BatchMode=yes", ssh_target, f"docker rm -f -v {quoted}"])
+    print(f"Removed {len(names)} orphan container(s): {names}")
+
+
 def reconcile_action(args: argparse.Namespace) -> int:
     open_prs = list_open_pr_numbers()
     config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
@@ -1325,6 +1408,21 @@ def reconcile_action(args: argparse.Namespace) -> int:
             print(f"[dry-run] Would delete compose for PR #{pr_number}: {compose_id}")
         else:
             delete_compose(config, compose_id=compose_id)
+
+    # Runtime sweep: Dokploy-record reconcile above is blind to ORPHANS (records
+    # already deleted but containers still running). Compare actual running
+    # containers against open PRs and force-remove the leftovers. This is the
+    # self-healing net that runs on every post-merge CI.
+    ssh_target = getattr(args, "ssh_target", "") or os.environ.get(
+        "RECONCILE_SSH_TARGET", ""
+    )
+    if ssh_target:
+        running = list_running_preview_containers(ssh_target)
+        orphans = compute_orphan_containers(running, open_prs)
+        print(f"Runtime orphan containers: {orphans}")
+        remove_orphan_containers(ssh_target, orphans, dry_run=args.dry_run)
+    else:
+        print("No RECONCILE_SSH_TARGET configured; skipping runtime orphan sweep.")
     return 0
 
 
@@ -1375,6 +1473,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", default="ghcr.io")
     parser.add_argument("--image-prefix", default="")
     parser.add_argument("--internal-domain", default="zitian.party")
+    parser.add_argument(
+        "--ssh-target",
+        default="",
+        help="user@host for the runtime orphan sweep; falls back to RECONCILE_SSH_TARGET.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return main_from_args(parser.parse_args(argv))
 
