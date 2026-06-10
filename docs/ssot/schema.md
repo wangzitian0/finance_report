@@ -17,6 +17,63 @@
 
 ---
 
+<a id="data-layering"></a>
+
+## 1A. Data Layering Model (ODS / DWD / DWM / DWS / ADS / DIM)
+
+The data tables are classified with a data-warehouse layering vocabulary. This
+replaces the earlier ad-hoc "Layer 0/1/2/3/4" numbering. Every data table below
+belongs to exactly one layer; cross-cutting application/audit tables are listed
+separately. **Code must conform to this classification** — if a table or value
+sits in the wrong layer, that is drift to be fixed, not worked around.
+
+### Layer definitions
+
+| Layer | Meaning | Sourced from | Carries `account_id`? | Mutability |
+|-------|---------|--------------|-----------------------|------------|
+| **DIM** | Conformed reference data the **application** owns, referenced across layers. Non-user data that influences ADS belongs here **as data, not hard-coded in code**. | App / curated | n/a (defines accounts) | Slowly changing |
+| **ODS** | **User-side** source data, landed 1:1 as received. No cleaning, no dedup, no account conform. | User uploads / manual entry | No | Append-mostly |
+| **DWD** | Cleaned, deduplicated **detail facts**. May carry conformed DIM keys (e.g. `account_id`). The grain is one financial event / one ledger line. | Derived from ODS | Yes (conformed from DIM) | Immutable / posted |
+| **DWM** | **Thin** middle layer — only for genuinely complex cross-fact domains. Most domains skip it. | Derived from DWD + DIM | Via DWD | Process state |
+| **DWS** | Subject-oriented **summaries** and maintained derived state. | Derived from DWD/DWM | Via DWD | Recomputed |
+| **ADS** | **Application/report** outputs consumed by the UI. | Derived from DWS/DWD | n/a | Snapshot |
+
+### Table-to-layer map
+
+| Layer | Tables |
+|-------|--------|
+| **DIM** | `accounts` (chart of accounts) + `AccountType`; `classification_rules`; `fx_rates`, `stock_prices`, `market_data_sync_state`, `market_data_overrides`; security / institution master data |
+| **ODS** | `uploaded_documents`; `manual_valuation_snapshots`; *(legacy, deprecating)* `bank_statements`, `bank_statement_transactions` |
+| **DWD** | `atomic_transactions`, `atomic_positions`; `transaction_classification` (account conform); `journal_entries`, `journal_lines` (double-entry ledger); `investment_transactions`; `dividend_income` |
+| **DWM** | `reconciliation_matches`, `consistency_checks` (matching + transfer-pair / Processing-account resolution) |
+| **DWS** | `managed_positions`; `investment_lots`; derived account balances / period aggregates |
+| **ADS** | `report_snapshots` (balance sheet, income statement, cash flow) |
+| **Cross-cutting** (not a data layer) | `evidence_nodes`, `evidence_edges` (lineage/audit); `users`, `chat_sessions`, `chat_messages`, `workflow_sessions`, `workflow_events`, `ai_feedback`, `corrections`, `ping_state` (application plane) |
+
+### Cross-layer rules
+
+1. **Account is a DIM, conformed at DWD.** `account_id` is assigned when a DWD fact
+   is built (`transaction_classification.account_id`, `journal_lines.account_id`),
+   conformed from the `accounts` DIM. ODS must not be the source of account
+   identity for downstream logic.
+2. **DWM/DWS/ADS must resolve dimensions from DWD/DIM, never from ODS.** Reaching
+   into `bank_statements.account_id` (ODS) for account context is drift — it only
+   appears to work because the legacy ODS row conflates source file and account.
+3. **No reference-data-in-code.** Non-user reference that affects ADS (default
+   accounts, category/classification mappings, framework policy) belongs in DIM
+   tables, not in Python constants.
+4. **DWM stays thin.** Add a DWM table only for a genuinely complex cross-fact
+   domain (today: reconciliation/transfer matching). Default new work to DWD or DWS.
+
+> **Known drift (tracked):** reconciliation transfer detection (a DWM concern)
+> currently resolves the source account from ODS (`bank_statements.account_id`)
+> instead of from the DWD account conform. The DWD conform step
+> (`transaction_classification` account assignment) is not yet wired into the
+> live flow, which is why the Layer-2/DWD read cutover is blocked. See
+> `docs/project/EPIC-011.asset-lifecycle.md`.
+
+---
+
 <a id="er-model"></a>
 
 ## 2. ER Model
@@ -444,8 +501,8 @@ Stage 2 blocker table.
     - `SUM(DEBIT) = SUM(CREDIT)` (debit/credit balance)
     - `JournalLine.amount > 0` (positive_amount check)
 
-    ### Layer 1: UploadedDocuments (EPIC-011)
-    Immutable registry of all raw uploaded files.
+    ### ODS: UploadedDocuments (EPIC-011)
+    Immutable registry of all raw uploaded files (user-side source landing).
 
     | Column | Type | Constraint | Description |
     |--------|------|------------|-------------|
@@ -463,8 +520,10 @@ Stage 2 blocker table.
     **Constraints**:
     - `(user_id, file_hash)` unique to prevent duplicate uploads
 
-    ### Layer 2: AtomicTransactions (EPIC-011)
-    Deduplicated, immutable financial events from any source.
+    ### DWD: AtomicTransactions (EPIC-011)
+    Deduplicated, immutable financial events from any source. Source-pure detail
+    fact; account is **not** stored here (conformed downstream via
+    `transaction_classification`).
 
     | Column | Type | Constraint | Description |
     |--------|------|------------|-------------|
@@ -485,8 +544,8 @@ Stage 2 blocker table.
     - `(user_id, dedup_hash)` unique
     - Append-only `source_documents` array
 
-    ### Layer 2: AtomicPositions (EPIC-011)
-    Deduplicated, immutable asset snapshots.
+    ### DWD: AtomicPositions (EPIC-011)
+    Deduplicated, immutable asset snapshots (source-pure detail fact).
 
     | Column | Type | Constraint | Description |
     |--------|------|------------|-------------|
@@ -506,8 +565,12 @@ Stage 2 blocker table.
     **Constraints**:
     - `(user_id, dedup_hash)` unique
 
-    ### Layer 3: ClassificationRules and TransactionClassification (EPIC-011)
-    Versioned business rules map immutable Layer 2 transactions into report and posting categories.
+    ### DIM + DWD: ClassificationRules (DIM) and TransactionClassification (DWD) (EPIC-011)
+    `classification_rules` are **DIM** reference data (versioned mapping rules,
+    app/user-owned). `transaction_classification` is the **DWD** account conform:
+    it maps an immutable DWD atomic transaction to an `account_id` (from the
+    `accounts` DIM) via a rule version. This is where account identity enters the
+    DWD fact stream.
 
     | Table | Key Columns | Constraints | Operational Contract |
     |-------|-------------|-------------|----------------------|
@@ -518,8 +581,10 @@ Stage 2 blocker table.
     - Rule priority is deterministic: keyword rules outrank regex rules, regex rules outrank ML rules, and newer versions win within the same rule type.
     - One transaction can have multiple classifications only across different rule versions; one transaction plus one rule version has exactly one classification row.
 
-    ### Layer 3: ManualValuationSnapshots (EPIC-011)
-    User-entered valuation snapshots for net worth components that do not arrive from bank or broker statements.
+    ### ODS: ManualValuationSnapshots (EPIC-011)
+    User-entered valuation snapshots for net worth components that do not arrive
+    from bank or broker statements (user-side source data; `liquidity_class`
+    drives presentation downstream).
 
     | Column | Type | Constraint | Description |
     |--------|------|------------|-------------|
@@ -606,7 +671,7 @@ CREATE INDEX idx_recon_match_status ON reconciliation_matches(status);
 CREATE UNIQUE INDEX idx_bank_statements_user_file_hash
     ON bank_statements(user_id, file_hash);
 
--- Layer 1/2 Indexes (EPIC-011)
+-- ODS/DWD Indexes (EPIC-011)
 CREATE UNIQUE INDEX idx_uploaded_documents_dedup ON uploaded_documents(user_id, file_hash);
 CREATE INDEX idx_uploaded_documents_status ON uploaded_documents(status);
 
@@ -705,8 +770,8 @@ The `POST /api/assets/reconcile` endpoint:
 
 ### Related Tables
 
-- `atomic_positions` (Layer 2) - Source of truth for position snapshots
-- `managed_positions` (Layer 3) - Calculated positions from reconciliation
+- `atomic_positions` (DWD) - Source of truth for position snapshots
+- `managed_positions` (DWS) - Calculated positions from reconciliation
 - `accounts` - Optional link to brokerage account
 
 ---
