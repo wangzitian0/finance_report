@@ -58,7 +58,7 @@ async def _seed_statement(db: AsyncSession, user_id, *, file_hash: str) -> BankS
 @pytest.mark.asyncio
 class TestBackfillLayer2:
     async def test_backfill_creates_layer1_and_layer2_from_legacy_statement(self, db, test_user):
-        """AC11.12.1: Historical Layer 0 statements are projected into Layer 1/2."""
+        """AC11.14.1: Historical Layer 0 statements are projected into Layer 1/2."""
         await _seed_statement(db, test_user.id, file_hash="hash-backfill-1")
 
         result = await backfill_atomic_transactions_from_statements(db, user_id=test_user.id)
@@ -80,7 +80,7 @@ class TestBackfillLayer2:
         assert {t.amount for t in atomic} == {Decimal("3000.00"), Decimal("2500.00")}
 
     async def test_backfill_is_idempotent(self, db, test_user):
-        """AC11.12.2: Re-running the backfill upserts instead of duplicating."""
+        """AC11.14.2: Re-running the backfill upserts instead of duplicating."""
         await _seed_statement(db, test_user.id, file_hash="hash-backfill-2")
 
         await backfill_atomic_transactions_from_statements(db, user_id=test_user.id)
@@ -102,7 +102,7 @@ class TestBackfillLayer2:
         assert len(atomic) == 2
 
     async def test_backfill_scopes_to_requested_user(self, db, test_user):
-        """AC11.12.3: User-scoped backfill ignores other users' statements."""
+        """AC11.14.3: User-scoped backfill ignores other users' statements."""
         other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
         db.add(other_user)
         await db.flush()

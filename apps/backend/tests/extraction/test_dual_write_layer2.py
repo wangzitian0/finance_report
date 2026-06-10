@@ -53,7 +53,7 @@ def sample_file_content():
 @pytest.mark.asyncio
 class TestDualWriteLayer2:
     async def test_dual_write_enabled_by_default(self, db, test_user, mock_ai_response, sample_file_content):
-        """AC11.11.1: After Stage 1 cutover, parsing populates Layer 1/2 without any flag override."""
+        """AC11.13.1: After Stage 1 cutover, parsing populates Layer 1/2 without any flag override."""
         service = ExtractionService()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
@@ -81,7 +81,7 @@ class TestDualWriteLayer2:
     async def test_dual_write_can_be_disabled_via_flag(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
-        """AC11.11.2: ENABLE_4_LAYER_WRITE=false preserves the legacy Layer-0-only opt-out."""
+        """AC11.13.2: ENABLE_4_LAYER_WRITE=false preserves the legacy Layer-0-only opt-out."""
         monkeypatch.setattr("src.config.settings.enable_4_layer_write", False)
         service = ExtractionService()
 
