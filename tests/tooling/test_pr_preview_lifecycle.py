@@ -41,21 +41,25 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     assert env["ENV_SUFFIX"] == "-pr-591-abc123"
     assert env["ENV_DOMAIN_SUFFIX"] == "-pr-591-abc123"
     assert env["NETWORK_SUFFIX"] == "-pr-591"
-    assert env["NEXT_PUBLIC_API_URL"] == "https://report-pr-591-abc123.zitian.party"
-    assert env["NEXT_PUBLIC_APP_URL"] == "https://report-pr-591-abc123.zitian.party"
+    assert env["NEXT_PUBLIC_API_URL"] == "https://report-pr-591.zitian.party"
+    assert env["NEXT_PUBLIC_APP_URL"] == "https://report-pr-591.zitian.party"
     assert env["DB_HOST"] == "finance-report-db-pr-591-abc123"
     assert env["S3_HOST"] == "finance-report-minio-pr-591-abc123"
     assert env["S3_ENDPOINT"] == "http://finance-report-minio-pr-591-abc123:9000"
     assert env["COMPOSE_PROFILES"] == "infra,app"
 
 
-def test_AC8_13_101_preview_app_url_is_commit_scoped() -> None:
-    """AC8.13.101: PR preview readiness targets a commit-scoped route."""
+def test_AC8_13_101_preview_app_url_prefers_stable_alias() -> None:
+    """AC8.13.101: PR preview readiness targets a stable PR-level route."""
     lifecycle = lifecycle_module()
 
     assert lifecycle.preview_commit_slug("ABC123xyz456789") == "abc123xyz456"
     assert (
         lifecycle.preview_app_url(591, "ABC123xyz456789", "zitian.party")
+        == "https://report-pr-591.zitian.party"
+    )
+    assert (
+        lifecycle.preview_commit_app_url(591, "ABC123xyz456789", "zitian.party")
         == "https://report-pr-591-abc123xyz456.zitian.party"
     )
     assert lifecycle.preview_port_offset(
@@ -125,7 +129,7 @@ def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
         "ENV_SUFFIX": "-pr-591-abc123",
         "ENV_DOMAIN_SUFFIX": "-pr-591-abc123",
         "NETWORK_SUFFIX": "-pr-591",
-        "NEXT_PUBLIC_API_URL": "https://report-pr-591-abc123.zitian.party",
+        "NEXT_PUBLIC_API_URL": "https://report-pr-591.zitian.party",
         "DB_HOST": "finance-report-db-pr-591-abc123",
         "S3_HOST": "finance-report-minio-pr-591-abc123",
         "COMPOSE_PROFILES": "infra,app",
@@ -139,7 +143,7 @@ def test_AC8_13_72_allowlisted_env_diff_hides_secret_values() -> None:
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -924,7 +928,7 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
                 "ENV_SUFFIX": "-pr-591-abc123",
                 "ENV_DOMAIN_SUFFIX": "-pr-591-abc123",
                 "NETWORK_SUFFIX": "-pr-591",
-                "NEXT_PUBLIC_API_URL": "https://report-pr-591-abc123.zitian.party",
+                "NEXT_PUBLIC_API_URL": "https://report-pr-591.zitian.party",
                 "DB_HOST": "finance-report-db-pr-591-abc123",
                 "S3_HOST": "finance-report-minio-pr-591-abc123",
                 "COMPOSE_PROFILES": "infra,app",
@@ -1053,7 +1057,7 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1137,7 +1141,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1225,7 +1229,7 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1310,7 +1314,7 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1399,7 +1403,7 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1512,7 +1516,7 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1590,7 +1594,7 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "raw_deployment_printed: false" in out
-    assert "app_url=https://report-pr-591-abc123.zitian.party" not in out
+    assert "app_url=https://report-pr-591.zitian.party" not in out
 
 
 def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
@@ -1610,7 +1614,7 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1720,7 +1724,7 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1800,7 +1804,7 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "new deploy was lost" in out
-    assert "app_url=https://report-pr-591-abc123.zitian.party" not in out
+    assert "app_url=https://report-pr-591.zitian.party" not in out
 
 
 def test_AC8_13_102_new_preview_rollout_error_still_fails(
@@ -1819,7 +1823,7 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -1900,7 +1904,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
             "ENV_SUFFIX=-pr-591-abc123",
             "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
             "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591-abc123.zitian.party",
+            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
             "DB_HOST=finance-report-db-pr-591-abc123",
             "S3_HOST=finance-report-minio-pr-591-abc123",
             "COMPOSE_PROFILES=infra,app",
@@ -2070,7 +2074,7 @@ def test_AC8_13_71_deploy_action_writes_github_output(
     assert lifecycle.deploy_action(args) == 0
 
     assert output_path.read_text() == (
-        "compose_id=cmp-591\napp_url=https://report-pr-591-abc123.zitian.party\n"
+        "compose_id=cmp-591\napp_url=https://report-pr-591.zitian.party\n"
     )
 
 
@@ -2143,11 +2147,14 @@ def test_AC8_13_107_preview_deploy_context_is_written_without_secrets(
     assert context["phase"] == "failed"
     assert context["compose_id"] == "cmp-591"
     assert context["expected_sha"] == "abc123"
+    assert context["commit_preview_app_url"] == (
+        "https://report-pr-591-abc123.zitian.party"
+    )
     assert context["api_health_url"] == (
-        "https://report-pr-591-abc123.zitian.party/api/health"
+        "https://report-pr-591.zitian.party/api/health"
     )
     assert context["frontend_version_url"] == (
-        "https://report-pr-591-abc123.zitian.party/"
+        "https://report-pr-591.zitian.party/"
         "frontend-version.json?expected=abc123"
     )
     assert (
@@ -2186,12 +2193,14 @@ def test_AC8_13_107_pr_preview_workflow_fast_fails_missing_images_and_uploads_co
     assert "ci-context/" in deploy_block
 
 
-def test_AC8_13_101_pr_test_workflow_uses_commit_scoped_preview_url() -> None:
-    """AC8.13.101: Readiness and E2E consume the deployed preview URL output."""
+def test_AC8_13_101_pr_test_workflow_uses_stable_pr_preview_url() -> None:
+    """AC8.13.101: Readiness and E2E consume the deployed stable preview URL."""
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
     deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
 
+    assert "preview_commit_app_url: ${{ steps.info.outputs.preview_commit_app_url }}" in workflow
     assert "preview_app_url: ${{ steps.info.outputs.preview_app_url }}" in workflow
+    assert "preview_commit_app_url" in workflow
     assert "preview_commit_slug" in workflow
     assert "NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}" in workflow
     assert "NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}" in workflow

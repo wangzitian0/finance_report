@@ -303,10 +303,18 @@ def preview_env_suffix(pr_number: int, commit_sha: str) -> str:
     return f"-pr-{pr_number}-{preview_commit_slug(commit_sha)}"
 
 
-def preview_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> str:
+def preview_stable_app_url(pr_number: int, internal_domain: str) -> str:
+    return f"https://report-pr-{pr_number}.{internal_domain}"
+
+
+def preview_commit_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> str:
     return (
         f"https://report{preview_env_suffix(pr_number, commit_sha)}.{internal_domain}"
     )
+
+
+def preview_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> str:
+    return preview_stable_app_url(pr_number, internal_domain)
 
 
 def preview_compose_command(pr_number: int) -> str:
@@ -374,6 +382,11 @@ def build_preview_context(
         "branch": str(args.branch),
         "commit_sha": str(args.commit_sha),
         "expected_sha": str(args.commit_sha),
+        "commit_preview_app_url": preview_commit_app_url(
+            args.pr_number,
+            args.commit_sha,
+            args.internal_domain,
+        ),
         "preview_commit_slug": preview_commit_slug(str(args.commit_sha)),
         "image_tag": preview_image_tag(args.pr_number, args.commit_sha),
         "backend_image": f"{args.registry}/{args.image_prefix}-backend:{preview_image_tag(args.pr_number, args.commit_sha)}",

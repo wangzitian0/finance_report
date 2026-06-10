@@ -47,6 +47,7 @@ jobs:
       action: ${{ steps.info.outputs.action }}
       internal_domain: ${{ steps.info.outputs.internal_domain }}
       preview_app_url: ${{ steps.info.outputs.preview_app_url }}
+      preview_commit_app_url: ${{ steps.info.outputs.preview_commit_app_url }}
       preview_commit_slug: ${{ steps.info.outputs.preview_commit_slug }}
       pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}
       pr_preview_reason: ${{ steps.preview_gate.outputs.pr_preview_reason }}
@@ -81,7 +82,8 @@ jobs:
 
             preview_commit_slug="$(python3 -c 'import os; from tools._lib.dev.pr_preview_lifecycle import preview_commit_slug; print(preview_commit_slug(os.environ["GITHUB_SHA"]))')"
             echo "preview_commit_slug=${preview_commit_slug}"
-            echo "preview_app_url=https://report-pr-${pr_number}-${preview_commit_slug}.${{ env.INTERNAL_DOMAIN }}"
+            echo "preview_app_url=https://report-pr-${pr_number}.${{ env.INTERNAL_DOMAIN }}"
+            echo "preview_commit_app_url=https://report-pr-${pr_number}-${preview_commit_slug}.${{ env.INTERNAL_DOMAIN }}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Classify PR preview relevance
@@ -856,16 +858,22 @@ jobs:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
           APP_URL: ${{ steps.deploy.outputs.app_url }}
+          COMMIT_URL: ${{ needs.setup.outputs.preview_commit_app_url }}
           COMPOSE_NAME: ${{ needs.setup.outputs.compose_name }}
         with:
           script: |
             const url = process.env.APP_URL;
+            const legacyUrl = process.env.COMMIT_URL || url;
             const body = `## 🧪 Test Environment Deployed
 
             | Service | URL |
             |---------|-----|
-            | Frontend | [${url}](${url}) |
+            | Frontend (stable) | [${url}](${url}) |
+            | Frontend (commit alias) | [${legacyUrl}](${legacyUrl}) |
             | API Health | [${url}/api/health](${url}/api/health) |
+
+            The stable URL always points to the latest successful PR deployment.
+            Commit-specific URLs are kept as compatibility aliases for active PR updates.
 
             **Details:**
             - Compose: \`${process.env.COMPOSE_NAME}\`
