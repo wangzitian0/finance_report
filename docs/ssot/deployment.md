@@ -49,18 +49,22 @@ One contract ties the three repos together; each owns only its part:
 
 | Repo | Owns | Knows about others |
 |------|------|--------------------|
-| **finance_report** (app) | `config.py` — declares every variable, its default, and which are required when deployed. Publishes the list via `Settings.prod_required_secrets()`. | Nothing at build time; reads `os.environ` regardless of source. |
+| **finance_report** (app) | `apps/backend/src/config.py` declares every variable and its default; `apps/backend/src/boot.py` enforces which secrets must be real at boot. | Nothing at build time; reads `os.environ` regardless of source. |
 | **dev_env** (local tooling) | Injects local secrets from 1Password (no plaintext at rest); source-agnostic. | Nothing about app schemas. |
-| **infra2** (`repo/`) | Vault `secrets.ctmpl` — supplies the deployed values. | The app's published required-secret list. |
+| **infra2** (`repo/`) | Vault `secrets.ctmpl` — supplies the deployed values. | The env vars a deployed app requires. |
 
 Consistency is **not** enforced by cross-repo CI gates. It is enforced where it
-matters: the app **fails loud at boot** in `staging`/`production` if a required
-secret is missing or still a development default. This is owned by `src/boot.py`
-(`Bootloader._check_static_config`, the single source of truth for environment
-validation — wired into startup via `main.py` `Bootloader.validate(CRITICAL)`,
-proven by AC1.10.1). A failed check `sys.exit(1)`s, which the deploy readiness
-gate catches. Local/CI keep convenience defaults (`environment` not in the
-protected set).
+matters: the app **fails loudly at boot** in a *protected* runtime.
+`apps/backend/src/boot.py` (`Bootloader._check_static_config`, the single source
+of truth for environment validation) treats a runtime as protected when the
+environment is `staging`/`production`, is **not** one of the local environments
+(`development`, `test`, `ci`), or the app is served from a public (non-localhost
+`https://`) `NEXT_PUBLIC_APP_URL`. In a protected runtime it rejects a
+missing/short/default `SECRET_KEY`, a default `DATABASE_URL`, or a default
+`S3_SECRET_KEY`. Startup runs it via `apps/backend/src/main.py` →
+`await Bootloader.validate(BootMode.CRITICAL)`, which `sys.exit(1)`s on failure
+(the deploy readiness gate catches it). Local/CI keep convenience defaults.
+Proven by AC1.10.1.
 
 ---
 
