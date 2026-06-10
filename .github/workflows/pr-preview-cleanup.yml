@@ -26,6 +26,7 @@ env:
 permissions:
   contents: read
   pull-requests: read
+  packages: write
 
 jobs:
   cleanup:
@@ -49,6 +50,127 @@ jobs:
             --api-key "$DOKPLOY_API_KEY" \
             ${DRY_RUN:+"$DRY_RUN"}
 
+      - name: Prune stale PR preview GHCR tags
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-context
+          retention_days=14
+          open_prs_file="$(mktemp)"
+          gh pr list --state open --limit 1000 --json number --jq '.[].number' > "$open_prs_file"
+          owner_type="$(gh api -H "Accept: application/vnd.github+json" "/users/${{ github.repository_owner }}" --jq '.type')"
+          if [[ "$owner_type" == "Organization" ]]; then
+            package_scope_path="/orgs/${{ github.repository_owner }}"
+          else
+            package_scope_path="/users/${{ github.repository_owner }}"
+          fi
+
+          {
+            echo "GHCR PR Preview Cleanup"
+            echo "======================="
+            echo "retention_days=${retention_days}"
+            echo "dry_run=${DRY_RUN}"
+            echo "package_scope=${package_scope_path}"
+            echo "open_pr_count=$(wc -l < "$open_prs_file" | tr -d ' ')"
+          } > ci-context/pr-preview-ghcr-cleanup-context.txt
+
+          for service in backend frontend; do
+            image_name="finance_report-${service}"
+            versions_file="$(mktemp)"
+            if ! gh api \
+              -H "Accept: application/vnd.github+json" \
+              "${package_scope_path}/packages/container/${image_name}/versions" \
+              --paginate \
+              --slurp > "$versions_file"; then
+              echo "${image_name}: list-failed package_scope=${package_scope_path}" | tee -a ci-context/pr-preview-ghcr-cleanup-context.txt
+              continue
+            fi
+
+            python3 - "$versions_file" "$open_prs_file" "$retention_days" "$DRY_RUN" "$image_name" "$package_scope_path" <<'PY' | tee -a ci-context/pr-preview-ghcr-cleanup-context.txt
+          import datetime as dt
+          import json
+          import re
+          import subprocess
+          import sys
+
+          versions_path, open_prs_path, retention_days, dry_run, image_name, package_scope_path = sys.argv[1:7]
+          open_prs = {
+              int(line.strip())
+              for line in open(open_prs_path, encoding="utf-8")
+              if line.strip()
+          }
+          raw = open(versions_path, encoding="utf-8").read().strip()
+          if not raw:
+              versions = []
+          else:
+              try:
+                  parsed = json.loads(raw)
+                  if isinstance(parsed, list) and all(isinstance(page, list) for page in parsed):
+                      versions = [version for page in parsed for version in page]
+                  else:
+                      versions = parsed if isinstance(parsed, list) else []
+              except json.JSONDecodeError:
+                  versions = []
+          cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=int(retention_days))
+          tag_re = re.compile(r"^pr-([1-9][0-9]*)-[0-9a-f]{40}$")
+          deleted = 0
+          failed = 0
+          kept = 0
+          skipped = 0
+          for version in versions:
+              version_id = version.get("id")
+              created_at = version.get("created_at") or ""
+              tags = ((version.get("metadata") or {}).get("container") or {}).get("tags") or []
+              pr_tags = [tag for tag in tags if tag_re.match(tag)]
+              if not version_id or not pr_tags:
+                  continue
+              try:
+                  created = dt.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+              except ValueError:
+                  skipped += 1
+                  print(f"{image_name}: skip version={version_id} reason=invalid-created-at tags={','.join(pr_tags)}")
+                  continue
+              pr_numbers = {int(tag_re.match(tag).group(1)) for tag in pr_tags}
+              if pr_numbers & open_prs:
+                  kept += 1
+                  print(f"{image_name}: keep version={version_id} reason=open-pr tags={','.join(pr_tags)}")
+                  continue
+              if created >= cutoff:
+                  kept += 1
+                  print(f"{image_name}: keep version={version_id} reason=retention-window tags={','.join(pr_tags)}")
+                  continue
+              if dry_run == "true":
+                  print(f"{image_name}: dry-run delete version={version_id} tags={','.join(pr_tags)}")
+                  deleted += 1
+              else:
+                  result = subprocess.run(
+                      [
+                          "gh",
+                          "api",
+                          "--method",
+                          "DELETE",
+                          "-H",
+                          "Accept: application/vnd.github+json",
+                          f"{package_scope_path}/packages/container/{image_name}/versions/{version_id}",
+                      ],
+                      check=False,
+                  )
+                  if result.returncode == 0:
+                      deleted += 1
+                      print(f"{image_name}: deleted version={version_id} tags={','.join(pr_tags)}")
+                  else:
+                      failed += 1
+                      print(f"{image_name}: delete-failed version={version_id} tags={','.join(pr_tags)}")
+          print(f"{image_name}: stale_pr_preview_versions_selected={deleted}")
+          print(f"{image_name}: pr_preview_versions_delete_failed={failed}")
+          print(f"{image_name}: pr_preview_versions_kept={kept}")
+          print(f"{image_name}: pr_preview_versions_skipped={skipped}")
+          PY
+          done
+
       - name: Write scheduled preview cleanup context
         if: ${{ always() }}
         run: |
@@ -65,6 +187,8 @@ jobs:
             echo "environment_id=${{ env.TEST_ENV_ID }}"
             echo "dry_run=${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}"
             echo "cleanup_action=reconcile"
+            echo "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days"
+            echo "host_hygiene_schedule=finance-report-vps-host-hygiene"
           } > ci-context/pr-preview-scheduled-cleanup-context.txt
 
       - name: Upload scheduled preview cleanup context
@@ -72,5 +196,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pr-preview-scheduled-cleanup-context
-          path: ci-context/pr-preview-scheduled-cleanup-context.txt
+          path: ci-context/
           retention-days: 14

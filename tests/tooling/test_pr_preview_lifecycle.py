@@ -286,6 +286,7 @@ def test_AC8_13_102_dokploy_rollout_record_window_allows_worker_queue() -> None:
 
     signature = inspect.signature(lifecycle.wait_for_dokploy_deployment_rollout)
 
+    assert "previous_deployment_signatures" in signature.parameters
     assert signature.parameters["timeout_seconds"].default == 900
     assert signature.parameters["new_deployment_timeout_seconds"].default == 600
 
@@ -420,6 +421,217 @@ def test_AC8_13_102_done_compose_without_new_record_fails_before_readiness(
     out = capsys.readouterr().out
     assert "proceeding to commit-scoped readiness" not in out
     assert "platform_failure_domain=dokploy-worker-or-deployment-record" in out
+
+
+def test_AC8_13_102_existing_record_can_rollout_in_place(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.102: Reused deployment records can still complete rollout readiness."""
+    lifecycle = lifecycle_module()
+    states = iter(
+        [
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "running",
+                "deployments": [
+                    {
+                        "deploymentId": "old-dep",
+                        "status": "running",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "startedAt": "2026-01-01T00:00:10Z",
+                    },
+                ],
+            },
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "done",
+                "deployments": [
+                    {
+                        "deploymentId": "old-dep",
+                        "status": "done",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "startedAt": "2026-01-01T00:00:10Z",
+                        "finishedAt": "2026-01-01T00:00:20Z",
+                    },
+                ],
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        lifecycle,
+        "get_compose_data",
+        lambda *args, **kwargs: next(states),
+    )
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+    compose_data = {
+        "deployments": [
+            {
+                "deploymentId": "old-dep",
+                "status": "running",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "startedAt": "2026-01-01T00:00:10Z",
+            },
+        ]
+    }
+
+    lifecycle.wait_for_dokploy_deployment_rollout(
+        lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+        compose_id="cmp-591",
+        previous_deployment_ids={"old-dep"},
+        previous_deployment_signatures=lifecycle.deployment_signatures(
+            compose_data["deployments"]
+        ),
+        timeout_seconds=1,
+    )
+
+    out = capsys.readouterr().out
+    assert (
+        "Dokploy rollout observed as existing deployment record update" in out
+    )
+
+
+def test_AC8_13_102_existing_record_error_fails_before_readiness(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.102: Reused deployment record failure raises rollout error."""
+    lifecycle = lifecycle_module()
+    states = iter(
+        [
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "running",
+                "deployments": [
+                    {
+                        "deploymentId": "old-dep",
+                        "status": "running",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "startedAt": "2026-01-01T00:00:10Z",
+                    },
+                ],
+            },
+            {
+                "composeId": "cmp-591",
+                "composeStatus": "done",
+                "deployments": [
+                    {
+                        "deploymentId": "old-dep",
+                        "status": "error",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "startedAt": "2026-01-01T00:00:10Z",
+                    },
+                ],
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        lifecycle,
+        "get_compose_data",
+        lambda *args, **kwargs: next(states),
+    )
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+    compose_data = {
+        "deployments": [
+            {
+                "deploymentId": "old-dep",
+                "status": "running",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "startedAt": "2026-01-01T00:00:10Z",
+            },
+        ]
+    }
+
+    with pytest.raises(
+        lifecycle.DokployDeploymentFailed,
+        match="Dokploy deployment failed before readiness polling: compose_id=cmp-591 deployment_id=old-dep",
+    ):
+        lifecycle.wait_for_dokploy_deployment_rollout(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+            compose_id="cmp-591",
+            previous_deployment_ids={"old-dep"},
+            previous_deployment_signatures=lifecycle.deployment_signatures(
+                compose_data["deployments"]
+            ),
+            timeout_seconds=1,
+    )
+
+    out = capsys.readouterr().out
+    assert "existing-deployment-error-attempt-2" in out
+
+
+def test_AC8_13_102_deployment_signatures_preserve_rollout_activity_fields() -> None:
+    lifecycle = lifecycle_module()
+
+    signatures = lifecycle.deployment_signatures(
+        [
+            {"deploymentId": "dep-1", "status": "running", "createdAt": "t1"},
+            {
+                "deploymentId": "dep-2",
+                "createdAt": "t2",
+                "startedAt": None,
+                "status": "running",
+                "finishedAt": None,
+            },
+            {"notDeployment": True},
+        ]
+    )
+
+    assert signatures["dep-1"] == ("running", "t1", "", "")
+    assert signatures["dep-2"] == ("running", "t2", "", "")
+
+
+def test_AC8_13_102_rollout_timeout_uses_environment_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle = lifecycle_module()
+
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "300",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == 300
+    )
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "not-a-number",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS
+    )
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "0",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS
+    )
+    monkeypatch.setenv(
+        lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+        "-5",
+    )
+    assert (
+        lifecycle.parse_positive_int_env(
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV,
+            lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS,
+        )
+        == lifecycle.PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS
+    )
 
 
 def test_AC8_13_102_rollout_poll_retries_transient_dokploy_api_failure(
@@ -1372,8 +1584,9 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
     assert "compose.delete" in rendered_calls
     assert "compose.create" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert wait_calls == 2
+    assert wait_calls == 3
     out = capsys.readouterr().out
+    assert "New PR preview compose still did not create a Dokploy deployment record" in out
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "raw_deployment_printed: false" in out
@@ -1488,11 +1701,11 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
     assert wait_calls == 2
 
 
-def test_AC8_13_102_new_preview_missing_after_redeploy_fails_before_readiness(
+def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8.13.102: Missing Dokploy records fail after one new-preview redeploy retry."""
+    """AC8.13.102: A stuck new preview compose is recreated once before failing."""
     lifecycle = lifecycle_module()
     monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
     calls: list[list[str]] = []
@@ -1577,12 +1790,13 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_fails_before_readiness(
     assert lifecycle.main_from_args(args) == 1
 
     rendered_calls = "\n".join(" ".join(call) for call in calls)
-    assert rendered_calls.count("compose.create") == 1
-    assert "compose.delete" not in rendered_calls
+    assert rendered_calls.count("compose.create") == 2
+    assert "compose.delete" in rendered_calls
     assert "compose.redeploy" in rendered_calls
     assert "compose.deploy" in rendered_calls
-    assert wait_calls == 2
+    assert wait_calls == 3
     out = capsys.readouterr().out
+    assert "New PR preview compose still did not create a Dokploy deployment record" in out
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "new deploy was lost" in out
@@ -2413,4 +2627,3 @@ def test_wait_for_dokploy_deployment_rollout_extends_deadline(
     out = capsys.readouterr().out
     assert "Dokploy is currently busy with other deployments" in out
     assert "Extending the new deployment timeout deadline" in out
-

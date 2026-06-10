@@ -82,7 +82,9 @@ The staging deploy gate separates platform rollout from application readiness.
 record to reach `done` before `tools/health_check.sh` starts polling
 `/api/health` for the target SHA. `running` only proves Dokploy's worker has
 started; it does not prove Docker containers and Traefik routes have
-materialized the target SHA. A missing or unfinished deployment record after
+materialized the target SHA. A deployment that reuses an existing deployment id
+and advances it to `done` is accepted as ready state; if no record appears and
+no existing record advances, a missing or unfinished deployment record after
 that worker-queue window is a platform rollout failure, not an application
 health timeout.
 
@@ -124,6 +126,11 @@ Production app deploys must keep the image tag, Dokploy runtime
 the tag into backend images, and `tools/dokploy_deploy.sh` refreshes
 `IAC_CONFIG_HASH` on every deploy attempt so Dokploy restarts the app even when
 redeploying the same tag.
+Before mutating production, the release workflow probes the current production
+health endpoint and records the pre-deploy version in the deploy context. The
+same artifact records deploy-health, smoke, read-only E2E, and failure-domain
+fields so a stale-version production failure can be triaged without rerunning
+business-correctness gates in production.
 
 Dokploy deploy diagnostics must never print raw API response bodies. The shared
 deploy helper reports only endpoint, HTTP status, safe message fields, and an
@@ -154,6 +161,11 @@ the normal age/recent retention window because those orphaned runtimes already
 fail the infra watchdog and cannot be treated as healthy rollback targets. PR
 preview workflows only create, update, deploy, delete, and reconcile Dokploy
 compose resources.
+
+PR preview GHCR retention is owned by GitHub Actions rather than the VPS host.
+PR-close cleanup deletes backend/frontend tags with prefix `pr-<number>-`, and
+the scheduled cleanup prunes closed-PR `pr-<number>-<sha>` tags older than 14
+days while keeping tags for currently open PRs.
 
 Install or update the Dokploy host hygiene schedule with:
 

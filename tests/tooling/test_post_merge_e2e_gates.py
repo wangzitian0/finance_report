@@ -2501,6 +2501,77 @@ def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded(
         assert token in recommendation
 
 
+def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
+    """AC8.13.119: delivery cleanup covers the five known leak paths."""
+    epic = read("docs/project/EPIC-008.testing-strategy.md")
+    recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
+    preview_cleanup = read(".github/workflows/pr-preview-cleanup.yml")
+    pr_preview = read(".github/workflows/pr-test.yml")
+    staging = read(".github/workflows/staging-deploy.yml")
+    production = read(".github/workflows/production-release.yml")
+    hygiene = read("tools/_lib/dev/vps_host_hygiene.py")
+
+    for token in (
+        "AC8.13.119",
+        "PR preview leftovers",
+        "GHCR PR tag accumulation",
+        "stale staging or production routes",
+        "provider-backed external-state residue",
+        "Docker build cache and stopped containers",
+    ):
+        assert token in epic
+
+    for token in (
+        "Resource leak hardening bundle",
+        "one PR",
+        "closed-PR Dokploy reconciliation",
+        "closed-PR PR preview GHCR tags",
+        "production_before_version",
+        "isolated-users-provider-gate-only",
+        "finance-report-vps-host-hygiene",
+    ):
+        assert token in recommendation
+
+    assert "packages: write" in preview_cleanup
+    assert "Prune stale PR preview GHCR tags" in preview_cleanup
+    assert "retention_days=14" in preview_cleanup
+    assert "gh pr list --state open" in preview_cleanup
+    assert 'owner_type="$(gh api' in preview_cleanup
+    assert 'package_scope_path="/orgs/${{ github.repository_owner }}"' in preview_cleanup
+    assert 'package_scope_path="/users/${{ github.repository_owner }}"' in preview_cleanup
+    assert '"${package_scope_path}/packages/container/${image_name}/versions"' in preview_cleanup
+    assert 'if ! gh api \\' in preview_cleanup
+    assert "list-failed package_scope=${package_scope_path}" in preview_cleanup
+    assert "continue" in preview_cleanup
+    assert 'f"{package_scope_path}/packages/container/{image_name}/versions/{version_id}"' in preview_cleanup
+    assert '"/orgs/${{ github.repository_owner }}/packages/container' not in preview_cleanup
+    assert 'f"/orgs/{owner}/packages/container' not in preview_cleanup
+    assert r"^pr-([1-9][0-9]*)-[0-9a-f]{40}$" in preview_cleanup
+    assert "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days" in preview_cleanup
+    assert "host_hygiene_schedule=finance-report-vps-host-hygiene" in preview_cleanup
+    assert "VPS_SSH_KEY" not in preview_cleanup
+    assert "ssh-keyscan" not in preview_cleanup
+
+    assert "Delete GHCR images" in pr_preview
+    assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in pr_preview
+    assert 'startswith(\\"${TAG_PREFIX}\\")' in pr_preview
+
+    assert "provider_resource_boundary=isolated-users-provider-gate-only" in staging
+    assert "shared mutable user fixtures" in staging
+
+    assert "Probe current production version" in production
+    assert "production_before_version" in production
+    assert "deploy_health_outcome" in production
+    assert "failure_domain=${failure_domain}" in production
+    assert "production-deploy-health-or-version" in production
+
+    assert "finance-report-vps-host-hygiene" in hygiene
+    assert "docker builder prune" in hygiene
+    assert "docker image prune" in hygiene
+    assert "docker network prune" in hygiene
+    assert "journalctl --vacuum" in hygiene
+
+
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     """AC8.13.10: Staging proves multi-brokerage upload through latest value."""
     workflow = read(".github/workflows/staging-deploy.yml")
@@ -2819,5 +2890,3 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
     argv = ["--repository", "owner/repo", "--token", "tok", "--commit-sha", "abc123", "--poll-seconds", "1", "--timeout-seconds", "5"]
     res = main(argv)
     assert res == 0
-
-

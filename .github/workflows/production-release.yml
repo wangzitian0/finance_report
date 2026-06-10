@@ -416,6 +416,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify images
+        id: verify_images
         env:
           VERSION: ${{ steps.version.outputs.tag }}
         run: |
@@ -429,7 +430,50 @@ jobs:
           done
           echo "✅ Images verified"
 
+      - name: Probe current production version
+        id: production_before
+        continue-on-error: true
+        run: |
+          status_file="$(mktemp)"
+          body_file="$(mktemp)"
+          http_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --location \
+              --connect-timeout 5 \
+              --max-time 15 \
+              --header "Cache-Control: no-cache" \
+              --header "Pragma: no-cache" \
+              --output "$body_file" \
+              --write-out "%{http_code}" \
+              "https://report.zitian.party/api/health" \
+              2>"$status_file" || true
+          )"
+          current_version="$(
+            python3 - "$body_file" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          try:
+              payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8") or "{}")
+          except json.JSONDecodeError:
+              payload = {}
+          print(payload.get("git_sha") or payload.get("version") or "")
+          PY
+          )"
+          echo "http_status=${http_status:-000}" >> "$GITHUB_OUTPUT"
+          echo "version=${current_version}" >> "$GITHUB_OUTPUT"
+          if [ -s "$status_file" ]; then
+            probe_error="$(head -c 200 "$status_file" | tr '\n\r' '  ')"
+            echo "probe_error=${probe_error}" >> "$GITHUB_OUTPUT"
+          else
+            echo "probe_error=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy & Health Check
+        id: deploy_health
         env:
           IMAGE_TAG: ${{ steps.version.outputs.tag }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
@@ -447,6 +491,7 @@ jobs:
             "$IMAGE_TAG"
 
       - name: Production Infrastructure Smoke
+        id: production_infra_smoke
         run: |
           python tools/production_infra_smoke.py \
             --base-url "https://report.zitian.party" \
@@ -454,6 +499,7 @@ jobs:
             --signoz-url "https://signoz.zitian.party"
 
       - name: Smoke Tests
+        id: production_smoke
         run: bash tools/smoke_test.sh https://report.zitian.party production
 
       - name: Setup E2E Tests
@@ -475,6 +521,30 @@ jobs:
         if: ${{ always() }}
         run: |
           mkdir -p ci-context
+          failure_domain="none"
+          failed_step="none"
+          failure_summary="Production release deploy completed."
+          if [ "${{ steps.verify_images.outcome }}" = "failure" ]; then
+            failure_domain="registry-release-image"
+            failed_step="verify_images"
+            failure_summary="Version-tagged release image was missing before production mutation."
+          elif [ "${{ steps.deploy_health.outcome }}" = "failure" ]; then
+            failure_domain="production-deploy-health-or-version"
+            failed_step="deploy_health"
+            failure_summary="Dokploy deploy or production health/version check failed."
+          elif [ "${{ steps.production_infra_smoke.outcome }}" = "failure" ]; then
+            failure_domain="production-infra-smoke"
+            failed_step="production_infra_smoke"
+            failure_summary="Production infrastructure smoke failed after deploy health."
+          elif [ "${{ steps.production_smoke.outcome }}" = "failure" ]; then
+            failure_domain="production-app-smoke"
+            failed_step="production_smoke"
+            failure_summary="Production application smoke failed after deploy health."
+          elif [ "${{ steps.production_readonly_e2e.outcome }}" = "failure" ]; then
+            failure_domain="production-readonly-e2e"
+            failed_step="production_readonly_e2e"
+            failure_summary="Production read-only E2E failed after release health."
+          fi
           {
             echo "Production Deploy Context"
             echo "========================="
@@ -488,7 +558,17 @@ jobs:
             echo "app_url=https://report.zitian.party"
             echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
             echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+            echo "production_before_http_status=${{ steps.production_before.outputs.http_status }}"
+            echo "production_before_version=${{ steps.production_before.outputs.version }}"
+            echo "production_before_probe_error=${{ steps.production_before.outputs.probe_error }}"
+            echo "verify_images_outcome=${{ steps.verify_images.outcome }}"
+            echo "deploy_health_outcome=${{ steps.deploy_health.outcome }}"
+            echo "production_infra_smoke_outcome=${{ steps.production_infra_smoke.outcome }}"
+            echo "production_smoke_outcome=${{ steps.production_smoke.outcome }}"
             echo "production_readonly_e2e_outcome=${{ steps.production_readonly_e2e.outcome }}"
+            echo "failure_domain=${failure_domain}"
+            echo "failed_step=${failed_step}"
+            echo "failure_summary=${failure_summary}"
             echo "marker=prod_safe"
           } > ci-context/production-deploy-context.txt
 

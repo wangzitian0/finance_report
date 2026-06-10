@@ -346,6 +346,7 @@ jobs:
           DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}
           DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}
           DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}
+          DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "300"
           HEALTH_CHECK_MAX_SHA_MISMATCH_ATTEMPTS: "18"
         run: |
           bash tools/dokploy_deploy.sh \
@@ -750,6 +751,8 @@ jobs:
             echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
             echo "vision_model=${STAGING_E2E_VISION_MODEL}"
             echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outcome }}"
+            echo "provider_resource_boundary=isolated-users-provider-gate-only"
+            echo "provider_replay_cleanup_contract=gate tests must not use shared mutable user fixtures; retries remain scoped to staging AI/OCR relevance"
             echo "strict_e2e_gates=true"
             echo "marker=llm"
           } > ci-context/staging-ai-ocr-context.txt
