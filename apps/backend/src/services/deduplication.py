@@ -6,12 +6,14 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.logger import get_logger
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
-from src.models.statement import BankStatementTransaction
+from src.models.statement import BankStatement, BankStatementTransaction
 
 logger = get_logger(__name__)
 
@@ -353,3 +355,143 @@ async def dual_write_layer2(
         )
         # Re-raise to ensure caller knows dual-write failed
         raise RuntimeError(f"Failed to write to Layer 2: {e}") from e
+
+
+BACKFILL_STATEMENT_BATCH_SIZE = 200
+
+
+async def backfill_atomic_transactions_from_statements(
+    db: AsyncSession,
+    user_id: UUID | None = None,
+    *,
+    batch_size: int = BACKFILL_STATEMENT_BATCH_SIZE,
+) -> dict[str, int]:
+    """Idempotently populate Layer 1/2 from existing Layer 0 statements (EPIC-011 Stage 2a).
+
+    For every ``BankStatement`` (optionally scoped to ``user_id``) this ensures a
+    Layer 1 ``UploadedDocument`` exists and every ``BankStatementTransaction`` has a
+    Layer 2 ``AtomicTransaction``. This backfills historical data that predates the
+    Stage 1 dual-write activation, so the Layer-2 read path has full coverage before
+    ``ENABLE_4_LAYER_READ`` is turned on.
+
+    Safe to re-run: ``UploadedDocument`` is keyed by ``(user_id, file_hash)`` and
+    ``AtomicTransaction`` by ``(user_id, dedup_hash)``, so re-execution upserts
+    rather than duplicates.
+
+    Statements are streamed in batches of ``batch_size`` (loading each batch's
+    transactions on demand) so production-sized datasets do not load every
+    statement and transaction into memory at once.
+
+    Returns counts: ``statements_scanned``, ``documents_created``,
+    ``atomic_transactions_upserted``.
+    """
+    dedup_service = DeduplicationService()
+
+    # Fetch statement IDs only (lightweight), then hydrate one bounded batch at a
+    # time. This keeps peak memory proportional to ``batch_size`` rather than the
+    # full statement/transaction set.
+    id_query = select(BankStatement.id)
+    if user_id is not None:
+        id_query = id_query.where(BankStatement.user_id == user_id)
+    id_query = id_query.order_by(BankStatement.created_at)
+    statement_ids = (await db.execute(id_query)).scalars().all()
+
+    statements_scanned = 0
+    documents_created = 0
+    atomic_upserted = 0
+
+    for offset in range(0, len(statement_ids), batch_size):
+        batch_ids = statement_ids[offset : offset + batch_size]
+        batch = (
+            (
+                await db.execute(
+                    select(BankStatement)
+                    .where(BankStatement.id.in_(batch_ids))
+                    .options(selectinload(BankStatement.transactions))
+                    .order_by(BankStatement.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        for stmt in batch:
+            statements_scanned += 1
+            owner_id = stmt.user_id  # BankStatement.user_id is NOT NULL
+
+            doc_type = (
+                DocumentType.BROKERAGE_STATEMENT
+                if (stmt.extraction_metadata or {}).get("extraction_payload")
+                else DocumentType.BANK_STATEMENT
+            )
+
+            existing_doc = (
+                await db.execute(
+                    select(UploadedDocument).where(
+                        UploadedDocument.user_id == owner_id,
+                        UploadedDocument.file_hash == stmt.file_hash,
+                    )
+                )
+            ).scalar_one_or_none()
+
+            if existing_doc is None:
+                try:
+                    # SAVEPOINT so a duplicate-insert race only rolls back this one
+                    # document, never the statements already backfilled in this run.
+                    async with db.begin_nested():
+                        existing_doc = await dedup_service.create_uploaded_document(
+                            db=db,
+                            user_id=owner_id,
+                            file_path=stmt.file_path or stmt.file_hash,
+                            file_hash=stmt.file_hash,
+                            original_filename=stmt.original_filename or "unknown",
+                            document_type=doc_type,
+                            extraction_metadata=stmt.extraction_metadata,
+                        )
+                    documents_created += 1
+                except IntegrityError:  # pragma: no cover - concurrent-writer race, not deterministically unit-testable
+                    # Concurrent writer created it first; reload the existing row.
+                    existing_doc = (
+                        await db.execute(
+                            select(UploadedDocument).where(
+                                UploadedDocument.user_id == owner_id,
+                                UploadedDocument.file_hash == stmt.file_hash,
+                            )
+                        )
+                    ).scalar_one()
+
+            for txn in stmt.transactions:
+                direction_map = {"IN": TransactionDirection.IN, "OUT": TransactionDirection.OUT}
+                l2_direction = direction_map.get(txn.direction, TransactionDirection.IN)
+                await dedup_service.upsert_atomic_transaction(
+                    db=db,
+                    user_id=owner_id,
+                    txn_date=txn.txn_date,
+                    amount=txn.amount,
+                    direction=l2_direction,
+                    description=txn.description,
+                    # Match the live dual-write path (`dual_write_layer2`), which
+                    # sources currency from the statement, so backfilled rows are
+                    # identical to organically dual-written ones.
+                    currency=stmt.currency or "SGD",
+                    source_doc_id=existing_doc.id,
+                    source_doc_type=doc_type,
+                    reference=txn.reference,
+                )
+                atomic_upserted += 1
+
+    logger.info(
+        "Layer 2 backfill completed",
+        extra={
+            "statements_scanned": statements_scanned,
+            "documents_created": documents_created,
+            "atomic_transactions_upserted": atomic_upserted,
+            "user_scope": str(user_id) if user_id else "all",
+        },
+    )
+
+    return {
+        "statements_scanned": statements_scanned,
+        "documents_created": documents_created,
+        "atomic_transactions_upserted": atomic_upserted,
+    }

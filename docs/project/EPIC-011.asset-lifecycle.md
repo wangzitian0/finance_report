@@ -157,6 +157,30 @@ code, tests, issues, and git history.
 | AC11.10.10 | Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window | `test_next_market_data_sync_at_uses_nightly_sgt_schedule()` | `market_data/test_scheduler.py` | P0 |
 | AC11.10.11 | Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths()` | `tests/e2e/test_market_data_price_paths.py` | P0 |
 
+### AC11.13: 4-Layer Migration — Stage 1 Dual-Write Activation
+
+Stage 1 of the 4-layer cutover turns dual-write ON by default: every parsed
+statement populates Layer 1/2 (`UploadedDocument` + `AtomicTransaction`)
+alongside legacy Layer 0, with an env opt-out preserved for rollback.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.13.1 | Parsing populates Layer 1/2 by default, without any feature-flag override | `test_dual_write_enabled_by_default()` | `extraction/test_dual_write_layer2.py` | P0 |
+| AC11.13.2 | `ENABLE_4_LAYER_WRITE=false` preserves the legacy Layer-0-only opt-out for rollback | `test_dual_write_can_be_disabled_via_flag()` | `extraction/test_dual_write_layer2.py` | P0 |
+
+### AC11.14: 4-Layer Migration — Stage 2a Layer 0→2 Backfill
+
+Stage 2a backfills historical Layer 0 statements (those uploaded before Stage 1
+dual-write) into Layer 1/2, so the Layer-2 read path has complete coverage
+before `ENABLE_4_LAYER_READ` is activated. Idempotent and re-runnable via
+`tools/backfill_layer2.py`.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.14.1 | Historical Layer 0 statements are projected into Layer 1 documents and Layer 2 atomic transactions | `test_backfill_creates_layer1_and_layer2_from_legacy_statement()` | `extraction/test_backfill_layer2.py` | P0 |
+| AC11.14.2 | Re-running the backfill upserts by dedup hash instead of duplicating rows | `test_backfill_is_idempotent()` | `extraction/test_backfill_layer2.py` | P0 |
+| AC11.14.3 | A user-scoped backfill ignores other users' statements | `test_backfill_scopes_to_requested_user()` | `extraction/test_backfill_layer2.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or
