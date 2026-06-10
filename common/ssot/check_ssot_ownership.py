@@ -135,6 +135,7 @@ SCAN_SUFFIXES: tuple[str, ...] = (".md", ".py")
 CHECK4_EXEMPT_PATHS: set[Path] = {
     REPO_ROOT / "AGENTS.md",  # root policy doc — intentional high-level summaries
     REPO_ROOT / "CLAUDE.md",  # symlink -> AGENTS.md (Claude Code entry point)
+    REPO_ROOT / "GEMINI.md",  # symlink -> AGENTS.md (Gemini/Antigravity CLI entry point)
     REPO_ROOT / "README.md",  # project overview — summary mention OK
     REPO_ROOT / "vision.md",  # North Star document
 }

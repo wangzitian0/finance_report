@@ -1,17 +1,21 @@
 """Guard the multi-runtime agent-config bridge against drift.
 
-The repo is wired so that Antigravity, Codex, and Claude Code can all be opened
-in this checkout and start developing with the same instructions and skills:
+The repo is wired so Claude Code, Codex, OpenCode, and the Gemini/Antigravity
+CLI can all be opened in this checkout and start developing with the same
+instructions, skills, and MCP tools:
 
-* ``AGENTS.md`` is the single source of truth (read natively by Codex,
-  Antigravity, and OpenCode).
-* ``CLAUDE.md`` is a symlink to ``AGENTS.md`` so Claude Code reads the same doc.
-* ``.claude/skills/<name>`` are symlinks onto the canonical skill library in
-  ``.opencode/skills`` so Claude Code discovers the exact same SKILL.md files
-  that OpenCode uses.
+* ``AGENTS.md`` is the single source of truth (read natively by Codex and
+  OpenCode); ``CLAUDE.md`` and ``GEMINI.md`` symlink to it for Claude Code and
+  the Gemini CLI.
+* ``.claude/skills`` and ``.codex/skills`` are flat symlinks onto the canonical
+  skill library in ``.opencode/skills`` so every runtime discovers the same
+  SKILL.md files.
+* The project MCP baseline ships in ``.mcp.json`` (Claude Code),
+  ``opencode.json`` (OpenCode), and ``.gemini/settings.json`` (Gemini CLI).
 
-These tests fail loudly if a link goes stale (renamed/removed target, a new
-skill added on one side only, a re-introduced ban-risk auth plugin, etc.).
+These tests fail loudly if a link goes stale (renamed/removed target, a skill
+added on one side only, a re-introduced ban-risk auth plugin or model provider,
+a dropped MCP server, etc.).
 """
 
 from __future__ import annotations
@@ -22,7 +26,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 OPENCODE_SKILLS = ROOT / ".opencode" / "skills"
-CLAUDE_SKILLS = ROOT / ".claude" / "skills"
+# Runtimes that mirror the canonical .opencode skill library via flat symlinks
+# (Claude Code reads .claude/skills, Codex reads .codex/skills — both project-
+# level and discovered on clone).
+MIRROR_SKILL_DIRS = {
+    "claude": ROOT / ".claude" / "skills",
+    "codex": ROOT / ".codex" / "skills",
+}
 
 # Auth plugins that borrow a first-party subscription OAuth seat inside a
 # third-party client. Removed because that pattern risks account suspension;
@@ -40,8 +50,9 @@ BANNED_MODEL_PROVIDER_PREFIXES = ("openai/", "google/")
 
 # Project-level MCP baseline that ships in the repo so a fresh clone gets the
 # same tool surface (not just whatever a machine happens to have configured
-# globally). Claude Code reads it from .mcp.json; OpenCode from opencode.json.
-# Codex only supports global (~/.codex) MCP, so it is covered out-of-band.
+# globally). Claude Code reads it from .mcp.json, OpenCode from opencode.json,
+# and the Gemini/Antigravity CLI from .gemini/settings.json. Codex only supports
+# global (~/.codex) MCP, so it is covered out-of-band.
 MCP_BASELINE = {"context7", "github", "basic-memory", "sequential-thinking"}
 
 
@@ -72,53 +83,59 @@ def _opencode_leaf_skill_dirs() -> dict[str, Path]:
     return leaves
 
 
-def test_claude_md_symlinks_to_agents_md() -> None:
-    claude_md = ROOT / "CLAUDE.md"
+def test_instruction_md_symlinks_to_agents_md() -> None:
+    """Each runtime's entry-point doc is a symlink to the AGENTS.md source."""
     agents_md = ROOT / "AGENTS.md"
-
-    assert claude_md.is_symlink(), "CLAUDE.md must be a symlink, not a copy"
-    # Relative target keeps the link portable across clones.
-    assert os.readlink(claude_md) == "AGENTS.md"
     assert agents_md.is_file()
-    assert claude_md.resolve() == agents_md.resolve()
+    for entry in ("CLAUDE.md", "GEMINI.md"):
+        link = ROOT / entry
+        assert link.is_symlink(), f"{entry} must be a symlink, not a copy"
+        # Relative target keeps the link portable across clones.
+        assert os.readlink(link) == "AGENTS.md"
+        assert link.resolve() == agents_md.resolve()
 
 
-def test_claude_md_is_exempt_from_ssot_ownership_check() -> None:
-    """The CLAUDE.md mirror must stay registered in the SSOT-ownership guard.
+def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
+    """The AGENTS.md mirrors must stay registered in the SSOT-ownership guard.
 
-    Otherwise its mirrored AGENTS.md content trips check4 (rule keyword without
-    a cross-reference) and breaks CI.
+    Otherwise their mirrored content trips check4 (rule keyword without a
+    cross-reference) and breaks CI.
     """
     from common.ssot import check_ssot_ownership
 
-    assert (ROOT / "CLAUDE.md") in check_ssot_ownership.CHECK4_EXEMPT_PATHS
+    for entry in ("CLAUDE.md", "GEMINI.md"):
+        assert (ROOT / entry) in check_ssot_ownership.CHECK4_EXEMPT_PATHS
 
 
-def test_every_opencode_skill_has_a_claude_symlink() -> None:
-    """No skill exists on the OpenCode side without a Claude Code link."""
+def test_every_opencode_skill_is_mirrored() -> None:
+    """No skill exists on the OpenCode side without a link in each mirror."""
     leaves = _opencode_leaf_skill_dirs()
     assert leaves, "expected to discover .opencode/skills/**/SKILL.md leaves"
 
-    for name, leaf in sorted(leaves.items()):
-        link = CLAUDE_SKILLS / name
-        assert link.is_symlink(), f".claude/skills/{name} missing or not a symlink"
-        assert link.resolve() == leaf.resolve(), (
-            f".claude/skills/{name} resolves to {link.resolve()}, expected {leaf}"
-        )
-        assert (link / "SKILL.md").is_file(), (
-            f".claude/skills/{name} does not expose a SKILL.md (case-sensitive)"
-        )
+    for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
+        for name, leaf in sorted(leaves.items()):
+            link = skills_dir / name
+            assert link.is_symlink(), f"{runtime}: {link} missing or not a symlink"
+            assert link.resolve() == leaf.resolve(), (
+                f"{runtime}: {link} resolves to {link.resolve()}, expected {leaf}"
+            )
+            assert (link / "SKILL.md").is_file(), (
+                f"{runtime}: {link} does not expose a SKILL.md (case-sensitive)"
+            )
 
 
-def test_no_orphan_or_broken_claude_skill_links() -> None:
-    """Every .claude/skills entry is a live symlink back into .opencode."""
+def test_no_orphan_or_broken_mirror_skill_links() -> None:
+    """Every mirror entry is a live symlink back into .opencode."""
     leaves = _opencode_leaf_skill_dirs()
-    for entry in sorted(CLAUDE_SKILLS.iterdir()):
-        assert entry.is_symlink(), f"{entry} should be a symlink"
-        assert entry.exists(), f"{entry} is a broken symlink -> {os.readlink(entry)}"
-        assert entry.name in leaves, (
-            f".claude/skills/{entry.name} has no matching .opencode skill"
-        )
+    for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
+        for entry in sorted(skills_dir.iterdir()):
+            assert entry.is_symlink(), f"{runtime}: {entry} should be a symlink"
+            assert entry.exists(), (
+                f"{runtime}: {entry} is a broken symlink -> {os.readlink(entry)}"
+            )
+            assert entry.name in leaves, (
+                f"{runtime}: {entry.name} has no matching .opencode skill"
+            )
 
 
 def test_opencode_config_has_no_banrisk_auth_plugins() -> None:
@@ -159,6 +176,16 @@ def test_opencode_mcp_baseline_present() -> None:
     servers = set(cfg.get("mcp", {}))
     missing = MCP_BASELINE - servers
     assert not missing, f"opencode.json missing baseline MCP servers: {sorted(missing)}"
+
+
+def test_gemini_mcp_baseline_present() -> None:
+    """The Gemini/Antigravity CLI's .gemini/settings.json carries the baseline."""
+    cfg = json.loads((ROOT / ".gemini" / "settings.json").read_text(encoding="utf-8"))
+    servers = set(cfg.get("mcpServers", {}))
+    missing = MCP_BASELINE - servers
+    assert not missing, (
+        f".gemini/settings.json missing baseline MCP servers: {sorted(missing)}"
+    )
 
 
 def test_claude_settings_enable_mcp_baseline() -> None:
