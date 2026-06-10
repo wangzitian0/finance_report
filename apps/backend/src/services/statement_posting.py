@@ -23,6 +23,7 @@ from src.models import (
 from src.models.statement import Stage1Status
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
+from src.services.statement_summary import sync_statement_summary
 from src.services.statement_validation import approve_statement
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
@@ -153,6 +154,7 @@ async def resolve_statement_posting_account(
         account = next(iter(accounts_by_id.values()))
         statement.account_id = account.id
         await db.flush()
+        await sync_statement_summary(db, statement)
         return account
     if len(accounts_by_id) > 1:
         raise ValueError(

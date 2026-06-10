@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from src.models import BankStatement, BankStatementStatus
 from src.models.statement import Stage1Status
+from src.services.statement_summary import sync_statement_summary
 
 BALANCE_TOLERANCE = Decimal("0.001")
 
@@ -160,6 +161,7 @@ async def approve_statement(
     statement.status = BankStatementStatus.APPROVED
 
     await db.flush()
+    await sync_statement_summary(db, statement)
     return statement
 
 
@@ -177,6 +179,7 @@ async def reject_statement(
         statement.validation_error = reason
 
     await db.flush()
+    await sync_statement_summary(db, statement)
     return statement
 
 
@@ -213,6 +216,7 @@ async def edit_and_approve(
     statement.status = BankStatementStatus.APPROVED
 
     await db.flush()
+    await sync_statement_summary(db, statement)
     return statement
 
 

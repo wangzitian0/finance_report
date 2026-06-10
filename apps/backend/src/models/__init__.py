@@ -47,6 +47,7 @@ from src.models.statement import (
     ConfidenceLevel,
     Stage1Status,
 )
+from src.models.statement_summary import StatementSummary
 from src.models.user import AiFeedback, User
 from src.models.workflow import (
     WorkflowEvent,
@@ -118,6 +119,7 @@ __all__ = [
     "ReportType",
     "RuleType",
     "Statement",  # Alias for BankStatement
+    "StatementSummary",
     "Stage1Status",
     "StockPrice",
     "PriceSource",

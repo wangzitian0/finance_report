@@ -47,6 +47,7 @@ from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.statement_parsing import parse_statement_background
 from src.services.statement_posting import auto_create_posted_entries_for_statement
+from src.services.statement_summary import sync_statement_summary
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
     edit_and_approve,
@@ -163,6 +164,7 @@ async def _create_statement_account_from_confirmation(
     await db.flush()
     statement.account_id = account.id
     await db.flush()
+    await sync_statement_summary(db, statement)
     return account
 
 
