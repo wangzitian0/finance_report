@@ -34,6 +34,12 @@ def test_chat_message_repr():
     assert str(session_id) in repr_str
 
 
+def test_chat_model_enums_match_migration_values():
+    """AC6.4.1: Chat ORM enums persist the lowercase PostgreSQL enum values."""
+    assert ChatSession.__table__.c.status.type.enums == ["active", "deleted"]
+    assert ChatMessage.__table__.c.role.type.enums == ["user", "assistant", "system"]
+
+
 def test_fx_rate_repr():
     fx_rate = FxRate(
         base_currency="USD",
