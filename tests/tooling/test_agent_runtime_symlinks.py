@@ -32,6 +32,30 @@ BANNED_OPENCODE_PLUGINS = (
     "opencode-openai-codex-auth",
 )
 
+# Model providers that OpenCode can only reach through a borrowed subscription
+# OAuth seat (ChatGPT for `openai/*`, Antigravity for `google/*`). Routing any
+# agent/category/default model at them re-introduces the suspension risk, so
+# OpenCode is pinned to github-copilot (official OAuth) + api-key providers.
+BANNED_MODEL_PROVIDER_PREFIXES = ("openai/", "google/")
+
+
+def _all_opencode_model_refs() -> dict[str, str]:
+    """Collect every `model` string from opencode.json + oh-my-openagent.json."""
+    refs: dict[str, str] = {}
+
+    root_config = json.loads((ROOT / "opencode.json").read_text(encoding="utf-8"))
+    if "model" in root_config:
+        refs["opencode.json:model"] = root_config["model"]
+
+    agent_config = json.loads(
+        (ROOT / ".opencode" / "oh-my-openagent.json").read_text(encoding="utf-8")
+    )
+    for section in ("agents", "categories"):
+        for name, body in agent_config.get(section, {}).items():
+            if isinstance(body, dict) and "model" in body:
+                refs[f"{section}.{name}"] = body["model"]
+    return refs
+
 
 def _opencode_leaf_skill_dirs() -> dict[str, Path]:
     """Map skill name -> leaf directory for every SKILL.md under .opencode."""
@@ -99,4 +123,17 @@ def test_opencode_config_has_no_banrisk_auth_plugins() -> None:
             assert banned not in plugin, (
                 f"ban-risk auth plugin {banned!r} must not be re-added to "
                 f"opencode.json (found {plugin!r})"
+            )
+
+
+def test_no_opencode_agent_routes_to_banrisk_provider() -> None:
+    """Every OpenCode model must use github-copilot or an api-key provider."""
+    refs = _all_opencode_model_refs()
+    assert refs, "expected to find model references to validate"
+    for location, model in sorted(refs.items()):
+        for prefix in BANNED_MODEL_PROVIDER_PREFIXES:
+            assert not model.startswith(prefix), (
+                f"{location} routes to ban-risk provider {model!r}; OpenCode can "
+                f"only reach {prefix}* via borrowed subscription OAuth. Re-point "
+                f"it at github-copilot or an api-key provider."
             )
