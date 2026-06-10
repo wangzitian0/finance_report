@@ -42,7 +42,7 @@ sits in the wrong layer, that is drift to be fixed, not worked around.
 
 | Layer | Tables |
 |-------|--------|
-| **DIM** | `accounts` (chart of accounts) + `AccountType`; `classification_rules`; `fx_rates`, `stock_prices`, `market_data_sync_state`, `market_data_overrides`; security / institution master data |
+| **DIM** | `accounts` (chart of accounts, including the account-type enum column); `classification_rules`; `fx_rates`, `stock_prices`, `market_data_sync_state`, `market_data_overrides`; security / institution master data |
 | **ODS** | `uploaded_documents`; `manual_valuation_snapshots`; *(legacy, deprecating)* `bank_statements`, `bank_statement_transactions` |
 | **DWD** | `atomic_transactions`, `atomic_positions`; `transaction_classification` (account conform); `journal_entries`, `journal_lines` (double-entry ledger); `investment_transactions`; `dividend_income` |
 | **DWM** | `reconciliation_matches`, `consistency_checks` (matching + transfer-pair / Processing-account resolution) |
@@ -501,114 +501,114 @@ Stage 2 blocker table.
     - `SUM(DEBIT) = SUM(CREDIT)` (debit/credit balance)
     - `JournalLine.amount > 0` (positive_amount check)
 
-    ### ODS: UploadedDocuments (EPIC-011)
-    Immutable registry of all raw uploaded files (user-side source landing).
+### ODS: UploadedDocuments (EPIC-011)
+Immutable registry of all raw uploaded files (user-side source landing).
 
-    | Column | Type | Constraint | Description |
-    |--------|------|------------|-------------|
-    | id | UUID | PK | Primary key |
-    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-    | file_path | VARCHAR(500) | NOT NULL | MinIO/S3 object key |
-    | file_hash | VARCHAR(64) | NOT NULL | SHA256 (User + Hash unique) |
-    | original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
-    | document_type | ENUM | NOT NULL | bank_statement/brokerage_statement/esop_grant/property_appraisal |
-    | status | ENUM | NOT NULL | uploaded/processing/completed/failed |
-    | extraction_metadata | JSONB | | AI logs, confidence scores |
-    | created_at | TIMESTAMP | NOT NULL | Creation time |
-    | updated_at | TIMESTAMP | NOT NULL | Update time |
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| file_path | VARCHAR(500) | NOT NULL | MinIO/S3 object key |
+| file_hash | VARCHAR(64) | NOT NULL | SHA256 (User + Hash unique) |
+| original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
+| document_type | ENUM | NOT NULL | bank_statement/brokerage_statement/esop_grant/property_appraisal |
+| status | ENUM | NOT NULL | uploaded/processing/completed/failed |
+| extraction_metadata | JSONB | | AI logs, confidence scores |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
-    **Constraints**:
-    - `(user_id, file_hash)` unique to prevent duplicate uploads
+**Constraints**:
+- `(user_id, file_hash)` unique to prevent duplicate uploads
 
-    ### DWD: AtomicTransactions (EPIC-011)
-    Deduplicated, immutable financial events from any source. Source-pure detail
-    fact; account is **not** stored here (conformed downstream via
-    `transaction_classification`).
+### DWD: AtomicTransactions (EPIC-011)
+Deduplicated, immutable financial events from any source. Source-pure detail
+fact; account is **not** stored here (conformed downstream via
+`transaction_classification`).
 
-    | Column | Type | Constraint | Description |
-    |--------|------|------------|-------------|
-    | id | UUID | PK | Primary key |
-    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-    | txn_date | DATE | NOT NULL | Transaction date |
-    | amount | DECIMAL(18,2) | NOT NULL | Absolute amount |
-    | direction | ENUM | NOT NULL | IN/OUT |
-    | description | TEXT | NOT NULL | Description |
-    | reference | VARCHAR(100) | | Reference ID |
-    | currency | VARCHAR(3) | NOT NULL | Currency code |
-    | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
-    | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
-    | created_at | TIMESTAMP | NOT NULL | Creation time |
-    | updated_at | TIMESTAMP | NOT NULL | Update time |
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| txn_date | DATE | NOT NULL | Transaction date |
+| amount | DECIMAL(18,2) | NOT NULL | Absolute amount |
+| direction | ENUM | NOT NULL | IN/OUT |
+| description | TEXT | NOT NULL | Description |
+| reference | VARCHAR(100) | | Reference ID |
+| currency | VARCHAR(3) | NOT NULL | Currency code |
+| dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
+| source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
-    **Constraints**:
-    - `(user_id, dedup_hash)` unique
-    - Append-only `source_documents` array
+**Constraints**:
+- `(user_id, dedup_hash)` unique
+- Append-only `source_documents` array
 
-    ### DWD: AtomicPositions (EPIC-011)
-    Deduplicated, immutable asset snapshots (source-pure detail fact).
+### DWD: AtomicPositions (EPIC-011)
+Deduplicated, immutable asset snapshots (source-pure detail fact).
 
-    | Column | Type | Constraint | Description |
-    |--------|------|------------|-------------|
-    | id | UUID | PK | Primary key |
-    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-    | snapshot_date | DATE | NOT NULL | Snapshot date |
-    | asset_identifier | VARCHAR(255) | NOT NULL | Ticker/ISIN/Address |
-    | broker | VARCHAR(100) | | Broker/Custodian name |
-    | quantity | DECIMAL(18,6) | NOT NULL | Units held |
-    | market_value | DECIMAL(18,2) | NOT NULL | Total value in currency |
-    | currency | VARCHAR(3) | NOT NULL | Currency code |
-    | dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
-    | source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
-    | created_at | TIMESTAMP | NOT NULL | Creation time |
-    | updated_at | TIMESTAMP | NOT NULL | Update time |
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| snapshot_date | DATE | NOT NULL | Snapshot date |
+| asset_identifier | VARCHAR(255) | NOT NULL | Ticker/ISIN/Address |
+| broker | VARCHAR(100) | | Broker/Custodian name |
+| quantity | DECIMAL(18,6) | NOT NULL | Units held |
+| market_value | DECIMAL(18,2) | NOT NULL | Total value in currency |
+| currency | VARCHAR(3) | NOT NULL | Currency code |
+| dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
+| source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
-    **Constraints**:
-    - `(user_id, dedup_hash)` unique
+**Constraints**:
+- `(user_id, dedup_hash)` unique
 
-    ### DIM + DWD: ClassificationRules (DIM) and TransactionClassification (DWD) (EPIC-011)
-    `classification_rules` are **DIM** reference data (versioned mapping rules,
-    app/user-owned). `transaction_classification` is the **DWD** account conform:
-    it maps an immutable DWD atomic transaction to an `account_id` (from the
-    `accounts` DIM) via a rule version. This is where account identity enters the
-    DWD fact stream.
+### DIM + DWD: ClassificationRules (DIM) and TransactionClassification (DWD) (EPIC-011)
+`classification_rules` are **DIM** reference data (versioned mapping rules,
+app/user-owned). `transaction_classification` is the **DWD** account conform:
+it maps an immutable DWD atomic transaction to an `account_id` (from the
+`accounts` DIM) via a rule version. This is where account identity enters the
+DWD fact stream.
 
-    | Table | Key Columns | Constraints | Operational Contract |
-    |-------|-------------|-------------|----------------------|
-    | classification_rules | user_id, rule_name, version_number, rule_type, rule_config, default_account_id | `(user_id, rule_name, version_number)` unique | Active rules are evaluated by deterministic priority, then descending version number. |
-    | transaction_classification | atomic_txn_id, rule_version_id, account_id, tags, confidence_score, status | `(atomic_txn_id, rule_version_id)` unique | Re-running the same rule version for the same transaction is idempotent: return the existing classification without inserting a duplicate or surfacing a database uniqueness error. |
+| Table | Key Columns | Constraints | Operational Contract |
+|-------|-------------|-------------|----------------------|
+| classification_rules | user_id, rule_name, version_number, rule_type, rule_config, default_account_id | `(user_id, rule_name, version_number)` unique | Active rules are evaluated by deterministic priority, then descending version number. |
+| transaction_classification | atomic_txn_id, rule_version_id, account_id, tags, confidence_score, status | `(atomic_txn_id, rule_version_id)` unique | Re-running the same rule version for the same transaction is idempotent: return the existing classification without inserting a duplicate or surfacing a database uniqueness error. |
 
-    **Constraints**:
-    - Rule priority is deterministic: keyword rules outrank regex rules, regex rules outrank ML rules, and newer versions win within the same rule type.
-    - One transaction can have multiple classifications only across different rule versions; one transaction plus one rule version has exactly one classification row.
+**Constraints**:
+- Rule priority is deterministic: keyword rules outrank regex rules, regex rules outrank ML rules, and newer versions win within the same rule type.
+- One transaction can have multiple classifications only across different rule versions; one transaction plus one rule version has exactly one classification row.
 
-    ### ODS: ManualValuationSnapshots (EPIC-011)
-    User-entered valuation snapshots for net worth components that do not arrive
-    from bank or broker statements (user-side source data; `liquidity_class`
-    drives presentation downstream).
+### ODS: ManualValuationSnapshots (EPIC-011)
+User-entered valuation snapshots for net worth components that do not arrive
+from bank or broker statements (user-side source data; `liquidity_class`
+drives presentation downstream).
 
-    | Column | Type | Constraint | Description |
-    |--------|------|------------|-------------|
-    | id | UUID | PK | Primary key |
-    | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-    | component_type | ENUM | NOT NULL | `property_value|mortgage_balance|cpf_balance|long_term_savings|tax_payable|tax_refund|insurance_cash_value|esop|rsu|stock_options|other_asset|other_liability` (name="manual_valuation_component_type_enum") |
-    | liquidity_class | ENUM | NOT NULL | `liquid|restricted|illiquid|liability` (name="manual_valuation_liquidity_class_enum") |
-    | as_of_date | DATE | NOT NULL | Snapshot effective date |
-    | value | DECIMAL(18,2) | NOT NULL | Positive component value in original currency |
-    | currency | VARCHAR(3) | NOT NULL | ISO currency code |
-    | source | VARCHAR(120) | NOT NULL | Portal, appraisal, statement, or manual source |
-    | notes | TEXT | | User notes |
-    | recurrence_days | INTEGER | | Optional reminder cadence |
-    | reminder_date | DATE | | Optional next reminder date |
-    | created_at | TIMESTAMP | NOT NULL | Creation time |
-    | updated_at | TIMESTAMP | NOT NULL | Update time |
+| Column | Type | Constraint | Description |
+|--------|------|------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK -> Users, NOT NULL | Owner user |
+| component_type | ENUM | NOT NULL | `property_value|mortgage_balance|cpf_balance|long_term_savings|tax_payable|tax_refund|insurance_cash_value|esop|rsu|stock_options|other_asset|other_liability` (name="manual_valuation_component_type_enum") |
+| liquidity_class | ENUM | NOT NULL | `liquid|restricted|illiquid|liability` (name="manual_valuation_liquidity_class_enum") |
+| as_of_date | DATE | NOT NULL | Snapshot effective date |
+| value | DECIMAL(18,2) | NOT NULL | Positive component value in original currency |
+| currency | VARCHAR(3) | NOT NULL | ISO currency code |
+| source | VARCHAR(120) | NOT NULL | Portal, appraisal, statement, or manual source |
+| notes | TEXT | | User notes |
+| recurrence_days | INTEGER | | Optional reminder cadence |
+| reminder_date | DATE | | Optional next reminder date |
+| created_at | TIMESTAMP | NOT NULL | Creation time |
+| updated_at | TIMESTAMP | NOT NULL | Update time |
 
-    **Constraints**:
-    - `(user_id, component_type, source, as_of_date)` unique
-    - Values remain positive; `liquidity_class=liability` controls liability presentation.
+**Constraints**:
+- `(user_id, component_type, source, as_of_date)` unique
+- Values remain positive; `liquidity_class=liability` controls liability presentation.
 
-    ---
+---
 
-    ## 4. Design Constraints (Dos & Don'ts)
+## 4. Design Constraints (Dos & Don'ts)
 
 ### Naming Conventions
 
