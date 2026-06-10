@@ -181,7 +181,7 @@ describe("JournalPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mock Submit Entry" }))
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
 
-    fireEvent.click(screen.getByRole("button", { name: "Create First Entry" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Create First Entry" }))
     expect(screen.getByRole("button", { name: "Mock Submit Entry" })).toBeInTheDocument()
   })
 
