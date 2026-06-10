@@ -478,6 +478,11 @@ jobs:
             echo "provider_status=degraded" >> "$GITHUB_OUTPUT"
             echo "::warning::Provider connectivity degraded (status=${status_code:-timeout/5xx}) after ${attempts} attempts — non-blocking; delivery will be marked degraded-provider."
           fi
+          # Exit non-zero so this step's outcome and the ai_provider_connectivity_outcome
+          # artifact line visibly report the smoke failure. continue-on-error keeps the
+          # job alive; the blocking decision is made from provider_status by the
+          # "Enforce provider connectivity gate" step below (config-failure only).
+          exit 1
 
       # Hard-fail the build/deploy job ONLY when the provider gate is a
       # client/config error. Transient degradation is allowed to pass so a
