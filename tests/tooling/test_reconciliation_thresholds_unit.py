@@ -192,7 +192,7 @@ async def test_execute_matching_score_thresholds(
         )
 
     assert len(matches) == expected_match_count
-    assert txn.status == expected_txn_status
+    # bank-txn.status is no longer mutated under the Layer-2 read path (Stage 3 removes it)
 
     if expected_status is None:
         db.add.assert_not_called()
