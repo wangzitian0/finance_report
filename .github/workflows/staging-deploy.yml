@@ -17,14 +17,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Serialize Deploy Staging so rapid main pushes never run two staging
-# mutations concurrently. The FIFO post-merge train already orders turns;
-# this prevents duplicate/racing runs from queuing in parallel. We never
-# cancel an in-flight staging deploy mid-rollout.
-concurrency:
-  group: staging-deploy
-  cancel-in-progress: false
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io
@@ -423,13 +415,12 @@ jobs:
 
           echo "✅ Staging deploy health gate passed!"
 
-      # Provider connectivity is an on-demand proof, gated by the structured
-      # provider gate (ai_ocr_required == provider_gate_required.staging), not
-      # every staging deploy. It is retried with backoff and never reds main on
-      # its own: a transient provider 5xx/timeout is reported as a non-blocking
-      # "degraded" status, while a 4xx (client/config) error is a hard failure.
+      # Staging always attempts the minimal real provider round trip (AC8.13.120).
+      # It is retried with backoff and never reds main on its own: a transient
+      # provider 5xx/timeout is reported as a non-blocking "degraded" status,
+      # while a 4xx (client/config) error remains a hard delivery gate.
       - name: AI Provider Connectivity Smoke
-        if: steps.gates.outputs.staging_required == 'true' && steps.gates.outputs.ai_ocr_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         id: ai_provider_connectivity
         continue-on-error: true
         timeout-minutes: 10
@@ -493,7 +484,7 @@ jobs:
       # provider blip never reds main; it surfaces as a warning + degraded
       # delivery status and remains visible in artifacts.
       - name: Enforce provider connectivity gate
-        if: steps.gates.outputs.staging_required == 'true' && steps.gates.outputs.ai_ocr_required == 'true'
+        if: steps.gates.outputs.staging_required == 'true'
         run: |
           set -euo pipefail
           status="${{ steps.ai_provider_connectivity.outputs.provider_status }}"
