@@ -4,7 +4,7 @@
 > **Vision Anchor**: `decision-filter-accuracy-auditability`
 > **Owner**: QA / DevOps
 > **Date**: 2026-01-16
-> **Updated**: 2026-05-29
+> **Updated**: 2026-06-10
 
 ## 1. Overview
 
@@ -371,7 +371,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.98 | Existing PR preview composes preserve compose identity, update allowlisted deploy env, and re-run Dokploy `compose.redeploy` without a pre-stop or separate `compose.start` call so commit-scoped readiness validates the redeploy output without disrupting an active rollout | `test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.99 | Frontend local and CI gates run full TypeScript checking, including tests, instead of relying only on Next production build type checks | `test_AC8_13_99_frontend_typecheck_is_a_required_gate` | `tests/tooling/test_frontend_typecheck_contract.py` | P0 |
 | AC8.13.100 | PR preview API readiness logs route diagnostics that split frontend route, API route, backend health, missing health SHA, stale SHA, and frontend fallback failures, with bounded curl probe timeouts, explicit curl status markers, full-body JSON parsing, missing-SHA response body evidence, unbuffered per-attempt output, infra2 Dokploy Route Canary failure-domain hints, outer workflow timeouts, and repeated-route-miss notices without cutting short the 600-second cold-start readiness window | `test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
-| AC8.13.101 | PR preview readiness, frontend build args, E2E, and PR comments consume the lifecycle-generated commit-scoped preview URL instead of a PR-scoped URL that can be satisfied by stale containers | `test_AC8_13_101_preview_app_url_is_commit_scoped`, `test_AC8_13_101_pr_test_workflow_uses_commit_scoped_preview_url` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
+| AC8.13.101 | PR preview readiness, frontend build args, E2E, and PR comments consume the lifecycle-generated stable per-PR preview URL, while keeping commit-specific links as legacy compatibility aliases | `test_AC8_13_101_preview_app_url_prefers_stable_alias`, `test_AC8_13_101_pr_test_workflow_uses_stable_pr_preview_url` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.102 | PR preview Dokploy deploys consume CI-built GHCR images with `--pull always --no-build`, disable Dokploy source auto-deploy so CI is the only rollout owner, keep the internal Docker network PR-scoped while containers/routes remain commit-scoped, prefer a new Dokploy deployment record before readiness, retry a newly created compose once with `compose.redeploy` when the initial deploy record is missing, recreate a stuck new or existing compose once when the queued deploy/redeploy never creates a deployment record, recreate a stuck existing compose once when the existing compose rollout fails before readiness, retry only bounded transient Dokploy GET failures, keep retry-delay parsing fail-safe, let cleanup/delete ignore only Dokploy request failures, fail missing Dokploy deployment records before public readiness with a control-plane diagnostic, fail explicit rollout errors, emit redacted deployment diagnostics on rollout errors, and use commit-scoped readiness as the final public-route and expected-SHA proof after rollout is proven | `test_AC8_13_102_preview_network_is_pr_scoped_to_limit_subnet_usage`, `test_AC8_13_102_dokploy_deploy_waits_for_worker_done_status`, `test_AC8_13_102_dokploy_rollout_record_window_allows_worker_queue`, `test_AC8_13_102_late_rollout_record_gets_completion_window`, `test_AC8_13_102_dokploy_rollout_timeout_fails_before_readiness`, `test_AC8_13_102_dokploy_rollout_error_fails_before_readiness`, `test_AC8_13_102_done_compose_without_new_record_fails_before_readiness`, `test_AC8_13_102_rollout_poll_retries_transient_dokploy_api_failure`, `test_AC8_13_102_compose_error_logs_redacted_deployment_diagnostics`, `test_AC8_13_102_stale_compose_error_waits_for_new_rollout`, `test_AC8_13_102_preview_source_disables_dokploy_auto_deploy`, `test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing`, `test_AC8_13_102_existing_preview_without_deployments_is_recreated`, `test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids`, `test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once`, `test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness`, `test_AC8_13_102_existing_preview_rollout_error_recreates_once`, `test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once`, `test_AC8_13_102_new_preview_rollout_error_still_fails`, `test_AC8_13_102_api_call_retries_transient_failures_on_get`, `test_AC8_13_102_cleanup_and_delete_actions_ignore_api_exceptions`, `test_AC8_13_102_dokploy_api_call_invalid_retry_delay_fallback`, `test_AC8_13_102_dokploy_api_call_non_transient_curl_error_does_not_retry`, `test_AC8_13_102_cleanup_and_delete_actions_do_not_swallow_non_api_exceptions` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 |
 | AC8.13.103 | Main post-merge staging publishes one commit-level `Post-merge Delivery` check that fails when staging classification, build/deploy, AI/OCR, or alert propagation fails, so a green `CI` workflow cannot hide a red delivery gate | `test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.104 | Automatic staging AI/OCR runs only for provider, extraction, statement parsing, PDF fixture, AI/OCR workflow, or critical LLM proof path changes; normal runtime deploys keep staging smoke/E2E but skip provider spend | `test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths` | `tests/tooling/test_ci_change_classifier.py` | P0 |
@@ -491,14 +491,107 @@ shared harness files may use that exception path. The `repo/e2e_regressions/`
 tree belongs to the `repo/` infra2 submodule and is managed by the infrastructure
 submodule sync process.
 
-### 5.3 CI/CD Integration Ownership
+### 5.2 CI Simplification Decision Log
+
+- 2026-06-10: Keep the Env×Stage matrix as the primary control plane and keep
+  legacy scalar outputs (`heavy_required`, `pr_preview_required`, `staging_required`,
+  `staging_ai_ocr_required`) as temporary compatibility shims only. This is a
+  controlled simplification path because external branch protection and ad hoc
+  consumers can still depend on them while all GitHub Actions jobs consume
+  `env_stage_required`, `env_stage_reasons`, and provider gate matrices.
+- 2026-06-10: `PR Test Environment` now uses a stable per-PR canonical URL
+  (`report-pr-<pr>.<domain>`) with commit-scoped aliases preserved for backward
+  compatibility. This closes #783 and is now documented through AC8.13.101.
+- 2026-06-10: PR preview image build and rollout remain scoped by stage-aware
+  classification. The highest-impact remaining simplification is to move away from
+  scalar compatibility shims once external consumers are proven to be matrix-native.
+
+### 5.6 Residual Drift to Simplify Next
+
+- **Residual A: Compatibility scalar outputs**
+  - `heavy_required`, `pr_preview_required`, `staging_required`, and
+    `staging_ai_ocr_required` are still emitted as migration shims from
+    `ci_change_classifier`.
+  - They are **not** used for primary control decisions in core workflows, but
+    they still exist as temporary compatibility contract for ad hoc tools and
+    scripts that have not been migrated.
+
+- **Residual B: Legacy gate normalization step wrappers**
+  - `pr-test.yml` and `staging-deploy.yml` still deserialize
+    `env_stage_required` and `provider_gate_required` into legacy scalar outputs
+    before job-level `if:` checks.
+  - Functionally correct, but it adds one wrapper hop and keeps the code path
+    slightly non-linear.
+
+- **Residual C: Unused matrix dimensions in runtime decisions**
+  - `env_stage_stages` and `env_stage_files` are currently used for reporting and
+    audit evidence, not as direct runtime gating inputs.
+  - The CI now remains correct because each workflow only consumes the stage
+    cells it owns, but this is a traceability-complete model versus strict
+    direct-gate-driven model.
+
+The simplification priority remains:
+
+1. Remove Residual B (single-step expression gating from structured outputs).
+2. Add explicit external consumer migration audit for Residual A, then remove
+   scalar shims in one bounded PR.
+3. Add a narrow enforcement test that each lane consumes only matrix cells it
+   is authorized for, and that unused matrix dimensions are intentionally
+   read-only.
+
+### 5.3 CI Logic Review Findings
+
+- Current CI logic is logically consistent with the target sparse Env×Stage model:
+  `ci` follows `pr` gates for deterministic behavior and coverage, `pr-test`
+  follows `pr-preview` gates for scoped preview deployment, and `staging-deploy`
+  follows `staging` + provider gates for post-merge infra and provider replay.
+- The strongest remaining complexity is historical compatibility: scalar outputs are
+  still emitted as shims, and several workflows run small normalization glue. The
+  signal-to-risk ratio is acceptable because these shims protect external
+  consumers during migration, but they are now a clear simplification boundary.
+- Logging sufficiency check is favorable: every critical stage emits both context
+  artifacts and step-level classification/failure-domain breadcrumbs before exit
+  (`pr-preview-readiness-context.json`, `staging-deploy-context.txt`,
+  `staging-ai-ocr-context.txt`, coverage and traceability summaries).
+
+#### 5 counterfactual assumptions + 5 operational guardrails
+
+1. If PR preview was still using commit-only hostnames, old `report-pr-<pr>.<domain>`
+   readers would still pass only by route alias mismatch: fixed by AC8.13.101.
+2. If `ci_change_classifier` regressed to `docs`-only heavy skip for runtime
+   paths, PR CI would stop running backend/frontend/e2e for changed runtime files.
+3. If `env_stage_required` drifted from job conditions, merge authority would
+   pass with missing deterministic stages; current tests assert every PR heavy job
+   consumes the same matrix gate.
+4. If route/readiness loops never produced root-cause labels, incident triage would
+   degrade; failure-domain classification is now explicit in readiness/probe and
+   staging deploy failure scripts.
+5. If provider-backed flows were not isolated, quota bleed and non-deterministic
+   retries would dominate; provider gate is explicit and runs only on AI/OCR-relevant
+   changes.
+6. If stale resources were not captured, next run latency would accumulate;
+   current controls cover PR previews, GHCR tag pruning, host hygiene, and stale
+   version visibility in deployment context.
+7. If PR preview skipped `Gate on Cheap CI`, deploy could race before lint/AC
+   traceability; the explicit dependency keeps deployed previews behind cheap CI.
+8. If staging consumed PR-head SHAs instead of successful `main` merge SHAs, deploy
+   reproducibility and release provenance would weaken; staging tracks workflow_run
+   SHA and uses successful main SHA gates.
+9. If production ran first-time business proof, regression risk would shift to runtime
+   after user impact; production remains integrity + availability-only, after all
+   prior gates.
+10. If unknown failure classes dropped out of failure mapping, triage would get
+   slower; both staging and preview scripts retain fallback context dumps before final
+   failure.
+
+### 5.4 CI/CD Integration Ownership
 
 Workflow status is not hand-maintained here. CI structure, smoke-test placement,
 critical proof checks, and environment isolation are owned by
 [ci-cd.md](../ssot/ci-cd.md), `.github/workflows/*.yml`, and the corresponding
 tooling tests.
 
-### 5.4 Known Gaps
+### 5.5 Known Gaps
 
 Known testing gaps are not maintained as detailed status narratives here. Use
 these owners instead:
