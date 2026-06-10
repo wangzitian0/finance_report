@@ -103,16 +103,6 @@ services:
         GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
     container_name: finance-report-backend${ENV_SUFFIX:-}
     restart: ${RESTART_POLICY:-unless-stopped}
-    # Bound the backend so it cannot starve co-tenants on the shared host
-    # (ClickHouse/SigNoz/Authentik/etc.). Defaults sized for staging (2C/2G);
-    # prod overrides via BACKEND_CPU_LIMIT / BACKEND_MEMORY_LIMIT. The 2 CPUs let
-    # the event loop keep serving while a parse runs in a worker thread
-    # (see extraction offload), so a single uvicorn worker handles concurrency.
-    deploy:
-      resources:
-        limits:
-          cpus: "${BACKEND_CPU_LIMIT:-2}"
-          memory: ${BACKEND_MEMORY_LIMIT:-2g}
     logging: *json-logging
     # Dependencies depend on profile! 
     # Docker Compose handles this: if postgres is not started (profile off), depends_on is ignored or handled gracefully?
