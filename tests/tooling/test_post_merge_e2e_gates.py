@@ -1378,7 +1378,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
 
     assert "name: AI Provider Connectivity Smoke" in workflow
     assert "id: ai_provider_connectivity" in workflow
-    assert "timeout-minutes: 5" in workflow
+    assert "timeout-minutes: 10" in workflow
     assert "pytest tests/e2e/test_ai_provider_connectivity.py" in workflow
     assert '-v -m "llm"' in workflow
     assert "test-results/staging-provider-connectivity.xml" in workflow
@@ -1387,8 +1387,23 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert workflow.index("id: staging_e2e_tests") < workflow.index(
         "id: ai_provider_connectivity"
     )
+    # The smoke is resilient to transient provider failure: it retries with
+    # backoff under continue-on-error, hard-fails only on a client/config 4xx
+    # (config-failure), and reports a transient 5xx/timeout as a non-blocking
+    # degraded status so a provider blip cannot red main.
+    assert "continue-on-error: true" in workflow
+    assert "PROVIDER_CONNECTIVITY_RETRIES" in workflow
+    assert "name: Enforce provider connectivity gate" in workflow
+    assert "provider_status=config-failure" in workflow
+    assert "provider_status=degraded" in workflow
+    assert "passed-degraded-provider" in workflow
+    assert workflow.index("id: ai_provider_connectivity") < workflow.index(
+        "name: Enforce provider connectivity gate"
+    )
     assert "provider connectivity smoke" in ci_cd
     assert "full OCR/LLM replay remains gated" in ci_cd
+    assert "passed-degraded-provider" in ci_cd
+    assert "transient provider blips do not" in ci_cd
     assert "@pytest.mark.llm" in provider_test
     assert "authenticated_page_unique" in provider_test
     assert 'authenticated_page_unique.request.post' in provider_test

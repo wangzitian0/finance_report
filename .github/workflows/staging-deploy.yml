@@ -93,6 +93,7 @@ jobs:
       staging_reason: ${{ steps.gates.outputs.staging_reason }}
       ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}
       ai_ocr_reason: ${{ steps.gates.outputs.ai_ocr_reason }}
+      provider_status: ${{ steps.ai_provider_connectivity.outputs.provider_status }}
       failure_domain: ${{ steps.deploy_failure_context.outputs.failure_domain }}
       failed_step: ${{ steps.deploy_failure_context.outputs.failed_step }}
       failure_summary: ${{ steps.deploy_failure_context.outputs.failure_summary }}
@@ -414,10 +415,15 @@ jobs:
 
           echo "✅ Staging deploy health gate passed!"
 
+      # Staging always attempts the minimal real provider round trip (AC8.13.120).
+      # It is retried with backoff and never reds main on its own: a transient
+      # provider 5xx/timeout is reported as a non-blocking "degraded" status,
+      # while a 4xx (client/config) error remains a hard delivery gate.
       - name: AI Provider Connectivity Smoke
         if: steps.gates.outputs.staging_required == 'true'
         id: ai_provider_connectivity
-        timeout-minutes: 5
+        continue-on-error: true
+        timeout-minutes: 10
         env:
           APP_URL: https://report-staging.zitian.party
           TEST_ENV: staging
@@ -425,33 +431,74 @@ jobs:
           STRICT_E2E_GATES: true
           EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
           PROVIDER_CONNECTIVITY_TIMEOUT_MS: 90000
+          PROVIDER_CONNECTIVITY_RETRIES: "3"
+          PROVIDER_CONNECTIVITY_BACKOFF_SECONDS: "10"
         run: |
-          run_timed_phase() {
-            local phase_name="$1"
-            shift
-            local start
-            local end
-            local duration
-            local status
-
-            start=$(date +%s)
-            echo "::group::${phase_name}"
-            printf '[phase:start] %s at %s\n' "$phase_name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            set +e
-            "$@"
-            status=$?
-            set -e
-            end=$(date +%s)
-            duration=$((end - start))
-            printf '[phase:end] %s status=%s duration=%ss\n' "$phase_name" "$status" "$duration"
-            echo "::endgroup::"
-            return "$status"
-          }
-
+          set -uo pipefail
           mkdir -p test-results
-          run_timed_phase "AI Provider Connectivity Smoke" \
+          attempts="${PROVIDER_CONNECTIVITY_RETRIES:-3}"
+          delay="${PROVIDER_CONNECTIVITY_BACKOFF_SECONDS:-10}"
+          log="$(mktemp)"
+          rc=1
+          for n in $(seq 1 "$attempts"); do
+            echo "::group::AI Provider Connectivity Smoke (attempt ${n}/${attempts})"
+            printf '[phase:start] provider-connectivity attempt %s at %s\n' "$n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            set +e
             pytest tests/e2e/test_ai_provider_connectivity.py \
-              -v -m "llm" --junit-xml=test-results/staging-provider-connectivity.xml
+              -v -m "llm" --junit-xml=test-results/staging-provider-connectivity.xml 2>&1 | tee "$log"
+            rc="${PIPESTATUS[0]}"
+            set -e
+            printf '[phase:end] provider-connectivity attempt %s status=%s\n' "$n" "$rc"
+            echo "::endgroup::"
+            if [ "$rc" -eq 0 ]; then
+              break
+            fi
+            if [ "$n" -lt "$attempts" ]; then
+              echo "Provider smoke attempt ${n} failed (rc=${rc}); retrying in ${delay}s..."
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+
+          if [ "$rc" -eq 0 ]; then
+            echo "provider_status=pass" >> "$GITHUB_OUTPUT"
+            echo "✅ Provider connectivity smoke passed."
+            exit 0
+          fi
+
+          # Classify the last observed failure. The test surfaces the HTTP status
+          # as "connectivity failed: <code>"; a 4xx is a client/config error
+          # (block delivery), anything else (5xx, timeout, network) is transient.
+          status_code="$(grep -oE 'connectivity failed: [0-9]{3}' "$log" | tail -n1 | grep -oE '[0-9]{3}' || true)"
+          echo "Last observed /api/chat status: ${status_code:-unknown}"
+          if [ -n "$status_code" ] && [ "$status_code" -ge 400 ] && [ "$status_code" -lt 500 ]; then
+            echo "provider_status=config-failure" >> "$GITHUB_OUTPUT"
+            echo "::error::Provider gate hard failure: /api/chat returned ${status_code} (client/config error) after ${attempts} attempts. Blocking delivery."
+          else
+            echo "provider_status=degraded" >> "$GITHUB_OUTPUT"
+            echo "::warning::Provider connectivity degraded (status=${status_code:-timeout/5xx}) after ${attempts} attempts — non-blocking; delivery will be marked degraded-provider."
+          fi
+          # Exit non-zero so this step's outcome and the ai_provider_connectivity_outcome
+          # artifact line visibly report the smoke failure. continue-on-error keeps the
+          # job alive; the blocking decision is made from provider_status by the
+          # "Enforce provider connectivity gate" step below (config-failure only).
+          exit 1
+
+      # Hard-fail the build/deploy job ONLY when the provider gate is a
+      # client/config error. Transient degradation is allowed to pass so a
+      # provider blip never reds main; it surfaces as a warning + degraded
+      # delivery status and remains visible in artifacts.
+      - name: Enforce provider connectivity gate
+        if: steps.gates.outputs.staging_required == 'true'
+        run: |
+          set -euo pipefail
+          status="${{ steps.ai_provider_connectivity.outputs.provider_status }}"
+          echo "Provider gate status: ${status:-unknown}"
+          if [ "$status" = "config-failure" ]; then
+            echo "::error::Provider gate is a hard failure (client/config error). Failing staging delivery."
+            exit 1
+          fi
+          echo "Provider gate non-blocking (status=${status:-skipped}); continuing staging delivery."
 
       - name: Classify staging deploy failure context
         id: deploy_failure_context
@@ -566,11 +613,20 @@ jobs:
               "staging_e2e_tests" \
               "application-smoke-e2e" \
               "Staging smoke or core non-LLM E2E failed after deployment."
-          elif [ "${{ steps.ai_provider_connectivity.outcome }}" = "failure" ]; then
+          elif [ "${{ steps.ai_provider_connectivity.outputs.provider_status }}" = "config-failure" ]; then
             classify_failure \
               "ai_provider_connectivity" \
               "provider-connectivity" \
-              "Staging AI provider connectivity smoke failed after deployed app health and non-LLM E2E passed."
+              "Staging AI provider connectivity smoke returned a client/config (4xx) error after retries; this is a hard delivery gate."
+          elif [ "${{ steps.ai_provider_connectivity.outputs.provider_status }}" = "degraded" ]; then
+            # Transient provider degradation is non-blocking. Record it for
+            # observability without marking the delivery as failed and without
+            # falling through to the generic unclassified-failure catch below
+            # (the provider step runs under continue-on-error, so its outcome is
+            # "failure" even when delivery is allowed to pass).
+            failure_domain="provider-degraded-nonblocking"
+            failed_step="none"
+            failure_summary="Provider connectivity degraded (transient 5xx/timeout) after retries; non-blocking, staging delivery continued."
           elif printf "%s" "$STEPS_CONTEXT" | grep -q '"outcome":"failure"'; then
             classify_failure \
               "unknown" \
@@ -958,6 +1014,7 @@ jobs:
           failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"
           failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"
           build_result="${{ needs.build-and-deploy.result }}"
+          provider_status="${{ needs.build-and-deploy.outputs.provider_status }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           alert_result="${{ needs.staging-deploy-alert.result }}"
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -983,6 +1040,12 @@ jobs:
             failure_reason="staging alert job failed"
           fi
 
+          # A transient provider degradation does not fail delivery, but it is
+          # surfaced so the green run is not mistaken for full provider proof.
+          if [ "$failed" = "false" ] && [ "$delivery_status" = "passed" ] && [ "$provider_status" = "degraded" ]; then
+            delivery_status="passed-degraded-provider"
+          fi
+
           {
             echo "## Post-merge Delivery"
             echo ""
@@ -995,6 +1058,7 @@ jobs:
             echo "- Staging reason: ${staging_reason:-unknown}"
             echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
             echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
+            echo "- Provider connectivity status: ${provider_status:-not-run}"
             echo "- Build/deploy result: ${build_result}"
             echo "- Build/deploy failure domain: ${failure_domain:-unknown}"
             echo "- Build/deploy failed step: ${failed_step:-unknown}"
