@@ -178,8 +178,11 @@ class Settings(BaseSettings):
     )
 
     # Feature Flags for 4-Layer Architecture Migration (EPIC-011)
+    # Stage 1 cutover: dual-write is now ON by default so every upload populates
+    # Layer 1/2 (uploaded_documents + atomic_transactions) alongside legacy
+    # Layer 0. Set ENABLE_4_LAYER_WRITE=false to fall back to legacy-only writes.
     enable_4_layer_write: bool = Field(
-        default=False,
+        default=True,
         validation_alias="ENABLE_4_LAYER_WRITE",
     )
     enable_4_layer_read: bool = Field(

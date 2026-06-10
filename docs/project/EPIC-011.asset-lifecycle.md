@@ -157,6 +157,17 @@ code, tests, issues, and git history.
 | AC11.10.10 | Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window | `test_next_market_data_sync_at_uses_nightly_sgt_schedule()` | `market_data/test_scheduler.py` | P0 |
 | AC11.10.11 | Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync | `test_market_data_provider_sync_feeds_fx_and_stock_price_paths()` | `tests/e2e/test_market_data_price_paths.py` | P0 |
 
+### AC11.11: 4-Layer Migration — Stage 1 Dual-Write Activation
+
+Stage 1 of the 4-layer cutover turns dual-write ON by default: every parsed
+statement populates Layer 1/2 (`UploadedDocument` + `AtomicTransaction`)
+alongside legacy Layer 0, with an env opt-out preserved for rollback.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.11.1 | Parsing populates Layer 1/2 by default, without any feature-flag override | `test_dual_write_enabled_by_default()` | `extraction/test_dual_write_layer2.py` | P0 |
+| AC11.11.2 | `ENABLE_4_LAYER_WRITE=false` preserves the legacy Layer-0-only opt-out for rollback | `test_dual_write_can_be_disabled_via_flag()` | `extraction/test_dual_write_layer2.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

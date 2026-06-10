@@ -51,7 +51,7 @@ flowchart TB
 
 ### Layer 1 & 2 (EPIC-011 Migration)
 
-The system is currently migrating to a 4-layer architecture. During Phase 2, data is written to both the legacy `BankStatement` tables (Layer 0) and the new Layer 1/2 tables.
+The system is migrating to a 4-layer architecture. As of Stage 1 cutover, dual-write is **enabled by default** (`ENABLE_4_LAYER_WRITE=true`): every parsed statement writes to both the legacy `BankStatement` tables (Layer 0) and the new Layer 1/2 tables. The flag can be set to `false` to fall back to legacy Layer-0-only writes for rollback.
 
 **Layer 1: Raw Documents (`UploadedDocument`)**
 - Stores immutable metadata for every uploaded file
