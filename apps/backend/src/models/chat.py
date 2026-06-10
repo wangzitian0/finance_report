@@ -29,6 +29,10 @@ class ChatMessageRole(str, enum.Enum):
     SYSTEM = "system"
 
 
+def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
+    return [str(member.value) for member in enum_cls]
+
+
 class ChatSession(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Chat session header for AI advisor conversations."""
 
@@ -36,7 +40,7 @@ class ChatSession(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[ChatSessionStatus] = mapped_column(
-        Enum(ChatSessionStatus, name="chat_session_status_enum"),
+        Enum(ChatSessionStatus, name="chat_session_status_enum", values_callable=_enum_values),
         nullable=False,
         default=ChatSessionStatus.ACTIVE,
         index=True,
@@ -62,7 +66,10 @@ class ChatMessage(Base, UUIDMixin):
         nullable=False,
         index=True,
     )
-    role: Mapped[ChatMessageRole] = mapped_column(Enum(ChatMessageRole, name="chat_message_role_enum"), nullable=False)
+    role: Mapped[ChatMessageRole] = mapped_column(
+        Enum(ChatMessageRole, name="chat_message_role_enum", values_callable=_enum_values),
+        nullable=False,
+    )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
