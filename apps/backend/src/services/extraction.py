@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import ipaddress
@@ -836,7 +837,8 @@ class ExtractionService:
 
         prompt = get_parsing_prompt(institution)
         if force_model:
-            media_payloads = self._build_vision_media_payloads(
+            media_payloads = await asyncio.to_thread(
+                self._build_vision_media_payloads,
                 file_content,
                 file_url,
                 file_type,
@@ -899,7 +901,8 @@ class ExtractionService:
         if not vision_models:
             raise ExtractionError("Extraction failed after all retries")
 
-        media_payloads = self._build_vision_media_payloads(
+        media_payloads = await asyncio.to_thread(
+            self._build_vision_media_payloads,
             file_content,
             file_url,
             file_type,

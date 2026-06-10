@@ -362,6 +362,52 @@ jobs:
             60 \
             "$IMAGE_TAG"
 
+      - name: Wait for frontend readiness
+        id: frontend_ready
+        if: steps.gates.outputs.staging_required == 'true'
+        timeout-minutes: 10
+        env:
+          APP_URL: https://report-staging.zitian.party
+          EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
+        run: |
+          # The browser E2E loads the frontend bundle, so the backend SHA gate in
+          # health_check.sh is not enough: the frontend service deploys separately
+          # and can lag, leaving the old bundle served. Hard-gate on the deployed
+          # frontend git_sha so E2E never runs against stale frontend code.
+          python3 -u - <<'PY'
+          import json, os, subprocess, sys, time
+
+          app_url = os.environ["APP_URL"].rstrip("/")
+          expected = os.environ["EXPECTED_SHA"]
+          url = f"{app_url}/frontend-version.json?expected={expected}"
+          print(f"Waiting for frontend git_sha={expected} at {url}")
+
+          deadline = time.monotonic() + 540  # < the 10min step timeout
+          attempt = 0
+          last = ""
+          while time.monotonic() < deadline:
+              attempt += 1
+              try:
+                  out = subprocess.run(
+                      ["curl", "-s", "--max-time", "15", "-H", "Cache-Control: no-cache", url],
+                      capture_output=True, text=True, timeout=20,
+                  ).stdout
+                  sha = (json.loads(out).get("git_sha") or json.loads(out).get("version") or "")
+                  last = sha
+                  if sha and (sha.startswith(expected) or expected.startswith(sha)):
+                      print(f"[OK] Frontend serving expected git_sha {sha} (attempt {attempt})")
+                      sys.exit(0)
+                  print(f"[WAITING] attempt {attempt}: frontend git_sha={sha or 'unknown'} expected={expected}")
+              except Exception as exc:  # noqa: BLE001 - readiness probe is best-effort per attempt
+                  print(f"[WAITING] attempt {attempt}: {type(exc).__name__}: {exc}")
+              time.sleep(10)
+
+          print("::error::Frontend still serving stale git_sha after deadline; "
+                f"expected={expected} last={last or 'unknown'}. "
+                "Refusing to run E2E against old frontend code.")
+          sys.exit(1)
+          PY
+
       - name: Setup E2E Tests
         id: setup_e2e
         if: steps.gates.outputs.staging_required == 'true'
@@ -603,6 +649,11 @@ jobs:
               "deploy_staging" \
               "dokploy-rollout-or-health" \
               "Dokploy rollout, route readiness, or target SHA health check failed."
+          elif [ "${{ steps.frontend_ready.outcome }}" = "failure" ]; then
+            classify_failure \
+              "frontend_ready" \
+              "frontend-rollout-stale-sha" \
+              "Frontend kept serving a stale git_sha after backend health passed; E2E was not run against old frontend code."
           elif [ "${{ steps.setup_e2e.outcome }}" = "failure" ]; then
             classify_failure \
               "setup_e2e" \
