@@ -43,6 +43,25 @@ Production deployments use Vault sidecar pattern:
 
 Health check timeout (6 min) accounts for this entire flow.
 
+### Secret Contract (cross-repo seam)
+
+One contract ties the three repos together; each owns only its part:
+
+| Repo | Owns | Knows about others |
+|------|------|--------------------|
+| **finance_report** (app) | `config.py` — declares every variable, its default, and which are required when deployed. Publishes the list via `Settings.prod_required_secrets()`. | Nothing at build time; reads `os.environ` regardless of source. |
+| **dev_env** (local tooling) | Injects local secrets from 1Password (no plaintext at rest); source-agnostic. | Nothing about app schemas. |
+| **infra2** (`repo/`) | Vault `secrets.ctmpl` — supplies the deployed values. | The app's published required-secret list. |
+
+Consistency is **not** enforced by cross-repo CI gates. It is enforced where it
+matters: the app **fails loud at boot** in `staging`/`production` if a required
+secret is missing or still a development default. This is owned by `src/boot.py`
+(`Bootloader._check_static_config`, the single source of truth for environment
+validation — wired into startup via `main.py` `Bootloader.validate(CRITICAL)`,
+proven by AC1.10.1). A failed check `sys.exit(1)`s, which the deploy readiness
+gate catches. Local/CI keep convenience defaults (`environment` not in the
+protected set).
+
 ---
 
 ## CI Deployment Workflows
