@@ -208,6 +208,7 @@ jobs:
             -m "not slow and not e2e and not integration" \
             --splits 6 \
             --group ${{ matrix.shard }} \
+            --durations-path .test_durations \
             --cov=src \
             --cov-report=lcov:coverage-backend-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
