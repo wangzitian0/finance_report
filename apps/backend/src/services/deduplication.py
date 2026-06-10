@@ -19,6 +19,15 @@ from src.services.statement_summary import sync_statement_summary
 logger = get_logger(__name__)
 
 
+def _decimal_key(value: Decimal) -> str:
+    """Canonical, scale-independent string for a Decimal used in dedup hashing.
+
+    ``Decimal('50')``, ``Decimal('50.00')`` and ``Decimal('50.000')`` all map to
+    ``'50'`` so values differing only in scale hash identically.
+    """
+    return format(value.normalize(), "f")
+
+
 class DeduplicationService:
     """Service for managing Layer 2 deduplicated records with hash-based upsert logic."""
 
@@ -41,15 +50,18 @@ class DeduplicationService:
         reference) stay distinct — their running balances differ. Genuine duplicate
         extractions share the same running balance and still collapse. When the
         source has no running balance the field is empty and behaviour is unchanged.
+
+        Decimal amounts are canonicalized (``Decimal('50')`` and ``Decimal('50.00')``
+        hash identically) so values that differ only in scale do not break dedup.
         """
         components = [
             str(user_id),
             txn_date.isoformat(),
-            str(amount),
+            _decimal_key(amount),
             direction.value,
             description.strip().lower(),
             reference or "",
-            str(balance_after) if balance_after is not None else "",
+            _decimal_key(balance_after) if balance_after is not None else "",
         ]
         hash_input = "|".join(components).encode("utf-8")
         return hashlib.sha256(hash_input).hexdigest()

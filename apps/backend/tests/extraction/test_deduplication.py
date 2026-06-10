@@ -95,6 +95,11 @@ class TestDeduplicationService:
         assert _hash(None) == service.calculate_transaction_hash(
             user_id, txn_date, amount, direction, description, reference=None
         )
+        # Scale differences are canonicalized: amount/balance differing only in scale hash identically.
+        assert _hash(Decimal("950")) == _hash(Decimal("950.00")) == _hash(Decimal("950.000"))
+        assert service.calculate_transaction_hash(
+            user_id, txn_date, Decimal("50"), direction, description
+        ) == service.calculate_transaction_hash(user_id, txn_date, Decimal("50.00"), direction, description)
 
     def test_calculate_position_hash(self):
         """GIVEN: Position details with broker

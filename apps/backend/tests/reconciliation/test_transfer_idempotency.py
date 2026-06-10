@@ -85,8 +85,17 @@ class TestTransferDetectionIdempotency:
         )
 
         # Verify: still only one active (non-superseded) match in DB for this txn
+        # Scope to the txn under test (matches are keyed by atomic_txn_id on the
+        # Layer-2 read path, bank_txn_id on the legacy path).
+        first_match = matches_first[0]
+        id_filter = (
+            ReconciliationMatch.atomic_txn_id == first_match.atomic_txn_id
+            if first_match.atomic_txn_id is not None
+            else ReconciliationMatch.bank_txn_id == first_match.bank_txn_id
+        )
         all_matches_result = await db.execute(
             select(ReconciliationMatch).where(
+                id_filter,
                 ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             )
         )
@@ -116,8 +125,17 @@ class TestTransferDetectionIdempotency:
         )
 
         # Verify: only one non-superseded match for this txn
+        # Scope to the txn under test (matches are keyed by atomic_txn_id on the
+        # Layer-2 read path, bank_txn_id on the legacy path).
+        first_match = matches_first[0]
+        id_filter = (
+            ReconciliationMatch.atomic_txn_id == first_match.atomic_txn_id
+            if first_match.atomic_txn_id is not None
+            else ReconciliationMatch.bank_txn_id == first_match.bank_txn_id
+        )
         all_matches_result = await db.execute(
             select(ReconciliationMatch).where(
+                id_filter,
                 ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             )
         )
