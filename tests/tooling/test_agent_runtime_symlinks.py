@@ -38,6 +38,12 @@ BANNED_OPENCODE_PLUGINS = (
 # OpenCode is pinned to github-copilot (official OAuth) + api-key providers.
 BANNED_MODEL_PROVIDER_PREFIXES = ("openai/", "google/")
 
+# Project-level MCP baseline that ships in the repo so a fresh clone gets the
+# same tool surface (not just whatever a machine happens to have configured
+# globally). Claude Code reads it from .mcp.json; OpenCode from opencode.json.
+# Codex only supports global (~/.codex) MCP, so it is covered out-of-band.
+MCP_BASELINE = {"context7", "github", "basic-memory", "sequential-thinking"}
+
 
 def _all_opencode_model_refs() -> dict[str, str]:
     """Collect every `model` string from opencode.json + oh-my-openagent.json."""
@@ -137,3 +143,29 @@ def test_no_opencode_agent_routes_to_banrisk_provider() -> None:
                 f"only reach {prefix}* via borrowed subscription OAuth. Re-point "
                 f"it at github-copilot or an api-key provider."
             )
+
+
+def test_claude_mcp_baseline_present() -> None:
+    """Claude Code's .mcp.json ships the project MCP baseline."""
+    cfg = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))
+    servers = set(cfg.get("mcpServers", {}))
+    missing = MCP_BASELINE - servers
+    assert not missing, f".mcp.json missing baseline MCP servers: {sorted(missing)}"
+
+
+def test_opencode_mcp_baseline_present() -> None:
+    """OpenCode's opencode.json carries the same project MCP baseline."""
+    cfg = json.loads((ROOT / "opencode.json").read_text(encoding="utf-8"))
+    servers = set(cfg.get("mcp", {}))
+    missing = MCP_BASELINE - servers
+    assert not missing, f"opencode.json missing baseline MCP servers: {sorted(missing)}"
+
+
+def test_claude_settings_enable_mcp_baseline() -> None:
+    """Committed .claude/settings.json auto-approves the baseline for the project."""
+    cfg = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    enabled = set(cfg.get("enabledMcpjsonServers", []))
+    missing = MCP_BASELINE - enabled
+    assert not missing, (
+        f".claude/settings.json does not enable baseline MCP servers: {sorted(missing)}"
+    )

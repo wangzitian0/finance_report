@@ -20,7 +20,32 @@ Drift (a renamed target, a skill linked on one side only, a re-added ban-risk
 auth plugin) is caught by
 `tests/tooling/test_agent_runtime_symlinks.py`.
 
-Per-runtime mechanics (model routing, MCP servers, hooks, approval policy) are
-intentionally **not** shared — they live in each tool's own config
+Per-runtime mechanics (model routing, hooks, approval policy) are intentionally
+**not** shared — they live in each tool's own config
 (`.opencode/oh-my-openagent.json`, `opencode.json`, `.claude/settings*.json`,
 `~/.codex/config.toml`).
+
+## MCP baseline
+
+So a fresh clone gets the same tool surface — not just whatever a machine
+happens to have configured globally — the project ships an MCP baseline:
+
+| Server | Purpose |
+|---|---|
+| `context7` | up-to-date library/framework docs |
+| `github` | PRs, CI, issues (remote Copilot MCP) |
+| `basic-memory` | cross-session notes |
+| `sequential-thinking` | structured reasoning scaffold |
+
+- **Claude Code** reads `../.mcp.json`; the committed `settings.json` lists these
+  in `enabledMcpjsonServers` so they are pre-approved for this project.
+- **OpenCode** reads the same set from `../opencode.json` (`mcp`).
+- **Codex** only supports global MCP (`~/.codex/config.toml`); it cannot read a
+  repo-level baseline, so configure it there once per machine.
+
+`github` needs a `GITHUB_PAT` environment variable (a GitHub PAT with repo +
+read scopes); it is referenced as `${GITHUB_PAT}` and never committed. The
+baseline is drift-guarded by `tests/tooling/test_agent_runtime_symlinks.py`.
+
+Work-environment MCP servers (Skynet, etc.) are deliberately kept out of the
+project baseline — they live in personal global config only.
