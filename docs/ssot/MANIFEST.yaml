@@ -60,6 +60,14 @@ concepts:
       - docs/ssot/accounting.md
       - docs/ssot/reconciliation.md
 
+  data_layering:
+    owner: docs/ssot/schema.md#data-layering
+    description: ODS/DWD/DWM/DWS/ADS/DIM classification of every data table and cross-layer rules.
+    cross_refs:
+      - docs/ssot/extraction.md
+      - docs/ssot/reconciliation.md
+      - docs/project/EPIC-011.asset-lifecycle.md
+
   enum_naming:
     owner: docs/ssot/schema.md#enum-naming
     description: All sa.Enum instances MUST have an explicit name parameter.
