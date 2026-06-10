@@ -4,7 +4,7 @@
 > **Vision Anchor**: `decision-filter-accuracy-auditability`
 > **Owner**: QA / DevOps
 > **Date**: 2026-01-16
-> **Updated**: 2026-05-29
+> **Updated**: 2026-06-10
 
 ## 1. Overview
 
@@ -490,14 +490,74 @@ shared harness files may use that exception path. The `repo/e2e_regressions/`
 tree belongs to the `repo/` infra2 submodule and is managed by the infrastructure
 submodule sync process.
 
-### 5.3 CI/CD Integration Ownership
+### 5.2 CI Simplification Decision Log
+
+- 2026-06-10: Keep the Env×Stage matrix as the primary control plane and keep
+  legacy scalar outputs (`heavy_required`, `pr_preview_required`, `staging_required`,
+  `staging_ai_ocr_required`) as temporary compatibility shims only. This is a
+  controlled simplification path because external branch protection and ad hoc
+  consumers can still depend on them while all GitHub Actions jobs consume
+  `env_stage_required`, `env_stage_reasons`, and provider gate matrices.
+- 2026-06-10: `PR Test Environment` now uses a stable per-PR canonical URL
+  (`report-pr-<pr>.<domain>`) with commit-scoped aliases preserved for backward
+  compatibility. This closes #783 and is now documented through AC8.13.101.
+- 2026-06-10: PR preview image build and rollout remain scoped by stage-aware
+  classification. The highest-impact remaining simplification is to move away from
+  scalar compatibility shims once external consumers are proven to be matrix-native.
+
+### 5.3 CI Logic Review Findings
+
+- Current CI logic is logically consistent with the target sparse Env×Stage model:
+  `ci` follows `pr` gates for deterministic behavior and coverage, `pr-test`
+  follows `pr-preview` gates for scoped preview deployment, and `staging-deploy`
+  follows `staging` + provider gates for post-merge infra and provider replay.
+- The strongest remaining complexity is historical compatibility: scalar outputs are
+  still emitted as shims, and several workflows run small normalization glue. The
+  signal-to-risk ratio is acceptable because these shims protect external
+  consumers during migration, but they are now a clear simplification boundary.
+- Logging sufficiency check is favorable: every critical stage emits both context
+  artifacts and step-level classification/failure-domain breadcrumbs before exit
+  (`pr-preview-readiness-context.json`, `staging-deploy-context.txt`,
+  `staging-ai-ocr-context.txt`, coverage and traceability summaries).
+
+#### 5 counterfactual assumptions + 5 operational guardrails
+
+1. If PR preview was still using commit-only hostnames, old `report-pr-<pr>.<domain>`
+   readers would still pass only by route alias mismatch: fixed by AC8.13.101.
+2. If `ci_change_classifier` regressed to `docs`-only heavy skip for runtime
+   paths, PR CI would stop running backend/frontend/e2e for changed runtime files.
+3. If `env_stage_required` drifted from job conditions, merge authority would
+   pass with missing deterministic stages; current tests assert every PR heavy job
+   consumes the same matrix gate.
+4. If route/readiness loops never produced root-cause labels, incident triage would
+   degrade; failure-domain classification is now explicit in readiness/probe and
+   staging deploy failure scripts.
+5. If provider-backed flows were not isolated, quota bleed and non-deterministic
+   retries would dominate; provider gate is explicit and runs only on AI/OCR-relevant
+   changes.
+6. If stale resources were not captured, next run latency would accumulate;
+   current controls cover PR previews, GHCR tag pruning, host hygiene, and stale
+   version visibility in deployment context.
+7. If PR preview skipped `Gate on Cheap CI`, deploy could race before lint/AC
+   traceability; the explicit dependency keeps deployed previews behind cheap CI.
+8. If staging consumed PR-head SHAs instead of successful `main` merge SHAs, deploy
+   reproducibility and release provenance would weaken; staging tracks workflow_run
+   SHA and uses successful main SHA gates.
+9. If production ran first-time business proof, regression risk would shift to runtime
+   after user impact; production remains integrity + availability-only, after all
+   prior gates.
+10. If unknown failure classes dropped out of failure mapping, triage would get
+   slower; both staging and preview scripts retain fallback context dumps before final
+   failure.
+
+### 5.4 CI/CD Integration Ownership
 
 Workflow status is not hand-maintained here. CI structure, smoke-test placement,
 critical proof checks, and environment isolation are owned by
 [ci-cd.md](../ssot/ci-cd.md), `.github/workflows/*.yml`, and the corresponding
 tooling tests.
 
-### 5.4 Known Gaps
+### 5.5 Known Gaps
 
 Known testing gaps are not maintained as detailed status narratives here. Use
 these owners instead:
