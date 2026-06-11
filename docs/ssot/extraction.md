@@ -25,8 +25,7 @@ weaken extraction confidence or balance-validation rules.
 
 Supported source classes, proof levels, review requirements, and traceability
 targets are owned by
-[`source-coverage-matrix.yaml`](./source-coverage-matrix.yaml), keyed as
-`source_coverage_matrix` in [`MANIFEST.yaml`](./MANIFEST.yaml). This document
+[`source_coverage_matrix`](./source-coverage-matrix.yaml). This document
 explains extraction behavior; source-class changes must land through the matrix
 and its EPIC -> AC -> test anchors.
 
@@ -256,9 +255,8 @@ ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 LLM/OCR is the polymorphic extraction layer for statement formats. The system
 does not expand deterministic parser rules just because one provider output or
 source layout fails audit. Instead, failed cases are captured in
-[`extraction-audit-failed-cases.yaml`](./extraction-audit-failed-cases.yaml)
-under the `extraction_failed_case_registry` manifest key with sanitized evidence
-and one of the approved failure categories:
+[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml) with
+sanitized evidence and one of the approved failure categories:
 
 - `parse_schema_failure`
 - `balance_mismatch`

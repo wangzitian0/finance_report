@@ -184,7 +184,8 @@ owners:
   `docs/ssot/MANIFEST.yaml` (one owner per concept). The staged
   confidence pipeline (raw -> extracted -> validated -> confirmed -> reconciled
   -> trusted -> reports) is owned by `docs/ssot/confirmation-workflow.md`;
-  supported source classes by `docs/ssot/source-coverage-matrix.yaml`.
+  supported source classes by
+  [`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml).
 - **Delivery scope & status** → `docs/project/` (EPICs) and `README.md`.
 - **Agent process & governance** → `AGENTS.md` and `docs/agents/`.
 

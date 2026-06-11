@@ -74,15 +74,15 @@ contracts is tracked in
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Review lifecycle rationale; state machine should migrate to code/common |
 | [processing_account.md](./processing_account.md) | `processing_account` | In-transit funds model and proof references |
 | [workflow-events.md](./workflow-events.md) | `workflow-events` | User-facing upload-to-report workflow event read model |
-| [extraction-audit-failed-cases.yaml](./extraction-audit-failed-cases.yaml) | `extraction_failed_case_registry` | Machine-readable audit-failed parsing case registry and parser-expansion boundary |
-| [source-coverage-matrix.yaml](./source-coverage-matrix.yaml) | `source_coverage_matrix` | Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |
+| [extraction-audit-failed-cases.yaml](./extraction-audit-failed-cases.yaml) | [`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml) | Machine-readable audit-failed parsing case registry and parser-expansion boundary |
+| [source-coverage-matrix.yaml](./source-coverage-matrix.yaml) | [`source_coverage_matrix`](./source-coverage-matrix.yaml) | Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |
 
 ## Proof Reports
 
 | Report | Purpose |
 |---|---|
 | [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Bidirectional README -> EPIC -> E2E macro outcome contract |
-| `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract |
+| `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract for [`source_coverage_matrix`](./source-coverage-matrix.yaml) |
 | `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
 | [unified-coverage.json](https://github.com/wangzitian0/finance_report/blob/main/unified-coverage.json) | Current committed coverage baseline |
 

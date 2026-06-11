@@ -915,27 +915,25 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
 
     inbound_refs = {
         "docs/ssot/README.md": [
-            "extraction-audit-failed-cases.yaml",
-            "`extraction_failed_case_registry`",
-            "source-coverage-matrix.yaml",
-            "`source_coverage_matrix`",
+            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
         ],
         "docs/ssot/extraction.md": [
-            "extraction-audit-failed-cases.yaml",
-            "`extraction_failed_case_registry`",
-            "source-coverage-matrix.yaml",
-            "`source_coverage_matrix`",
+            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
         ],
         "docs/project/EPIC-003.statement-parsing.md": [
-            "extraction-audit-failed-cases.yaml",
-            "`extraction_failed_case_registry`",
+            "[`extraction_failed_case_registry`](../ssot/extraction-audit-failed-cases.yaml)",
         ],
         "docs/project/EPIC-013.statement-parsing-v2.md": [
-            "source-coverage-matrix.yaml",
-            "`source_coverage_matrix`",
+            "[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml)",
         ],
         "vision.md": [
-            "docs/ssot/source-coverage-matrix.yaml",
+            "[`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml)",
+        ],
+        "docs/ssot/tdd.md": [
+            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
         ],
     }
     for path, markers in inbound_refs.items():

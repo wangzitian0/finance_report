@@ -206,8 +206,7 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 ### AC13.12: Source Coverage Matrix
 
 The authoritative source-class registry is
-[source-coverage-matrix.yaml](../ssot/source-coverage-matrix.yaml), keyed as
-`source_coverage_matrix` in [MANIFEST.yaml](../ssot/MANIFEST.yaml).
+[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
