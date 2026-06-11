@@ -1003,13 +1003,21 @@ def wait_for_dokploy_deployment_rollout(
                 "platform_failure_domain=dokploy-worker-or-deployment-record"
             )
         if not new_deployment_ids and now >= new_deployment_deadline:
-            project_id = data.get("environment", {}).get("projectId") if isinstance(data, dict) else None
-            if project_id and get_running_deployments_count(config, project_id) > 0:
+            project_id = (
+                data.get("environment", {}).get("projectId")
+                if isinstance(data, dict)
+                else None
+            )
+            if (
+                project_id
+                and get_running_deployments_count(config, project_id) > 0
+                and now < deadline
+            ):
                 print(
                     "Warning: Dokploy is currently busy with other deployments. "
                     "Extending the new deployment timeout deadline."
                 )
-                new_deployment_deadline = now + 60.0
+                new_deployment_deadline = min(now + 60.0, deadline)
                 continue
             raise DokployDeploymentDidNotStart(
                 "Dokploy deployment did not create a new deployment before "
@@ -1176,7 +1184,7 @@ def deploy_action(args: argparse.Namespace) -> int:
                 )
                 try:
                     trigger_and_wait(force_redeploy=True)
-                except DokployDeploymentDidNotStart as retry_error:
+                except DokployDeploymentDidNotStart:
                     print(
                         "New PR preview compose still did not create a Dokploy "
                         "deployment record after redeploy; recreating compose "

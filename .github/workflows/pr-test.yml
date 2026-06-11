@@ -272,6 +272,7 @@ jobs:
 
       - name: Deploy preview lifecycle
         id: deploy
+        timeout-minutes: 18
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}

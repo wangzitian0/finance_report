@@ -11,6 +11,7 @@ from sqlalchemy import (
     Date,
     Enum as SQLEnum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -259,6 +260,7 @@ class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
             "as_of_date",
             name="uq_manual_valuation_user_component_source_date",
         ),
+        Index("ix_manual_valuation_snapshots_user_as_of", "user_id", "as_of_date"),
     )
 
     component_type: Mapped[ManualValuationComponentType] = mapped_column(

@@ -155,6 +155,20 @@ the focused domain, migration, API, downstream tooling, or static contract gates
 listed in [ci-cd.md](./ci-cd.md#path-risk-to-local-gate-matrix), then rely on
 PR CI and deployed gates for full consistency proof.
 
+For schema and migration changes, run the same deterministic Alembic proof that
+PR CI uses before relying on preview or staging:
+
+```bash
+cd apps/backend
+uv run alembic upgrade head
+uv run alembic check
+```
+
+Backend pytest fixtures may rebuild isolated model schemas for fast data
+isolation. That is useful for test speed, but it is not the authoritative
+migration proof. Alembic `upgrade head` plus `alembic check` against Postgres is
+the schema contract for both local escalation and PR CI.
+
 Root Moon tasks are uncached wrappers with explicit workspace inputs, so local
 verification runs fresh and never treats the `repo` infra submodule gitlink as a
 file input. The `repo/` submodule is verified separately by the agent

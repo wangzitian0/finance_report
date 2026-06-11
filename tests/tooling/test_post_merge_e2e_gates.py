@@ -1043,7 +1043,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
         in workflow
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
@@ -1743,7 +1743,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert "needs: [lint]" not in traceability_block
     assert "needs:" not in traceability_block.split("steps:", 1)[0]
     assert (
-        "needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend, "
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, "
         "container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
         in finish_block
     )
@@ -2813,7 +2813,7 @@ def test_AC8_13_114_pr_preview_gated_on_cheap_ci() -> None:
     frontend_build = workflow.split("  build-preview-frontend-image:", 1)[1].split("  deploy:", 1)[0]
     assert "needs: [setup, gate-cheap-ci]" in backend_build
     assert "needs: [setup, gate-cheap-ci]" in frontend_build
-    
+
     # Verify actions: read permission is present in gate-cheap-ci job
     gate_cheap_ci_job = workflow.split("  gate-cheap-ci:", 1)[1].split("  build-preview-backend-image:", 1)[0]
     assert "permissions:" in gate_cheap_ci_job
@@ -2832,9 +2832,9 @@ def test_AC8_13_115_readiness_fail_fast() -> None:
 def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
     """AC8.13.116: Post-merge -> staging start latency is reduced by removing redundant heavy re-run on push to main."""
     workflow = read(".github/workflows/ci.yml")
-    
+
     # Check that heavy jobs skip on push to main by checking pr_required gate
-    for job in ["backend:", "backend-integration:", "backend-e2e-tier1:", "frontend:", "tooling-coverage:", "unified-coverage:"]:
+    for job in ["schema-migrations:", "backend:", "backend-integration:", "backend-e2e-tier1:", "frontend:", "tooling-coverage:", "unified-coverage:"]:
         job_block = workflow.split(job, 1)[1].split("\n\n", 1)[0]
         assert "if: needs.changes.outputs.pr_required == 'true'" in job_block
 

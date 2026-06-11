@@ -47,9 +47,8 @@ def test_migration_filenames_length():
     Guardrail: Alembic migration filenames should not be excessively long.
     Long filenames cause issues on some file systems and Docker volume mounts.
     """
-    # Locate migrations directory relative to this test file
-    # apps/backend/tests/test_schema_guardrails.py -> apps/backend/migrations/versions
-    backend_root = Path(__file__).parent.parent
+    # apps/backend/tests/infra/test_schema_guardrails.py -> apps/backend
+    backend_root = Path(__file__).resolve().parents[2]
     migrations_dir = backend_root / "migrations" / "versions"
 
     if not migrations_dir.exists():

@@ -24,6 +24,7 @@ from sqlalchemy import (
     DateTime,
     Enum as SQLEnum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -42,7 +43,16 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Confirmed statement envelope (DWD conform) for an uploaded statement."""
 
     __tablename__ = "statement_summaries"
-    __table_args__ = (UniqueConstraint("user_id", "file_hash", name="uq_statement_summaries_user_file_hash"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "file_hash", name="uq_statement_summaries_user_file_hash"),
+        Index("idx_statement_summaries_user_account", "user_id", "account_id"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
     # Link to the ODS document (canonical join is (user_id, file_hash), mirrored
     # by UploadedDocument and the legacy BankStatement).

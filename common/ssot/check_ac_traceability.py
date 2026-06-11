@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from common.ssot.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.ssot.test_surface import DEFAULT_AC_TEST_DIRS
 
 try:
     from common.ssot.ac_registry_format import load_registry_entries
@@ -69,7 +70,9 @@ class ExecutionMatrix:
         if best is not None:
             return best
         if Path(normalized).is_absolute():
-            return ExecutionRule(path_prefix=normalized, stage="external_test", ci_required=True)
+            return ExecutionRule(
+                path_prefix=normalized, stage="external_test", ci_required=True
+            )
         return ExecutionRule(path_prefix="", stage="unclassified", ci_required=False)
 
 
@@ -277,7 +280,9 @@ def print_report(
             print(f"  EPIC-{epic_num:03d} ({ac_sample.epic_name}):")
             for ac_id in by_epic[epic_num]:
                 print(f"    UNEXECUTED {ac_id}: {ac_by_id[ac_id].description}")
-                for f in sorted(references.get(ac_id, ACReferenceStats()).real_files)[:3]:
+                for f in sorted(references.get(ac_id, ACReferenceStats()).real_files)[
+                    :3
+                ]:
                     print(f"       -> {f}")
         print()
 
@@ -301,7 +306,9 @@ def print_report(
             result.covered, key=lambda x: [int(p) for p in x[2:].split(".")]
         ):
             print(f"  OK {ac_id}: {ac_by_id[ac_id].description}")
-            for f in sorted(references.get(ac_id, ACReferenceStats()).ci_real_files)[:2]:
+            for f in sorted(references.get(ac_id, ACReferenceStats()).ci_real_files)[
+                :2
+            ]:
                 print(f"       -> {f}")
         print()
 
@@ -324,13 +331,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--test-dirs",
         nargs="+",
-        default=[
-            "apps/backend/tests",
-            "apps/frontend/src",
-            "apps/frontend/playwright",
-            "tests/tooling",
-            "tests/e2e",
-        ],
+        default=list(DEFAULT_AC_TEST_DIRS),
     )
     parser.add_argument(
         "--execution-matrix",

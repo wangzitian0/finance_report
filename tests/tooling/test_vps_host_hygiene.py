@@ -354,6 +354,9 @@ def test_AC8_13_73_post_merge_workflow_runs_hygiene_on_vps_over_ssh() -> None:
     assert "--emit-script" in workflow
     assert "ssh -o BatchMode=yes" in workflow
     assert "tools/vps_host_hygiene.py" in workflow
+    assert "if: ${{ secrets." not in workflow
+    assert "SSH_PRIVATE_KEY: ${{ secrets.INFRA2_WATCHDOG_SSH_PRIVATE_KEY }}" in workflow
+    assert "INFRA2_WATCHDOG_SSH_PRIVATE_KEY is not configured" in workflow
     # Stays out of the reconciliation-only cleanup workflow (AC8.13.74).
     cleanup = (
         ROOT / ".github/workflows/pr-preview-cleanup.yml"
