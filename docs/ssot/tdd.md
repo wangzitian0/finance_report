@@ -168,6 +168,26 @@ Historical findings from the report remain advisory until a later threshold
 cleanup issue selects them explicitly. The gate should not be used to force a
 large SSOT rewrite in unrelated PRs.
 
+## SSOT Governance Threshold Cleanup
+
+Threshold cleanup is tracked by
+[#824](https://github.com/wangzitian0/finance_report/issues/824). Cleanup PRs
+select one metric threshold from the governance report, explain the exact
+system and candidate set, and keep runtime behavior unchanged.
+
+The first cleanup threshold is `finance_report.orphan_ssot_files == 0`. It
+binds existing orphan SSOT files to parent concepts instead of promoting every
+file into an independent HLS concept:
+
+- `docs/ssot/observability-logging.md` is a child playbook of
+  `observability_logging`.
+- `docs/ssot/ac-score-baseline.json` is a machine baseline artifact of
+  `tdd_workflow`.
+
+Future cleanup slices should remain narrow and metric-selected. FR and infra2
+cleanup should stay in separate PRs unless the selected finding is explicitly a
+cross-system authority-boundary defect.
+
 Intentional temporary debt uses
 `docs/ssot/governance-exceptions.yaml`. Each exception targets one finding, for
 example `finance_report:manifest:temporary_concept` or

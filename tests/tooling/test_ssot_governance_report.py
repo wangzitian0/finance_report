@@ -837,3 +837,37 @@ def test_AC14_1_13_cli_and_ci_enable_gradual_gate(
     )
     assert "github.com/wangzitian0/finance_report/issues/823" in rendered
     assert "- Exception registry: `custom-governance-exceptions.yaml`" in rendered
+
+
+def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None:
+    """AC14.1.14: #824 cleanup binds finance_report orphan SSOT files."""
+
+    report = governance_report.build_report(ROOT, include_infra2=False)
+    finance = _source(report, "finance_report")
+
+    assert report["overall"]["errors"] == []
+    assert finance["errors"] == []
+    assert finance["entry_count"] > 0
+    assert finance["orphan_ssot_files"] == []
+    orphan_candidate = next(
+        candidate
+        for candidate in finance["future_gate_candidates"]
+        if candidate["code"] == "orphan_ssot_files"
+    )
+    assert orphan_candidate["count"] == 0
+
+    manifest = yaml.safe_load(
+        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+    )
+    concepts = manifest["concepts"]
+
+    assert concepts["statement_parsing_model_selection_logging"]["owner"] == (
+        "docs/ssot/observability-logging.md"
+    )
+    assert concepts["statement_parsing_model_selection_logging"]["parent"] == (
+        "observability_logging"
+    )
+    assert concepts["ac_score_ratchet_baseline"]["owner"] == (
+        "docs/ssot/ac-score-baseline.json"
+    )
+    assert concepts["ac_score_ratchet_baseline"]["parent"] == "tdd_workflow"

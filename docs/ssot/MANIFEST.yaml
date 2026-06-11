@@ -228,6 +228,25 @@ concepts:
     cross_refs:
       - docs/ssot/development.md
 
+  statement_parsing_model_selection_logging:
+    owner: docs/ssot/observability-logging.md
+    description: Statement parsing model-selection and staging audit replay logging contract.
+    family: observability
+    kind: playbook
+    parent: observability_logging
+    authority: documented_contract
+    cross_refs:
+      - docs/ssot/observability.md
+      - docs/ssot/extraction.md
+      - docs/ssot/ai.md
+      - docs/project/EPIC-010.signoz-logging.md
+      - apps/backend/tests/api/test_statements_router.py
+      - apps/backend/tests/extraction/test_statement_parsing_audit_logging.py
+      - apps/backend/tests/reconciliation/test_reconciliation_router_additional.py
+      - tests/tooling/test_post_merge_e2e_gates.py
+      - .github/workflows/staging-deploy.yml
+      - .github/workflows/staging-ai-ocr-gate.yml
+
   # ── Development environment ────────────────────────────────────────────
   moon_commands:
     owner: docs/ssot/development.md#moon-commands
@@ -346,6 +365,22 @@ concepts:
       - docs/agents/orchestration.md
       - .github/workflows/ci.yml
       - tools/check_e2e_epic_traceability.py
+
+  ac_score_ratchet_baseline:
+    owner: docs/ssot/ac-score-baseline.json
+    description: Machine-readable AC score ratchet baseline for AC evidence metrics.
+    family: tdd
+    kind: baseline
+    parent: tdd_workflow
+    authority: machine_generated
+    cross_refs:
+      - docs/ssot/tdd.md
+      - common/testing/README.md
+      - common/testing/ac_evidence.py
+      - common/ssot/ac_evidence_aggregate.py
+      - common/ssot/check_ac_score_baseline.py
+      - tools/check_ac_score_baseline.py
+      - tests/tooling/test_ac_evidence_pipeline.py
 
   critical_proof_matrix:
     owner: docs/ssot/critical-proof-matrix.yaml
