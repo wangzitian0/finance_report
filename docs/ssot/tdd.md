@@ -184,6 +184,16 @@ file into an independent HLS concept:
 - `docs/ssot/ac-score-baseline.json` is a machine baseline artifact of
   `tdd_workflow`.
 
+The second cleanup threshold is
+`finance_report.machine_owner_entries_missing_proof == 0`. It migrates a small
+representative set of machine-owned finance_report entries before attempting
+bulk family/kind classification:
+
+- `extraction_failed_case_registry` declares `family: extraction`,
+  `kind: registry`, and its executable registry proof.
+- `source_coverage_matrix` declares `family: source`, `kind: matrix`, and both
+  its validator and test proof.
+
 Future cleanup slices should remain narrow and metric-selected. FR and infra2
 cleanup should stay in separate PRs unless the selected finding is explicitly a
 cross-system authority-boundary defect.
