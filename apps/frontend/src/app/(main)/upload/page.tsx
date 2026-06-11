@@ -28,6 +28,8 @@ function statusDisplay(status: string): { label: string; variant: BadgeVariant }
             return { label: "Ready to review", variant: "info" };
         case "parsing":
             return { label: "Parsing", variant: "muted" };
+        case "uploaded":
+            return { label: "Uploaded", variant: "muted" };
         default:
             return { label: status, variant: "muted" };
     }
@@ -178,15 +180,22 @@ export default function UploadPage() {
                 ) : (
                     <div className="divide-y divide-[var(--border)]">
                         {statements.map((statement) => (
-                            <Link
+                            <div
                                 key={statement.id}
-                                href={`/statements/${statement.id}`}
-                                className="block px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
+                                className="relative block px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors"
                             >
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="font-medium truncate">{statement.original_filename}</span>
+                                            {/* Stretched link: makes the whole row open the detail page while
+                                                keeping the action buttons as non-nested, separately clickable
+                                                elements (valid HTML, no <button> inside <a>). */}
+                                            <Link
+                                                href={`/statements/${statement.id}`}
+                                                className="font-medium truncate hover:text-[var(--accent)] after:absolute after:inset-0"
+                                            >
+                                                {statement.original_filename}
+                                            </Link>
                                             <Badge variant={statusDisplay(statement.status).variant}>
                                                 {statement.status === "parsing" && (
                                                     <span className="inline-block w-3 h-3 mr-1 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -207,16 +216,12 @@ export default function UploadPage() {
                                             <span>{formatCurrency(statement.currency)}</span>
                                         </div>
                                     </div>
-                                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
+                                    <div className="relative z-10 text-right flex-shrink-0 flex flex-col items-end gap-2">
                                         {statement.status === "parsed" && (
                                             <Button
                                                 variant="primary"
                                                 className="text-sm"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    router.push(`/statements/${statement.id}/review`);
-                                                }}
+                                                onClick={() => router.push(`/statements/${statement.id}/review`)}
                                             >
                                                 Review →
                                             </Button>
@@ -254,13 +259,13 @@ export default function UploadPage() {
                                     ) : statement.balance_validated ? (
                                         <Badge variant="success">✓ Verified</Badge>
                                     ) : (
-                                        <span className="inline-flex items-center">
+                                        <span className="relative z-10 inline-flex items-center">
                                             <Badge variant="warning">Needs Review</Badge>
                                             <InfoHint term="needs_review" label="Needs review" />
                                         </span>
                                     )}
                                 </div>
-                            </Link>
+                            </div>
                         ))}
                     </div>
                 )}

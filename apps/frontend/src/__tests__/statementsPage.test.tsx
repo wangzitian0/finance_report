@@ -124,6 +124,34 @@ describe("StatementsPage", () => {
     expect(routerPushMock).toHaveBeenCalledWith("/statements/s9/review")
   })
 
+  it("AC22.5.x maps every status to a plain-language label (no raw 'uploaded')", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "s10",
+          original_filename: "fresh.pdf",
+          institution: "DBS",
+          status: "uploaded",
+          period_start: null,
+          period_end: null,
+          currency: "SGD",
+          confidence_score: null,
+          transactions: [],
+          opening_balance: null,
+          closing_balance: null,
+          balance_validated: null,
+          validation_error: null,
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("fresh.pdf")).toBeInTheDocument())
+    expect(screen.getByText("Uploaded")).toBeInTheDocument()
+    expect(screen.queryByText("uploaded")).toBeNull()
+  })
+
   it("AC16.14.11 enables polling when parsing statements exist", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
