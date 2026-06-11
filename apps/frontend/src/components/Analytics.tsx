@@ -24,6 +24,12 @@ export interface AnalyticsProps {
    */
   apiUrl?: string;
   /**
+   * OpenPanel SDK script URL. Set to the self-hosted instance's script so the
+   * SDK loads from our own origin rather than the OpenPanel cloud default.
+   * Left unset → the SDK's built-in default is used.
+   */
+  scriptUrl?: string;
+  /**
    * Logical environment name (e.g. "staging", "production", "pr-47").
    * Tagged onto every tracked event via `globalProperties.environment` so PV
    * data can be split per environment even though staging/prod share the same
@@ -74,19 +80,27 @@ class AnalyticsErrorBoundary extends Component<
  * 3. Relies on the SDK's async script load + sendBeacon — render is never
  *    blocked and no tracking call is awaited on a critical path.
  */
-export function Analytics({ clientId, apiUrl, environment }: AnalyticsProps) {
-  // Config-gate: complete no-op when no client id is configured.
-  if (!clientId || clientId.trim() === "") {
+export function Analytics({ clientId, apiUrl, scriptUrl, environment }: AnalyticsProps) {
+  // Normalize once: treat whitespace-only values as unset.
+  const id = clientId?.trim();
+  const resolvedApiUrl = apiUrl?.trim() || DEFAULT_OPENPANEL_API_URL;
+  const resolvedScriptUrl = scriptUrl?.trim() || undefined;
+  const resolvedEnvironment = environment?.trim() || undefined;
+
+  // Config-gate (defense-in-depth; the layout already gates on this): complete
+  // no-op when no client id is configured.
+  if (!id) {
     return null;
   }
 
   return (
     <AnalyticsErrorBoundary>
       <OpenPanelComponent
-        clientId={clientId}
-        apiUrl={apiUrl && apiUrl.trim() !== "" ? apiUrl : DEFAULT_OPENPANEL_API_URL}
+        clientId={id}
+        apiUrl={resolvedApiUrl}
+        scriptUrl={resolvedScriptUrl}
         trackScreenViews
-        globalProperties={environment ? { environment } : {}}
+        globalProperties={resolvedEnvironment ? { environment: resolvedEnvironment } : {}}
       />
     </AnalyticsErrorBoundary>
   );
