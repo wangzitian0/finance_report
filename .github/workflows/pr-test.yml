@@ -7,7 +7,9 @@ name: PR Test Environment
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    # `labeled` lets the opt-in `preview` label spin up a preview without a
+    # re-push (issue #839); the preview jobs still gate on preview_opt_in.
+    types: [opened, synchronize, reopened, closed, labeled]
     branches: [main]
   workflow_dispatch:
     inputs:
