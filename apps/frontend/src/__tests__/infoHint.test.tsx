@@ -7,9 +7,11 @@ describe("InfoHint (EPIC-022 AC22.5.5)", () => {
     it("AC22.5.5 exposes the plain-language glossary text to assistive tech", () => {
         render(<InfoHint term="transfer_pair" label="Transfer pair" />);
         const hint = screen.getByRole("img");
-        expect(hint).toHaveAttribute("title", GLOSSARY.transfer_pair);
         expect(hint.getAttribute("aria-label")).toContain(GLOSSARY.transfer_pair);
         expect(hint.getAttribute("aria-label")).toContain("Transfer pair");
+        // The explanation is also rendered as a visible tooltip (shown on hover
+        // and keyboard focus), not delivered solely via a title attribute.
+        expect(screen.getByRole("tooltip")).toHaveTextContent(GLOSSARY.transfer_pair);
     });
 
     it("AC22.5.5 is keyboard focusable so the hint is not mouse-only", () => {

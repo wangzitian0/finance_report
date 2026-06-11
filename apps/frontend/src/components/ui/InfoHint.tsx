@@ -33,14 +33,23 @@ export function InfoHint({ term, label, className }: InfoHintProps) {
     const text = GLOSSARY[term];
     const description = label ? `${label}: ${text}` : text;
     return (
-        <span
-            role="img"
-            tabIndex={0}
-            aria-label={description}
-            title={text}
-            className={`ml-1 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] leading-none text-muted align-middle ${className ?? ""}`}
-        >
-            i
+        <span className={`group relative ml-1 inline-flex align-middle ${className ?? ""}`}>
+            <span
+                role="img"
+                tabIndex={0}
+                aria-label={description}
+                className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] leading-none text-muted outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            >
+                i
+            </span>
+            {/* Visible on hover and keyboard focus so sighted keyboard users get
+                the explanation too; aria-label still serves screen readers. */}
+            <span
+                role="tooltip"
+                className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 w-56 -translate-x-1/2 rounded-md border border-[var(--border)] bg-[var(--background-card)] p-2 text-xs font-normal normal-case leading-snug text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+                {text}
+            </span>
         </span>
     );
 }

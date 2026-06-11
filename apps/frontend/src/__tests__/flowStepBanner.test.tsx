@@ -1,10 +1,8 @@
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
-
-import { vi } from "vitest";
 
 vi.mock("next/link", () => ({
     __esModule: true,
