@@ -27,6 +27,12 @@ def upgrade() -> None:
     # CASCADE in 0029; guard the rest with IF EXISTS for idempotency.
     op.execute("ALTER TABLE reconciliation_matches DROP CONSTRAINT IF EXISTS check_match_target")
     op.execute("ALTER TABLE reconciliation_matches DROP COLUMN IF EXISTS bank_txn_id")
+    # Drop orphaned rows that never got an atomic_txn_id (legacy bank_txn_id-only
+    # matches predating the Layer-2 model). reconciliation_matches is derived /
+    # recomputable, so deleting un-migratable rows is safe and lets the NOT NULL
+    # constraint apply on data-bearing environments instead of raising
+    # NotNullViolation mid-migration.
+    op.execute("DELETE FROM reconciliation_matches WHERE atomic_txn_id IS NULL")
     op.alter_column("reconciliation_matches", "atomic_txn_id", nullable=False)
 
     # correction_logs: repoint transaction_id onto atomic_transactions.

@@ -293,6 +293,9 @@ jobs:
         with:
           context: ./apps/backend
           push: true
+          # Plain single-manifest image (legacy docker hosts can't pull attestation indexes).
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
@@ -313,6 +316,8 @@ jobs:
         with:
           context: ./apps/frontend
           push: true
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}

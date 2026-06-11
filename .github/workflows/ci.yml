@@ -665,6 +665,11 @@ jobs:
         with:
           context: ./apps/backend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          # Plain single-manifest image: provenance/sbom attestations turn the push
+          # into an OCI index that legacy (non-containerd) docker hosts choke on when
+          # pulling. Keep images plainly pullable everywhere.
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
@@ -677,6 +682,8 @@ jobs:
         with:
           context: ./apps/frontend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
