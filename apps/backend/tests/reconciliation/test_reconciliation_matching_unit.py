@@ -75,9 +75,7 @@ def _atomic_txn(*, owner_id: UUID, **kwargs) -> AtomicTransaction:
     """
     kwargs.setdefault("currency", "SGD")
     kwargs.setdefault("dedup_hash", uuid4().hex + uuid4().hex)
-    kwargs.setdefault(
-        "source_documents", [{"doc_id": str(uuid4()), "doc_type": "bank_statement"}]
-    )
+    kwargs.setdefault("source_documents", [{"doc_id": str(uuid4()), "doc_type": "bank_statement"}])
     return AtomicTransaction(user_id=owner_id, **kwargs)
 
 

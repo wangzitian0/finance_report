@@ -213,7 +213,9 @@ class TestApproveStatement:
             opening_balance=Decimal("1000.00"),
             closing_balance=Decimal("2000.00"),
         )
-        await _add_txn(db, stmt, amount=Decimal("10.00"), direction=TransactionDirection.IN, description="Small deposit")
+        await _add_txn(
+            db, stmt, amount=Decimal("10.00"), direction=TransactionDirection.IN, description="Small deposit"
+        )
 
         with pytest.raises(ValueError, match="Balance mismatch"):
             await approve_statement(db, stmt.id, user_id)
@@ -440,7 +442,9 @@ class TestEditAndApproveEdgeCases:
             opening_balance=Decimal("1000.00"),
             closing_balance=Decimal("1100.00"),
         )
-        txn = await _add_txn(db, stmt, amount=Decimal("50.00"), direction=TransactionDirection.IN, description="Old desc")
+        txn = await _add_txn(
+            db, stmt, amount=Decimal("50.00"), direction=TransactionDirection.IN, description="Old desc"
+        )
         edits = [
             {
                 "txn_id": str(txn.id),
@@ -478,9 +482,7 @@ class TestValidateBalanceChainAdditionalBranches:
             period_start=None,
             period_end=date(2024, 3, 31),
         )
-        await _add_txn(
-            db, stmt, amount=Decimal("25.00"), direction=TransactionDirection.IN, txn_date=date(2024, 3, 15)
-        )
+        await _add_txn(db, stmt, amount=Decimal("25.00"), direction=TransactionDirection.IN, txn_date=date(2024, 3, 15))
 
         result = await validate_balance_chain(db, stmt.id)
         assert result["opening_balance"] == "0"

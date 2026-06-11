@@ -94,12 +94,20 @@ class TestDetectDuplicates:
     async def test_detect_duplicates(self, db, user_id, approved_statement):
         """AC2.1.1 AC16.2.1 Detect duplicate transactions for a user."""
         await _add_txn(
-            db, user_id, amount=Decimal("5.50"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Starbucks",
+            db,
+            user_id,
+            amount=Decimal("5.50"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Starbucks",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("5.50"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Starbucks",
+            db,
+            user_id,
+            amount=Decimal("5.50"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Starbucks",
         )
 
         checks = await detect_duplicates(db, user_id, approved_statement.id)
@@ -112,12 +120,20 @@ class TestDetectTransferPairs:
     async def test_detect_transfer_pairs(self, db, user_id):
         """AC2.2.1 AC16.2.2 Detect matching transfer pairs (OUT/IN)."""
         txn_out = await _add_txn(
-            db, user_id, amount=Decimal("100.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Transfer to Bank B",
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Transfer to Bank B",
         )
         txn_in = await _add_txn(
-            db, user_id, amount=Decimal("100.00"), direction=TransactionDirection.IN,
-            txn_date=date(2024, 1, 16), description="Transfer from Bank A",
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
+            txn_date=date(2024, 1, 16),
+            description="Transfer from Bank A",
         )
 
         checks = await detect_transfer_pairs(db, user_id)
@@ -131,13 +147,21 @@ class TestDetectAnomalies:
         """AC2.3.1 Detect large transaction amount anomalies."""
         for i in range(10):
             await _add_txn(
-                db, user_id, amount=Decimal("10.00"), direction=TransactionDirection.OUT,
-                txn_date=date(2024, 1, i + 1), description="Regular",
+                db,
+                user_id,
+                amount=Decimal("10.00"),
+                direction=TransactionDirection.OUT,
+                txn_date=date(2024, 1, i + 1),
+                description="Regular",
             )
 
         await _add_txn(
-            db, user_id, amount=Decimal("1000.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Giant Buy",
+            db,
+            user_id,
+            amount=Decimal("1000.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Giant Buy",
         )
 
         checks = await detect_anomalies_batch(db, user_id, approved_statement.id)
@@ -175,12 +199,20 @@ class TestRunAllConsistencyChecks:
     async def test_run_all_aggregates_results(self, db, user_id, approved_statement):
         """AC2.5.1 run_all_consistency_checks aggregates results from all detectors."""
         await _add_txn(
-            db, user_id, amount=Decimal("5.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Coffee",
+            db,
+            user_id,
+            amount=Decimal("5.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Coffee",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("5.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Coffee",
+            db,
+            user_id,
+            amount=Decimal("5.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Coffee",
         )
 
         checks = await run_all_consistency_checks(db, user_id, approved_statement.id)
@@ -258,12 +290,20 @@ class TestDetectDuplicatesEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id, approved_statement):
         """AC16.4.1 detect_duplicates runs global scan when no statement_id provided."""
         await _add_txn(
-            db, user_id, amount=Decimal("9.99"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Global dup",
+            db,
+            user_id,
+            amount=Decimal("9.99"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Global dup",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("9.99"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Global dup",
+            db,
+            user_id,
+            amount=Decimal("9.99"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Global dup",
         )
 
         checks = await detect_duplicates(db, user_id)
@@ -273,12 +313,20 @@ class TestDetectDuplicatesEdgeCases:
     async def test_idempotent_duplicate_detection(self, db, user_id, approved_statement):
         """AC16.4.2 detect_duplicates is idempotent - does not create duplicate checks."""
         await _add_txn(
-            db, user_id, amount=Decimal("4.50"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 20), description="Coffee Shop",
+            db,
+            user_id,
+            amount=Decimal("4.50"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 20),
+            description="Coffee Shop",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("4.50"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 20), description="Coffee Shop",
+            db,
+            user_id,
+            amount=Decimal("4.50"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 20),
+            description="Coffee Shop",
         )
 
         checks1 = await detect_duplicates(db, user_id, approved_statement.id)
@@ -290,12 +338,20 @@ class TestDetectDuplicatesEdgeCases:
     async def test_no_duplicate_when_date_spread_exceeds_1_day(self, db, user_id, approved_statement):
         """detect_duplicates does not flag txns with >1 day apart as duplicates."""
         await _add_txn(
-            db, user_id, amount=Decimal("25.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 10), description="Grocery",
+            db,
+            user_id,
+            amount=Decimal("25.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 10),
+            description="Grocery",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("25.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 15), description="Grocery",
+            db,
+            user_id,
+            amount=Decimal("25.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Grocery",
         )
 
         checks = await detect_duplicates(db, user_id, approved_statement.id)
@@ -307,18 +363,30 @@ class TestDetectDuplicatesEdgeCases:
         other_stmt = await _make_statement(db, user_id, file_hash="hash_other")
 
         await _add_txn(
-            db, user_id, amount=Decimal("11.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 5), description="Anchor Unique",
+            db,
+            user_id,
+            amount=Decimal("11.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 5),
+            description="Anchor Unique",
             source_doc_id=anchor_stmt.uploaded_document_id,
         )
         await _add_txn(
-            db, user_id, amount=Decimal("20.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 8), description="Outside Anchor Dup",
+            db,
+            user_id,
+            amount=Decimal("20.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 8),
+            description="Outside Anchor Dup",
             source_doc_id=other_stmt.uploaded_document_id,
         )
         await _add_txn(
-            db, user_id, amount=Decimal("20.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 1, 8), description="Outside Anchor Dup",
+            db,
+            user_id,
+            amount=Decimal("20.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 8),
+            description="Outside Anchor Dup",
             source_doc_id=other_stmt.uploaded_document_id,
         )
 
@@ -331,12 +399,20 @@ class TestDetectTransferPairsEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id):
         """AC16.4.3 detect_transfer_pairs runs global scan when no statement_id provided."""
         await _add_txn(
-            db, user_id, amount=Decimal("200.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 2, 1), description="Transfer out",
+            db,
+            user_id,
+            amount=Decimal("200.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 2, 1),
+            description="Transfer out",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("200.00"), direction=TransactionDirection.IN,
-            txn_date=date(2024, 2, 2), description="Transfer in",
+            db,
+            user_id,
+            amount=Decimal("200.00"),
+            direction=TransactionDirection.IN,
+            txn_date=date(2024, 2, 2),
+            description="Transfer in",
         )
 
         checks = await detect_transfer_pairs(db, user_id)
@@ -346,12 +422,20 @@ class TestDetectTransferPairsEdgeCases:
     async def test_idempotent_transfer_pair_detection(self, db, user_id):
         """AC16.4.3 detect_transfer_pairs is idempotent."""
         out_txn = await _add_txn(
-            db, user_id, amount=Decimal("75.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 2, 5), description="Idem transfer out",
+            db,
+            user_id,
+            amount=Decimal("75.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 2, 5),
+            description="Idem transfer out",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("75.00"), direction=TransactionDirection.IN,
-            txn_date=date(2024, 2, 6), description="Idem transfer in",
+            db,
+            user_id,
+            amount=Decimal("75.00"),
+            direction=TransactionDirection.IN,
+            txn_date=date(2024, 2, 6),
+            description="Idem transfer in",
         )
 
         checks1 = await detect_transfer_pairs(db, user_id, out_txn.id)
@@ -362,20 +446,36 @@ class TestDetectTransferPairsEdgeCases:
 
     async def test_transfer_pair_matching_skips_already_used_in_candidate(self, db, user_id):
         await _add_txn(
-            db, user_id, amount=Decimal("100.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 3, 1), description="Transfer out 1",
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 3, 1),
+            description="Transfer out 1",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("100.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 3, 2), description="Transfer out 2",
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 3, 2),
+            description="Transfer out 2",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("100.00"), direction=TransactionDirection.IN,
-            txn_date=date(2024, 3, 1), description="Transfer in 1",
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
+            txn_date=date(2024, 3, 1),
+            description="Transfer in 1",
         )
         await _add_txn(
-            db, user_id, amount=Decimal("100.00"), direction=TransactionDirection.IN,
-            txn_date=date(2024, 3, 2), description="Transfer in 2",
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
+            txn_date=date(2024, 3, 2),
+            description="Transfer in 2",
         )
 
         checks = await detect_transfer_pairs(db, user_id)
@@ -459,8 +559,12 @@ class TestResolveCheckEdgeCases:
 class TestDetectAnomaliesEdgeCases:
     async def test_detect_anomalies_batch_skips_existing_same_anomaly_type(self, db, user_id, approved_statement):
         txn = await _add_txn(
-            db, user_id, amount=Decimal("33.00"), direction=TransactionDirection.OUT,
-            txn_date=date(2024, 4, 1), description="Recurring Charge",
+            db,
+            user_id,
+            amount=Decimal("33.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 4, 1),
+            description="Recurring Charge",
         )
 
         db.add(

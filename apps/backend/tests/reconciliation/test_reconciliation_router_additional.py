@@ -131,9 +131,7 @@ async def test_build_match_response_includes_entries(db: AsyncSession, test_user
         ]
     )
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("100.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
@@ -285,12 +283,8 @@ async def test_AC10_8_3_reconciliation_run_audit_checkpoints(
 @pytest.mark.asyncio
 async def test_list_matches_filters_by_status(db: AsyncSession, test_user) -> None:
     statement = await _create_statement(db, test_user.id)
-    txn_pending = await _create_transaction(
-        db, statement, amount=Decimal("8.00"), status=None
-    )
-    txn_accept = await _create_transaction(
-        db, statement, amount=Decimal("9.00"), status=None
-    )
+    txn_pending = await _create_transaction(db, statement, amount=Decimal("8.00"), status=None)
+    txn_accept = await _create_transaction(db, statement, amount=Decimal("9.00"), status=None)
     db.add_all(
         [
             ReconciliationMatch(
@@ -390,9 +384,7 @@ async def test_reconciliation_stats_bucket_distribution(db: AsyncSession, test_u
 @pytest.mark.asyncio
 async def test_pending_review_queue_returns_items(db: AsyncSession, test_user) -> None:
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("6.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("6.00"), status=None)
     db.add(
         ReconciliationMatch(
             atomic_txn_id=txn.id,
@@ -419,15 +411,9 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     db.add(account)
     await db.flush()
     statement = await _create_statement(db, test_user.id, account_id=account.id)
-    txn_accept = await _create_transaction(
-        db, statement, amount=Decimal("7.00"), status=None
-    )
-    txn_reject = await _create_transaction(
-        db, statement, amount=Decimal("8.00"), status=None
-    )
-    txn_batch = await _create_transaction(
-        db, statement, amount=Decimal("9.00"), status=None
-    )
+    txn_accept = await _create_transaction(db, statement, amount=Decimal("7.00"), status=None)
+    txn_reject = await _create_transaction(db, statement, amount=Decimal("8.00"), status=None)
+    txn_batch = await _create_transaction(db, statement, amount=Decimal("9.00"), status=None)
     match_accept = ReconciliationMatch(
         atomic_txn_id=txn_accept.id,
         journal_entry_ids=[],
@@ -468,9 +454,7 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
 @pytest.mark.asyncio
 async def test_list_unmatched_and_create_entry(db: AsyncSession, test_user) -> None:
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("4.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("4.00"), status=None)
     await db.commit()
 
     unmatched = await reconciliation_router.list_unmatched(limit=50, offset=0, db=db, user_id=test_user.id)
@@ -483,9 +467,7 @@ async def test_list_unmatched_and_create_entry(db: AsyncSession, test_user) -> N
 @pytest.mark.asyncio
 async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("10.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("10.00"), status=None)
     await db.commit()
 
     anomalies = await reconciliation_router.list_anomalies(txn_id=str(txn.id), db=db, user_id=test_user.id)
@@ -498,9 +480,7 @@ async def test_accept_match_already_accepted_is_idempotent(db: AsyncSession, tes
     from src.services.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("15.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("15.00"), status=None)
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[],
@@ -523,9 +503,7 @@ async def test_reject_match_already_rejected_is_idempotent(db: AsyncSession, tes
     from src.services.review_queue import reject_match as reject_match_service
 
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("16.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("16.00"), status=None)
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[],
@@ -546,9 +524,7 @@ async def test_reject_match_already_rejected_is_idempotent(db: AsyncSession, tes
 async def test_build_match_response_with_invalid_uuid_in_entry_ids(db: AsyncSession, test_user) -> None:
     """Invalid UUIDs in journal_entry_ids should be gracefully skipped."""
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("20.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("20.00"), status=None)
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=["not-a-valid-uuid", "also-invalid"],  # Invalid UUIDs
@@ -572,9 +548,7 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
     from src.services.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("100.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
     # Create a journal entry with mismatched amount
     account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
@@ -623,9 +597,7 @@ async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user)
     from src.services.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("100.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
     account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
     db.add(account)
@@ -673,9 +645,7 @@ async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, tes
     from src.services.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("100.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
     account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
     db.add(account)
@@ -725,9 +695,7 @@ async def test_batch_accept_skips_low_score_matches(db: AsyncSession, test_user)
 
     statement = await _create_statement(db, test_user.id)
     # Create a low-score match
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("50.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("50.00"), status=None)
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[],
@@ -767,9 +735,7 @@ async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, te
     # Create statement conform with linked account_id
     statement = await _create_statement(db, test_user.id, account_id=bank_account.id)
 
-    txn = await _create_transaction(
-        db, statement, amount=Decimal("100.00"), status=None
-    )
+    txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
     entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
 

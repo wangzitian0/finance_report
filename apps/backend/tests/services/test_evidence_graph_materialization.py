@@ -268,7 +268,9 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.4: Direct entity requests use deterministic relationships and remain idempotent."""
+    """AC18.10.4 AC18.8.1 AC18.8.2: Direct entity requests materialize the source_document
+    (uploaded document) node, the atomic_fact node, and the deduped_into edge between them,
+    using deterministic relationships that remain idempotent."""
     document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     service = EvidenceGraphMaterializationService()
 

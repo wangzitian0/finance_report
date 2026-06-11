@@ -95,9 +95,7 @@ async def get_reconciliation_stats(
     pending_result = await db.execute(
         match_base.where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
     )
-    auto_result = await db.execute(
-        match_base.where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED)
-    )
+    auto_result = await db.execute(match_base.where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED))
 
     matched = matched_result.scalar_one()
     pending = pending_result.scalar_one()

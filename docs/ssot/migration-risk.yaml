@@ -152,8 +152,8 @@ migrations:
     production_preflight: Production has no real data yet; confirm bank_statements and bank_statement_transactions are empty (row count 0) before applying.
     rollback_strategy: Irreversible by design (tables dropped). Roll back by restoring from pre-migration snapshot; since the source ODS (uploaded_documents + MinIO) is retained, derived data can be rebuilt by re-parsing.
     destructive_confirmation: Confirmed destructive drop of bank_statements + bank_statement_transactions; legacy data is recomputable from the retained ODS source and no production data exists.
-  0030_repoint_match_correction_fks:
-    file: 0030_repoint_match_correction_fks.py
+  0030_repoint_match_corr_fks:
+    file: 0030_repoint_match_corr_fks.py
     risk: critical
     issue: "#809"
     proof: EPIC-011 Stage 3 drops reconciliation_matches.bank_txn_id, repoints correction_logs.transaction_id to atomic_transactions, and sets reconciliation_matches.atomic_txn_id NOT NULL.

@@ -134,9 +134,7 @@ async def _get_statement_or_404(
     user_id: UUID,
 ) -> StatementSummary:
     result = await db.execute(
-        select(StatementSummary)
-        .where(StatementSummary.id == statement_id)
-        .where(StatementSummary.user_id == user_id)
+        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
     )
     statement = result.scalar_one_or_none()
     if not statement:
@@ -481,9 +479,7 @@ async def list_statements(
 ) -> BankStatementListResponse:
     """List all statements for the current user."""
     result = await db.execute(
-        select(StatementSummary)
-        .where(StatementSummary.user_id == user_id)
-        .order_by(StatementSummary.created_at.desc())
+        select(StatementSummary).where(StatementSummary.user_id == user_id).order_by(StatementSummary.created_at.desc())
     )
     statements = result.scalars().all()
 

@@ -15,7 +15,7 @@ No production data exists, so no rows need rewriting.
 
 from alembic import op
 
-revision = "0030_repoint_match_correction_fks"
+revision = "0030_repoint_match_corr_fks"
 down_revision = "0029_drop_bank_statement_tables"
 branch_labels = None
 depends_on = None

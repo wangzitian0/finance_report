@@ -215,9 +215,7 @@ async def try_auto_approve_high_confidence_statement(
     Stage 1 pending review instead of failing parsing.
     """
     result = await db.execute(
-        select(StatementSummary)
-        .where(StatementSummary.id == statement_id)
-        .where(StatementSummary.user_id == user_id)
+        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
     )
     statement = result.scalar_one_or_none()
     if statement is None or not is_high_confidence_auto_approve_candidate(statement):

@@ -86,9 +86,7 @@ class TestStatementSummaryConform:
         )
         db.add(doc)
         await db.flush()
-        await _make_summary(
-            db, user_id, file_hash=file_hash, account_id=account_id, uploaded_document_id=doc.id
-        )
+        await _make_summary(db, user_id, file_hash=file_hash, account_id=account_id, uploaded_document_id=doc.id)
         return doc
 
     def _atomic(self, user_id, *, source_documents, dedup_hash):

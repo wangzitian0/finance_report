@@ -69,9 +69,7 @@ def _unmatched_atomic_txn_query():
     "Unmatched" mirrors the matching engine: an atomic transaction is unmatched
     when it is absent from ``reconciliation_matches`` (via ``atomic_txn_id``).
     """
-    matched_subquery = select(ReconciliationMatch.atomic_txn_id).where(
-        ReconciliationMatch.atomic_txn_id.is_not(None)
-    )
+    matched_subquery = select(ReconciliationMatch.atomic_txn_id).where(ReconciliationMatch.atomic_txn_id.is_not(None))
     return select(AtomicTransaction).where(AtomicTransaction.id.notin_(matched_subquery))
 
 
@@ -223,9 +221,7 @@ async def run_reconciliation(
             unmatched_count = 0
         else:
             unmatched_query = unmatched_query.where(AtomicTransaction.id.in_(statement_txn_ids))
-            unmatched_result = await db.execute(
-                select(func.count()).select_from(unmatched_query.subquery())
-            )
+            unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
             unmatched_count = unmatched_result.scalar_one()
     else:
         unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
@@ -512,9 +508,7 @@ async def batch_create_entries(
         query = query.where(AtomicTransaction.id.in_(payload.txn_ids))
 
     result = await db.execute(
-        query.order_by(AtomicTransaction.txn_date.desc()).with_for_update(
-            of=AtomicTransaction, skip_locked=True
-        )
+        query.order_by(AtomicTransaction.txn_date.desc()).with_for_update(of=AtomicTransaction, skip_locked=True)
     )
     txns = result.scalars().all()
 
@@ -549,9 +543,7 @@ async def list_anomalies(
     user_id: CurrentUserId,
 ) -> list[AnomalyResponse]:
     result = await db.execute(
-        select(AtomicTransaction)
-        .where(AtomicTransaction.id == txn_id)
-        .where(AtomicTransaction.user_id == user_id)
+        select(AtomicTransaction).where(AtomicTransaction.id == txn_id).where(AtomicTransaction.user_id == user_id)
     )
     txn = result.scalar_one_or_none()
     if not txn:

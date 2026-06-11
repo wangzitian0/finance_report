@@ -356,9 +356,7 @@ async def _statement_filename(db: AsyncSession, statement: StatementSummary) -> 
     """Resolve the display filename for a statement summary via its ODS document."""
     document_id = statement.uploaded_document_id
     if document_id is not None:
-        filename = await db.scalar(
-            select(UploadedDocument.original_filename).where(UploadedDocument.id == document_id)
-        )
+        filename = await db.scalar(select(UploadedDocument.original_filename).where(UploadedDocument.id == document_id))
         if filename:
             return filename
     filename = await db.scalar(

@@ -169,16 +169,22 @@ def compose_statement_response(
     """Compose a ``BankStatementResponse`` from the layered DWD records.
 
     ``file_path`` / ``original_filename`` come from the linked ODS
-    ``UploadedDocument`` (empty strings when the document link is missing). The
-    transactions list is built from ``atomic_txns`` (already resolved by the
+    ``UploadedDocument``. Before the document link is written by the ingestion
+    pipeline (e.g. the upload 202 response), the upload handler stashes the same
+    values as transient attributes on the summary, so fall back to those.
+    The transactions list is built from ``atomic_txns`` (already resolved by the
     caller via ``UploadedDocument`` -> ``source_documents``).
     """
+    file_path = uploaded_document.file_path if uploaded_document else getattr(summary, "file_path", None)
+    original_filename = (
+        uploaded_document.original_filename if uploaded_document else getattr(summary, "original_filename", None)
+    )
     return BankStatementResponse(
         id=summary.id,
         user_id=summary.user_id,
         account_id=summary.account_id,
-        file_path=uploaded_document.file_path if uploaded_document else "",
-        original_filename=uploaded_document.original_filename if uploaded_document else "",
+        file_path=file_path or "",
+        original_filename=original_filename or "",
         institution=summary.institution,
         account_last4=summary.account_last4,
         currency=summary.currency,

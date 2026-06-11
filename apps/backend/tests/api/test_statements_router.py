@@ -1829,10 +1829,10 @@ async def test_auto_approve_high_confidence_statement_falls_back_to_pending_revi
     await add_txn(
         db,
         statement,
-            txn_date=date(2025, 1, 8),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 8),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -1947,10 +1947,10 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
     await add_txn(
         db,
         statement,
-            txn_date=date(2025, 1, 8),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 8),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -1986,10 +1986,10 @@ async def test_approve_statement_stage1_blocks_overlapping_statement_period_befo
     await add_txn(
         db,
         statement,
-            txn_date=date(2025, 1, 20),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 20),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2023,10 +2023,10 @@ async def test_approve_statement_stage1_blocks_missing_statement_period_before_p
     await add_txn(
         db,
         statement,
-            txn_date=date(2025, 1, 20),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 20),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2053,10 +2053,10 @@ async def test_approve_statement_stage1_blocks_invalid_statement_period_before_p
     await add_txn(
         db,
         statement,
-            txn_date=date(2025, 1, 20),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 20),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2082,10 +2082,10 @@ async def test_approve_statement_stage1_blocks_missing_statement_currency_before
     await add_txn(
         db,
         statement,
-            txn_date=date(2025, 1, 20),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 20),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2110,10 +2110,10 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     await add_txn(
         db,
         statement_id,
-            txn_date=date(2025, 1, 6),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 6),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2151,10 +2151,10 @@ async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test
     await add_txn(
         db,
         statement_id,
-            txn_date=date(2025, 1, 6),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 6),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2190,10 +2190,10 @@ async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(
     await add_txn(
         db,
         statement_id,
-            txn_date=date(2025, 1, 6),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 6),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2244,10 +2244,10 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     await add_txn(
         db,
         statement_id,
-            txn_date=date(2025, 1, 6),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 6),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2354,10 +2354,10 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
     await add_txn(
         db,
         statement_id,
-            txn_date=date(2025, 1, 7),
-            description="Salary",
-            amount=Decimal("20.00"),
-            direction="IN",
+        txn_date=date(2025, 1, 7),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 

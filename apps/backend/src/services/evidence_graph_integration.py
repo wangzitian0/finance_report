@@ -211,12 +211,16 @@ class EvidenceGraphIntegrationService:
         if not doc_ids:
             return []
         rows = (
-            await db.execute(
-                select(UploadedDocument)
-                .where(UploadedDocument.user_id == user_id)
-                .where(UploadedDocument.id.in_(doc_ids))
+            (
+                await db.execute(
+                    select(UploadedDocument)
+                    .where(UploadedDocument.user_id == user_id)
+                    .where(UploadedDocument.id.in_(doc_ids))
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         by_id = {document.id: document for document in rows}
         return [by_id[doc_id] for doc_id in doc_ids if doc_id in by_id]
 

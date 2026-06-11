@@ -678,7 +678,9 @@ async def get_personal_report_package_readiness(
     )
 
     source_updated_at_candidates = [
-        await _max_updated_at(db, select(func.max(StatementSummary.updated_at)).where(StatementSummary.user_id == user_id)),
+        await _max_updated_at(
+            db, select(func.max(StatementSummary.updated_at)).where(StatementSummary.user_id == user_id)
+        ),
         await _max_updated_at(db, select(func.max(JournalEntry.updated_at)).where(JournalEntry.user_id == user_id)),
         await _max_updated_at(db, select(func.max(AtomicPosition.updated_at)).where(AtomicPosition.user_id == user_id)),
         await _max_updated_at(

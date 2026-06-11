@@ -164,7 +164,12 @@ async def get_account_statement_coverage(
             .where(StatementSummary.user_id == user_id)
             .where(StatementSummary.status == BankStatementStatus.APPROVED)
             .where(StatementSummary.account_id.in_(account_ids))
-            .order_by(StatementSummary.account_id, StatementSummary.currency, StatementSummary.period_start, StatementSummary.id)
+            .order_by(
+                StatementSummary.account_id,
+                StatementSummary.currency,
+                StatementSummary.period_start,
+                StatementSummary.id,
+            )
         )
         statements = list(statement_result.scalars().all())
     else:
