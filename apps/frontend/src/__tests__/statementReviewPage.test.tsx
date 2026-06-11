@@ -347,8 +347,11 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(approveButton).toBeDisabled();
         expect(approveButton).toHaveAttribute(
             "title",
-            "Resolve duplicate and transfer-pair candidates before approval",
+            "Approve is paused — we found possible duplicate or transfer-pair transactions. Review them before approving.",
         );
+        // AC22.5.2: the block is explained in plain language with an in-place escape.
+        expect(screen.getByText(/Approve is paused/i)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Resolve conflicts/i })).toBeInTheDocument();
     });
 
     it("AC16.32.2 shows opening and closing balance validation states separately", async () => {

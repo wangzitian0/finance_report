@@ -5,6 +5,8 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useToast } from "@/components/ui/Toast";
+import { BackLink } from "@/components/ui/BackLink";
+import { InfoHint } from "@/components/ui/InfoHint";
 
 import { apiFetch } from "@/lib/api";
 
@@ -401,12 +403,15 @@ export function Stage2ReviewQueue() {
 
     return (
         <div className="p-6">
+            <div className="mb-4">
+                <BackLink>Back to Notifications</BackLink>
+            </div>
             <div className="mb-6">
-                <h1 className="page-title">{isRunReview ? "Stage 2 Run Review" : "Reconciliation Review Queue"}</h1>
+                <h1 className="page-title">Review queue</h1>
                 <p className="page-description">
                     {isRunReview
-                        ? "Review the current Stage 2 queue from this run context"
-                        : "Review consistency checks and approve reconciliation matches"}
+                        ? "Matches and checks from this reconciliation run that need a human check before they post."
+                        : "Matches and checks that need a human check before they post to your books."}
                 </p>
             </div>
 
@@ -418,19 +423,28 @@ export function Stage2ReviewQueue() {
                             <p className="mt-1 text-sm font-semibold break-all">{runId}</p>
                         </div>
                         <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">Unresolved transfers</p>
+                            <p className="text-xs uppercase text-muted font-medium">
+                                Unresolved transfers
+                                <InfoHint term="transfer_pair" label="Transfer pair" />
+                            </p>
                             <p className="mt-1 text-lg font-semibold text-[var(--warning)]">
                                 {unresolvedTransferCount} unresolved transfer{unresolvedTransferCount === 1 ? "" : "s"}
                             </p>
                         </div>
                         <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">Duplicates</p>
+                            <p className="text-xs uppercase text-muted font-medium">
+                                Duplicates
+                                <InfoHint term="duplicate" label="Duplicate" />
+                            </p>
                             <p className="mt-1 text-lg font-semibold">
                                 {unresolvedDuplicateCount} duplicate{unresolvedDuplicateCount === 1 ? "" : "s"}
                             </p>
                         </div>
                         <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">Anomalies</p>
+                            <p className="text-xs uppercase text-muted font-medium">
+                                Anomalies
+                                <InfoHint term="anomaly" label="Anomaly" />
+                            </p>
                             <p className="mt-1 text-lg font-semibold">
                                 {unresolvedAnomalyCount} anomal{unresolvedAnomalyCount === 1 ? "y" : "ies"}
                             </p>
@@ -452,7 +466,6 @@ export function Stage2ReviewQueue() {
                             <p className="text-sm font-medium">Run approval gate</p>
                             <p className="text-sm text-muted">
                                 Resolve transfer, duplicate, and anomaly checks and clear Processing Account pending transfers before approving current pending matches.
-                                This page uses run-scoped Stage 2 APIs for the displayed run.
                             </p>
                         </div>
                         <button
@@ -516,7 +529,10 @@ export function Stage2ReviewQueue() {
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted uppercase">Min Match Score: {minScore}</label>
+                    <label className="text-xs font-medium text-muted uppercase">
+                        Min Match Score: {minScore}
+                        <InfoHint term="match_score" label="Match score" />
+                    </label>
                     <input
                         type="range"
                         min="0"
@@ -548,7 +564,10 @@ export function Stage2ReviewQueue() {
             <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
                 <div className="card">
                     <div className="card-header flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Consistency Checks</h3>
+                        <h3 className="text-sm font-medium">
+                            Consistency Checks
+                            <InfoHint term="consistency_check" label="Consistency check" />
+                        </h3>
                         <span className="text-xs text-muted">{allChecks.length} total</span>
                     </div>
 

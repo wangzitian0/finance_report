@@ -117,7 +117,7 @@ describe("Review queue actions", () => {
         renderReviewComponent(<ReviewQueuePage /> as any);
 
         // wait for page
-        expect(await screen.findByText('Reconciliation Review Queue')).toBeInTheDocument();
+        expect(await screen.findByText('Review queue')).toBeInTheDocument();
 
         // warning shown
         expect(screen.getByText(/Unresolved consistency checks block batch approval/i)).toBeInTheDocument();

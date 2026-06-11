@@ -708,7 +708,7 @@ export function WorkflowEventsPageContent() {
       <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="page-title">Notifications</h1>
-          <p className="page-description">Workflow attention for upload, review, reconciliation, and reports</p>
+          <p className="page-description">Your action center — everything that needs your review across uploads, reconciliation, and reports.</p>
         </div>
         <Link href="/upload" className="btn-primary inline-flex justify-center text-sm">
           Upload statements

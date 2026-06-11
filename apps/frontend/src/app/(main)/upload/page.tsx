@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 
 import StatementUploader from "@/components/statements/StatementUploader";
+import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
+import { InfoHint } from "@/components/ui/InfoHint";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
@@ -80,9 +82,13 @@ export default function UploadPage() {
         <div className="p-6">
             <PageHeader
                 title="Upload"
-                description="Upload bank statements for AI parsing, and review your upload history."
+                description="Upload a bank statement — we parse it, then you review and approve it to update your reports."
                 className="sm:block"
             />
+
+            <div className="mb-6">
+                <FlowStepBanner current="upload" />
+            </div>
 
             {/* Upload Section */}
             <div className="mb-6">
@@ -219,7 +225,10 @@ export default function UploadPage() {
                                     ) : statement.balance_validated ? (
                                         <Badge variant="success">✓ Verified</Badge>
                                     ) : (
-                                        <Badge variant="warning">Needs Review</Badge>
+                                        <span className="inline-flex items-center">
+                                            <Badge variant="warning">Needs Review</Badge>
+                                            <InfoHint term="needs_review" label="Needs review" />
+                                        </span>
                                     )}
                                 </div>
                             </Link>

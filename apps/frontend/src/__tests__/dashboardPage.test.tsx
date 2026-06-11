@@ -315,6 +315,27 @@ describe("HomePage", () => {
     await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
   })
 
+  it("AC22.5.6 de-duplicates the reconciliation links in the risk radar", async () => {
+    mockDashboardApi()
+
+    render(<HomePage />)
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole("button", { name: /Show analytics/i }))
+    await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
+
+    // Exactly one entry routes to the reconciliation workbench (the redundant
+    // "Review queue →" duplicate link is gone); the other two route to the
+    // distinct review-queue and unmatched surfaces.
+    const reconLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href") === "/reconciliation")
+    expect(reconLinks).toHaveLength(1)
+    expect(screen.queryByRole("link", { name: /Review queue →/i })).toBeNull()
+  })
+
   it("AC19.3.6 renders the workflow status feed on the dashboard landing surface", async () => {
     mockDashboardApi()
 

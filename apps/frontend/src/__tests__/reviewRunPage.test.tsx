@@ -66,9 +66,10 @@ describe("RunReviewPage", () => {
 
         renderReviewComponent(<RunReviewPage /> as any);
 
-        expect(await screen.findByText("Stage 2 Run Review")).toBeInTheDocument();
-        expect(screen.getByText("Review the current Stage 2 queue from this run context")).toBeInTheDocument();
-        expect(screen.getByText(/this page uses run-scoped Stage 2 APIs/i)).toBeInTheDocument();
+        expect(await screen.findByText("Review queue")).toBeInTheDocument();
+        expect(
+            screen.getByText("Matches and checks from this reconciliation run that need a human check before they post."),
+        ).toBeInTheDocument();
         expect(screen.getByText("run-123")).toBeInTheDocument();
         expect(screen.getByText("1 unresolved transfer")).toBeInTheDocument();
         expect(screen.getByText("1 duplicate")).toBeInTheDocument();

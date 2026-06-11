@@ -51,7 +51,7 @@ export default function ReportsPage() {
                     icon={CalendarClock}
                     href="/reports/package"
                     value={annualized ? formatCurrencyLocale(annualized.annualized_total, annualized.currency) : "—"}
-                    caption="Projected annual total"
+                    caption="Projected annual total — opens the full report package"
                 />
                 <StatCard
                     title="Statistics Accuracy"

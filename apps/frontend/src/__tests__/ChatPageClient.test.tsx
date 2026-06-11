@@ -71,7 +71,8 @@ describe("ChatPageClient", () => {
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)
 
-    expect(screen.getByText("AI")).toBeInTheDocument()
+    // AC22.5.6: the chat heading reads "AI Advisor" (not the ambiguous "AI").
+    expect(screen.getByText("AI Advisor")).toBeInTheDocument()
     expect(screen.getByText(/Ask about spending trends/)).toBeInTheDocument()
   })
 

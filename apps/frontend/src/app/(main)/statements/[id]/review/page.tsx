@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import type { MoneyValue } from "@/lib/types";
 
+import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { BalanceIndicator } from "@/components/review/BalanceIndicator";
 import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
 import { ReviewActionBar } from "@/components/review/ReviewActionBar";
@@ -118,6 +119,17 @@ export default function StatementReviewPage() {
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error")
     });
 
+    // EPIC-022 AC22.5.2: re-parse in place when a balance mismatch blocks approval,
+    // instead of forcing a reject -> back-to-detail -> retry detour.
+    const reparseMutation = useMutation({
+        mutationFn: () => apiFetch(`/api/statements/${statementId}/retry`, { method: "POST" }),
+        onSuccess: () => {
+            showToast("Re-parsing started", "success");
+            router.push(`/statements/${statementId}`);
+        },
+        onError: (err) => showToast(err instanceof Error ? err.message : "Failed to re-parse", "error")
+    });
+
     useEffect(() => {
         if (duplicateCandidates.length || transferPairCandidates.length) {
             setConflictDialogOpen(true);
@@ -219,6 +231,10 @@ export default function StatementReviewPage() {
                 </div>
             </div>
 
+            <div className="mb-4">
+                <FlowStepBanner current="review" />
+            </div>
+
             <div className="page-header mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
                     <h1 className="page-title">{data.original_filename}</h1>
@@ -232,6 +248,9 @@ export default function StatementReviewPage() {
                     actionLoading={approveMutation.isPending || rejectMutation.isPending}
                     balanceValid={balanceValid}
                     approvalBlockedReason={approvalBlockedReason}
+                    onResolveConflicts={() => setConflictDialogOpen(true)}
+                    onReparse={() => reparseMutation.mutate()}
+                    reparsePending={reparseMutation.isPending}
                 />
             </div>
 

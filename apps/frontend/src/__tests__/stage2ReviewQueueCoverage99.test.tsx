@@ -253,7 +253,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
-    expect(await screen.findByText("Stage 2 Run Review")).toBeInTheDocument()
+    expect(await screen.findByText("Review queue")).toBeInTheDocument()
     expect(screen.getByText("run 1")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "HIGH" }))
@@ -306,7 +306,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Resolve Consistency Check" })).not.toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
-    const overlay = document.querySelector("[aria-hidden='true']") as HTMLElement
+    const overlay = document.querySelector(".fixed.inset-0[aria-hidden='true']") as HTMLElement
     fireEvent.click(overlay)
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Resolve Consistency Check" })).not.toBeInTheDocument())
 
@@ -353,7 +353,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
-    expect(await screen.findByText("Stage 2 Run Review")).toBeInTheDocument()
+    expect(await screen.findByText("Review queue")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Select all" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve Selected" }))
@@ -399,7 +399,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
-    expect(await screen.findByText("Stage 2 Run Review")).toBeInTheDocument()
+    expect(await screen.findByText("Review queue")).toBeInTheDocument()
     expect(await screen.findByText("manual_review")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "HIGH" }))

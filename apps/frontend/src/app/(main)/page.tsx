@@ -6,6 +6,7 @@ import { Landmark, FileText, BookOpen } from "lucide-react";
 import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
 import { UploadToReportHomePanel } from "@/components/workflow/WorkflowNotifications";
 import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
+import { InfoHint } from "@/components/ui/InfoHint";
 
 import { apiFetch } from "@/lib/api";
 import { formatDateInput, formatDateDisplay, formatMonthLabel } from "@/lib/date";
@@ -355,7 +356,7 @@ export default function HomePage() {
               <p className={`text-4xl font-bold ${netAssets.isNegative() ? "text-[var(--error)]" : "text-[var(--success)]"}`}>
                 {formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-xs text-muted mt-1">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : ""} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}</p>
+              <p className="text-xs text-muted mt-1 inline-flex items-center">As of {balanceSheet?.as_of_date ? formatDateDisplay(balanceSheet.as_of_date) : ""} · {balanceSheet.is_balanced ? "✓ Books balanced" : "⚠ Equation drift"}<InfoHint term={balanceSheet.is_balanced ? "balanced" : "drift"} label={balanceSheet.is_balanced ? "Books balanced" : "Equation drift"} /></p>
               <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">
                 <input
                   type="checkbox"
@@ -539,9 +540,6 @@ export default function HomePage() {
             </Link>
             <Link href="/reconciliation/unmatched" className="flex justify-between p-3 rounded-md bg-[var(--error-muted)] text-sm hover:ring-1 hover:ring-[var(--error)] transition-all">
               <span>Unmatched</span><span className="font-semibold">{stats?.unmatched_transactions ?? 0}</span>
-            </Link>
-            <Link href="/reconciliation" className="text-sm text-[var(--accent)] hover:underline inline-flex items-center gap-1">
-              Review queue →
             </Link>
           </div>
         </div>
