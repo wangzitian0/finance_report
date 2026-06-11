@@ -627,6 +627,22 @@ CI pipelines enforce the following rules via `tests/test_schema_guardrails.py`:
     -   **SSOT**: This is the single authoritative definition for `sa.Enum` naming. Other files should reference: `See: docs/ssot/schema.md#enum-naming`
 2.  **Revision ID Length**: Alembic revision file names must not have insanely long prefixes.
 
+### Migration Contract
+
+The authoritative schema build proof is Alembic against Postgres, not
+`Base.metadata.create_all()` inside backend unit fixtures. PR CI runs
+`schema-migrations` with:
+
+```bash
+cd apps/backend
+uv run alembic upgrade head
+uv run alembic check
+```
+
+Preview and staging validate deployed runtime health after merge or during PR
+preview deployment. They must not be the first environment that discovers a
+broken migration chain or model/migration drift.
+
 ### Async Session Management
 
 To prevent connection leaks and data race conditions:

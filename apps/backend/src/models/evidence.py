@@ -20,6 +20,11 @@ class EvidenceNode(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         Index("idx_evidence_nodes_user_kind", "user_id", "node_kind"),
     )
 
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     node_kind: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
@@ -49,6 +54,11 @@ class EvidenceEdge(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         Index("idx_evidence_edges_user_relation_to", "user_id", "relation", "to_node_id"),
     )
 
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     from_node_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("evidence_nodes.id", ondelete="CASCADE"),

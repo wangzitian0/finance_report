@@ -391,6 +391,11 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.118 | Critical-path timeouts and retries are documented in `docs/ssot/ci-cd.md` | `test_AC8_13_118_timeouts_and_retries_documented` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.119 | One delivery hardening PR contracts the five known leak paths: PR preview leftovers, GHCR PR tag accumulation, stale staging or production routes, provider-backed external-state residue, and Docker build cache and stopped containers, while preserving the sparse Env x Stage speed boundary | `test_AC8_13_119_delivery_resource_leak_hardening_is_contracted` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.120 | Every required staging deploy runs one real AI provider connectivity smoke after deployed health and non-LLM E2E, while full OCR/LLM replay remains gated to provider-risk changes | `test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke`; `test_staging_ai_provider_chat_connectivity` | `tests/tooling/test_post_merge_e2e_gates.py`; `tests/e2e/test_ai_provider_connectivity.py` | P0 |
+| AC8.13.121 | PR CI runs a schema migration contract against ephemeral Postgres with `alembic upgrade head`, `alembic check`, uploaded context, and `finish` aggregation | `test_AC8_13_121_pr_ci_runs_schema_migration_contract` | `tests/tooling/test_schema_quality_contract.py` | P0 |
+| AC8.13.122 | Backend schema drift guard no longer treats an out-of-date Alembic target or missing CLI as success; PR CI `schema-migrations` owns hard proof | `test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets` | `tests/tooling/test_schema_quality_contract.py` | P0 |
+| AC8.13.123 | Schema guardrails scan the real `apps/backend/migrations/versions` directory instead of a test-local path | `test_AC8_13_123_schema_guardrails_scan_real_migration_directory` | `tests/tooling/test_schema_quality_contract.py` | P0 |
+| AC8.13.124 | AC traceability gate and uploaded audit builder consume the same SSOT test-surface definition, including frontend Playwright tests | `test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface` | `tests/tooling/test_schema_quality_contract.py` | P1 |
+| AC8.13.125 | PR preview deployment waits stay bounded: Dokploy busy-queue extensions cannot exceed the rollout deadline, and the GitHub deploy lifecycle step has a hard timeout | `test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline`; `test_AC8_13_125_pr_preview_deploy_lifecycle_has_hard_step_timeout` | `tests/tooling/test_pr_preview_lifecycle.py` | P1 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -409,6 +414,9 @@ job inventories or scenario counts into this EPIC.
 - Mandatory AC gate behavior is owned by `python tools/check_ac_traceability.py`.
 - Test path execution status for AC proof is owned by
   [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml).
+- Default AC traceability test-surface directories are owned by
+  `common/ssot/test_surface.py` and consumed by both the fail-closed gate and
+  generated audit builder.
 - Critical product proof-path anchoring is owned by
   `docs/ssot/critical-proof-matrix.yaml` and
   `python tools/check_critical_proof_matrix.py`.

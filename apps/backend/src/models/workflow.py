@@ -90,6 +90,11 @@ class WorkflowSession(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         Index("idx_workflow_sessions_user_status_last_event", "user_id", "status", "last_event_at"),
     )
 
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     status: Mapped[WorkflowSessionStatus] = mapped_column(
         SQLEnum(
             WorkflowSessionStatus,

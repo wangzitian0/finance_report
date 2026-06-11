@@ -1,31 +1,20 @@
-import os
-import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_missing_migrations_check():
     """
-    Guardrail: Runs 'alembic check' to detect Model-DB drift.
+    Guardrail: PR CI owns Alembic migration drift proof against real Postgres.
 
-    This ensures that every change to a SQLAlchemy model has a corresponding
-    Alembic migration file.
+    Backend unit tests use isolated schemas for speed. The hard schema contract
+    is the CI schema-migrations job, which runs 'alembic upgrade head' and then
+    'alembic check' against an ephemeral Postgres service.
     """
-    # Only run in CI or if explicitly requested
-    if not os.environ.get("CI"):
-        return
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    schema_block = workflow.split("  schema-migrations:", 1)[1].split("  backend:", 1)[0]
 
-    try:
-        # Run alembic check in the backend directory
-        result = subprocess.run(["alembic", "check"], capture_output=True, text=True)
-
-        if result.returncode != 0:
-            if "Target database is not up to date" in result.stderr:
-                return
-
-            assert result.returncode == 0, (
-                f"Schema Drift Detected! Models do not match Migrations.\n"
-                f"Did you modify a model but forget to run 'alembic revision --autogenerate'?\n"
-                f"Output:\n{result.stdout}\n{result.stderr}"
-            )
-
-    except FileNotFoundError:
-        return
+    assert "schema-migrations" in workflow
+    assert "postgres:" in schema_block
+    assert "uv run alembic upgrade head" in schema_block
+    assert "uv run alembic check" in schema_block

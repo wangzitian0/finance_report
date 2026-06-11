@@ -41,13 +41,20 @@ jobs:
           python-version: "3.12"
 
       - name: Configure SSH for host hygiene
-        if: ${{ secrets.INFRA2_WATCHDOG_SSH_PRIVATE_KEY != '' }}
         env:
           SSH_PRIVATE_KEY: ${{ secrets.INFRA2_WATCHDOG_SSH_PRIVATE_KEY }}
           SSH_HOST: ${{ secrets.INFRA2_WATCHDOG_SSH_HOST }}
           SSH_USER: ${{ secrets.INFRA2_WATCHDOG_SSH_USER }}
         run: |
           set -euo pipefail
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "INFRA2_WATCHDOG_SSH_PRIVATE_KEY is not configured; skipping host hygiene."
+            exit 0
+          fi
+          if [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ]; then
+            echo "::error::Host hygiene SSH key is configured but host/user secrets are missing."
+            exit 1
+          fi
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/host_hygiene
           chmod 600 ~/.ssh/host_hygiene

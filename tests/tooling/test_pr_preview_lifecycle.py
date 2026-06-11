@@ -2615,6 +2615,7 @@ def test_wait_for_dokploy_deployment_rollout_extends_deadline(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """AC8.13.125: Busy Dokploy queues may extend only inside rollout budget."""
     lifecycle = lifecycle_module()
 
     # Mock time and sleep
@@ -2683,3 +2684,54 @@ def test_wait_for_dokploy_deployment_rollout_extends_deadline(
     out = capsys.readouterr().out
     assert "Dokploy is currently busy with other deployments" in out
     assert "Extending the new deployment timeout deadline" in out
+
+
+def test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC8.13.125: PR preview rollout waits stay bounded when Dokploy is busy."""
+    lifecycle = lifecycle_module()
+
+    current_time = [1000.0]
+
+    def fake_time() -> float:
+        return current_time[0]
+
+    def fake_sleep(seconds: float) -> None:
+        current_time[0] += seconds
+
+    def fake_get_compose_data(*args, **kwargs):
+        return {
+            "composeId": "cmp-1",
+            "composeStatus": "running",
+            "environment": {"projectId": "proj-123"},
+            "deployments": [{"deploymentId": "old-dep", "status": "running"}],
+        }
+
+    monkeypatch.setattr(lifecycle.time, "time", fake_time)
+    monkeypatch.setattr(lifecycle.time, "monotonic", fake_time)
+    monkeypatch.setattr(lifecycle.time, "sleep", fake_sleep)
+    monkeypatch.setattr(lifecycle, "get_compose_data", fake_get_compose_data)
+    monkeypatch.setattr(lifecycle, "get_running_deployments_count", lambda *a, **k: 1)
+
+    with pytest.raises(lifecycle.DokployDeploymentDidNotStart):
+        lifecycle.wait_for_dokploy_deployment_rollout(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret-key"),
+            compose_id="cmp-1",
+            previous_deployment_ids={"old-dep"},
+            timeout_seconds=10,
+            new_deployment_timeout_seconds=5,
+        )
+
+    assert current_time[0] == 1010.0
+
+
+def test_AC8_13_125_pr_preview_deploy_lifecycle_has_hard_step_timeout() -> None:
+    """AC8.13.125: GitHub caps PR preview deploy lifecycle runtime."""
+    workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
+    deploy_step = workflow.split("      - name: Deploy preview lifecycle", 1)[1].split(
+        "      - name: Print preview routing context", 1
+    )[0]
+
+    assert "timeout-minutes: 18" in deploy_step
+    assert 'PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "300"' in deploy_step

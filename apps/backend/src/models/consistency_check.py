@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SQLEnum, String, Text
+from sqlalchemy import DateTime, Enum as SQLEnum, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,7 @@ class CheckStatus(str, Enum):
 
 class ConsistencyCheck(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     __tablename__ = "consistency_checks"
+    __table_args__ = (Index("idx_consistency_checks_run_id", "run_id"),)
 
     check_type: Mapped[CheckType] = mapped_column(
         SQLEnum(
@@ -42,7 +43,7 @@ class ConsistencyCheck(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=False,
         default=CheckStatus.PENDING,
     )
-    run_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     related_txn_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
 

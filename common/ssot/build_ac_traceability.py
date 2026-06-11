@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from common.ssot.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.ssot.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
 
 try:
     from common.ssot.ac_registry_format import load_registry_entries
@@ -46,19 +47,14 @@ except ImportError:  # pragma: no cover - import guard
 
 
 # ---------------------------------------------------------------------------
-# Configuration (mirrors tools/check_ac_traceability.py)
+# Configuration
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_FEATURE_REGISTRY = REPO_ROOT / "docs" / "ac_registry.yaml"
 DEFAULT_INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
-DEFAULT_TEST_DIRS = (
-    REPO_ROOT / "apps" / "backend" / "tests",
-    REPO_ROOT / "apps" / "frontend" / "src",
-    REPO_ROOT / "tests" / "tooling",
-    REPO_ROOT / "tests" / "e2e",
-)
+DEFAULT_TEST_DIRS = default_ac_test_dirs(REPO_ROOT)
 DEFAULT_OUTPUT = REPO_ROOT / "tmp" / "AC-TEST-TRACEABILITY-AUDIT.md"
 
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
@@ -528,7 +524,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Directory to scan for test files (repeatable). "
-            "Defaults to apps/backend/tests + apps/frontend/src + tests/tooling + tests/e2e."
+            "Defaults to " + " + ".join(DEFAULT_AC_TEST_DIRS) + "."
         ),
     )
     p.add_argument(
