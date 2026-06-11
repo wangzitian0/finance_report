@@ -277,6 +277,7 @@ jobs:
 
       - name: Deploy preview lifecycle
         id: deploy
+        continue-on-error: true
         timeout-minutes: 18
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
@@ -307,6 +308,8 @@ jobs:
           echo "expected_sha=${{ github.sha }}"
 
       - name: Wait for API readiness
+        id: api_ready
+        continue-on-error: true
         timeout-minutes: 12
         env:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
@@ -615,6 +618,8 @@ jobs:
           EOF
 
       - name: Wait for frontend readiness
+        id: frontend_ready
+        continue-on-error: true
         timeout-minutes: 12
         env:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
@@ -723,6 +728,7 @@ jobs:
 
       - name: End-to-End Tests
         id: e2e_tests
+        continue-on-error: true
         env:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
           TEST_ENV: staging
@@ -750,7 +756,7 @@ jobs:
           echo "✅ E2E Pipeline passed!"
 
       - name: Capture platform failure snapshot
-        if: ${{ failure() && steps.deploy.outputs.compose_id != '' }}
+        if: ${{ always() && steps.deploy.outputs.compose_id != '' && (steps.deploy.outcome == 'failure' || steps.api_ready.outcome == 'failure' || steps.frontend_ready.outcome == 'failure' || steps.e2e_tests.outcome == 'failure') }}
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
@@ -770,7 +776,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rollback on E2E Failure
-        if: failure() && steps.e2e_tests.outcome == 'failure'
+        if: ${{ steps.e2e_tests.outcome == 'failure' }}
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
@@ -859,6 +865,7 @@ jobs:
           retention-days: 14
 
       - name: Comment on PR
+        if: ${{ always() }}
         uses: actions/github-script@v7
         env:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -866,11 +873,33 @@ jobs:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
           COMMIT_URL: ${{ needs.setup.outputs.preview_commit_app_url }}
           COMPOSE_NAME: ${{ needs.setup.outputs.compose_name }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          API_OUTCOME: ${{ steps.api_ready.outcome }}
+          FRONTEND_OUTCOME: ${{ steps.frontend_ready.outcome }}
+          E2E_OUTCOME: ${{ steps.e2e_tests.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
-            const url = process.env.APP_URL;
+            // Advisory status comment. The preview deploy does NOT block merge
+            // (only the `finish` check is required); both pass and fail land here
+            // so the result can be read from the PR after merge-gate is green.
+            const marker = '<!-- pr-preview-status -->';
+            const url = process.env.APP_URL || '';
             const legacyUrl = process.env.COMMIT_URL || url;
-            const body = `## 🧪 Test Environment Deployed
+            const runUrl = process.env.RUN_URL;
+            const stepOutcomes = {
+              Deploy: process.env.DEPLOY_OUTCOME,
+              'API readiness': process.env.API_OUTCOME,
+              'Frontend readiness': process.env.FRONTEND_OUTCOME,
+              E2E: process.env.E2E_OUTCOME,
+            };
+            const passed = Object.values(stepOutcomes).every(o => o === 'success');
+            const rows = Object.entries(stepOutcomes)
+              .map(([n, o]) => `| ${n} | ${o === 'success' ? '✅ pass' : o === 'failure' ? '❌ fail' : '`' + (o || 'skipped') + '`'} |`)
+              .join('\n');
+
+            const successBody = `${marker}
+            ## 🧪 Test Environment Deployed
 
             | Service | URL |
             |---------|-----|
@@ -879,27 +908,37 @@ jobs:
             | API Health | [${url}/api/health](${url}/api/health) |
 
             The stable URL always points to the latest successful PR deployment.
-            Commit-specific URLs are kept as compatibility aliases for active PR updates.
 
             **Details:**
             - Compose: \`${process.env.COMPOSE_NAME}\`
             - Branch: \`${process.env.BRANCH_NAME}\`
             - Commit: \`${{ github.sha }}\`
 
-            > ⏳ First deployment may take 3-5 minutes for build + SSL certificate.
+            > This preview is advisory and does not block merge. _Cleaned up when the PR is closed._`;
 
-            _This environment will be automatically cleaned up when the PR is closed._`;
+            const failureBody = `${marker}
+            ## ⚠️ Test Environment Failed
+
+            The preview deploy or its checks did not pass. **This is advisory and does not block merge** — inspect the logs and re-push if needed.
+
+            | Step | Result |
+            |------|--------|
+            ${rows}
+
+            - Logs: [workflow run](${runUrl})
+            - Commit: \`${{ github.sha }}\`
+            - Stable URL (may be torn down): ${url || 'n/a'}`;
+
+            const body = passed ? successBody : failureBody;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: Number(process.env.PR_NUMBER),
             });
-
             const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes('🧪 Test Environment Deployed')
+              c.user.type === 'Bot' && c.body.includes(marker)
             );
-
             if (botComment) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
