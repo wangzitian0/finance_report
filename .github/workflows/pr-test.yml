@@ -207,11 +207,11 @@ jobs:
       - name: End-to-End Tests
         env:
           TEST_ENV: staging
-          SKIP_UI_TESTS: "false"
+          SKIP_UI_TESTS: false
           EXPECTED_SHA: ${{ github.sha }}
-          TIMEOUT_MS: "60000"
-          E2E_API_TIMEOUT: "30"
-          STRICT_E2E_GATES: "true"
+          TIMEOUT_MS: 60000
+          E2E_API_TIMEOUT: 30
+          STRICT_E2E_GATES: true
         run: |
           set -euo pipefail
           mkdir -p test-results

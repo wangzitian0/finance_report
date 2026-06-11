@@ -728,7 +728,9 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     assert "if: ${{ always() }}" in ci.split("Upload backend shard test context", 1)[0]
 
     assert "pr-preview-test-context" in pr_preview
-    assert "test-results/pr-preview-e2e.xml" in pr_preview
+    # Full runtime/API/UI E2E now runs image-free in the in-runner `e2e` job
+    # (issue #839); the deployed preview only smoke-tests. Its junit lives here.
+    assert "test-results/in-runner-e2e.xml" in pr_preview
     assert "ci-context/pr-preview-context.txt" in pr_preview
     assert "deploy_context_path=ci-context/pr-preview-deploy-context.json" in pr_preview
     assert "read_deploy_context_field compose_id" in pr_preview
@@ -1616,8 +1618,10 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
     assert deploy_block.index("Wait for API readiness") < deploy_block.index(
         "Wait for frontend readiness"
     )
+    # The deployed preview now smoke-tests (the full E2E runs in the in-runner
+    # `e2e` job); the readiness waits still precede that smoke step.
     assert deploy_block.index("Wait for frontend readiness") < deploy_block.index(
-        "End-to-End Tests"
+        "Smoke Test"
     )
     frontend_readiness_block = deploy_block.split(
         "- name: Wait for frontend readiness", 1
