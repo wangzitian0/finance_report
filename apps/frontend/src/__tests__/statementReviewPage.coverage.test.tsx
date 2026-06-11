@@ -111,12 +111,12 @@ describe("StatementReviewPage - coverage additions", () => {
         renderReviewComponent(<StatementReviewPage /> as any);
 
         // Conflict dialog content should be visible due to useEffect opening it
-        expect(await screen.findByText(/Resolve Conflicts/i)).toBeInTheDocument();
+        expect(await screen.findByRole("dialog", { name: "Resolve Conflicts" })).toBeInTheDocument();
         expect(screen.getByText("dup")).toBeInTheDocument();
         expect(screen.getByText("pair")).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "Close" }));
-        expect(screen.queryByText(/Resolve Conflicts/i)).not.toBeInTheDocument();
+        expect(screen.queryByRole("dialog", { name: "Resolve Conflicts" })).not.toBeInTheDocument();
     });
 
     it("handles approve/reject confirm dialogs and API calls", async () => {

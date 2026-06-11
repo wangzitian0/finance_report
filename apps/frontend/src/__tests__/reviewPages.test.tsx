@@ -26,7 +26,7 @@ describe("Review pages data flows", () => {
         // filtered checks call
         mockedApi.mockResolvedValueOnce({ items: [] });
         renderReviewComponent(<ReviewQueuePage /> as any);
-        expect(await screen.findByText("Reconciliation Review Queue")).toBeInTheDocument();
+        expect(await screen.findByText("Review queue")).toBeInTheDocument();
         expect(await screen.findByText("No pending matches")).toBeInTheDocument();
     });
 

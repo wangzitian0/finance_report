@@ -513,7 +513,7 @@ describe("workflow notification surfaces", () => {
     renderWithQuery(<WorkflowEventsPageContent />)
 
     expect(await screen.findByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
-    expect(screen.getByText("Workflow attention for upload, review, reconciliation, and reports")).toBeInTheDocument()
+    expect(screen.getByText("Your action center — everything that needs your review across uploads, reconciliation, and reports.")).toBeInTheDocument()
     expect(screen.getByText("4 total")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Workflow events" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()

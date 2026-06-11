@@ -68,6 +68,7 @@ EPIC-022 finishes EPIC-019's intent at the navigation and report layers.
 | PR1 — IA skeleton | #834 | 3-peer nav, smart Home, route/name/icon alignment, Upload consolidation |
 | PR2 — unified inbox | #835 | merge Stage 1/2 Review Queue into the notification center |
 | PR3 — report cockpit | #836 (root) | 4-block Reports hub + `/api/evidence/lineage` drill-down |
+| PR5 — flow guidance & plain language | — | core-flow step banner, in-place unblock on review, deep-page back-links, jargon hints, single primary next-action |
 
 Acceptance criteria for PR2/PR3 slices are added to this document when those
 slices land, so every registered AC has a behavioral test in the same change.
@@ -130,3 +131,21 @@ slices land, so every registered AC has a behavioral test in the same change.
 | AC22.4.4 | The Home (`/`) defaults to a lean view (action-required summary, financial key numbers, quick upload) with heavy analytics/charts behind an opt-in toggle | `dashboardPage.test.tsx` | P1 |
 | AC22.4.5 | E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface | `epic022-attention-journey.spec.ts` | P1 |
 | AC22.4.6 | E2E: an amount on the Balance Sheet drills down to its contributing journal lines and on to the source document | `epic022-drilldown-journey.spec.ts` | P1 |
+
+### AC22.5 — Hardening: Everyday-User Flow Guidance And Plain Language
+
+> PR5 slice. An everyday-user walkthrough of the core flow (upload → parse →
+> review → approve → reports) found three execution gaps that survive the new IA:
+> no sense of "where am I / what's next", dead-ends at blocked states with no
+> in-place escape, and accountant/system jargon shown without explanation. This
+> slice closes them with copy, a step indicator, in-place unblock actions, and
+> plain-language hints — no backend, routing, or page-structure changes.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.5.1 | The upload, statement-detail, and statement-review pages render a shared step indicator showing the Upload → Review & approve → Reports path with the current step highlighted | `flowStepBanner.test.tsx` | P1 |
+| AC22.5.2 | When the statement-review Approve action is blocked (balance validation failed or unresolved duplicate/transfer-pair conflicts), the page shows a visible plain-language reason and an in-place action (open the conflict-resolution dialog, or re-parse the statement) without leaving the page | `reviewActionBar.test.tsx` | P1 |
+| AC22.5.3 | Deep review and reconciliation surfaces (`/review/ai-suggestions`, `/reconciliation/review-queue`, `/reconciliation`, `/reconciliation/unmatched`) render a back-link to the notification center (`/notifications`) so a user who deep-links in is never stranded | `reviewBackLinks.test.tsx` | P1 |
+| AC22.5.4 | User-facing review-surface headings use plain language and do not expose internal "Stage 2" or raw score-band wording in their titles | `reviewBackLinks.test.tsx` | P1 |
+| AC22.5.5 | Core jargon terms (balance "drift"/"balanced", "needs review", transfer pair, anomaly, duplicate, consistency check, match score) expose a plain-language explanation through an accessible `InfoHint` affordance | `infoHint.test.tsx` | P1 |
+| AC22.5.6 | The Home surfaces a single primary next-action with overlapping reconciliation links de-duplicated, and the Chat page heading reads "AI Advisor" | `dashboardPage.test.tsx`, `ChatPageClient.test.tsx` | P1 |

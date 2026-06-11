@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { BackLink } from "@/components/ui/BackLink";
+import { InfoHint } from "@/components/ui/InfoHint";
 import { apiFetch } from "@/lib/api";
 import { formatAmount } from "@/lib/currency";
 import {
@@ -131,6 +133,9 @@ export default function ReconciliationWorkbench() {
 
   return (
     <div className="p-6">
+      <div className="mb-4">
+        <BackLink>Back to Notifications</BackLink>
+      </div>
       <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div>
           <h1 className="page-title">Reconciliation Workbench</h1>
@@ -215,7 +220,7 @@ export default function ReconciliationWorkbench() {
           {!selected ? <p className="text-sm text-muted">Select a match to review</p> : (
             <div className="space-y-4">
               <div className="p-3 rounded-md bg-[var(--background-muted)]">
-                <div className="flex justify-between"><span className="text-sm font-medium">Transaction</span><span className="text-xs text-[var(--accent)]">Score {selected.match_score}</span></div>
+                <div className="flex justify-between"><span className="text-sm font-medium">Transaction</span><span className="text-xs text-[var(--accent)] inline-flex items-center">Score {selected.match_score}<InfoHint term="match_score" label="Match score" /></span></div>
                 <div className="text-xl font-semibold mt-1 text-[var(--accent)]">{selected.transaction?.amount != null ? formatAmount(selected.transaction.amount, 2) : "—"}</div>
                 <p className="text-sm text-muted">{selected.transaction?.description}</p>
                 <p className="text-xs text-muted">{selected.transaction?.txn_date} · {selected.transaction?.direction === "IN" ? "In" : "Out"}</p>
@@ -243,7 +248,10 @@ export default function ReconciliationWorkbench() {
 
               {anomalies.length > 0 && (
                 <div className="p-3 rounded-md bg-[var(--warning-muted)] border border-[var(--warning)]/30">
-                  <p className="font-medium text-sm text-[var(--warning)]">Anomaly Signals</p>
+                  <p className="font-medium text-sm text-[var(--warning)]">
+                    Anomaly Signals
+                    <InfoHint term="anomaly" label="Anomaly" />
+                  </p>
                   <ul className="mt-1 text-xs space-y-1">{anomalies.map((a) => <li key={a.anomaly_type}><strong className="uppercase">{a.severity}</strong>: {a.message}</li>)}</ul>
                 </div>
               )}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
 import { useToast } from "@/components/ui/Toast";
+import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementTransaction, BrokerageImportResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/currency";
@@ -38,7 +39,7 @@ export default function StatementDetailPage() {
             setStatement(data);
             setError(null);
             setConsecutiveErrors(0);
-            
+
             if (data.status === "parsing") {
                 setPolling(true);
                 setParsingStartTime((prev) => prev ?? Date.now());
@@ -48,20 +49,20 @@ export default function StatementDetailPage() {
             }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "Failed to load statement";
-            
+
             setConsecutiveErrors(prev => {
                 const newCount = prev + 1;
-                
+
                 if (polling && newCount >= 3) {
                     setPolling(false);
                     const reason = `Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`;
                     setPollingStoppedReason(reason);
                     showToast("Auto-refresh stopped due to repeated errors", "error");
                 }
-                
+
                 return newCount;
             });
-            
+
             setError(errorMessage);
         } finally {
             setLoading(false);
@@ -189,6 +190,10 @@ export default function StatementDetailPage() {
                 </Link>
             </div>
 
+            <div className="mb-6">
+                <FlowStepBanner current="review" />
+            </div>
+
             {/* Polling Stopped Alert */}
             {pollingStoppedReason && (
                 <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg">
@@ -199,7 +204,7 @@ export default function StatementDetailPage() {
                         <div className="flex-1 min-w-0">
                             <div className="font-medium text-[var(--error)] mb-1">Auto-refresh Stopped</div>
                             <div className="text-sm text-[var(--foreground-muted)] mb-3">{pollingStoppedReason}</div>
-                            <button 
+                            <button
                                 onClick={resumePolling}
                                 className="btn-secondary text-sm"
                             >
@@ -377,7 +382,7 @@ export default function StatementDetailPage() {
                             {statement.validation_error && (
                                 <div className="text-sm text-[var(--foreground-muted)] mb-3 break-words">{statement.validation_error}</div>
                             )}
-                            <button 
+                            <button
                                 type="button"
                                 onClick={handleRetry}
                                 disabled={retryLoading}

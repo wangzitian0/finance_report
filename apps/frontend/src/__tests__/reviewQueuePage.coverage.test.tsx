@@ -41,7 +41,7 @@ describe("ReviewQueuePage - coverage additions", () => {
 
         renderReviewComponent(<ReviewQueuePage /> as any);
 
-        expect(await screen.findByText(/Reconciliation Review Queue/)).toBeInTheDocument();
+        expect(await screen.findByText(/Review queue/)).toBeInTheDocument();
 
         // toggle severity button
         const highBtn = await screen.findByRole("button", { name: /HIGH/i });

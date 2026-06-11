@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { BackLink } from "@/components/ui/BackLink";
 
 interface AiSuggestion {
   suggestion_id: string;
@@ -96,9 +97,12 @@ export default function AiSuggestionsPage() {
 
   return (
     <div className="p-4 md:p-6">
+      <div className="mb-4">
+        <BackLink>Back to Notifications</BackLink>
+      </div>
       <div className="page-header">
-        <h1 className="page-title">AI Suggestion Review Queue</h1>
-        <p className="page-description">Review AI classifications and reconciliation matches in the 60-84 score band.</p>
+        <h1 className="page-title">Suggestions to review</h1>
+        <p className="page-description">Approve or correct the AI&apos;s suggested categories and matches that need a human eye.</p>
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}

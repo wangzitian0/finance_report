@@ -11,6 +11,7 @@ import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
+import { InfoHint } from "@/components/ui/InfoHint";
 import type { BalanceSheetResponse, ReportLine } from "@/lib/types";
 
 interface AccountNode extends ReportLine { children: AccountNode[]; }
@@ -123,7 +124,7 @@ export default function BalanceSheetPage() {
           <input type="checkbox" checked={includeRestricted} onChange={(e) => setIncludeRestricted(e.target.checked)} />
           <span>Include restricted holdings</span>
         </label>
-        <span className={`self-end badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>{report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</span>
+        <span className="self-end inline-flex items-center"><span className={`badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>{report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</span><InfoHint term={report?.is_balanced ? "balanced" : "drift"} label={report?.is_balanced ? "Balanced" : "Drift"} /></span>
       </div>
 
       <FxWarningBanner warnings={report?.fx_warnings} />

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { BackLink } from "@/components/ui/BackLink";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import type {
@@ -141,6 +142,9 @@ export default function UnmatchedBoard() {
 
   return (
     <div className="p-6">
+      <div className="mb-4">
+        <BackLink>Back to Notifications</BackLink>
+      </div>
       <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="page-title">Unmatched Transactions</h1>
