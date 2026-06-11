@@ -97,10 +97,10 @@ async def _queue_statement_reparse(
     *,
     model: str | None = None,
 ) -> None:
-    storage = StorageService()
-    content = await run_in_threadpool(storage.get_object, statement.file_path)
     request_id = _current_request_id()
     model_to_use = None if model == settings.ocr_model else model
+    # No content pre-fetch here: in Prefect mode the worker re-fetches it, and in
+    # fallback mode submit_parse_pipeline fetches it from storage_key on demand.
     task = await submit_parse_pipeline(
         statement_id=statement.id,
         filename=statement.original_filename,
@@ -109,7 +109,6 @@ async def _queue_statement_reparse(
         account_id=statement.account_id,
         file_hash=statement.file_hash,
         storage_key=statement.file_path,
-        content=content,
         model=model_to_use,
         db=db,
         request_id=request_id,

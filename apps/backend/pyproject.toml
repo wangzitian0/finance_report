@@ -32,8 +32,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# EPIC-019: only the Prefect worker image installs this (`pip install .[prefect]`).
-# The API process and CI/local run the in-process fallback without Prefect.
+# EPIC-019: installed (`pip install .[prefect]`) by any process that runs with
+# PREFECT_API_URL set — the API (to submit flow runs) AND the worker (to execute
+# them). The base image / CI / local fallback run in-process without Prefect.
 prefect = [
     "prefect>=3.7.0",
 ]

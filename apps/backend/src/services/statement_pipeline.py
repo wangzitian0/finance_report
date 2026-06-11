@@ -11,7 +11,10 @@ process) to durable Prefect flow runs. This module is the seam:
   submit a flow run to the Prefect server; an isolated worker (running this same
   backend image) executes ``parse_statement_flow``.
 
-Prefect is imported lazily, so the fallback path never needs it installed.
+``prefect`` is imported lazily here, so the fallback path never needs it. Any
+process that runs with ``PREFECT_API_URL`` set must install the ``prefect`` extra
+— both the API (to *submit* the run) and the worker (to *execute* it). The base
+image / CI / fallback do not.
 """
 
 from __future__ import annotations
@@ -19,11 +22,13 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.database import create_session_maker_from_db
 from src.logger import get_logger
+from src.services import StorageService
 from src.services.statement_parsing import parse_statement_background
 
 logger = get_logger(__name__)
@@ -41,12 +46,17 @@ async def submit_parse_pipeline(
     account_id: UUID | None,
     file_hash: str,
     storage_key: str,
-    content: bytes,
+    content: bytes | None = None,
     model: str | None,
     db: AsyncSession,
     request_id: str | None,
 ) -> asyncio.Task[None] | None:
     """Dispatch statement parsing.
+
+    ``content`` is optional: pass it when the bytes are already in hand (e.g. a
+    fresh upload). In Prefect mode it is never used (the worker re-fetches from
+    ``storage_key``), so callers should NOT pre-download it just to dispatch. In
+    fallback mode, if ``content`` is None it is fetched from ``storage_key``.
 
     Returns the in-process ``asyncio.Task`` for the caller to track in fallback
     mode, or ``None`` when the work was submitted to Prefect.
@@ -79,6 +89,9 @@ async def submit_parse_pipeline(
             request_id=request_id,
         )
         return None
+
+    if content is None:
+        content = await run_in_threadpool(StorageService().get_object, storage_key)
 
     return asyncio.create_task(
         parse_statement_background(

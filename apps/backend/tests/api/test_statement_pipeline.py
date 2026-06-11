@@ -46,9 +46,7 @@ async def test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset(monke
         seen.update(kwargs)
 
     monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
-    monkeypatch.setattr(
-        statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker"
-    )
+    monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
 
     task = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
 
