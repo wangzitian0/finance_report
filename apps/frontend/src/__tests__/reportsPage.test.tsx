@@ -1,25 +1,46 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ReportsPage from "@/app/(main)/reports/page"
+import { apiFetch } from "@/lib/api"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(),
+}))
+
+const mockedApiFetch = vi.mocked(apiFetch)
+
+beforeEach(() => {
+  mockedApiFetch.mockReset()
+  mockedApiFetch.mockImplementation((path: string) => {
+    if (path === "/api/income/annualized") {
+      return Promise.resolve({ annualized_total: "120000.00", currency: "SGD" })
+    }
+    if (path === "/api/reconciliation/stats") {
+      return Promise.resolve({ match_rate: 0.92, unmatched_transactions: 3 })
+    }
+    return Promise.resolve({})
+  })
+})
+
 describe("ReportsPage", () => {
-  it("AC16.12.11 renders all report cards and links", () => {
+  it("AC16.12.11 renders the four front reports and the More reports with links", async () => {
     render(<ReportsPage />)
 
     expect(screen.getByText("Balance Sheet")).toBeInTheDocument()
     expect(screen.getByText("Income Statement")).toBeInTheDocument()
-    expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument()
-    expect(screen.getByText("Personal Report Package")).toBeInTheDocument()
-
-    expect(screen.getByRole("link", { name: /Personal Report Package/i })).toHaveAttribute("href", "/reports/package")
     expect(screen.getByRole("link", { name: /Balance Sheet/i })).toHaveAttribute("href", "/reports/balance-sheet")
     expect(screen.getByRole("link", { name: /Income Statement/i })).toHaveAttribute("href", "/reports/income-statement")
+
+    fireEvent.click(screen.getByRole("button", { name: /More reports/i }))
+    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    expect(screen.getByText("Personal Report Package")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Personal Report Package/i })).toHaveAttribute("href", "/reports/package")
     expect(screen.getByRole("link", { name: /Cash Flow Statement/i })).toHaveAttribute("href", "/reports/cash-flow")
   })
 
@@ -35,13 +56,11 @@ describe("ReportsPage", () => {
   it("AC16.23.5 renders SVG icons for report cards (no emoji)", () => {
     render(<ReportsPage />)
 
-    // Lucide icons replace emoji — no raw emoji text should appear
-    const emojiChars = ["\uD83D\uDCCA", "\uD83D\uDCC8", "\uD83D\uDCB0"]
+    const emojiChars = ["📊", "📈", "💰"]
     emojiChars.forEach((emoji) => {
       expect(screen.queryByText(emoji)).toBeNull()
     })
 
-    // SVG elements are rendered for each report card icon
     const svgs = document.querySelectorAll("svg")
     expect(svgs.length).toBeGreaterThanOrEqual(4)
   })

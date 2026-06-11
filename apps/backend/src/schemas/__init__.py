@@ -54,6 +54,8 @@ from src.schemas.reconciliation import (
     UnmatchedTransactionsResponse,
 )
 from src.schemas.reporting import (
+    AccountLineageLine,
+    AccountLineageResponse,
     AccountTrendResponse,
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
@@ -162,6 +164,8 @@ __all__ = [
     "AnomalyResponse",
     "AtomicTransactionResponse",
     "AuthResponse",
+    "AccountLineageLine",
+    "AccountLineageResponse",
     "BalanceSheetResponse",
     "BankStatementListResponse",
     "BankStatementResponse",

@@ -35,6 +35,7 @@ from src.models.layer3 import (
 )
 from src.models.portfolio import DividendIncome, MarketDataOverride
 from src.schemas import (
+    AccountLineageResponse,
     AccountTrendResponse,
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
@@ -67,12 +68,13 @@ from src.services.reporting import (
     generate_balance_sheet,
     generate_cash_flow,
     generate_income_statement,
+    get_account_lineage,
     get_account_trend,
     get_category_breakdown,
     get_net_worth_timeseries,
     income_bucket,
 )
-from src.utils import raise_bad_request
+from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
@@ -1431,6 +1433,37 @@ async def balance_sheet(
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
     return BalanceSheetResponse(**report)
+
+
+@router.get("/account-lineage", response_model=AccountLineageResponse)
+async def account_lineage(
+    account_id: UUID = Query(...),
+    as_of_date: date | None = Query(default=None),
+    start_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> AccountLineageResponse:
+    """List the journal lines contributing to one account's report balance.
+
+    Powers Balance Sheet / Income Statement amount drill-down: each returned
+    line carries a ``journal_line`` evidence anchor that the UI hands to
+    ``GET /api/evidence/lineage`` to reach statement transactions and source
+    documents.
+    """
+    report_date = as_of_date or date.today()
+    try:
+        report = await get_account_lineage(
+            db,
+            user_id,
+            account_id,
+            as_of_date=report_date,
+            start_date=start_date,
+            currency=currency,
+        )
+    except ReportError as exc:
+        raise_not_found(f"Account {account_id}", cause=exc)
+    return AccountLineageResponse(**report)
 
 
 @router.get("/income-statement", response_model=IncomeStatementResponse)
