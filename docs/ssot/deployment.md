@@ -14,7 +14,7 @@ Finance Report uses **two git repositories** for configuration:
 | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
 | **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
-| **PR preview** | `/docker-compose.pr-preview.yml` | Dokploy GitHub-source PR previews using CI-built images only; services are not profile-gated |
+| **PR preview** | `/docker-compose.yml` + `/docker-compose.ci-e2e.yml` | GitHub-runner preview after successful PR CI; no registry push and no persistent Dokploy URL |
 | **Staging/Production** | `/repo/finance_report/.../compose.yaml` | Production with Vault secrets |
 
 The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2).
@@ -25,7 +25,9 @@ The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.
 - Env vars for staging/prod stored in HashiCorp Vault
 - Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`.
 - Container names include env suffix (e.g., `-staging`)
-- PR previews must set explicit commit-scoped internal service URLs such as `S3_ENDPOINT=http://finance-report-minio-pr-$PR_NUMBER-$COMMIT_SLUG:9000`; nested compose env expansion is not portable.
+- Historical Dokploy PR previews used `/docker-compose.pr-preview.yml`; the
+  current default preview path only uses it for cleanup/reconciliation
+  compatibility and does not create new Dokploy preview deployments.
 
 ---
 
@@ -185,10 +187,10 @@ fail the infra watchdog and cannot be treated as healthy rollback targets. PR
 preview workflows only create, update, deploy, delete, and reconcile Dokploy
 compose resources.
 
-PR preview GHCR retention is owned by GitHub Actions rather than the VPS host.
-PR-close cleanup deletes backend/frontend tags with prefix `pr-<number>-`, and
-the scheduled cleanup prunes closed-PR `pr-<number>-<sha>` tags older than 14
-days while keeping tags for currently open PRs.
+PR preview no longer creates PR-scoped GHCR images. Immediate PR-close cleanup
+therefore does not delete image tags. The scheduled cleanup still prunes legacy
+closed-PR `pr-<number>-<sha>` tags older than 14 days while keeping tags for
+currently open PRs.
 
 Install or update the Dokploy host hygiene schedule with:
 

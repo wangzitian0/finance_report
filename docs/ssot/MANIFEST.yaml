@@ -361,6 +361,9 @@ concepts:
     cross_refs:
       - docs/ssot/development.md
       - docs/ssot/environments.md
+    proofs:
+      - tests/tooling/test_issue_489_deployment_contracts.py
+      - tests/tooling/test_post_merge_e2e_gates.py
 
   # ── Coverage ──────────────────────────────────────────────────────────
   test_coverage:

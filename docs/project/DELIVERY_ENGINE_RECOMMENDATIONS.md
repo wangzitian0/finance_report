@@ -47,9 +47,10 @@ three newest failed logs for the active CI lanes: `CI`,
 
 - PR CI is the deterministic merge authority; recent failures were unified
   coverage regressions, which are cheap to diagnose before deploy.
-- PR Preview is the noisiest deployed lane; recent failures concentrated in
-  `Deploy preview lifecycle` before browser E2E, so it should stay scoped to
-  runtime/API/UI preview-relevant paths.
+- PR Preview used to be the noisiest deployed lane; failures concentrated in
+  the former Dokploy deploy lifecycle before browser E2E. The current preview
+  follows successful PR CI, runs in the GitHub runner, and keeps historical
+  Dokploy resources cleanup-only.
 - Staging is correctly acting as the post-merge environment gate; recent
   failures were split between Dokploy deploy health and application E2E, then
   surfaced through `Post-merge Delivery`.
@@ -93,7 +94,7 @@ resource leak candidates:
 - PR preview Dokploy compose, network, container, and volume leftovers when PRs
   close, deploy creation fails before a deployment record, or GitHub cleanup is
   cancelled.
-- GHCR PR images and SHA images when preview branches churn quickly.
+- Legacy GHCR PR images and SHA images when preview branches churn quickly.
 - Docker build cache and stopped containers on the Dokploy host after repeated
   image build, redeploy, or failed rollout loops.
 - stale staging or production routes/images where health reports an older SHA or
@@ -116,9 +117,8 @@ coupled but do not require a topology rewrite:
   Host-level Docker leftovers remain owned by the
   `finance-report-vps-host-hygiene` Dokploy server schedule instead of GitHub
   Actions SSH.
-- GHCR PR tag accumulation: the PR-close cleanup deletes backend/frontend
-  `pr-<number>-<sha>` images, and scheduled cleanup now prunes closed-PR PR preview GHCR tags
-  older than 14 days while preserving tags for open PRs.
+- GHCR PR tag accumulation: the current PR preview workflow no longer creates
+  or deletes PR image tags on close; scheduled cleanup prunes legacy closed-PR PR preview GHCR tags older than 14 days while preserving tags for open PRs.
 - stale staging or production routes: staging already records before-SHA,
   image build, deploy, E2E, failed step, and failure-domain context. Production
   deploy context now records `production_before_version`, deploy-health

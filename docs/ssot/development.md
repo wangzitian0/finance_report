@@ -382,16 +382,22 @@ VPS_HOST=cloud.zitian.party ./tools/check_resource_leaks.sh
 
 ### PR Preview Cleanup (Automated)
 
-When a PR is closed, GitHub Actions automatically cleans:
-- ✅ Dokploy stack on VPS
-- ✅ Docker volumes (`postgres_data`, `redis_data`, `minio_data`)
-- ✅ GHCR container images (`backend:pr-{number}-{sha}`, `frontend:pr-{number}-{sha}`)
+Current PR preview runs inside the GitHub runner after a successful PR `CI`
+workflow and does not create Dokploy deployments, shared VPS containers, or PR
+preview GHCR images.
+
+When a PR is closed, merged, or interrupted by failed/cancelled/timed-out CI,
+GitHub Actions automatically reconciles historical preview resources:
+- ✅ Legacy Dokploy stack on VPS
+- ✅ Legacy compose-scoped Docker volumes (`postgres_data`, `redis_data`, `minio_data`)
+- ✅ Legacy closed-PR GHCR tags through the scheduled fallback workflow only
 
 The scheduled `PR Preview Cleanup` workflow is the fallback cleanup path for
-missed PR close events or failed Dokploy/SSH cleanup. Every six hours it:
-- Lists live VPS preview containers matching `finance-report-*-pr-{number}`.
+missed PR close events or old Dokploy cleanup failures. Every six hours it:
+- Lists historical preview resources matching PR-scoped naming.
 - Compares them with currently open GitHub PRs.
-- Removes only closed/missing PR preview containers and their compose-scoped volumes.
+- Removes only closed/missing PR preview resources and their compose-scoped volumes.
+- Prunes legacy closed-PR GHCR tags after the retention window.
 - Runs bounded Docker build-cache and unused-image pruning with age filters.
 
 Manual dry run:
