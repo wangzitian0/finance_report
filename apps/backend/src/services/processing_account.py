@@ -24,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.models import (
-    BankStatementTransaction,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
@@ -32,6 +31,7 @@ from src.models import (
     JournalLine,
 )
 from src.models.account import Account
+from src.models.layer2 import AtomicTransaction
 from src.services.account_service import get_or_create_processing_account
 
 # Transfer detection keywords from SSOT SOP-001
@@ -69,11 +69,11 @@ class TransferPair:
     score_breakdown: dict[str, float]
 
 
-def detect_transfer_pattern(txn: BankStatementTransaction) -> bool:
+def detect_transfer_pattern(txn: AtomicTransaction) -> bool:
     """Detect if transaction matches transfer pattern.
 
     Args:
-        txn: Bank statement transaction to check
+        txn: Atomic transaction to check
 
     Returns:
         True if transaction description contains transfer keywords

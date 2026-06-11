@@ -6,15 +6,12 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.logger import get_logger
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
-from src.models.statement import BankStatement, BankStatementTransaction
-from src.services.statement_summary import sync_statement_summary
+from src.models.statement_summary import StatementSummary
 
 logger = get_logger(__name__)
 
@@ -40,20 +37,31 @@ class DeduplicationService:
         description: str,
         reference: str | None = None,
         balance_after: Decimal | None = None,
+        occurrence_index: int = 0,
     ) -> str:
         """Calculate deduplication hash for atomic transaction.
 
-        Hash = SHA256(user_id|date|amount|direction|description|reference|balance_after)
+        Hash = SHA256(user_id|date|amount|direction|description|reference|disambiguator)
 
-        ``balance_after`` (the statement running balance) is included so two real,
-        otherwise-identical transactions (same date/amount/direction/description, no
-        reference) stay distinct — their running balances differ. Genuine duplicate
-        extractions share the same running balance and still collapse. When the
-        source has no running balance the field is empty and behaviour is unchanged.
+        The disambiguator is a confidence-tiered tail so that auto-dedup collapses only
+        when we are confident two rows are the SAME transaction, and preserves recall
+        otherwise:
+
+        - High confidence — ``balance_after`` present: the statement running balance pins
+          the ledger position. Different running balances ⇒ definitely different
+          transactions; genuine duplicate extractions share the running balance and
+          still collapse across documents.
+        - Lower confidence — no running balance (e.g. CSV): use a per-document
+          ``occurrence_index`` among otherwise-identical rows so genuinely-repeated rows
+          stay distinct (two $5 coffees on the same day are two transactions) instead of
+          silently collapsing into one. Cross-document duplicates of such rows are left
+          to the ``detect_duplicates`` consistency check for user review rather than
+          dropped here.
 
         Decimal amounts are canonicalized (``Decimal('50')`` and ``Decimal('50.00')``
         hash identically) so values that differ only in scale do not break dedup.
         """
+        disambiguator = _decimal_key(balance_after) if balance_after is not None else f"#{occurrence_index}"
         components = [
             str(user_id),
             txn_date.isoformat(),
@@ -61,7 +69,7 @@ class DeduplicationService:
             direction.value,
             description.strip().lower(),
             reference or "",
-            _decimal_key(balance_after) if balance_after is not None else "",
+            disambiguator,
         ]
         hash_input = "|".join(components).encode("utf-8")
         return hashlib.sha256(hash_input).hexdigest()
@@ -99,6 +107,7 @@ class DeduplicationService:
         source_doc_type: DocumentType,
         reference: str | None = None,
         balance_after: Decimal | None = None,
+        occurrence_index: int = 0,
     ) -> AtomicTransaction:
         """Upsert atomic transaction with deduplication.
 
@@ -106,7 +115,7 @@ class DeduplicationService:
         If dedup_hash new -> Insert new record
         """
         dedup_hash = self.calculate_transaction_hash(
-            user_id, txn_date, amount, direction, description, reference, balance_after
+            user_id, txn_date, amount, direction, description, reference, balance_after, occurrence_index
         )
 
         stmt = select(AtomicTransaction).where(
@@ -279,24 +288,65 @@ class DeduplicationService:
         return doc
 
 
+async def _detach_document_from_atomic_transactions(db: Any, user_id: UUID, doc_id: UUID) -> None:
+    """Remove a document's contribution to Layer 2 before a reparse re-ingests it.
+
+    Atomic transactions sourced *solely* from this document are deleted (the reparse
+    will recreate the current set); transactions also sourced from other documents
+    keep the row but drop this document from ``source_documents``.
+    """
+    doc_id_str = str(doc_id)
+    rows = (
+        (
+            await db.execute(
+                select(AtomicTransaction)
+                .where(AtomicTransaction.user_id == user_id)
+                .where(AtomicTransaction.source_documents.contains([{"doc_id": doc_id_str}]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for txn in rows:
+        sources = txn.source_documents if isinstance(txn.source_documents, list) else []
+        remaining = [s for s in sources if s.get("doc_id") != doc_id_str]
+        if remaining:
+            txn.source_documents = remaining
+            db.add(txn)
+        else:
+            await db.delete(txn)
+    if rows:
+        await db.flush()
+
+
 async def dual_write_layer2(
     db: Any,
     user_id: UUID,
-    file_path: Path | None,
-    file_hash: str,
-    original_filename: str,
-    institution: str,
-    transactions: list[BankStatementTransaction],
+    statement: StatementSummary,
+    transactions: list[AtomicTransaction],
+    file_path: Path | None = None,
+    original_filename: str | None = None,
     document_type: DocumentType | None = None,
     extraction_metadata: dict[str, Any] | None = None,
 ) -> None:
-    """Write parsed data to Layer 1/2 tables (Phase 2 dual write).
+    """Persist the DWD ingestion result: ODS document, Layer-2 facts, conform summary.
 
-    Precondition: transactions must have .statement relationship eager-loaded
-    for txn.statement.currency access.
+    Single source of truth for an ingested statement. Given the parsed
+    ``StatementSummary`` envelope and its ``AtomicTransaction`` rows (produced by
+    ``ExtractionService.parse_document``), this:
 
-    Raises RuntimeError on non-IntegrityError failures.
-    IntegrityError (duplicate upload) is silently ignored.
+    1. creates the Layer-1 ``UploadedDocument`` (ODS),
+    2. upserts each ``AtomicTransaction`` (dedup by hash; the extracted running
+       ``balance_after`` stashed on ``txn._extracted_balance_after`` is threaded back
+       into the upsert hash so it matches the precomputed ``dedup_hash``),
+    3. links ``StatementSummary.uploaded_document_id`` to the ODS document and
+       persists the summary (DWD conform).
+
+    Precondition: each transaction carries a precomputed ``dedup_hash`` and an
+    optional transient ``_extracted_balance_after`` attribute.
+
+    Raises RuntimeError on non-IntegrityError failures. IntegrityError (duplicate
+    upload) is silently ignored.
     """
     from sqlalchemy.exc import IntegrityError
 
@@ -310,55 +360,121 @@ async def dual_write_layer2(
         "uob": DocumentType.BANK_STATEMENT,
         "posb": DocumentType.BANK_STATEMENT,
     }
-    doc_type = document_type or doc_type_map.get(institution.lower(), DocumentType.BANK_STATEMENT)
+    doc_type = document_type or doc_type_map.get((statement.institution or "").lower(), DocumentType.BANK_STATEMENT)
+    file_hash = statement.file_hash
 
     try:
-        uploaded_doc = await dedup_service.create_uploaded_document(
-            db=db,
-            user_id=user_id,
-            file_path=str(file_path) if file_path else file_hash,
-            file_hash=file_hash,
-            original_filename=original_filename,
-            document_type=doc_type,
-            extraction_metadata=extraction_metadata,
-        )
+        # Get-or-create the ODS document. Reparse re-runs ingestion for the same
+        # (user_id, file_hash), so the document already exists; reuse it instead of
+        # raising on the unique key (which previously aborted the whole dual-write and
+        # made reparse a silent no-op). On reparse, drop this document's prior parse
+        # output first so the fresh extraction replaces it rather than accumulating.
+        existing_doc = (
+            await db.execute(
+                select(UploadedDocument)
+                .where(UploadedDocument.user_id == user_id)
+                .where(UploadedDocument.file_hash == file_hash)
+            )
+        ).scalar_one_or_none()
+        if existing_doc is not None:
+            uploaded_doc = existing_doc
+            uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
+            if extraction_metadata is not None:
+                uploaded_doc.extraction_metadata = extraction_metadata
+            await _detach_document_from_atomic_transactions(db, user_id, uploaded_doc.id)
+        else:
+            uploaded_doc = await dedup_service.create_uploaded_document(
+                db=db,
+                user_id=user_id,
+                file_path=str(file_path) if file_path else file_hash,
+                file_hash=file_hash,
+                original_filename=original_filename or file_hash,
+                document_type=doc_type,
+                extraction_metadata=extraction_metadata,
+            )
 
-        layer2_count = 0
+        # Lazily import to avoid an import cycle (evidence_graph_integration imports
+        # models that transitively reach back here).
         from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 
         evidence_graph = EvidenceGraphIntegrationService()
-        for txn in transactions:
-            direction_map = {"IN": TransactionDirection.IN, "OUT": TransactionDirection.OUT}
-            l2_direction = direction_map.get(txn.direction, TransactionDirection.IN)
 
-            atomic_txn = await dedup_service.upsert_atomic_transaction(
+        layer2_count = 0
+        for txn in transactions:
+            upserted_txn = await dedup_service.upsert_atomic_transaction(
                 db=db,
                 user_id=user_id,
                 txn_date=txn.txn_date,
                 amount=txn.amount,
-                direction=l2_direction,
+                direction=txn.direction,
                 description=txn.description,
-                currency=txn.statement.currency or "SGD",
+                currency=txn.currency or statement.currency or "SGD",
                 source_doc_id=uploaded_doc.id,
                 source_doc_type=doc_type,
                 reference=txn.reference,
-                balance_after=txn.balance_after,
-            )
-            await evidence_graph.record_layer2_dual_write(
-                db,
-                user_id=user_id,
-                uploaded_document=uploaded_doc,
-                source_transaction=txn,
-                atomic_transaction=atomic_txn,
-                document_type=doc_type,
+                balance_after=getattr(txn, "_extracted_balance_after", None),
+                occurrence_index=getattr(txn, "_occurrence_index", 0),
             )
             layer2_count += 1
+
+            # Eager evidence-graph lineage (UploadedDocument --deduped_into-->
+            # AtomicTransaction). Best-effort: provenance must never break the
+            # money/atomic write, which is the priority.
+            try:
+                await evidence_graph.record_layer2_dual_write(
+                    db,
+                    user_id=user_id,
+                    uploaded_document=uploaded_doc,
+                    atomic_transaction=upserted_txn,
+                    document_type=doc_type,
+                )
+            except Exception as evidence_exc:
+                logger.warning(
+                    "Evidence-graph dual-write lineage failed (ingestion continues)",
+                    error=str(evidence_exc),
+                    error_type=type(evidence_exc).__name__,
+                    user_id=str(user_id),
+                    atomic_transaction_id=str(upserted_txn.id),
+                )
+
+        # DWD conform: bind the confirmed envelope to its ODS document and persist.
+        # The ingestion pipeline (statement upload) pre-creates the ``StatementSummary``
+        # envelope in PARSING state keyed on ``(user_id, file_hash)``; reuse that row so
+        # the confirmed parse result updates a single conform record (its id is the one
+        # the API/router exposes) instead of colliding on the unique key.
+        existing = (
+            await db.execute(
+                select(StatementSummary)
+                .where(StatementSummary.user_id == user_id)
+                .where(StatementSummary.file_hash == file_hash)
+            )
+        ).scalar_one_or_none()
+        if existing is not None and existing is not statement:
+            existing.account_id = statement.account_id if statement.account_id is not None else existing.account_id
+            existing.institution = statement.institution
+            existing.account_last4 = statement.account_last4
+            existing.currency = statement.currency
+            existing.period_start = statement.period_start
+            existing.period_end = statement.period_end
+            existing.opening_balance = statement.opening_balance
+            existing.closing_balance = statement.closing_balance
+            existing.extraction_metadata = statement.extraction_metadata
+            existing.confidence_score = statement.confidence_score
+            existing.balance_validated = statement.balance_validated
+            existing.validation_error = statement.validation_error
+            existing.status = statement.status
+            existing.uploaded_document_id = uploaded_doc.id
+            db.add(existing)
+        else:
+            statement.uploaded_document_id = uploaded_doc.id
+            db.add(statement)
+        await db.flush()
 
         logger.info(
             "Dual write to Layer 2 completed",
             uploaded_doc_id=str(uploaded_doc.id),
+            statement_summary_id=str(statement.id),
             layer2_transactions=layer2_count,
-            layer0_transactions=len(transactions),
         )
 
     except IntegrityError:
@@ -376,156 +492,7 @@ async def dual_write_layer2(
             error_type=type(e).__name__,
             user_id=str(user_id),
             file_hash=file_hash,
-            layer0_transactions=len(transactions),
+            layer2_transactions=len(transactions),
         )
         # Re-raise to ensure caller knows dual-write failed
         raise RuntimeError(f"Failed to write to Layer 2: {e}") from e
-
-
-BACKFILL_STATEMENT_BATCH_SIZE = 200
-
-
-async def backfill_atomic_transactions_from_statements(
-    db: AsyncSession,
-    user_id: UUID | None = None,
-    *,
-    batch_size: int = BACKFILL_STATEMENT_BATCH_SIZE,
-) -> dict[str, int]:
-    """Idempotently populate Layer 1/2 from existing Layer 0 statements (EPIC-011 Stage 2a).
-
-    For every ``BankStatement`` (optionally scoped to ``user_id``) this ensures a
-    Layer 1 ``UploadedDocument`` exists and every ``BankStatementTransaction`` has a
-    Layer 2 ``AtomicTransaction``. This backfills historical data that predates the
-    Stage 1 dual-write activation, so the Layer-2 read path has full coverage before
-    ``ENABLE_4_LAYER_READ`` is turned on.
-
-    Safe to re-run: ``UploadedDocument`` is keyed by ``(user_id, file_hash)`` and
-    ``AtomicTransaction`` by ``(user_id, dedup_hash)``, so re-execution upserts
-    rather than duplicates.
-
-    Statements are streamed in batches of ``batch_size`` (loading each batch's
-    transactions on demand) so production-sized datasets do not load every
-    statement and transaction into memory at once.
-
-    Returns counts: ``statements_scanned``, ``documents_created``,
-    ``atomic_transactions_upserted``.
-    """
-    dedup_service = DeduplicationService()
-
-    # Fetch statement IDs only (lightweight), then hydrate one bounded batch at a
-    # time. This keeps peak memory proportional to ``batch_size`` rather than the
-    # full statement/transaction set.
-    id_query = select(BankStatement.id)
-    if user_id is not None:
-        id_query = id_query.where(BankStatement.user_id == user_id)
-    id_query = id_query.order_by(BankStatement.created_at)
-    statement_ids = (await db.execute(id_query)).scalars().all()
-
-    statements_scanned = 0
-    documents_created = 0
-    atomic_upserted = 0
-    summaries_synced = 0
-
-    for offset in range(0, len(statement_ids), batch_size):
-        batch_ids = statement_ids[offset : offset + batch_size]
-        batch = (
-            (
-                await db.execute(
-                    select(BankStatement)
-                    .where(BankStatement.id.in_(batch_ids))
-                    .options(selectinload(BankStatement.transactions))
-                    .order_by(BankStatement.created_at)
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        for stmt in batch:
-            statements_scanned += 1
-            owner_id = stmt.user_id  # BankStatement.user_id is NOT NULL
-
-            doc_type = (
-                DocumentType.BROKERAGE_STATEMENT
-                if (stmt.extraction_metadata or {}).get("extraction_payload")
-                else DocumentType.BANK_STATEMENT
-            )
-
-            existing_doc = (
-                await db.execute(
-                    select(UploadedDocument).where(
-                        UploadedDocument.user_id == owner_id,
-                        UploadedDocument.file_hash == stmt.file_hash,
-                    )
-                )
-            ).scalar_one_or_none()
-
-            if existing_doc is None:
-                try:
-                    # SAVEPOINT so a duplicate-insert race only rolls back this one
-                    # document, never the statements already backfilled in this run.
-                    async with db.begin_nested():
-                        existing_doc = await dedup_service.create_uploaded_document(
-                            db=db,
-                            user_id=owner_id,
-                            file_path=stmt.file_path or stmt.file_hash,
-                            file_hash=stmt.file_hash,
-                            original_filename=stmt.original_filename or "unknown",
-                            document_type=doc_type,
-                            extraction_metadata=stmt.extraction_metadata,
-                        )
-                    documents_created += 1
-                except IntegrityError:  # pragma: no cover - concurrent-writer race, not deterministically unit-testable
-                    # Concurrent writer created it first; reload the existing row.
-                    existing_doc = (
-                        await db.execute(
-                            select(UploadedDocument).where(
-                                UploadedDocument.user_id == owner_id,
-                                UploadedDocument.file_hash == stmt.file_hash,
-                            )
-                        )
-                    ).scalar_one()
-
-            for txn in stmt.transactions:
-                direction_map = {"IN": TransactionDirection.IN, "OUT": TransactionDirection.OUT}
-                l2_direction = direction_map.get(txn.direction, TransactionDirection.IN)
-                await dedup_service.upsert_atomic_transaction(
-                    db=db,
-                    user_id=owner_id,
-                    txn_date=txn.txn_date,
-                    amount=txn.amount,
-                    direction=l2_direction,
-                    description=txn.description,
-                    # Match the live dual-write path (`dual_write_layer2`), which
-                    # sources currency from the statement, so backfilled rows are
-                    # identical to organically dual-written ones.
-                    currency=stmt.currency or "SGD",
-                    source_doc_id=existing_doc.id,
-                    source_doc_type=doc_type,
-                    reference=txn.reference,
-                    balance_after=txn.balance_after,
-                )
-                atomic_upserted += 1
-
-            # Project the confirmed statement envelope (custody account, period,
-            # balances, review state) into the StatementSummary conform.
-            await sync_statement_summary(db, stmt)
-            summaries_synced += 1
-
-    logger.info(
-        "Layer 2 backfill completed",
-        extra={
-            "statements_scanned": statements_scanned,
-            "documents_created": documents_created,
-            "atomic_transactions_upserted": atomic_upserted,
-            "statement_summaries_synced": summaries_synced,
-            "user_scope": str(user_id) if user_id else "all",
-        },
-    )
-
-    return {
-        "statements_scanned": statements_scanned,
-        "documents_created": documents_created,
-        "atomic_transactions_upserted": atomic_upserted,
-        "statement_summaries_synced": summaries_synced,
-    }

@@ -13,8 +13,7 @@ from src.services.correction_service import (
 )
 from tests.factories import (
     AccountFactory,
-    BankStatementFactory,
-    BankStatementTransactionFactory,
+    AtomicTransactionFactory,
     UserFactory,
 )
 
@@ -28,14 +27,16 @@ def _clear_cache():
 
 
 @pytest.mark.asyncio
-async def test_record_correction_stores_original_category(db, test_user):
-    """AC18.2.1: CorrectionLog records original_category from transaction."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-    txn = await BankStatementTransactionFactory.create_async(
+async def test_record_correction_stores_corrected_category(db, test_user):
+    """AC18.2.1: CorrectionLog records the corrected category and txn description.
+
+    Categories are no longer suggested at extraction time, so ``original_category``
+    is always ``None``; only the user-corrected category is recorded.
+    """
+    txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         description="Grab taxi",
-        suggested_category="Shopping",
     )
     await db.commit()
 
@@ -47,7 +48,7 @@ async def test_record_correction_stores_original_category(db, test_user):
     )
     await db.commit()
 
-    assert correction.original_category == "Shopping"
+    assert correction.original_category is None
     assert correction.corrected_category == "Transport"
     assert correction.transaction_description == "Grab taxi"
     assert correction.user_id == test_user.id
@@ -55,13 +56,11 @@ async def test_record_correction_stores_original_category(db, test_user):
 
 @pytest.mark.asyncio
 async def test_record_correction_handles_null_original(db, test_user):
-    """Original category can be None when AI didn't suggest anything."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-    txn = await BankStatementTransactionFactory.create_async(
+    """Original category is None because extraction no longer suggests categories."""
+    txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         description="Unknown merchant",
-        suggested_category=None,
     )
     await db.commit()
 
@@ -92,12 +91,10 @@ async def test_record_correction_not_found_raises(db, test_user):
 @pytest.mark.asyncio
 async def test_AC18_2_2_record_correction_rejects_cross_user_corrected_account(db, test_user):
     """AC18.2.2: Correction feedback must not bind another user's account."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-    txn = await BankStatementTransactionFactory.create_async(
+    txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         description="Grab taxi",
-        suggested_category="Shopping",
     )
     other_user = await UserFactory.create_async(db)
     other_account = await AccountFactory.create_async(db, user_id=other_user.id, name="Other User Account")
@@ -125,14 +122,11 @@ async def test_get_correction_stats_empty(db, test_user):
 @pytest.mark.asyncio
 async def test_get_correction_stats_aggregates(db, test_user):
     """AC18.2.2: Stats aggregates corrections correctly."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
     for i in range(3):
-        txn = await BankStatementTransactionFactory.create_async(
+        txn = await AtomicTransactionFactory.create_async(
             db,
-            statement_id=stmt.id,
+            user_id=test_user.id,
             description=f"Taxi ride {i}",
-            suggested_category="Shopping",
         )
         await db.flush()
         await record_correction(
@@ -147,19 +141,17 @@ async def test_get_correction_stats_aggregates(db, test_user):
     assert stats["total_corrections"] == 3
     assert len(stats["top_corrections"]) >= 1
     assert stats["top_corrections"][0]["count"] == 3
-    assert stats["top_corrections"][0]["original_category"] == "Shopping"
+    assert stats["top_corrections"][0]["original_category"] is None
     assert stats["top_corrections"][0]["corrected_category"] == "Transport"
 
 
 @pytest.mark.asyncio
 async def test_few_shot_examples_returns_corrections(db, test_user):
     """AC18.2.3: Few-shot examples are generated from corrections."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-    txn = await BankStatementTransactionFactory.create_async(
+    txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         description="Coffee at Starbucks",
-        suggested_category="Shopping",
     )
     await db.flush()
     await record_correction(
@@ -173,7 +165,7 @@ async def test_few_shot_examples_returns_corrections(db, test_user):
     examples = await get_few_shot_examples(db, user_id=test_user.id)
     assert len(examples) == 1
     assert examples[0]["description"] == "Coffee at Starbucks"
-    assert examples[0]["original_category"] == "Shopping"
+    assert examples[0]["original_category"] == "Other"
     assert examples[0]["corrected_category"] == "Food & Dining"
 
 
@@ -187,18 +179,15 @@ async def test_few_shot_examples_empty_returns_empty(db, test_user):
 @pytest.mark.asyncio
 async def test_few_shot_cache_invalidates(db, test_user):
     """AC18.2.4: Cache invalidates after recording a correction."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
     # Prime the cache (empty)
     examples = await get_few_shot_examples(db, user_id=test_user.id)
     assert examples == []
 
     # Record a correction (should invalidate cache)
-    txn = await BankStatementTransactionFactory.create_async(
+    txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         description="Uber ride",
-        suggested_category="Other",
     )
     await db.flush()
     await record_correction(

@@ -25,8 +25,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.statement import BankStatement, BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.services.extraction import ExtractionService
+from tests.factories import StatementSummaryFactory
 
 # ---------------------------------------------------------------------------
 # Gap 1: AI returns dirty account_last4 → parse_document sanitizes → DB stores ≤ 4 chars
@@ -91,7 +93,7 @@ class TestDirtyAccountLast4Integration:
             assert all(c in string.ascii_letters + string.digits for c in expected_sanitized)
 
     @pytest.mark.asyncio
-    async def test_dirty_account_last4_persists_to_db(self, db):
+    async def test_dirty_account_last4_persists_to_db(self, db, test_user):
         """End-to-end: AI returns "553-3" → sanitized → saved to real DB → read back OK."""
         service = ExtractionService()
 
@@ -113,7 +115,7 @@ class TestDirtyAccountLast4Integration:
             ],
         }
 
-        uid = uuid4()
+        uid = test_user.id
         with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
             stmt, _ = await service.parse_document(
                 file_path=Path("/tmp/test_persist.pdf"),
@@ -123,14 +125,10 @@ class TestDirtyAccountLast4Integration:
                 file_hash=f"persist_test_{uuid4().hex[:8]}",
             )
 
-        # parse_document returns a transient BankStatement with file_path=None,
-        # but DB column is NOT NULL — set it before persisting (mirrors router behavior).
-        stmt.file_path = "test/persist_path"
-        stmt.original_filename = "test.pdf"
         db.add(stmt)
         await db.commit()
 
-        saved = await db.get(BankStatement, stmt.id)
+        saved = await db.get(StatementSummary, stmt.id)
         assert saved is not None
         assert saved.account_last4 == "5533"
         assert len(saved.account_last4) <= 4
@@ -148,15 +146,13 @@ class TestDbConstraintVarchar4:
     """
 
     @pytest.mark.asyncio
-    async def test_direct_write_oversized_account_last4_raises(self, db):
+    async def test_direct_write_oversized_account_last4_raises(self, db, test_user):
         """Writing account_last4 > 4 chars directly triggers DataError."""
-        stmt = BankStatement(
+        stmt = StatementSummaryFactory.build(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             status=BankStatementStatus.PARSING,
-            file_path="test_path",
             file_hash=f"constraint_test_{uuid4().hex[:8]}",
-            original_filename="test.pdf",
             institution="DBS",
             account_last4="553-3",  # 5 chars — exceeds VARCHAR(4)
         )
@@ -168,41 +164,37 @@ class TestDbConstraintVarchar4:
         await db.rollback()
 
     @pytest.mark.asyncio
-    async def test_exactly_4_chars_accepted(self, db):
+    async def test_exactly_4_chars_accepted(self, db, test_user):
         """Writing account_last4 = exactly 4 chars succeeds."""
-        stmt = BankStatement(
+        stmt = StatementSummaryFactory.build(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             status=BankStatementStatus.PARSING,
-            file_path="test_path",
             file_hash=f"exact4_test_{uuid4().hex[:8]}",
-            original_filename="test.pdf",
             institution="DBS",
             account_last4="5533",
         )
         db.add(stmt)
         await db.commit()
 
-        saved = await db.get(BankStatement, stmt.id)
+        saved = await db.get(StatementSummary, stmt.id)
         assert saved.account_last4 == "5533"
 
     @pytest.mark.asyncio
-    async def test_null_account_last4_accepted(self, db):
+    async def test_null_account_last4_accepted(self, db, test_user):
         """Writing account_last4 = NULL succeeds (nullable column)."""
-        stmt = BankStatement(
+        stmt = StatementSummaryFactory.build(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             status=BankStatementStatus.PARSING,
-            file_path="test_path",
             file_hash=f"null_test_{uuid4().hex[:8]}",
-            original_filename="test.pdf",
             institution="DBS",
             account_last4=None,
         )
         db.add(stmt)
         await db.commit()
 
-        saved = await db.get(BankStatement, stmt.id)
+        saved = await db.get(StatementSummary, stmt.id)
         assert saved.account_last4 is None
 
 
@@ -218,44 +210,40 @@ class TestBackgroundTaskDirtyData:
     """
 
     @pytest.mark.asyncio
-    async def test_background_task_with_dirty_account_last4_succeeds(self, db, monkeypatch):
+    async def test_background_task_with_dirty_account_last4_succeeds(self, db, test_user, monkeypatch):
         """Full background task flow: dirty AI response → sanitized → saved → PARSED/APPROVED."""
         from src.database import create_session_maker_from_db
         from src.services.statement_parsing import parse_statement_background
 
         sid = uuid4()
-        uid = uuid4()
-        stmt = BankStatement(
+        uid = test_user.id
+        stmt = StatementSummaryFactory.build(
             id=sid,
             user_id=uid,
             status=BankStatementStatus.PARSING,
-            file_path="test_path",
             file_hash=f"bg_dirty_{uuid4().hex[:8]}",
-            original_filename="test.pdf",
             institution="DBS",
         )
         db.add(stmt)
         await db.commit()
 
-        # Mock parse_document to return a BankStatement with dirty→sanitized account_last4
-        parsed_stmt = BankStatement(
-            user_id=uid,
-            institution="DBS",
-            account_last4="5533",  # Already sanitized by _sanitize_account_last4
-            currency="SGD",
-            period_start=None,
-            period_end=None,
-            opening_balance=Decimal("1000.00"),
-            closing_balance=Decimal("1000.00"),
-            confidence_score=90,
-            balance_validated=True,
-            validation_error=None,
-            status=BankStatementStatus.APPROVED,
-            file_path="test_path",
-            file_hash="dummy",
-            original_filename="test.pdf",
-        )
-        mock_parse = AsyncMock(return_value=(parsed_stmt, []))
+        # Mock parse_document to mirror dual_write_layer2: it receives the background
+        # session and updates the pre-created StatementSummary row in place with the
+        # sanitized account_last4 and approved envelope, then returns it.
+        async def mock_parse(*args, **kwargs):
+            session = kwargs["db"]
+            summary = await session.get(StatementSummary, sid)
+            summary.account_last4 = "5533"  # Already sanitized by _sanitize_account_last4
+            summary.currency = "SGD"
+            summary.opening_balance = Decimal("1000.00")
+            summary.closing_balance = Decimal("1000.00")
+            summary.confidence_score = 90
+            summary.balance_validated = True
+            summary.validation_error = None
+            summary.status = BankStatementStatus.APPROVED
+            await session.flush()
+            return summary, []
+
         monkeypatch.setattr("src.services.extraction.ExtractionService.parse_document", mock_parse)
 
         # Mock storage presigned URL
@@ -279,7 +267,7 @@ class TestBackgroundTaskDirtyData:
 
         # Verify statement was updated correctly
         db.expire_all()
-        saved = await db.get(BankStatement, sid)
+        saved = await db.get(StatementSummary, sid)
         assert saved is not None
         assert saved.status == BankStatementStatus.APPROVED
         assert saved.account_last4 == "5533"
@@ -304,18 +292,16 @@ class TestCascadingFailureRecovery:
     """
 
     @pytest.mark.asyncio
-    async def test_handle_parse_failure_after_data_error(self, db):
+    async def test_handle_parse_failure_after_data_error(self, db, test_user):
         """Simulate the exact production failure: commit DataError → handler recovers."""
         from src.services.statement_parsing import handle_parse_failure
 
         sid = uuid4()
-        stmt = BankStatement(
+        stmt = StatementSummaryFactory.build(
             id=sid,
-            user_id=uuid4(),
+            user_id=test_user.id,
             status=BankStatementStatus.PARSING,
-            file_path="test_path",
             file_hash=f"cascade_data_{uuid4().hex[:8]}",
-            original_filename="test.pdf",
             institution="DBS",
         )
         db.add(stmt)
@@ -332,34 +318,32 @@ class TestCascadingFailureRecovery:
         # (accessing stmt.id triggers MissingGreenlet). Create a detached stub
         # that carries only .id — this mirrors what happens in the background task
         # where the handler receives a statement object whose session is broken.
-        stub = BankStatement(id=sid)
+        stub = StatementSummary(id=sid)
 
         # _handle_parse_failure must recover from this error state
         await handle_parse_failure(stub, db, message="StringDataRightTruncationError: account_last4")
 
         # Verify: statement is REJECTED, not stuck in PARSING
-        result = await db.get(BankStatement, sid)
+        result = await db.get(StatementSummary, sid)
         assert result is not None
         assert result.status == BankStatementStatus.REJECTED
         assert "StringDataRightTruncation" in result.validation_error
         assert result.confidence_score == 0
 
     @pytest.mark.asyncio
-    async def test_handle_parse_failure_after_integrity_error(self, db):
+    async def test_handle_parse_failure_after_integrity_error(self, db, test_user):
         """Handler recovers after IntegrityError (e.g., duplicate file_hash)."""
         from src.services.statement_parsing import handle_parse_failure
 
-        uid = uuid4()
+        uid = test_user.id
         shared_hash = f"dup_hash_{uuid4().hex[:8]}"
 
         # Create first statement
-        stmt1 = BankStatement(
+        stmt1 = StatementSummaryFactory.build(
             id=uuid4(),
             user_id=uid,
             status=BankStatementStatus.APPROVED,
-            file_path="path1",
             file_hash=shared_hash,
-            original_filename="file1.pdf",
             institution="DBS",
         )
         db.add(stmt1)
@@ -367,13 +351,11 @@ class TestCascadingFailureRecovery:
 
         # Create second statement (the one being parsed)
         sid2 = uuid4()
-        stmt2 = BankStatement(
+        stmt2 = StatementSummaryFactory.build(
             id=sid2,
             user_id=uid,
             status=BankStatementStatus.PARSING,
-            file_path="path2",
             file_hash=f"other_hash_{uuid4().hex[:8]}",
-            original_filename="file2.pdf",
             institution="DBS",
         )
         db.add(stmt2)
@@ -386,16 +368,16 @@ class TestCascadingFailureRecovery:
             pass  # Session now needs rollback
 
         # Handler should recover
-        stub2 = BankStatement(id=sid2)
+        stub2 = StatementSummary(id=sid2)
         await handle_parse_failure(stub2, db, message="Integrity violation test")
 
-        result = await db.get(BankStatement, sid2)
+        result = await db.get(StatementSummary, sid2)
         assert result is not None
         assert result.status == BankStatementStatus.REJECTED
         assert result.validation_error == "Integrity violation test"
 
     @pytest.mark.asyncio
-    async def test_background_task_commit_failure_falls_through_to_handler(self, db, monkeypatch):
+    async def test_background_task_commit_failure_falls_through_to_handler(self, db, test_user, monkeypatch):
         """Verify that when commit() fails at finalize, _handle_parse_failure is invoked.
 
         We cannot use a real VARCHAR violation because the dirty data persists
@@ -407,14 +389,12 @@ class TestCascadingFailureRecovery:
         from src.services.statement_parsing import handle_parse_failure
 
         sid = uuid4()
-        uid = uuid4()
-        stmt = BankStatement(
+        uid = test_user.id
+        stmt = StatementSummaryFactory.build(
             id=sid,
             user_id=uid,
             status=BankStatementStatus.PARSING,
-            file_path="test_path",
             file_hash=f"commit_fail_{uuid4().hex[:8]}",
-            original_filename="test.pdf",
             institution="DBS",
         )
         db.add(stmt)
@@ -441,7 +421,7 @@ class TestCascadingFailureRecovery:
 
         monkeypatch.setattr(AsyncSession, "commit", conditional_failing_commit)
 
-        parsed_stmt = BankStatement(
+        parsed_stmt = StatementSummaryFactory.build(
             user_id=uid,
             institution="DBS",
             account_last4="1234",
@@ -454,9 +434,7 @@ class TestCascadingFailureRecovery:
             balance_validated=True,
             validation_error=None,
             status=BankStatementStatus.APPROVED,
-            file_path="test_path",
             file_hash="dummy",
-            original_filename="test.pdf",
         )
 
         async def parse_then_arm_failure(*args, **kwargs):
@@ -498,7 +476,7 @@ class TestCascadingFailureRecovery:
         assert "Simulated DB commit failure" in handler_called_with["message"]
 
         db.expire_all()
-        saved = await db.get(BankStatement, sid)
+        saved = await db.get(StatementSummary, sid)
         assert saved is not None
         assert saved.status == BankStatementStatus.REJECTED
 

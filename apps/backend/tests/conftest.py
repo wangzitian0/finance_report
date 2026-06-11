@@ -240,8 +240,6 @@ async def _schema_engine(test_database_url):
     from src.models import (  # noqa: F401
         Account,
         AiFeedback,
-        BankStatement,
-        BankStatementTransaction,
         ChatMessage,
         ChatSession,
         ConsistencyCheck,

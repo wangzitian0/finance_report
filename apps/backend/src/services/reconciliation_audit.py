@@ -18,14 +18,13 @@ from uuid import UUID
 from src.models import (
     Account,
     AccountType,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
-    ConfidenceLevel,
+    AtomicTransaction,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
+    TransactionDirection,
 )
 from src.services.processing_account import detect_transfer_pattern
 from src.services.reconciliation import (
@@ -60,7 +59,7 @@ class AuditScenario:
 
     scenario_id: str
     title: str
-    transactions: tuple[BankStatementTransaction, ...]
+    transactions: tuple[AtomicTransaction, ...]
     entries: tuple[JournalEntry, ...]
     expectations: tuple[AuditExpectation, ...]
     pattern_scores: dict[str, float] | None = None
@@ -135,17 +134,18 @@ def _entry(
     return entry
 
 
-def _txn(ref: str, txn_date: date, description: str, amount: str, direction: str) -> BankStatementTransaction:
-    return BankStatementTransaction(
+def _txn(ref: str, txn_date: date, description: str, amount: str, direction: str) -> AtomicTransaction:
+    return AtomicTransaction(
         id=_stable_uuid(f"txn:{ref}"),
-        statement_id=_stable_uuid(f"statement:{ref}"),
+        user_id=_stable_uuid("user:golden"),
         txn_date=txn_date,
         description=description,
         amount=Decimal(amount),
-        direction=direction,
-        status=BankStatementTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
-        raw_text=ref,
+        direction=TransactionDirection(direction),
+        reference=ref,
+        currency="SGD",
+        dedup_hash=str(_stable_uuid(f"dedup:{ref}")),
+        source_documents=[],
     )
 
 
@@ -376,8 +376,8 @@ def _route_for_score(score: int, config: ReconciliationConfig) -> str:
     return UNMATCHED
 
 
-def _transaction_ref(transaction: BankStatementTransaction) -> str:
-    return str(transaction.raw_text or transaction.id)
+def _transaction_ref(transaction: AtomicTransaction) -> str:
+    return str(transaction.reference or transaction.id)
 
 
 def _evaluate_scenario(scenario: AuditScenario, config: ReconciliationConfig) -> list[dict]:

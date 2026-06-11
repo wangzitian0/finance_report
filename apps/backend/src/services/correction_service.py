@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.logger import get_logger
 from src.models.account import Account
 from src.models.correction import CorrectionLog
-from src.models.statement import BankStatement, BankStatementTransaction
+from src.models.layer2 import AtomicTransaction
 
 logger = get_logger(__name__)
 
@@ -41,16 +41,17 @@ async def record_correction(
     corrected_category: str,
     corrected_account_id: UUID | None = None,
 ) -> CorrectionLog:
-    """Record a user correction to an AI-suggested category.
+    """Record a user correction to a transaction category.
 
-    Auto-fills original_category from the transaction's current suggested_category.
+    Categories are no longer pre-suggested at extraction time, so
+    ``original_category`` is left unset and only the user-corrected
+    category is recorded.
     """
-    # Fetch transaction with ownership verification via statement
+    # Fetch the atomic transaction with ownership verification
     result = await db.execute(
-        select(BankStatementTransaction)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatementTransaction.id == transaction_id)
-        .where(BankStatement.user_id == user_id)
+        select(AtomicTransaction)
+        .where(AtomicTransaction.id == transaction_id)
+        .where(AtomicTransaction.user_id == user_id)
     )
     txn = result.scalar_one_or_none()
     if not txn:
@@ -66,7 +67,7 @@ async def record_correction(
     correction = CorrectionLog(
         user_id=user_id,
         transaction_id=transaction_id,
-        original_category=txn.suggested_category,
+        original_category=None,
         corrected_category=corrected_category,
         corrected_account_id=corrected_account_id,
         transaction_description=txn.description,
@@ -81,7 +82,6 @@ async def record_correction(
         "Correction recorded",
         user_id=str(user_id),
         transaction_id=str(transaction_id),
-        original=txn.suggested_category,
         corrected=corrected_category,
     )
 

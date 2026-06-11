@@ -17,7 +17,7 @@
 
 ## 2. Architecture Model
 
-**Bank transaction entity**: `BankStatementTransaction` (from statement extraction) is the reconciliation input.
+**Bank transaction entity**: `AtomicTransaction` (DWD, from statement extraction) is the reconciliation input. Reconciliation reads Layer 2 (`AtomicTransaction`) unconditionally and links matches via `ReconciliationMatch.atomic_txn_id`.
 
 ### <a id="thresholds"></a>Reconciliation Thresholds
 
@@ -102,7 +102,7 @@ Environment overrides:
 
 ```python
 def calculate_match_score(
-    transaction: BankStatementTransaction,
+    transaction: AtomicTransaction,
     entries: list[JournalEntry]
 ) -> MatchScore:
     scores = {}
@@ -169,26 +169,7 @@ This prevents split entries, clearing lines, tax lines, and payable/receivable l
 
 ---
 
-## 4. EPIC-011 Migration (Dual Read & Cutover)
-
-During the migration to 4-Layer Architecture, the reconciliation engine supports two modes:
-
-### Phase 3: Dual Read Validation
-Consistency checks run alongside normal operations:
-1.  **Dual Read**: Fetches both Layer 0 (Legacy) and Layer 2 (New) transactions.
-2.  **Validation**: Compares count and total amount.
-3.  **Logging**: Discrepancies logged as warnings.
-
-### Phase 4: Cutover (Layer 2 Read)
-Activated via `ENABLE_4_LAYER_READ=true`:
-1.  **Source Switch**: Reads pending transactions from `AtomicTransaction` (Layer 2) instead of `BankStatementTransaction`.
-2.  **Matching**: Creates `ReconciliationMatch` records linked via `atomic_txn_id`.
-3.  **Status**: Uses existence of match record to determine status (since Atomic records are immutable).
-4.  **Legacy Bypass**: Does not update `BankStatementTransaction` status.
-
----
-
-## 5. Design Constraints (Dos & Don'ts)
+## 4. Design Constraints (Dos & Don'ts)
 
 ### ✅ Recommended Patterns
 
@@ -293,7 +274,7 @@ closing_delta = abs(stated_closing - calculated_closing)
 valid = (opening_delta <= 0.001) AND (closing_delta <= 0.001)
 ```
 
-**New Fields** (BankStatement):
+**New Fields** (StatementSummary):
 - `stage1_status`: PENDING_REVIEW | APPROVED | REJECTED | EDITED
 - `balance_validation_result`: JSONB with validation details (opening/closing deltas)
 - `stage1_reviewed_at`: Timestamp
@@ -354,7 +335,7 @@ pending --> flagged: Needs manual review
 | GET | `/statements/{id}/review` | Stage 1 review data with PDF URL |
 | POST | `/statements/{id}/review/approve` | Approve with balance validation |
 | POST | `/statements/{id}/review/reject` | Reject and trigger re-parse |
-| POST | `/statements/{id}/review/edit` | Edit transactions and approve |
+| POST | `/statements/{id}/review/edit` | Unsupported — returns HTTP 400 (reject + re-parse instead) |
 | POST | `/statements/{id}/review/opening-balance` | Set manual opening balance |
 | GET | `/review/conflicts/{statement_id}` | Stage 1 duplicate and transfer-pair conflict candidates |
 | GET | `/statements/stage2/queue` | Stage 2 review queue (global) |
@@ -368,7 +349,7 @@ pending --> flagged: Needs manual review
 
 | Dimension | Location |
 |-----------|----------|
-| Model | `apps/backend/src/models/statement.py` (Stage1Status) |
+| Model | `apps/backend/src/models/statement_enums.py` (Stage1Status), `apps/backend/src/models/statement_summary.py` (StatementSummary) |
 | Model | `apps/backend/src/models/consistency_check.py` |
 | Service | `apps/backend/src/services/statement_validation.py` |
 | Service | `apps/backend/src/services/consistency_checks.py` |

@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import UploadFile
 
-from src.models.statement import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
 from src.services.extraction import ExtractionError, ExtractionService
 from src.services.validation import (
     route_by_threshold,
@@ -288,13 +288,11 @@ class TestFileSizeLimit:
 
         # Mock the extraction to avoid actual API calls
         async def fake_parse(*args, **kwargs):
-            from src.models.statement import BankStatement
+            from tests.factories import StatementSummaryFactory
 
-            stmt = BankStatement(
+            stmt = StatementSummaryFactory.build(
                 user_id=kwargs.get("user_id"),
-                file_path="test",
                 file_hash=kwargs.get("file_hash", "hash"),
-                original_filename="test.pdf",
                 institution="DBS",
                 account_last4="1234",
                 currency="SGD",

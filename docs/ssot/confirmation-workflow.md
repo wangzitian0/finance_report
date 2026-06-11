@@ -10,7 +10,7 @@
 
 | Concern | Location |
 |---------|----------|
-| `Stage1Status` enum | `apps/backend/src/models/statement.py` — `BankStatement.stage1_status` (nullable; `None` at upload, set during review workflow) |
+| `Stage1Status` enum | `apps/backend/src/models/statement_enums.py` (enum); `apps/backend/src/models/statement_summary.py` — `StatementSummary.stage1_status` (nullable; `None` at upload, set during review workflow) |
 | `Stage2Status` on match | `apps/backend/src/models/reconciliation.py` — `ReconciliationMatch.status` |
 | `pending_review` usage | `apps/backend/src/routers/statements.py`, `apps/backend/src/routers/reconciliation.py` |
 | Balance-chain validation | `apps/backend/src/services/statement_validation.py` |
@@ -24,7 +24,7 @@
 
 | Field | Model | Meaning |
 |-------|-------|---------|
-| `BankStatement.stage1_status = PENDING_REVIEW` | Stage 1 | Parsed statement awaiting user visual verification against the original PDF (**nullable** — `None` after upload; set to `PENDING_REVIEW` when review is triggered) |
+| `StatementSummary.stage1_status = PENDING_REVIEW` | Stage 1 | Parsed statement awaiting user visual verification against the original PDF (**nullable** — `None` after upload; set to `PENDING_REVIEW` when review is triggered) |
 | `ReconciliationMatch.status = PENDING_REVIEW` | Stage 2 | Reconciliation match scoring 60–84 pts, requiring human decision before journal entry creation |
 
 Both use the string value `"pending_review"` by convention, but the state machines they live in are independent.
@@ -39,14 +39,13 @@ The following diagram shows how a bank statement travels from upload through to 
                  ┌─────────────────────────────────────────────────────┐
                  │                  STAGE 1 (Record-Level)              │
                  │                                                       │
-  Upload         │  BankStatement.stage1_status                          │
+  Upload         │  StatementSummary.stage1_status                       │
   ──────►  parsed│                                                       │
                  │   score ≥ 85 + guards ──► approved ─────────────────►│──► Stage 2 queue
                  │         │                                             │
                  │   pending_review ──► approved ──────────────────────►│
                  │         │                                             │
                  │         └──► rejected ──► re-parse (loop)            │
-                 │              (edit → re-validate → approved)         │
                  └─────────────────────────────────────────────────────┘
 
                  ┌─────────────────────────────────────────────────────┐
@@ -72,7 +71,6 @@ The following diagram shows how a bank statement travels from upload through to 
 | `approved` | auto-post guard failure | `pending_review` | Guard failure during high-confidence auto-post; preserve parsed statement and transactions |
 | `pending_review` | `approve_statement()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD; duplicate and transfer-pair candidates are resolved |
 | `pending_review` | `reject_statement()` | `rejected` | — |
-| `pending_review` | `edit_and_approve()` | `approved` | Opening and closing balance-chain checks both pass within 0.001 USD after edits; duplicate and transfer-pair candidates are resolved |
 | `rejected` | re-parse triggered | `pending_review` | — |
 
 ### Stage 2 Transitions
@@ -91,8 +89,8 @@ The following diagram shows how a bank statement travels from upload through to 
 ### DO
 - ✅ Always pass `user_id` to service methods that mutate `pending_review` state (ownership check)
 - ✅ Validate both opening and closing balance-chain checks (0.001 USD tolerance) before advancing Stage 1
-- ✅ Label and confirm Stage 1 edit actions as approve-and-post operations because `/review/edit` persists edits, approves the statement, and posts journal entries when valid
-- ✅ Block Stage 1 approve and edit-approve when unresolved duplicate or transfer-pair candidates remain on the statement
+- ✅ Treat `/review/edit` as unsupported: it returns HTTP 400. To change extracted data, reject and re-parse instead of editing in place
+- ✅ Block Stage 1 approve when unresolved duplicate or transfer-pair candidates remain on the statement
 - ✅ Require confirmed account mapping and source-period uniqueness before Stage 1 auto-posting
 - ✅ Resolve all consistency checks in the active Stage 2 scope before batch approval
 - ✅ Create journal entry only on `accepted` transition (never on `pending_review`)
@@ -102,7 +100,7 @@ The following diagram shows how a bank statement travels from upload through to 
 - ❌ Combine Stage 1 status and Stage 2 status into a single field — they are independent
 - ❌ Create journal entries from `pending_review` matches
 - ❌ Auto-accept Stage 1 statements without opening and closing balance-chain validation
-- ❌ Present `/review/edit` as a save-only action; it is an approval operation with posting side effects
+- ❌ Re-introduce in-place edit-and-approve for `/review/edit`; it is unsupported and returns HTTP 400 (reject + re-parse instead)
 - ❌ Allow `pending_review → approved` bypass when duplicate/transfer checks are unresolved
 - ❌ Hardcode tolerance as `0.10` in Stage 1 — Stage 1 requires `0.001 USD`
 
@@ -132,8 +130,8 @@ statement with either balance-chain check outside the 0.001 USD tolerance.
 |----------|-------|-------------|
 | `POST /api/statements/{id}/review/approve` | `statement_id`, bearer token | stage1_status → approved; opening and closing balance-chain validation enforced (≤ 0.001 USD); unresolved duplicate/transfer-pair candidates rejected; queues to Stage 2 |
 | `POST /api/statements/{id}/review/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
-| `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Updates transactions, re-validates opening and closing balance-chain checks, rejects unresolved duplicate/transfer-pair candidates, approves if valid, and posts journal entries |
-| `GET /api/statements/pending-review` | bearer token | Returns `[BankStatement]` where `status=PARSED` and either `stage1_status=PENDING_REVIEW` or `stage1_status` is null for legacy parsed rows |
+| `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Unsupported — returns HTTP 400. In-place edit-and-approve is removed; reject and re-parse to change extracted data |
+| `GET /api/statements/pending-review` | bearer token | Returns `[StatementSummary]` where `status=PARSED` and either `stage1_status=PENDING_REVIEW` or `stage1_status` is null for legacy parsed rows |
 ### Stage 2 Endpoints (reconciliation + statements routers)
 
 | Endpoint | Input | Side Effect |
@@ -169,6 +167,6 @@ statement with either balance-chain check outside the 0.001 USD tolerance.
 ## 8. Related SSOT Documents
 
 - [reconciliation.md §7](./reconciliation.md) — Stage 1 and Stage 2 detailed state machines with DB column definitions
-- [schema.md](./schema.md) — `BankStatement`, `ReconciliationMatch`, `ConsistencyCheck` table definitions
+- [schema.md](./schema.md) — `StatementSummary`, `ReconciliationMatch`, `ConsistencyCheck` table definitions
 - [extraction.md](./extraction.md) — How parsed statements enter `pending_review` (Stage 1 entry point)
 - [source-type-priority.md](./source-type-priority.md) — How `source_type` is promoted through the confirmation lifecycle

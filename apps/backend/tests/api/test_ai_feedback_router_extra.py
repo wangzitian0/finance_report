@@ -10,10 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     AtomicTransaction,
-    BankStatement,
-    BankStatementStatus,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     ClassificationStatus,
     ReconciliationMatch,
     ReconciliationStatus,
@@ -70,30 +66,21 @@ async def _create_classification(
 
 
 async def _create_reconciliation(db: AsyncSession, user_id, *, match_score=70, score_breakdown=None):
-    statement = BankStatement(
+    txn = AtomicTransaction(
         user_id=user_id,
-        file_path=f"statements/{uuid4()}.pdf",
-        file_hash=f"hash-{uuid4().hex[:10]}",
-        original_filename="stmt.pdf",
-        institution="Test Bank",
-        status=BankStatementStatus.PARSED,
-    )
-    db.add(statement)
-    await db.flush()
-
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
         txn_date=date(2024, 6, 2),
         description="Edge bank txn",
         amount=Decimal("5.00"),
-        direction="DR",
-        status=BankStatementTransactionStatus.UNMATCHED,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=f"edge-recon-{uuid4()}",
+        source_documents=[],
     )
     db.add(txn)
     await db.flush()
 
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[],
         status=ReconciliationStatus.PENDING_REVIEW,
         match_score=match_score,

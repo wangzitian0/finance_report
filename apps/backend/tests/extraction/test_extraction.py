@@ -390,49 +390,6 @@ class TestExtractionServiceHelpers:
 
         self.service = ExtractionService()
 
-    def test_compute_event_confidence_complete(self):
-        """AC13.7.1: Test event confidence with complete data."""
-        event = {
-            "date": "2025-01-15",
-            "description": "Test transaction",
-            "amount": "100.00",
-            "direction": "IN",
-        }
-        conf = self.service._compute_event_confidence(event)
-        assert conf.value == "high"
-
-    def test_compute_event_confidence_missing_fields(self):
-        """AC13.7.2: Test event confidence with missing fields."""
-        event = {
-            "date": "2025-01-15",
-            "amount": "100.00",
-        }
-        conf = self.service._compute_event_confidence(event)
-        assert conf.value in ["medium", "low"]
-
-    def test_compute_event_confidence_invalid_date(self):
-        """AC13.7.3: Test event confidence with invalid date format."""
-        event = {
-            "date": "invalid-date",
-            "description": "Test",
-            "amount": "100.00",
-            "direction": "IN",
-        }
-        conf = self.service._compute_event_confidence(event)
-        # Should be lower confidence due to invalid date
-        assert conf.value in ["medium", "low"]
-
-    def test_compute_event_confidence_null_date(self):
-        """AC13.7.4: Test event confidence with null date."""
-        event = {
-            "date": None,
-            "description": "Test",
-            "amount": "100.00",
-            "direction": "IN",
-        }
-        conf = self.service._compute_event_confidence(event)
-        assert conf.value == "low"
-
     def test_safe_date_valid(self):
         """AC13.7.5: Test _safe_date with valid input."""
         d = self.service._safe_date("2025-01-01")

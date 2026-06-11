@@ -166,33 +166,27 @@ alongside legacy Layer 0, with an env opt-out preserved for rollback.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC11.13.1 | Parsing populates Layer 1/2 by default, without any feature-flag override | `test_dual_write_enabled_by_default()` | `extraction/test_dual_write_layer2.py` | P0 |
-| AC11.13.2 | `ENABLE_4_LAYER_WRITE=false` preserves the legacy Layer-0-only opt-out for rollback | `test_dual_write_can_be_disabled_via_flag()` | `extraction/test_dual_write_layer2.py` | P0 |
 
-### AC11.14: 4-Layer Migration — Stage 2a Layer 0→2 Backfill
+### AC11.14: 4-Layer Migration — Stage 2a Layer 0→2 Backfill (RETIRED in Stage 3)
 
-Stage 2a backfills historical Layer 0 statements (those uploaded before Stage 1
-dual-write) into Layer 1/2, so the Layer-2 read path has complete coverage
-before `ENABLE_4_LAYER_READ` is activated. Idempotent and re-runnable via
-`tools/backfill_layer2.py`.
+> **Retired.** The Stage-2a backfill (`tools/backfill_layer2.py`) and its tests
+> were transitional scaffolding to populate Layer 1/2 from legacy Layer-0
+> statements before the read cutover. Stage 3 removes the `bank_statements`
+> tables entirely and the ingestion pipeline writes Layer 1/2 + the
+> `StatementSummary` conform directly, so there is no Layer-0 source to backfill
+> from. The backfill acceptance criteria are obsolete and have been removed.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.14.1 | Historical Layer 0 statements are projected into Layer 1 documents and Layer 2 atomic transactions | `test_backfill_creates_layer1_and_layer2_from_legacy_statement()` | `extraction/test_backfill_layer2.py` | P0 |
-| AC11.14.2 | Re-running the backfill upserts by dedup hash instead of duplicating rows | `test_backfill_is_idempotent()` | `extraction/test_backfill_layer2.py` | P0 |
-| AC11.14.3 | A user-scoped backfill ignores other users' statements | `test_backfill_scopes_to_requested_user()` | `extraction/test_backfill_layer2.py` | P0 |
+### AC11.15: 4-Layer Migration — StatementSummary Conform (custody account)
 
-### AC11.15: 4-Layer Migration — PR-A StatementSummary Conform (custody account)
-
-PR-A introduces the durable `StatementSummary` conform: it binds an uploaded
-statement document to its custody account (DIM) and carries the confirmed
-statement envelope (period, balances, review state). This is the DWD-native home
-for the account context reconciliation transfer detection needs, replacing the
-ODS `bank_statements.account_id` reach-back. Additive — no flags flipped.
+The durable `StatementSummary` conform binds an uploaded statement document to its
+custody account (DIM) and carries the confirmed statement envelope (period,
+balances, review state). It is the DWD-native home for the account context
+reconciliation transfer detection needs. As of Stage 3 the ingestion pipeline
+writes the conform directly (the legacy `BankStatement`→`StatementSummary` sync
+was removed with the `bank_statements` table).
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC11.15.1 | Syncing projects the BankStatement envelope into the StatementSummary conform | `test_sync_mirrors_bank_statement_envelope()` | `extraction/test_statement_summary_conform.py` | P0 |
-| AC11.15.2 | Re-sync updates the conform in place and links the source UploadedDocument | `test_sync_is_idempotent_and_links_uploaded_document()` | `extraction/test_statement_summary_conform.py` | P0 |
 | AC11.15.3 | Custody account resolves from a Layer-2 atomic transaction via the conform (DWD-native) | `test_resolve_custody_account_from_atomic_txn()` | `extraction/test_statement_summary_conform.py` | P0 |
 | AC11.15.4 | The resolver returns None when the source statement has no confirmed custody account | `test_resolve_returns_none_without_account()` | `extraction/test_statement_summary_conform.py` | P0 |
 | AC11.15.5 | The resolver normalizes a `{"documents": [...]}` source-documents wrapper | `test_resolve_handles_dict_wrapper_source_documents()` | `extraction/test_statement_summary_conform.py` | P0 |

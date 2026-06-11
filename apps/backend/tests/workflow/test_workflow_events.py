@@ -13,7 +13,8 @@ from pydantic import ValidationError
 from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.models import BankStatement, BankStatementStatus, Stage1Status, User
+from src.models import BankStatementStatus, Stage1Status, StatementSummary, User
+from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -35,6 +36,42 @@ from src.services.workflow_events import (
 )
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
+
+
+async def _make_statement(
+    db: AsyncSession,
+    user_id,
+    *,
+    original_filename: str,
+    file_hash: str,
+    institution: str = "Demo Bank",
+    status: BankStatementStatus = BankStatementStatus.UPLOADED,
+    stage1_status: Stage1Status | None = None,
+    stage1_reviewed_at: datetime | None = None,
+) -> tuple[StatementSummary, UploadedDocument]:
+    """Create a StatementSummary linked to an UploadedDocument for workflow derivation."""
+    document = UploadedDocument(
+        user_id=user_id,
+        file_path=f"statements/{original_filename}",
+        file_hash=file_hash,
+        original_filename=original_filename,
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(document)
+    await db.flush()
+
+    statement = StatementSummary(
+        user_id=user_id,
+        uploaded_document_id=document.id,
+        file_hash=file_hash,
+        institution=institution,
+        status=status,
+        stage1_status=stage1_status,
+        stage1_reviewed_at=stage1_reviewed_at,
+    )
+    db.add(statement)
+    await db.flush()
+    return statement, document
 
 
 def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
@@ -366,16 +403,12 @@ def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
 @pytest.mark.asyncio
 async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, test_user) -> None:
     """AC19.1.4: uploaded statement event derivation is deterministic and idempotent."""
-    statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/demo.csv",
-        file_hash="a" * 64,
+    statement, _document = await _make_statement(
+        db,
+        test_user.id,
         original_filename="demo.csv",
-        institution="Demo Bank",
-        status=BankStatementStatus.UPLOADED,
+        file_hash="a" * 64,
     )
-    db.add(statement)
-    await db.flush()
 
     first = await derive_uploaded_statement_event(db, statement, user_id=test_user.id)
     second = await derive_uploaded_statement_event(db, statement, user_id=test_user.id)
@@ -400,16 +433,12 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
     db.add(other_user)
     await db.flush()
 
-    statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/owned.csv",
-        file_hash="b" * 64,
+    statement, _document = await _make_statement(
+        db,
+        test_user.id,
         original_filename="owned.csv",
-        institution="Demo Bank",
-        status=BankStatementStatus.UPLOADED,
+        file_hash="b" * 64,
     )
-    db.add(statement)
-    await db.flush()
 
     with pytest.raises(ValueError, match="statement.user_id must match user_id"):
         await derive_uploaded_statement_event(db, statement, user_id=other_user.id)
@@ -459,16 +488,12 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
 @pytest.mark.asyncio
 async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None:
     """AC19.3.1: derived sync updates mutable display fields without lifecycle reset."""
-    statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/original.csv",
-        file_hash="e" * 64,
+    statement, document = await _make_statement(
+        db,
+        test_user.id,
         original_filename="original.csv",
-        institution="Demo Bank",
-        status=BankStatementStatus.UPLOADED,
+        file_hash="e" * 64,
     )
-    db.add(statement)
-    await db.flush()
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     event = (
@@ -479,7 +504,7 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
         )
     ).scalar_one()
     event.status = WorkflowEventStatus.ARCHIVED
-    statement.original_filename = "renamed.csv"
+    document.original_filename = "renamed.csv"
     await db.flush()
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
@@ -504,17 +529,15 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
 @pytest.mark.asyncio
 async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
     """AC19.12.2 AC19.12.6: review events are idempotent, current, and lifecycle-safe."""
-    statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/review.csv",
-        file_hash="1" * 64,
+    statement, _document = await _make_statement(
+        db,
+        test_user.id,
         original_filename="review.csv",
+        file_hash="1" * 64,
         institution="Review Bank",
         status=BankStatementStatus.PARSED,
         stage1_status=Stage1Status.PENDING_REVIEW,
     )
-    db.add(statement)
-    await db.flush()
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     review_event = (
@@ -568,36 +591,34 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
 @pytest.mark.asyncio
 async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure(db, test_user) -> None:
     """AC19.12.2 AC19.12.6: legacy NULL Stage 1 rows derive the correct review event."""
-    pending_statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/null-stage1.csv",
-        file_hash="6" * 64,
+    pending_statement, _pending_document = await _make_statement(
+        db,
+        test_user.id,
         original_filename="null-stage1.csv",
+        file_hash="6" * 64,
         institution="Review Bank",
         status=BankStatementStatus.PARSED,
         stage1_status=None,
     )
-    rejected_by_review = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/review-rejected.csv",
-        file_hash="7" * 64,
+    rejected_by_review, _rejected_review_document = await _make_statement(
+        db,
+        test_user.id,
         original_filename="review-rejected.csv",
+        file_hash="7" * 64,
         institution="Review Bank",
         status=BankStatementStatus.REJECTED,
         stage1_status=Stage1Status.REJECTED,
         stage1_reviewed_at=datetime.now(UTC),
     )
-    rejected_by_parser = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/parser-rejected.csv",
-        file_hash="8" * 64,
+    rejected_by_parser, _rejected_parser_document = await _make_statement(
+        db,
+        test_user.id,
         original_filename="parser-rejected.csv",
+        file_hash="8" * 64,
         institution="Review Bank",
         status=BankStatementStatus.REJECTED,
         stage1_status=None,
     )
-    db.add_all([pending_statement, rejected_by_review, rejected_by_parser])
-    await db.flush()
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
 
@@ -800,19 +821,16 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
     monkeypatch,
 ) -> None:
     """AC19.12.3: package readiness drives the primary open-report action once ready."""
-    db.add(
-        BankStatement(
-            user_id=test_user.id,
-            file_path="statements/ready.csv",
-            file_hash="2" * 64,
-            original_filename="ready.csv",
-            institution="Ready Bank",
-            status=BankStatementStatus.PARSED,
-            stage1_status=Stage1Status.APPROVED,
-            stage1_reviewed_at=datetime.now(UTC),
-        )
+    await _make_statement(
+        db,
+        test_user.id,
+        original_filename="ready.csv",
+        file_hash="2" * 64,
+        institution="Ready Bank",
+        status=BankStatementStatus.PARSED,
+        stage1_status=Stage1Status.APPROVED,
+        stage1_reviewed_at=datetime.now(UTC),
     )
-    await db.flush()
 
     async def fake_readiness(_db, **_kwargs):
         return {
@@ -896,15 +914,11 @@ async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, t
     from sqlalchemy import event as sqlalchemy_event
 
     for index in range(3):
-        db.add(
-            BankStatement(
-                user_id=test_user.id,
-                file_path=f"statements/bulk-{index}.csv",
-                file_hash=f"{index}" * 64,
-                original_filename=f"bulk-{index}.csv",
-                institution="Demo Bank",
-                status=BankStatementStatus.UPLOADED,
-            )
+        await _make_statement(
+            db,
+            test_user.id,
+            original_filename=f"bulk-{index}.csv",
+            file_hash=f"{index}" * 64,
         )
     await db.commit()
 

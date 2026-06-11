@@ -9,29 +9,20 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.models.statement import BankStatement, BankStatementStatus
+from src.models import BankStatementStatus
 from src.services.statement_parsing import handle_parse_failure
+from tests.factories import StatementSummaryFactory
 
 
-@pytest.mark.asyncio
-async def test_handle_parse_failure_rollback_fails(db):
-    """AC3.5.5 - Handle parse failure: Rollback exception is caught and logged
-
-    GIVEN a statement exists in the database
-    WHEN _handle_parse_failure is called and db.rollback() raises an exception
-    THEN the exception is logged but the handler continues to mark statement as rejected
-    """
-    user_id = uuid4()
-    statement = BankStatement(
-        user_id=user_id,
-        file_path="test.pdf",
+async def _create_parsing_statement(db, user_id):
+    return await StatementSummaryFactory.create_async(
+        db,
+        user_id,
         file_hash="abc123",
-        original_filename="test.pdf",
         institution="TEST",
         account_last4="1234",
         currency="SGD",
@@ -43,9 +34,18 @@ async def test_handle_parse_failure_rollback_fails(db):
         confidence_score=0,
         balance_validated=False,
     )
-    db.add(statement)
+
+
+@pytest.mark.asyncio
+async def test_handle_parse_failure_rollback_fails(db, test_user):
+    """AC3.5.5 - Handle parse failure: Rollback exception is caught and logged
+
+    GIVEN a statement exists in the database
+    WHEN _handle_parse_failure is called and db.rollback() raises an exception
+    THEN the exception is logged but the handler continues to mark statement as rejected
+    """
+    statement = await _create_parsing_statement(db, test_user.id)
     await db.commit()
-    await db.refresh(statement)
 
     with patch.object(db, "rollback", side_effect=SQLAlchemyError("Rollback failed")):
         await handle_parse_failure(db=db, statement=statement, message="Test error")
@@ -56,31 +56,14 @@ async def test_handle_parse_failure_rollback_fails(db):
 
 
 @pytest.mark.asyncio
-async def test_handle_parse_failure_statement_not_found(db):
+async def test_handle_parse_failure_statement_not_found(db, test_user):
     """AC3.5.5 - Handle parse failure: Statement not found after rollback is logged
 
     GIVEN a statement that gets deleted during processing
     WHEN _handle_parse_failure is called and statement is not found after rollback
     THEN the error is logged and function returns without crashing
     """
-    user_id = uuid4()
-    statement = BankStatement(
-        user_id=user_id,
-        file_path="test.pdf",
-        file_hash="abc123",
-        original_filename="test.pdf",
-        institution="TEST",
-        account_last4="1234",
-        currency="SGD",
-        period_start=date(2025, 1, 1),
-        period_end=date(2025, 1, 31),
-        opening_balance=Decimal("100.00"),
-        closing_balance=Decimal("100.00"),
-        status=BankStatementStatus.PARSING,
-        confidence_score=0,
-        balance_validated=False,
-    )
-    db.add(statement)
+    statement = await _create_parsing_statement(db, test_user.id)
     await db.commit()
     statement_id = statement.id
 
@@ -93,33 +76,15 @@ async def test_handle_parse_failure_statement_not_found(db):
 
 
 @pytest.mark.asyncio
-async def test_handle_parse_failure_commit_fails(db):
+async def test_handle_parse_failure_commit_fails(db, test_user):
     """AC3.5.5 - Handle parse failure: Commit failure during error handling is logged
 
     GIVEN a statement exists in the database
     WHEN _handle_parse_failure is called and db.commit() raises an exception
     THEN the exception is logged as inner error
     """
-    user_id = uuid4()
-    statement = BankStatement(
-        user_id=user_id,
-        file_path="test.pdf",
-        file_hash="abc123",
-        original_filename="test.pdf",
-        institution="TEST",
-        account_last4="1234",
-        currency="SGD",
-        period_start=date(2025, 1, 1),
-        period_end=date(2025, 1, 31),
-        opening_balance=Decimal("100.00"),
-        closing_balance=Decimal("100.00"),
-        status=BankStatementStatus.PARSING,
-        confidence_score=0,
-        balance_validated=False,
-    )
-    db.add(statement)
+    statement = await _create_parsing_statement(db, test_user.id)
     await db.commit()
-    await db.refresh(statement)
 
     original_commit = db.commit
 

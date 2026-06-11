@@ -6,11 +6,17 @@ Tests the three-phase reconciliation flow:
 3. Phase 3: Auto-Pair Transfers (AFTER all matching)
 
 See: docs/ssot/processing_account.md Section 7 (Integration Points)
+
+Fixtures are built natively on Layer 2: each "statement" is an
+``UploadedDocument`` + ``StatementSummary`` carrying the confirmed custody
+account, and transactions are ``AtomicTransaction`` rows whose
+``source_documents`` reference the document so ``resolve_custody_account_id``
+can resolve the transfer source/destination account.
 """
 
 from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
@@ -19,16 +25,77 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
-    BankTransactionStatus,
+    AtomicTransaction,
+    BankStatementStatus,
+    DocumentType,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
+    StatementSummary,
+    TransactionDirection,
+    UploadedDocument,
 )
 from src.services.account_service import get_or_create_processing_account
 from src.services.reconciliation import execute_matching
+
+
+async def _seed_statement(
+    db: AsyncSession,
+    user_id,
+    *,
+    account_id,
+    file_hash: str,
+) -> UploadedDocument:
+    """Create an UploadedDocument + StatementSummary conform for the given account."""
+    doc = UploadedDocument(
+        user_id=user_id,
+        file_path=f"/tmp/{file_hash}.pdf",
+        file_hash=file_hash,
+        original_filename="test.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(doc)
+    await db.flush()
+
+    summary = StatementSummary(
+        user_id=user_id,
+        account_id=account_id,
+        uploaded_document_id=doc.id,
+        file_hash=file_hash,
+        institution="TestBank",
+        account_last4="1234",
+        currency="SGD",
+        status=BankStatementStatus.PARSED,
+    )
+    db.add(summary)
+    await db.flush()
+    return doc
+
+
+async def _seed_txn(
+    db: AsyncSession,
+    user_id,
+    doc: UploadedDocument,
+    *,
+    description: str,
+    amount: Decimal,
+    direction: str,
+    txn_date: date | None = None,
+) -> AtomicTransaction:
+    txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=txn_date or date.today(),
+        description=description,
+        amount=amount,
+        direction=TransactionDirection(direction),
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(doc.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
+    )
+    db.add(txn)
+    await db.flush()
+    return txn
 
 
 class TestTransferDetectionDuringReconciliation:
@@ -39,58 +106,33 @@ class TestTransferDetectionDuringReconciliation:
         """AC15.6.1 · Transfer detection creates Processing account entry with linked account."""
         user_id = test_user.id
 
-        # Setup: Cash account
-        cash = Account(
-            user_id=user_id,
-            name="Cash",
-            code="1001",
-            type=AccountType.ASSET,
-            currency="SGD",
-        )
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
         db.add(cash)
         await db.flush()
 
-        # Create bank statement with linked account
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="test_hash_transfer_1",
-            original_filename="test.pdf",
-            institution="TestBank",
-            account_id=cash.id,  # Link statement to Cash account
-        )
-        db.add(statement)
-        await db.flush()
-
-        # Create transfer transaction (OUT)
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date.today(),
+        doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash="test_hash_transfer_1")
+        txn = await _seed_txn(
+            db,
+            user_id,
+            doc,
             description="TRANSFER TO SAVINGS ACCOUNT",
             amount=Decimal("200.00"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
         )
-        db.add(txn)
-        await db.flush()
 
-        # Execute reconciliation
-        matches = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches = await execute_matching(db, user_id=user_id)
 
-        # Verify: Transfer detected and Processing entry created
         assert len(matches) == 1
         match = matches[0]
         assert match.match_score == 100  # Transfer detection = exact match
         assert len(match.journal_entry_ids) == 1
         entry_id = UUID(match.journal_entry_ids[0])
-        # Verify: Journal entry exists
         entry_result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
         entry = entry_result.scalar_one()
         assert entry.source_type == JournalEntrySourceType.SYSTEM
-        assert entry.status == JournalEntryStatus.RECONCILED  # Entry status updated to RECONCILED after matching
+        assert entry.status == JournalEntryStatus.RECONCILED
         assert "Transfer OUT" in entry.memo or "TRANSFER TO" in entry.memo
 
-        # Verify: Processing account has DEBIT line (transfer OUT)
         processing = await get_or_create_processing_account(db, user_id)
         lines_result = await db.execute(
             select(JournalLine).where(
@@ -102,7 +144,6 @@ class TestTransferDetectionDuringReconciliation:
         assert processing_line.direction.value == "DEBIT"
         assert processing_line.amount == Decimal("200.00")
 
-        # Verify: Cash account has CREDIT line (funds leave Cash)
         cash_lines_result = await db.execute(
             select(JournalLine).where(
                 JournalLine.journal_entry_id == entry.id,
@@ -113,7 +154,6 @@ class TestTransferDetectionDuringReconciliation:
         assert cash_line.direction.value == "CREDIT"
         assert cash_line.amount == Decimal("200.00")
 
-        # Verify: Transaction status updated to MATCHED
         await db.refresh(txn)
 
     @pytest.mark.asyncio
@@ -121,40 +161,21 @@ class TestTransferDetectionDuringReconciliation:
         """AC15.6.2 · Transfer detection logs warning and skips when statement has no linked account."""
         user_id = test_user.id
 
-        # Create bank statement WITHOUT linked account
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="test_hash_no_account",
-            original_filename="test.pdf",
-            institution="TestBank",
-            account_id=None,  # No linked account
-        )
-        db.add(statement)
-        await db.flush()
-
-        # Create transfer transaction
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date.today(),
+        doc = await _seed_statement(db, user_id, account_id=None, file_hash="test_hash_no_account")
+        txn = await _seed_txn(
+            db,
+            user_id,
+            doc,
             description="TRANSFER TO CHECKING",
             amount=Decimal("150.00"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
         )
-        db.add(txn)
-        await db.flush()
 
-        # Execute reconciliation
-        matches = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches = await execute_matching(db, user_id=user_id)
 
-        # Verify: No match created (transfer detection skipped, no normal match found)
         assert len(matches) == 0
-
-        # Verify: Transaction remains PENDING (not matched)
         await db.refresh(txn)
 
-        # Verify: No Processing account entry created
         processing = await get_or_create_processing_account(db, user_id)
         lines_result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id))
         lines = list(lines_result.scalars().all())
@@ -165,50 +186,26 @@ class TestTransferDetectionDuringReconciliation:
         """AC15.6.3 · Transfer IN creates: DEBIT destination account, CREDIT Processing."""
         user_id = test_user.id
 
-        # Setup: Checking account
-        checking = Account(
-            user_id=user_id,
-            name="Checking",
-            code="1002",
-            type=AccountType.ASSET,
-            currency="SGD",
-        )
+        checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
         db.add(checking)
         await db.flush()
 
-        # Create bank statement linked to Checking
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="test_hash_transfer_in",
-            original_filename="test.pdf",
-            institution="TestBank",
-            account_id=checking.id,
-        )
-        db.add(statement)
-        await db.flush()
-
-        # Create transfer transaction (IN)
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date.today(),
+        doc = await _seed_statement(db, user_id, account_id=checking.id, file_hash="test_hash_transfer_in")
+        await _seed_txn(
+            db,
+            user_id,
+            doc,
             description="PAYNOW TRANSFER FROM JANE",
             amount=Decimal("300.00"),
             direction="IN",
-            status=BankTransactionStatus.PENDING,
         )
-        db.add(txn)
-        await db.flush()
 
-        # Execute reconciliation
-        matches = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches = await execute_matching(db, user_id=user_id)
 
-        # Verify: Match created
         assert len(matches) == 1
         match = matches[0]
         assert len(match.journal_entry_ids) == 1
         entry_id = UUID(match.journal_entry_ids[0])
-        # Verify: Processing account has CREDIT line (transfer IN)
         processing = await get_or_create_processing_account(db, user_id)
         entry_result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
         entry = entry_result.scalar_one()
@@ -223,7 +220,6 @@ class TestTransferDetectionDuringReconciliation:
         assert processing_line.direction.value == "CREDIT"
         assert processing_line.amount == Decimal("300.00")
 
-        # Verify: Checking account has DEBIT line (funds enter Checking)
         checking_line_result = await db.execute(
             select(JournalLine).where(
                 JournalLine.journal_entry_id == entry.id,
@@ -243,72 +239,35 @@ class TestTransferAutoPairingPhase:
         """AC15.6.4 · Paired transfers (same amount, same date) are auto-paired, Processing balance = 0."""
         user_id = test_user.id
 
-        # Setup: Cash and Checking accounts
-        cash = Account(
-            user_id=user_id,
-            name="Cash",
-            code="1001",
-            type=AccountType.ASSET,
-            currency="SGD",
-        )
-        checking = Account(
-            user_id=user_id,
-            name="Checking",
-            code="1002",
-            type=AccountType.ASSET,
-            currency="SGD",
-        )
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+        checking = Account(user_id=user_id, name="Checking", code="1002", type=AccountType.ASSET, currency="SGD")
         db.add_all([cash, checking])
         await db.flush()
 
-        # Create statements
-        cash_statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/cash.pdf",
-            file_hash="cash_stmt",
-            original_filename="cash.pdf",
-            institution="Bank A",
-            account_id=cash.id,
-        )
-        checking_statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/checking.pdf",
-            file_hash="checking_stmt",
-            original_filename="checking.pdf",
-            institution="Bank B",
-            account_id=checking.id,
-        )
-        db.add_all([cash_statement, checking_statement])
-        await db.flush()
+        cash_doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash="cash_stmt")
+        checking_doc = await _seed_statement(db, user_id, account_id=checking.id, file_hash="checking_stmt")
 
-        # Create OUT transaction from Cash
-        txn_out = BankStatementTransaction(
-            statement_id=cash_statement.id,
-            txn_date=date.today(),
+        await _seed_txn(
+            db,
+            user_id,
+            cash_doc,
             description="FAST PAYMENT TO BANK B",
             amount=Decimal("500.00"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
         )
-        # Create IN transaction to Checking
-        txn_in = BankStatementTransaction(
-            statement_id=checking_statement.id,
-            txn_date=date.today(),
+        await _seed_txn(
+            db,
+            user_id,
+            checking_doc,
             description="FAST PAYMENT FROM BANK A",
             amount=Decimal("500.00"),
             direction="IN",
-            status=BankTransactionStatus.PENDING,
         )
-        db.add_all([txn_out, txn_in])
-        await db.flush()
 
-        # Execute reconciliation (processes BOTH transactions)
         matches = await execute_matching(db, user_id=user_id)
 
-        # Verify: Two matches created (one for OUT, one for IN)
         assert len(matches) == 2
 
-        # Verify: Processing balance is 0 (transfers paired)
         from src.services.processing_account import get_processing_balance
 
         balance = await get_processing_balance(db, user_id)
@@ -319,48 +278,24 @@ class TestTransferAutoPairingPhase:
         """AC15.6.5 · Unpaired transfer leaves Processing balance ≠ 0."""
         user_id = test_user.id
 
-        # Setup: Cash account
-        cash = Account(
-            user_id=user_id,
-            name="Cash",
-            code="1001",
-            type=AccountType.ASSET,
-            currency="SGD",
-        )
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
         db.add(cash)
         await db.flush()
 
-        # Create statement
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="unpaired_stmt",
-            original_filename="test.pdf",
-            institution="TestBank",
-            account_id=cash.id,
-        )
-        db.add(statement)
-        await db.flush()
-
-        # Create ONLY OUT transaction (no matching IN)
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date.today(),
+        doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash="unpaired_stmt")
+        await _seed_txn(
+            db,
+            user_id,
+            doc,
             description="TRANSFER OUT - UNPAIRED",
             amount=Decimal("250.00"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
         )
-        db.add(txn)
-        await db.flush()
 
-        # Execute reconciliation
-        matches = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches = await execute_matching(db, user_id=user_id)
 
-        # Verify: Match created
         assert len(matches) == 1
 
-        # Verify: Processing balance is NOT zero (unpaired)
         from src.services.processing_account import get_processing_balance
 
         balance = await get_processing_balance(db, user_id)
@@ -375,25 +310,13 @@ class TestNormalMatchingPhaseIntegration:
         """AC15.6.6 · Non-transfer transactions skip Phase 1 and proceed to Phase 2 (normal matching)."""
         user_id = test_user.id
 
-        # Setup: Cash account and journal entry for normal expense
-        cash = Account(
-            user_id=user_id,
-            name="Cash",
-            code="1001",
-            type=AccountType.ASSET,
-            currency="SGD",
-        )
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
         expense = Account(
-            user_id=user_id,
-            name="Office Supplies",
-            code="5001",
-            type=AccountType.EXPENSE,
-            currency="SGD",
+            user_id=user_id, name="Office Supplies", code="5001", type=AccountType.EXPENSE, currency="SGD"
         )
         db.add_all([cash, expense])
         await db.flush()
 
-        # Create manual journal entry (for normal matching)
         entry = JournalEntry(
             user_id=user_id,
             entry_date=date.today(),
@@ -421,68 +344,37 @@ class TestNormalMatchingPhaseIntegration:
         db.add_all(lines)
         await db.flush()
 
-        # Create statement
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="normal_txn_stmt",
-            original_filename="test.pdf",
-            institution="TestBank",
-            account_id=cash.id,
-        )
-        db.add(statement)
-        await db.flush()
-
-        # Create non-transfer transaction (regular expense)
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date.today(),
+        doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash="normal_txn_stmt")
+        await _seed_txn(
+            db,
+            user_id,
+            doc,
             description="OFFICE DEPOT STORE #123",
             amount=Decimal("35.50"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
         )
-        db.add(txn)
-        await db.flush()
 
-        # Execute reconciliation
-        matches = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches = await execute_matching(db, user_id=user_id)
 
-        # Verify: Match created via normal matching (Phase 2)
         assert len(matches) == 1
         match = matches[0]
-        assert UUID(match.journal_entry_ids[0]) == entry.id  # Matched to existing manual entry
+        assert UUID(match.journal_entry_ids[0]) == entry.id
 
-        # Verify: Processing account NOT involved (no transfer detected)
         processing = await get_or_create_processing_account(db, user_id)
         lines_result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id))
         lines = list(lines_result.scalars().all())
-        assert len(lines) == 0  # Processing account untouched
+        assert len(lines) == 0
 
     @pytest.mark.asyncio
     async def test_mixed_transactions_both_phases_execute(self, db: AsyncSession, test_user):
         """AC15.6.6 · AC11.17.2 · Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
         user_id = test_user.id
 
-        # Setup accounts
-        cash = Account(
-            user_id=user_id,
-            name="Cash",
-            code="1001",
-            type=AccountType.ASSET,
-            currency="SGD",
-        )
-        expense = Account(
-            user_id=user_id,
-            name="Groceries",
-            code="5010",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
+        cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+        expense = Account(user_id=user_id, name="Groceries", code="5010", type=AccountType.EXPENSE, currency="SGD")
         db.add_all([cash, expense])
         await db.flush()
 
-        # Create manual entry for normal matching
         grocery_entry = JournalEntry(
             user_id=user_id,
             entry_date=date.today(),
@@ -510,55 +402,35 @@ class TestNormalMatchingPhaseIntegration:
         db.add_all(lines)
         await db.flush()
 
-        # Create statement
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="mixed_stmt",
-            original_filename="test.pdf",
-            institution="TestBank",
-            account_id=cash.id,
-        )
-        db.add(statement)
-        await db.flush()
-
-        # Create two transactions: one transfer, one normal expense
-        txn_transfer = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date.today(),
+        doc = await _seed_statement(db, user_id, account_id=cash.id, file_hash="mixed_stmt")
+        await _seed_txn(
+            db,
+            user_id,
+            doc,
             description="PAYNOW TRANSFER TO SAVINGS",
             amount=Decimal("400.00"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
         )
-        txn_grocery = BankStatementTransaction(
-            statement_id=statement.id,
-            txn_date=date.today(),
+        await _seed_txn(
+            db,
+            user_id,
+            doc,
             description="NTUC FAIRPRICE #512",
             amount=Decimal("85.30"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
         )
-        db.add_all([txn_transfer, txn_grocery])
-        await db.flush()
 
-        # Execute reconciliation
-        matches = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches = await execute_matching(db, user_id=user_id)
 
-        # Verify: Two matches created
         assert len(matches) == 2
 
-        # Verify: Transfer matched via Phase 1 (new Processing entry)
         transfer_match = next(
             (m for m in matches if m.score_breakdown.get("transfer_out") or m.score_breakdown.get("transfer_in")),
             None,
         )
         assert transfer_match is not None
-        assert transfer_match.match_score == 100  # Transfer detection score
+        assert transfer_match.match_score == 100
 
-        # Verify: Grocery matched via Phase 2 (existing manual entry).
-        # Match it by its linked journal entry (path-agnostic: matches are keyed by
-        # atomic_txn_id under the Layer-2 read path, not bank_txn_id).
         grocery_match = next(
             (m for m in matches if str(grocery_entry.id) in (m.journal_entry_ids or [])),
             None,
@@ -566,9 +438,8 @@ class TestNormalMatchingPhaseIntegration:
         assert grocery_match is not None
         assert UUID(grocery_match.journal_entry_ids[0]) == grocery_entry.id
 
-        # Verify: Processing account has transfer entry
         processing = await get_or_create_processing_account(db, user_id)
         lines_result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id))
         processing_lines = list(lines_result.scalars().all())
-        assert len(processing_lines) == 1  # Only transfer involves Processing
+        assert len(processing_lines) == 1
         assert processing_lines[0].amount == Decimal("400.00")

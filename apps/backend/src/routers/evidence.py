@@ -22,16 +22,12 @@ router = APIRouter(prefix="/evidence", tags=["evidence"])
 _LAZY_MATERIALIZATION_ENTITY_TYPES = {
     "journal_line",
     "journal_entry",
-    "bank_statement_transaction",
-    "bank_statement",
     "uploaded_document",
     "atomic_transaction",
 }
 _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS = {
     "journal_line": {"ledger_line"},
     "journal_entry": {"ledger_entry"},
-    "bank_statement_transaction": {"extracted_record"},
-    "bank_statement": {"source_document"},
     "uploaded_document": {"source_document"},
     "atomic_transaction": {"atomic_fact"},
 }

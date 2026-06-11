@@ -18,16 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     Account,
-    AccountEvent,
     AccountType,
-    BankTransactionStatus,
-    ConfidenceLevel,
+    AtomicTransaction,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
-    Statement,
+    TransactionDirection,
     User,
 )
 from src.services.reconciliation import (
@@ -37,21 +35,24 @@ from src.services.reconciliation import (
 )
 
 
-def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> Statement:
-    """Create a test statement."""
-    user_id = owner_id if owner_id else uuid4()
-    return Statement(
-        user_id=user_id,
-        file_path="statements/test.pdf",
-        file_hash=f"test_hash_{base_date}_{uuid4().hex[:8]}",
-        original_filename="test.pdf",
-        institution="Test Bank",
-        account_last4="1234",
+def _make_atomic(
+    *,
+    owner_id: UUID,
+    txn_date: date,
+    description: str,
+    amount: Decimal,
+    direction: str,
+) -> AtomicTransaction:
+    """Build a Layer-2 atomic transaction for the given user."""
+    return AtomicTransaction(
+        user_id=owner_id,
+        txn_date=txn_date,
+        description=description,
+        amount=amount,
+        direction=TransactionDirection(direction),
         currency="SGD",
-        period_start=base_date,
-        period_end=base_date,
-        opening_balance=Decimal("0.00"),
-        closing_balance=Decimal("0.00"),
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
     )
 
 
@@ -130,32 +131,24 @@ class TestMatchingAccuracy:
                 ]
             )
 
-            statement = _make_statement(owner_id=user_id, base_date=entry_date)
-            db.add(statement)
-            await db.flush()
-
-            txn = AccountEvent(
-                statement_id=statement.id,
+            txn = _make_atomic(
+                owner_id=user_id,
                 txn_date=entry_date,
                 description=memo,  # Exact match
                 amount=amount,  # Exact match
                 direction="IN",
-                status=BankTransactionStatus.PENDING,
-                confidence=ConfidenceLevel.HIGH,
             )
             db.add(txn)
-            correct_matches.append((entry.id, txn, statement.id))
+            correct_matches.append((entry.id, txn))
 
         await db.commit()
 
-        # Execute matching for each statement
+        # Execute matching once over all pending Layer-2 transactions.
         high_score_count = 0
-        for entry_id, txn, statement_id in correct_matches:
-            matches = await execute_matching(db, statement_id=statement_id, user_id=user_id)
-            if matches:
-                for match in matches:
-                    if match.match_score >= 85:
-                        high_score_count += 1
+        matches = await execute_matching(db, user_id=user_id)
+        for match in matches:
+            if match.match_score >= 85:
+                high_score_count += 1
 
         # All exact matches should score >= 85 (auto-accept threshold)
         # This gives us confidence that high scores = true positives
@@ -207,18 +200,12 @@ class TestMatchingAccuracy:
         )
 
         # Transaction from December - Completely unrelated
-        statement = _make_statement(owner_id=user_id, base_date=date(2023, 12, 20))
-        db.add(statement)
-        await db.flush()
-
-        txn = AccountEvent(
-            statement_id=statement.id,
+        txn = _make_atomic(
+            owner_id=user_id,
             txn_date=date(2023, 12, 20),  # Different month
             description="Coffee Shop Purchase",  # Completely different
             amount=Decimal("5.50"),  # Completely different amount
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
-            confidence=ConfidenceLevel.HIGH,
         )
         db.add(txn)
         await db.commit()
@@ -276,18 +263,12 @@ class TestMatchingAccuracy:
         )
 
         # Transaction: Same salary, slightly different description
-        statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 25))
-        db.add(statement)
-        await db.flush()
-
-        txn = AccountEvent(
-            statement_id=statement.id,
+        txn = _make_atomic(
+            owner_id=user_id,
             txn_date=date(2024, 1, 25),
             description="EMPLOYER INC SALARY JAN",  # Different format but same meaning
             amount=Decimal("5000.00"),
             direction="IN",
-            status=BankTransactionStatus.PENDING,
-            confidence=ConfidenceLevel.HIGH,
         )
         db.add(txn)
         await db.commit()
@@ -324,23 +305,17 @@ class TestBatchPerformance:
         db.add_all([user, bank, expense])
         await db.flush()
 
-        statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-        db.add(statement)
-        await db.flush()
-
         # Create 100 transactions (reduced from 1000 for CI speed)
         # This is still representative of algorithm efficiency
         txn_count = 100
 
         for i in range(txn_count):
-            txn = AccountEvent(
-                statement_id=statement.id,
+            txn = _make_atomic(
+                owner_id=user_id,
                 txn_date=date(2024, 1, 1) + timedelta(days=i % 30),
                 description=f"Transaction {i}",
                 amount=Decimal(str(10 + (i % 100))),
                 direction="OUT" if i % 2 == 0 else "IN",
-                status=BankTransactionStatus.PENDING,
-                confidence=ConfidenceLevel.HIGH,
             )
             db.add(txn)
 
@@ -379,7 +354,7 @@ class TestBatchPerformance:
 
         # Measure execution time
         start_time = time.perf_counter()
-        matches = await execute_matching(db, statement_id=statement.id, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id)
         elapsed = time.perf_counter() - start_time
 
         # Performance threshold: 5s for 100 transactions
@@ -412,42 +387,29 @@ class TestConcurrentMatching:
         db.add_all([user, bank, income])
         await db.flush()
 
-        # Create 3 separate statements
-        statements = []
+        # Three logical "statements" worth of transactions on the Layer-2 stream.
         for i in range(3):
-            stmt = _make_statement(owner_id=user_id, base_date=date(2024, 1, i + 1))
-            db.add(stmt)
-            statements.append(stmt)
-
-        await db.flush()
-
-        # Add transactions to each statement
-        for i, stmt in enumerate(statements):
             for j in range(5):
-                txn = AccountEvent(
-                    statement_id=stmt.id,
+                txn = _make_atomic(
+                    owner_id=user_id,
                     txn_date=date(2024, 1, i + 1),
                     description=f"Stmt{i} Txn{j}",
                     amount=Decimal(str(100 + i * 10 + j)),
                     direction="IN",
-                    status=BankTransactionStatus.PENDING,
-                    confidence=ConfidenceLevel.HIGH,
                 )
                 db.add(txn)
 
         await db.commit()
 
-        # Execute matching for all statements concurrently
-        # Note: In a real scenario, this would be separate DB sessions
-        # Here we test the algorithm doesn't corrupt shared state
+        # Re-running matching must be idempotent and not corrupt shared state.
         results = []
-        for stmt in statements:
-            matches = await execute_matching(db, statement_id=stmt.id, user_id=user_id)
-            results.append((stmt.id, matches))
+        for _ in range(3):
+            matches = await execute_matching(db, user_id=user_id)
+            results.append(matches)
 
         # All should complete without error
         assert len(results) == 3
-        assert all(isinstance(r[1], list) for r in results)
+        assert all(isinstance(r, list) for r in results)
 
 
 # =============================================================================
@@ -504,18 +466,12 @@ class TestCrossMonthMatching:
         )
 
         # Transaction dated Jan 31 (one day before)
-        statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 31))
-        db.add(statement)
-        await db.flush()
-
-        txn = AccountEvent(
-            statement_id=statement.id,
+        txn = _make_atomic(
+            owner_id=user_id,
             txn_date=date(2024, 1, 31),
             description="Monthly Subscription",
             amount=Decimal("99.00"),
             direction="IN",
-            status=BankTransactionStatus.PENDING,
-            confidence=ConfidenceLevel.HIGH,
         )
         db.add(txn)
         await db.commit()
@@ -576,18 +532,12 @@ class TestCrossMonthMatching:
 
         # Transaction dated Friday (2024-01-12, 3 days before)
         friday = date(2024, 1, 12)
-        statement = _make_statement(owner_id=user_id, base_date=friday)
-        db.add(statement)
-        await db.flush()
-
-        txn = AccountEvent(
-            statement_id=statement.id,
+        txn = _make_atomic(
+            owner_id=user_id,
             txn_date=friday,
             description="CLIENT DINNER",  # Slightly different casing
             amount=Decimal("150.00"),
             direction="OUT",
-            status=BankTransactionStatus.PENDING,
-            confidence=ConfidenceLevel.HIGH,
         )
         db.add(txn)
         await db.commit()

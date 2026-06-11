@@ -1,18 +1,23 @@
-"""Evidence graph adapters for source-to-ledger product workflows."""
+"""Evidence graph adapters for source-to-ledger product workflows.
+
+Layer-2 (DWD) lineage only: the source node is the ODS ``UploadedDocument`` and
+the atomic fact is the ``AtomicTransaction``. The legacy extracted-record node
+has no Layer-2 equivalent and has been dropped — ``UploadedDocument`` now links
+directly to ``AtomicTransaction`` via the dual-write lineage.
+"""
 
 from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import inspect as sa_inspect, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.evidence import EvidenceNode
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer1 import DocumentType, UploadedDocument
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement import BankStatement, BankStatementTransaction
-from src.services.deduplication import DeduplicationService
+from src.models.layer2 import AtomicTransaction
+from src.models.statement_summary import StatementSummary
 from src.services.evidence_lineage import EvidenceLineageService
 
 
@@ -27,89 +32,27 @@ class EvidenceGraphIntegrationService:
         db: AsyncSession,
         *,
         user_id: UUID,
-        statement: BankStatement,
+        statement: StatementSummary,
     ) -> EvidenceNode | None:
-        """Record the uploaded BankStatement as a source document node."""
+        """Record the confirmed ``StatementSummary`` envelope as a source document node.
+
+        The DWD conform does not carry ``original_filename`` (an ODS field); callers
+        may attach it transiently for lineage display only.
+        """
         if statement.id is None:
             return None
         return await self.lineage.upsert_node(
             db,
             user_id=user_id,
             node_kind="source_document",
-            entity_type="bank_statement",
+            entity_type="statement_summary",
             entity_id=statement.id,
             properties={
                 "file_hash": statement.file_hash,
-                "original_filename": statement.original_filename,
+                "original_filename": getattr(statement, "original_filename", None),
                 "institution": statement.institution,
             },
         )
-
-    async def record_statement_parse(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        statement: BankStatement,
-        transactions: list[BankStatementTransaction],
-    ) -> None:
-        """Record BankStatement -> BankStatementTransaction parse lineage."""
-        source_node = await self.record_statement_upload(db, user_id=user_id, statement=statement)
-        if source_node is None:
-            return
-        for transaction in transactions:
-            if transaction.id is None:
-                continue
-            extracted_node = await self._upsert_statement_transaction_node(
-                db,
-                user_id=user_id,
-                transaction=transaction,
-            )
-            await self.lineage.upsert_edge(
-                db,
-                user_id=user_id,
-                from_node_id=source_node.id,
-                to_node_id=extracted_node.id,
-                relation="parsed_into",
-                properties={"adapter": "statement_parse"},
-            )
-
-    async def record_statement_layer2_lineage(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        statement: BankStatement,
-        transactions: list[BankStatementTransaction],
-    ) -> None:
-        """Backfill parse-time Layer 2 edges once statement transactions have database UUIDs."""
-        result = await db.execute(
-            select(UploadedDocument)
-            .where(UploadedDocument.user_id == user_id)
-            .where(UploadedDocument.file_hash == statement.file_hash)
-            .order_by(UploadedDocument.created_at.desc(), UploadedDocument.id.desc())
-            .limit(1)
-        )
-        uploaded_document = result.scalar_one_or_none()
-        if uploaded_document is None:
-            return
-
-        for transaction in transactions:
-            atomic_transaction = await self._find_atomic_transaction_for_bank_txn(
-                db,
-                user_id=user_id,
-                transaction=transaction,
-            )
-            if atomic_transaction is None:
-                continue
-            await self.record_layer2_dual_write(
-                db,
-                user_id=user_id,
-                uploaded_document=uploaded_document,
-                source_transaction=transaction,
-                atomic_transaction=atomic_transaction,
-                document_type=uploaded_document.document_type,
-            )
 
     async def record_layer2_dual_write(
         self,
@@ -117,19 +60,17 @@ class EvidenceGraphIntegrationService:
         *,
         user_id: UUID,
         uploaded_document: UploadedDocument,
-        source_transaction: BankStatementTransaction,
         atomic_transaction: AtomicTransaction,
-        document_type: DocumentType,
+        document_type: DocumentType | None = None,
     ) -> None:
-        """Record UploadedDocument -> BankStatementTransaction -> AtomicTransaction lineage."""
-        statement = await self._resolve_statement(db, source_transaction)
-        if statement is not None:
-            await self.record_statement_parse(
-                db,
-                user_id=user_id,
-                statement=statement,
-                transactions=[source_transaction],
-            )
+        """Record ``UploadedDocument -> AtomicTransaction`` dual-write lineage.
+
+        Layer-2 lineage skips the legacy extracted-record node entirely: the
+        uploaded source document deduplicates straight into the atomic fact.
+        """
+        if uploaded_document.id is None or atomic_transaction.id is None:
+            return
+        doc_type = document_type or uploaded_document.document_type
         source_node = await self.lineage.upsert_node(
             db,
             user_id=user_id,
@@ -137,20 +78,10 @@ class EvidenceGraphIntegrationService:
             entity_type="uploaded_document",
             entity_id=uploaded_document.id,
             properties={
-                "document_type": document_type.value,
+                "document_type": doc_type.value if doc_type is not None else None,
                 "original_filename": uploaded_document.original_filename,
                 "file_hash": uploaded_document.file_hash,
             },
-        )
-
-        txn_id = source_transaction.id
-        if txn_id is None:
-            return
-
-        extracted_node = await self._upsert_statement_transaction_node(
-            db,
-            user_id=user_id,
-            transaction=source_transaction,
         )
         atomic_node = await self._upsert_atomic_transaction_node(
             db,
@@ -161,17 +92,12 @@ class EvidenceGraphIntegrationService:
             db,
             user_id=user_id,
             from_node_id=source_node.id,
-            to_node_id=extracted_node.id,
-            relation="parsed_into",
-            properties={"adapter": "layer2_dual_write"},
-        )
-        await self.lineage.upsert_edge(
-            db,
-            user_id=user_id,
-            from_node_id=extracted_node.id,
             to_node_id=atomic_node.id,
             relation="deduped_into",
-            properties={"dedup_hash": atomic_transaction.dedup_hash},
+            properties={
+                "dedup_hash": atomic_transaction.dedup_hash,
+                "adapter": "layer2_dual_write",
+            },
         )
 
     async def record_journal_posting(
@@ -179,16 +105,21 @@ class EvidenceGraphIntegrationService:
         db: AsyncSession,
         *,
         user_id: UUID,
-        source_transaction: BankStatementTransaction,
         journal_entry: JournalEntry,
-        atomic_transaction: AtomicTransaction | None = None,
+        atomic_transaction: AtomicTransaction,
     ) -> None:
-        """Record BankStatementTransaction/AtomicTransaction -> JournalEntry -> JournalLine lineage."""
-        extracted_node = await self._upsert_statement_transaction_node(
+        """Record ``AtomicTransaction -> JournalEntry -> JournalLine`` lineage.
+
+        Also backfills the ``UploadedDocument -> AtomicTransaction`` dual-write edges
+        for each source document recorded on the atomic transaction.
+        """
+        atomic_node = await self._upsert_atomic_transaction_node(
             db,
             user_id=user_id,
-            transaction=source_transaction,
+            atomic_transaction=atomic_transaction,
         )
+        await self._record_source_documents(db, user_id=user_id, atomic_transaction=atomic_transaction)
+
         ledger_entry_node = await self.lineage.upsert_node(
             db,
             user_id=user_id,
@@ -204,31 +135,11 @@ class EvidenceGraphIntegrationService:
         await self.lineage.upsert_edge(
             db,
             user_id=user_id,
-            from_node_id=extracted_node.id,
+            from_node_id=atomic_node.id,
             to_node_id=ledger_entry_node.id,
             relation="posted_as",
             properties={"adapter": "journal_posting"},
         )
-
-        atomic_transaction = atomic_transaction or await self._find_atomic_transaction_for_bank_txn(
-            db,
-            user_id=user_id,
-            transaction=source_transaction,
-        )
-        if atomic_transaction is not None:
-            atomic_node = await self._upsert_atomic_transaction_node(
-                db,
-                user_id=user_id,
-                atomic_transaction=atomic_transaction,
-            )
-            await self.lineage.upsert_edge(
-                db,
-                user_id=user_id,
-                from_node_id=atomic_node.id,
-                to_node_id=ledger_entry_node.id,
-                relation="posted_as",
-                properties={"adapter": "journal_posting"},
-            )
 
         for line in journal_entry.lines:
             await self._record_journal_line(
@@ -269,30 +180,49 @@ class EvidenceGraphIntegrationService:
             properties={"adapter": "journal_posting"},
         )
 
-    async def _upsert_statement_transaction_node(
+    async def _record_source_documents(
         self,
         db: AsyncSession,
         *,
         user_id: UUID,
-        transaction: BankStatementTransaction,
-    ) -> EvidenceNode:
-        statement = await self._resolve_statement(db, transaction)
-        properties = {
-            "statement_id": str(transaction.statement_id),
-            "txn_date": transaction.txn_date.isoformat(),
-            "direction": transaction.direction,
-            "amount": str(transaction.amount),
-            "currency": transaction.currency or (statement.currency if statement else None),
-            "reference": transaction.reference,
-        }
-        return await self.lineage.upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="extracted_record",
-            entity_type="bank_statement_transaction",
-            entity_id=transaction.id,
-            properties=properties,
+        atomic_transaction: AtomicTransaction,
+    ) -> None:
+        """Backfill ``UploadedDocument -> AtomicTransaction`` edges from source_documents."""
+        for document in await self._resolve_source_documents(
+            db, user_id=user_id, atomic_transaction=atomic_transaction
+        ):
+            await self.record_layer2_dual_write(
+                db,
+                user_id=user_id,
+                uploaded_document=document,
+                atomic_transaction=atomic_transaction,
+                document_type=document.document_type,
+            )
+
+    async def _resolve_source_documents(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        atomic_transaction: AtomicTransaction,
+    ) -> list[UploadedDocument]:
+        """Resolve the owning ``UploadedDocument`` rows from ``source_documents``."""
+        doc_ids = _ordered_source_doc_ids(atomic_transaction.source_documents)
+        if not doc_ids:
+            return []
+        rows = (
+            (
+                await db.execute(
+                    select(UploadedDocument)
+                    .where(UploadedDocument.user_id == user_id)
+                    .where(UploadedDocument.id.in_(doc_ids))
+                )
+            )
+            .scalars()
+            .all()
         )
+        by_id = {document.id: document for document in rows}
+        return [by_id[doc_id] for doc_id in doc_ids if doc_id in by_id]
 
     async def _upsert_atomic_transaction_node(
         self,
@@ -316,37 +246,32 @@ class EvidenceGraphIntegrationService:
             },
         )
 
-    async def _find_atomic_transaction_for_bank_txn(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        transaction: BankStatementTransaction,
-    ) -> AtomicTransaction | None:
-        direction = TransactionDirection.IN if transaction.direction == "IN" else TransactionDirection.OUT
-        dedup_hash = DeduplicationService.calculate_transaction_hash(
-            user_id,
-            transaction.txn_date,
-            transaction.amount,
-            direction,
-            transaction.description,
-            transaction.reference,
-        )
-        result = await db.execute(
-            select(AtomicTransaction)
-            .where(AtomicTransaction.user_id == user_id)
-            .where(AtomicTransaction.dedup_hash == dedup_hash)
-            .limit(1)
-        )
-        return result.scalar_one_or_none()
 
-    async def _resolve_statement(
-        self,
-        db: AsyncSession,
-        transaction: BankStatementTransaction,
-    ) -> BankStatement | None:
-        state = sa_inspect(transaction)
-        if "statement" not in state.unloaded and transaction.statement is not None:
-            return transaction.statement
-        result = await db.execute(select(BankStatement).where(BankStatement.id == transaction.statement_id).limit(1))
-        return result.scalar_one_or_none()
+def _ordered_source_doc_ids(source_documents: object) -> list[UUID]:
+    """Extract source ``UploadedDocument`` ids, in order, from ``source_documents``.
+
+    Accepts the canonical list form (``[{"doc_id": ..., "doc_type": ...}]``) and a
+    ``{"documents": [...]}`` wrapper. Invalid UUID strings are skipped so they never
+    raise during query binding.
+    """
+    if isinstance(source_documents, dict):
+        source_documents = source_documents.get("documents", [])
+    if not isinstance(source_documents, list):
+        return []
+
+    ordered: list[UUID] = []
+    seen: set[UUID] = set()
+    for entry in source_documents:
+        if not isinstance(entry, dict):
+            continue
+        raw = entry.get("doc_id")
+        if not raw:
+            continue
+        try:
+            doc_id = UUID(str(raw))
+        except (ValueError, TypeError):
+            continue
+        if doc_id not in seen:
+            seen.add(doc_id)
+            ordered.append(doc_id)
+    return ordered

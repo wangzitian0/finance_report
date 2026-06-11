@@ -8,9 +8,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from src.models.statement import BankStatementStatus, ConfidenceLevel
+from src.models.statement_enums import BankStatementStatus
 from src.services.deduplication import dual_write_layer2
 from src.services.extraction import ExtractionError, ExtractionService
+from tests.factories import StatementSummaryFactory
 
 
 async def mock_stream_generator(content: str):
@@ -530,17 +531,6 @@ def test_safe_decimal_invalid():
         service._safe_decimal(None, required=True)
 
 
-def test_compute_event_confidence_missing_fields():
-    service = ExtractionService()
-    # Missing 'direction'
-    txn = {"date": "2023-01-01", "description": "test", "amount": "10.00"}
-    assert service._compute_event_confidence(txn) == ConfidenceLevel.LOW
-
-    # Invalid date format
-    txn = {"date": "bad", "description": "test", "amount": "10.00", "direction": "IN"}
-    assert service._compute_event_confidence(txn) == ConfidenceLevel.LOW
-
-
 def test_validate_external_url_invalid_cases():
     service = ExtractionService()
     # Missing hostname
@@ -558,18 +548,15 @@ def test_validate_external_url_invalid_cases():
 
 
 @pytest.mark.asyncio
-async def test_handle_parse_failure(db):
-    from src.models import BankStatement
+async def test_handle_parse_failure(db, test_user):
     from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=sid,
-        user_id=uuid4(),
+        user_id=test_user.id,
         status=BankStatementStatus.PARSING,
-        file_path="p",
         file_hash="h_fail",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -584,21 +571,18 @@ async def test_handle_parse_failure(db):
 
 
 @pytest.mark.asyncio
-async def test_parse_statement_background_storage_error(db, monkeypatch):
+async def test_parse_statement_background_storage_error(db, test_user, monkeypatch):
     from src.database import create_session_maker_from_db
-    from src.models import BankStatement
     from src.services.statement_parsing import parse_statement_background
     from src.services.storage import StorageError
 
     sid = uuid4()
-    uid = uuid4()
-    statement = BankStatement(
+    uid = test_user.id
+    statement = StatementSummaryFactory.build(
         id=sid,
         user_id=uid,
         status=BankStatementStatus.PARSING,
-        file_path="p",
         file_hash="h_storage_err",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -685,18 +669,15 @@ class TestSanitizeAccountLast4:
 
 
 @pytest.mark.asyncio
-async def test_handle_parse_failure_truncates_long_message(db):
-    from src.models import BankStatement
+async def test_handle_parse_failure_truncates_long_message(db, test_user):
     from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=sid,
-        user_id=uuid4(),
+        user_id=test_user.id,
         status=BankStatementStatus.PARSING,
-        file_path="p",
         file_hash="h_trunc",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -712,21 +693,18 @@ async def test_handle_parse_failure_truncates_long_message(db):
 
 
 @pytest.mark.asyncio
-async def test_handle_parse_failure_after_db_error(db):
+async def test_handle_parse_failure_after_db_error(db, test_user):
     """Handler recovers from a session with pending rollback error."""
     from sqlalchemy import text
 
-    from src.models import BankStatement
     from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=sid,
-        user_id=uuid4(),
+        user_id=test_user.id,
         status=BankStatementStatus.PARSING,
-        file_path="p",
         file_hash="h_dberr",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -741,7 +719,9 @@ async def test_handle_parse_failure_after_db_error(db):
     await handle_parse_failure(statement, db, message="DB error occurred")
 
     # Rollback expires all ORM objects → re-fetch via saved PK
-    result = await db.get(BankStatement, sid)
+    from src.models.statement_summary import StatementSummary
+
+    result = await db.get(StatementSummary, sid)
     assert result is not None
     assert result.status == BankStatementStatus.REJECTED
     assert result.validation_error == "DB error occurred"
@@ -750,18 +730,15 @@ async def test_handle_parse_failure_after_db_error(db):
 
 
 @pytest.mark.asyncio
-async def test_handle_parse_failure_none_message(db):
-    from src.models import BankStatement
+async def test_handle_parse_failure_none_message(db, test_user):
     from src.services.statement_parsing import handle_parse_failure
 
     sid = uuid4()
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=sid,
-        user_id=uuid4(),
+        user_id=test_user.id,
         status=BankStatementStatus.PARSING,
-        file_path="p",
         file_hash="h_none_msg",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -1307,6 +1284,12 @@ async def test_parse_document_csv_no_institution():
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
     """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
     db = AsyncMock()
+    # No pre-existing UploadedDocument for (user_id, file_hash), so dual_write takes the
+    # create branch; a concurrent race then makes create_uploaded_document raise
+    # IntegrityError, which must be swallowed without failing ingestion.
+    no_existing = MagicMock()
+    no_existing.scalar_one_or_none.return_value = None
+    db.execute.return_value = no_existing
     with patch("src.services.deduplication.DeduplicationService") as mock_dedup_cls:
         mock_dedup = mock_dedup_cls.return_value
         mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
@@ -1317,15 +1300,20 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
         txn.amount = Decimal("1.00")
         txn.description = "txn"
         txn.reference = None
-        txn.statement.currency = "SGD"
+        txn.currency = "SGD"
+        statement = StatementSummaryFactory.build(
+            user_id=uuid4(),
+            file_hash="abc123",
+            institution="DBS",
+            currency="SGD",
+        )
         await dual_write_layer2(
             db=db,
             user_id=uuid4(),
-            file_path=Path("statement.pdf"),
-            file_hash="abc123",
-            original_filename="statement.pdf",
-            institution="DBS",
+            statement=statement,
             transactions=[txn],
+            file_path=Path("statement.pdf"),
+            original_filename="statement.pdf",
         )
 
 

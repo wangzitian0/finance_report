@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import BankStatementTransaction
+from src.models import AtomicTransaction, TransactionDirection
 from src.services.anomaly import detect_anomalies
 
 
@@ -21,12 +21,16 @@ async def test_detect_large_amount_anomaly():
     db = AsyncMock()
     user_id = uuid4()
 
-    txn = BankStatementTransaction(
+    txn = AtomicTransaction(
         id=uuid4(),
+        user_id=user_id,
         txn_date=date(2023, 1, 1),
         amount=Decimal("1000"),
-        direction="DEBIT",
+        direction=TransactionDirection.OUT,
         description="Generic Transaction",
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
     )
 
     # Mock Avg result -> 10. So 1000 > 100.
@@ -57,8 +61,16 @@ async def test_detect_new_merchant_anomaly():
     db = AsyncMock()
     user_id = uuid4()
 
-    txn = BankStatementTransaction(
-        id=uuid4(), txn_date=date(2023, 1, 1), amount=Decimal("10"), direction="DEBIT", description="New Merchant"
+    txn = AtomicTransaction(
+        id=uuid4(),
+        user_id=user_id,
+        txn_date=date(2023, 1, 1),
+        amount=Decimal("10"),
+        direction=TransactionDirection.OUT,
+        description="New Merchant",
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
     )
 
     # Avg 10. 10 <= 10*10. No large amount.
@@ -86,8 +98,16 @@ async def test_detect_frequency_spike():
     db = AsyncMock()
     user_id = uuid4()
 
-    txn = BankStatementTransaction(
-        id=uuid4(), txn_date=date(2023, 1, 1), amount=Decimal("10"), direction="DEBIT", description="Spam Merchant"
+    txn = AtomicTransaction(
+        id=uuid4(),
+        user_id=user_id,
+        txn_date=date(2023, 1, 1),
+        amount=Decimal("10"),
+        direction=TransactionDirection.OUT,
+        description="Spam Merchant",
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
     )
 
     mock_result_avg = MagicMock()

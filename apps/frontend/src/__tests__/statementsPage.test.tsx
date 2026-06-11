@@ -26,14 +26,14 @@ vi.mock("@/components/ui/Toast", () => ({
 }))
 
 vi.mock("@/components/ui/ConfirmDialog", () => ({
-  default: ({ isOpen, onConfirm, onCancel, title }: { isOpen: boolean; onConfirm: () => void; onCancel: () => void; title?: string; message?: string; confirmLabel?: string; confirmVariant?: string }) =>
-    isOpen ? (
-      <div data-testid="confirm-dialog">
-        <span>{title}</span>
-        <button onClick={onConfirm}>Confirm Delete</button>
-        <button onClick={onCancel}>Cancel Delete</button>
-      </div>
-    ) : null,
+  default: ({ isOpen, onConfirm, onCancel, title }: { isOpen: boolean; onConfirm: () => void; onCancel: () => void; title?: string; message?: string; confirmLabel?: string; confirmVariant?: string }) => (
+    <div data-testid={isOpen ? "confirm-dialog" : "confirm-dialog-closed"}>
+      {isOpen ? <span>{title}</span> : null}
+      {/* Always expose confirm so the early-return guard (no selected id) can be exercised. */}
+      <button onClick={onConfirm}>{isOpen ? "Confirm Delete" : "Confirm Delete (no selection)"}</button>
+      <button onClick={onCancel}>Cancel Delete</button>
+    </div>
+  ),
 }))
 
 vi.mock("@/lib/api", () => ({
@@ -214,6 +214,23 @@ describe("StatementsPage", () => {
     fireEvent.click(screen.getByText("Confirm Delete"))
 
     await waitFor(() => expect(screen.getAllByText("delete failed").length).toBeGreaterThan(0))
+  })
+
+  it("test_AC8_13_49 ignores delete confirmation when no statement is selected", async () => {
+    mockedApiFetch.mockResolvedValueOnce({ items: [] })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("No statements uploaded yet")).toBeInTheDocument())
+
+    // The dialog is closed and no statement is selected: confirming must hit the
+    // early-return guard and never issue a DELETE request.
+    mockedApiFetch.mockClear()
+    fireEvent.click(screen.getByText("Confirm Delete (no selection)"))
+
+    await waitFor(() => expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument())
+    expect(mockedApiFetch).not.toHaveBeenCalled()
+    expect(showToastMock).not.toHaveBeenCalled()
   })
 
 })

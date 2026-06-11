@@ -11,13 +11,13 @@ import pytest
 from src.models.account import AccountType
 from src.models.journal import Direction, JournalEntryStatus
 from src.models.reconciliation import ReconciliationStatus
-from src.models.statement import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
 from tests.factories import (
     AccountFactory,
-    BankStatementFactory,
-    BankStatementTransactionFactory,
+    AtomicTransactionFactory,
     JournalEntryFactory,
     ReconciliationMatchFactory,
+    StatementSummaryFactory,
     UserFactory,
 )
 
@@ -120,30 +120,28 @@ class TestUserFactory:
 
 
 @pytest.mark.asyncio
-class TestBankStatementFactory:
+class TestStatementSummaryFactory:
     async def test_create_async_valid_statement(self, db, test_user):
-        statement = await BankStatementFactory.create_async(db, user_id=test_user.id)
+        statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id)
 
         assert statement.user_id == test_user.id
         assert statement.status in BankStatementStatus
         assert statement.institution is not None
         assert statement.account_last4 is not None
 
-    async def test_statement_has_file_path(self, db, test_user):
-        statement = await BankStatementFactory.create_async(db, user_id=test_user.id)
+    async def test_statement_has_file_hash(self, db, test_user):
+        statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id)
 
-        assert statement.file_path is not None
-        assert isinstance(statement.file_path, str)
+        assert statement.file_hash is not None
+        assert isinstance(statement.file_hash, str)
 
 
 @pytest.mark.asyncio
-class TestBankStatementTransactionFactory:
+class TestAtomicTransactionFactory:
     async def test_create_async_valid_transaction(self, db, test_user):
-        statement = await BankStatementFactory.create_async(db, user_id=test_user.id)
+        transaction = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
 
-        transaction = await BankStatementTransactionFactory.create_async(db, statement_id=statement.id)
-
-        assert transaction.statement_id == statement.id
+        assert transaction.user_id == test_user.id
         assert transaction.amount is not None
         assert isinstance(transaction.amount, Decimal)
 
@@ -151,15 +149,14 @@ class TestBankStatementTransactionFactory:
 @pytest.mark.asyncio
 class TestReconciliationMatchFactory:
     async def test_create_async_valid_match(self, db, test_user):
-        statement = await BankStatementFactory.create_async(db, user_id=test_user.id)
-        stmt_txn = await BankStatementTransactionFactory.create_async(db, statement_id=statement.id)
+        atomic_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
         entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
 
         match = await ReconciliationMatchFactory.create_async(
-            db, bank_txn_id=stmt_txn.id, journal_entry_ids=[str(entry.id)]
+            db, atomic_txn_id=atomic_txn.id, journal_entry_ids=[str(entry.id)]
         )
 
-        assert match.bank_txn_id == stmt_txn.id
+        assert match.atomic_txn_id == atomic_txn.id
         assert str(entry.id) in match.journal_entry_ids
         assert match.status in ReconciliationStatus
         assert 0 <= match.match_score <= 100

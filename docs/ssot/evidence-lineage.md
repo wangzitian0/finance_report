@@ -142,8 +142,7 @@ Foundation proof is owned by AC18.7 and must cover:
 Integration proof is owned by AC18.8. The first product integration path is:
 
 ```text
-UploadedDocument / BankStatement
-  -> BankStatementTransaction
+UploadedDocument
   -> AtomicTransaction
   -> JournalEntry
   -> JournalLine
@@ -153,9 +152,7 @@ UploadedDocument / BankStatement
 The corresponding graph nodes and edges are:
 
 ```text
-source_document(uploaded_document or bank_statement)
-  -parsed_into->
-extracted_record(bank_statement_transaction)
+source_document(uploaded_document)
   -deduped_into->
 atomic_fact(atomic_transaction)
   -posted_as->
@@ -219,8 +216,8 @@ maximum graph writes, and batch size.
 Lazy materialization may only use strong relationships that already exist in
 source-of-truth tables, such as:
 
-- owned uploaded document or bank statement identifiers;
-- bank statement transaction to atomic transaction lineage;
+- owned uploaded document identifiers;
+- uploaded document to atomic transaction lineage (`AtomicTransaction.source_documents`);
 - journal entry source identifiers when the source entity is owned and resolvable;
 - `journal_line.journal_entry_id`;
 - report traceability anchors that already reference owned ledger lines.

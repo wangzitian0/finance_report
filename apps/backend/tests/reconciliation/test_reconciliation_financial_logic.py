@@ -6,7 +6,15 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import Account, AccountType, BankStatementTransaction, Direction, JournalEntry, JournalLine
+from src.models import (
+    Account,
+    AccountType,
+    AtomicTransaction,
+    Direction,
+    JournalEntry,
+    JournalLine,
+    TransactionDirection,
+)
 from src.services.reconciliation import DEFAULT_CONFIG, calculate_match_score
 
 
@@ -24,14 +32,16 @@ async def test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow(db):
         JournalLine(account=bank, direction=Direction.CREDIT, amount=Decimal("100.00")),
         JournalLine(account=payable, direction=Direction.CREDIT, amount=Decimal("20.00")),
     ]
-    transaction = BankStatementTransaction(
+    transaction = AtomicTransaction(
         id=uuid4(),
-        statement_id=uuid4(),
+        user_id=bank.user_id,
         txn_date=date(2026, 1, 5),
         description="Vendor payment",
         amount=Decimal("100.00"),
-        direction="OUT",
+        direction=TransactionDirection.OUT,
         currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
     )
 
     candidate = await calculate_match_score(

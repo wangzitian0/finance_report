@@ -1,16 +1,12 @@
-"""StatementSummary conform sync + custody-account resolution (EPIC-011 PR-A).
-
-``sync_statement_summary`` mirrors a ``BankStatement`` envelope into the durable
-``StatementSummary`` conform table (keyed by ``(user_id, file_hash)``), linking
-the ODS ``UploadedDocument`` when present. It is called at statement
-finalization points (parse completion, confirm/approve/reject/edit) so the
-conform stays current while the legacy ``bank_statements`` table is still the
-write path.
+"""DWD custody-account resolution (EPIC-011 PR-B).
 
 ``resolve_custody_account_id`` is the DWD-native lookup the reconciliation
-transfer-detection path will use (PR-B): given a Layer-2 ``AtomicTransaction``,
-resolve its custody account from the conform via the source document, instead of
-reaching back into the legacy ``bank_statements.account_id`` (ODS).
+transfer-detection path uses: given a Layer-2 ``AtomicTransaction``, resolve its
+custody account from the ``StatementSummary`` conform via the source document.
+
+The ``StatementSummary`` conform is now written directly by the ingestion pipeline
+(``ExtractionService.parse_document`` + ``dual_write_layer2``), so the legacy
+``BankStatement`` -> ``StatementSummary`` mirror (``sync_statement_summary``) is gone.
 """
 
 from __future__ import annotations
@@ -22,73 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction
-from src.models.statement import BankStatement
 from src.models.statement_summary import StatementSummary
-
-# Envelope fields copied verbatim from BankStatement -> StatementSummary.
-_ENVELOPE_FIELDS = (
-    "account_id",
-    "institution",
-    "account_last4",
-    "currency",
-    "period_start",
-    "period_end",
-    "opening_balance",
-    "closing_balance",
-    "manual_opening_balance",
-    "status",
-    "stage1_status",
-    "confidence_score",
-    "balance_validated",
-    "validation_error",
-    "balance_validation_result",
-    "stage1_reviewed_at",
-    "extraction_metadata",
-)
-
-
-async def sync_statement_summary(db: AsyncSession, statement: BankStatement) -> StatementSummary:
-    """Upsert the StatementSummary conform from a BankStatement's current envelope.
-
-    Idempotent: keyed by ``(user_id, file_hash)``; re-running refreshes the
-    envelope in place. Does not commit (caller owns the transaction).
-    """
-    summary = (
-        await db.execute(
-            select(StatementSummary).where(
-                StatementSummary.user_id == statement.user_id,
-                StatementSummary.file_hash == statement.file_hash,
-            )
-        )
-    ).scalar_one_or_none()
-
-    uploaded_document_id = (
-        await db.execute(
-            select(UploadedDocument.id).where(
-                UploadedDocument.user_id == statement.user_id,
-                UploadedDocument.file_hash == statement.file_hash,
-            )
-        )
-    ).scalar_one_or_none()
-
-    values = {field: getattr(statement, field) for field in _ENVELOPE_FIELDS}
-
-    if summary is None:
-        summary = StatementSummary(
-            user_id=statement.user_id,
-            file_hash=statement.file_hash,
-            uploaded_document_id=uploaded_document_id,
-            **values,
-        )
-        db.add(summary)
-    else:
-        if uploaded_document_id is not None:
-            summary.uploaded_document_id = uploaded_document_id
-        for field, value in values.items():
-            setattr(summary, field, value)
-
-    await db.flush()
-    return summary
 
 
 def _ordered_bank_statement_doc_ids(source_documents: object) -> list[UUID]:

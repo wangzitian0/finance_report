@@ -11,15 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
+    AtomicTransaction,
     BankStatementStatus,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     Direction,
+    DocumentType,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
+    StatementSummary,
+    TransactionDirection,
+    UploadedDocument,
     User,
 )
 from src.services.reconciliation import execute_matching
@@ -85,12 +87,23 @@ async def _add_statement_txn(
     description: str,
     amount: Decimal,
     direction: str,
-) -> BankStatementTransaction:
-    statement = BankStatement(
+    account_id=None,
+) -> AtomicTransaction:
+    file_hash = f"source-type-{uuid4()}"
+    doc = UploadedDocument(
         user_id=user_id,
         file_path="statements/source-type.pdf",
-        file_hash=f"source-type-{uuid4()}",
+        file_hash=file_hash,
         original_filename="source-type.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(doc)
+    await db.flush()
+    statement = StatementSummary(
+        user_id=user_id,
+        account_id=account_id,
+        uploaded_document_id=doc.id,
+        file_hash=file_hash,
         institution="DBS",
         account_last4="1234",
         currency="SGD",
@@ -102,13 +115,15 @@ async def _add_statement_txn(
     )
     db.add(statement)
     await db.flush()
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
         txn_date=date(2024, 1, 15),
         description=description,
         amount=amount,
-        direction=direction,
-        status=BankStatementTransactionStatus.PENDING,
+        direction=TransactionDirection(direction),
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(doc.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
     )
     db.add(txn)
     await db.flush()

@@ -1,8 +1,8 @@
-"""Report-only SSOT governance metrics.
+"""SSOT governance metrics and incremental gates.
 
-The report is intentionally advisory. Hard failures remain owned by the
-existing manifest and ownership checkers; this module measures baseline shape
-so gradual gates can be introduced with explicit thresholds later.
+The baseline report remains advisory. The optional #823 gate fails only on
+changed files or changed manifest entries so legacy debt can be governed
+incrementally.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping
@@ -26,6 +27,12 @@ except ImportError:  # pragma: no cover - CLI guard
 REPORT_VERSION = 1
 SOURCE_ISSUE = "https://github.com/wangzitian0/finance_report/issues/822"
 HLS_ISSUE = "https://github.com/wangzitian0/finance_report/issues/821"
+GATE_ISSUE = "https://github.com/wangzitian0/finance_report/issues/823"
+GATE_EXCEPTION_PATH = Path("docs/ssot/governance-exceptions.yaml")
+GATE_HLS_RULE = (
+    "HLS governance loop: promote only incremental and high-risk findings into "
+    "CI gates after the report baseline is visible."
+)
 
 HIGH_RISK_SUBSTRINGS = (
     "migration",
@@ -75,6 +82,24 @@ class ManifestSource:
     source_root: Path
     manifest_path: Path
     entry_key: str
+
+
+@dataclass(frozen=True)
+class GateViolation:
+    code: str
+    system: str
+    target: str
+    message: str
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "code": self.code,
+            "system": self.system,
+            "target": self.target,
+            "message": self.message,
+            "issue": GATE_ISSUE,
+            "hls_rule": GATE_HLS_RULE,
+        }
 
 
 def _require_yaml() -> None:
@@ -175,20 +200,10 @@ def _future_candidate(code: str, count: int, sample: object) -> dict[str, object
     return {"code": code, "count": count, "sample": sample}
 
 
-def _load_manifest_entries(
+def _entries_from_manifest_data(
     source: ManifestSource,
+    data: object,
 ) -> tuple[list[GovernanceEntry], list[str]]:
-    errors: list[str] = []
-    if not source.manifest_path.exists():
-        manifest = _source_relative_path(source.manifest_path, source.source_root)
-        return [], [f"{source.system}: manifest not found: {manifest}"]
-
-    _require_yaml()
-    try:
-        data = yaml.safe_load(source.manifest_path.read_text(encoding="utf-8")) or {}
-    except Exception as exc:  # pragma: no cover - exact parser errors vary
-        return [], [f"{source.system}: invalid YAML: {exc}"]
-
     if not isinstance(data, Mapping):
         return [], [f"{source.system}: manifest must be a YAML mapping"]
 
@@ -197,6 +212,7 @@ def _load_manifest_entries(
         return [], [f"{source.system}: missing '{source.entry_key}' mapping"]
 
     entries: list[GovernanceEntry] = []
+    errors: list[str] = []
     for key, raw_entry in raw_entries.items():
         key_str = str(key)
         if not isinstance(raw_entry, Mapping):
@@ -218,6 +234,31 @@ def _load_manifest_entries(
             )
         )
     return entries, errors
+
+
+def _load_manifest_entries_from_text(
+    source: ManifestSource,
+    text: str,
+) -> tuple[list[GovernanceEntry], list[str]]:
+    _require_yaml()
+    try:
+        data = yaml.safe_load(text) or {}
+    except Exception as exc:  # pragma: no cover - exact parser errors vary
+        return [], [f"{source.system}: invalid YAML: {exc}"]
+    return _entries_from_manifest_data(source, data)
+
+
+def _load_manifest_entries(
+    source: ManifestSource,
+) -> tuple[list[GovernanceEntry], list[str]]:
+    if not source.manifest_path.exists():
+        manifest = _source_relative_path(source.manifest_path, source.source_root)
+        return [], [f"{source.system}: manifest not found: {manifest}"]
+
+    return _load_manifest_entries_from_text(
+        source,
+        source.manifest_path.read_text(encoding="utf-8"),
+    )
 
 
 def _orphan_ssot_files(
@@ -350,6 +391,37 @@ def build_report(repo_root: Path, include_infra2: bool = True) -> dict[str, obje
     """Build the full report for finance_report and the checked-out infra2 repo."""
 
     repo_root = repo_root.resolve()
+    sources = _manifest_sources(repo_root, include_infra2=include_infra2)
+
+    source_reports = [build_source_report(source, repo_root) for source in sources]
+    errors = [
+        error for source_report in source_reports for error in source_report["errors"]
+    ]
+    return {
+        "version": REPORT_VERSION,
+        "report_only": True,
+        "source_issue": SOURCE_ISSUE,
+        "hls_issue": HLS_ISSUE,
+        "gate_issue": GATE_ISSUE,
+        "sources": source_reports,
+        "overall": {
+            "system_count": len(source_reports),
+            "entry_count": sum(
+                int(source_report["entry_count"]) for source_report in source_reports
+            ),
+            "future_gate_candidate_count": sum(
+                int(candidate["count"])
+                for source_report in source_reports
+                for candidate in source_report["future_gate_candidates"]
+            ),
+            "errors": errors,
+        },
+    }
+
+
+def _manifest_sources(
+    repo_root: Path, include_infra2: bool = True
+) -> list[ManifestSource]:
     sources = [
         ManifestSource(
             system="finance_report",
@@ -368,29 +440,297 @@ def build_report(repo_root: Path, include_infra2: bool = True) -> dict[str, obje
                 entry_key="entries",
             )
         )
+    return sources
 
-    source_reports = [build_source_report(source, repo_root) for source in sources]
-    errors = [
-        error for source_report in source_reports for error in source_report["errors"]
+
+def _gate_target(system: str, target: str) -> str:
+    return f"{system}:{target}"
+
+
+def _manifest_entry_target(system: str, key: str) -> str:
+    return _gate_target(system, f"manifest:{key}")
+
+
+def _contains_high_risk_terms(*values: str) -> bool:
+    haystack = " ".join(values).lower()
+    tokens = set(re.findall(r"[a-z0-9]+", haystack))
+    return any(term in haystack for term in HIGH_RISK_SUBSTRINGS) or bool(
+        HIGH_RISK_TOKENS & tokens
+    )
+
+
+def _source_changed_files(
+    source: ManifestSource,
+    repo_root: Path,
+    changed_files: list[str],
+) -> list[str]:
+    try:
+        source_prefix = source.source_root.relative_to(repo_root).as_posix()
+    except ValueError:
+        source_prefix = "."
+
+    if source_prefix in ("", "."):
+        return [path for path in changed_files if path and not path.startswith("repo/")]
+
+    prefix = f"{source_prefix}/"
+    return [
+        path.removeprefix(prefix)
+        for path in changed_files
+        if path == source_prefix or path.startswith(prefix)
     ]
+
+
+def _changed_ssot_files(source_changed_files: list[str]) -> list[str]:
+    files: list[str] = []
+    for path in source_changed_files:
+        rel = Path(path)
+        if len(rel.parts) < 3 or rel.parts[0] != "docs" or rel.parts[1] != "ssot":
+            continue
+        if rel.name in SSOT_FILE_EXCLUDES or rel.suffix not in SSOT_FILE_SUFFIXES:
+            continue
+        files.append(rel.as_posix())
+    return sorted(set(files))
+
+
+def _load_changed_files(path: Path | None) -> list[str]:
+    if path is None:
+        return []
+    return [
+        line.strip().removeprefix("./")
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _source_manifest_repo_path(source: ManifestSource, repo_root: Path) -> str:
+    try:
+        return source.manifest_path.relative_to(repo_root).as_posix()
+    except ValueError:
+        return source.manifest_path.as_posix()
+
+
+def _read_base_manifest_text(
+    repo_root: Path,
+    source: ManifestSource,
+    base_ref: str | None,
+) -> str | None:
+    if not base_ref:
+        return None
+    manifest_path = _source_manifest_repo_path(source, repo_root)
+    result = subprocess.run(
+        ["git", "-C", repo_root.as_posix(), "show", f"{base_ref}:{manifest_path}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _resolve_repo_path(repo_root: Path, path: Path) -> Path:
+    return path if path.is_absolute() else repo_root / path
+
+
+def _exception_path_for_report(repo_root: Path, exceptions_path: Path | None) -> str:
+    configured_path = exceptions_path or GATE_EXCEPTION_PATH
+    return _display_path(_resolve_repo_path(repo_root, configured_path), repo_root)
+
+
+def _load_exception_targets(repo_root: Path, exceptions_path: Path | None) -> set[str]:
+    path = _resolve_repo_path(repo_root, exceptions_path or GATE_EXCEPTION_PATH)
+    if not path.exists():
+        return set()
+
+    _require_yaml()
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # pragma: no cover - exact parser errors vary
+        display_path = _display_path(path, repo_root)
+        raise RuntimeError(
+            f"Invalid SSOT governance exceptions YAML in {display_path}: {exc}"
+        ) from exc
+    if not isinstance(data, Mapping):
+        return set()
+    raw_exceptions = data.get("exceptions", [])
+    if not isinstance(raw_exceptions, list):
+        return set()
+
+    targets: set[str] = set()
+    for item in raw_exceptions:
+        if not isinstance(item, Mapping):
+            continue
+        target = item.get("target")
+        issue = item.get("issue")
+        if not isinstance(target, str) or not isinstance(issue, str):
+            continue
+        if "/issues/" not in issue:
+            continue
+        targets.add(target)
+    return targets
+
+
+def _entry_by_key(entries: list[GovernanceEntry]) -> dict[str, GovernanceEntry]:
+    return {entry.key: entry for entry in entries}
+
+
+def evaluate_incremental_gate(
+    repo_root: Path,
+    changed_files: list[str],
+    *,
+    base_ref: str | None = None,
+    base_manifest_texts: Mapping[str, str] | None = None,
+    include_infra2: bool = True,
+    exceptions_path: Path | None = None,
+) -> dict[str, object]:
+    """Evaluate #823 prevent-worse SSOT governance gates.
+
+    Only files or manifest entries touched by the current change are gated.
+    Historical report findings remain advisory until a later cleanup issue
+    explicitly selects a threshold.
+    """
+
+    repo_root = repo_root.resolve()
+    normalized_changed_files = [
+        path.strip().removeprefix("./") for path in changed_files if path.strip()
+    ]
+    exceptions = _load_exception_targets(repo_root, exceptions_path)
+    used_exceptions: set[str] = set()
+    violations: list[GateViolation] = []
+
+    def add_violation(violation: GateViolation) -> None:
+        if violation.target in exceptions:
+            used_exceptions.add(violation.target)
+            return
+        violations.append(violation)
+
+    for source in _manifest_sources(repo_root, include_infra2=include_infra2):
+        current_entries, _errors = _load_manifest_entries(source)
+        current_by_key = _entry_by_key(current_entries)
+        owner_files = {_file_part(entry.owner) for entry in current_entries}
+        source_changed = _source_changed_files(
+            source, repo_root, normalized_changed_files
+        )
+
+        for ssot_file in _changed_ssot_files(source_changed):
+            target = _gate_target(source.system, ssot_file)
+            owner_entries = [
+                entry
+                for entry in current_entries
+                if _file_part(entry.owner) == ssot_file
+            ]
+            if ssot_file not in owner_files:
+                add_violation(
+                    GateViolation(
+                        code="changed_ssot_file_without_owner",
+                        system=source.system,
+                        target=target,
+                        message=(
+                            f"{ssot_file} changed but is not owned by "
+                            f"{source.entry_key} in {source.manifest_path.name}. "
+                            "Register it or add a temporary exception."
+                        ),
+                    )
+                )
+                continue
+
+            if not (
+                _contains_high_risk_terms(ssot_file)
+                or any(_is_high_risk(entry) for entry in owner_entries)
+            ):
+                continue
+            if not any(_has_proof(entry) for entry in owner_entries):
+                add_violation(
+                    GateViolation(
+                        code="changed_high_risk_ssot_file_missing_proof",
+                        system=source.system,
+                        target=target,
+                        message=(
+                            f"{ssot_file} changed in a high-risk SSOT area but "
+                            "its owner entry has no proof path."
+                        ),
+                    )
+                )
+
+        manifest_relative = source.manifest_path.relative_to(
+            source.source_root
+        ).as_posix()
+        if manifest_relative not in source_changed:
+            continue
+
+        base_text = (
+            base_manifest_texts.get(source.system)
+            if base_manifest_texts and source.system in base_manifest_texts
+            else _read_base_manifest_text(repo_root, source, base_ref)
+        )
+        if base_text is None:
+            continue
+        base_entries, _base_errors = _load_manifest_entries_from_text(source, base_text)
+        base_by_key = _entry_by_key(base_entries)
+
+        added_entry_keys = sorted(set(current_by_key) - set(base_by_key))
+        changed_entry_keys = sorted(
+            key
+            for key, entry in current_by_key.items()
+            if key not in base_by_key or entry != base_by_key[key]
+        )
+
+        for key in added_entry_keys:
+            entry = current_by_key[key]
+            target = _manifest_entry_target(source.system, key)
+            if not entry.family:
+                add_violation(
+                    GateViolation(
+                        code="new_manifest_entry_missing_family",
+                        system=source.system,
+                        target=target,
+                        message=(
+                            f"New manifest entry '{key}' has no family. "
+                            "Add family before introducing new scoreable SSOT."
+                        ),
+                    )
+                )
+            if (entry.kind or "").lower() == "clause" and not entry.parent:
+                add_violation(
+                    GateViolation(
+                        code="new_clause_missing_parent",
+                        system=source.system,
+                        target=target,
+                        message=(
+                            f"New clause entry '{key}' has no parent concept. "
+                            "Bind clauses to their parent SSOT concept."
+                        ),
+                    )
+                )
+
+        for key in changed_entry_keys:
+            entry = current_by_key[key]
+            target = _manifest_entry_target(source.system, key)
+            if not (_is_high_risk(entry) or _is_machine_owned(entry)):
+                continue
+            if _has_proof(entry):
+                continue
+            add_violation(
+                GateViolation(
+                    code="changed_high_risk_entry_missing_proof",
+                    system=source.system,
+                    target=target,
+                    message=(
+                        f"Changed high-risk or machine-owned entry '{key}' "
+                        "has no proof path in proofs/cross_refs."
+                    ),
+                )
+            )
+
     return {
-        "version": REPORT_VERSION,
-        "report_only": True,
-        "source_issue": SOURCE_ISSUE,
-        "hls_issue": HLS_ISSUE,
-        "sources": source_reports,
-        "overall": {
-            "system_count": len(source_reports),
-            "entry_count": sum(
-                int(source_report["entry_count"]) for source_report in source_reports
-            ),
-            "future_gate_candidate_count": sum(
-                int(candidate["count"])
-                for source_report in source_reports
-                for candidate in source_report["future_gate_candidates"]
-            ),
-            "errors": errors,
-        },
+        "enabled": bool(normalized_changed_files),
+        "issue": GATE_ISSUE,
+        "hls_rule": GATE_HLS_RULE,
+        "exception_path": _exception_path_for_report(repo_root, exceptions_path),
+        "changed_file_count": len(normalized_changed_files),
+        "exception_count": len(used_exceptions),
+        "violation_count": len(violations),
+        "violations": [violation.as_dict() for violation in violations],
     }
 
 
@@ -414,7 +754,7 @@ def render_markdown(report: Mapping[str, object]) -> str:
         "",
         f"Report-only baseline for [{SOURCE_ISSUE.rsplit('/', 1)[-1]}]({SOURCE_ISSUE}); "
         f"HLS direction is tracked in [{HLS_ISSUE.rsplit('/', 1)[-1]}]({HLS_ISSUE}).",
-        "This report does not fail CI. Existing manifest and ownership checks remain the hard gates.",
+        "Baseline metrics are advisory. The optional Incremental Gate section can fail CI only for changed-surface violations.",
         "",
         "| System | Entries | Owners | Duplicate owners | Orphan SSOT files | Missing family | Missing kind | Machine missing proof | High-risk missing proof |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
@@ -454,6 +794,37 @@ def render_markdown(report: Mapping[str, object]) -> str:
             )
         )
 
+    gate = report.get("gate")
+    if isinstance(gate, Mapping):
+        violations = gate.get("violations", [])
+        if not isinstance(violations, list):
+            violations = []
+        lines.extend(
+            [
+                "",
+                "## Incremental Gate",
+                "",
+                f"- Issue: [{GATE_ISSUE.rsplit('/', 1)[-1]}]({GATE_ISSUE})",
+                f"- HLS rule: {gate.get('hls_rule', GATE_HLS_RULE)}",
+                f"- Changed files: {gate.get('changed_file_count', 0)}",
+                f"- Exception registry: `{gate.get('exception_path', GATE_EXCEPTION_PATH.as_posix())}`",
+                f"- Exceptions used: {gate.get('exception_count', 0)}",
+                f"- Result: {'PASS' if not violations else 'FAIL'}",
+            ]
+        )
+        if violations:
+            lines.append("- Violations:")
+            for violation in violations[:20]:
+                if not isinstance(violation, Mapping):
+                    continue
+                lines.append(
+                    "  - `{code}` `{target}`: {message}".format(
+                        code=violation.get("code", "unknown"),
+                        target=violation.get("target", "unknown"),
+                        message=violation.get("message", ""),
+                    )
+                )
+
     for source in report.get("sources", []):
         if not isinstance(source, Mapping):
             continue
@@ -492,7 +863,7 @@ def render_markdown(report: Mapping[str, object]) -> str:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate report-only SSOT governance metrics."
+        description="Generate SSOT governance metrics and optional incremental gates."
     )
     parser.add_argument(
         "--repo-root",
@@ -520,6 +891,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Exit non-zero only when the report itself cannot parse a manifest.",
     )
+    parser.add_argument(
+        "--changed-files",
+        type=Path,
+        help="Optional newline-delimited changed-files list for #823 incremental gates.",
+    )
+    parser.add_argument(
+        "--base-ref",
+        help="Optional base git ref used to compare changed manifest entries.",
+    )
+    parser.add_argument(
+        "--fail-on-gate",
+        action="store_true",
+        help="Exit non-zero when #823 incremental gate violations are found.",
+    )
+    parser.add_argument(
+        "--exceptions",
+        type=Path,
+        default=GATE_EXCEPTION_PATH,
+        help="Path to SSOT governance gate exceptions, relative to repo root.",
+    )
     return parser.parse_args(argv)
 
 
@@ -527,6 +918,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         report = build_report(args.repo_root, include_infra2=not args.no_infra2)
+        changed_files = _load_changed_files(args.changed_files)
+        if changed_files:
+            report["gate"] = evaluate_incremental_gate(
+                args.repo_root,
+                changed_files,
+                base_ref=args.base_ref,
+                include_infra2=not args.no_infra2,
+                exceptions_path=args.exceptions,
+            )
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -545,6 +945,13 @@ def main(argv: list[str] | None = None) -> int:
         args.markdown_out.write_text(rendered, encoding="utf-8")
 
     if args.fail_on_error and report["overall"]["errors"]:
+        return 1
+    gate = report.get("gate")
+    if (
+        args.fail_on_gate
+        and isinstance(gate, Mapping)
+        and int(gate.get("violation_count", 0)) > 0
+    ):
         return 1
     return 0
 

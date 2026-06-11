@@ -3,10 +3,16 @@
 Verifies that calling execute_matching multiple times for the same pending
 transactions does not create duplicate ReconciliationMatch records for the
 transfer-detection phase.
+
+Fixtures are built natively on Layer 2: an Account + UploadedDocument +
+StatementSummary (carrying the confirmed custody account) plus an
+AtomicTransaction whose ``source_documents`` reference the UploadedDocument so
+``resolve_custody_account_id`` can resolve the transfer source account.
 """
 
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -15,11 +21,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
-    BankTransactionStatus,
+    AtomicTransaction,
+    BankStatementStatus,
+    DocumentType,
     ReconciliationMatch,
     ReconciliationStatus,
+    StatementSummary,
+    TransactionDirection,
+    UploadedDocument,
 )
 from src.services.reconciliation import execute_matching
 
@@ -28,7 +37,7 @@ class TestTransferDetectionIdempotency:
     """Phase 1 transfer detection must not create duplicate matches on re-runs."""
 
     async def _setup(self, db: AsyncSession, user_id, direction: str = "OUT", file_hash_suffix: str = "1"):
-        """Helper: create a statement + transfer transaction."""
+        """Helper: create an account + conform statement + Layer-2 transfer transaction."""
         cash = Account(
             user_id=user_id,
             name="Cash",
@@ -39,63 +48,66 @@ class TestTransferDetectionIdempotency:
         db.add(cash)
         await db.flush()
 
-        statement = BankStatement(
+        file_hash = f"idempotency_hash_{file_hash_suffix}"
+        doc = UploadedDocument(
             user_id=user_id,
             file_path=f"/tmp/test_{file_hash_suffix}.pdf",
-            file_hash=f"idempotency_hash_{file_hash_suffix}",
+            file_hash=file_hash,
             original_filename="test.pdf",
-            institution="TestBank",
-            account_id=cash.id,
+            document_type=DocumentType.BANK_STATEMENT,
         )
-        db.add(statement)
+        db.add(doc)
         await db.flush()
 
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
+        summary = StatementSummary(
+            user_id=user_id,
+            account_id=cash.id,
+            uploaded_document_id=doc.id,
+            file_hash=file_hash,
+            institution="TestBank",
+            account_last4="1234",
+            currency="SGD",
+            status=BankStatementStatus.PARSED,
+        )
+        db.add(summary)
+        await db.flush()
+
+        txn = AtomicTransaction(
+            user_id=user_id,
             txn_date=date(2025, 3, 1),
             description="TRANSFER TO SAVINGS",
             amount=Decimal("500.00"),
-            direction=direction,
-            status=BankTransactionStatus.PENDING,
+            direction=TransactionDirection(direction),
+            currency="SGD",
+            dedup_hash=uuid4().hex + uuid4().hex,
+            source_documents=[{"doc_id": str(doc.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
         )
         db.add(txn)
         await db.flush()
-        return statement, txn
+        return summary, txn
 
     @pytest.mark.asyncio
     async def test_transfer_out_duplicate_detection_skipped(self, db: AsyncSession, test_user):
         """AC15.6.7 · Running matching twice for transfer-OUT should not create a second match."""
         user_id = test_user.id
-        statement, txn = await self._setup(db, user_id, direction="OUT", file_hash_suffix="idem_out")
+        _, txn = await self._setup(db, user_id, direction="OUT", file_hash_suffix="idem_out")
 
         # First run - creates the match
-        matches_first = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches_first = await execute_matching(db, user_id=user_id)
         assert len(matches_first) == 1, "First run should produce exactly one match"
 
-        # Reset transaction status to PENDING so the second run picks it up
-        txn.status = BankTransactionStatus.PENDING
-        await db.flush()
-
         # Second run - should detect the existing match and skip
-        matches_second = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches_second = await execute_matching(db, user_id=user_id)
 
         # Verify: at most 0 new matches created (idempotency)
         assert len(matches_second) == 0, (
             f"Second run should produce no new matches (idempotent), got {len(matches_second)}"
         )
 
-        # Verify: still only one active (non-superseded) match in DB for this txn
-        # Scope to the txn under test (matches are keyed by atomic_txn_id on the
-        # Layer-2 read path, bank_txn_id on the legacy path).
-        first_match = matches_first[0]
-        id_filter = (
-            ReconciliationMatch.atomic_txn_id == first_match.atomic_txn_id
-            if first_match.atomic_txn_id is not None
-            else ReconciliationMatch.bank_txn_id == first_match.bank_txn_id
-        )
+        # Verify: still only one active (non-superseded) match in DB for this txn.
         all_matches_result = await db.execute(
             select(ReconciliationMatch).where(
-                id_filter,
+                ReconciliationMatch.atomic_txn_id == txn.id,
                 ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             )
         )
@@ -108,34 +120,22 @@ class TestTransferDetectionIdempotency:
     async def test_transfer_in_duplicate_detection_skipped(self, db: AsyncSession, test_user):
         """AC15.6.7 · Running matching twice for transfer-IN should not create a second match."""
         user_id = test_user.id
-        statement, txn = await self._setup(db, user_id, direction="IN", file_hash_suffix="idem_in")
+        _, txn = await self._setup(db, user_id, direction="IN", file_hash_suffix="idem_in")
 
         # First run
-        matches_first = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches_first = await execute_matching(db, user_id=user_id)
         assert len(matches_first) == 1, "First run should produce exactly one match"
 
-        # Reset to PENDING
-        txn.status = BankTransactionStatus.PENDING
-        await db.flush()
-
         # Second run
-        matches_second = await execute_matching(db, user_id=user_id, statement_id=statement.id)
+        matches_second = await execute_matching(db, user_id=user_id)
         assert len(matches_second) == 0, (
             f"Second run should produce no new matches (idempotent), got {len(matches_second)}"
         )
 
-        # Verify: only one non-superseded match for this txn
-        # Scope to the txn under test (matches are keyed by atomic_txn_id on the
-        # Layer-2 read path, bank_txn_id on the legacy path).
-        first_match = matches_first[0]
-        id_filter = (
-            ReconciliationMatch.atomic_txn_id == first_match.atomic_txn_id
-            if first_match.atomic_txn_id is not None
-            else ReconciliationMatch.bank_txn_id == first_match.bank_txn_id
-        )
+        # Verify: only one non-superseded match for this txn.
         all_matches_result = await db.execute(
             select(ReconciliationMatch).where(
-                id_filter,
+                ReconciliationMatch.atomic_txn_id == txn.id,
                 ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             )
         )

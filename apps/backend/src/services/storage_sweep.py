@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.config import settings
 from src.database import async_session_maker
 from src.logger import get_logger
-from src.models import BankStatement
+from src.models import UploadedDocument
 from src.services import StorageError, StorageService
 
 logger = get_logger(__name__)
@@ -82,7 +82,7 @@ async def sweep_orphaned_storage_objects(
     session_factory = sessionmaker or async_session_maker
     async with session_factory() as session:
         result = await session.execute(
-            select(BankStatement.file_path).where(BankStatement.file_path.in_(candidate_keys))
+            select(UploadedDocument.file_path).where(UploadedDocument.file_path.in_(candidate_keys))
         )
         known_paths: set[str] = {row[0] for row in result.all()}
 

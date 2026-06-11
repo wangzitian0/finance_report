@@ -232,18 +232,17 @@ test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ p
   await expectNoDocumentHorizontalScroll(page);
 });
 
-test("AC16.26.1 stage 1 mobile review exposes editable transaction cards and completion actions", async ({ page }) => {
+test("AC16.26.1 stage 1 mobile review exposes read-only transaction cards and completion actions", async ({ page }) => {
   await gotoReady(page, "/statements/stmt-mobile/review");
 
   await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-  await expect(page.getByLabel("Description for txn-mobile-1")).toBeVisible();
-  await expect(page.getByLabel("Amount for txn-mobile-1")).toBeVisible();
+  // Parsed transactions are read-only (EPIC-011 Stage 3 removed inline editing; a mis-parse
+  // is corrected via reject + re-parse), so there are no per-field inputs or edit/discard buttons.
+  await expect(page.getByLabel("Description for txn-mobile-1")).toHaveCount(0);
+  await expect(page.getByLabel("Amount for txn-mobile-1")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Approve Edits (1)" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Reject", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
-
-  await page.getByLabel("Description for txn-mobile-1").fill("Edited mobile grocery transaction");
-  await expect(page.getByRole("button", { name: "Approve Edits (1)" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Discard" })).toBeVisible();
   await expectNoDocumentHorizontalScroll(page);
 });
 

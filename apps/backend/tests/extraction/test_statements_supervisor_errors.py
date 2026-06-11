@@ -13,7 +13,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
-from src.models.statement import BankStatement, BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.routers.statements import (
     approve_statement,
     delete_statement,
@@ -29,6 +30,7 @@ from src.services.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
 from src.services.storage import StorageError, StorageService
+from tests.factories import StatementSummaryFactory
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -169,15 +171,11 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
     assert exc.value.status_code == 404
 
     # Retry invalid status
-    from src.models.statement import BankStatementStatus
-
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=sid,
         user_id=uid,
         status=BankStatementStatus.UPLOADED,  # Not in allowed list for retry
-        file_path="p",
         file_hash="h_err",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -212,7 +210,7 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
         mock_storage.delete_object.side_effect = StorageError("Failed")
         await delete_statement(sid, db, uid)
         # Verify it was deleted from DB
-        result = await db.get(BankStatement, sid)
+        result = await db.get(StatementSummary, sid)
         assert result is None
 
 
@@ -247,13 +245,11 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
     uid = test_user.id
 
     # Setup a statement in DB
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=sid,
         user_id=uid,
         status=BankStatementStatus.PARSING,
-        file_path="p",
         file_hash="h2",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -348,13 +344,15 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
     uid = test_user.id
 
     # Setup a statement in DB (must be PARSED or REJECTED to retry)
-    statement = BankStatement(
+    from tests.factories import UploadedDocumentFactory
+
+    document = await UploadedDocumentFactory.create_async(db, uid, file_hash="h3")
+    statement = StatementSummaryFactory.build(
         id=sid,
         user_id=uid,
+        uploaded_document_id=document.id,
         status=BankStatementStatus.PARSED,
-        file_path="p",
         file_hash="h3",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)

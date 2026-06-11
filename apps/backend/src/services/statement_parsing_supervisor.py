@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
 from src.logger import get_logger
-from src.models import BankStatement, BankStatementStatus
+from src.models import BankStatementStatus, StatementSummary
 
 logger = get_logger(__name__)
 
@@ -26,9 +26,9 @@ async def reset_stale_parsing_jobs(
     session_factory = sessionmaker or async_session_maker
     async with session_factory() as session:
         result = await session.execute(
-            select(BankStatement)
-            .where(BankStatement.status == BankStatementStatus.PARSING.value)
-            .where(BankStatement.updated_at < cutoff)
+            select(StatementSummary)
+            .where(StatementSummary.status == BankStatementStatus.PARSING.value)
+            .where(StatementSummary.updated_at < cutoff)
         )
         stale_statements = result.scalars().all()
 

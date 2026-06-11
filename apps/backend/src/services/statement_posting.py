@@ -1,4 +1,9 @@
-"""Stage 1 statement posting guards and auto-approval helpers."""
+"""Stage 1 statement posting guards and auto-approval helpers (DWD conform).
+
+Posting guards now operate on the ``StatementSummary`` envelope and its Layer-2
+``AtomicTransaction`` rows (resolved via the linked ODS ``UploadedDocument``),
+instead of the legacy statement/transaction pair.
+"""
 
 from __future__ import annotations
 
@@ -6,30 +11,26 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementStatus,
-    BankStatementTransaction,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
     ReconciliationMatch,
     ReconciliationStatus,
 )
-from src.models.statement import Stage1Status
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 from src.services.review_queue import create_entry_from_txn
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES, promote_entry_source_type
-from src.services.statement_summary import sync_statement_summary
-from src.services.statement_validation import approve_statement
+from src.services.statement_validation import approve_statement, resolve_statement_transactions
 
 HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 
 
-def is_high_confidence_auto_approve_candidate(statement: BankStatement) -> bool:
+def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bool:
     """Return whether parsing confidence is high enough for automatic Stage 1 approval."""
     return (
         statement.status == BankStatementStatus.APPROVED
@@ -41,11 +42,12 @@ def is_high_confidence_auto_approve_candidate(statement: BankStatement) -> bool:
 
 async def auto_create_posted_entries_for_statement(
     db: AsyncSession,
-    statement: BankStatement,
+    statement: StatementSummary,
     user_id: UUID,
 ) -> int:
     """Create posted journal entries after Stage 1 approval, guarded by mapping and period safety."""
-    txn_ids = [txn.id for txn in statement.transactions]
+    transactions = await resolve_statement_transactions(db, statement)
+    txn_ids = [txn.id for txn in transactions]
     if not txn_ids:
         return 0
 
@@ -63,19 +65,18 @@ async def auto_create_posted_entries_for_statement(
 
     transfer_match_result = await db.execute(
         select(ReconciliationMatch)
-        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(ReconciliationMatch.bank_txn_id.in_(txn_ids))
+        .where(ReconciliationMatch.atomic_txn_id.in_(txn_ids))
         .where(
             ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]),
             ReconciliationMatch.superseded_by_id.is_(None),
         )
-        .where(BankStatement.user_id == user_id)
     )
-    transfer_txn_ids = {match.bank_txn_id for match in transfer_match_result.scalars().all() if match.journal_entry_ids}
+    transfer_txn_ids = {
+        match.atomic_txn_id for match in transfer_match_result.scalars().all() if match.journal_entry_ids
+    }
 
     txns_to_post = [
-        txn for txn in statement.transactions if txn.id not in existing_entry_txn_ids and txn.id not in transfer_txn_ids
+        txn for txn in transactions if txn.id not in existing_entry_txn_ids and txn.id not in transfer_txn_ids
     ]
     if not txns_to_post:
         return 0
@@ -84,13 +85,13 @@ async def auto_create_posted_entries_for_statement(
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
 
     for txn in txns_to_post:
+        # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.
         await create_entry_from_txn(
             db,
             txn,
             user_id=user_id,
             auto_post=True,
             source_type=JournalEntrySourceType.USER_CONFIRMED,
-            preloaded_statement=statement,
             preloaded_bank_account=preloaded_bank_account,
         )
 
@@ -99,7 +100,7 @@ async def auto_create_posted_entries_for_statement(
 
 async def resolve_statement_posting_account(
     db: AsyncSession,
-    statement: BankStatement,
+    statement: StatementSummary,
     user_id: UUID,
 ) -> Account:
     """Resolve the asset account for automatic posting without generic fallback."""
@@ -136,25 +137,24 @@ async def resolve_statement_posting_account(
 
     account_result = await db.execute(
         select(Account)
-        .join(BankStatement, BankStatement.account_id == Account.id)
+        .join(StatementSummary, StatementSummary.account_id == Account.id)
         .where(Account.user_id == user_id)
         .where(Account.type == AccountType.ASSET)
         .where(Account.currency == currency)
         .where(Account.is_active.is_(True))
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.id != statement.id)
-        .where(BankStatement.status == BankStatementStatus.APPROVED)
-        .where(BankStatement.account_id.is_not(None))
-        .where(func.lower(BankStatement.institution) == institution.lower())
-        .where(BankStatement.account_last4 == account_last4)
-        .where(func.upper(BankStatement.currency) == currency)
+        .where(StatementSummary.user_id == user_id)
+        .where(StatementSummary.id != statement.id)
+        .where(StatementSummary.status == BankStatementStatus.APPROVED)
+        .where(StatementSummary.account_id.is_not(None))
+        .where(func.lower(StatementSummary.institution) == institution.lower())
+        .where(StatementSummary.account_last4 == account_last4)
+        .where(func.upper(StatementSummary.currency) == currency)
     )
     accounts_by_id = {account.id: account for account in account_result.scalars().all()}
     if len(accounts_by_id) == 1:
         account = next(iter(accounts_by_id.values()))
         statement.account_id = account.id
         await db.flush()
-        await sync_statement_summary(db, statement)
         return account
     if len(accounts_by_id) > 1:
         raise ValueError(
@@ -169,7 +169,7 @@ async def resolve_statement_posting_account(
 
 async def validate_statement_period_unique(
     db: AsyncSession,
-    statement: BankStatement,
+    statement: StatementSummary,
     user_id: UUID,
     account_id: UUID,
 ) -> None:
@@ -184,16 +184,16 @@ async def validate_statement_period_unique(
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
 
     overlap_result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.id != statement.id)
-        .where(BankStatement.account_id == account_id)
-        .where(BankStatement.status == BankStatementStatus.APPROVED)
-        .where(func.upper(BankStatement.currency) == currency)
-        .where(BankStatement.period_start.is_not(None))
-        .where(BankStatement.period_end.is_not(None))
-        .where(BankStatement.period_start <= statement.period_end)
-        .where(BankStatement.period_end >= statement.period_start)
+        select(StatementSummary)
+        .where(StatementSummary.user_id == user_id)
+        .where(StatementSummary.id != statement.id)
+        .where(StatementSummary.account_id == account_id)
+        .where(StatementSummary.status == BankStatementStatus.APPROVED)
+        .where(func.upper(StatementSummary.currency) == currency)
+        .where(StatementSummary.period_start.is_not(None))
+        .where(StatementSummary.period_end.is_not(None))
+        .where(StatementSummary.period_start <= statement.period_end)
+        .where(StatementSummary.period_end >= statement.period_start)
         .limit(1)
     )
     overlapping_statement = overlap_result.scalar_one_or_none()
@@ -215,10 +215,7 @@ async def try_auto_approve_high_confidence_statement(
     Stage 1 pending review instead of failing parsing.
     """
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == user_id)
-        .options(selectinload(BankStatement.transactions))
+        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
     )
     statement = result.scalar_one_or_none()
     if statement is None or not is_high_confidence_auto_approve_candidate(statement):
@@ -231,7 +228,7 @@ async def try_auto_approve_high_confidence_statement(
             await db.flush()
         return created_count
     except ValueError as exc:
-        refreshed = await db.get(BankStatement, statement_id)
+        refreshed = await db.get(StatementSummary, statement_id)
         if refreshed is not None:
             refreshed.status = BankStatementStatus.PARSED
             refreshed.stage1_status = Stage1Status.PENDING_REVIEW

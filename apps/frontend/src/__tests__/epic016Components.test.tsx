@@ -43,11 +43,6 @@ describe("EPIC-016 Componentization Tests", () => {
             <TransactionTable
                 transactions={transactions}
                 currency="SGD"
-                onEdit={() => {}}
-                pendingEdits={new Map()}
-                onSave={() => {}}
-                onDiscard={() => {}}
-                actionLoading={false}
             />
         );
         expect(screen.getAllByText("Test Txn").length).toBeGreaterThan(0);

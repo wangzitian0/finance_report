@@ -16,7 +16,6 @@ from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.services.deduplication import DeduplicationService
 from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
@@ -26,81 +25,77 @@ async def _create_historical_statement_entry(
     db: AsyncSession,
     *,
     user_id,
-) -> tuple[BankStatement, BankStatementTransaction, AtomicTransaction, JournalEntry, JournalLine]:
+) -> tuple[UploadedDocument, AtomicTransaction, JournalEntry, JournalLine]:
+    """Build a deduped lineage: UploadedDocument -> AtomicTransaction -> JournalEntry/lines."""
     bank = Account(user_id=user_id, name=f"Lazy Bank {uuid4()}", type=AccountType.ASSET, currency="SGD")
     income = Account(user_id=user_id, name=f"Lazy Income {uuid4()}", type=AccountType.INCOME, currency="SGD")
     db.add_all([bank, income])
     await db.flush()
 
-    statement = BankStatement(
+    document = UploadedDocument(
         user_id=user_id,
-        account_id=bank.id,
         file_path="s3://lazy/history.csv",
         file_hash=f"lazy-{uuid4().hex}",
         original_filename="history.csv",
-        institution="Lazy Bank",
-        currency="SGD",
-        status=BankStatementStatus.APPROVED,
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
     )
-    txn = BankStatementTransaction(
-        statement=statement,
-        txn_date=date(2026, 5, 1),
-        description="Historical income",
-        amount=Decimal("42.00"),
-        direction="IN",
-        currency="SGD",
-        reference="LZ-1",
-    )
-    db.add_all([statement, txn])
+    db.add(document)
     await db.flush()
 
+    txn_date = date(2026, 5, 1)
+    amount = Decimal("42.00")
+    description = "Historical income"
+    reference = "LZ-1"
     dedup_hash = DeduplicationService.calculate_transaction_hash(
         user_id,
-        txn.txn_date,
-        txn.amount,
+        txn_date,
+        amount,
         TransactionDirection.IN,
-        txn.description,
-        txn.reference,
+        description,
+        reference,
     )
     atomic = AtomicTransaction(
         user_id=user_id,
-        txn_date=txn.txn_date,
-        amount=txn.amount,
+        txn_date=txn_date,
+        amount=amount,
         direction=TransactionDirection.IN,
-        description=txn.description,
-        reference=txn.reference,
+        description=description,
+        reference=reference,
         currency="SGD",
         dedup_hash=dedup_hash,
-        source_documents=[],
+        source_documents=[{"doc_id": str(document.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
     )
     entry = JournalEntry(
         user_id=user_id,
-        entry_date=txn.txn_date,
+        entry_date=txn_date,
         memo="Historical posted income",
         source_type=JournalEntrySourceType.USER_CONFIRMED,
-        source_id=txn.id,
+        source_id=None,
         status=JournalEntryStatus.POSTED,
     )
     db.add_all([atomic, entry])
+    await db.flush()
+    entry.source_id = atomic.id
     await db.flush()
     debit = JournalLine(
         journal_entry_id=entry.id,
         account_id=bank.id,
         direction=Direction.DEBIT,
-        amount=txn.amount,
+        amount=amount,
         currency="SGD",
     )
     credit = JournalLine(
         journal_entry_id=entry.id,
         account_id=income.id,
         direction=Direction.CREDIT,
-        amount=txn.amount,
+        amount=amount,
         currency="SGD",
     )
     db.add_all([debit, credit])
     await db.flush()
     await db.refresh(entry, ["lines"])
-    return statement, txn, atomic, entry, credit
+    return document, atomic, entry, credit
 
 
 async def _graph_counts(db: AsyncSession) -> tuple[int, int]:
@@ -115,12 +110,12 @@ async def test_AC18_10_2_graph_writes_share_the_business_transaction(
     test_user: User,
 ):
     """AC18.10.2: Graph materialization participates in the same DB transaction as business facts."""
-    _, txn, _, entry, _ = await _create_historical_statement_entry(db, user_id=test_user.id)
+    _, atomic, entry, _ = await _create_historical_statement_entry(db, user_id=test_user.id)
 
     await EvidenceGraphIntegrationService().record_journal_posting(
         db,
         user_id=test_user.id,
-        source_transaction=txn,
+        atomic_transaction=atomic,
         journal_entry=entry,
     )
     assert (await db.execute(select(func.count(EvidenceNode.id)))).scalar_one() > 0
@@ -137,7 +132,7 @@ async def test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preser
     test_user: User,
 ):
     """AC18.10.4 AC18.10.6: Lazy repair is deterministic, idempotent, and does not mutate ledger facts."""
-    statement, txn, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
+    document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     original_source_type = entry.source_type
     original_source_id = entry.source_id
     original_amount = line.amount
@@ -175,8 +170,7 @@ async def test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preser
         (node.node_kind, node.entity_type, node.entity_id)
         for node in (await db.execute(select(EvidenceNode))).scalars().all()
     }
-    assert ("source_document", "bank_statement", statement.id) in node_keys
-    assert ("extracted_record", "bank_statement_transaction", txn.id) in node_keys
+    assert ("source_document", "uploaded_document", document.id) in node_keys
     assert ("atomic_fact", "atomic_transaction", atomic.id) in node_keys
     assert ("ledger_entry", "journal_entry", entry.id) in node_keys
     assert ("ledger_line", "journal_line", line.id) in node_keys
@@ -188,7 +182,7 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
     test_user: User,
 ):
     """AC18.10.1 AC18.10.5: Detector uses explicit blocker taxonomy for graph drift without writes."""
-    _, _, _, _, line = await _create_historical_statement_entry(db, user_id=test_user.id)
+    _, _, _, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     service = EvidenceGraphMaterializationService()
     orphan = EvidenceNode(
         user_id=test_user.id,
@@ -201,14 +195,14 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
     source = EvidenceNode(
         user_id=test_user.id,
         node_kind="source_document",
-        entity_type="bank_statement",
+        entity_type="uploaded_document",
         entity_id=uuid4(),
         properties={},
     )
     target = EvidenceNode(
         user_id=other_user_id,
-        node_kind="extracted_record",
-        entity_type="bank_statement_transaction",
+        node_kind="atomic_fact",
+        entity_type="atomic_transaction",
         entity_id=uuid4(),
         properties={},
     )
@@ -219,7 +213,7 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
             user_id=test_user.id,
             from_node_id=source.id,
             to_node_id=target.id,
-            relation="parsed_into",
+            relation="deduped_into",
             properties={},
         )
     )
@@ -241,7 +235,7 @@ async def test_AC18_10_7_materialization_caps_and_unknown_sources_return_blocker
     test_user: User,
 ):
     """AC18.10.7: Tests cover write caps and unknown provenance blockers."""
-    _, _, _, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
+    _, _, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     service = EvidenceGraphMaterializationService()
 
     capped = await service.materialize_for_entity(
@@ -274,52 +268,12 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.4: Direct entity requests use deterministic relationships and remain idempotent."""
-    statement, txn, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
-    document = UploadedDocument(
-        user_id=test_user.id,
-        file_path="s3://lazy/history-upload.csv",
-        file_hash=statement.file_hash,
-        original_filename="history-upload.csv",
-        document_type=DocumentType.BANK_STATEMENT,
-        status=DocumentStatus.COMPLETED,
-    )
-    db.add(document)
-    await db.flush()
-    atomic_entry = JournalEntry(
-        user_id=test_user.id,
-        entry_date=atomic.txn_date,
-        memo="Atomic sourced entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        source_id=atomic.id,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(atomic_entry)
-    await db.flush()
-    atomic_line = JournalLine(
-        journal_entry_id=atomic_entry.id,
-        account_id=line.account_id,
-        direction=Direction.CREDIT,
-        amount=atomic.amount,
-        currency=atomic.currency,
-    )
-    db.add(atomic_line)
-    await db.flush()
+    """AC18.10.4 AC18.8.1 AC18.8.2: Direct entity requests materialize the source_document
+    (uploaded document) node, the atomic_fact node, and the deduped_into edge between them,
+    using deterministic relationships that remain idempotent."""
+    document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     service = EvidenceGraphMaterializationService()
 
-    statement_result = await service.materialize_for_entity(
-        db,
-        user_id=test_user.id,
-        entity_type="bank_statement",
-        entity_id=statement.id,
-    )
-    transaction_result = await service.materialize_for_entity(
-        db,
-        user_id=test_user.id,
-        entity_type="bank_statement_transaction",
-        entity_id=txn.id,
-        node_kind="extracted_record",
-    )
     journal_entry_result = await service.materialize_for_entity(
         db,
         user_id=test_user.id,
@@ -340,13 +294,6 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
         entity_id=atomic.id,
         node_kind="atomic_fact",
     )
-    atomic_entry_result = await service.materialize_for_entity(
-        db,
-        user_id=test_user.id,
-        entity_type="journal_entry",
-        entity_id=atomic_entry.id,
-        node_kind="ledger_entry",
-    )
     unsupported = await service.materialize_for_entity(
         db,
         user_id=test_user.id,
@@ -361,13 +308,10 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
         node_kind="ledger_line",
     )
 
-    assert statement_result.blockers == []
-    assert transaction_result.blockers == []
     assert journal_entry_result.blockers == []
     assert document_result.blockers == []
     assert atomic_result.blockers == []
-    assert atomic_entry_result.blockers == []
-    assert statement_result.has_writes
+    assert journal_entry_result.has_writes
     assert [blocker.code for blocker in unsupported.blockers] == ["unsupported_provenance"]
     assert [blocker.code for blocker in unsupported_with_supported_node_kind.blockers] == ["unsupported_provenance"]
     nodes = {
@@ -378,25 +322,17 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
         (edge.from_node_id, edge.to_node_id, edge.relation)
         for edge in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == test_user.id))).scalars()
     }
-    assert ("source_document", "bank_statement", statement.id) in nodes
     assert ("source_document", "uploaded_document", document.id) in nodes
-    assert ("extracted_record", "bank_statement_transaction", txn.id) in nodes
     assert ("atomic_fact", "atomic_transaction", atomic.id) in nodes
     assert ("ledger_entry", "journal_entry", entry.id) in nodes
-    assert ("ledger_entry", "journal_entry", atomic_entry.id) in nodes
     assert (
         nodes[("source_document", "uploaded_document", document.id)].id,
-        nodes[("extracted_record", "bank_statement_transaction", txn.id)].id,
-        "parsed_into",
-    ) in edges
-    assert (
-        nodes[("extracted_record", "bank_statement_transaction", txn.id)].id,
         nodes[("atomic_fact", "atomic_transaction", atomic.id)].id,
         "deduped_into",
     ) in edges
     assert (
         nodes[("atomic_fact", "atomic_transaction", atomic.id)].id,
-        nodes[("ledger_entry", "journal_entry", atomic_entry.id)].id,
+        nodes[("ledger_entry", "journal_entry", entry.id)].id,
         "posted_as",
     ) in edges
 
@@ -407,23 +343,11 @@ async def test_AC18_10_5_detector_recognizes_supported_business_entities(
     test_user: User,
 ):
     """AC18.10.5: Detector does not mark valid supported graph nodes as orphans."""
-    statement, txn, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
-    document = UploadedDocument(
-        user_id=test_user.id,
-        file_path="s3://lazy/detector-upload.csv",
-        file_hash=f"detector-{uuid4().hex}",
-        original_filename="detector-upload.csv",
-        document_type=DocumentType.BANK_STATEMENT,
-        status=DocumentStatus.COMPLETED,
-    )
-    db.add(document)
-    await db.flush()
+    document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
     service = EvidenceGraphMaterializationService()
     for node_kind, entity_type, entity_id in [
         ("ledger_line", "journal_line", line.id),
         ("ledger_entry", "journal_entry", entry.id),
-        ("extracted_record", "bank_statement_transaction", txn.id),
-        ("source_document", "bank_statement", statement.id),
         ("source_document", "uploaded_document", document.id),
         ("atomic_fact", "atomic_transaction", atomic.id),
         ("future_node", "future_table", uuid4()),
@@ -450,7 +374,7 @@ async def test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blocker
     other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="x")
     db.add(other_user)
     await db.flush()
-    statement, txn, atomic, entry, line = await _create_historical_statement_entry(db, user_id=other_user.id)
+    document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=other_user.id)
     service = EvidenceGraphMaterializationService()
 
     missing_results = [
@@ -460,14 +384,6 @@ async def test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blocker
         await service.materialize_for_entity(
             db, user_id=test_user.id, entity_type="journal_entry", entity_id=uuid4(), node_kind="ledger_entry"
         ),
-        await service.materialize_for_entity(
-            db,
-            user_id=test_user.id,
-            entity_type="bank_statement_transaction",
-            entity_id=uuid4(),
-            node_kind="extracted_record",
-        ),
-        await service.materialize_for_entity(db, user_id=test_user.id, entity_type="bank_statement", entity_id=uuid4()),
         await service.materialize_for_entity(
             db, user_id=test_user.id, entity_type="uploaded_document", entity_id=uuid4()
         ),
@@ -494,6 +410,5 @@ async def test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blocker
     assert [blocker.code for blocker in line_cross_user.blockers] == ["cross_user_lineage_blocked"]
     assert [blocker.code for blocker in entry_cross_user.blockers] == ["cross_user_lineage_blocked"]
     assert await _graph_counts(db) == (0, 0)
-    assert statement.user_id == other_user.id
-    assert txn.statement_id == statement.id
+    assert document.user_id == other_user.id
     assert atomic.user_id == other_user.id

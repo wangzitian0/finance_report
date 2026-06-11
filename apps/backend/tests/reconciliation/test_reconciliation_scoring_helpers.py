@@ -12,12 +12,12 @@ from uuid import uuid4
 from src.models import (
     Account,
     AccountType,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
+    AtomicTransaction,
     Direction,
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
+    TransactionDirection,
 )
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
@@ -34,15 +34,17 @@ def _make_txn(
     direction: str = "OUT",
     txn_date: date = date(2024, 1, 1),
     statement_id=None,
-) -> BankStatementTransaction:
-    return BankStatementTransaction(
+) -> AtomicTransaction:
+    return AtomicTransaction(
         id=uuid4(),
-        statement_id=statement_id or uuid4(),
+        user_id=uuid4(),
         txn_date=txn_date,
         description=description,
         amount=amount,
-        direction=direction,
-        status=BankStatementTransactionStatus.PENDING,
+        direction=TransactionDirection(direction),
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[{"doc_id": str(statement_id or uuid4()), "doc_type": "bank_statement"}],
     )
 
 

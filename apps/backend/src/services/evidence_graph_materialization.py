@@ -12,9 +12,9 @@ from sqlalchemy.orm import aliased, selectinload
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalLine
 from src.models.layer1 import UploadedDocument
-from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement import BankStatement, BankStatementTransaction
-from src.services.deduplication import DeduplicationService
+from src.models.layer2 import AtomicTransaction
+from src.models.statement_summary import StatementSummary
+from src.services.evidence_graph_integration import _ordered_source_doc_ids
 from src.services.evidence_lineage import EvidenceLineageService
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 
@@ -95,14 +95,6 @@ class EvidenceGraphMaterializationService:
         elif entity_type == "journal_entry":
             await self._materialize_journal_entry(
                 db, user_id=user_id, entry_id=entity_id, result=result, cap=max_writes
-            )
-        elif entity_type == "bank_statement_transaction":
-            await self._materialize_statement_transaction(
-                db, user_id=user_id, transaction_id=entity_id, result=result, cap=max_writes
-            )
-        elif entity_type == "bank_statement":
-            await self._materialize_statement(
-                db, user_id=user_id, statement_id=entity_id, result=result, cap=max_writes
             )
         elif entity_type == "uploaded_document":
             await self._materialize_uploaded_document(
@@ -258,48 +250,6 @@ class EvidenceGraphMaterializationService:
         if entry.source_id is None:
             return
 
-        transaction = await self._get_owned_statement_transaction(db, user_id=user_id, transaction_id=entry.source_id)
-        if transaction is not None:
-            extracted = await self._materialize_statement_transaction(
-                db,
-                user_id=user_id,
-                transaction=transaction,
-                result=result,
-                cap=cap,
-            )
-            if extracted is not None:
-                await self._upsert_edge(
-                    db,
-                    user_id=user_id,
-                    from_node_id=extracted.id,
-                    to_node_id=ledger_entry.id,
-                    relation="posted_as",
-                    properties={"adapter": "lazy_materialization"},
-                    result=result,
-                    cap=cap,
-                )
-            atomic = await self._find_atomic_transaction_for_bank_txn(db, user_id=user_id, transaction=transaction)
-            if atomic is not None:
-                atomic_node = await self._materialize_atomic_transaction(
-                    db,
-                    user_id=user_id,
-                    atomic=atomic,
-                    result=result,
-                    cap=cap,
-                )
-                if atomic_node is not None:
-                    await self._upsert_edge(
-                        db,
-                        user_id=user_id,
-                        from_node_id=atomic_node.id,
-                        to_node_id=ledger_entry.id,
-                        relation="posted_as",
-                        properties={"adapter": "lazy_materialization"},
-                        result=result,
-                        cap=cap,
-                    )
-            return
-
         atomic = await self._get_owned_atomic_transaction(db, user_id=user_id, atomic_id=entry.source_id)
         if atomic is not None:
             atomic_node = await self._materialize_atomic_transaction(
@@ -334,172 +284,6 @@ class EvidenceGraphMaterializationService:
                 "unsupported_provenance",
                 f"Unsupported journal source type for Evidence Graph materialization: {entry.source_type.value}.",
             )
-
-    async def _materialize_statement_transaction(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        result: EvidenceMaterializationResult,
-        cap: int,
-        transaction_id: UUID | None = None,
-        transaction: BankStatementTransaction | None = None,
-    ) -> EvidenceNode | None:
-        if transaction is None:
-            transaction = await self._get_owned_statement_transaction(
-                db, user_id=user_id, transaction_id=transaction_id
-            )
-        if transaction is None:
-            self._add_blocker(result, "entity_missing", "Bank statement transaction does not exist for this user.")
-            return None
-
-        statement = await self._get_owned_statement(db, user_id=user_id, statement_id=transaction.statement_id)
-        source = None
-        if statement is not None:
-            source = await self._materialize_statement(
-                db,
-                user_id=user_id,
-                statement=statement,
-                result=result,
-                cap=cap,
-                include_transactions=False,
-            )
-        extracted = await self._upsert_statement_transaction_node(
-            db,
-            user_id=user_id,
-            transaction=transaction,
-            statement=statement,
-            result=result,
-            cap=cap,
-        )
-        if extracted is None:
-            return None
-        if source is not None:
-            await self._upsert_edge(
-                db,
-                user_id=user_id,
-                from_node_id=source.id,
-                to_node_id=extracted.id,
-                relation="parsed_into",
-                properties={"adapter": "lazy_materialization"},
-                result=result,
-                cap=cap,
-            )
-
-        uploaded_document = None
-        if statement is not None:
-            uploaded_document = await self._get_uploaded_document_by_hash(
-                db, user_id=user_id, file_hash=statement.file_hash
-            )
-        if uploaded_document is not None:
-            uploaded_source = await self._materialize_uploaded_document(
-                db,
-                user_id=user_id,
-                document=uploaded_document,
-                result=result,
-                cap=cap,
-            )
-            if uploaded_source is not None:
-                await self._upsert_edge(
-                    db,
-                    user_id=user_id,
-                    from_node_id=uploaded_source.id,
-                    to_node_id=extracted.id,
-                    relation="parsed_into",
-                    properties={"adapter": "lazy_materialization"},
-                    result=result,
-                    cap=cap,
-                )
-
-        atomic = await self._find_atomic_transaction_for_bank_txn(db, user_id=user_id, transaction=transaction)
-        if atomic is not None:
-            atomic_node = await self._materialize_atomic_transaction(
-                db,
-                user_id=user_id,
-                atomic=atomic,
-                result=result,
-                cap=cap,
-            )
-            if atomic_node is not None:
-                await self._upsert_edge(
-                    db,
-                    user_id=user_id,
-                    from_node_id=extracted.id,
-                    to_node_id=atomic_node.id,
-                    relation="deduped_into",
-                    properties={"dedup_hash": atomic.dedup_hash, "adapter": "lazy_materialization"},
-                    result=result,
-                    cap=cap,
-                )
-        return extracted
-
-    async def _materialize_statement(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        result: EvidenceMaterializationResult,
-        cap: int,
-        statement_id: UUID | None = None,
-        statement: BankStatement | None = None,
-        include_transactions: bool = True,
-    ) -> EvidenceNode | None:
-        if statement is None:
-            statement = await self._get_owned_statement(db, user_id=user_id, statement_id=statement_id)
-        if statement is None:
-            self._add_blocker(result, "entity_missing", "Bank statement does not exist for this user.")
-            return None
-        source = await self._upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="source_document",
-            entity_type="bank_statement",
-            entity_id=statement.id,
-            properties={
-                "file_hash": statement.file_hash,
-                "original_filename": statement.original_filename,
-                "institution": statement.institution,
-            },
-            result=result,
-            cap=cap,
-        )
-        if source is None or not include_transactions:
-            return source
-        transactions = (
-            (
-                await db.execute(
-                    select(BankStatementTransaction)
-                    .where(BankStatementTransaction.statement_id == statement.id)
-                    .order_by(BankStatementTransaction.created_at.asc(), BankStatementTransaction.id.asc())
-                )
-            )
-            .scalars()
-            .all()
-        )
-        for transaction in transactions:
-            extracted = await self._upsert_statement_transaction_node(
-                db,
-                user_id=user_id,
-                transaction=transaction,
-                statement=statement,
-                result=result,
-                cap=cap,
-            )
-            if extracted is None:
-                return source
-            edge = await self._upsert_edge(
-                db,
-                user_id=user_id,
-                from_node_id=source.id,
-                to_node_id=extracted.id,
-                relation="parsed_into",
-                properties={"adapter": "lazy_materialization"},
-                result=result,
-                cap=cap,
-            )
-            if edge is None:
-                return source
-        return source
 
     async def _materialize_uploaded_document(
         self,
@@ -553,7 +337,7 @@ class EvidenceGraphMaterializationService:
         if atomic is None:
             self._add_blocker(result, "entity_missing", "Atomic transaction does not exist for this user.")
             return None
-        return await self._upsert_node(
+        atomic_node = await self._upsert_node(
             db,
             user_id=user_id,
             node_kind="atomic_fact",
@@ -569,34 +353,65 @@ class EvidenceGraphMaterializationService:
             result=result,
             cap=cap,
         )
+        if atomic_node is None:
+            return None
+        await self._materialize_source_documents(
+            db, user_id=user_id, atomic=atomic, atomic_node=atomic_node, result=result, cap=cap
+        )
+        return atomic_node
 
-    async def _upsert_statement_transaction_node(
+    async def _materialize_source_documents(
         self,
         db: AsyncSession,
         *,
         user_id: UUID,
-        transaction: BankStatementTransaction,
-        statement: BankStatement | None,
+        atomic: AtomicTransaction,
+        atomic_node: EvidenceNode,
         result: EvidenceMaterializationResult,
         cap: int,
-    ) -> EvidenceNode | None:
-        return await self._upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="extracted_record",
-            entity_type="bank_statement_transaction",
-            entity_id=transaction.id,
-            properties={
-                "statement_id": str(transaction.statement_id),
-                "txn_date": transaction.txn_date.isoformat(),
-                "direction": transaction.direction,
-                "amount": str(transaction.amount),
-                "currency": transaction.currency or (statement.currency if statement else None),
-                "reference": transaction.reference,
-            },
-            result=result,
-            cap=cap,
+    ) -> None:
+        """Materialize ``UploadedDocument -> AtomicTransaction`` dual-write edges.
+
+        Resolves the source documents recorded on the atomic transaction
+        (``source_documents``) and links each one straight to the atomic fact. The
+        legacy extracted-record middle node is dropped.
+        """
+        doc_ids = _ordered_source_doc_ids(atomic.source_documents)
+        if not doc_ids:
+            return
+        documents = (
+            (
+                await db.execute(
+                    select(UploadedDocument)
+                    .where(UploadedDocument.user_id == user_id)
+                    .where(UploadedDocument.id.in_(doc_ids))
+                )
+            )
+            .scalars()
+            .all()
         )
+        by_id = {document.id: document for document in documents}
+        for doc_id in doc_ids:
+            document = by_id.get(doc_id)
+            if document is None:
+                continue
+            source = await self._materialize_uploaded_document(
+                db, user_id=user_id, document=document, result=result, cap=cap
+            )
+            if source is None:
+                return
+            edge = await self._upsert_edge(
+                db,
+                user_id=user_id,
+                from_node_id=source.id,
+                to_node_id=atomic_node.id,
+                relation="deduped_into",
+                properties={"dedup_hash": atomic.dedup_hash, "adapter": "lazy_materialization"},
+                result=result,
+                cap=cap,
+            )
+            if edge is None:
+                return
 
     async def _upsert_node(
         self,
@@ -677,60 +492,6 @@ class EvidenceGraphMaterializationService:
             result.created_edges += 1
         return edge
 
-    async def _get_owned_statement_transaction(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        transaction_id: UUID | None,
-    ) -> BankStatementTransaction | None:
-        if transaction_id is None:
-            return None
-        return (
-            await db.execute(
-                select(BankStatementTransaction)
-                .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-                .where(BankStatement.user_id == user_id)
-                .where(BankStatementTransaction.id == transaction_id)
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-
-    async def _get_owned_statement(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        statement_id: UUID | None,
-    ) -> BankStatement | None:
-        if statement_id is None:
-            return None
-        return (
-            await db.execute(
-                select(BankStatement)
-                .where(BankStatement.user_id == user_id)
-                .where(BankStatement.id == statement_id)
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-
-    async def _get_uploaded_document_by_hash(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        file_hash: str,
-    ) -> UploadedDocument | None:
-        return (
-            await db.execute(
-                select(UploadedDocument)
-                .where(UploadedDocument.user_id == user_id)
-                .where(UploadedDocument.file_hash == file_hash)
-                .order_by(UploadedDocument.created_at.desc(), UploadedDocument.id.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-
     async def _get_owned_atomic_transaction(
         self,
         db: AsyncSession,
@@ -745,31 +506,6 @@ class EvidenceGraphMaterializationService:
                 select(AtomicTransaction)
                 .where(AtomicTransaction.user_id == user_id)
                 .where(AtomicTransaction.id == atomic_id)
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-
-    async def _find_atomic_transaction_for_bank_txn(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        transaction: BankStatementTransaction,
-    ) -> AtomicTransaction | None:
-        direction = TransactionDirection.IN if transaction.direction == "IN" else TransactionDirection.OUT
-        dedup_hash = DeduplicationService.calculate_transaction_hash(
-            user_id,
-            transaction.txn_date,
-            transaction.amount,
-            direction,
-            transaction.description,
-            transaction.reference,
-        )
-        return (
-            await db.execute(
-                select(AtomicTransaction)
-                .where(AtomicTransaction.user_id == user_id)
-                .where(AtomicTransaction.dedup_hash == dedup_hash)
                 .limit(1)
             )
         ).scalar_one_or_none()
@@ -907,19 +643,16 @@ class EvidenceGraphMaterializationService:
                 )
             ).scalar_one_or_none()
             return row is not None
-        if node.entity_type == "bank_statement_transaction":
+        if node.entity_type == "statement_summary":
             row = (
                 await db.execute(
-                    select(BankStatementTransaction.id)
-                    .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-                    .where(BankStatementTransaction.id == node.entity_id)
-                    .where(BankStatement.user_id == node.user_id)
+                    select(StatementSummary.id)
+                    .where(StatementSummary.id == node.entity_id)
+                    .where(StatementSummary.user_id == node.user_id)
                     .limit(1)
                 )
             ).scalar_one_or_none()
             return row is not None
-        if node.entity_type == "bank_statement":
-            return await self._get_owned_statement(db, user_id=node.user_id, statement_id=node.entity_id) is not None
         if node.entity_type == "uploaded_document":
             row = (
                 await db.execute(

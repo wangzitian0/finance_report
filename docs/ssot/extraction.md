@@ -37,62 +37,56 @@ flowchart TB
     F -->|≥85| G[Auto-Accept]
     F -->|60-84| H[Review Queue]
     F -->|<60| I[Manual Entry]
-    G --> J[(PostgreSQL: Layer 0)]
+    G --> J[(PostgreSQL)]
     H --> J
-    
-    %% EPIC-011 Dual Write
-    F -->|Dual Write| K[Layer 1: UploadedDocument]
-    F -->|Dual Write| L[Layer 2: AtomicTransaction]
-    K --> M[(PostgreSQL: Layer 1/2)]
+
+    %% EPIC-011 Direct Writes
+    F --> K[ODS: UploadedDocument]
+    F --> L[DWD: AtomicTransaction]
+    F --> N[DWD: StatementSummary]
+    K --> M[(PostgreSQL: ODS/DWD)]
     L --> M
+    N --> M
 ```
 
 ## Data Models
 
-### Layer 1 & 2 (EPIC-011 Migration)
+### Ingestion Writes (EPIC-011)
 
-The system is migrating to a 4-layer architecture. As of Stage 1 cutover, dual-write is **enabled by default** (`ENABLE_4_LAYER_WRITE=true`): every parsed statement writes to both the legacy `BankStatement` tables (Layer 0) and the new Layer 1/2 tables. The flag can be set to `false` to fall back to legacy Layer-0-only writes for rollback.
+Ingestion writes the ODS/DWD tables directly. A successful parse persists one
+`UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), and a
+`StatementSummary` envelope (DWD). `parse_document` returns
+`(StatementSummary, list[AtomicTransaction])`. There is no legacy `BankStatement`
+write path and no dual-write flag.
 
-**Layer 1: Raw Documents (`UploadedDocument`)**
+**ODS: Raw Documents (`UploadedDocument`)**
 - Stores immutable metadata for every uploaded file
 - Maps to `DocumentType`: `bank_statement`, `brokerage_statement`, `esop_grant`, `property_appraisal`
 - Status tracking: `uploaded` → `processing` → `completed`
 
-**Layer 2: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
+**DWD: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
 - Deduplicated via SHA256 hash of core fields. For transactions the hash includes
   the statement running balance (`balance_after`), so two real but otherwise
   identical transactions stay distinct while genuine duplicate extractions collapse.
+- Per-transaction fields (`txn_date`, `amount`, `direction`, `description`,
+  `reference`, `currency`, `balance_after`) live on `AtomicTransaction`. Atomic
+  rows are source-pure: they carry no per-transaction status, confidence, or
+  raw OCR text.
 - `source_documents` (JSONB) tracks lineage (which files contributed this record)
 - Immutable once written (except for appending sources)
 
-### Layer 0 (Legacy)
+**DWD: Statement Envelope (`StatementSummary`)**
+- One envelope per parsed statement, carrying period, opening/closing balances,
+  institution metadata, `file_hash`, and the resolved custody `account_id`.
+- Carries review/workflow state: `status`, `stage1_status`,
+  `balance_validation_result`, `stage1_reviewed_at`, and `manual_opening_balance`.
+- Enums `BankStatementStatus` and `Stage1Status` live in
+  `src/models/statement_enums.py`.
 
-### BankStatement
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | UUID | Primary key |
-| `user_id` | UUID | Owner user |
-| `account_id` | UUID | Linked account (nullable in MVP) |
-| `file_path` | str | Object storage key (S3/MinIO) |
-| `file_hash` | str | SHA256 for dedup |
-| `original_filename` | str | User-provided name |
-| `institution` | str | Bank/broker/fintech (DBS, CMB, Wise) |
-| `account_last4` | str | Last 4 alphanumeric characters (sanitized: non-alphanumeric stripped) |
-| `currency` | str | ISO currency code |
-| `period_start` | date | Statement start |
-| `period_end` | date | Statement end |
-| `opening_balance` | Decimal | Beginning balance |
-| `closing_balance` | Decimal | Ending balance |
-| `status` | enum | uploaded, parsing, parsed, approved, rejected |
-| `confidence_score` | int | 0-100 |
-| `balance_validated` | bool | Opening + txns ≈ closing |
-| `validation_error` | str | Optional validation failure details |
-
-When a parsed bank statement fails balance validation, `validation_error` must
-preserve the mismatch note from the Decimal balance check. The statement must
-remain reviewable instead of silently hiding the reason it cannot be trusted for
-auto-accept.
+When a parsed statement fails balance validation, `balance_validation_result`
+must preserve the mismatch note from the Decimal balance check. The statement
+must remain reviewable instead of silently hiding the reason it cannot be
+trusted for auto-accept.
 
 CSV transaction exports that do not contain source statement opening and closing
 balances may use inferred balances for import continuity, but those inferred
@@ -100,28 +94,6 @@ balances are not source balance proof. Such parses must remain reviewable and
 must not be auto-approved solely because `0 + transactions = inferred closing`.
 Their confidence score must not include the balance-validation component because
 no source statement balances were provided.
-
-**Parsing state note**: `currency`, `period_start`, `period_end`, `opening_balance`, `closing_balance`,
-`confidence_score`, and `balance_validated` are nullable while status is `parsing`.
-
-### BankStatementTransaction
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | UUID | Primary key |
-| `statement_id` | UUID | FK to BankStatement |
-| `txn_date` | date | Transaction date |
-| `description` | str | Merchant/purpose |
-| `amount` | Decimal | Absolute value |
-| `direction` | str | IN or OUT |
-| `reference` | str | Optional reference |
-| `currency` | str(3) | Per-transaction ISO currency (nullable) |
-| `balance_after` | Decimal | Running balance after this txn (nullable) |
-| `status` | enum | pending / matched / unmatched |
-| `confidence` | enum | high / medium / low |
-| `confidence_reason` | str | Confidence reasoning |
-| `raw_text` | str | Original OCR text |
-| `updated_at` | datetime | Update time |
 
 ## Confidence Scoring
 
@@ -223,10 +195,6 @@ S3_REGION=us-east-1
 S3_PUBLIC_ENDPOINT=https://s3.zitian.party
 S3_PUBLIC_BUCKET=statements
 S3_PRESIGN_EXPIRY_SECONDS=300
-
-# EPIC-011 Migration Flags
-ENABLE_4_LAYER_WRITE=false  # Enable writing to Layer 1/2 tables
-ENABLE_4_LAYER_READ=false   # Enable reading from Layer 2 (Future)
 ```
 
 ## Parsing Resilience
@@ -333,7 +301,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 
 | File | Purpose |
 |------|---------|
-| `src/models/statement.py` | SQLAlchemy models |
+| `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/services/extraction.py` | Core extraction logic |
 | `src/services/validation.py` | Validation and confidence scoring |

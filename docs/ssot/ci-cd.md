@@ -489,7 +489,7 @@ is the AI/OCR hard gate: DBS PDF upload must reach `parsed`, show transactions,
 approve, and load the balance sheet. A `rejected` parsing status is a deploy
 failure because it usually indicates AI provider, OCR, secret, or model config
 breakage. Rejection failures include the selected model and statement validation
-context (`validation_error`, `parsing_progress`, `confidence_score`, and
+context (`validation_error`, `confidence_score`, and
 `balance_validated`) so the post-merge gate is actionable from the CI log.
 
 `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py::test_statement_upload_to_dashboard_vision_hard_gate`

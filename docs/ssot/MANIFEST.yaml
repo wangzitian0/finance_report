@@ -122,6 +122,7 @@ concepts:
     description: Gemini Vision document parsing and validation pipeline.
     cross_refs:
       - docs/ssot/reconciliation.md
+      - apps/backend/tests/extraction/test_dual_write_layer2.py
 
   extraction_failed_case_registry:
     owner: docs/ssot/extraction-audit-failed-cases.yaml
@@ -220,6 +221,7 @@ concepts:
       - docs/project/EPIC-018.ai-driven-pipeline.md
       - docs/ssot/workflow-events.md
       - docs/ssot/reporting.md
+      - apps/backend/tests/services/test_evidence_graph_materialization.py
 
   # ── Observability ──────────────────────────────────────────────────────
   observability_logging:
@@ -227,6 +229,25 @@ concepts:
     description: Structured logging, SigNoz OTLP export configuration.
     cross_refs:
       - docs/ssot/development.md
+
+  statement_parsing_model_selection_logging:
+    owner: docs/ssot/observability-logging.md
+    description: Statement parsing model-selection and staging audit replay logging contract.
+    family: observability
+    kind: playbook
+    parent: observability_logging
+    authority: documented_contract
+    cross_refs:
+      - docs/ssot/observability.md
+      - docs/ssot/extraction.md
+      - docs/ssot/ai.md
+      - docs/project/EPIC-010.signoz-logging.md
+      - apps/backend/tests/api/test_statements_router.py
+      - apps/backend/tests/extraction/test_statement_parsing_audit_logging.py
+      - apps/backend/tests/reconciliation/test_reconciliation_router_additional.py
+      - tests/tooling/test_post_merge_e2e_gates.py
+      - .github/workflows/staging-deploy.yml
+      - .github/workflows/staging-ai-ocr-gate.yml
 
   # ── Development environment ────────────────────────────────────────────
   moon_commands:
@@ -305,6 +326,7 @@ concepts:
     cross_refs:
       - docs/ssot/development.md
       - docs/ssot/coverage.md
+      - .github/workflows/ci.yml
 
   test_optimization:
     owner: docs/ssot/ci-cd.md#test-optimization
@@ -347,6 +369,22 @@ concepts:
       - .github/workflows/ci.yml
       - tools/check_e2e_epic_traceability.py
 
+  ac_score_ratchet_baseline:
+    owner: docs/ssot/ac-score-baseline.json
+    description: Machine-readable AC score ratchet baseline for AC evidence metrics.
+    family: tdd
+    kind: baseline
+    parent: tdd_workflow
+    authority: machine_generated
+    cross_refs:
+      - docs/ssot/tdd.md
+      - common/testing/README.md
+      - common/testing/ac_evidence.py
+      - common/ssot/ac_evidence_aggregate.py
+      - common/ssot/check_ac_score_baseline.py
+      - tools/check_ac_score_baseline.py
+      - tests/tooling/test_ac_evidence_pipeline.py
+
   critical_proof_matrix:
     owner: docs/ssot/critical-proof-matrix.yaml
     description: Bidirectional README -> EPIC -> E2E macro outcome guard and core proof-path matrix.
@@ -366,6 +404,30 @@ concepts:
       - tools/report_ssot_governance.py
       - tests/tooling/test_ssot_governance_report.py
       - .github/workflows/ci.yml
+
+  ssot_governance_gates:
+    owner: docs/ssot/tdd.md#ssot-governance-gates
+    description: Incremental prevent-worse CI gates for changed SSOT files and changed manifest entries.
+    family: tdd
+    kind: concept
+    cross_refs:
+      - docs/project/EPIC-014.ttd-transformation.md
+      - docs/ssot/governance-exceptions.yaml
+      - common/ssot/governance_report.py
+      - tools/report_ssot_governance.py
+      - tests/tooling/test_ssot_governance_report.py
+      - .github/workflows/ci.yml
+
+  ssot_governance_exceptions:
+    owner: docs/ssot/governance-exceptions.yaml
+    description: Machine-readable temporary exception registry for incremental SSOT governance gate findings.
+    family: tdd
+    kind: registry
+    parent: ssot_governance_gates
+    cross_refs:
+      - docs/ssot/tdd.md
+      - common/ssot/governance_report.py
+      - tests/tooling/test_ssot_governance_report.py
 
   # ── Agent governance ──────────────────────────────────────────────────
   security_red_lines:

@@ -36,7 +36,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-from src.models.statement import BankStatementStatus, Stage1Status
+from src.models.statement_enums import BankStatementStatus, Stage1Status
 
 
 class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

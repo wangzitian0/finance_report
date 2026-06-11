@@ -15,9 +15,7 @@ from src.models import (
     AccountType,
     AtomicPosition,
     AtomicTransaction,
-    BankStatement,
     BankStatementStatus,
-    BankStatementTransaction,
     CheckStatus,
     ConsistencyCheck,
     Direction,
@@ -31,6 +29,7 @@ from src.models import (
     ReconciliationStatus,
     ReportSnapshot,
     Stage1Status,
+    StatementSummary,
     StockPrice,
 )
 from src.models.layer2 import AssetType
@@ -341,21 +340,13 @@ async def _unknown_journal_source_anchor_count(
     if not source_ids:
         return 0
 
-    statement_txn_rows = await db.execute(
-        select(BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatementTransaction.id.in_(source_ids))
-    )
-    known_statement_txn_ids = set(statement_txn_rows.scalars().all())
-
     atomic_txn_rows = await db.execute(
         select(AtomicTransaction.id)
         .where(AtomicTransaction.user_id == user_id)
         .where(AtomicTransaction.id.in_(source_ids))
     )
     known_atomic_txn_ids = set(atomic_txn_rows.scalars().all())
-    return len(source_ids - known_statement_txn_ids - known_atomic_txn_ids)
+    return len(source_ids - known_atomic_txn_ids)
 
 
 async def get_personal_report_package_readiness(
@@ -371,9 +362,15 @@ async def get_personal_report_package_readiness(
     report_as_of = as_of_date or report_period_end or date.today()
     report_end = report_period_end or report_as_of
     report_start = report_period_start or report_end - timedelta(days=365)
+    # Only confirmed summaries should drive report inputs and source-trust
+    # classes. UPLOADED/PARSING summaries are in-flight and half-populated;
+    # counting them inflates report inputs and source classes.
     statement_count = await _count(
         db,
-        select(func.count(BankStatement.id)).where(BankStatement.user_id == user_id),
+        select(func.count(StatementSummary.id)).where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status.in_([BankStatementStatus.PARSED, BankStatementStatus.APPROVED]),
+        ),
     )
     active_account_count = await _count(
         db,
@@ -462,17 +459,17 @@ async def get_personal_report_package_readiness(
     blockers: list[dict[str, str | int]] = []
     processing_count = await _count(
         db,
-        select(func.count(BankStatement.id)).where(
-            BankStatement.user_id == user_id,
-            BankStatement.status.in_([BankStatementStatus.UPLOADED, BankStatementStatus.PARSING]),
+        select(func.count(StatementSummary.id)).where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status.in_([BankStatementStatus.UPLOADED, BankStatementStatus.PARSING]),
         ),
     )
 
     failed_parsing_count = await _count(
         db,
-        select(func.count(BankStatement.id)).where(
-            BankStatement.user_id == user_id,
-            BankStatement.status == BankStatementStatus.REJECTED,
+        select(func.count(StatementSummary.id)).where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status == BankStatementStatus.REJECTED,
         ),
     )
     if failed_parsing_count:
@@ -488,9 +485,9 @@ async def get_personal_report_package_readiness(
 
     pending_review_count = await _count(
         db,
-        select(func.count(BankStatement.id)).where(
-            BankStatement.user_id == user_id,
-            BankStatement.stage1_status == Stage1Status.PENDING_REVIEW,
+        select(func.count(StatementSummary.id)).where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.stage1_status == Stage1Status.PENDING_REVIEW,
         ),
     )
     if pending_review_count:
@@ -506,9 +503,9 @@ async def get_personal_report_package_readiness(
 
     balance_mismatch_count = await _count(
         db,
-        select(func.count(BankStatement.id)).where(
-            BankStatement.user_id == user_id,
-            (BankStatement.balance_validated == False) | (BankStatement.validation_error.is_not(None)),  # noqa: E712
+        select(func.count(StatementSummary.id)).where(
+            StatementSummary.user_id == user_id,
+            (StatementSummary.balance_validated == False) | (StatementSummary.validation_error.is_not(None)),  # noqa: E712
         ),
     )
     if balance_mismatch_count:
@@ -525,9 +522,8 @@ async def get_personal_report_package_readiness(
     reconciliation_blocker_count = await _count(
         db,
         select(func.count(ReconciliationMatch.id))
-        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatement.user_id == user_id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW),
     )
     if reconciliation_blocker_count:
@@ -600,10 +596,10 @@ async def get_personal_report_package_readiness(
                 )
             )
 
-    approved_statement_accounts = select(BankStatement.account_id).where(
-        BankStatement.user_id == user_id,
-        BankStatement.account_id.is_not(None),
-        BankStatement.status == BankStatementStatus.APPROVED,
+    approved_statement_accounts = select(StatementSummary.account_id).where(
+        StatementSummary.user_id == user_id,
+        StatementSummary.account_id.is_not(None),
+        StatementSummary.status == BankStatementStatus.APPROVED,
     )
     missing_coverage_count = await _count(
         db,
@@ -688,7 +684,9 @@ async def get_personal_report_package_readiness(
     )
 
     source_updated_at_candidates = [
-        await _max_updated_at(db, select(func.max(BankStatement.updated_at)).where(BankStatement.user_id == user_id)),
+        await _max_updated_at(
+            db, select(func.max(StatementSummary.updated_at)).where(StatementSummary.user_id == user_id)
+        ),
         await _max_updated_at(db, select(func.max(JournalEntry.updated_at)).where(JournalEntry.user_id == user_id)),
         await _max_updated_at(db, select(func.max(AtomicPosition.updated_at)).where(AtomicPosition.user_id == user_id)),
         await _max_updated_at(

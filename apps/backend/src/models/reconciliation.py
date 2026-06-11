@@ -13,7 +13,6 @@ from src.models.base import TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from src.models.layer2 import AtomicTransaction
-    from src.models.statement import BankStatementTransaction
 
 
 class ReconciliationStatus(str, Enum):
@@ -32,15 +31,10 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "reconciliation_matches"
     __table_args__ = (Index("idx_reconciliation_matches_run_id", "run_id"),)
 
-    bank_txn_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("bank_statement_transactions.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    atomic_txn_id: Mapped[UUID | None] = mapped_column(
+    atomic_txn_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("atomic_transactions.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
     )
     journal_entry_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
     run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -61,10 +55,6 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
         nullable=True,
     )
 
-    transaction: Mapped["BankStatementTransaction"] = relationship(
-        "BankStatementTransaction",
-        back_populates="matches",
-    )
     atomic_transaction: Mapped["AtomicTransaction"] = relationship(
         "AtomicTransaction",
         foreign_keys=[atomic_txn_id],

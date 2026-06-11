@@ -19,7 +19,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
-from src.models import BankTransactionStatus, ReconciliationMatch, ReconciliationStatus  # noqa: E402
+from src.models import ReconciliationMatch, ReconciliationStatus  # noqa: E402
 
 
 def _load_reconciliation_module():
@@ -29,6 +29,7 @@ def _load_reconciliation_module():
     previous_logger = sys.modules.get("src.logger")
     previous_processing = sys.modules.get("src.services.processing_account")
     previous_source_type_priority = sys.modules.get("src.services.source_type_priority")
+    previous_statement_summary = sys.modules.get("src.services.statement_summary")
 
     services_package = ModuleType("src.services")
     services_package.__path__ = []  # type: ignore[attr-defined]
@@ -45,12 +46,15 @@ def _load_reconciliation_module():
     source_type_priority_module = ModuleType("src.services.source_type_priority")
     source_type_priority_module.promote_entry_source_type = Mock(return_value=False)
     source_type_priority_module.source_type_rank = Mock(return_value=0)
+    statement_summary_module = ModuleType("src.services.statement_summary")
+    statement_summary_module.resolve_custody_account_id = AsyncMock(return_value=None)
 
     sys.modules["src.services"] = services_package
     sys.modules["src.services.accounting"] = accounting_module
     sys.modules["src.logger"] = logger_module
     sys.modules["src.services.processing_account"] = processing_module
     sys.modules["src.services.source_type_priority"] = source_type_priority_module
+    sys.modules["src.services.statement_summary"] = statement_summary_module
 
     try:
         spec = importlib.util.spec_from_file_location(
@@ -84,6 +88,10 @@ def _load_reconciliation_module():
             sys.modules.pop("src.services.source_type_priority", None)
         else:
             sys.modules["src.services.source_type_priority"] = previous_source_type_priority
+        if previous_statement_summary is None:
+            sys.modules.pop("src.services.statement_summary", None)
+        else:
+            sys.modules["src.services.statement_summary"] = previous_statement_summary
 
 
 reconciliation_module = _load_reconciliation_module()
@@ -103,6 +111,7 @@ class _ScalarResult:
 
 
 def _make_pending_txn() -> SimpleNamespace:
+    # Mimics a pending Layer-2 AtomicTransaction (no per-row status column).
     return SimpleNamespace(
         id=uuid4(),
         statement_id=uuid4(),
@@ -110,7 +119,6 @@ def _make_pending_txn() -> SimpleNamespace:
         description="Payroll transfer",
         amount=Decimal("100.00"),
         direction="IN",
-        status=BankTransactionStatus.PENDING,
     )
 
 
@@ -137,18 +145,17 @@ def _make_db(*, txn: object, entry: object) -> AsyncMock:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("score", "expected_status", "expected_txn_status", "expected_match_count"),
+    ("score", "expected_status", "expected_match_count"),
     [
-        (85, ReconciliationStatus.AUTO_ACCEPTED, BankTransactionStatus.MATCHED, 1),
-        (84, ReconciliationStatus.PENDING_REVIEW, BankTransactionStatus.PENDING, 1),
-        (60, ReconciliationStatus.PENDING_REVIEW, BankTransactionStatus.PENDING, 1),
-        (59, None, BankTransactionStatus.UNMATCHED, 0),
+        (85, ReconciliationStatus.AUTO_ACCEPTED, 1),
+        (84, ReconciliationStatus.PENDING_REVIEW, 1),
+        (60, ReconciliationStatus.PENDING_REVIEW, 1),
+        (59, None, 0),
     ],
 )
 async def test_execute_matching_score_thresholds(
     score: int,
     expected_status: ReconciliationStatus | None,
-    expected_txn_status: BankTransactionStatus,
     expected_match_count: int,
 ) -> None:
     """AC4.3.1 · AC4.3.2 · Scores map to auto-accept, review, and unmatched bands."""
@@ -163,9 +170,6 @@ async def test_execute_matching_score_thresholds(
     )
 
     with (
-        patch.object(
-            reconciliation_module, "_validate_layer_consistency", new=AsyncMock()
-        ),
         patch.object(
             reconciliation_module, "detect_transfer_pattern", return_value=False
         ),
@@ -214,7 +218,7 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
     db = _make_db(txn=txn, entry=entry)
 
     existing_match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
         match_score=92,
         score_breakdown={"amount": 100.0},
@@ -227,9 +231,6 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
     )
 
     with (
-        patch.object(
-            reconciliation_module, "_validate_layer_consistency", new=AsyncMock()
-        ),
         patch.object(
             reconciliation_module, "detect_transfer_pattern", return_value=False
         ),
@@ -256,6 +257,5 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
         )
 
     assert matches == []
-    assert txn.status == BankTransactionStatus.PENDING
     assert existing_match.status == ReconciliationStatus.AUTO_ACCEPTED
     db.add.assert_not_called()
