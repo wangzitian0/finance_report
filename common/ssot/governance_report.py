@@ -1,8 +1,8 @@
 """SSOT governance metrics and incremental gates.
 
-The baseline report remains advisory. The optional #823 gate fails only on
-changed files or changed manifest entries so legacy debt can be governed
-incrementally.
+The baseline report remains advisory. The optional #823 gate fails on changed
+SSOT debt and protected base/head governance regressions so legacy debt can be
+governed incrementally without allowing the quality watermark to fall.
 """
 
 from __future__ import annotations
@@ -61,6 +61,19 @@ PROOF_MARKERS = (
 )
 SSOT_FILE_SUFFIXES = {".md", ".yaml", ".yml", ".json"}
 SSOT_FILE_EXCLUDES = {"README.md", "MANIFEST.yaml", "template.md"}
+RATIO_EPSILON = 1e-9
+PROTECTED_RATIO_LABELS = {
+    "manifest_family_coverage": "Manifest family coverage",
+    "manifest_kind_coverage": "Manifest kind coverage",
+    "machine_proof_coverage": "Machine-owned proof coverage",
+    "high_risk_proof_coverage": "High-risk proof coverage",
+}
+PROTECTED_DEBT_LABELS = {
+    "missing_family": "Manifest entries missing family",
+    "missing_kind": "Manifest entries missing kind",
+    "machine_owner_entries_missing_proof": "Machine-owned entries missing proof",
+    "high_risk_entries_missing_proof": "High-risk entries missing proof",
+}
 
 
 @dataclass(frozen=True)
@@ -194,6 +207,119 @@ def _field_coverage(entries: list[GovernanceEntry], field: str) -> dict[str, obj
         "missing": len(missing),
         "missing_keys": missing,
     }
+
+
+def _coverage_ratio(present: int, total: int) -> float:
+    return 1.0 if total == 0 else present / total
+
+
+def _quality_ratio(present: int, total: int) -> dict[str, float | int]:
+    return {
+        "present": present,
+        "total": total,
+        "ratio": _coverage_ratio(present, total),
+    }
+
+
+def _governance_quality_snapshot(
+    entries: list[GovernanceEntry],
+) -> dict[str, dict[str, dict[str, float | int]] | dict[str, int]]:
+    machine_entries = [entry for entry in entries if _is_machine_owned(entry)]
+    high_risk_entries = [entry for entry in entries if _is_high_risk(entry)]
+    missing_family = [entry for entry in entries if not entry.family]
+    missing_kind = [entry for entry in entries if not entry.kind]
+    machine_missing_proof = [
+        entry for entry in machine_entries if not _has_proof(entry)
+    ]
+    high_risk_missing_proof = [
+        entry for entry in high_risk_entries if not _has_proof(entry)
+    ]
+
+    return {
+        "ratios": {
+            "manifest_family_coverage": _quality_ratio(
+                len(entries) - len(missing_family),
+                len(entries),
+            ),
+            "manifest_kind_coverage": _quality_ratio(
+                len(entries) - len(missing_kind),
+                len(entries),
+            ),
+            "machine_proof_coverage": _quality_ratio(
+                len(machine_entries) - len(machine_missing_proof),
+                len(machine_entries),
+            ),
+            "high_risk_proof_coverage": _quality_ratio(
+                len(high_risk_entries) - len(high_risk_missing_proof),
+                len(high_risk_entries),
+            ),
+        },
+        "debts": {
+            "missing_family": len(missing_family),
+            "missing_kind": len(missing_kind),
+            "machine_owner_entries_missing_proof": len(machine_missing_proof),
+            "high_risk_entries_missing_proof": len(high_risk_missing_proof),
+        },
+    }
+
+
+def _compare_governance_trends(
+    system: str,
+    base_entries: list[GovernanceEntry],
+    current_entries: list[GovernanceEntry],
+) -> tuple[int, list[GateViolation]]:
+    """Compare protected #823 quality ratios and debt counts for one system."""
+
+    base_snapshot = _governance_quality_snapshot(base_entries)
+    current_snapshot = _governance_quality_snapshot(current_entries)
+    base_ratios = base_snapshot["ratios"]
+    current_ratios = current_snapshot["ratios"]
+    base_debts = base_snapshot["debts"]
+    current_debts = current_snapshot["debts"]
+    violations: list[GateViolation] = []
+    check_count = 0
+
+    for metric, label in PROTECTED_RATIO_LABELS.items():
+        check_count += 1
+        base_metric = base_ratios[metric]
+        current_metric = current_ratios[metric]
+        base_ratio = float(base_metric["ratio"])
+        current_ratio = float(current_metric["ratio"])
+        if current_ratio + RATIO_EPSILON >= base_ratio:
+            continue
+        violations.append(
+            GateViolation(
+                code="governance_ratio_decreased",
+                system=system,
+                target=_gate_target(system, f"ratio:{metric}"),
+                message=(
+                    f"{label} decreased ({base_ratio:.4f} -> {current_ratio:.4f}). "
+                    "#823 requires protected SSOT governance ratios to be "
+                    "non-decreasing."
+                ),
+            )
+        )
+
+    for metric, label in PROTECTED_DEBT_LABELS.items():
+        check_count += 1
+        base_count = int(base_debts[metric])
+        current_count = int(current_debts[metric])
+        if current_count <= base_count:
+            continue
+        violations.append(
+            GateViolation(
+                code="governance_debt_increased",
+                system=system,
+                target=_gate_target(system, f"debt:{metric}"),
+                message=(
+                    f"{label} increased ({base_count} -> {current_count}). "
+                    "#823 requires protected SSOT debt counts to be "
+                    "non-increasing."
+                ),
+            )
+        )
+
+    return check_count, violations
 
 
 def _future_candidate(code: str, count: int, sample: object) -> dict[str, object]:
@@ -492,6 +618,13 @@ def _changed_ssot_files(source_changed_files: list[str]) -> list[str]:
     return sorted(set(files))
 
 
+def _source_has_ssot_change(source_changed_files: list[str]) -> bool:
+    return any(
+        path == "docs/ssot" or path.startswith("docs/ssot/")
+        for path in source_changed_files
+    )
+
+
 def _load_changed_files(path: Path | None) -> list[str]:
     if path is None:
         return []
@@ -524,7 +657,40 @@ def _read_base_manifest_text(
         text=True,
     )
     if result.returncode != 0:
-        return None
+        try:
+            submodule_path = source.source_root.relative_to(repo_root).as_posix()
+            manifest_in_submodule = source.manifest_path.relative_to(
+                source.source_root
+            ).as_posix()
+        except ValueError:
+            return None
+
+        submodule_result = subprocess.run(
+            ["git", "-C", repo_root.as_posix(), "ls-tree", base_ref, submodule_path],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if submodule_result.returncode != 0:
+            return None
+        parts = submodule_result.stdout.split()
+        if len(parts) < 3 or parts[1] != "commit":
+            return None
+        submodule_sha = parts[2]
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                source.source_root.as_posix(),
+                "show",
+                f"{submodule_sha}:{manifest_in_submodule}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return None
     return result.stdout
 
 
@@ -597,6 +763,7 @@ def evaluate_incremental_gate(
     exceptions = _load_exception_targets(repo_root, exceptions_path)
     used_exceptions: set[str] = set()
     violations: list[GateViolation] = []
+    trend_check_count = 0
 
     def add_violation(violation: GateViolation) -> None:
         if violation.target in exceptions:
@@ -605,12 +772,35 @@ def evaluate_incremental_gate(
         violations.append(violation)
 
     for source in _manifest_sources(repo_root, include_infra2=include_infra2):
-        current_entries, _errors = _load_manifest_entries(source)
+        current_entries, current_errors = _load_manifest_entries(source)
         current_by_key = _entry_by_key(current_entries)
         owner_files = {_file_part(entry.owner) for entry in current_entries}
         source_changed = _source_changed_files(
             source, repo_root, normalized_changed_files
         )
+        base_entries: list[GovernanceEntry] | None = None
+        if _source_has_ssot_change(source_changed):
+            base_text = (
+                base_manifest_texts.get(source.system)
+                if base_manifest_texts and source.system in base_manifest_texts
+                else _read_base_manifest_text(repo_root, source, base_ref)
+            )
+            if base_text is not None:
+                base_entries, base_errors = _load_manifest_entries_from_text(
+                    source, base_text
+                )
+                if not current_errors and not base_errors:
+                    (
+                        source_trend_checks,
+                        source_trend_violations,
+                    ) = _compare_governance_trends(
+                        source.system,
+                        base_entries,
+                        current_entries,
+                    )
+                    trend_check_count += source_trend_checks
+                    for violation in source_trend_violations:
+                        add_violation(violation)
 
         for ssot_file in _changed_ssot_files(source_changed):
             target = _gate_target(source.system, ssot_file)
@@ -657,15 +847,8 @@ def evaluate_incremental_gate(
         ).as_posix()
         if manifest_relative not in source_changed:
             continue
-
-        base_text = (
-            base_manifest_texts.get(source.system)
-            if base_manifest_texts and source.system in base_manifest_texts
-            else _read_base_manifest_text(repo_root, source, base_ref)
-        )
-        if base_text is None:
+        if base_entries is None:
             continue
-        base_entries, _base_errors = _load_manifest_entries_from_text(source, base_text)
         base_by_key = _entry_by_key(base_entries)
 
         added_entry_keys = sorted(set(current_by_key) - set(base_by_key))
@@ -728,6 +911,7 @@ def evaluate_incremental_gate(
         "hls_rule": GATE_HLS_RULE,
         "exception_path": _exception_path_for_report(repo_root, exceptions_path),
         "changed_file_count": len(normalized_changed_files),
+        "trend_check_count": trend_check_count,
         "exception_count": len(used_exceptions),
         "violation_count": len(violations),
         "violations": [violation.as_dict() for violation in violations],
@@ -754,7 +938,7 @@ def render_markdown(report: Mapping[str, object]) -> str:
         "",
         f"Report-only baseline for [{SOURCE_ISSUE.rsplit('/', 1)[-1]}]({SOURCE_ISSUE}); "
         f"HLS direction is tracked in [{HLS_ISSUE.rsplit('/', 1)[-1]}]({HLS_ISSUE}).",
-        "Baseline metrics are advisory. The optional Incremental Gate section can fail CI only for changed-surface violations.",
+        "Baseline metrics are advisory. The optional Incremental Gate section can fail CI for changed-surface violations or protected governance regressions.",
         "",
         "| System | Entries | Owners | Duplicate owners | Orphan SSOT files | Missing family | Missing kind | Machine missing proof | High-risk missing proof |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
@@ -807,6 +991,7 @@ def render_markdown(report: Mapping[str, object]) -> str:
                 f"- Issue: [{GATE_ISSUE.rsplit('/', 1)[-1]}]({GATE_ISSUE})",
                 f"- HLS rule: {gate.get('hls_rule', GATE_HLS_RULE)}",
                 f"- Changed files: {gate.get('changed_file_count', 0)}",
+                f"- Trend checks: {gate.get('trend_check_count', 0)}",
                 f"- Exception registry: `{gate.get('exception_path', GATE_EXCEPTION_PATH.as_posix())}`",
                 f"- Exceptions used: {gate.get('exception_count', 0)}",
                 f"- Result: {'PASS' if not violations else 'FAIL'}",

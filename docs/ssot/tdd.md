@@ -136,7 +136,7 @@ The report measures:
 - high-risk entries that do not yet have proof links
 - future gate candidates with samples
 
-These metrics are not hard gates. A metric may become a gate only after the HLS
+The baseline report remains advisory. A metric becomes a gate only after the HLS
 design defines the target model, the report has established a stable baseline,
 and a gradual-gate issue defines a threshold and rollout scope.
 
@@ -150,10 +150,12 @@ Tracked by
 `tools/report_ssot_governance.py --fail-on-gate` owns the incremental
 prevent-worse gate tracked by
 [#823](https://github.com/wangzitian0/finance_report/issues/823). The gate uses
-the changed-file list and a base git ref to compare only the current change
-against the already reported baseline.
+the changed-file list and a base git ref to compare the current change against
+the already reported baseline without requiring immediate cleanup of unchanged
+legacy debt.
 
-The first gate version enforces only changed surfaces:
+The gate has two layers. The changed-surface layer enforces hard rules on files
+and manifest entries touched by the current PR:
 
 - changed SSOT files under `docs/ssot/` are expected to be owned by the current
   manifest
@@ -164,9 +166,24 @@ The first gate version enforces only changed surfaces:
 - high-risk changed SSOT files are expected to have at least one owner entry
   with a proof path
 
+The trend layer compares protected per-system governance watermarks against the
+base ref. `finance_report` and `infra2` are compared independently so one system
+cannot mask the other. Protected ratios must be non-decreasing, and protected
+debt counts must be non-increasing:
+
+- manifest family coverage ratio
+- manifest kind coverage ratio
+- machine-owned proof coverage ratio
+- high-risk proof coverage ratio
+- missing family count
+- missing kind count
+- machine-owned entries missing proof count
+- high-risk entries missing proof count
+
 Historical findings from the report remain advisory until a later threshold
-cleanup issue selects them explicitly. The gate should not be used to force a
-large SSOT rewrite in unrelated PRs.
+cleanup issue selects them explicitly, but the protected watermarks must not
+move backward. The gate should not be used to force a large SSOT rewrite in
+unrelated PRs.
 
 ## SSOT Governance Threshold Cleanup
 

@@ -533,10 +533,10 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     )
 
     assert gate["enabled"] is True
-    assert gate["violation_count"] == 4
-    assert {
+    violation_pairs = {
         (violation["code"], violation["target"]) for violation in gate["violations"]
-    } == {
+    }
+    changed_surface_violations = {
         ("changed_ssot_file_without_owner", "finance_report:docs/ssot/new-orphan.md"),
         ("new_manifest_entry_missing_family", "finance_report:manifest:missing_family"),
         ("new_clause_missing_parent", "finance_report:manifest:missing_parent"),
@@ -545,6 +545,16 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
             "finance_report:manifest:high_risk_without_proof",
         ),
     }
+    assert gate["violation_count"] == 8
+    assert changed_surface_violations <= violation_pairs
+    assert (
+        "governance_ratio_decreased",
+        "finance_report:ratio:high_risk_proof_coverage",
+    ) in violation_pairs
+    assert (
+        "governance_debt_increased",
+        "finance_report:debt:missing_family",
+    ) in violation_pairs
     assert all(
         "github.com/wangzitian0/finance_report/issues/823" in violation["issue"]
         for violation in gate["violations"]
@@ -573,7 +583,7 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     assert gate_with_exception["exception_path"] == (
         "docs/ssot/governance-exceptions.yaml"
     )
-    assert gate_with_exception["violation_count"] == 3
+    assert gate_with_exception["violation_count"] == gate["violation_count"] - 1
     assert gate_with_exception["exception_count"] == 1
     assert all(
         violation["target"] != "finance_report:manifest:missing_family"
@@ -843,6 +853,188 @@ def test_AC14_1_13_cli_and_ci_enable_gradual_gate(
     )
     assert "github.com/wangzitian0/finance_report/issues/823" in rendered
     assert "- Exception registry: `custom-governance-exceptions.yaml`" in rendered
+
+
+def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
+    tmp_path: Path,
+) -> None:
+    """AC14.1.16: #823 gate keeps protected SSOT governance ratios from falling."""
+
+    for relative_path in (
+        "docs/ssot/shaped.md",
+        "docs/ssot/legacy-kind.md",
+        "docs/ssot/new-family-only.md",
+        "docs/ssot/migration-risk.yaml",
+        "docs/ssot/migration-risk-reviewed.yaml",
+        "tests/tooling/test_migration_risk.py",
+    ):
+        _write(tmp_path / relative_path)
+
+    base_manifest = dedent(
+        """
+        concepts:
+          shaped:
+            owner: docs/ssot/shaped.md
+            description: Fully shaped concept.
+            family: tdd
+            kind: concept
+          legacy_kind_gap:
+            owner: docs/ssot/legacy-kind.md
+            description: Existing kind debt remains advisory.
+            family: tdd
+          migration_reviewed:
+            owner: docs/ssot/migration-risk-reviewed.yaml
+            description: Migration risk matrix with proof.
+            family: schema
+            kind: matrix
+            proofs:
+              - tests/tooling/test_migration_risk.py
+          migration_unreviewed:
+            owner: docs/ssot/migration-risk.yaml
+            description: Existing migration risk matrix proof debt.
+            family: schema
+            kind: matrix
+        """
+    ).lstrip()
+    _write_yaml(
+        tmp_path / "docs/ssot/MANIFEST.yaml",
+        {
+            "concepts": {
+                "shaped": {
+                    "owner": "docs/ssot/shaped.md",
+                    "description": "Fully shaped concept.",
+                    "family": "tdd",
+                    "kind": "concept",
+                },
+                "legacy_kind_gap": {
+                    "owner": "docs/ssot/legacy-kind.md",
+                    "description": "Existing kind debt remains advisory.",
+                    "family": "tdd",
+                },
+                "migration_reviewed": {
+                    "owner": "docs/ssot/migration-risk-reviewed.yaml",
+                    "description": "Migration risk matrix with proof.",
+                    "family": "schema",
+                    "kind": "matrix",
+                    "proofs": ["tests/tooling/test_migration_risk.py"],
+                },
+                "migration_unreviewed": {
+                    "owner": "docs/ssot/migration-risk.yaml",
+                    "description": "Existing migration risk matrix proof debt.",
+                    "family": "schema",
+                    "kind": "matrix",
+                },
+                "new_family_only": {
+                    "owner": "docs/ssot/new-family-only.md",
+                    "description": "New entry keeps family but lowers kind ratio.",
+                    "family": "tdd",
+                },
+            }
+        },
+    )
+
+    gate = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        ["docs/ssot/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
+        base_manifest_texts={"finance_report": base_manifest},
+        include_infra2=False,
+    )
+
+    assert gate["enabled"] is True
+    assert gate["trend_check_count"] == 8
+    assert {
+        (violation["code"], violation["target"]) for violation in gate["violations"]
+    } == {
+        (
+            "governance_ratio_decreased",
+            "finance_report:ratio:manifest_kind_coverage",
+        ),
+        ("governance_debt_increased", "finance_report:debt:missing_kind"),
+    }
+    ratio_violation = next(
+        violation
+        for violation in gate["violations"]
+        if violation["code"] == "governance_ratio_decreased"
+    )
+    assert "0.7500 -> 0.6000" in ratio_violation["message"]
+    assert (
+        "github.com/wangzitian0/finance_report/issues/823" in ratio_violation["issue"]
+    )
+
+    _write_yaml(
+        tmp_path / "docs/ssot/governance-exceptions.yaml",
+        {
+            "version": 1,
+            "exceptions": [
+                {
+                    "target": "finance_report:ratio:manifest_kind_coverage",
+                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
+                    "reason": "Temporary fixture exception.",
+                },
+                {
+                    "target": "finance_report:debt:missing_kind",
+                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
+                    "reason": "Temporary fixture exception.",
+                },
+            ],
+        },
+    )
+    gate_with_exceptions = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        ["docs/ssot/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
+        base_manifest_texts={"finance_report": base_manifest},
+        include_infra2=False,
+    )
+    assert gate_with_exceptions["violation_count"] == 0
+    assert gate_with_exceptions["exception_count"] == 2
+
+
+def test_AC14_1_16_trend_checks_skip_invalid_or_unrelated_sources(
+    tmp_path: Path,
+) -> None:
+    """AC14.1.16: Trend checks require valid source-local manifest data."""
+
+    _write(tmp_path / "docs/ssot/shaped.md")
+    _write_yaml(
+        tmp_path / "docs/ssot/MANIFEST.yaml",
+        {
+            "concepts": {
+                "shaped": {
+                    "owner": "docs/ssot/shaped.md",
+                    "description": "Fully shaped concept.",
+                    "family": "tdd",
+                    "kind": "concept",
+                }
+            }
+        },
+    )
+
+    gate_with_invalid_base = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        ["docs/ssot/MANIFEST.yaml"],
+        base_manifest_texts={"finance_report": "concepts: ["},
+        include_infra2=False,
+    )
+    assert gate_with_invalid_base["trend_check_count"] == 0
+    assert gate_with_invalid_base["violation_count"] == 0
+
+    gate_with_unrelated_change = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        ["tests/tooling/test_unrelated.py"],
+        base_manifest_texts={
+            "finance_report": dedent(
+                """
+                concepts:
+                  shaped:
+                    owner: docs/ssot/shaped.md
+                    description: Fully shaped concept.
+                """
+            ).lstrip()
+        },
+        include_infra2=False,
+    )
+    assert gate_with_unrelated_change["trend_check_count"] == 0
+    assert gate_with_unrelated_change["violation_count"] == 0
 
 
 def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None:
