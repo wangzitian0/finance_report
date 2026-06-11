@@ -107,6 +107,12 @@ def _source(report: dict[str, object], system: str) -> dict[str, object]:
     return matched[0]
 
 
+def _assert_file_mentions(path: str, expected: list[str]) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8")
+    for marker in expected:
+        assert marker in text, f"{path} must mention {marker}"
+
+
 def test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes(
     tmp_path: Path,
 ) -> None:
@@ -906,3 +912,31 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
         "tests/tooling/test_source_coverage_matrix.py",
         "tools/check_source_coverage_matrix.py",
     ]
+
+    inbound_refs = {
+        "docs/ssot/README.md": [
+            "extraction-audit-failed-cases.yaml",
+            "`extraction_failed_case_registry`",
+            "source-coverage-matrix.yaml",
+            "`source_coverage_matrix`",
+        ],
+        "docs/ssot/extraction.md": [
+            "extraction-audit-failed-cases.yaml",
+            "`extraction_failed_case_registry`",
+            "source-coverage-matrix.yaml",
+            "`source_coverage_matrix`",
+        ],
+        "docs/project/EPIC-003.statement-parsing.md": [
+            "extraction-audit-failed-cases.yaml",
+            "`extraction_failed_case_registry`",
+        ],
+        "docs/project/EPIC-013.statement-parsing-v2.md": [
+            "source-coverage-matrix.yaml",
+            "`source_coverage_matrix`",
+        ],
+        "vision.md": [
+            "docs/ssot/source-coverage-matrix.yaml",
+        ],
+    }
+    for path, markers in inbound_refs.items():
+        _assert_file_mentions(path, markers)

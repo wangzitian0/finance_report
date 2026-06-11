@@ -187,12 +187,16 @@ file into an independent HLS concept:
 The second cleanup threshold is
 `finance_report.machine_owner_entries_missing_proof == 0`. It migrates a small
 representative set of machine-owned finance_report entries before attempting
-bulk family/kind classification:
+bulk family/kind classification. A migrated SSOT entry must also be linked from
+the related README, SSOT, EPIC, or vision entry points; otherwise the manifest
+entry is only registered, not actively used as the source of truth:
 
 - `extraction_failed_case_registry` declares `family: extraction`,
-  `kind: registry`, and its executable registry proof.
+  `kind: registry`, its executable registry proof, and inbound links from the
+  extraction SSOT and EPIC-003.
 - `source_coverage_matrix` declares `family: source`, `kind: matrix`, and both
-  its validator and test proof.
+  its validator and test proof, with inbound links from the extraction SSOT,
+  EPIC-013, and vision routing.
 
 Future cleanup slices should remain narrow and metric-selected. FR and infra2
 cleanup should stay in separate PRs unless the selected finding is explicitly a

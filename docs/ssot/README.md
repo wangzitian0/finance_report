@@ -74,6 +74,7 @@ contracts is tracked in
 | [confirmation-workflow.md](./confirmation-workflow.md) | `confirmation-workflow` | Review lifecycle rationale; state machine should migrate to code/common |
 | [processing_account.md](./processing_account.md) | `processing_account` | In-transit funds model and proof references |
 | [workflow-events.md](./workflow-events.md) | `workflow-events` | User-facing upload-to-report workflow event read model |
+| [extraction-audit-failed-cases.yaml](./extraction-audit-failed-cases.yaml) | `extraction_failed_case_registry` | Machine-readable audit-failed parsing case registry and parser-expansion boundary |
 | [source-coverage-matrix.yaml](./source-coverage-matrix.yaml) | `source_coverage_matrix` | Machine-readable source-class coverage, proof levels, review requirements, and traceability targets |
 
 ## Proof Reports
