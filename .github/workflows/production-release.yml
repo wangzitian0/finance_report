@@ -314,6 +314,12 @@ jobs:
         run: |
           moon run :lint
 
+      - name: Validate Migration Risk Contract
+        run: |
+          mkdir -p ci-context
+          uv run --with pyyaml python tools/check_migration_risk.py \
+            --summary ci-context/production-migration-risk-context.md
+
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -350,6 +356,8 @@ jobs:
             echo "- Promoted frontend image digest: ${{ steps.promote_dry.outputs.frontend_digest }}"
             echo "- No rebuild occurred: true"
             echo "- Production mutation skipped: true"
+            echo ""
+            cat ci-context/production-migration-risk-context.md
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Production mutation skipped"
 
@@ -380,7 +388,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-dry-run-context
-          path: ci-context/production-dry-run-context.txt
+          path: |
+            ci-context/production-dry-run-context.txt
+            ci-context/production-migration-risk-context.md
           retention-days: 14
 
   deploy:

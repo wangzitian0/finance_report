@@ -76,6 +76,17 @@ concepts:
       - docs/agents/red-lines.md
       - apps/backend/tests/infra/test_schema_guardrails.py
 
+  migration_risk_classification:
+    owner: docs/ssot/migration-risk.yaml
+    description: Machine-readable risk level and release proof contract for Alembic migrations.
+    cross_refs:
+      - docs/ssot/schema.md
+      - docs/ssot/ci-cd.md
+      - docs/ssot/deployment.md
+      - tools/check_migration_risk.py
+      - common/ci/migration_risk.py
+      - tests/tooling/test_migration_risk_contract.py
+
   # ── Reconciliation domain ──────────────────────────────────────────────
   reconciliation_thresholds:
     owner: docs/ssot/reconciliation.md#thresholds

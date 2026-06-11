@@ -136,6 +136,9 @@ jobs:
       - name: SSOT Manifest Check
         run: |
           uv run --with pyyaml python tools/check_manifest.py
+      - name: Migration Risk Contract Check
+        run: |
+          uv run --with pyyaml python tools/check_migration_risk.py
       - name: CI Metrics Contract Check
         run: |
           uv run python tools/check_ci_metrics_contract.py

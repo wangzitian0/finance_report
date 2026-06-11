@@ -643,6 +643,29 @@ Preview and staging validate deployed runtime health after merge or during PR
 preview deployment. They must not be the first environment that discovers a
 broken migration chain or model/migration drift.
 
+### Migration Risk Classification
+
+Clean-schema Alembic proof does not guarantee production data migration safety.
+Production data can contain historical rows, old enum values, production-only
+volume, and edge cases that CI and staging will never reproduce perfectly.
+
+The machine-readable owner for migration risk is
+[`migration-risk.yaml`](./migration-risk.yaml), validated by
+`tools/check_migration_risk.py`. Every Alembic revision must appear in that
+manifest with one of four risk levels:
+
+| Risk | Meaning | Default proof |
+|---|---|---|
+| low | Additive or clean-schema-only change | PR `schema-migrations` is usually enough |
+| medium | Compatibility-sensitive schema, enum/type, index, or constraint change | PR proof plus staging deploy proof |
+| high | Data rewrite, backfill, read-path cutover, large-table concern, or production-volume concern | PR proof plus staging evidence plus production preflight/rollback notes |
+| critical | Destructive or irreversible production change, such as dropping legacy tables or columns | High-risk proof plus explicit destructive-change confirmation |
+
+This contract is a risk-classification gate, not a production guarantee.
+Staging should catch most migration mistakes, but production residual risk is
+managed through backups, expand/contract sequencing, feature flags, idempotent
+backfills, preflight queries, and post-deploy detectors.
+
 ### Async Session Management
 
 To prevent connection leaks and data race conditions:

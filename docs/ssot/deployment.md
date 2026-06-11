@@ -236,7 +236,18 @@ entrypoint:
 **Before deploying schema changes**:
 1. Test migration locally with `docker-compose.yml`
 2. Ensure migration is backward-compatible (for rollback)
-3. Consider: existing data, indexes, constraints
+3. Run `python tools/check_migration_risk.py` and review
+   `docs/ssot/migration-risk.yaml`
+4. Use the declared risk level to choose the release proof:
+   - **low**: PR Alembic contract is usually enough
+   - **medium**: require staging deploy proof for the compatibility-sensitive path
+   - **high**: require staging evidence plus production preflight and rollback/expand-contract notes
+   - **critical**: require all high-risk proof plus explicit destructive-change confirmation
+
+This process does not guarantee production data migration safety. Staging should
+catch most migration problems, while production-only residual risk is controlled
+with backups, idempotent backfills, feature flags, preflight queries, and
+post-deploy detectors.
 
 ---
 
