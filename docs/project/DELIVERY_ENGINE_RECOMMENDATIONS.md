@@ -67,6 +67,10 @@ are confirmed to rely only on the structured consumers.
 June 9, 2026 evidence sample: the review checked the three newest successful
 and three newest failed available logs for each active delivery lane. Cancelled
 runs were ignored because they prove supersession behavior, not a gate result.
+Runtime incident categories such as stale-version, route, dependency,
+observability, secrets, and flapping are owned by
+[runtime-incident-response.md](../ssot/runtime-incident-response.md). This note
+records delivery-engine evidence and recommendations only.
 
 | Lane | Three newest successful samples | Three newest failed samples | Observed signal |
 |---|---|---|---|
@@ -98,7 +102,8 @@ resource leak candidates:
 - Docker build cache and stopped containers on the Dokploy host after repeated
   image build, redeploy, or failed rollout loops.
 - stale staging or production routes/images where health reports an older SHA or
-  version, as seen in release failure logs.
+  version, as seen in release failure logs. Classification and closure proof
+  stay in [runtime-incident-response.md](../ssot/runtime-incident-response.md).
 - Provider-backed runs that retry externally visible OCR/LLM work without tight
   path gating or isolated users.
 
@@ -124,7 +129,8 @@ coupled but do not require a topology rewrite:
   deploy context now records `production_before_version`, deploy-health
   outcome, smoke outcomes, and a production failure domain so stale version
   mismatches are diagnosable without turning production into the first
-  correctness proof.
+  correctness proof. Incident classification and stability proof stay in
+  [runtime-incident-response.md](../ssot/runtime-incident-response.md).
 - provider-backed external-state residue: staging AI/OCR remains gated by the
   structured provider relevance output and records
   `isolated-users-provider-gate-only`; the contract test rejects shared mutable

@@ -253,14 +253,14 @@ post-deploy detectors.
 
 ---
 
-## Deployment Failures
+## Runtime Incident Response
 
-| Symptom | Cause | Resolution |
-|---------|-------|------------|
-| Stuck "Waiting for secrets" | Vault token expired | `DEPLOY_ENV=staging invoke vault.setup-tokens --project=finance_report --service=app` from infra2 |
-| 6 min timeout | Migration failed | Check SigNoz for CHECKPOINT-2 errors |
-| "Image not found" | Tag not built | `git push origin v1.2.3` to trigger build |
-| 502 Bad Gateway | Backend crashed | Check CHECKPOINT-3 in SigNoz logs |
+Runtime failure triage is owned by
+[runtime-incident-response.md](./runtime-incident-response.md). This deployment
+SSOT owns deploy architecture, release flow, Vault token boundaries, and
+Dokploy safety rules. Use the runtime incident SSOT for 502/503 responses,
+route failures, stale deployed versions, missing logs/alerts, expired-secret
+symptoms, and flapping recovery proof.
 
 ---
 
@@ -312,4 +312,5 @@ If a change requires new environment variables or changes to `docker-compose.yml
 - [environments.md](./environments.md) — Six environment overview and naming
 - [development.md](./development.md) — Local development and Moon commands
 - [ci-cd.md](./ci-cd.md) — CI job structure and test strategy
-- [observability.md](./observability.md) — SigNoz logs for debugging deployments
+- [observability.md](./observability.md) — App observability runtime contract and SigNoz OTLP setup
+- [runtime-incident-response.md](./runtime-incident-response.md) — Runtime failure triage and stability proof routing

@@ -83,6 +83,7 @@ nav:
       - CI/CD: ssot/ci-cd.md
       - Coverage: ssot/coverage.md
       - Deployment: ssot/deployment.md
+      - Runtime Incident Response: ssot/runtime-incident-response.md
       - TDD Workflow: ssot/tdd.md
       - Accounting Model: ssot/accounting.md
       - Auth: ssot/auth.md

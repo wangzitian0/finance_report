@@ -49,6 +49,7 @@ contracts is tracked in
 | [ci-cd.md](./ci-cd.md) | `ci-cd` | CI gate semantics and workflow references |
 | [deployment.md](./deployment.md) | `deployment` | Deployment model and release rationale |
 | [observability.md](./observability.md) | `observability` | Structured logging and SigNoz OTLP rationale |
+| [runtime-incident-response.md](./runtime-incident-response.md) | `runtime_incident_response` | Runtime incident triage and stability-proof routing |
 | [tdd.md](./tdd.md) | `tdd-transformation` | EPIC -> AC -> test workflow |
 | [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `common/coverage/policy.py` |
 | [auth.md](./auth.md) | `auth` | Auth architecture rationale and code references |

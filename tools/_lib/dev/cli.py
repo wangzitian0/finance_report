@@ -161,7 +161,8 @@ def cmd_test(args, extra_args: list[str]):
         )
         return
 
-    if extra_args and extra_args[0].startswith("tests/"):
+    lifecycle_requested = args.fast or args.smart or args.ephemeral
+    if extra_args and extra_args[0].startswith("tests/") and not lifecycle_requested:
         run(uv_run("python", "-m", "pytest") + extra_args, cwd=BACKEND_DIR)
         return
     lifecycle_args = []

@@ -82,6 +82,12 @@ Bootloader: Running validation cycle (mode=full)
 
 ## 4. Debugging Guide
 
+For deployed-service incidents, use
+[runtime-incident-response.md](./runtime-incident-response.md) to route 502/503,
+route, dependency, observability, stale-version, secrets, and flapping symptoms.
+This document only owns the Bootloader gates and environment smoke-test
+rationale.
+
 ### "Gate 2 Failed: Startup Crash"
 - **Symptom**: App exits immediately with exit code 1.
 - **Cause**: Database unreachable or `DATABASE_URL` invalid.

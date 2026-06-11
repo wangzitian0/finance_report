@@ -113,13 +113,16 @@ integrity and availability, not first-time deterministic business behavior.
 ### Path Risk to Local Gate Matrix
 
 Default local verification starts with affected fast tests such as
-`moon run :test -- --smart`, focused Vitest/spec runs, or the smallest relevant
-tooling contract. Risk-triggered local escalation applies when the changed path
-can affect behavior outside the touched file.
+`moon run :test -- --smart`, focused backend paths through
+`moon run :test -- --fast tests/...`, focused Vitest/spec runs, or the smallest
+relevant tooling contract. Direct backend `pytest tests/...` uses the backend
+default coverage policy and is not the focused TDD path. Risk-triggered local
+escalation applies when the changed path can affect behavior outside the touched
+file.
 
 | Changed path or concern | Default local gate | Escalation trigger |
 |---|---|---|
-| Ordinary backend source | `moon run :test -- --smart` or focused pytest file | Escalate when the change crosses service boundaries or touches shared helpers |
+| Ordinary backend source | `moon run :test -- --smart` or `moon run :test -- --fast tests/...` for a focused backend path | Escalate when the change crosses service boundaries or touches shared helpers |
 | accounting, posting, reconciliation, money, balance | Focused domain pytest suite plus changed-file tests | Always include invariant tests beyond the touched file |
 | schema, migrations | `cd apps/backend && uv run alembic upgrade head && uv run alembic check`, plus focused DB-backed tests | Required for any Alembic, SQLAlchemy model, enum, or persistence contract change |
 | API contract, OpenAPI | Backend API tests plus affected frontend API consumer tests | Required for route, schema, generated API reference, or response-shape changes |
@@ -323,6 +326,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Staging deploy context artifacts record triggering CI metadata: CI run id, run attempt, trigger event, head SHA, creation timestamp, conclusion, and run URL. They also record the structured build/deploy failure domain, failed step, and failure summary so early failures can be split between checkout/SHA resolution, post-merge train wait, change classification, toolchain setup, registry login, runner/Buildx bootstrap, GHCR image lookup/build/promotion, Dokploy rollout/health, E2E setup, and application smoke/E2E without manually scraping the raw job log first. The classifier fails closed: a failed classification step is never reported as `not-required`, and an unexpected failed step is reported as `unclassified-build-deploy-failure` rather than `none`.
 - After successful main CI, post-merge staging first looks up the backend and frontend SHA-tagged staging images from GHCR. If a SHA image is missing, the workflow falls back to building only the missing image. Once both SHA images are present, staging retags those immutable images as `staging` before deploy. This keeps deploy detection strict while moving normal image build time out of the serialized post-merge lane.
 - Deploy health covers image build/push, Dokploy rollout, `/api/health`, shell smoke checks, and core non-LLM E2E.
+- Runtime incident classification for route, dependency, observability, secrets, stale-version, and flapping failures is owned by [runtime-incident-response.md](./runtime-incident-response.md). This CI/CD SSOT owns where the gates run and what they block, not the shared incident playbooks.
 - Staging Dokploy rollout logs include a redacted rollout summary on the first, periodic, non-idle, error, and timeout probes. The summary may include compose identity, source path, command, compose status, deployment count, latest deployment status/timestamps, and deployment `logPath`; it must keep raw compose, raw deployment, and raw environment payloads out of GitHub Actions logs.
 - Staging deploy proof is not satisfied by a Dokploy trigger alone. After `compose.deploy`, `tools/dokploy_deploy.sh` waits for Dokploy to expose a new deployment record and for that record to reach `done` before application readiness starts. A `running` deployment record only proves the worker started; it does not prove Docker containers and Traefik routes have materialized the target SHA. If `compose.deploy` does not expose a new deployment record within the short new-record window, staging retries once with `compose.redeploy`. It also retries once when `compose.deploy` leaves the compose in `error` before a new deployment record exists, because Dokploy can hold a stale compose error state while accepting a fresh environment update. If the redeploy still leaves the compose in `error`, staging fails as a Dokploy rollout failure with redacted rollout diagnostics. If the redeploy still does not expose a new record, staging fails before application readiness when no deployment record materializes instead of treating an accepted no-op request as deploy proof. `tools/health_check.sh` remains the final target-SHA proof after a completed rollout record; it must read `/api/health.git_sha` or `/api/health.version` and fail unless it matches the target image tag/SHA. If a new deployment record appears but does not reach `done`, staging fails as a platform rollout failure before application readiness.
 - Automatic provider-backed AI/OCR validation runs as a conditional downstream job in the same serialized post-merge workflow unit when the normalized staging provider gate is required. This keeps staging stable for the SHA under validation: a newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running. When the provider gate is not required, a successful deploy-health job is enough to close the staging gate for that merge commit.
