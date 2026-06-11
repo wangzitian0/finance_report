@@ -82,6 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
       - name: Toolchain Contract Check
         run: python tools/check_toolchain_contract.py
@@ -137,8 +138,27 @@ jobs:
         run: |
           uv run --with pyyaml python tools/check_manifest.py
       - name: SSOT Governance Report
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
+          set -euo pipefail
+
+          base_sha="${BASE_SHA:-}"
+          head_sha="${HEAD_SHA:-}"
+
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
+          fi
+
+          if ! git diff --name-only "$base_sha...$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"; then
+            git diff --name-only "$base_sha" "$head_sha" > "$RUNNER_TEMP/ssot-changed-files.txt"
+          fi
+
           uv run --with pyyaml python tools/report_ssot_governance.py \
+            --changed-files "$RUNNER_TEMP/ssot-changed-files.txt" \
+            --base-ref "$base_sha" \
+            --fail-on-gate \
             --json-out "$RUNNER_TEMP/ssot-governance-report.json" \
             --markdown-out "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md"
           cat "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md" >> "$GITHUB_STEP_SUMMARY"

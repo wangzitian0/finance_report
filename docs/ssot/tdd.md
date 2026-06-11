@@ -145,6 +145,36 @@ Tracked by
 [#822](https://github.com/wangzitian0/finance_report/issues/822), and
 [#823](https://github.com/wangzitian0/finance_report/issues/823).
 
+## SSOT Governance Gates
+
+`tools/report_ssot_governance.py --fail-on-gate` owns the incremental
+prevent-worse gate tracked by
+[#823](https://github.com/wangzitian0/finance_report/issues/823). The gate uses
+the changed-file list and a base git ref to compare only the current change
+against the already reported baseline.
+
+The first gate version enforces only changed surfaces:
+
+- changed SSOT files under `docs/ssot/` are expected to be owned by the current
+  manifest
+- newly added manifest entries are expected to declare `family`
+- newly added entries with `kind: clause` are expected to declare `parent`
+- changed high-risk or machine-owned manifest entries are expected to include a
+  proof path in `proofs` or `cross_refs`
+- high-risk changed SSOT files are expected to have at least one owner entry
+  with a proof path
+
+Historical findings from the report remain advisory until a later threshold
+cleanup issue selects them explicitly. The gate should not be used to force a
+large SSOT rewrite in unrelated PRs.
+
+Intentional temporary debt uses
+`docs/ssot/governance-exceptions.yaml`. Each exception targets one finding, for
+example `finance_report:manifest:temporary_concept` or
+`infra2:docs/ssot/example.md`, and links the GitHub issue that removes it. The
+exception file is reviewed like code; prose comments in PRs are not an
+exception path.
+
 Manual verification cleanup is tracked in
 [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
 Invalid AC references are reported by
