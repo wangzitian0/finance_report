@@ -367,6 +367,30 @@ concepts:
       - tests/tooling/test_ssot_governance_report.py
       - .github/workflows/ci.yml
 
+  ssot_governance_gates:
+    owner: docs/ssot/tdd.md#ssot-governance-gates
+    description: Incremental prevent-worse CI gates for changed SSOT files and changed manifest entries.
+    family: tdd
+    kind: concept
+    cross_refs:
+      - docs/project/EPIC-014.ttd-transformation.md
+      - docs/ssot/governance-exceptions.yaml
+      - common/ssot/governance_report.py
+      - tools/report_ssot_governance.py
+      - tests/tooling/test_ssot_governance_report.py
+      - .github/workflows/ci.yml
+
+  ssot_governance_exceptions:
+    owner: docs/ssot/governance-exceptions.yaml
+    description: Machine-readable temporary exception registry for incremental SSOT governance gate findings.
+    family: tdd
+    kind: registry
+    parent: ssot_governance_gates
+    cross_refs:
+      - docs/ssot/tdd.md
+      - common/ssot/governance_report.py
+      - tests/tooling/test_ssot_governance_report.py
+
   # ── Agent governance ──────────────────────────────────────────────────
   security_red_lines:
     owner: docs/agents/red-lines.md

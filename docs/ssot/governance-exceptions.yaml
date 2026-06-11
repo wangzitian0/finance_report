@@ -1,0 +1,16 @@
+version: 1
+exceptions: []
+
+# Temporary SSOT governance gate exceptions live here.
+# Each exception must target a single gate finding and link a GitHub issue.
+#
+# target formats:
+#   finance_report:docs/ssot/example.md
+#   finance_report:manifest:example_concept
+#   infra2:docs/ssot/example.md
+#   infra2:manifest:example_concept
+#
+# example:
+#   - target: finance_report:manifest:temporary_concept
+#     issue: https://github.com/wangzitian0/finance_report/issues/000
+#     reason: Temporary migration path; remove by the linked issue.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from textwrap import dedent
 
 import pytest
@@ -383,9 +384,57 @@ def test_AC14_1_12_markdown_renderer_handles_partial_report_shapes() -> None:
     assert "Report errors" in rendered
     assert "`sample`: 1 (sample: docs/ssot/sample.md, other)" in rendered
 
+    rendered_with_gate_edges = governance_report.render_markdown(
+        {
+            "sources": [
+                {
+                    "system": "field-coverage-edge",
+                    "entry_count": 1,
+                    "owner_count": 1,
+                    "duplicate_owner_groups": [],
+                    "orphan_ssot_files": [],
+                    "field_coverage": "bad-shape",
+                    "machine_owner_entries": {},
+                    "high_risk_entries": {},
+                    "future_gate_candidates": [],
+                }
+            ],
+            "gate": {
+                "changed_file_count": 1,
+                "exception_count": 0,
+                "violations": "bad-shape",
+            },
+        }
+    )
+    assert "| field-coverage-edge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |" in (
+        rendered_with_gate_edges
+    )
+    assert "- Result: PASS" in rendered_with_gate_edges
 
-def test_AC14_1_12_ci_publishes_report_without_turning_it_into_a_gate() -> None:
-    """AC14.1.12: CI publishes SSOT governance metrics without hard-failing debt."""
+    rendered_with_bad_violation = governance_report.render_markdown(
+        {
+            "sources": [],
+            "gate": {
+                "changed_file_count": 1,
+                "exception_count": 0,
+                "violations": [
+                    "bad-shape",
+                    {
+                        "code": "sample",
+                        "target": "finance_report:manifest:sample",
+                        "message": "sample",
+                    },
+                ],
+            },
+        }
+    )
+    assert "`sample` `finance_report:manifest:sample`: sample" in (
+        rendered_with_bad_violation
+    )
+
+
+def test_AC14_1_12_ci_publishes_report_without_fail_on_error() -> None:
+    """AC14.1.12: CI publishes baseline metrics without hard-failing report debt."""
 
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     assert "SSOT Governance Report" in workflow
@@ -396,3 +445,395 @@ def test_AC14_1_12_ci_publishes_report_without_turning_it_into_a_gate() -> None:
     assert "tools/report_ssot_governance.py" in block
     assert "$GITHUB_STEP_SUMMARY" in block
     assert "--fail-on-error" not in block
+
+
+def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
+    tmp_path: Path,
+) -> None:
+    """AC14.1.13: SSOT governance gates block new debt without legacy cleanup."""
+
+    _write(tmp_path / "docs/ssot/legacy-orphan.md")
+    _write(tmp_path / "docs/ssot/new-orphan.md")
+    _write(tmp_path / "docs/ssot/new-owned.md")
+    _write(tmp_path / "docs/ssot/migration-risk.md")
+    _write(tmp_path / "tests/tooling/test_new_owned.py")
+    _write(tmp_path / "tests/tooling/test_migration_risk.py")
+    _write_yaml(
+        tmp_path / "docs/ssot/MANIFEST.yaml",
+        {
+            "concepts": {
+                "legacy_without_family": {
+                    "owner": "docs/ssot/legacy-owned.md",
+                    "description": "Legacy entry remains report-only debt.",
+                },
+                "new_owned": {
+                    "owner": "docs/ssot/new-owned.md",
+                    "description": "New governed concept.",
+                    "family": "tdd",
+                    "cross_refs": ["tests/tooling/test_new_owned.py"],
+                },
+                "new_clause": {
+                    "owner": "docs/ssot/new-owned.md#clause",
+                    "description": "New clause with parent.",
+                    "family": "tdd",
+                    "kind": "clause",
+                    "parent": "new_owned",
+                },
+                "migration_risk": {
+                    "owner": "docs/ssot/migration-risk.md",
+                    "description": "Migration gate proof.",
+                    "family": "schema",
+                    "cross_refs": ["tests/tooling/test_migration_risk.py"],
+                },
+                "missing_family": {
+                    "owner": "docs/ssot/new-owned.md#missing-family",
+                    "description": "New scoreable concept missing family.",
+                },
+                "missing_parent": {
+                    "owner": "docs/ssot/new-owned.md#missing-parent",
+                    "description": "New clause missing parent.",
+                    "family": "tdd",
+                    "kind": "clause",
+                },
+                "high_risk_without_proof": {
+                    "owner": "docs/ssot/migration-risk.md#without-proof",
+                    "description": "Migration deployment secret policy.",
+                    "family": "schema",
+                },
+            }
+        },
+    )
+
+    base_manifest = dedent(
+        """
+        concepts:
+          legacy_without_family:
+            owner: docs/ssot/legacy-owned.md
+            description: Legacy entry remains report-only debt.
+        """
+    ).lstrip()
+    changed_files = [
+        "docs/ssot/MANIFEST.yaml",
+        "docs/ssot/new-orphan.md",
+        "docs/ssot/new-owned.md",
+        "docs/ssot/migration-risk.md",
+    ]
+
+    gate = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        changed_files,
+        base_manifest_texts={"finance_report": base_manifest},
+        include_infra2=False,
+    )
+
+    assert gate["enabled"] is True
+    assert gate["violation_count"] == 4
+    assert {
+        (violation["code"], violation["target"]) for violation in gate["violations"]
+    } == {
+        ("changed_ssot_file_without_owner", "finance_report:docs/ssot/new-orphan.md"),
+        ("new_manifest_entry_missing_family", "finance_report:manifest:missing_family"),
+        ("new_clause_missing_parent", "finance_report:manifest:missing_parent"),
+        (
+            "changed_high_risk_entry_missing_proof",
+            "finance_report:manifest:high_risk_without_proof",
+        ),
+    }
+    assert all(
+        "github.com/wangzitian0/finance_report/issues/823" in violation["issue"]
+        for violation in gate["violations"]
+    )
+    assert all("HLS" in violation["hls_rule"] for violation in gate["violations"])
+
+    _write_yaml(
+        tmp_path / "docs/ssot/governance-exceptions.yaml",
+        {
+            "version": 1,
+            "exceptions": [
+                {
+                    "target": "finance_report:manifest:missing_family",
+                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
+                    "reason": "Temporary fixture exception.",
+                }
+            ],
+        },
+    )
+    gate_with_exception = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        changed_files,
+        base_manifest_texts={"finance_report": base_manifest},
+        include_infra2=False,
+    )
+    assert gate_with_exception["exception_path"] == (
+        "docs/ssot/governance-exceptions.yaml"
+    )
+    assert gate_with_exception["violation_count"] == 3
+    assert gate_with_exception["exception_count"] == 1
+    assert all(
+        violation["target"] != "finance_report:manifest:missing_family"
+        for violation in gate_with_exception["violations"]
+    )
+
+    _write_yaml(
+        tmp_path / "custom-governance-exceptions.yaml",
+        {
+            "version": 1,
+            "exceptions": [
+                {
+                    "target": "finance_report:manifest:missing_family",
+                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
+                    "reason": "Temporary fixture exception.",
+                }
+            ],
+        },
+    )
+    gate_with_custom_exception_path = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        changed_files,
+        base_manifest_texts={"finance_report": base_manifest},
+        include_infra2=False,
+        exceptions_path=Path("custom-governance-exceptions.yaml"),
+    )
+    assert (
+        gate_with_custom_exception_path["exception_path"]
+        == "custom-governance-exceptions.yaml"
+    )
+    assert gate_with_custom_exception_path["exception_count"] == 1
+
+
+def test_AC14_1_13_gate_helper_edges_remain_incremental(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC14.1.13: Gate helper edge cases stay scoped to changed surfaces."""
+
+    outside_root = tmp_path.parent / "outside-root"
+    outside_path = outside_root / "docs/ssot/outside.md"
+    assert (
+        governance_report._source_relative_path(outside_path, tmp_path)
+        == outside_path.as_posix()
+    )
+
+    finance_source = governance_report.ManifestSource(
+        system="finance_report",
+        source_root=tmp_path,
+        manifest_path=tmp_path / "docs/ssot/MANIFEST.yaml",
+        entry_key="concepts",
+    )
+    outside_source = governance_report.ManifestSource(
+        system="outside",
+        source_root=outside_root,
+        manifest_path=outside_root / "docs/ssot/MANIFEST.yaml",
+        entry_key="concepts",
+    )
+    assert governance_report._source_changed_files(
+        outside_source,
+        tmp_path,
+        ["docs/ssot/root.md", "repo/docs/ssot/infra.md"],
+    ) == ["docs/ssot/root.md"]
+
+    infra_source = governance_report.ManifestSource(
+        system="infra2",
+        source_root=tmp_path / "repo",
+        manifest_path=tmp_path / "repo/docs/ssot/MANIFEST.yaml",
+        entry_key="entries",
+    )
+    assert governance_report._source_changed_files(
+        infra_source,
+        tmp_path,
+        ["docs/ssot/root.md", "repo/docs/ssot/infra-risk.md"],
+    ) == ["docs/ssot/infra-risk.md"]
+    assert governance_report._changed_ssot_files(
+        ["docs/readme.md", "docs/ssot/README.md", "docs/ssot/owned.md"]
+    ) == ["docs/ssot/owned.md"]
+    assert (
+        governance_report._source_manifest_repo_path(
+            outside_source,
+            tmp_path,
+        )
+        == outside_source.manifest_path.as_posix()
+    )
+
+    assert (
+        governance_report._read_base_manifest_text(
+            tmp_path,
+            finance_source,
+            None,
+        )
+        is None
+    )
+
+    monkeypatch.setattr(
+        governance_report.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout=""),
+    )
+    assert (
+        governance_report._read_base_manifest_text(
+            tmp_path,
+            finance_source,
+            "missing-base",
+        )
+        is None
+    )
+
+    monkeypatch.setattr(
+        governance_report.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="concepts: {}\n"),
+    )
+    assert (
+        governance_report._read_base_manifest_text(
+            tmp_path,
+            finance_source,
+            "base",
+        )
+        == "concepts: {}\n"
+    )
+
+    exceptions_path = tmp_path / "docs/ssot/governance-exceptions.yaml"
+    _write(exceptions_path, "[]\n")
+    assert (
+        governance_report._load_exception_targets(
+            tmp_path,
+            Path("docs/ssot/governance-exceptions.yaml"),
+        )
+        == set()
+    )
+    _write_yaml(exceptions_path, {"exceptions": "bad-shape"})
+    assert (
+        governance_report._load_exception_targets(
+            tmp_path,
+            Path("docs/ssot/governance-exceptions.yaml"),
+        )
+        == set()
+    )
+    _write_yaml(
+        exceptions_path,
+        {
+            "exceptions": [
+                "bad-shape",
+                {"target": 1, "issue": "https://github.com/wangzitian0/x/issues/1"},
+                {"target": "finance_report:manifest:no-issue", "issue": "not-an-issue"},
+                {
+                    "target": "finance_report:manifest:valid",
+                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
+                },
+            ]
+        },
+    )
+    assert governance_report._load_exception_targets(
+        tmp_path,
+        Path("docs/ssot/governance-exceptions.yaml"),
+    ) == {"finance_report:manifest:valid"}
+
+    malformed_exceptions_path = tmp_path / "bad-governance-exceptions.yaml"
+    _write(malformed_exceptions_path, "exceptions: [\n")
+    with pytest.raises(RuntimeError, match="Invalid SSOT governance exceptions YAML"):
+        governance_report._load_exception_targets(
+            tmp_path,
+            Path("bad-governance-exceptions.yaml"),
+        )
+
+    _write(tmp_path / "docs/ssot/deployment.md")
+    _write_yaml(
+        tmp_path / "docs/ssot/MANIFEST.yaml",
+        {
+            "concepts": {
+                "deployment_policy": {
+                    "owner": "docs/ssot/deployment.md",
+                    "description": "Deployment environment policy.",
+                    "family": "deployment",
+                }
+            }
+        },
+    )
+    gate = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        ["docs/ssot/deployment.md", "docs/ssot/MANIFEST.yaml"],
+        include_infra2=False,
+    )
+    assert gate["violation_count"] == 1
+    assert gate["violations"][0]["code"] == "changed_high_risk_ssot_file_missing_proof"
+
+
+def test_AC14_1_13_cli_and_ci_enable_gradual_gate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC14.1.13: CLI/CI fail only on incremental SSOT gate violations."""
+
+    _write(tmp_path / "docs/ssot/new-orphan.md")
+    _write_yaml(tmp_path / "docs/ssot/MANIFEST.yaml", {"concepts": {}})
+    changed_files = tmp_path / "changed-files.txt"
+    changed_files.write_text("docs/ssot/new-orphan.md\n", encoding="utf-8")
+
+    assert (
+        governance_report.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--no-infra2",
+                "--changed-files",
+                str(changed_files),
+            ]
+        )
+        == 0
+    )
+    assert (
+        governance_report.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--no-infra2",
+                "--changed-files",
+                str(changed_files),
+                "--fail-on-gate",
+            ]
+        )
+        == 1
+    )
+
+    malformed_exceptions = tmp_path / "bad-governance-exceptions.yaml"
+    malformed_exceptions.write_text("exceptions: [\n", encoding="utf-8")
+    assert (
+        governance_report.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--no-infra2",
+                "--changed-files",
+                str(changed_files),
+                "--exceptions",
+                str(malformed_exceptions),
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert "ERROR: Invalid SSOT governance exceptions YAML" in captured.err
+
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "--fail-on-gate" in workflow
+    assert "ssot-changed-files.txt" in workflow
+
+    rendered = governance_report.render_markdown(
+        {
+            "sources": [],
+            "gate": {
+                "hls_rule": governance_report.GATE_HLS_RULE,
+                "changed_file_count": 1,
+                "exception_path": "custom-governance-exceptions.yaml",
+                "exception_count": 0,
+                "violations": [
+                    {
+                        "code": "sample",
+                        "target": "finance_report:manifest:sample",
+                        "message": "sample",
+                    }
+                ],
+            },
+        }
+    )
+    assert "github.com/wangzitian0/finance_report/issues/823" in rendered
+    assert "- Exception registry: `custom-governance-exceptions.yaml`" in rendered
