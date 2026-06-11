@@ -7,7 +7,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, BankStatement, BankStatementStatus
+from src.models import Account, AccountType, BankStatement, BankStatementStatus, StatementSummary
+from src.services.statement_summary import sync_statement_summary
 
 pytestmark = pytest.mark.asyncio
 
@@ -37,7 +38,7 @@ async def _create_statement(
     closing_balance: Decimal | None,
     institution: str = "DBS",
     currency: str = "SGD",
-) -> BankStatement:
+) -> StatementSummary:
     statement = BankStatement(
         user_id=user_id,
         account_id=account.id,
@@ -55,7 +56,9 @@ async def _create_statement(
     )
     db.add(statement)
     await db.flush()
-    return statement
+    # account_coverage now reads the StatementSummary conform (Stage 3); return it so
+    # tests reference the same id the coverage API reports.
+    return await sync_statement_summary(db, statement)
 
 
 def _coverage_item(payload: dict, account: Account) -> dict:
