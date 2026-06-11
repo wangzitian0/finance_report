@@ -6,7 +6,7 @@
 - API title: `Finance Report API`
 - API version: `0.1.0`
 - Endpoint count: `117`
-- Schema count: `196`
+- Schema count: `195`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -225,7 +225,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/statements/{statement_id}/review/edit` | yes | `statement_id`* (path) | `EditAndApproveRequest` | `200` `Stage1ApprovalResponse` | Edit And Approve Statement |
 | `POST` | `/statements/{statement_id}/review/opening-balance` | yes | `statement_id`* (path) | `SetOpeningBalanceRequest` | `200` `BankStatementResponse` | Set Statement Opening Balance |
 | `POST` | `/statements/{statement_id}/review/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
-| `GET` | `/statements/{statement_id}/transactions` | yes | `statement_id`* (path) | - | `200` `ListResponse_BankStatementTransactionResponse_` | List Statement Transactions |
+| `GET` | `/statements/{statement_id}/transactions` | yes | `statement_id`* (path) | - | `200` `ListResponse_AtomicTransactionResponse_` | List Statement Transactions |
 
 ### untagged
 
