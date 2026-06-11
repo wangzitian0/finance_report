@@ -162,6 +162,9 @@ jobs:
       # Base compose gates services behind profiles (infra=db/minio, app=back/front);
       # activate both so the full stack (and the edge's depends_on) resolve.
       COMPOSE_PROFILES: infra,app
+      # Baked into the images at build time and reported by both services; the
+      # smoke version check compares it against the source SHA (else "unknown").
+      GIT_COMMIT_SHA: ${{ github.sha }}
       # Unique per run+attempt so teardown targets exactly this run's resources.
       COMPOSE_PROJECT_NAME: fr-e2e-${{ github.run_id }}-${{ github.run_attempt }}
       APP_URL: http://localhost:8080
