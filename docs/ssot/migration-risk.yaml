@@ -143,6 +143,24 @@ migrations:
     file: 0028_statement_summaries.py
     risk: low
     proof: Additive StatementSummary conform table; covered by PR Alembic contract.
+  0029_drop_bank_statement_tables:
+    file: 0029_drop_bank_statement_tables.py
+    risk: critical
+    issue: "#809"
+    proof: EPIC-011 Stage 3 destructive drop of legacy bank_statements / bank_statement_transactions tables and their enum types after the ingestion pipeline and all consumers moved to StatementSummary + AtomicTransaction.
+    staging_validation: Deploy to staging and exercise upload -> parse -> Stage-1 review -> reconcile -> report end-to-end on the new StatementSummary/AtomicTransaction model; confirm no code path queries the dropped tables.
+    production_preflight: Production has no real data yet; confirm bank_statements and bank_statement_transactions are empty (row count 0) before applying.
+    rollback_strategy: Irreversible by design (tables dropped). Roll back by restoring from pre-migration snapshot; since the source ODS (uploaded_documents + MinIO) is retained, derived data can be rebuilt by re-parsing.
+    destructive_confirmation: Confirmed destructive drop of bank_statements + bank_statement_transactions; legacy data is recomputable from the retained ODS source and no production data exists.
+  0030_repoint_match_correction_fks:
+    file: 0030_repoint_match_correction_fks.py
+    risk: critical
+    issue: "#809"
+    proof: EPIC-011 Stage 3 drops reconciliation_matches.bank_txn_id, repoints correction_logs.transaction_id to atomic_transactions, and sets reconciliation_matches.atomic_txn_id NOT NULL.
+    staging_validation: On staging, exercise reconciliation match creation, supersession, and correction logging against atomic_txn_id; confirm no NULL atomic_txn_id rows exist before the NOT NULL alter.
+    production_preflight: Production has no real data yet; confirm reconciliation_matches and correction_logs are empty before applying.
+    rollback_strategy: Restore from pre-migration snapshot; the column/FK changes are recreatable from the prior schema revision and no production data is affected.
+    destructive_confirmation: Confirmed destructive drop of reconciliation_matches.bank_txn_id column and FK repoint; no production data exists.
   51aa128d8189:
     file: 51aa128d8189_remove_report_snapshot_constraint.py
     risk: medium
