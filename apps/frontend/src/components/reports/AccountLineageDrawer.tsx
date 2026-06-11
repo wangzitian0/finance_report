@@ -56,6 +56,9 @@ export function AccountLineageDrawer({
   const targetKey = target ? `${target.accountId}:${target.asOfDate}:${target.startDate ?? ""}:${target.currency}` : null;
 
   useEffect(() => {
+    // Reset any selected lineage line whenever the target changes or closes,
+    // so the nested LineagePanel never lingers with stale state.
+    setAnchor(null);
     if (!target) {
       setState(EMPTY);
       return;

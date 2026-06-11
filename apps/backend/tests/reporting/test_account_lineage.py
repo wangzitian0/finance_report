@@ -41,6 +41,10 @@ async def test_AC22_3_3_account_lineage_returns_posted_contributing_lines(db: As
         user_id=user_id, entry_date=date(2025, 1, 20), memo="Groceries", status=JournalEntryStatus.POSTED
     )
     draft = JournalEntry(user_id=user_id, entry_date=date(2025, 1, 25), memo="Draft", status=JournalEntryStatus.DRAFT)
+    # Contra accounts so each entry has balanced debit/credit lines (>= 2 lines).
+    income_acct = Account(user_id=user_id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+    expense_acct = Account(user_id=user_id, name="Food", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all([income_acct, expense_acct])
     db.add_all([posted, spend, draft])
     await db.flush()
 
@@ -65,7 +69,32 @@ async def test_AC22_3_3_account_lineage_returns_posted_contributing_lines(db: As
         amount=Decimal("999.00"),
         currency="SGD",
     )
-    db.add_all([deposit_line, withdraw_line, draft_line])
+    # Balancing contra lines (not on the cash account, so the assertions below
+    # still see exactly the two posted cash lines).
+    contra_lines = [
+        JournalLine(
+            journal_entry_id=posted.id,
+            account_id=income_acct.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("1000.00"),
+            currency="SGD",
+        ),
+        JournalLine(
+            journal_entry_id=spend.id,
+            account_id=expense_acct.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("250.00"),
+            currency="SGD",
+        ),
+        JournalLine(
+            journal_entry_id=draft.id,
+            account_id=income_acct.id,
+            direction=Direction.CREDIT,
+            amount=Decimal("999.00"),
+            currency="SGD",
+        ),
+    ]
+    db.add_all([deposit_line, withdraw_line, draft_line, *contra_lines])
     await db.commit()
 
     result = await get_account_lineage(db, user_id, cash_account.id, as_of_date=date(2025, 1, 31), currency="SGD")

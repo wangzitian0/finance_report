@@ -108,10 +108,10 @@ describe("IncomeStatementPage", () => {
         end_date: "2026-02-01",
         currency: "SGD",
         income: [{ account_id: "i1", name: "Salary", type: "INCOME", amount: "5000" }],
-        expenses: [],
+        expenses: [{ account_id: "e1", name: "Rent", type: "EXPENSE", amount: "1200" }],
         total_income: "5000",
-        total_expenses: "0",
-        net_income: "5000",
+        total_expenses: "1200",
+        net_income: "3800",
         trends: [],
         filters_applied: { tags: null, account_type: null },
       })
@@ -120,8 +120,18 @@ describe("IncomeStatementPage", () => {
     render(<IncomeStatementPage />)
 
     await waitFor(() => expect(screen.getByText("Salary")).toBeInTheDocument())
+
+    // Expense amounts are drillable too.
+    fireEvent.click(screen.getByRole("button", { name: "View source transactions for Rent" }))
+    await waitFor(() => expect(screen.getByText("January payroll")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByText("January payroll")).toBeNull())
+
+    // Income amounts open the same drill-down.
     fireEvent.click(screen.getByRole("button", { name: "View source transactions for Salary" }))
     await waitFor(() => expect(screen.getByText("January payroll")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByText("January payroll")).toBeNull())
   })
 
   it("AC16.14.6 supports selecting and clearing tags", async () => {

@@ -349,7 +349,7 @@ async def get_account_lineage(
                 "journal_entry_id": entry.id,
                 "entry_date": entry.entry_date,
                 "memo": entry.memo,
-                "direction": line.direction.value,
+                "direction": line.direction,
                 "original_amount": line.amount,
                 "original_currency": line.currency,
                 "amount": signed,

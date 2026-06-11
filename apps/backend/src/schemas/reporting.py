@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.models import AccountType
+from src.models import AccountType, Direction
 
 
 def _validate_internal_action_href(value: str) -> str:
@@ -38,7 +38,7 @@ class AccountLineageLine(BaseModel):
     journal_entry_id: UUID = Field(description="Parent journal entry id")
     entry_date: date = Field(description="Journal entry date")
     memo: str = Field(description="Journal entry memo")
-    direction: str = Field(description="Line direction: DEBIT or CREDIT")
+    direction: Direction = Field(description="Line direction: DEBIT or CREDIT")
     original_amount: Decimal = Field(description="Line amount in its original currency")
     original_currency: str = Field(min_length=3, max_length=3, description="Original line currency")
     amount: Decimal = Field(description="Signed amount converted into the report currency")

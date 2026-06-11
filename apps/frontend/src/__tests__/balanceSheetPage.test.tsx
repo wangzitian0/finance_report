@@ -125,6 +125,10 @@ describe("BalanceSheetPage", () => {
     await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "View source transactions for Cash" }))
     await waitFor(() => expect(screen.getByText("Opening deposit")).toBeInTheDocument())
+
+    // Closing the drawer clears the drill target.
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByText("Opening deposit")).toBeNull())
   })
 
   it("AC16.14.3 toggles tree expansion controls", async () => {
