@@ -16,7 +16,7 @@
 | **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
-| **4** | **PR Preview** | `report-pr-123.zitian.party` | PR opened<br>`pr-test.yml` | **Docker Images**<br>(GHCR) | Dedicated Containers<br>(Per PR) | Dedicated DB/Redis/MinIO | Container suffix<br>`-pr-123` |
+| **4** | **PR Preview** | `report-pr-123.zitian.party` | **Opt-in** (`preview` label / manual)<br>`pr-test.yml` | **Docker Images**<br>(GHCR) | Dedicated Containers<br>(Per PR) | Dedicated DB/Redis/MinIO | Container suffix<br>`-pr-123` |
 | **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
 | **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
@@ -75,11 +75,28 @@ before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 - Runtime, test, script, CI, dependency, and coverage-policy changes run the full backend/frontend/unified coverage gate.
 - Lightweight documentation, markdown, issue-template, and `.github/workflows/docs.yml` changes skip the heavy backend/frontend/coverage jobs while still running lint, SSOT checks, AC traceability, and the final aggregate check.
 
-**PR Preview** — Full deployment with code changes:
-- **Builds Docker images** from PR branch
+PR validation is split into two independent things (issue #839):
+
+**In-runner E2E** — the per-PR validation gate:
+- Runs on every runtime-relevant PR (the `e2e` job in `pr-test.yml`).
+- Stands up the full stack **inside the GitHub runner** via
+  `docker compose up --build` (base compose + `docker-compose.ci-e2e.yml`,
+  which adds an nginx single-origin edge), runs the non-LLM E2E against
+  `http://localhost:8080`, then **always tears the stack down**
+  (`docker compose down -v --remove-orphans`) so nothing leaks.
+- **Image-free**: builds locally and pushes nothing; no Dokploy, no shared
+  VPS, no SSL wait. This is what keeps E2E coverage cheap and fast.
+
+**PR Preview (Dokploy)** — per-PR deployed environment:
+- Deployed for every runtime-relevant PR (dedicated DB/Redis/MinIO per PR), so
+  there is always a real, isolated environment to click and manually test.
+- Runs a **smoke test only** (`tools/smoke_test.sh` against the deployed URL) —
+  it validates that the real per-PR deployment came up. The full runtime/API/UI
+  E2E is the in-runner job above, so the preview does not re-run it.
+- **Non-blocking**: a deploy/smoke failure does not block merge (the merge gate
+  is `finish` + the in-runner E2E); the result is reported as a PR comment.
 - Deploys to Dokploy with unique URLs (`report-pr-123.zitian.party`)
 - **Ephemeral**: Destroyed when PR closes
-- Database/Redis/MinIO: Dedicated per-PR instances
 - Isolation: Container name suffix `-pr-123`
 
 ### Production Environments (Staging + Production)
@@ -146,8 +163,8 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 | **Local Dev** | None (manual testing) | Fast iteration | — |
 | **Local CI** | Unit + integration with coverage policy from `common/coverage/policy.py` | Pre-push validation | ~30s |
 | **GitHub CI** | Lint, AC traceability, unit + integration with unified coverage for heavy changes | Quality gate | ~7min heavy / lightweight skips heavy jobs |
-| **PR Preview** | Health check + non-LLM E2E against per-PR Dokploy environment | Deployment validation | ~3-5min |
-| **Staging** | Image deploy, smoke, non-LLM E2E, performance; AI/OCR gate runs separately | Full validation | ~6min deploy + variable AI/OCR gate |
+| **PR Preview** | Health check + non-LLM E2E against per-PR Dokploy environment | Opt-in on-demand inspection (not a per-PR gate) | ~3-5min when enabled |
+| **Staging** | Image deploy, smoke, non-LLM E2E, performance; AI/OCR gate runs separately | **Deployment validation** + full validation | ~6min deploy + variable AI/OCR gate |
 | **Production** | Health check only | Availability check | ~10s |
 
 ---

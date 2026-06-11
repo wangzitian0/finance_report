@@ -143,6 +143,102 @@ jobs:
           print(f"pr_preview_reason={reasons['pr-preview']}")
           PY
 
+  e2e:
+    name: In-runner E2E
+    # Image-free full-stack E2E (issue #839): the merge-relevant validation.
+    # Runs on every runtime-relevant PR; does NOT push images or deploy to
+    # Dokploy. The Dokploy preview below is a separate, opt-in human-inspection
+    # environment.
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci-e2e.yml
+      # Base compose gates services behind profiles (infra=db/minio, app=back/front);
+      # activate both so the full stack (and the edge's depends_on) resolve.
+      COMPOSE_PROFILES: infra,app
+      # Baked into the images at build time and reported by both services; the
+      # smoke version check compares it against the source SHA (else "unknown").
+      GIT_COMMIT_SHA: ${{ github.sha }}
+      # The stack is reached through the edge origin; allow it for CORS so the
+      # smoke CORS check (Origin: http://localhost:8080) passes.
+      CORS_ORIGINS: http://localhost:8080,http://localhost:3000
+      # Unique per run+attempt so teardown targets exactly this run's resources.
+      COMPOSE_PROJECT_NAME: fr-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      APP_URL: http://localhost:8080
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup E2E Tests
+        uses: ./.github/actions/setup-e2e-tests
+
+      - name: Generate PDF fixtures for E2E tests
+        run: |
+          mkdir -p tmp/fixtures
+          python tools/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
+
+      - name: Build and start ephemeral stack
+        run: |
+          set -euo pipefail
+          # backend/frontend attach to the external `dokploy-network` (a
+          # Dokploy/Traefik artifact that does not exist in the runner). Create a
+          # local stand-in so compose can start; removed again in teardown.
+          docker network create dokploy-network 2>/dev/null || true
+          docker compose up --build -d --quiet-pull
+          docker compose ps
+
+      - name: Wait for stack readiness
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+              echo "Stack healthy after $((i * 5))s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::stack did not become healthy within 300s"
+          exit 1
+
+      - name: End-to-End Tests
+        env:
+          TEST_ENV: staging
+          SKIP_UI_TESTS: false
+          EXPECTED_SHA: ${{ github.sha }}
+          TIMEOUT_MS: 60000
+          E2E_API_TIMEOUT: 30
+          STRICT_E2E_GATES: true
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          echo "--- Phase 1: Smoke Check (Shell) ---"
+          bash tools/smoke_test.sh "$APP_URL" staging
+          echo "--- Phase 2: Runtime/API/UI Validation (Python, no real AI/OCR) ---"
+          PR_PREVIEW_E2E_TESTS=(
+            tests/e2e/test_core_journeys.py
+            tests/e2e/test_e2e_flows.py::test_full_navigation
+          )
+          pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/in-runner-e2e.xml
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=400 || true
+
+      # Lifecycle guard: always tear the stack down so containers / volumes /
+      # networks never leak, even on E2E failure or build failure. Project name
+      # is unique per run; -v removes named volumes, --remove-orphans the rest.
+      - name: Tear down ephemeral stack
+        if: always()
+        run: |
+          docker compose down --volumes --remove-orphans --timeout 30 || true
+          # Remove the local stand-in network (external networks are not removed
+          # by `compose down`); no-op if other containers still reference it.
+          docker network rm dokploy-network 2>/dev/null || true
+
   gate-cheap-ci:
     name: Gate on Cheap CI
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
@@ -734,34 +830,21 @@ jobs:
           mkdir -p tmp/fixtures
           python tools/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
 
-      - name: End-to-End Tests
+      - name: Smoke Test
         id: e2e_tests
         continue-on-error: true
         env:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
           TEST_ENV: staging
-          SKIP_UI_TESTS: false
           EXPECTED_SHA: ${{ github.sha }}
-          TIMEOUT_MS: 60000
-          E2E_API_TIMEOUT: 30
-          STRICT_E2E_GATES: true
-          RUN_MARKET_DATA_PROVIDER_E2E: true
-          MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
-          echo "🚀 Starting E2E Pipeline for $APP_URL"
+          echo "🔎 Smoke-checking deployed preview at $APP_URL"
           mkdir -p test-results
-
-          echo "--- Phase 1: Smoke Check (Shell) ---"
+          # The deployed preview only smoke-checks that the real, independently
+          # provisioned per-PR environment came up. The full runtime/API/UI E2E
+          # runs image-free in the `e2e` job (in-runner). See issue #839.
           bash tools/smoke_test.sh "$APP_URL" staging
-
-          echo "--- Phase 2: Preview-Relevant Runtime/API/UI Validation (Python, no real AI/OCR) ---"
-          PR_PREVIEW_E2E_TESTS=(
-            tests/e2e/test_core_journeys.py
-            tests/e2e/test_e2e_flows.py::test_full_navigation
-          )
-          pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/pr-preview-e2e.xml
-
-          echo "✅ E2E Pipeline passed!"
+          echo "✅ Preview smoke passed!"
 
       - name: Capture platform failure snapshot
         if: ${{ always() && steps.deploy.outputs.compose_id != '' && (steps.deploy.outcome == 'failure' || steps.api_ready.outcome == 'failure' || steps.frontend_ready.outcome == 'failure' || steps.e2e_tests.outcome == 'failure') }}
