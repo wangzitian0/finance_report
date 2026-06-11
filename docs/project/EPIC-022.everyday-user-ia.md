@@ -99,7 +99,7 @@ slices land, so every registered AC has a behavioral test in the same change.
 |---|---|---|---|
 | AC22.2.1 | The unified inbox surfaces Stage 1 source-review and Stage 2 reconciliation-review attention as cards (deep-linking to their detail surfaces), so no separate Review Queue page is needed | `unifiedInbox.test.tsx` | P1 |
 | AC22.2.2 | A Stage 1 review-required workflow event deep-links to that statement's review page (`/statements/{id}/review`), and reconciliation-review attention deep-links to `/reconciliation/review-queue` | `test_workflow_events.py` | P1 |
-| AC22.2.3 | The header bell badge reflects review/reconciliation attention via the workflow event counts and stays quiet when nothing needs attention | `unifiedInbox.test.tsx` | P1 |
+| AC22.2.3 | The header bell badge reflects review/reconciliation attention via the workflow event counts and stays quiet when nothing needs attention | `workflowSurfaces.test.tsx` | P1 |
 | AC22.2.4 | The standalone Review Queue page is removed, `/review` redirects to `/notifications`, and "Review" is no longer a sidebar navigation entry | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 |
 | AC22.2.5 | Review-required events are deduplicated by `(user, dedupe_key)` so re-syncing the same statement does not duplicate the inbox card | `test_workflow_events.py` | P1 |
 | AC22.2.6 | Desktop and mobile smoke covers the unified inbox with review attention without layout overflow | `unified-inbox.spec.ts` | P1 |
