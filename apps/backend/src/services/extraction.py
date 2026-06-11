@@ -23,7 +23,7 @@ from src.models.statement_summary import StatementSummary
 from src.prompts import get_parsing_prompt
 from src.schemas.extraction import ConfidenceLevelEnum
 from src.services.brokerage_positions import looks_like_brokerage_payload
-from src.services.deduplication import DeduplicationService, dual_write_layer2
+from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.services.openrouter_streaming import (
     OpenRouterStreamError,
     accumulate_stream,
@@ -397,6 +397,10 @@ class ExtractionService:
 
             transactions: list[AtomicTransaction] = []
             net_transactions = Decimal("0.00")
+            # Per-document occurrence ordinal for balance-less rows: lets genuinely
+            # repeated identical rows (e.g. two same-day CSV coffees) stay distinct
+            # instead of collapsing in the dedup hash. Only used when balance_after is None.
+            occurrence_counts: dict[tuple, int] = {}
             for txn in extracted.get("transactions", []):
                 if not txn.get("date") or txn.get("amount") is None:
                     if is_brokerage_payload:
@@ -456,11 +460,23 @@ class ExtractionService:
                 txn_description = txn.get("description", "Unknown")
                 txn_reference = txn.get("reference")
 
-                # 🚨 Thread the EXTRACTED running balance_after into the dedup hash so
-                # two same-date/amount/direction/description rows with different running
-                # balances stay distinct. AtomicTransaction has no balance_after column,
-                # so the value lives only in the hash (and on a transient attribute that
-                # dual_write_layer2 reuses to keep its upsert hash identical).
+                # Confidence-tiered dedup disambiguator (see calculate_transaction_hash):
+                # the running balance when present, else a per-document occurrence ordinal
+                # so balance-less repeats stay distinct (recall first). 🚨 The extracted
+                # balance_after / occurrence_index are stashed on transient attributes that
+                # dual_write_layer2 reuses to keep its upsert hash identical.
+                occurrence_index = 0
+                if txn_balance_after is None:
+                    occ_key = (
+                        parsed_date,
+                        _decimal_key(amount),
+                        txn_direction.value,
+                        txn_description.strip().lower(),
+                        txn_reference or "",
+                    )
+                    occurrence_index = occurrence_counts.get(occ_key, 0)
+                    occurrence_counts[occ_key] = occurrence_index + 1
+
                 dedup_hash = self.deduplication_service.calculate_transaction_hash(
                     user_id,
                     parsed_date,
@@ -469,6 +485,7 @@ class ExtractionService:
                     txn_description,
                     reference=txn_reference,
                     balance_after=txn_balance_after,
+                    occurrence_index=occurrence_index,
                 )
 
                 transaction = AtomicTransaction(
@@ -483,6 +500,7 @@ class ExtractionService:
                     source_documents=[],
                 )
                 transaction._extracted_balance_after = txn_balance_after
+                transaction._occurrence_index = occurrence_index
                 transactions.append(transaction)
 
             # Validation

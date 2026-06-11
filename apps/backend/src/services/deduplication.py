@@ -37,20 +37,31 @@ class DeduplicationService:
         description: str,
         reference: str | None = None,
         balance_after: Decimal | None = None,
+        occurrence_index: int = 0,
     ) -> str:
         """Calculate deduplication hash for atomic transaction.
 
-        Hash = SHA256(user_id|date|amount|direction|description|reference|balance_after)
+        Hash = SHA256(user_id|date|amount|direction|description|reference|disambiguator)
 
-        ``balance_after`` (the statement running balance) is included so two real,
-        otherwise-identical transactions (same date/amount/direction/description, no
-        reference) stay distinct — their running balances differ. Genuine duplicate
-        extractions share the same running balance and still collapse. When the
-        source has no running balance the field is empty and behaviour is unchanged.
+        The disambiguator is a confidence-tiered tail so that auto-dedup collapses only
+        when we are confident two rows are the SAME transaction, and preserves recall
+        otherwise:
+
+        - High confidence — ``balance_after`` present: the statement running balance pins
+          the ledger position. Different running balances ⇒ definitely different
+          transactions; genuine duplicate extractions share the running balance and
+          still collapse across documents.
+        - Lower confidence — no running balance (e.g. CSV): use a per-document
+          ``occurrence_index`` among otherwise-identical rows so genuinely-repeated rows
+          stay distinct (two $5 coffees on the same day are two transactions) instead of
+          silently collapsing into one. Cross-document duplicates of such rows are left
+          to the ``detect_duplicates`` consistency check for user review rather than
+          dropped here.
 
         Decimal amounts are canonicalized (``Decimal('50')`` and ``Decimal('50.00')``
         hash identically) so values that differ only in scale do not break dedup.
         """
+        disambiguator = _decimal_key(balance_after) if balance_after is not None else f"#{occurrence_index}"
         components = [
             str(user_id),
             txn_date.isoformat(),
@@ -58,7 +69,7 @@ class DeduplicationService:
             direction.value,
             description.strip().lower(),
             reference or "",
-            _decimal_key(balance_after) if balance_after is not None else "",
+            disambiguator,
         ]
         hash_input = "|".join(components).encode("utf-8")
         return hashlib.sha256(hash_input).hexdigest()
@@ -96,6 +107,7 @@ class DeduplicationService:
         source_doc_type: DocumentType,
         reference: str | None = None,
         balance_after: Decimal | None = None,
+        occurrence_index: int = 0,
     ) -> AtomicTransaction:
         """Upsert atomic transaction with deduplication.
 
@@ -103,7 +115,7 @@ class DeduplicationService:
         If dedup_hash new -> Insert new record
         """
         dedup_hash = self.calculate_transaction_hash(
-            user_id, txn_date, amount, direction, description, reference, balance_after
+            user_id, txn_date, amount, direction, description, reference, balance_after, occurrence_index
         )
 
         stmt = select(AtomicTransaction).where(
@@ -276,6 +288,37 @@ class DeduplicationService:
         return doc
 
 
+async def _detach_document_from_atomic_transactions(db: Any, user_id: UUID, doc_id: UUID) -> None:
+    """Remove a document's contribution to Layer 2 before a reparse re-ingests it.
+
+    Atomic transactions sourced *solely* from this document are deleted (the reparse
+    will recreate the current set); transactions also sourced from other documents
+    keep the row but drop this document from ``source_documents``.
+    """
+    doc_id_str = str(doc_id)
+    rows = (
+        (
+            await db.execute(
+                select(AtomicTransaction)
+                .where(AtomicTransaction.user_id == user_id)
+                .where(AtomicTransaction.source_documents.contains([{"doc_id": doc_id_str}]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for txn in rows:
+        sources = txn.source_documents if isinstance(txn.source_documents, list) else []
+        remaining = [s for s in sources if s.get("doc_id") != doc_id_str]
+        if remaining:
+            txn.source_documents = remaining
+            db.add(txn)
+        else:
+            await db.delete(txn)
+    if rows:
+        await db.flush()
+
+
 async def dual_write_layer2(
     db: Any,
     user_id: UUID,
@@ -321,15 +364,34 @@ async def dual_write_layer2(
     file_hash = statement.file_hash
 
     try:
-        uploaded_doc = await dedup_service.create_uploaded_document(
-            db=db,
-            user_id=user_id,
-            file_path=str(file_path) if file_path else file_hash,
-            file_hash=file_hash,
-            original_filename=original_filename or file_hash,
-            document_type=doc_type,
-            extraction_metadata=extraction_metadata,
-        )
+        # Get-or-create the ODS document. Reparse re-runs ingestion for the same
+        # (user_id, file_hash), so the document already exists; reuse it instead of
+        # raising on the unique key (which previously aborted the whole dual-write and
+        # made reparse a silent no-op). On reparse, drop this document's prior parse
+        # output first so the fresh extraction replaces it rather than accumulating.
+        existing_doc = (
+            await db.execute(
+                select(UploadedDocument)
+                .where(UploadedDocument.user_id == user_id)
+                .where(UploadedDocument.file_hash == file_hash)
+            )
+        ).scalar_one_or_none()
+        if existing_doc is not None:
+            uploaded_doc = existing_doc
+            uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
+            if extraction_metadata is not None:
+                uploaded_doc.extraction_metadata = extraction_metadata
+            await _detach_document_from_atomic_transactions(db, user_id, uploaded_doc.id)
+        else:
+            uploaded_doc = await dedup_service.create_uploaded_document(
+                db=db,
+                user_id=user_id,
+                file_path=str(file_path) if file_path else file_hash,
+                file_hash=file_hash,
+                original_filename=original_filename or file_hash,
+                document_type=doc_type,
+                extraction_metadata=extraction_metadata,
+            )
 
         layer2_count = 0
         for txn in transactions:
@@ -345,6 +407,7 @@ async def dual_write_layer2(
                 source_doc_type=doc_type,
                 reference=txn.reference,
                 balance_after=getattr(txn, "_extracted_balance_after", None),
+                occurrence_index=getattr(txn, "_occurrence_index", 0),
             )
             layer2_count += 1
 
