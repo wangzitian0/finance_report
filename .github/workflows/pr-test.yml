@@ -1,13 +1,20 @@
-# PR Test Environment Workflow - Triggered by PR events
+# PR Test Environment Workflow
 #
-# Each PR gets an isolated environment with its own DB/MinIO.
-# Uses docker-compose.yml from this repo (not infra2).
+# The default PR preview follows the PR's CI workflow: after the matching CI run
+# completes successfully, this workflow starts the full stack inside the GitHub
+# runner, runs provider-free smoke/E2E, and destroys the stack in the same job.
+# It does not build/push PR preview images and does not create a persistent
+# Dokploy URL. PR close/merge, failed CI, cancelled CI, and timed-out CI runs
+# delete legacy Dokploy preview resources for the PR.
 
 name: PR Test Environment
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [closed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -24,27 +31,31 @@ on:
           - cleanup
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || github.event_name == 'pull_request' && github.event.pull_request.number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   PYTHONUNBUFFERED: "1"
-  REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   TEST_ENV_ID: -fzh5EGJN74I1AjNEpVUr
-  GITHUB_INTEGRATION_ID: 126refcRlCoWj6pmPXElU
   INTERNAL_DOMAIN: zitian.party
 
 jobs:
   setup:
     name: Setup Variables
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       compose_name: ${{ steps.info.outputs.compose_name }}
       pr_number: ${{ steps.info.outputs.pr_number }}
       action: ${{ steps.info.outputs.action }}
+      action_reason: ${{ steps.info.outputs.action_reason }}
+      head_sha: ${{ steps.info.outputs.head_sha }}
+      head_branch: ${{ steps.info.outputs.head_branch }}
+      triggering_ci_conclusion: ${{ steps.info.outputs.triggering_ci_conclusion }}
       internal_domain: ${{ steps.info.outputs.internal_domain }}
       preview_app_url: ${{ steps.info.outputs.preview_app_url }}
       preview_commit_app_url: ${{ steps.info.outputs.preview_commit_app_url }}
@@ -53,46 +64,119 @@ jobs:
       pr_preview_reason: ${{ steps.preview_gate.outputs.pr_preview_reason }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Determine Params
+      - name: Determine params
         id: info
         run: |
-          {
-            echo "internal_domain=${{ env.INTERNAL_DOMAIN }}"
-            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-              echo "Manual trigger for PR ${{ github.event.inputs.pr_number }} (${{ github.event.inputs.action }})" >&2
-              pr_number="${{ github.event.inputs.pr_number }}"
-              echo "pr_number=${pr_number}"
-              echo "compose_name=pr-${pr_number}"
-              echo "action=${{ github.event.inputs.action }}"
-            else
-              echo "PR info: ${{ github.event.pull_request.number }} (${{ github.event.action }})" >&2
-              pr_number="${{ github.event.pull_request.number }}"
-              echo "pr_number=${pr_number}"
-              echo "compose_name=pr-${pr_number}"
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
 
-              if [ "${{ github.event.action }}" == "closed" ]; then
-                echo "action=cleanup"
-              else
-                echo "action=deploy"
-              fi
-            fi
+          from tools._lib.dev.pr_preview_lifecycle import preview_commit_slug
 
-            preview_commit_slug="$(python3 -c 'import os; from tools._lib.dev.pr_preview_lifecycle import preview_commit_slug; print(preview_commit_slug(os.environ["GITHUB_SHA"]))')"
-            echo "preview_commit_slug=${preview_commit_slug}"
-            echo "preview_app_url=https://report-pr-${pr_number}.${{ env.INTERNAL_DOMAIN }}"
-            echo "preview_commit_app_url=https://report-pr-${pr_number}-${preview_commit_slug}.${{ env.INTERNAL_DOMAIN }}"
-          } >> "$GITHUB_OUTPUT"
+          event_name = os.environ["GITHUB_EVENT_NAME"]
+          event_path = os.environ["GITHUB_EVENT_PATH"]
+          github_sha = os.environ.get("GITHUB_SHA", "")
+          github_ref_name = os.environ.get("GITHUB_REF_NAME", "")
+          repository = os.environ["GITHUB_REPOSITORY"]
+          internal_domain = os.environ["INTERNAL_DOMAIN"]
+
+          with open(event_path, encoding="utf-8") as fh:
+              event = json.load(fh)
+
+          pr_number = ""
+          action = "skip"
+          action_reason = "unsupported-event"
+          head_sha = github_sha
+          head_branch = github_ref_name
+          triggering_ci_conclusion = ""
+
+          if event_name == "workflow_dispatch":
+              inputs = event.get("inputs") or {}
+              pr_number = str(inputs.get("pr_number") or "")
+              action = str(inputs.get("action") or "deploy")
+              action_reason = "manual-dispatch"
+          elif event_name == "pull_request":
+              pr = event.get("pull_request") or {}
+              pr_number = str(pr.get("number") or "")
+              head = pr.get("head") or {}
+              head_sha = head.get("sha") or head_sha
+              head_branch = head.get("ref") or head_branch
+              if event.get("action") == "closed":
+                  action = "cleanup"
+                  action_reason = "pull-request-closed"
+          elif event_name == "workflow_run":
+              workflow_run = event.get("workflow_run") or {}
+              pull_requests = workflow_run.get("pull_requests") or []
+              pr = pull_requests[0] if pull_requests else {}
+              pr_number = str(pr.get("number") or "")
+              head_sha = workflow_run.get("head_sha") or head_sha
+              head_branch = workflow_run.get("head_branch") or head_branch
+              triggering_ci_conclusion = workflow_run.get("conclusion") or ""
+              triggering_ci_event = workflow_run.get("event") or ""
+              head_repository = (workflow_run.get("head_repository") or {}).get(
+                  "full_name"
+              )
+
+              if not pr_number:
+                  action = "skip"
+                  action_reason = "workflow-run-without-pr"
+              elif triggering_ci_event != "pull_request":
+                  action = "skip"
+                  action_reason = f"workflow-run-event-{triggering_ci_event}"
+              elif head_repository and head_repository != repository:
+                  action = "skip"
+                  action_reason = "fork-pr-no-preview-secrets"
+              elif triggering_ci_conclusion == "success":
+                  action = "deploy"
+                  action_reason = "successful-pr-ci"
+              else:
+                  action = "cleanup"
+                  action_reason = f"ci-{triggering_ci_conclusion or 'unknown'}"
+
+          compose_name = f"pr-{pr_number}" if pr_number else ""
+          commit_slug = preview_commit_slug(head_sha or github_sha)
+          preview_app_url = (
+              f"https://report-pr-{pr_number}.{internal_domain}" if pr_number else ""
+          )
+          preview_commit_app_url = (
+              f"https://report-pr-{pr_number}-{commit_slug}.{internal_domain}"
+              if pr_number
+              else ""
+          )
+
+          outputs = {
+              "internal_domain": internal_domain,
+              "pr_number": pr_number,
+              "compose_name": compose_name,
+              "action": action,
+              "action_reason": action_reason,
+              "head_sha": head_sha,
+              "head_branch": head_branch,
+              "triggering_ci_conclusion": triggering_ci_conclusion,
+              "preview_commit_slug": commit_slug,
+              "preview_app_url": preview_app_url,
+              "preview_commit_app_url": preview_commit_app_url,
+          }
+          for key, value in outputs.items():
+              print(f"{key}={value}")
+          PY
 
       - name: Classify PR preview relevance
         id: preview
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ACTION: ${{ steps.info.outputs.action }}
+          PR_NUMBER: ${{ steps.info.outputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
+          if [ "$ACTION" != "deploy" ]; then
+            echo 'env_stage_required={"pr-preview":false}' >> "$GITHUB_OUTPUT"
+            echo "env_stage_reasons={\"pr-preview\":\"${ACTION}\"}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo 'env_stage_required={"pr-preview":true}' >> "$GITHUB_OUTPUT"
@@ -100,25 +184,22 @@ jobs:
             exit 0
           fi
 
-          if [ "${{ github.event.action }}" = "closed" ]; then
+          pr_state="$(gh pr view "$PR_NUMBER" --json state --jq '.state' 2>/dev/null || echo UNKNOWN)"
+          if [ "$pr_state" != "OPEN" ]; then
             echo 'env_stage_required={"pr-preview":false}' >> "$GITHUB_OUTPUT"
-            echo 'env_stage_reasons={"pr-preview":"cleanup-only"}' >> "$GITHUB_OUTPUT"
+            echo "env_stage_reasons={\"pr-preview\":\"pr-not-open-after-ci:${pr_state}\"}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          base_sha="${BASE_SHA:-}"
-          head_sha="${HEAD_SHA:-}"
-          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
-            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
-          fi
+          gh api \
+            "/repos/${{ github.repository }}/pulls/${PR_NUMBER}/files" \
+            --paginate \
+            --jq '.[].filename' > changed-files.txt
 
-          # Three-dot (merge-base) diff: classify only what THIS PR introduced,
-          # not files that diverged on the base branch since the PR forked.
-          # Two-dot ("$base_sha" "$head_sha") attributes the base branch's own
-          # post-fork commits to the PR, so a docs-only PR lagging a runtime
-          # change on main spuriously trips the pr-preview deploy gate.
-          if ! git diff --name-only "$base_sha...$head_sha" > changed-files.txt; then
-            git diff --name-only HEAD^ HEAD > changed-files.txt
+          if [ ! -s changed-files.txt ]; then
+            echo 'env_stage_required={"pr-preview":false}' >> "$GITHUB_OUTPUT"
+            echo 'env_stage_reasons={"pr-preview":"no-pr-files"}' >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           python tools/ci_change_classifier.py \
@@ -143,24 +224,50 @@ jobs:
           print(f"pr_preview_reason={reasons['pr-preview']}")
           PY
 
+  legacy-cleanup:
+    name: Remove Legacy Dokploy Preview
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cleanup legacy preview lifecycle
+        continue-on-error: true
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          python tools/pr_preview_lifecycle.py \
+            --action cleanup \
+            --pr-number "${{ needs.setup.outputs.pr_number }}" \
+            --compose-name "${{ needs.setup.outputs.compose_name }}" \
+            --environment-id="${{ env.TEST_ENV_ID }}" \
+            --api-url "${{ env.DOKPLOY_API_URL }}" \
+            --api-key "$DOKPLOY_API_KEY"
+
   e2e:
-    name: In-runner E2E
+    name: In-runner Preview E2E
     # Image-free full-stack E2E (issue #839): the merge-relevant validation.
-    # Runs on every runtime-relevant PR; does NOT push images or deploy to
-    # Dokploy. The Dokploy preview below is a separate, opt-in human-inspection
-    # environment.
+    # Runs only after the matching PR CI workflow_run succeeds; does not push
+    # images or deploy to Dokploy. The runner stack is destroyed in this job.
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: setup
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     env:
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci-e2e.yml
       # Base compose gates services behind profiles (infra=db/minio, app=back/front);
       # activate both so the full stack (and the edge's depends_on) resolve.
       COMPOSE_PROFILES: infra,app
       # Baked into the images at build time and reported by both services; the
-      # smoke version check compares it against the source SHA (else "unknown").
-      GIT_COMMIT_SHA: ${{ github.sha }}
+      # smoke version check compares it against the PR head SHA.
+      GIT_COMMIT_SHA: ${{ needs.setup.outputs.head_sha }}
       # The stack is reached through the edge origin; allow it for CORS so the
       # smoke CORS check (Origin: http://localhost:8080) passes.
       CORS_ORIGINS: http://localhost:8080,http://localhost:3000
@@ -168,9 +275,10 @@ jobs:
       COMPOSE_PROJECT_NAME: fr-e2e-${{ github.run_id }}-${{ github.run_attempt }}
       APP_URL: http://localhost:8080
     steps:
-      - name: Checkout repository
+      - name: Checkout PR head
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.setup.outputs.head_sha }}
           submodules: recursive
 
       - name: Setup E2E Tests
@@ -205,10 +313,11 @@ jobs:
           exit 1
 
       - name: End-to-End Tests
+        id: e2e_tests
         env:
           TEST_ENV: staging
           SKIP_UI_TESTS: false
-          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}
           TIMEOUT_MS: 60000
           E2E_API_TIMEOUT: 30
           STRICT_E2E_GATES: true
@@ -239,687 +348,10 @@ jobs:
           # by `compose down`); no-op if other containers still reference it.
           docker network rm dokploy-network 2>/dev/null || true
 
-  gate-cheap-ci:
-    name: Gate on Cheap CI
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: setup
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Wait for Lint and AC Traceability
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python tools/wait_for_cheap_ci.py \
-            --repository "${{ github.repository }}" \
-            --token "$GITHUB_TOKEN" \
-            --commit-sha "${{ github.event.pull_request.head.sha || github.sha }}"
-
-  build-preview-backend-image:
-    name: Build Backend PR Preview Image
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: [setup, gate-cheap-ci]
-    runs-on: ubuntu-latest
-    env:
-      PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Log in to Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push Backend PR preview image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/backend
-          push: true
-          # B2: persistent registry-backed layer cache (survives runner churn /
-          # GHA cache eviction); gha kept as a fast same-runner second source.
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:buildcache
-            type=gha
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:buildcache,mode=max,ignore-error=true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ github.sha }}
-
-  build-preview-frontend-image:
-    name: Build Frontend PR Preview Image
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: [setup, gate-cheap-ci]
-    runs-on: ubuntu-latest
-    env:
-      PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Log in to Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push Frontend PR preview image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/frontend
-          push: true
-          # B2: persistent registry-backed layer cache (survives runner churn /
-          # GHA cache eviction); gha kept as a fast same-runner second source.
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:buildcache
-            type=gha
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:buildcache,mode=max,ignore-error=true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ github.sha }}
-            NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}
-            NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}
-
-  deploy:
-    name: Deploy Test Environment
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: [setup, build-preview-backend-image, build-preview-frontend-image]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-      pull-requests: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Log in to Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Preflight PR preview image tags
-        env:
-          PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}
-        run: |
-          set -euo pipefail
-
-          for service in backend frontend; do
-            image="${REGISTRY}/${IMAGE_PREFIX}-${service}:${PREVIEW_IMAGE_TAG}"
-            echo "Checking commit-scoped preview image: ${image}"
-            docker buildx imagetools inspect "${image}" >/dev/null
-          done
-
-          echo "Both PR preview images are available before Dokploy deploy."
-
-      - name: Deploy preview lifecycle
-        id: deploy
-        continue-on-error: true
-        timeout-minutes: 18
-        env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-          PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json
-          PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "300"
-        run: |
-          python tools/pr_preview_lifecycle.py \
-            --action deploy \
-            --pr-number "${{ needs.setup.outputs.pr_number }}" \
-            --compose-name "${{ needs.setup.outputs.compose_name }}" \
-            --environment-id="${{ env.TEST_ENV_ID }}" \
-            --api-url "${{ env.DOKPLOY_API_URL }}" \
-            --api-key "$DOKPLOY_API_KEY" \
-            --github-integration-id "${{ env.GITHUB_INTEGRATION_ID }}" \
-            --branch "$BRANCH_NAME" \
-            --commit-sha "${{ github.sha }}" \
-            --registry "${{ env.REGISTRY }}" \
-            --image-prefix "${{ env.IMAGE_PREFIX }}" \
-            --internal-domain "${{ needs.setup.outputs.internal_domain }}"
-
-      - name: Print preview routing context
-        run: |
-          echo "compose_id=${{ steps.deploy.outputs.compose_id }}"
-          echo "app_url=${{ steps.deploy.outputs.app_url }}"
-          echo "api_health_url=${{ steps.deploy.outputs.app_url }}/api/health"
-          echo "frontend_version_url=${{ steps.deploy.outputs.app_url }}/frontend-version.json?expected=${{ github.sha }}"
-          echo "expected_sha=${{ github.sha }}"
-
-      - name: Wait for API readiness
-        id: api_ready
-        continue-on-error: true
-        timeout-minutes: 12
-        env:
-          APP_URL: ${{ steps.deploy.outputs.app_url }}
-          EXPECTED_SHA: ${{ github.sha }}
-        run: |
-          python3 -u - << 'EOF'
-          import json
-          import os
-          import subprocess
-          import sys
-          import time
-
-          app_url = os.environ["APP_URL"].rstrip("/")
-          url = app_url + "/api/health"
-          ping_url = app_url + "/api/ping"
-          frontend_url = app_url + f"/frontend-version.json?expected={os.environ['EXPECTED_SHA']}"
-          expected_sha = os.environ["EXPECTED_SHA"]
-          print(f"Waiting for API readiness at {url}")
-          print(f"Expecting deployed git_sha={expected_sha}")
-
-          curl_timeout_seconds = 15
-          subprocess_timeout_seconds = 20
-          status_marker = "\n__FINANCE_REPORT_HTTP_STATUS__:"
-
-          def probe(probe_url):
-              command = [
-                  "curl",
-                  "--silent",
-                  "--show-error",
-                  "--location",
-                  "--connect-timeout",
-                  "5",
-                  "--max-time",
-                  str(curl_timeout_seconds),
-                  "--header",
-                  "Cache-Control: no-cache",
-                  "--header",
-                  "Pragma: no-cache",
-                  "--header",
-                  "Accept: application/json",
-                  "--header",
-                  "User-Agent: finance-report-pr-preview-readiness/1.0",
-                  "--write-out",
-                  status_marker + "%{http_code}:%{content_type}",
-                  probe_url,
-              ]
-              try:
-                  completed = subprocess.run(
-                      command,
-                      check=False,
-                      stdout=subprocess.PIPE,
-                      stderr=subprocess.PIPE,
-                      text=True,
-                      timeout=subprocess_timeout_seconds,
-                  )
-                  stdout = completed.stdout or ""
-                  if status_marker in stdout:
-                      body, status_text = stdout.rsplit(status_marker, 1)
-                  else:
-                      body = stdout
-                      status_text = ""
-                  status_parts = status_text.strip().split(":", 1)
-                  try:
-                      status = int(status_parts[0])
-                  except ValueError:
-                      status = 0
-                  content_type = status_parts[1] if len(status_parts) > 1 else ""
-                  error = (completed.stderr or "").strip()[:300]
-                  if completed.returncode != 0 and not error:
-                      error = f"curl exited {completed.returncode}"
-                  return {
-                      "status": status,
-                      "body": body,
-                      "headers": {"content_type": content_type},
-                      "error": error,
-                  }
-              except subprocess.TimeoutExpired as exc:
-                  return {
-                      "status": 0,
-                      "body": "",
-                      "headers": {},
-                      "error": f"curl timeout after {subprocess_timeout_seconds}s: {exc}",
-                  }
-              except Exception as exc:
-                  return {
-                      "status": 0,
-                      "body": "",
-                      "headers": {},
-                      "error": f"{type(exc).__name__}: {exc}",
-                  }
-
-          def parse_json_body(result):
-              try:
-                  return json.loads((result["body"] or "").strip() or "{}")
-              except json.JSONDecodeError:
-                  return {}
-
-          def body_prefix(result):
-              body = result["body"] or ""
-              return json.dumps(body[:160].replace("\n", "\\n"), ensure_ascii=True)
-
-          def content_type(result):
-              headers = result.get("headers") or {}
-              value = headers.get("content_type")
-              return value if isinstance(value, str) else ""
-
-          def response_code(payload):
-              value = payload.get("code")
-              return value if isinstance(value, str) else ""
-
-          def classify(api_result, ping_result, frontend_result):
-              api_payload = parse_json_body(api_result)
-              frontend_payload = parse_json_body(frontend_result)
-              frontend_sha = frontend_payload.get("git_sha") or frontend_payload.get("version")
-              if api_result["status"] == 503 and response_code(api_payload) == "SERVICE_UNAVAILABLE":
-                  return "frontend-fallback-api-route-missing-or-backend-unhealthy"
-              if api_result["status"] == 404 and frontend_sha == expected_sha:
-                  return "frontend-route-ready-api-route-missing"
-              if api_result["status"] == 200:
-                  api_sha = api_payload.get("git_sha") or api_payload.get("version")
-                  if api_sha and api_sha != expected_sha:
-                      return "stale-backend-route"
-                  if not api_sha:
-                      return "backend-health-missing-sha"
-              if ping_result["status"] == 200 and api_result["status"] != 200:
-                  return "backend-ping-ready-health-not-ready"
-              return "rollout-not-ready"
-
-          def platform_failure_domain(classification, api_result, ping_result, frontend_result):
-              statuses = {
-                  api_result["status"],
-                  ping_result["status"],
-                  frontend_result["status"],
-              }
-              if statuses == {404}:
-                  return "traefik-public-route"
-              if classification == "frontend-route-ready-api-route-missing":
-                  return "traefik-public-route"
-              if classification == "frontend-fallback-api-route-missing-or-backend-unhealthy":
-                  return "docker-runtime"
-              if classification in {
-                  "stale-backend-route",
-                  "backend-ping-ready-health-not-ready",
-                  "backend-health-missing-sha",
-              }:
-                  return "application-runtime"
-              return "dokploy-worker-or-deployment-record"
-
-          def write_readiness_context(
-              *,
-              attempt,
-              elapsed_seconds,
-              classification,
-              failure_domain,
-              api_result,
-              ping_result,
-              frontend_result,
-              api_sha,
-              frontend_sha,
-          ):
-              os.makedirs("ci-context", exist_ok=True)
-              context = {
-                  "context_schema": "pr-preview-readiness-v1",
-                  "app_url": app_url,
-                  "api_health_url": url,
-                  "api_ping_url": ping_url,
-                  "frontend_version_url": frontend_url,
-                  "expected_sha": expected_sha,
-                  "attempt": str(attempt),
-                  "elapsed_seconds": str(elapsed_seconds),
-                  "classification": classification,
-                  "failure_domain": failure_domain,
-                  "last_api_status": str(api_result["status"]),
-                  "last_api_sha": api_sha or "",
-                  "last_api_code": response_code(parse_json_body(api_result)),
-                  "last_api_content_type": content_type(api_result),
-                  "last_api_error": api_result["error"],
-                  "last_ping_status": str(ping_result["status"]),
-                  "last_frontend_status": str(frontend_result["status"]),
-                  "last_frontend_sha": frontend_sha or "",
-              }
-              with open("ci-context/pr-preview-readiness-context.json", "w", encoding="utf-8") as fh:
-                  json.dump(context, fh, indent=2, sort_keys=True)
-                  fh.write("\n")
-
-          readiness_timeout_seconds = 600
-          started_at = time.monotonic()
-          classified_route_failures = 0
-          route_failure_notice_printed = False
-          attempt = 0
-          consecutive_dokploy_failures = 0
-          consecutive_404_failures = 0
-          while True:
-              attempt += 1
-              elapsed_seconds = int(time.monotonic() - started_at)
-              delay = min(5 + (attempt // 5) * 5, 30)
-              api_result = probe(url)
-              ping_result = probe(ping_url)
-              frontend_result = probe(frontend_url)
-              api_payload = parse_json_body(api_result)
-              frontend_payload = parse_json_body(frontend_result)
-              actual_sha = api_payload.get("git_sha") or api_payload.get("version")
-              frontend_sha = frontend_payload.get("git_sha") or frontend_payload.get("version")
-              classification = classify(api_result, ping_result, frontend_result)
-              failure_domain = platform_failure_domain(
-                  classification,
-                  api_result,
-                  ping_result,
-                  frontend_result,
-              )
-
-              print(
-                  f"route_probe attempt={attempt} "
-                  f"elapsed_seconds={elapsed_seconds}/{readiness_timeout_seconds} "
-                  f"app_readiness_classification={classification} "
-                  f"platform_failure_domain={failure_domain} "
-                  f"api_status={api_result['status']} api_sha={actual_sha or ''} "
-                  f"api_code={response_code(api_payload)} "
-                  f"api_content_type={content_type(api_result)} "
-                  f"api_body_bytes={len(api_result['body'])} "
-                  f"api_body_prefix={body_prefix(api_result) if api_result['status'] == 200 and not actual_sha else json.dumps('')} "
-                  f"api_error={api_result['error']} "
-                  f"ping_status={ping_result['status']} "
-                  f"frontend_status={frontend_result['status']} "
-                  f"frontend_sha={frontend_sha or ''} "
-                  f"expected_sha={expected_sha}"
-              )
-              write_readiness_context(
-                  attempt=attempt,
-                  elapsed_seconds=elapsed_seconds,
-                  classification=classification,
-                  failure_domain=failure_domain,
-                  api_result=api_result,
-                  ping_result=ping_result,
-                  frontend_result=frontend_result,
-                  api_sha=actual_sha,
-                  frontend_sha=frontend_sha,
-              )
-
-              if api_result["status"] == 200 and actual_sha == expected_sha:
-                  print(f"API ready with expected git_sha {actual_sha}")
-                  sys.exit(0)
-
-              if failure_domain == "dokploy-worker-or-deployment-record":
-                  consecutive_dokploy_failures += 1
-              else:
-                  consecutive_dokploy_failures = 0
-
-              statuses = {
-                  api_result["status"],
-                  ping_result["status"],
-                  frontend_result["status"],
-              }
-              if statuses == {404}:
-                  consecutive_404_failures += 1
-              else:
-                  consecutive_404_failures = 0
-
-              if consecutive_dokploy_failures >= 8:
-                  print("::error::Fail-fast: Dokploy worker or deployment record failure occurred consecutively 8 times.")
-                  sys.exit(1)
-
-              if consecutive_404_failures >= 15:
-                  print("::error::Fail-fast: All three readiness endpoints (/api/health, /api/ping, and frontend version endpoint) returned HTTP 404 consecutively 15 times.")
-                  sys.exit(1)
-
-              if failure_domain == "traefik-public-route":
-                  classified_route_failures += 1
-              elif classification in {
-                  "frontend-fallback-api-route-missing-or-backend-unhealthy",
-                  "frontend-route-ready-api-route-missing",
-              }:
-                  classified_route_failures += 1
-              else:
-                  classified_route_failures = 0
-
-              if classified_route_failures >= 8 and not route_failure_notice_printed:
-                  print(
-                      "::notice::API route is still unavailable after frontend served "
-                      "the expected commit or after repeated all-404 route probes. "
-                      "Current evidence isolates the active wait to Traefik public "
-                      "routing, backend route attachment, or backend container health."
-                  )
-                  print(
-                      "::notice::Run infra2's Dokploy Route Canary workflow or "
-                      "repo/tools/dokploy_route_canary.py to split Dokploy control "
-                      "plane, deployment record, Docker runtime, and Traefik public route."
-                  )
-                  route_failure_notice_printed = True
-
-              remaining_seconds = readiness_timeout_seconds - (time.monotonic() - started_at)
-              if remaining_seconds <= 0:
-                  break
-
-              sleep_seconds = min(delay, max(1, int(remaining_seconds)))
-              print(f"   Retrying in {sleep_seconds}s...")
-              time.sleep(sleep_seconds)
-
-          print("::error::API not ready with expected git_sha after readiness deadline")
-          print(
-              "::notice::If platform_failure_domain is traefik-public-route or "
-              "dokploy-worker-or-deployment-record, run infra2's Dokploy Route "
-              "Canary before changing application readiness."
-          )
-          sys.exit(1)
-          EOF
-
-      - name: Wait for frontend readiness
-        id: frontend_ready
-        continue-on-error: true
-        timeout-minutes: 12
-        env:
-          APP_URL: ${{ steps.deploy.outputs.app_url }}
-          EXPECTED_SHA: ${{ github.sha }}
-        run: |
-          python3 -u - << 'EOF'
-          import json
-          import os
-          import subprocess
-          import sys
-          import time
-
-          app_url = os.environ["APP_URL"].rstrip("/")
-          expected_sha = os.environ["EXPECTED_SHA"]
-          url = f"{app_url}/frontend-version.json?expected={expected_sha}"
-          print(f"Waiting for frontend readiness at {url}")
-          print(f"Expecting frontend git_sha={expected_sha}")
-
-          curl_timeout_seconds = 15
-          subprocess_timeout_seconds = 20
-          status_marker = "\n__FINANCE_REPORT_HTTP_STATUS__:"
-
-          def probe(probe_url):
-              command = [
-                  "curl",
-                  "--silent",
-                  "--show-error",
-                  "--location",
-                  "--connect-timeout",
-                  "5",
-                  "--max-time",
-                  str(curl_timeout_seconds),
-                  "--header",
-                  "Cache-Control: no-cache",
-                  "--header",
-                  "Pragma: no-cache",
-                  "--header",
-                  "Accept: application/json",
-                  "--header",
-                  "User-Agent: finance-report-pr-preview-readiness/1.0",
-                  "--write-out",
-                  status_marker + "%{http_code}",
-                  probe_url,
-              ]
-              completed = subprocess.run(
-                  command,
-                  check=False,
-                  stdout=subprocess.PIPE,
-                  stderr=subprocess.PIPE,
-                  text=True,
-                  timeout=subprocess_timeout_seconds,
-              )
-              stdout = completed.stdout or ""
-              if status_marker in stdout:
-                  body, status_text = stdout.rsplit(status_marker, 1)
-              else:
-                  body = stdout
-                  status_text = ""
-              try:
-                  status = int(status_text.strip())
-              except ValueError:
-                  status = 0
-              error = (completed.stderr or "").strip()
-              if completed.returncode != 0 and not error:
-                  error = f"curl exited {completed.returncode}"
-              return status, body, error
-
-          max_attempts = 30
-          for attempt in range(1, max_attempts + 1):
-              delay = min(5 + (attempt // 5) * 5, 30)
-              try:
-                  status, body, error = probe(url)
-                  if 200 <= status < 400:
-                      payload = json.loads(body)
-                      actual_sha = payload.get("git_sha") or payload.get("version")
-                      if actual_sha == expected_sha:
-                          print(f"✅ Frontend ready with expected git_sha {actual_sha}")
-                          sys.exit(0)
-                      print(
-                          f"⚠️ Attempt {attempt}/{max_attempts}: "
-                          f"status {status}, frontend git_sha={actual_sha}, "
-                          f"expected={expected_sha}"
-                      )
-                      print("   Existing frontend bundle is still serving; waiting for rollout...")
-                  else:
-                      print(f"⚠️ Attempt {attempt}/{max_attempts}: status {status}, error={error}")
-              except subprocess.TimeoutExpired as e:
-                  print(f"❌ Attempt {attempt}/{max_attempts}: curl timeout after {subprocess_timeout_seconds}s: {e}")
-              except Exception as e:
-                  print(f"❌ Attempt {attempt}/{max_attempts}: {type(e).__name__}: {e}")
-
-              print(f"   Retrying in {delay}s...")
-              time.sleep(delay)
-
-          print("::error::Frontend not ready with expected git_sha after all attempts")
-          sys.exit(1)
-          EOF
-
-      - name: Setup E2E Tests
-        uses: ./.github/actions/setup-e2e-tests
-
-      - name: Generate PDF fixtures for E2E tests
-        run: |
-          mkdir -p tmp/fixtures
-          python tools/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
-
-      - name: Smoke Test
-        id: e2e_tests
-        continue-on-error: true
-        env:
-          APP_URL: ${{ steps.deploy.outputs.app_url }}
-          TEST_ENV: staging
-          EXPECTED_SHA: ${{ github.sha }}
-        run: |
-          echo "🔎 Smoke-checking deployed preview at $APP_URL"
-          mkdir -p test-results
-          # The deployed preview only smoke-checks that the real, independently
-          # provisioned per-PR environment came up. The full runtime/API/UI E2E
-          # runs image-free in the `e2e` job (in-runner). See issue #839.
-          bash tools/smoke_test.sh "$APP_URL" staging
-          echo "✅ Preview smoke passed!"
-
-      - name: Capture platform failure snapshot
-        if: ${{ always() && steps.deploy.outputs.compose_id != '' && (steps.deploy.outcome == 'failure' || steps.api_ready.outcome == 'failure' || steps.frontend_ready.outcome == 'failure' || steps.e2e_tests.outcome == 'failure') }}
-        env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-        run: |
-          mkdir -p ci-context
-          # Diagnostic only: surface Dokploy platform state so triage can tell a
-          # platform failure (worker/route/rollout) from an app failure without
-          # SSH. Never fails the job (issue #768).
-          python tools/dokploy_failure_snapshot.py \
-            --compose-id "${{ steps.deploy.outputs.compose_id }}" \
-            --api-url "${{ env.DOKPLOY_API_URL }}" \
-            --markdown | tee ci-context/platform-failure-snapshot.txt
-          {
-            echo "## Platform failure snapshot"
-            echo '```'
-            cat ci-context/platform-failure-snapshot.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Rollback on E2E Failure
-        if: ${{ steps.e2e_tests.outcome == 'failure' }}
-        env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-        run: |
-          echo "::warning::E2E tests failed. Stopping compose to prevent broken deployment..."
-
-          python tools/pr_preview_lifecycle.py \
-            --action delete \
-            --pr-number "${{ needs.setup.outputs.pr_number }}" \
-            --compose-name "${{ needs.setup.outputs.compose_name }}" \
-            --compose-id "${{ steps.deploy.outputs.compose_id }}" \
-            --environment-id="${{ env.TEST_ENV_ID }}" \
-            --api-url "${{ env.DOKPLOY_API_URL }}" \
-            --api-key "$DOKPLOY_API_KEY"
-
-          echo "Check logs for E2E failure details."
-
       - name: Write PR preview context
-        if: ${{ always() }}
-        env:
-          APP_URL: ${{ steps.deploy.outputs.app_url }}
-          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        if: always()
         run: |
           mkdir -p ci-context
-          deploy_context_path=ci-context/pr-preview-deploy-context.json
-          read_deploy_context_field() {
-            python3 - "$deploy_context_path" "$1" <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          path = Path(sys.argv[1])
-          field = sys.argv[2]
-          if not path.exists():
-              print("")
-              raise SystemExit(0)
-          try:
-              payload = json.loads(path.read_text(encoding="utf-8"))
-          except json.JSONDecodeError:
-              print("")
-              raise SystemExit(0)
-          value = payload.get(field, "")
-          print(value if isinstance(value, str) else "")
-          PY
-          }
-          context_compose_id="${{ steps.deploy.outputs.compose_id }}"
-          context_app_url="${APP_URL}"
-          if [[ -z "$context_compose_id" ]]; then
-            context_compose_id="$(read_deploy_context_field compose_id)"
-          fi
-          if [[ -z "$context_app_url" ]]; then
-            context_app_url="$(read_deploy_context_field app_url)"
-          fi
           {
             echo "PR Preview Context"
             echo "=================="
@@ -931,22 +363,26 @@ jobs:
             echo "run_attempt=${{ github.run_attempt }}"
             echo "pr_number=${{ needs.setup.outputs.pr_number }}"
             echo "compose_name=${{ needs.setup.outputs.compose_name }}"
-            echo "compose_id=${context_compose_id}"
-            echo "branch=${BRANCH_NAME}"
-            echo "app_url=${context_app_url}"
-            echo "expected_sha=${{ github.sha }}"
-            echo "preview_commit_slug=${{ needs.setup.outputs.preview_commit_slug }}"
-            echo "api_health_url=${context_app_url}/api/health"
-            echo "frontend_version_url=${context_app_url}/frontend-version.json?expected=${{ github.sha }}"
-            echo "deploy_outcome=${{ steps.deploy.outcome }}"
+            echo "head_branch=${{ needs.setup.outputs.head_branch }}"
+            echo "head_sha=${{ needs.setup.outputs.head_sha }}"
+            echo "triggering_ci_conclusion=${{ needs.setup.outputs.triggering_ci_conclusion }}"
+            echo "pr_preview_required=${{ needs.setup.outputs.pr_preview_required }}"
+            echo "pr_preview_reason=${{ needs.setup.outputs.pr_preview_reason }}"
+            echo "preview_runtime=github-runner-compose"
+            echo "persistent_preview_url=none"
+            echo "registry_image_push=false"
+            echo "dokploy_deploy=false"
+            echo "cleanup=compose-down-volumes-remove-orphans"
+            echo "app_url=http://localhost:8080"
+            echo "api_health_url=http://localhost:8080/api/health"
+            echo "expected_sha=${{ needs.setup.outputs.head_sha }}"
             echo "e2e_outcome=${{ steps.e2e_tests.outcome }}"
             echo "strict_e2e_gates=true"
             echo "marker=(smoke or e2e) and not llm"
-            echo "platform_triage=deploy context JSON, API route_probe lines, frontend readiness lines, and E2E JUnit split platform rollout, route readiness, and app behavior"
           } > ci-context/pr-preview-context.txt
 
       - name: Upload PR preview test context
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pr-preview-test-context
@@ -956,71 +392,37 @@ jobs:
           retention-days: 14
 
       - name: Comment on PR
-        if: ${{ always() }}
+        if: always()
         uses: actions/github-script@v7
         env:
-          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+          BRANCH_NAME: ${{ needs.setup.outputs.head_branch }}
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-          APP_URL: ${{ steps.deploy.outputs.app_url }}
-          COMMIT_URL: ${{ needs.setup.outputs.preview_commit_app_url }}
-          COMPOSE_NAME: ${{ needs.setup.outputs.compose_name }}
-          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
-          API_OUTCOME: ${{ steps.api_ready.outcome }}
-          FRONTEND_OUTCOME: ${{ steps.frontend_ready.outcome }}
+          HEAD_SHA: ${{ needs.setup.outputs.head_sha }}
           E2E_OUTCOME: ${{ steps.e2e_tests.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
-            // Advisory status comment. The preview deploy does NOT block merge
-            // (only the `finish` check is required); both pass and fail land here
-            // so the result can be read from the PR after merge-gate is green.
             const marker = '<!-- pr-preview-status -->';
-            const url = process.env.APP_URL || '';
-            const legacyUrl = process.env.COMMIT_URL || url;
-            const runUrl = process.env.RUN_URL;
-            const stepOutcomes = {
-              Deploy: process.env.DEPLOY_OUTCOME,
-              'API readiness': process.env.API_OUTCOME,
-              'Frontend readiness': process.env.FRONTEND_OUTCOME,
-              E2E: process.env.E2E_OUTCOME,
-            };
-            const passed = Object.values(stepOutcomes).every(o => o === 'success');
-            const rows = Object.entries(stepOutcomes)
-              .map(([n, o]) => `| ${n} | ${o === 'success' ? '✅ pass' : o === 'failure' ? '❌ fail' : '`' + (o || 'skipped') + '`'} |`)
-              .join('\n');
-
-            const successBody = `${marker}
-            ## 🧪 Test Environment Deployed
-
-            | Service | URL |
-            |---------|-----|
-            | Frontend (stable) | [${url}](${url}) |
-            | Frontend (commit alias) | [${legacyUrl}](${legacyUrl}) |
-            | API Health | [${url}/api/health](${url}/api/health) |
-
-            The stable URL always points to the latest successful PR deployment.
-
-            **Details:**
-            - Compose: \`${process.env.COMPOSE_NAME}\`
-            - Branch: \`${process.env.BRANCH_NAME}\`
-            - Commit: \`${{ github.sha }}\`
-
-            > This preview is advisory and does not block merge. _Cleaned up when the PR is closed._`;
-
-            const failureBody = `${marker}
-            ## ⚠️ Test Environment Failed
-
-            The preview deploy or its checks did not pass. **This is advisory and does not block merge** — inspect the logs and re-push if needed.
+            const passed = process.env.E2E_OUTCOME === 'success';
+            const title = passed
+              ? 'PR Preview Validation Passed'
+              : 'PR Preview Validation Failed';
+            const result = passed ? 'pass' : (process.env.E2E_OUTCOME || 'skipped');
+            const body = `${marker}
+            ## ${title}
 
             | Step | Result |
             |------|--------|
-            ${rows}
+            | In-runner full-stack preview | \`${result}\` |
 
-            - Logs: [workflow run](${runUrl})
-            - Commit: \`${{ github.sha }}\`
-            - Stable URL (may be torn down): ${url || 'n/a'}`;
+            This preview runs after the matching PR CI workflow succeeds. It starts the full stack inside the GitHub runner, runs provider-free smoke/E2E, and destroys the stack in the same job.
 
-            const body = passed ? successBody : failureBody;
+            No persistent Dokploy URL or PR preview image is created.
+
+            **Details:**
+            - Branch: \`${process.env.BRANCH_NAME}\`
+            - Head SHA: \`${process.env.HEAD_SHA}\`
+            - Logs: [workflow run](${process.env.RUN_URL})`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -1048,18 +450,19 @@ jobs:
 
   cleanup:
     name: Cleanup Test Environment
-    if: needs.setup.outputs.action == 'cleanup'
+    if: needs.setup.outputs.action == 'cleanup' && needs.setup.outputs.pr_number != ''
     needs: setup
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write
       pull-requests: write
-      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Cleanup preview lifecycle
+        id: cleanup
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
@@ -1070,52 +473,6 @@ jobs:
             --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
             --api-key "$DOKPLOY_API_KEY"
-
-      - name: Delete GHCR images
-        continue-on-error: true
-        env:
-          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "🗑️  Deleting PR images from GitHub Container Registry..."
-
-          for service in backend frontend; do
-            IMAGE_NAME="finance_report-${service}"
-            TAG_PREFIX="pr-${PR_NUMBER}-"
-
-            echo "Searching for ${IMAGE_NAME} tags with prefix ${TAG_PREFIX}..."
-
-            # Get package version IDs for commit-scoped PR preview tags.
-            VERSION_IDS=$(gh api \
-              -H "Accept: application/vnd.github+json" \
-              "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions" \
-              --paginate \
-              --jq ".[] | select(.metadata.container.tags[]? | startswith(\"${TAG_PREFIX}\")) | .id" \
-              2>/dev/null || echo "")
-
-            if [ -z "$VERSION_IDS" ]; then
-              echo "  No ${IMAGE_NAME} tags found for ${TAG_PREFIX} (may be already deleted)"
-              continue
-            fi
-
-            while IFS= read -r VERSION_ID; do
-              [ -n "$VERSION_ID" ] || continue
-              echo "  Found version ID: $VERSION_ID"
-              echo "  Deleting..."
-
-              gh api \
-                --method DELETE \
-                -H "Accept: application/vnd.github+json" \
-                "/orgs/${{ github.repository_owner }}/packages/container/${IMAGE_NAME}/versions/${VERSION_ID}" \
-                2>&1 || {
-                  echo "::warning::Failed to delete ${IMAGE_NAME} version ${VERSION_ID} (may require org admin permissions)"
-                }
-
-              echo "  ✅ Deleted ${IMAGE_NAME} version ${VERSION_ID}"
-            done <<< "$VERSION_IDS"
-          done
-
-          echo "GHCR cleanup complete"
 
       - name: Write PR preview cleanup context
         if: ${{ always() }}
@@ -1132,7 +489,10 @@ jobs:
             echo "run_attempt=${{ github.run_attempt }}"
             echo "pr_number=${{ needs.setup.outputs.pr_number }}"
             echo "compose_name=${{ needs.setup.outputs.compose_name }}"
-            echo "cleanup_action=closed-pr-cleanup"
+            echo "action_reason=${{ needs.setup.outputs.action_reason }}"
+            echo "triggering_ci_conclusion=${{ needs.setup.outputs.triggering_ci_conclusion }}"
+            echo "cleanup_action=legacy-dokploy-preview-cleanup"
+            echo "pr_preview_images=not-created"
           } > ci-context/pr-preview-cleanup-context.txt
 
       - name: Upload PR preview cleanup context
@@ -1144,20 +504,24 @@ jobs:
           retention-days: 14
 
       - name: Comment cleanup notice
+        if: ${{ always() }}
         uses: actions/github-script@v7
         env:
           PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          ACTION_REASON: ${{ needs.setup.outputs.action_reason }}
+          CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
         with:
           script: |
-            const body = `## 🧹 PR Resources Released
+            const body = `## PR Preview Resources Released
 
-            All temporary resources for this PR have been released:
+            Temporary resources for this PR have been released or reconciled:
 
-            - **Dokploy Stack**: \`${{ needs.setup.outputs.compose_name }}\` ✓ deleted
-            - **GHCR Images**: Deleted tags with prefix \`pr-${{ needs.setup.outputs.pr_number }}-\` for backend/frontend
-            - **Host Docker leftovers**: Managed by the Dokploy host hygiene schedule
+            - Legacy Dokploy stack: \`${{ needs.setup.outputs.compose_name }}\` (${process.env.CLEANUP_OUTCOME || 'skipped'})
+            - PR preview images: not created by the current preview workflow
+            - Trigger: \`${process.env.ACTION_REASON}\`
+            - Host Docker leftovers: managed by the Dokploy host hygiene schedule
 
-            _Cleanup completed successfully._`;
+            Cleanup is idempotent; an already-missing stack is treated as released.`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import configparser
-import importlib
 import re
 from pathlib import Path
 
@@ -262,69 +261,28 @@ def test_app_iac_wires_vault_secrets_health_and_traefik_routes() -> None:
         assert key in readme
 
 
-def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
-    """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: PR preview deploy verifies runtime health, API, domain, and storage upload paths."""
-    lifecycle = importlib.import_module("tools._lib.dev.pr_preview_lifecycle")
+def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
+    """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: PR preview validates runtime health, API, domain, and storage upload paths."""
     workflow = read(".github/workflows/pr-test.yml")
     smoke = read("tools/_lib/shell/smoke_test.sh")
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
-    assert "name: Deploy Test Environment" in workflow
+    assert "workflow_run:" in workflow
+    assert 'workflows: ["CI"]' in workflow
+    assert 'triggering_ci_conclusion == "success"' in workflow
+    assert "name: In-runner Preview E2E" in workflow
     assert "python tools/pr_preview_lifecycle.py" in workflow
-    preview_env = lifecycle.build_preview_env(
-        pr_number=489,
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="wangzitian0/finance_report",
-        internal_domain="zitian.party",
-    )
-    assert preview_env["COMPOSE_PROFILES"] == "infra,app"
-    assert preview_env["DB_HOST"] == "finance-report-db-pr-489-abc123"
-    assert preview_env["S3_HOST"] == "finance-report-minio-pr-489-abc123"
-    assert (
-        preview_env["S3_ENDPOINT"] == "http://finance-report-minio-pr-489-abc123:9000"
-    )
+    assert "--action cleanup" in workflow
+    assert "Deploy preview lifecycle" not in workflow
+    assert "Wait for API readiness" not in workflow
     assert 'echo "S3_BUCKET=statements"' in workflow or "S3_BUCKET:-statements" in read(
         "docker-compose.yml"
     )
-    assert "Wait for API readiness" in workflow
-    readiness_block = workflow.split("- name: Wait for API readiness", 1)[1].split(
-        "- name: Setup E2E Tests", 1
+    readiness_block = workflow.split("- name: Wait for stack readiness", 1)[1].split(
+        "- name: End-to-End Tests", 1
     )[0]
-    assert "EXPECTED_SHA: ${{ github.sha }}" in readiness_block
-    assert 'expected_sha = os.environ["EXPECTED_SHA"]' in readiness_block
-    assert 'payload.get("git_sha") or payload.get("version")' in readiness_block
-    assert "route_probe attempt=" in readiness_block
-    assert "app_readiness_classification=" in readiness_block
-    assert "platform_failure_domain=" in readiness_block
-    assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in readiness_block
-    assert "frontend-route-ready-api-route-missing" in readiness_block
-    assert "backend-health-missing-sha" in readiness_block
-    assert "dokploy-worker-or-deployment-record" in readiness_block
-    assert "traefik-public-route" in readiness_block
-    assert "repo/tools/dokploy_route_canary.py" in readiness_block
-    assert "stale-backend-route" in readiness_block
-    assert "readiness_timeout_seconds = 600" in readiness_block
-    assert "timeout-minutes: 12" in readiness_block
-    assert '"--connect-timeout"' in readiness_block
-    assert '"--max-time"' in readiness_block
-    assert "subprocess_timeout_seconds = 20" in readiness_block
-    assert "__FINANCE_REPORT_HTTP_STATUS__" in readiness_block
-    assert '"Accept: application/json"' in readiness_block
-    assert "api_content_type=" in readiness_block
-    assert "api_body_bytes=" in readiness_block
-    assert "api_body_prefix=" in readiness_block
-    assert '"body": body,' in readiness_block
-    assert '"body": body[:500]' not in readiness_block
-    assert (
-        "classified_route_failures >= 8 and not route_failure_notice_printed"
-        in readiness_block
-    )
-    assert (
-        "::notice::API route is still unavailable after frontend served"
-        in readiness_block
-    )
-    assert 'url = app_url + "/api/health"' in workflow
+    assert 'curl -fsS "$APP_URL/api/health"' in readiness_block
+    assert "stack did not become healthy within 300s" in readiness_block
     assert "bash tools/smoke_test.sh" in workflow
     assert "PR_PREVIEW_E2E_TESTS=(" in workflow
     assert "tests/e2e/test_core_journeys.py" in workflow
@@ -333,7 +291,7 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
         'pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm"'
         in workflow
     )
-    assert "| API Health | [${url}/api/health](${url}/api/health) |" in workflow
+    assert "No persistent Dokploy URL or PR preview image is created." in workflow
 
     assert 'wait_for_endpoint "API Health" "$BASE_URL/api/health"' in smoke
     assert 'wait_for_endpoint "Frontend Ready" "$BASE_URL/"' in smoke
@@ -346,36 +304,36 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "dashboard" in hard_gate.lower()
 
 
-def test_pr_preview_deploys_per_pr_and_smokes_only() -> None:
-    """Issue #839: the Dokploy preview is a per-PR environment, not opt-in.
-
-    It deploys for every runtime-relevant PR (dedicated DB per PR) and only
-    SMOKE-tests the deployed environment — the full runtime/API/UI E2E is the
-    in-runner ``e2e`` job, so the preview does not re-run it.
-    """
+def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
+    """Issue #839: PR preview follows CI and does not build/push PR images."""
     workflow = load_yaml(".github/workflows/pr-test.yml")
+    workflow_text = read(".github/workflows/pr-test.yml")
     jobs = workflow["jobs"]
 
-    # The opt-in gate is gone entirely.
     assert "preview_opt_in" not in yaml.safe_dump(workflow)
+    assert "workflow_run:" in workflow_text
+    assert 'workflows: ["CI"]' in workflow_text
+    assert 'triggering_ci_conclusion == "success"' in workflow_text
+    assert 'action = "cleanup"' in workflow_text
+    assert "build-preview-backend-image" not in jobs
+    assert "build-preview-frontend-image" not in jobs
+    assert "deploy" not in jobs
+    assert "docker/build-push-action@v5" not in workflow_text
+    assert "Delete GHCR images" not in workflow_text
 
-    # Build + deploy run on every runtime PR (gated only on pr_preview_required).
-    for job in ("build-preview-backend-image", "build-preview-frontend-image", "deploy"):
-        condition = jobs[job]["if"]
-        assert "action == 'deploy'" in condition
-        assert "pr_preview_required == 'true'" in condition
-        assert "preview_opt_in" not in condition
+    e2e_blob = yaml.safe_dump(jobs["e2e"])
+    assert "smoke_test.sh" in e2e_blob
+    assert "pytest" in e2e_blob
+    assert "test_core_journeys" in e2e_blob
+    assert "pr_preview_lifecycle" not in e2e_blob
 
-    # The deployed preview only smoke-checks; the heavy pytest E2E lives in the
-    # in-runner job, not here.
-    deploy_blob = yaml.safe_dump(jobs["deploy"])
-    assert "smoke_test.sh" in deploy_blob
-    assert "pytest" not in deploy_blob
-    assert "test_core_journeys" not in deploy_blob
+    cleanup_blob = yaml.safe_dump(jobs["cleanup"])
+    assert "pr_preview_lifecycle.py" in cleanup_blob
+    assert "--action cleanup" in cleanup_blob
 
     env_doc = read("docs/ssot/environments.md")
-    assert "smoke test only" in env_doc.lower()
-    assert "dedicated db" in env_doc.lower()
+    assert "workflow_run" in env_doc
+    assert "No persistent Dokploy URL" in env_doc
 
 
 def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:

@@ -575,10 +575,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     deploy_e2e_block = deploy_workflow.split("name: End-to-End Tests", 1)[1].split(
         "name: AI Provider Connectivity Smoke", 1
     )[0]
-    assert (
-        '-v -m "llm"'
-        not in deploy_e2e_block
-    )
+    assert '-v -m "llm"' not in deploy_e2e_block
     assert "name: Staging AI/OCR Gate" in ai_workflow
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
     assert "workflow_dispatch:" in ai_workflow
@@ -729,13 +726,13 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
 
     assert "pr-preview-test-context" in pr_preview
     # Full runtime/API/UI E2E now runs image-free in the in-runner `e2e` job
-    # (issue #839); the deployed preview only smoke-tests. Its junit lives here.
+    # (issue #839) after successful PR CI. Its junit lives here.
     assert "test-results/in-runner-e2e.xml" in pr_preview
     assert "ci-context/pr-preview-context.txt" in pr_preview
-    assert "deploy_context_path=ci-context/pr-preview-deploy-context.json" in pr_preview
-    assert "read_deploy_context_field compose_id" in pr_preview
-    assert "read_deploy_context_field app_url" in pr_preview
-    assert "deploy_outcome=${{ steps.deploy.outcome }}" in pr_preview
+    assert "preview_runtime=github-runner-compose" in pr_preview
+    assert "persistent_preview_url=none" in pr_preview
+    assert "registry_image_push=false" in pr_preview
+    assert "dokploy_deploy=false" in pr_preview
     assert "e2e_outcome=${{ steps.e2e_tests.outcome }}" in pr_preview
 
     assert "staging-deploy-test-context" in staging
@@ -1408,7 +1405,7 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert "transient provider blips do not" in ci_cd
     assert "@pytest.mark.llm" in provider_test
     assert "authenticated_page_unique" in provider_test
-    assert 'authenticated_page_unique.request.post' in provider_test
+    assert "authenticated_page_unique.request.post" in provider_test
     assert '"/chat"' in provider_test
     assert "Wait for matching CI success" not in workflow
     assert "wait_for_github_ci.py" not in workflow
@@ -1539,68 +1536,40 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
     assert "Main push CI is the only path that pushes SHA-tagged images" in ci_cd
 
 
-def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
-    """AC8.13.89: PR previews push exact images and wait for frontend/backend versions."""
+def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
+    """AC8.13.89: PR preview follows successful CI and does not build/push PR images."""
     workflow = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     compose = read("docker-compose.yml")
-    preview_compose = read("docker-compose.pr-preview.yml")
     frontend_dockerfile = read("apps/frontend/Dockerfile")
     frontend_version_route = read(
         "apps/frontend/src/app/frontend-version.json/route.ts"
     )
 
-    backend_build_block = workflow.split("  build-preview-backend-image:", 1)[1].split(
-        "  build-preview-frontend-image:", 1
-    )[0]
-    frontend_build_block = workflow.split("  build-preview-frontend-image:", 1)[
-        1
-    ].split("  deploy:", 1)[0]
-    deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     cleanup_block = workflow.split("  cleanup:", 1)[1]
     frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
-    assert "needs: [setup, gate-cheap-ci]" in backend_build_block
-    assert "needs: [setup, gate-cheap-ci]" in frontend_build_block
-    assert (
-        "needs: [setup, build-preview-backend-image, build-preview-frontend-image]"
-        in deploy_block
-    )
-    assert (
-        "PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}"
-        in backend_build_block
-    )
-    assert (
-        "PREVIEW_IMAGE_TAG: pr-${{ needs.setup.outputs.pr_number }}-${{ github.sha }}"
-        in frontend_build_block
-    )
-    for build_block in (backend_build_block, frontend_build_block):
-        assert "packages: write" in build_block
-        assert "Log in to Container registry" in build_block
-        assert "docker/login-action@v3" in build_block
-        assert "Set up Docker Buildx" in build_block
-        assert "push: true" in build_block
-        # Persistent registry-backed layer cache (survives GHA cache eviction).
-        assert "cache-to: type=registry,ref=" in build_block
-        assert ":buildcache,mode=max,ignore-error=true" in build_block
-    assert (
-        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}"
-        in backend_build_block
-    )
-    assert (
-        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}"
-        in frontend_build_block
-    )
-    assert "GIT_COMMIT_SHA=${{ github.sha }}" in backend_build_block
-    assert "GIT_COMMIT_SHA=${{ github.sha }}" in frontend_build_block
-    assert "NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}" in (
-        frontend_build_block
-    )
-    assert "NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}" in (
-        frontend_build_block
-    )
-    assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" in deploy_block
-    assert "docker/build-push-action@v5" not in deploy_block
+    assert "workflow_run:" in workflow
+    assert 'workflows: ["CI"]' in workflow
+    assert "types: [completed]" in workflow
+    assert 'triggering_ci_conclusion == "success"' in workflow
+    assert 'action = "cleanup"' in workflow
+    assert "github.event.workflow_run.pull_requests[0].number" in workflow
+    assert "gate-cheap-ci:" not in workflow
+    assert "tools/wait_for_cheap_ci.py" not in workflow
+    assert "build-preview-backend-image:" not in workflow
+    assert "build-preview-frontend-image:" not in workflow
+    assert "Deploy preview lifecycle" not in workflow
+    assert "Preflight PR preview image tags" not in workflow
+    assert "docker/build-push-action@v5" not in workflow
+    assert "push: true" not in workflow
+    assert "packages: write" not in workflow
+    assert "GIT_COMMIT_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
+    assert "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
+    assert "APP_URL: http://localhost:8080" in e2e_block
+    assert "docker compose up --build" in e2e_block
+    assert "docker compose down --volumes --remove-orphans" in e2e_block
     assert "ARG GIT_COMMIT_SHA=unknown" in frontend_dockerfile
     assert "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" in frontend_dockerfile
     assert "process.env.GIT_COMMIT_SHA" in frontend_version_route
@@ -1613,50 +1582,19 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         )
         == 2
     )
-    assert "Wait for API readiness" in deploy_block
-    assert "Wait for frontend readiness" in deploy_block
-    assert deploy_block.index("Wait for API readiness") < deploy_block.index(
-        "Wait for frontend readiness"
+    assert "Wait for stack readiness" in e2e_block
+    assert "End-to-End Tests" in e2e_block
+    assert e2e_block.index("Wait for stack readiness") < e2e_block.index(
+        "End-to-End Tests"
     )
-    # The deployed preview now smoke-tests (the full E2E runs in the in-runner
-    # `e2e` job); the readiness waits still precede that smoke step.
-    assert deploy_block.index("Wait for frontend readiness") < deploy_block.index(
-        "Smoke Test"
-    )
-    frontend_readiness_block = deploy_block.split(
-        "- name: Wait for frontend readiness", 1
-    )[1].split("- name: Setup E2E Tests", 1)[0]
-    assert "/frontend-version.json?expected=" in frontend_readiness_block
-    assert 'expected_sha = os.environ["EXPECTED_SHA"]' in frontend_readiness_block
-    assert (
-        'payload.get("git_sha") or payload.get("version")' in frontend_readiness_block
-    )
-    assert (
-        '"User-Agent: finance-report-pr-preview-readiness/1.0"'
-        in frontend_readiness_block
-    )
-    assert "subprocess_timeout_seconds = 20" in frontend_readiness_block
-    assert "__FINANCE_REPORT_HTTP_STATUS__" in frontend_readiness_block
-    assert '"Accept: application/json"' in frontend_readiness_block
-    assert "Frontend not ready with expected git_sha" in frontend_readiness_block
-    assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in cleanup_block
-    assert 'startswith(\\"${TAG_PREFIX}\\")' in cleanup_block
-    assert (
-        "PR preview deploy builds and pushes commit-scoped PR backend and frontend images in parallel jobs before invoking Dokploy"
-        in ci_cd
-    )
-    assert "docker-compose.pr-preview.yml" in ci_cd
-    assert "GitHub-source `docker-compose` app" in ci_cd
-    assert "create-time source initialization is required" in ci_cd
-    assert "pull_policy: always" in preview_compose
-    assert "build:" not in preview_compose
-    assert "profiles:" not in preview_compose
-    assert "must not rebuild backend or frontend images on the VPS" in ci_cd
-    assert "does not depend on Dokploy passing `COMPOSE_PROFILES`" in ci_cd
-    assert (
-        "readiness waits for both `/api/health` and `/frontend-version.json?expected=<sha>`"
-        in ci_cd
-    )
+    assert 'curl -fsS "$APP_URL/api/health"' in e2e_block
+    assert "bash tools/smoke_test.sh" in e2e_block
+    assert "No persistent Dokploy URL or PR preview image is created." in e2e_block
+    assert "Delete GHCR images" not in cleanup_block
+    assert "pr_preview_images=not-created" in cleanup_block
+    assert "PR preview follows the matching successful PR `CI` `workflow_run`" in ci_cd
+    assert "does not build, push, preflight, or delete PR preview images" in ci_cd
+    assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
@@ -2159,7 +2097,7 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
 
 
 def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
-    """AC8.13.38: PR preview Dokploy API responses are captured, not logged raw."""
+    """AC8.13.38: PR preview cleanup parses Dokploy responses without raw logs."""
     preview = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
@@ -2167,10 +2105,10 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     assert (
         "PR preview Dokploy API responses are parsed for required fields only" in ci_cd
     )
-    assert "Deploy preview lifecycle" in preview
     assert "Cleanup preview lifecycle" in preview
-    assert "Rollback on E2E Failure" in preview
-    assert "--action delete" in preview
+    assert "Cleanup legacy preview lifecycle" in preview
+    assert "Deploy preview lifecycle" not in preview
+    assert "--action cleanup" in preview
     assert "Response body" not in lifecycle
     assert "raw_body_printed: false" in lifecycle
     assert "safe_message" in lifecycle
@@ -2583,14 +2521,27 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     assert "retention_days=14" in preview_cleanup
     assert "gh pr list --state open" in preview_cleanup
     assert 'owner_type="$(gh api' in preview_cleanup
-    assert 'package_scope_path="/orgs/${{ github.repository_owner }}"' in preview_cleanup
-    assert 'package_scope_path="/users/${{ github.repository_owner }}"' in preview_cleanup
-    assert '"${package_scope_path}/packages/container/${image_name}/versions"' in preview_cleanup
-    assert 'if ! gh api \\' in preview_cleanup
+    assert (
+        'package_scope_path="/orgs/${{ github.repository_owner }}"' in preview_cleanup
+    )
+    assert (
+        'package_scope_path="/users/${{ github.repository_owner }}"' in preview_cleanup
+    )
+    assert (
+        '"${package_scope_path}/packages/container/${image_name}/versions"'
+        in preview_cleanup
+    )
+    assert "if ! gh api \\" in preview_cleanup
     assert "list-failed package_scope=${package_scope_path}" in preview_cleanup
     assert "continue" in preview_cleanup
-    assert 'f"{package_scope_path}/packages/container/{image_name}/versions/{version_id}"' in preview_cleanup
-    assert '"/orgs/${{ github.repository_owner }}/packages/container' not in preview_cleanup
+    assert (
+        'f"{package_scope_path}/packages/container/{image_name}/versions/{version_id}"'
+        in preview_cleanup
+    )
+    assert (
+        '"/orgs/${{ github.repository_owner }}/packages/container'
+        not in preview_cleanup
+    )
     assert 'f"/orgs/{owner}/packages/container' not in preview_cleanup
     assert r"^pr-([1-9][0-9]*)-[0-9a-f]{40}$" in preview_cleanup
     assert "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days" in preview_cleanup
@@ -2598,9 +2549,9 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     assert "VPS_SSH_KEY" not in preview_cleanup
     assert "ssh-keyscan" not in preview_cleanup
 
-    assert "Delete GHCR images" in pr_preview
-    assert 'TAG_PREFIX="pr-${PR_NUMBER}-"' in pr_preview
-    assert 'startswith(\\"${TAG_PREFIX}\\")' in pr_preview
+    assert "Delete GHCR images" not in pr_preview
+    assert "pr_preview_images=not-created" in pr_preview
+    assert "registry_image_push=false" in pr_preview
 
     assert "provider_resource_boundary=isolated-users-provider-gate-only" in staging
     assert "shared mutable user fixtures" in staging
@@ -2809,30 +2760,32 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert "GitHub Step Summary" in ci_cd
 
 
-def test_AC8_13_114_pr_preview_gated_on_cheap_ci() -> None:
-    """AC8.13.114: PR preview build/deploy does not start until ci.yml lint + ac-traceability succeed."""
+def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
+    """AC8.13.114: PR preview starts only from a successful matching CI workflow_run."""
     workflow = read(".github/workflows/pr-test.yml")
-    assert "gate-cheap-ci:" in workflow
-    assert "tools/wait_for_cheap_ci.py" in workflow
-    # check that build backend/frontend jobs need gate-cheap-ci
-    backend_build = workflow.split("  build-preview-backend-image:", 1)[1].split("  build-preview-frontend-image:", 1)[0]
-    frontend_build = workflow.split("  build-preview-frontend-image:", 1)[1].split("  deploy:", 1)[0]
-    assert "needs: [setup, gate-cheap-ci]" in backend_build
-    assert "needs: [setup, gate-cheap-ci]" in frontend_build
-
-    # Verify actions: read permission is present in gate-cheap-ci job
-    gate_cheap_ci_job = workflow.split("  gate-cheap-ci:", 1)[1].split("  build-preview-backend-image:", 1)[0]
-    assert "permissions:" in gate_cheap_ci_job
-    assert "actions: read" in gate_cheap_ci_job
+    assert "workflow_run:" in workflow
+    assert 'workflows: ["CI"]' in workflow
+    assert "types: [completed]" in workflow
+    assert 'triggering_ci_event != "pull_request"' in workflow
+    assert 'triggering_ci_conclusion == "success"' in workflow
+    assert 'action = "deploy"' in workflow
+    assert 'action = "cleanup"' in workflow
+    assert "tools/wait_for_cheap_ci.py" not in workflow
+    assert "gate-cheap-ci:" not in workflow
+    assert "build-preview-backend-image:" not in workflow
+    assert "build-preview-frontend-image:" not in workflow
 
 
 def test_AC8_13_115_readiness_fail_fast() -> None:
-    """AC8.13.115: A deploy that cannot become ready fails within a bounded short window with classified failure domain."""
+    """AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
     workflow = read(".github/workflows/pr-test.yml")
-    assert "consecutive_dokploy_failures >= 8" in workflow
-    assert "consecutive_404_failures >= 15" in workflow
-    assert "Fail-fast: Dokploy worker or deployment record failure occurred consecutively 8 times" in workflow
-    assert "Fail-fast: All three readiness endpoints (/api/health, /api/ping, and frontend version endpoint) returned HTTP 404 consecutively 15 times" in workflow
+    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
+    assert "timeout-minutes: 25" in e2e_block
+    assert "Wait for stack readiness" in e2e_block
+    assert "for i in $(seq 1 60)" in e2e_block
+    assert "stack did not become healthy within 300s" in e2e_block
+    assert "consecutive_dokploy_failures" not in workflow
+    assert "consecutive_404_failures" not in workflow
 
 
 def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
@@ -2840,24 +2793,40 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
     workflow = read(".github/workflows/ci.yml")
 
     # Check that heavy jobs skip on push to main by checking pr_required gate
-    for job in ["schema-migrations:", "backend:", "backend-integration:", "backend-e2e-tier1:", "frontend:", "tooling-coverage:", "unified-coverage:"]:
+    for job in [
+        "schema-migrations:",
+        "backend:",
+        "backend-integration:",
+        "backend-e2e-tier1:",
+        "frontend:",
+        "tooling-coverage:",
+        "unified-coverage:",
+    ]:
         job_block = workflow.split(job, 1)[1].split("\n\n", 1)[0]
         assert "if: needs.changes.outputs.pr_required == 'true'" in job_block
 
     # Check container-images has pr_required gate
-    container_images_block = workflow.split("  container-images:", 1)[1].split("\n\n", 1)[0]
+    container_images_block = workflow.split("  container-images:", 1)[1].split(
+        "\n\n", 1
+    )[0]
     assert "if: needs.changes.outputs.pr_required == 'true'" in container_images_block
 
     # Check finish job handles skipped tests on push via pr_required output
     finish_block = workflow.split("  finish:", 1)[1]
-    assert 'if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then' in finish_block
+    assert (
+        'if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then'
+        in finish_block
+    )
 
 
 def test_AC8_13_117_parameterized_staging_fifo_timeout() -> None:
     """AC8.13.117: Staging FIFO worst-case wait is bounded/parameterized and documented."""
     workflow = read(".github/workflows/staging-deploy.yml")
     assert 'STAGING_FIFO_TIMEOUT_SECONDS: "7200"' in workflow
-    assert "TIMEOUT_SECONDS: ${{ env.STAGING_FIFO_TIMEOUT_SECONDS || '21600' }}" in workflow
+    assert (
+        "TIMEOUT_SECONDS: ${{ env.STAGING_FIFO_TIMEOUT_SECONDS || '21600' }}"
+        in workflow
+    )
     assert '--timeout-seconds "$TIMEOUT_SECONDS"' in workflow
 
 
@@ -2866,14 +2835,16 @@ def test_AC8_13_118_timeouts_and_retries_documented() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
     assert "STAGING_FIFO_TIMEOUT_SECONDS" in ci_cd
     assert "7200 seconds" in ci_cd
-    assert "consecutive Dokploy worker or deployment record failures reach 8" in ci_cd
-    assert "all three readiness endpoints (/api/health, /api/ping, and frontend version endpoint) return HTTP 404 consecutively 15 times" in ci_cd
+    assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
+    assert "caps readiness at 300 seconds" in ci_cd
+    assert "docker compose down --volumes" in ci_cd
     assert "parallel staging" in ci_cd
 
 
 def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
     """Test wait_for_cheap_ci with mock urlopen to get full test coverage."""
     import importlib
+
     importlib.import_module("tools.wait_for_cheap_ci")
     from tools._lib.ci.wait_for_cheap_ci import GitHubActionsClient, main
     import urllib.request
@@ -2885,10 +2856,13 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
         def __init__(self, data: bytes, code: int = 200):
             self.data = data
             self.code = code
+
         def read(self) -> bytes:
             return self.data
+
         def __enter__(self):
             return self
+
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
 
@@ -2898,41 +2872,68 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
             res_data = {
                 "jobs": [
                     {"name": "Lint", "status": "completed", "conclusion": "success"},
-                    {"name": "AC Traceability Check", "status": "completed", "conclusion": "success"},
+                    {
+                        "name": "AC Traceability Check",
+                        "status": "completed",
+                        "conclusion": "success",
+                    },
                 ]
             }
             return MockResponse(json.dumps(res_data).encode("utf-8"))
         elif "runs" in url:
             res_data = {
                 "workflow_runs": [
-                    {"id": 3, "status": "completed", "conclusion": "success", "created_at": "2026-06-08T10:00:00Z"},
-                    {"id": 4, "status": "queued", "conclusion": None, "created_at": "2026-06-08T10:01:00Z"},
+                    {
+                        "id": 3,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "created_at": "2026-06-08T10:00:00Z",
+                    },
+                    {
+                        "id": 4,
+                        "status": "queued",
+                        "conclusion": None,
+                        "created_at": "2026-06-08T10:01:00Z",
+                    },
                 ]
             }
             return MockResponse(json.dumps(res_data).encode("utf-8"))
         return MockResponse(b"{}")
-        
+
     monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
-    
+
     # Test error handling path
     client = GitHubActionsClient(repository="owner/repo", token="tok")
+
     def mock_urlopen_error(request, timeout=None):
         raise urllib.error.HTTPError(
             url=request.full_url,
             code=403,
             msg="Forbidden",
             hdrs=None,
-            fp=BytesIO(b"Forbidden error body")
+            fp=BytesIO(b"Forbidden error body"),
         )
+
     monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen_error)
     try:
         client.get_workflow_runs("abc")
     except RuntimeError as e:
         assert "GitHub API HTTP 403" in str(e)
-        
+
     # Restore normal mock_urlopen
     monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
-    
-    argv = ["--repository", "owner/repo", "--token", "tok", "--commit-sha", "abc123", "--poll-seconds", "1", "--timeout-seconds", "5"]
+
+    argv = [
+        "--repository",
+        "owner/repo",
+        "--token",
+        "tok",
+        "--commit-sha",
+        "abc123",
+        "--poll-seconds",
+        "1",
+        "--timeout-seconds",
+        "5",
+    ]
     res = main(argv)
     assert res == 0

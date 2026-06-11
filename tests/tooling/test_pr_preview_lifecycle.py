@@ -491,9 +491,7 @@ def test_AC8_13_102_existing_record_can_rollout_in_place(
     )
 
     out = capsys.readouterr().out
-    assert (
-        "Dokploy rollout observed as existing deployment record update" in out
-    )
+    assert "Dokploy rollout observed as existing deployment record update" in out
 
 
 def test_AC8_13_102_existing_record_error_fails_before_readiness(
@@ -560,7 +558,7 @@ def test_AC8_13_102_existing_record_error_fails_before_readiness(
                 compose_data["deployments"]
             ),
             timeout_seconds=1,
-    )
+        )
 
     out = capsys.readouterr().out
     assert "existing-deployment-error-attempt-2" in out
@@ -811,7 +809,7 @@ def test_AC8_13_71_preview_compose_project_uses_safe_deterministic_name() -> Non
 
 
 def test_AC8_13_71_preview_image_tag_includes_pr_number_and_commit_sha() -> None:
-    """AC8.13.71: PR preview image tags are commit-specific to avoid stale mutable deploys."""
+    """AC8.13.71: Legacy preview image tags stay commit-specific for cleanup."""
     lifecycle = lifecycle_module()
 
     assert lifecycle.preview_image_tag(591, "abc123") == "pr-591-abc123"
@@ -1590,7 +1588,9 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
     assert "compose.deploy" in rendered_calls
     assert wait_calls == 3
     out = capsys.readouterr().out
-    assert "New PR preview compose still did not create a Dokploy deployment record" in out
+    assert (
+        "New PR preview compose still did not create a Dokploy deployment record" in out
+    )
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "raw_deployment_printed: false" in out
@@ -1800,7 +1800,9 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
     assert "compose.deploy" in rendered_calls
     assert wait_calls == 3
     out = capsys.readouterr().out
-    assert "New PR preview compose still did not create a Dokploy deployment record" in out
+    assert (
+        "New PR preview compose still did not create a Dokploy deployment record" in out
+    )
     assert "platform_failure_domain=dokploy-control-plane-record-missing" in out
     assert "readiness will not start" in out
     assert "new deploy was lost" in out
@@ -1969,54 +1971,28 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
     assert "secret-key" not in rendered_calls
 
 
-def test_AC8_13_100_pr_preview_api_readiness_logs_route_diagnostics() -> None:
-    """AC8.13.100: Readiness logs split frontend, API route, and backend domains."""
+def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> None:
+    """AC8.13.100: Runner preview readiness is bounded and logs stack failures."""
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
-    deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
+    assert "workflow_run:" in workflow
     assert 'PYTHONUNBUFFERED: "1"' in workflow
-    assert "python3 -u - << 'EOF'" in deploy_block
-    assert "timeout-minutes: 12" in deploy_block
-    assert "subprocess.run(" in deploy_block
-    assert '"--max-time"' in deploy_block
-    assert "subprocess_timeout_seconds = 20" in deploy_block
-    assert "__FINANCE_REPORT_HTTP_STATUS__" in deploy_block
-    assert '"Accept: application/json"' in deploy_block
-    assert "route_probe attempt=" in deploy_block
-    assert "app_readiness_classification=" in deploy_block
-    assert "platform_failure_domain=" in deploy_block
-    assert "write_readiness_context(" in deploy_block
-    assert "pr-preview-readiness-context.json" in deploy_block
-    assert '"failure_domain": failure_domain' in deploy_block
-    assert '"last_api_status": str(api_result["status"])' in deploy_block
-    assert '"last_frontend_status": str(frontend_result["status"])' in deploy_block
-    assert "api_content_type=" in deploy_block
-    assert "api_body_bytes=" in deploy_block
-    assert "api_body_prefix=" in deploy_block
-    assert '"body": body,' in deploy_block
-    assert '"body": body[:500]' not in deploy_block
-    assert "repo/tools/dokploy_route_canary.py" in deploy_block
-    assert "frontend-fallback-api-route-missing-or-backend-unhealthy" in deploy_block
-    assert "backend-health-missing-sha" in deploy_block
-    assert "frontend-route-ready-api-route-missing" in deploy_block
-    assert "dokploy-worker-or-deployment-record" in deploy_block
-    assert "traefik-public-route" in deploy_block
-    assert "readiness_timeout_seconds = 600" in deploy_block
-    assert "elapsed_seconds=" in deploy_block
-    assert "ping_status=" in deploy_block
-    assert (
-        "classified_route_failures >= 8 and not route_failure_notice_printed"
-        in deploy_block
-    )
-    assert 'if failure_domain == "traefik-public-route":' in deploy_block
-    assert "route_failure_notice_printed = True" in deploy_block
-    assert (
-        "::notice::API route is still unavailable after frontend served" in deploy_block
-    )
-    assert (
-        "::error::API route stayed unavailable after frontend served"
-        not in deploy_block
-    )
+    assert "timeout-minutes: 25" in e2e_block
+    assert "Wait for stack readiness" in e2e_block
+    assert 'curl -fsS "$APP_URL/api/health"' in e2e_block
+    assert "for i in $(seq 1 60)" in e2e_block
+    assert "stack did not become healthy within 300s" in e2e_block
+    assert "Stack logs on failure" in e2e_block
+    assert "docker compose logs --no-color --tail=400" in e2e_block
+    assert "preview_runtime=github-runner-compose" in e2e_block
+    assert "persistent_preview_url=none" in e2e_block
+    assert "registry_image_push=false" in e2e_block
+    assert "dokploy_deploy=false" in e2e_block
+    assert "route_probe attempt=" not in workflow
+    assert "app_readiness_classification=" not in workflow
+    assert "platform_failure_domain=" not in workflow
+    assert "pr-preview-readiness-context.json" not in workflow
 
 
 def test_AC8_13_100_infra2_route_canary_is_available() -> None:
@@ -2188,8 +2164,7 @@ def test_AC8_13_107_preview_deploy_context_is_written_without_secrets(
         "https://report-pr-591.zitian.party/api/health"
     )
     assert context["frontend_version_url"] == (
-        "https://report-pr-591.zitian.party/"
-        "frontend-version.json?expected=abc123"
+        "https://report-pr-591.zitian.party/frontend-version.json?expected=abc123"
     )
     assert (
         context["backend_image"] == "ghcr.io/owner/finance_report-backend:pr-591-abc123"
@@ -2217,48 +2192,51 @@ def test_AC8_13_107_empty_preview_context_path_is_noop(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_AC8_13_107_pr_preview_workflow_fast_fails_missing_images_and_uploads_context() -> (
+def test_AC8_13_107_pr_preview_workflow_uploads_context_without_image_preflight() -> (
     None
 ):
-    """AC8.13.107: PR preview logs deploy context and checks images before Dokploy."""
+    """AC8.13.107: PR preview uploads context and does not preflight PR images."""
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
-    deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
+    cleanup_block = workflow.split("  cleanup:", 1)[1]
 
-    assert "packages: read" in deploy_block
-    assert "- name: Preflight PR preview image tags" in deploy_block
-    assert "docker buildx imagetools inspect" in deploy_block
-    assert "Both PR preview images are available before Dokploy deploy." in deploy_block
-    assert (
-        "PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json"
-        in deploy_block
-    )
-    assert (
-        "preview_commit_slug=${{ needs.setup.outputs.preview_commit_slug }}"
-        in deploy_block
-    )
-    assert "platform_triage=deploy context JSON" in deploy_block
-    assert "ci-context/" in deploy_block
+    assert "docker/build-push-action@v5" not in workflow
+    assert "- name: Preflight PR preview image tags" not in workflow
+    assert "docker buildx imagetools inspect" not in workflow
+    assert "PR_PREVIEW_CONTEXT_PATH" not in workflow
+    assert "registry_image_push=false" in e2e_block
+    assert "dokploy_deploy=false" in e2e_block
+    assert "preview_runtime=github-runner-compose" in e2e_block
+    assert "pr_preview_images=not-created" in cleanup_block
+    assert "test-results/" in e2e_block
+    assert "ci-context/" in e2e_block
 
 
-def test_AC8_13_101_pr_test_workflow_uses_stable_pr_preview_url() -> None:
-    """AC8.13.101: Readiness and E2E consume the deployed stable preview URL."""
+def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
+    """AC8.13.101: E2E consumes the runner-local preview URL."""
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
-    deploy_block = workflow.split("  deploy:", 1)[1].split("  cleanup:", 1)[0]
+    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
-    assert "preview_commit_app_url: ${{ steps.info.outputs.preview_commit_app_url }}" in workflow
+    assert (
+        "preview_commit_app_url: ${{ steps.info.outputs.preview_commit_app_url }}"
+        in workflow
+    )
     assert "preview_app_url: ${{ steps.info.outputs.preview_app_url }}" in workflow
     assert "preview_commit_app_url" in workflow
     assert "preview_commit_slug" in workflow
-    assert "NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}" in workflow
-    assert "NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}" in workflow
-    assert "- name: Print preview routing context" in deploy_block
-    assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" in deploy_block
-    assert 'context_app_url="${APP_URL}"' in deploy_block
-    assert 'context_app_url="$(read_deploy_context_field app_url)"' in deploy_block
-    assert 'echo "app_url=${context_app_url}"' in deploy_block
-    assert "api_health_url=${context_app_url}/api/health" in (deploy_block)
-    assert deploy_block.count("APP_URL: ${{ steps.deploy.outputs.app_url }}") >= 4
-    assert "https://report-pr-${{ needs.setup.outputs.pr_number }}" not in deploy_block
+    assert (
+        "NEXT_PUBLIC_API_URL=${{ needs.setup.outputs.preview_app_url }}" not in workflow
+    )
+    assert (
+        "NEXT_PUBLIC_APP_URL=${{ needs.setup.outputs.preview_app_url }}" not in workflow
+    )
+    assert "APP_URL: http://localhost:8080" in e2e_block
+    assert "app_url=http://localhost:8080" in e2e_block
+    assert "api_health_url=http://localhost:8080/api/health" in e2e_block
+    assert "persistent_preview_url=none" in e2e_block
+    assert "No persistent Dokploy URL or PR preview image is created." in e2e_block
+    assert "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
+    assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" not in workflow
 
 
 def test_AC8_13_74_reconcile_deletes_only_stale_dokploy_composes(
@@ -2366,10 +2344,11 @@ def test_AC8_13_74_scheduled_cleanup_only_reconciles_closed_prs() -> None:
     assert "ssh-keyscan" not in workflow
 
 
-def test_AC8_13_71_pr_test_workflow_uses_lifecycle_for_delete() -> None:
+def test_AC8_13_71_pr_test_workflow_uses_lifecycle_for_cleanup() -> None:
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
 
-    assert "--action delete" in workflow
+    assert "--action cleanup" in workflow
+    assert "--action delete" not in workflow
     assert "compose.stop" not in workflow
 
 
@@ -2600,7 +2579,7 @@ def test_get_running_deployments_count(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_body = (
         '{"environments": ['
         '  {"compose": [{"composeStatus": "running"}, {"composeStatus": "deploying"}, {"composeStatus": "error"}]}'
-        ']}'
+        "]}"
     )
     monkeypatch.setattr(lifecycle, "dokploy_api_call", lambda *a, **k: fake_body)
     config = lifecycle.DokployConfig("https://cloud.example/api", "secret-key")
@@ -2635,6 +2614,7 @@ def test_wait_for_dokploy_deployment_rollout_extends_deadline(
 
     # get_compose_data returns composeStatus running, but no new deployments yet
     get_compose_data_calls = 0
+
     def fake_get_compose_data(*args, **kwargs):
         nonlocal get_compose_data_calls
         get_compose_data_calls += 1
@@ -2726,12 +2706,12 @@ def test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline(
     assert current_time[0] == 1010.0
 
 
-def test_AC8_13_125_pr_preview_deploy_lifecycle_has_hard_step_timeout() -> None:
-    """AC8.13.125: GitHub caps PR preview deploy lifecycle runtime."""
+def test_AC8_13_125_pr_preview_runner_lifecycle_has_hard_timeout() -> None:
+    """AC8.13.125: GitHub caps PR preview runner lifecycle runtime."""
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
-    deploy_step = workflow.split("      - name: Deploy preview lifecycle", 1)[1].split(
-        "      - name: Print preview routing context", 1
-    )[0]
+    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
-    assert "timeout-minutes: 18" in deploy_step
-    assert 'PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "300"' in deploy_step
+    assert "timeout-minutes: 25" in e2e_block
+    assert "for i in $(seq 1 60)" in e2e_block
+    assert "stack did not become healthy within 300s" in e2e_block
+    assert "docker compose down --volumes --remove-orphans --timeout 30" in e2e_block

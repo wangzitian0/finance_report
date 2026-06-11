@@ -16,7 +16,7 @@
 | **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
-| **4** | **PR Preview** | `report-pr-123.zitian.party` | **Opt-in** (`preview` label / manual)<br>`pr-test.yml` | **Docker Images**<br>(GHCR) | Dedicated Containers<br>(Per PR) | Dedicated DB/Redis/MinIO | Container suffix<br>`-pr-123` |
+| **4** | **PR Preview** | `http://localhost:8080` inside GitHub runner<br>**No persistent Dokploy URL** | Successful PR `CI` `workflow_run`<br>`pr-test.yml` | Runner compose stack<br>(local build, no registry push) | GitHub runner containers<br>(Per run) | Ephemeral Postgres/MinIO | `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>` |
 | **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
 | **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
@@ -78,26 +78,28 @@ before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 PR validation is split into two independent things (issue #839):
 
 **In-runner E2E** — the per-PR validation gate:
-- Runs on every runtime-relevant PR (the `e2e` job in `pr-test.yml`).
+- Runs after the matching PR `CI` workflow completes successfully (the `e2e`
+  job in `pr-test.yml`). Failed, cancelled, timed-out, non-PR, forked, or
+  already-closed CI runs do not create a preview.
 - Stands up the full stack **inside the GitHub runner** via
   `docker compose up --build` (base compose + `docker-compose.ci-e2e.yml`,
   which adds an nginx single-origin edge), runs the non-LLM E2E against
   `http://localhost:8080`, then **always tears the stack down**
   (`docker compose down -v --remove-orphans`) so nothing leaks.
-- **Image-free**: builds locally and pushes nothing; no Dokploy, no shared
-  VPS, no SSL wait. This is what keeps E2E coverage cheap and fast.
+- **Image-free at registry level**: builds locally in the runner and pushes
+  nothing; no PR preview image, no GHCR tag, no Dokploy deploy, no shared VPS,
+  and no SSL wait. This is what keeps E2E coverage cheap and fast.
+- **No persistent Dokploy URL**: the workflow comments the validation result on
+  the PR instead of publishing a click-through preview URL.
 
-**PR Preview (Dokploy)** — per-PR deployed environment:
-- Deployed for every runtime-relevant PR (dedicated DB/Redis/MinIO per PR), so
-  there is always a real, isolated environment to click and manually test.
-- Runs a **smoke test only** (`tools/smoke_test.sh` against the deployed URL) —
-  it validates that the real per-PR deployment came up. The full runtime/API/UI
-  E2E is the in-runner job above, so the preview does not re-run it.
-- **Non-blocking**: a deploy/smoke failure does not block merge (the merge gate
-  is `finish` + the in-runner E2E); the result is reported as a PR comment.
-- Deploys to Dokploy with unique URLs (`report-pr-123.zitian.party`)
-- **Ephemeral**: Destroyed when PR closes
-- Isolation: Container name suffix `-pr-123`
+**Legacy PR Preview (Dokploy)** — cleanup-only compatibility:
+- Historical PR previews may still exist from the former Dokploy flow. The
+  current workflow removes those resources on PR close/merge, failed CI,
+  cancelled CI, timed-out CI, and before a new successful runner preview.
+- Cleanup uses `tools/pr_preview_lifecycle.py --action cleanup`, is idempotent,
+  and does not build, push, preflight, or delete PR preview images.
+- Scheduled `PR Preview Cleanup` remains as bounded reconciliation for stale
+  historical Dokploy resources.
 
 ### Production Environments (Staging + Production)
 
@@ -122,7 +124,7 @@ PR validation is split into two independent things (issue #839):
 | **Local Dev** | `finance-report-backend` | `finance-report-frontend` | `finance_report` | `statements` |
 | **Local CI** | *(uses Local Dev containers)* | *(uses Local Dev containers)* | `finance_report_test_{namespace}` | `statements-{namespace}` |
 | **GitHub CI** | *(GitHub Services)* | *(N/A)* | `finance_report_test` | `statements` (mock) |
-| **PR Preview** | Dokploy compose-scoped backend service | Dokploy compose-scoped frontend service | `postgres` service DNS | `minio` service DNS |
+| **PR Preview** | Runner compose backend service | Runner compose frontend service | `postgres` service DNS | `minio` service DNS |
 | **Staging** | `finance-report-backend-staging` | `finance-report-frontend-staging` | `finance-report-db-staging` | `finance-report-staging` |
 | **Production** | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-production` |
 
