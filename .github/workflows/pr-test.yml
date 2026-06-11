@@ -7,9 +7,7 @@ name: PR Test Environment
 
 on:
   pull_request:
-    # `labeled` lets the opt-in `preview` label spin up a preview without a
-    # re-push (issue #839); the preview jobs still gate on preview_opt_in.
-    types: [opened, synchronize, reopened, closed, labeled]
+    types: [opened, synchronize, reopened, closed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -53,10 +51,6 @@ jobs:
       preview_commit_slug: ${{ steps.info.outputs.preview_commit_slug }}
       pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}
       pr_preview_reason: ${{ steps.preview_gate.outputs.pr_preview_reason }}
-      # Opt-in gate (issue #839): previews are OFF by default. Enable per-PR with
-      # the `preview` label, or via manual workflow_dispatch. Authoritative
-      # deployment validation is post-merge (Staging), not every PR commit.
-      preview_opt_in: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'preview') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -247,7 +241,7 @@ jobs:
 
   gate-cheap-ci:
     name: Gate on Cheap CI
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: setup
     runs-on: ubuntu-latest
     permissions:
@@ -267,7 +261,7 @@ jobs:
 
   build-preview-backend-image:
     name: Build Backend PR Preview Image
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: [setup, gate-cheap-ci]
     runs-on: ubuntu-latest
     env:
@@ -308,7 +302,7 @@ jobs:
 
   build-preview-frontend-image:
     name: Build Frontend PR Preview Image
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: [setup, gate-cheap-ci]
     runs-on: ubuntu-latest
     env:
@@ -351,7 +345,7 @@ jobs:
 
   deploy:
     name: Deploy Test Environment
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
     needs: [setup, build-preview-backend-image, build-preview-frontend-image]
     runs-on: ubuntu-latest
     permissions:
@@ -836,34 +830,21 @@ jobs:
           mkdir -p tmp/fixtures
           python tools/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
 
-      - name: End-to-End Tests
+      - name: Smoke Test
         id: e2e_tests
         continue-on-error: true
         env:
           APP_URL: ${{ steps.deploy.outputs.app_url }}
           TEST_ENV: staging
-          SKIP_UI_TESTS: false
           EXPECTED_SHA: ${{ github.sha }}
-          TIMEOUT_MS: 60000
-          E2E_API_TIMEOUT: 30
-          STRICT_E2E_GATES: true
-          RUN_MARKET_DATA_PROVIDER_E2E: true
-          MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
-          echo "🚀 Starting E2E Pipeline for $APP_URL"
+          echo "🔎 Smoke-checking deployed preview at $APP_URL"
           mkdir -p test-results
-
-          echo "--- Phase 1: Smoke Check (Shell) ---"
+          # The deployed preview only smoke-checks that the real, independently
+          # provisioned per-PR environment came up. The full runtime/API/UI E2E
+          # runs image-free in the `e2e` job (in-runner). See issue #839.
           bash tools/smoke_test.sh "$APP_URL" staging
-
-          echo "--- Phase 2: Preview-Relevant Runtime/API/UI Validation (Python, no real AI/OCR) ---"
-          PR_PREVIEW_E2E_TESTS=(
-            tests/e2e/test_core_journeys.py
-            tests/e2e/test_e2e_flows.py::test_full_navigation
-          )
-          pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/pr-preview-e2e.xml
-
-          echo "✅ E2E Pipeline passed!"
+          echo "✅ Preview smoke passed!"
 
       - name: Capture platform failure snapshot
         if: ${{ always() && steps.deploy.outputs.compose_id != '' && (steps.deploy.outcome == 'failure' || steps.api_ready.outcome == 'failure' || steps.frontend_ready.outcome == 'failure' || steps.e2e_tests.outcome == 'failure') }}

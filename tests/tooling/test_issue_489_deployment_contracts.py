@@ -342,38 +342,36 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "dashboard" in hard_gate.lower()
 
 
-def test_pr_preview_deploy_is_opt_in() -> None:
-    """Issue #839: PR preview build/deploy is opt-in, not a per-PR gate.
+def test_pr_preview_deploys_per_pr_and_smokes_only() -> None:
+    """Issue #839: the Dokploy preview is a per-PR environment, not opt-in.
 
-    Default PRs must not build images or deploy to Dokploy; a preview is only
-    produced on manual dispatch or when the PR carries the ``preview`` label.
-    Authoritative deployment validation is post-merge (Staging).
+    It deploys for every runtime-relevant PR (dedicated DB per PR) and only
+    SMOKE-tests the deployed environment — the full runtime/API/UI E2E is the
+    in-runner ``e2e`` job, so the preview does not re-run it.
     """
     workflow = load_yaml(".github/workflows/pr-test.yml")
     jobs = workflow["jobs"]
 
-    opt_in = jobs["setup"]["outputs"]["preview_opt_in"]
-    assert "workflow_dispatch" in opt_in
-    assert "labels" in opt_in and "preview" in opt_in
+    # The opt-in gate is gone entirely.
+    assert "preview_opt_in" not in yaml.safe_dump(workflow)
 
-    gated_jobs = (
-        "gate-cheap-ci",
-        "build-preview-backend-image",
-        "build-preview-frontend-image",
-        "deploy",
-    )
-    for job in gated_jobs:
+    # Build + deploy run on every runtime PR (gated only on pr_preview_required).
+    for job in ("build-preview-backend-image", "build-preview-frontend-image", "deploy"):
         condition = jobs[job]["if"]
-        assert (
-            "preview_opt_in == 'true'" in condition
-        ), f"{job} must require preview opt-in"
+        assert "action == 'deploy'" in condition
+        assert "pr_preview_required == 'true'" in condition
+        assert "preview_opt_in" not in condition
 
-    # Teardown on PR close must stay ungated so a deployed preview is cleaned up.
-    assert "preview_opt_in" not in jobs["cleanup"]["if"]
+    # The deployed preview only smoke-checks; the heavy pytest E2E lives in the
+    # in-runner job, not here.
+    deploy_blob = yaml.safe_dump(jobs["deploy"])
+    assert "smoke_test.sh" in deploy_blob
+    assert "pytest" not in deploy_blob
+    assert "test_core_journeys" not in deploy_blob
 
     env_doc = read("docs/ssot/environments.md")
-    assert "Opt-in" in env_doc
-    assert "`preview` label" in env_doc
+    assert "smoke test only" in env_doc.lower()
+    assert "dedicated db" in env_doc.lower()
 
 
 def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:

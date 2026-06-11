@@ -87,14 +87,16 @@ PR validation is split into two independent things (issue #839):
 - **Image-free**: builds locally and pushes nothing; no Dokploy, no shared
   VPS, no SSL wait. This is what keeps E2E coverage cheap and fast.
 
-**PR Preview (Dokploy)** — opt-in human-inspection environment:
-- **Opt-in**: off by default; enable per-PR with the `preview` label or manual
-  `workflow_dispatch`. Authoritative deployment validation is post-merge
-  (Staging); the preview is for clicking/manual testing, not a gate.
-- **Builds Docker images** from PR branch (only when opted in)
+**PR Preview (Dokploy)** — per-PR deployed environment:
+- Deployed for every runtime-relevant PR (dedicated DB/Redis/MinIO per PR), so
+  there is always a real, isolated environment to click and manually test.
+- Runs a **smoke test only** (`tools/smoke_test.sh` against the deployed URL) —
+  it validates that the real per-PR deployment came up. The full runtime/API/UI
+  E2E is the in-runner job above, so the preview does not re-run it.
+- **Non-blocking**: a deploy/smoke failure does not block merge (the merge gate
+  is `finish` + the in-runner E2E); the result is reported as a PR comment.
 - Deploys to Dokploy with unique URLs (`report-pr-123.zitian.party`)
 - **Ephemeral**: Destroyed when PR closes
-- Database/Redis/MinIO: Dedicated per-PR instances
 - Isolation: Container name suffix `-pr-123`
 
 ### Production Environments (Staging + Production)
