@@ -52,6 +52,7 @@ from src.services.statement_posting import (
     is_high_confidence_auto_approve_candidate,
     try_auto_approve_high_confidence_statement,
 )
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 from tests.factories import AccountFactory, UserFactory
 
 pytestmark = pytest.mark.asyncio
@@ -1900,16 +1901,14 @@ async def test_approve_statement_stage1_promotes_existing_statement_entries_with
     db.add(txn)
     await db.flush()
 
-    existing_entry = JournalEntry(
-        user_id=test_user.id,
+    existing_entry = await create_valid_posted_entry(
+        db,
+        test_user.id,
         entry_date=txn.txn_date,
         memo="Existing parsed entry",
         source_type=JournalEntrySourceType.AUTO_PARSED,
         source_id=txn.id,
-        status=JournalEntryStatus.POSTED,
     )
-    db.add(existing_entry)
-    await db.commit()
 
     result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
 
@@ -2386,15 +2385,13 @@ async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, te
     db.add(txn)
     await db.flush()
 
-    transfer_entry = JournalEntry(
-        user_id=test_user.id,
+    transfer_entry = await create_valid_posted_entry(
+        db,
+        test_user.id,
         entry_date=date(2025, 1, 4),
         memo="Transfer OUT via processing account",
         source_type=JournalEntrySourceType.SYSTEM,
-        status=JournalEntryStatus.POSTED,
     )
-    db.add(transfer_entry)
-    await db.flush()
 
     db.add(
         ReconciliationMatch(
@@ -2438,15 +2435,13 @@ async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(
     db.add(txn)
     await db.flush()
 
-    stale_entry = JournalEntry(
-        user_id=test_user.id,
+    stale_entry = await create_valid_posted_entry(
+        db,
+        test_user.id,
         entry_date=date(2025, 1, 4),
         memo="Stale candidate",
         source_type=JournalEntrySourceType.SYSTEM,
-        status=JournalEntryStatus.POSTED,
     )
-    db.add(stale_entry)
-    await db.flush()
 
     db.add(
         ReconciliationMatch(

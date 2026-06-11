@@ -569,6 +569,7 @@ async def test_AC19_5_7_package_readiness_converts_processing_balance_before_zer
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.000000"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -606,6 +607,12 @@ async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_f
         currency="SGD",
         is_system=True,
     )
+    offset_account = Account(
+        user_id=test_user.id,
+        name="Processing Offset",
+        type=AccountType.EQUITY,
+        currency="USD",
+    )
     entry = JournalEntry(
         user_id=test_user.id,
         entry_date=date(2026, 5, 3),
@@ -613,16 +620,27 @@ async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_f
         source_type=JournalEntrySourceType.SYSTEM,
         status=JournalEntryStatus.POSTED,
     )
-    db.add_all([processing_account, entry])
+    db.add_all([processing_account, offset_account, entry])
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=processing_account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("25.00"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=processing_account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("25.00"),
+                currency="USD",
+                fx_rate=Decimal("1.000000"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=offset_account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("25.00"),
+                currency="USD",
+                fx_rate=Decimal("1.000000"),
+            ),
+        ]
     )
     await db.flush()
 
@@ -870,8 +888,9 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     bank = Account(user_id=test_user.id, name="Trace Bank", type=AccountType.ASSET, currency="SGD")
     income = Account(user_id=test_user.id, name="Trace Salary", type=AccountType.INCOME, currency="SGD")
     investment = Account(user_id=test_user.id, name="Trace Brokerage", type=AccountType.ASSET, currency="SGD")
+    other_bank = Account(user_id=other_user.id, name="Other Bank", type=AccountType.ASSET, currency="SGD")
     other_income = Account(user_id=other_user.id, name="Other Income", type=AccountType.INCOME, currency="SGD")
-    db.add_all([bank, income, investment, other_income])
+    db.add_all([bank, income, investment, other_bank, other_income])
     await db.flush()
 
     document = UploadedDocument(
@@ -943,6 +962,13 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
                 journal_entry_id=entry.id,
                 account_id=income.id,
                 direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=other_entry.id,
+                account_id=other_bank.id,
+                direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="SGD",
             ),

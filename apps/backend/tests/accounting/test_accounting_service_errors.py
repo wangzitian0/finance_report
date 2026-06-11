@@ -34,6 +34,7 @@ from src.services.accounting import (
     verify_accounting_equation,
     void_journal_entry,
 )
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
 @pytest.fixture
@@ -135,17 +136,7 @@ async def test_void_journal_entry_errors(db: AsyncSession, test_user_id):
         await void_journal_entry(db, uuid4(), "reason", test_user_id)
 
     other_user_id = uuid4()
-    entry = JournalEntry(
-        user_id=other_user_id,
-        entry_date=date.today(),
-        memo="Other user entry",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.commit()
-    # Use select instead of refresh to avoid greenlet issues in some environments
-    result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry.id))
-    entry = result.scalar_one()
+    entry = await create_valid_posted_entry(db, other_user_id, memo="Other user entry")
 
     with pytest.raises(ValidationError, match="does not belong to user"):
         await void_journal_entry(db, entry.id, "reason", test_user_id)
@@ -418,14 +409,7 @@ async def test_accounting_more_errors(db: AsyncSession, test_user_id):
             ]
         )
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        status=JournalEntryStatus.POSTED,
-        entry_date=date.today(),
-        memo="Posted Entry",
-    )
-    db.add(entry)
-    await db.commit()
+    entry = await create_valid_posted_entry(db, test_user_id, memo="Posted Entry")
     with pytest.raises(ValidationError, match="Can only post draft entries"):
         await post_journal_entry(db, entry.id, test_user_id)
 

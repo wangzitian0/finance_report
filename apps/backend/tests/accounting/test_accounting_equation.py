@@ -16,6 +16,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -135,9 +136,9 @@ async def test_accounting_equation_violation_detected(
     """
     CRITICAL #1: Verify that accounting equation violations are detected.
 
-    This test intentionally creates an imbalanced state by directly
-    manipulating the database (bypassing validation) to verify that
-    verify_accounting_equation() correctly returns False.
+    This test intentionally attempts an imbalanced direct database write.
+    The database now rejects the dirty posted state before it can affect
+    verify_accounting_equation().
     """
     # Create a valid balanced entry first: Salary income
     entry = JournalEntry(
@@ -174,7 +175,7 @@ async def test_accounting_equation_violation_detected(
     # First verify equation holds with balanced data
     assert await verify_accounting_equation(db, test_user_id) is True
 
-    # Now create an UNBALANCED entry by directly inserting (bypass validation)
+    # Now attempt an UNBALANCED entry by directly inserting (bypass validation).
     bad_entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date.today(),
@@ -185,22 +186,30 @@ async def test_accounting_equation_violation_detected(
     db.add(bad_entry)
     await db.flush()
 
-    # Only add DEBIT line without matching CREDIT - this creates imbalance
-    db.add(
-        JournalLine(
-            journal_entry_id=bad_entry.id,
-            account_id=asset_account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("1000.00"),
-            currency="SGD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=bad_entry.id,
+                account_id=asset_account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=bad_entry.id,
+                account_id=income_account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("999.00"),
+                currency="SGD",
+            ),
+        ]
     )
-    await db.commit()
 
-    # Now the equation should NOT hold
-    result = await verify_accounting_equation(db, test_user_id)
-    # Assets increased by 1000 without corresponding increase on right side
-    assert result is False, "Accounting equation should detect imbalance"
+    with pytest.raises(IntegrityError):
+        await db.commit()
+    await db.rollback()
+
+    assert await verify_accounting_equation(db, test_user_id) is True
 
 
 @pytest.mark.asyncio

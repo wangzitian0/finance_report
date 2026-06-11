@@ -25,6 +25,7 @@ from src.models import (
     JournalLine,
 )
 from src.models.statement_summary import StatementSummary
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
 @pytest.mark.asyncio
@@ -104,16 +105,7 @@ async def test_delete_draft_journal_entry(client: AsyncClient, db: AsyncSession,
 @pytest.mark.asyncio
 async def test_delete_posted_journal_entry_fails(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create posted
-    entry = JournalEntry(
-        user_id=test_user.id,
-        entry_date=date.today(),
-        memo="Posted",
-        source_type="manual",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.commit()
-    await db.refresh(entry)
+    entry = await create_valid_posted_entry(db, test_user.id, memo="Posted")
 
     # 2. Delete
     resp = await client.delete(f"/journal-entries/{entry.id}")

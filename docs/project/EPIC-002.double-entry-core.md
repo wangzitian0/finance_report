@@ -213,6 +213,16 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.13.2 | Posting validates that every line account belongs to the entry owner | `test_AC2_13_2_post_journal_entry_rejects_cross_user_account()` | `accounting/test_accounting_integration.py` | P0 |
 | AC2.13.3 | Balance aggregation requires account and entry ownership to match | `test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers()` | `accounting/test_accounting_integration.py` | P0 |
 
+### AC2.14: Database Ledger Invariant Floor
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.14.1 | PostgreSQL rejects posted/reconciled entries with fewer than two lines even when service validation is bypassed | `test_AC2_14_1_posted_entry_requires_two_lines_at_database_boundary()` | `accounting/test_ledger_schema_invariants.py` | P0 |
+| AC2.14.2 | PostgreSQL rejects posted/reconciled entries whose debits and credits do not balance after base-currency conversion | `test_AC2_14_2_posted_entry_must_balance_in_base_currency()` | `accounting/test_ledger_schema_invariants.py` | P0 |
+| AC2.14.3 | PostgreSQL rejects posted/reconciled non-base-currency lines without a positive FX rate | `test_AC2_14_3_non_base_posted_lines_require_positive_fx_rate()` | `accounting/test_ledger_schema_invariants.py` | P0 |
+| AC2.14.4 | PostgreSQL blocks direct update/delete of posted/reconciled entries and lines while draft entries remain editable | `test_AC2_14_4_posted_entries_and_lines_are_immutable_but_drafts_are_editable()` | `accounting/test_ledger_schema_invariants.py` | P0 |
+| AC2.14.5 | Voiding a posted entry preserves a non-null immutable reversal relationship instead of deleting or editing posted lines | `test_AC2_14_5_void_transition_requires_reversal_relationship()` | `accounting/test_ledger_schema_invariants.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC2.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.

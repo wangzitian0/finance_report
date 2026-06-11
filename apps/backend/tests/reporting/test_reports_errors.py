@@ -9,11 +9,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import (
-    JournalEntry,
-    JournalEntryStatus,
-)
 from src.services.reporting import ReportError
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
 @pytest.mark.asyncio
@@ -130,16 +127,7 @@ async def test_journal_router_coverage_errors(client: AsyncClient, db: AsyncSess
     assert resp.status_code == 404
 
     # 5. Delete non-draft
-    entry = JournalEntry(
-        user_id=test_user.id,
-        entry_date=date.today(),
-        memo="Posted",
-        source_type="manual",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.commit()
-    await db.refresh(entry)
+    entry = await create_valid_posted_entry(db, test_user.id, entry_date=date.today(), memo="Posted")
 
     resp = await client.delete(f"/journal-entries/{entry.id}")
     assert resp.status_code == 400

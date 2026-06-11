@@ -58,6 +58,7 @@ async def test_reporting_extreme_fallbacks_failure_reporting(db: AsyncSession, t
                 direction=Direction.DEBIT,
                 amount=Decimal("100"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -65,6 +66,7 @@ async def test_reporting_extreme_fallbacks_failure_reporting(db: AsyncSession, t
                 direction=Direction.CREDIT,
                 amount=Decimal("100"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )
@@ -131,6 +133,7 @@ async def test_reporting_monthly_avg_fallback_coverage(db: AsyncSession, test_us
                 direction=Direction.DEBIT,
                 amount=Decimal("100"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -138,6 +141,7 @@ async def test_reporting_monthly_avg_fallback_coverage(db: AsyncSession, test_us
                 direction=Direction.CREDIT,
                 amount=Decimal("100"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
         ]
     )
@@ -154,9 +158,11 @@ async def test_reporting_cash_flow_account_lookup_coverage(db: AsyncSession, tes
     from src.services.reporting import generate_cash_flow
 
     acc = Account(user_id=test_user_id, name="Bank Cash", type=AccountType.ASSET, currency="SGD")
-    db.add(acc)
+    offset = Account(user_id=test_user_id, name="Owner Equity", type=AccountType.EQUITY, currency="SGD")
+    db.add_all([acc, offset])
     await db.commit()
     await db.refresh(acc)
+    await db.refresh(offset)
 
     entry = JournalEntry(
         user_id=test_user_id,
@@ -166,14 +172,23 @@ async def test_reporting_cash_flow_account_lookup_coverage(db: AsyncSession, tes
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=acc.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("100"),
-            currency="SGD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=acc.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=offset.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="SGD",
+            ),
+        ]
     )
     await db.commit()
 
@@ -184,21 +199,33 @@ async def test_reporting_cash_flow_account_lookup_coverage(db: AsyncSession, tes
 async def test_net_income_sql_raises_when_fx_rate_missing(db: AsyncSession, test_user_id):
     """AC5.6.7: Net income FX aggregation raises when source FX rates are unavailable."""
     account = Account(user_id=test_user_id, name="USD Income", type=AccountType.INCOME, currency="USD")
-    db.add(account)
+    asset = Account(user_id=test_user_id, name="USD Cash", type=AccountType.ASSET, currency="USD")
+    db.add_all([account, asset])
     await db.flush()
     entry = JournalEntry(
         user_id=test_user_id, entry_date=date(2025, 2, 1), memo="income", status=JournalEntryStatus.POSTED
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("20"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=asset.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("20"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("20"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -255,6 +282,7 @@ async def test_net_income_sql_uses_period_average_rate(db: AsyncSession, test_us
                 direction=Direction.DEBIT,
                 amount=Decimal("100"),
                 currency="USD",
+                fx_rate=Decimal("1.40"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -262,6 +290,7 @@ async def test_net_income_sql_uses_period_average_rate(db: AsyncSession, test_us
                 direction=Direction.CREDIT,
                 amount=Decimal("100"),
                 currency="USD",
+                fx_rate=Decimal("1.40"),
             ),
         ]
     )
@@ -316,19 +345,31 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
 async def test_account_trend_raises_when_prefetched_rate_missing(db: AsyncSession, test_user_id):
     """AC5.6.8: Account trend raises when prefetched non-base FX rate is missing."""
     account = Account(user_id=test_user_id, name="USD Trend", type=AccountType.ASSET, currency="USD")
-    db.add(account)
+    offset = Account(user_id=test_user_id, name="USD Equity", type=AccountType.EQUITY, currency="USD")
+    db.add_all([account, offset])
     await db.flush()
     entry = JournalEntry(user_id=test_user_id, entry_date=date.today(), memo="trend", status=JournalEntryStatus.POSTED)
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("5"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=offset.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -360,6 +401,7 @@ async def test_category_breakdown_raises_when_prefetched_rate_missing(db: AsyncS
                 direction=Direction.DEBIT,
                 amount=Decimal("7"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -367,6 +409,7 @@ async def test_category_breakdown_raises_when_prefetched_rate_missing(db: AsyncS
                 direction=Direction.CREDIT,
                 amount=Decimal("7"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )
@@ -406,6 +449,7 @@ async def test_cash_flow_raises_when_start_date_rate_missing(db: AsyncSession, t
                 direction=Direction.DEBIT,
                 amount=Decimal("10"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -413,6 +457,7 @@ async def test_cash_flow_raises_when_start_date_rate_missing(db: AsyncSession, t
                 direction=Direction.CREDIT,
                 amount=Decimal("10"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )
@@ -448,6 +493,7 @@ async def test_cash_flow_raises_when_end_date_rate_missing(db: AsyncSession, tes
                 direction=Direction.DEBIT,
                 amount=Decimal("12"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -455,6 +501,7 @@ async def test_cash_flow_raises_when_end_date_rate_missing(db: AsyncSession, tes
                 direction=Direction.CREDIT,
                 amount=Decimal("12"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )

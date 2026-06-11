@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -25,6 +25,7 @@ async def _create_historical_statement_entry(
     db: AsyncSession,
     *,
     user_id,
+    entry_source_id: UUID | None = None,
 ) -> tuple[UploadedDocument, AtomicTransaction, JournalEntry, JournalLine]:
     """Build a deduped lineage: UploadedDocument -> AtomicTransaction -> JournalEntry/lines."""
     bank = Account(user_id=user_id, name=f"Lazy Bank {uuid4()}", type=AccountType.ASSET, currency="SGD")
@@ -46,7 +47,7 @@ async def _create_historical_statement_entry(
     txn_date = date(2026, 5, 1)
     amount = Decimal("42.00")
     description = "Historical income"
-    reference = "LZ-1"
+    reference = f"LZ-{uuid4().hex[:8]}"
     dedup_hash = DeduplicationService.calculate_transaction_hash(
         user_id,
         txn_date,
@@ -55,7 +56,10 @@ async def _create_historical_statement_entry(
         description,
         reference,
     )
+    atomic_id = uuid4()
+    source_id = entry_source_id or atomic_id
     atomic = AtomicTransaction(
+        id=atomic_id,
         user_id=user_id,
         txn_date=txn_date,
         amount=amount,
@@ -71,12 +75,10 @@ async def _create_historical_statement_entry(
         entry_date=txn_date,
         memo="Historical posted income",
         source_type=JournalEntrySourceType.USER_CONFIRMED,
-        source_id=None,
+        source_id=source_id,
         status=JournalEntryStatus.POSTED,
     )
     db.add_all([atomic, entry])
-    await db.flush()
-    entry.source_id = atomic.id
     await db.flush()
     debit = JournalLine(
         journal_entry_id=entry.id,
@@ -250,13 +252,16 @@ async def test_AC18_10_7_materialization_caps_and_unknown_sources_return_blocker
     assert [blocker.code for blocker in capped.blockers] == ["materialization_write_cap_reached"]
     assert await _graph_counts(db) == (0, 0)
 
-    entry.source_id = uuid4()
-    await db.flush()
+    _, _, _, unknown_line = await _create_historical_statement_entry(
+        db,
+        user_id=test_user.id,
+        entry_source_id=uuid4(),
+    )
     unknown = await service.materialize_for_entity(
         db,
         user_id=test_user.id,
         entity_type="journal_line",
-        entity_id=line.id,
+        entity_id=unknown_line.id,
         node_kind="ledger_line",
     )
 

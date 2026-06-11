@@ -13,6 +13,7 @@ import pytest
 from src.models.account import Account, AccountType
 from src.models.journal import JournalEntry, JournalEntryStatus
 from src.services.accounting import ValidationError
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
 @pytest.mark.asyncio
@@ -117,22 +118,7 @@ class TestJournalRouterErrors:
         WHEN attempting to delete it
         THEN it should return 400 error
         """
-        # Create accounts
-        cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="USD")
-        revenue = Account(user_id=test_user.id, name="Revenue", type=AccountType.INCOME, currency="USD")
-        db.add_all([cash, revenue])
-        await db.flush()
-
-        # Create a posted entry
-        entry = JournalEntry(
-            user_id=test_user.id,
-            entry_date=date.today(),
-            memo="Posted entry",
-            status=JournalEntryStatus.POSTED,
-        )
-        db.add(entry)
-        await db.commit()
-        await db.refresh(entry)
+        entry = await create_valid_posted_entry(db, test_user.id, memo="Posted entry")
 
         response = await client.delete(f"/journal-entries/{entry.id}")
         assert response.status_code == 400

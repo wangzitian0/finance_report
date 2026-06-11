@@ -97,6 +97,7 @@ async def test_fx_unrealized_gain_calculation(db: AsyncSession, multi_currency_a
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -143,6 +144,7 @@ async def test_income_statement_comprehensive_income(db: AsyncSession, multi_cur
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
             JournalLine(
                 journal_entry_id=entry1.id,
@@ -231,6 +233,7 @@ async def test_fx_liability_inversion(db: AsyncSession, multi_currency_accounts,
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
         ]
     )
@@ -294,6 +297,7 @@ async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accou
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -301,6 +305,7 @@ async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accou
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="EUR",
+                fx_rate=Decimal("1.50"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -383,6 +388,7 @@ async def test_historical_vs_average_discrepancy_bridge(db: AsyncSession, multi_
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.40"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -390,6 +396,7 @@ async def test_historical_vs_average_discrepancy_bridge(db: AsyncSession, multi_
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.40"),
             ),
         ]
     )
@@ -452,6 +459,7 @@ async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts,
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.50"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -459,6 +467,7 @@ async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts,
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.50"),
             ),
         ]
     )
@@ -676,6 +685,7 @@ async def test_reporting_fx_extreme_fallbacks(db: AsyncSession, multi_currency_a
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -683,6 +693,7 @@ async def test_reporting_fx_extreme_fallbacks(db: AsyncSession, multi_currency_a
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )
@@ -837,7 +848,7 @@ async def test_reporting_remaining_branches(db: AsyncSession, multi_currency_acc
 @pytest.mark.asyncio
 async def test_reporting_cash_flow_before_fx_error(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow error when FX fails for 'before' period balances."""
-    _, usd_savings, *_ = multi_currency_accounts
+    _, usd_savings, capital, *_ = multi_currency_accounts
 
     # Entry BEFORE start_date
     entry = JournalEntry(
@@ -848,14 +859,25 @@ async def test_reporting_cash_flow_before_fx_error(db: AsyncSession, multi_curre
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=usd_savings.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("100"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_savings.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=capital.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -867,7 +889,7 @@ async def test_reporting_cash_flow_before_fx_error(db: AsyncSession, multi_curre
 @pytest.mark.asyncio
 async def test_reporting_cash_flow_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow error handling for FX conversion."""
-    sgd_bank, usd_savings, *_ = multi_currency_accounts
+    sgd_bank, usd_savings, capital, *_ = multi_currency_accounts
     sgd_bank.name = "Bank account"
 
     # No rates in DB
@@ -879,14 +901,25 @@ async def test_reporting_cash_flow_fx_error_handling(db: AsyncSession, multi_cur
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=usd_savings.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("100"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_savings.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=capital.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -897,7 +930,7 @@ async def test_reporting_cash_flow_fx_error_handling(db: AsyncSession, multi_cur
 @pytest.mark.asyncio
 async def test_reporting_breakdown_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test breakdown error handling for FX conversion."""
-    _, _, _, salary, _ = multi_currency_accounts
+    sgd_cash, _, _, salary, _ = multi_currency_accounts
 
     # No rates in DB
     entry = JournalEntry(
@@ -908,14 +941,25 @@ async def test_reporting_breakdown_fx_error_handling(db: AsyncSession, multi_cur
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=salary.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("100"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=sgd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -926,7 +970,7 @@ async def test_reporting_breakdown_fx_error_handling(db: AsyncSession, multi_cur
 @pytest.mark.asyncio
 async def test_reporting_trend_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test trend error handling for FX conversion."""
-    _, usd_savings, *_ = multi_currency_accounts
+    _, usd_savings, capital, *_ = multi_currency_accounts
 
     # No rates in DB
     entry = JournalEntry(
@@ -937,14 +981,25 @@ async def test_reporting_trend_fx_error_handling(db: AsyncSession, multi_currenc
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=usd_savings.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("100"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_savings.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=capital.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -957,7 +1012,7 @@ async def test_reporting_income_statement_period_fx_fallback_to_spot(
     db: AsyncSession, multi_currency_accounts, test_user_id
 ):
     """Test IS fallback from average rate to spot rate when average rate is missing."""
-    _, _, _, salary, _ = multi_currency_accounts
+    sgd_cash, _, _, salary, _ = multi_currency_accounts
 
     # Rate only at end_date
     db.add(
@@ -979,14 +1034,25 @@ async def test_reporting_income_statement_period_fx_fallback_to_spot(
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=salary.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("100"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=sgd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.50"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=salary.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100"),
+                currency="USD",
+                fx_rate=Decimal("1.50"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -1034,6 +1100,7 @@ async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_curr
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
             JournalLine(
                 journal_entry_id=income_entry.id,
@@ -1041,6 +1108,7 @@ async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_curr
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
         ]
     )
@@ -1097,6 +1165,7 @@ async def test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates(db: AsyncS
                 direction=Direction.DEBIT,
                 amount=Decimal("780.00"),
                 currency="HKD",
+                fx_rate=Decimal("0.173077"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -1104,6 +1173,7 @@ async def test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates(db: AsyncS
                 direction=Direction.CREDIT,
                 amount=Decimal("780.00"),
                 currency="HKD",
+                fx_rate=Decimal("0.173077"),
             ),
         ]
     )
@@ -1160,6 +1230,7 @@ async def test_balance_sheet_net_income_no_fx_rate_error(db: AsyncSession, multi
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=income_entry.id,
@@ -1167,6 +1238,7 @@ async def test_balance_sheet_net_income_no_fx_rate_error(db: AsyncSession, multi
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )

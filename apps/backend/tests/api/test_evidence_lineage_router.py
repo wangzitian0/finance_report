@@ -204,7 +204,9 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
     amount = Decimal("77.00")
     description = "Lazy API income"
     reference = "API-1"
+    atomic_id = uuid4()
     atomic = AtomicTransaction(
+        id=atomic_id,
         user_id=test_user.id,
         txn_date=txn_date,
         amount=amount,
@@ -227,12 +229,18 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
         entry_date=txn_date,
         memo="Lazy API posted income",
         source_type=JournalEntrySourceType.USER_CONFIRMED,
-        source_id=None,
+        source_id=atomic_id,
         status=JournalEntryStatus.POSTED,
     )
     db.add_all([atomic, entry])
     await db.flush()
-    entry.source_id = atomic.id
+    debit_line = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=bank.id,
+        direction=Direction.DEBIT,
+        amount=amount,
+        currency="SGD",
+    )
     line = JournalLine(
         journal_entry_id=entry.id,
         account_id=income.id,
@@ -240,7 +248,7 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
         amount=amount,
         currency="SGD",
     )
-    db.add(line)
+    db.add_all([debit_line, line])
     await db.commit()
 
     first = await client.get(

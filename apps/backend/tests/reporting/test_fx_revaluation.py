@@ -720,7 +720,7 @@ class TestGetRevaluationEntriesFilter:
             entry_date=date(2025, 1, 15),
             memo="Manual entry",
             source_type=JournalEntrySourceType.MANUAL,
-            status=JournalEntryStatus.POSTED,
+            status=JournalEntryStatus.DRAFT,
         )
         db.add(manual_entry)
 
@@ -813,7 +813,15 @@ class TestCalculateAccountBalanceInCurrencyLiability:
             currency="USD",
             is_active=True,
         )
-        db.add(liability_account)
+        offset_account = Account(
+            user_id=test_user_id,
+            name="Liability Offset USD",
+            code="ASSET-USD-OFFSET",
+            type=AccountType.ASSET,
+            currency="USD",
+            is_active=True,
+        )
+        db.add_all([liability_account, offset_account])
         await db.flush()
 
         entry = JournalEntry(
@@ -842,7 +850,15 @@ class TestCalculateAccountBalanceInCurrencyLiability:
             currency="USD",
             fx_rate=Decimal("1"),
         )
-        db.add_all([debit_line, credit_line])
+        offset_line = JournalLine(
+            journal_entry_id=entry.id,
+            account_id=offset_account.id,
+            direction=Direction.DEBIT,
+            amount=Decimal("300"),
+            currency="USD",
+            fx_rate=Decimal("1"),
+        )
+        db.add_all([debit_line, credit_line, offset_line])
         await db.commit()
 
         balance = await calculate_account_balance_in_currency(db, liability_account)
