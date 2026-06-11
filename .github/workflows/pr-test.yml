@@ -112,7 +112,12 @@ jobs:
             base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
           fi
 
-          if ! git diff --name-only "$base_sha" "$head_sha" > changed-files.txt; then
+          # Three-dot (merge-base) diff: classify only what THIS PR introduced,
+          # not files that diverged on the base branch since the PR forked.
+          # Two-dot ("$base_sha" "$head_sha") attributes the base branch's own
+          # post-fork commits to the PR, so a docs-only PR lagging a runtime
+          # change on main spuriously trips the pr-preview deploy gate.
+          if ! git diff --name-only "$base_sha...$head_sha" > changed-files.txt; then
             git diff --name-only HEAD^ HEAD > changed-files.txt
           fi
 
