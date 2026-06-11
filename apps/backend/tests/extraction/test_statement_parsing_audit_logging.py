@@ -11,18 +11,18 @@ from uuid import uuid4
 import pytest
 
 from src.database import create_session_maker_from_db
-from src.models import BankStatement, BankStatementStatus
+from src.models import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.services import statement_parsing
 from src.services.extraction import ExtractionError
 from src.services.statement_parsing import import_brokerage_payload_if_present, parse_statement_background
+from tests.factories import StatementSummaryFactory
 
 
-def _parsed_statement(user_id, file_hash: str) -> BankStatement:
-    return BankStatement(
+def _parsed_statement(user_id, file_hash: str) -> StatementSummary:
+    return StatementSummaryFactory.build(
         user_id=user_id,
-        file_path="audit.pdf",
         file_hash=file_hash,
-        original_filename="audit.pdf",
         institution="DBS",
         account_last4="1234",
         currency="SGD",
@@ -36,14 +36,12 @@ def _parsed_statement(user_id, file_hash: str) -> BankStatement:
     )
 
 
-async def _create_statement(db, user_id, *, statement_id=None, file_hash="audit-hash") -> BankStatement:
-    statement = BankStatement(
+async def _create_statement(db, user_id, *, statement_id=None, file_hash="audit-hash") -> StatementSummary:
+    statement = StatementSummaryFactory.build(
         id=statement_id or uuid4(),
         user_id=user_id,
         status=BankStatementStatus.PARSING,
-        file_path="statements/audit.pdf",
         file_hash=file_hash,
-        original_filename="audit.pdf",
         institution="DBS",
     )
     db.add(statement)
@@ -87,14 +85,11 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
 
     info_calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
     checkpoints = [kwargs for event, kwargs in info_calls if event == "statement.parse.checkpoint"]
-    assert [checkpoint["progress"] for checkpoint in checkpoints] == [5, 10, 20, 70, 80, 90, 100]
     assert [checkpoint["phase"] for checkpoint in checkpoints] == [
         "parse_started",
         "storage_url_resolved",
         "extraction_started",
         "extraction_completed",
-        "statement_metadata_persisted",
-        "transactions_persisted",
         "statement_persisted",
     ]
     assert all(checkpoint["audit_event"] == "statement.parse.checkpoint" for checkpoint in checkpoints)
@@ -108,7 +103,6 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     completed = next(kwargs for event, kwargs in info_calls if event == "statement.parse.completed")
     assert extraction_completed["audit_event"] == "statement.parse.extraction_completed"
     assert completed["audit_event"] == "statement.parse.completed"
-    assert completed["progress"] == 100
     assert completed["phase"] == "parse_completed"
     assert completed["transactions_count"] == 0
 
@@ -139,7 +133,6 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     assert failed["statement_id"] == str(failure.id)
     assert failed["request_id"] == "req-failure"
     assert failed["phase"] == "extraction_started"
-    assert failed["progress"] == 20
     assert failed["model_to_use"] == "glm-5.1"
     assert failed["error_type"] == "ExtractionError"
     assert failed["safe_error_message"] == "provider failed without raw document content"
@@ -150,8 +143,6 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
 async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkeypatch):
     """AC10.8.3: Brokerage import logs start/completion/failure replay context."""
     statement = await _create_statement(db, test_user.id, file_hash="brokerage-audit-hash")
-    statement.parsing_progress = 100
-    await db.commit()
     payload = {
         "institution": "Moomoo",
         "positions": [{"symbol": "AAPL", "quantity": "10"}],
@@ -176,7 +167,7 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fake_import_positions)
 
     await import_brokerage_payload_if_present(
-        statement=statement,
+        summary=statement,
         db=db,
         user_id=test_user.id,
         filename="moomoo-positions.pdf",
@@ -194,7 +185,6 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     assert started["statement_id"] == str(statement.id)
     assert started["request_id"] == "req-brokerage"
     assert started["phase"] == "brokerage_import_started"
-    assert started["progress"] == 100
     assert started["model_to_use"] == "glm-5.1"
     assert started["broker"] == "Moomoo"
     assert started["parsed_positions"] == 1
@@ -202,7 +192,6 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     assert completed["audit_event"] == "statement.brokerage_import.completed"
     assert completed["statement_id"] == str(statement.id)
     assert completed["phase"] == "brokerage_import_completed"
-    assert completed["progress"] == 100
     assert completed["model_to_use"] == "glm-5.1"
     assert completed["broker"] == "Moomoo"
     assert completed["created_atomic_positions"] == 1
@@ -210,8 +199,6 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     assert completed["reconcile_created"] == 1
 
     failure_statement = await _create_statement(db, test_user.id, file_hash="brokerage-failure-audit-hash")
-    failure_statement.parsing_progress = 100
-    await db.commit()
 
     async def fail_import_positions(*_args, **_kwargs):
         raise RuntimeError("provider payload had no positions and raw text is omitted")
@@ -219,7 +206,7 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fail_import_positions)
 
     await import_brokerage_payload_if_present(
-        statement=failure_statement,
+        summary=failure_statement,
         db=db,
         user_id=test_user.id,
         filename="moomoo-positions.pdf",
@@ -236,7 +223,6 @@ async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkey
     assert failed["statement_id"] == str(failure_statement.id)
     assert failed["request_id"] == "req-brokerage-failed"
     assert failed["phase"] == "brokerage_import_failed"
-    assert failed["progress"] == 100
     assert failed["model_to_use"] == "glm-5.1"
     assert failed["error_type"] == "RuntimeError"
     assert failed["safe_error_message"] == "provider payload had no positions and raw text is omitted"

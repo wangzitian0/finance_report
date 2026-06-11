@@ -20,8 +20,6 @@ from src.logger import get_logger
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
     Direction,
     FxRate,
     JournalEntry,
@@ -873,16 +871,12 @@ async def _personal_report_package_traceability_payload(
         .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
     )
     entry_source_ids = {source_id for source_id in entry_source_ids_result.scalars().all() if source_id is not None}
+    # Legacy bank_statement_transactions sources were decomposed into Layer-2
+    # AtomicTransaction rows (EPIC-011 Stage 3); journal entry sources now resolve
+    # exclusively against AtomicTransaction.
     statement_txn_ids: set[UUID] = set()
     atomic_txn_ids: set[UUID] = set()
     if entry_source_ids:
-        statement_txn_result = await db.execute(
-            select(BankStatementTransaction.id)
-            .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-            .where(BankStatement.user_id == user_id)
-            .where(BankStatementTransaction.id.in_(entry_source_ids))
-        )
-        statement_txn_ids = set(statement_txn_result.scalars().all())
         atomic_txn_result = await db.execute(
             select(AtomicTransaction.id)
             .where(AtomicTransaction.user_id == user_id)

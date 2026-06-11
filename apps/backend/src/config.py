@@ -181,26 +181,6 @@ class Settings(BaseSettings):
         validation_alias="OTEL_RESOURCE_ATTRIBUTES",
     )
 
-    # Feature Flags for 4-Layer Architecture Migration (EPIC-011)
-    # Stage 1 cutover: dual-write is now ON by default so every upload populates
-    # Layer 1/2 (uploaded_documents + atomic_transactions) alongside legacy
-    # Layer 0. Set ENABLE_4_LAYER_WRITE=false to fall back to legacy-only writes.
-    enable_4_layer_write: bool = Field(
-        default=True,
-        validation_alias="ENABLE_4_LAYER_WRITE",
-    )
-    # Stage 2b / PR-B cutover: reconciliation now reads Layer 2 (atomic_transactions)
-    # by default. Requires the Stage 2a backfill (historical Layer-0 -> Layer-2) and
-    # the PR-A StatementSummary conform (custody account) to be populated. Set
-    # ENABLE_4_LAYER_READ=false to fall back to reading legacy Layer 0.
-    enable_4_layer_read: bool = Field(
-        default=True,
-        validation_alias="ENABLE_4_LAYER_READ",
-    )
-    enable_layer_0_write: bool = Field(
-        default=True,
-        validation_alias="ENABLE_LAYER_0_WRITE",
-    )
     # Feature Flags for AI-Driven Pipeline (EPIC-018)
     enable_ai_reconciliation: bool = Field(
         default=False,

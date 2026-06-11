@@ -52,7 +52,8 @@ def test_sqlalchemy_metadata_and_alembic_graph_are_valid(alembic_script):
     """AC1.2.3: SQLAlchemy models are registered and Alembic has a valid linear graph."""
     expected_tables = {
         "accounts",
-        "bank_statements",
+        "statement_summaries",
+        "atomic_transactions",
         "journal_entries",
         "journal_lines",
         "reconciliation_matches",

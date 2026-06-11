@@ -6,7 +6,7 @@ and threshold-based routing logic for bank statements.
 
 from decimal import Decimal
 
-from src.models.statement import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
 from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,

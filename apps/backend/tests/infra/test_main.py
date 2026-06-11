@@ -237,43 +237,46 @@ class TestDatabase:
 class TestModels:
     """Tests for SQLAlchemy models."""
 
-    def test_statement_model_table_name(self):
-        """Test Statement model has correct table name."""
-        from src.models.statement import BankStatement
+    def test_statement_summary_model_table_name(self):
+        """Test StatementSummary model has correct table name."""
+        from src.models.statement_summary import StatementSummary
 
-        assert BankStatement.__tablename__ == "bank_statements"
+        assert StatementSummary.__tablename__ == "statement_summaries"
 
-    def test_account_event_model_table_name(self):
-        """Test AccountEvent model has correct table name."""
-        from src.models.statement import BankStatementTransaction
+    def test_atomic_transaction_model_table_name(self):
+        """Test AtomicTransaction model has correct table name."""
+        from src.models.layer2 import AtomicTransaction
 
-        assert BankStatementTransaction.__tablename__ == "bank_statement_transactions"
+        assert AtomicTransaction.__tablename__ == "atomic_transactions"
+
+    def test_uploaded_document_model_table_name(self):
+        """Test UploadedDocument (ODS landing) model has correct table name."""
+        from src.models.layer1 import UploadedDocument
+
+        assert UploadedDocument.__tablename__ == "uploaded_documents"
 
     def test_statement_status_enum(self):
         """Test StatementStatus enum values."""
-        from src.models.statement import BankStatementStatus
+        from src.models.statement_enums import BankStatementStatus
 
         assert BankStatementStatus.UPLOADED.value == "uploaded"
         assert BankStatementStatus.PARSED.value == "parsed"
 
-    def test_confidence_level_enum(self):
-        """Test ConfidenceLevel enum values."""
-        from src.models.statement import ConfidenceLevel
+    def test_statement_summary_columns(self):
+        """Test StatementSummary exposes the conform envelope columns."""
+        from src.models.statement_summary import StatementSummary
 
-        assert ConfidenceLevel.HIGH.value == "high"
-        assert ConfidenceLevel.LOW.value == "low"
+        assert hasattr(StatementSummary, "uploaded_document_id")
+        assert hasattr(StatementSummary, "file_hash")
+        assert hasattr(StatementSummary, "status")
 
-    def test_statement_relationship(self):
-        """Test Statement has events relationship."""
-        from src.models.statement import BankStatement
+    def test_atomic_transaction_columns(self):
+        """Test AtomicTransaction exposes dedup and source columns."""
+        from src.models.layer2 import AtomicTransaction
 
-        assert hasattr(BankStatement, "transactions")
-
-    def test_account_event_relationship(self):
-        """Test AccountEvent has statement relationship."""
-        from src.models.statement import BankStatementTransaction
-
-        assert hasattr(BankStatementTransaction, "statement")
+        assert hasattr(AtomicTransaction, "dedup_hash")
+        assert hasattr(AtomicTransaction, "source_documents")
+        assert not hasattr(AtomicTransaction, "balance_after")
 
 
 class TestConfig:

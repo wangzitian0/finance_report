@@ -13,9 +13,6 @@ from src.logger import get_logger
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
@@ -24,8 +21,10 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
-from src.models.layer2 import AtomicTransaction
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import ClassificationStatus, TransactionClassification
+from src.models.statement_summary import StatementSummary
 from src.services.accounting import ValidationError, validate_journal_balance, validate_journal_posting_invariants
 from src.services.fx import FxRateError, get_exchange_rate
 from src.services.reconciliation import entry_total_amount
@@ -34,6 +33,73 @@ from src.services.source_type_priority import (
     normalize_source_type,
     promote_entry_source_type,
 )
+
+logger = get_logger(__name__)
+
+
+def _source_document_ids(source_documents: object) -> list[UUID]:
+    """Extract source ``UploadedDocument`` ids (bank-statement sources), in order.
+
+    Mirrors ``statement_summary._ordered_bank_statement_doc_ids``: accepts the
+    canonical list form (``[{"doc_id": ..., "doc_type": ...}]``) and a
+    ``{"documents": [...]}`` wrapper, keeps entries with a missing ``doc_type``,
+    and skips invalid UUID strings so they never raise during query binding.
+    """
+    if isinstance(source_documents, dict):
+        source_documents = source_documents.get("documents", [])
+    if not isinstance(source_documents, list):
+        return []
+
+    bank_statement = DocumentType.BANK_STATEMENT.value
+    ordered: list[UUID] = []
+    seen: set[UUID] = set()
+    for entry in source_documents:
+        if not isinstance(entry, dict):
+            continue
+        doc_type = entry.get("doc_type")
+        if doc_type is not None and doc_type != bank_statement:
+            continue
+        raw = entry.get("doc_id")
+        if not raw:
+            continue
+        try:
+            doc_id = UUID(str(raw))
+        except (ValueError, TypeError):
+            continue
+        if doc_id not in seen:
+            seen.add(doc_id)
+            ordered.append(doc_id)
+    return ordered
+
+
+async def _resolve_statement_summary(
+    db: AsyncSession,
+    txn: AtomicTransaction,
+    *,
+    user_id: UUID,
+) -> StatementSummary | None:
+    """Resolve the owning ``StatementSummary`` for an atomic transaction.
+
+    Walks ``txn.source_documents -> UploadedDocument -> StatementSummary`` and
+    returns the first source document's statement summary (in source-document
+    order). Returns ``None`` when no source document maps to a statement summary.
+    """
+    doc_ids = _source_document_ids(txn.source_documents)
+    if not doc_ids:
+        return None
+
+    result = await db.execute(
+        select(StatementSummary)
+        .join(UploadedDocument, StatementSummary.uploaded_document_id == UploadedDocument.id)
+        .where(StatementSummary.user_id == user_id)
+        .where(UploadedDocument.id.in_(doc_ids))
+    )
+    summaries = {summary.uploaded_document_id: summary for summary in result.scalars()}
+    for doc_id in doc_ids:
+        summary = summaries.get(doc_id)
+        if summary is not None:
+            return summary
+    return None
 
 
 async def get_pending_items(
@@ -46,14 +112,13 @@ async def get_pending_items(
     """Return pending review reconciliation matches."""
     result = await db.execute(
         select(ReconciliationMatch)
-        .join(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
         .order_by(ReconciliationMatch.match_score.desc())
         .limit(limit)
         .offset(offset)
-        .options(selectinload(ReconciliationMatch.transaction))
+        .options(selectinload(ReconciliationMatch.atomic_transaction))
     )
     return cast(list[ReconciliationMatch], result.scalars().all())
 
@@ -78,11 +143,10 @@ async def accept_match(
     """
     result = await db.execute(
         select(ReconciliationMatch)
-        .join(BankStatementTransaction)
-        .join(BankStatement)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(ReconciliationMatch.id == match_id)
-        .where(BankStatement.user_id == user_id)
-        .options(selectinload(ReconciliationMatch.transaction))
+        .where(AtomicTransaction.user_id == user_id)
+        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .with_for_update()
     )
     match = result.scalar_one_or_none()
@@ -92,7 +156,7 @@ async def accept_match(
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
 
-    txn = match.transaction
+    txn = match.atomic_transaction
 
     if txn and not match.journal_entry_ids:
         existing_entry_result = await db.execute(
@@ -134,8 +198,6 @@ async def accept_match(
 
     match.status = ReconciliationStatus.ACCEPTED
     match.version += 1
-    if txn:
-        txn.status = BankStatementTransactionStatus.MATCHED
 
     if match.journal_entry_ids:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
@@ -160,11 +222,10 @@ async def reject_match(
     """Reject a pending reconciliation match."""
     result = await db.execute(
         select(ReconciliationMatch)
-        .join(BankStatementTransaction)
-        .join(BankStatement)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(ReconciliationMatch.id == match_id)
-        .where(BankStatement.user_id == user_id)
-        .options(selectinload(ReconciliationMatch.transaction))
+        .where(AtomicTransaction.user_id == user_id)
+        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .with_for_update()
     )
     match = result.scalar_one_or_none()
@@ -176,15 +237,9 @@ async def reject_match(
 
     match.status = ReconciliationStatus.REJECTED
     match.version += 1
-    txn = match.transaction
-    if txn:
-        txn.status = BankStatementTransactionStatus.UNMATCHED
 
     await db.flush()
     return match
-
-
-logger = get_logger(__name__)
 
 
 async def batch_accept(
@@ -198,16 +253,15 @@ async def batch_accept(
     if not match_ids:
         return []
 
-    # Optimization: join transaction and load it to avoid N+1 queries later
+    # Optimization: join atomic transaction and load it to avoid N+1 queries later
     result = await db.execute(
         select(ReconciliationMatch)
-        .join(BankStatementTransaction)
-        .join(BankStatement)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(ReconciliationMatch.id.in_(match_ids))
-        .where(BankStatement.user_id == user_id)
+        .where(AtomicTransaction.user_id == user_id)
         .where(ReconciliationMatch.match_score >= min_score)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-        .options(selectinload(ReconciliationMatch.transaction))
+        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .with_for_update(of=ReconciliationMatch)
     )
     matches = result.scalars().all()
@@ -264,38 +318,39 @@ async def get_or_create_account(
 
 async def create_entry_from_txn(
     db: AsyncSession,
-    txn: BankStatementTransaction,
+    txn: AtomicTransaction,
     *,
     user_id: UUID,
     auto_post: bool = False,
     source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
-    preloaded_statement: BankStatement | None = None,
+    preloaded_statement: StatementSummary | None = None,
     preloaded_bank_account: Account | None = None,
 ) -> JournalEntry:
-    """Create a journal entry from a bank transaction.
+    """Create a journal entry from an atomic transaction.
 
-    Uses the statement's linked account if available. Draft entries may still use
-    the legacy default account, but posted entries require an explicit mapping.
-    When auto_post is True, the generated entry is created with POSTED status;
-    otherwise it is created as DRAFT.
+    Uses the owning statement summary's linked account if available. Draft entries
+    may still use the legacy default account, but posted entries require an explicit
+    mapping. When auto_post is True, the generated entry is created with POSTED
+    status; otherwise it is created as DRAFT.
     preloaded_statement/preloaded_bank_account may be passed by trusted callers
     that already loaded them for the same authenticated user context.
+
+    The owning statement is resolved via ``txn.source_documents -> UploadedDocument
+    -> StatementSummary`` (atomic transactions have no ``statement_id``).
     """
-    # Validate transaction belongs to user and get statement details
+    # Validate transaction belongs to user and resolve owning statement summary.
+    if txn.user_id != user_id:
+        raise ValueError("Transaction does not belong to user")
+
     statement = preloaded_statement
-    if statement:
+    if statement is not None:
         # Caller must preload statement under the same authenticated user context.
-        if statement.id != txn.statement_id or statement.user_id != user_id:
+        if statement.user_id != user_id:
             raise ValueError("Preloaded statement does not match transaction or user")
     else:
-        statement_result = await db.execute(
-            select(BankStatement).where(BankStatement.id == txn.statement_id).where(BankStatement.user_id == user_id)
-        )
-        statement = statement_result.scalar_one_or_none()
-        if not statement:
-            raise ValueError("Transaction does not belong to user")
+        statement = await _resolve_statement_summary(db, txn, user_id=user_id)
 
-    currency = (statement.currency or "SGD").upper()
+    currency = ((statement.currency if statement else None) or txn.currency or "SGD").upper()
     base_currency = settings.base_currency.upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
@@ -305,16 +360,17 @@ async def create_entry_from_txn(
             raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
     # Use statement's linked account if available.
+    statement_account_id = statement.account_id if statement else None
     bank_account: Account | None = preloaded_bank_account
     if bank_account is not None:
         if bank_account.user_id != user_id:
             # Caller must preload bank account under the same authenticated user context.
             raise ValueError("Bank account does not belong to user")
-        if statement.account_id and bank_account.id != statement.account_id:
+        if statement_account_id and bank_account.id != statement_account_id:
             raise ValueError("Preloaded bank account does not match statement")
-    elif statement.account_id:
+    elif statement_account_id:
         account_result = await db.execute(
-            select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
+            select(Account).where(Account.id == statement_account_id).where(Account.user_id == user_id)
         )
         bank_account = account_result.scalar_one_or_none()
 
@@ -332,53 +388,18 @@ async def create_entry_from_txn(
         )
 
     classified_account: Account | None = None
-
-    atomic_txn = None
-    linked_match_result = await db.execute(
-        select(ReconciliationMatch)
-        .where(ReconciliationMatch.bank_txn_id == txn.id)
-        .where(ReconciliationMatch.atomic_txn_id.is_not(None))
-        .order_by(ReconciliationMatch.created_at.desc())
+    classification_result = await db.execute(
+        select(TransactionClassification)
+        .where(TransactionClassification.atomic_txn_id == txn.id)
+        .where(TransactionClassification.status == ClassificationStatus.APPLIED)
+        .order_by(TransactionClassification.created_at.desc())
     )
-    linked_match = linked_match_result.scalar_one_or_none()
-    if linked_match and linked_match.atomic_txn_id:
-        atomic_txn_result = await db.execute(
-            select(AtomicTransaction).where(AtomicTransaction.id == linked_match.atomic_txn_id)
-        )
-        atomic_txn = atomic_txn_result.scalar_one_or_none()
+    classification = classification_result.scalar_one_or_none()
+    if classification and classification.account_id:
+        account_result = await db.execute(select(Account).where(Account.id == classification.account_id))
+        classified_account = account_result.scalar_one_or_none()
 
-    if atomic_txn:
-        classification_result = await db.execute(
-            select(TransactionClassification)
-            .where(TransactionClassification.atomic_txn_id == atomic_txn.id)
-            .where(TransactionClassification.status == ClassificationStatus.APPLIED)
-            .order_by(TransactionClassification.created_at.desc())
-        )
-        classification = classification_result.scalar_one_or_none()
-        if classification and classification.account_id:
-            account_result = await db.execute(select(Account).where(Account.id == classification.account_id))
-            classified_account = account_result.scalar_one_or_none()
-
-    if not classified_account and txn.suggested_category and txn.suggested_category != "Other":
-        category_name = txn.suggested_category
-        if txn.direction == "IN":
-            classified_account = await get_or_create_account(
-                db,
-                name=f"Income - {category_name}",
-                account_type=AccountType.INCOME,
-                currency=currency,
-                user_id=user_id,
-            )
-        else:
-            classified_account = await get_or_create_account(
-                db,
-                name=f"Expense - {category_name}",
-                account_type=AccountType.EXPENSE,
-                currency=currency,
-                user_id=user_id,
-            )
-
-    if txn.direction == "IN":
+    if txn.direction == TransactionDirection.IN:
         if classified_account and classified_account.type == AccountType.INCOME:
             counter_account = classified_account
         else:
@@ -445,19 +466,9 @@ async def create_entry_from_txn(
             raise ValueError(f"Generated entry does not balance: {exc}") from exc
         raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
 
-    txn.status = BankStatementTransactionStatus.PENDING
     db.add(entry)
     await db.flush()
     await db.refresh(entry, ["lines"])
-    from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
-
-    await EvidenceGraphIntegrationService().record_journal_posting(
-        db,
-        user_id=user_id,
-        source_transaction=txn,
-        journal_entry=entry,
-        atomic_transaction=atomic_txn,
-    )
     return entry
 
 
@@ -469,13 +480,12 @@ async def get_stage2_queue(
     """Return matches pending Stage 2 review for a user."""
     query = (
         select(ReconciliationMatch)
-        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(
             ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-            BankStatement.user_id == user_id,
+            AtomicTransaction.user_id == user_id,
         )
-        .options(selectinload(ReconciliationMatch.transaction))
+        .options(selectinload(ReconciliationMatch.atomic_transaction))
         .limit(50)
     )
     if run_id:

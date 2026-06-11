@@ -1,22 +1,46 @@
 """Pydantic schemas for document extraction API."""
 
+from __future__ import annotations
+
 from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.models.statement import (
-    BankStatementStatus,
-    BankStatementTransactionStatus,
-    ConfidenceLevel,
-)
+from src.models.statement_enums import BankStatementStatus
 from src.schemas.base import ListResponse
 
-# Re-export enums with schema-friendly names for API consumers
+if TYPE_CHECKING:
+    from src.models.layer1 import UploadedDocument
+    from src.models.layer2 import AtomicTransaction
+    from src.models.statement_summary import StatementSummary
+
+# Re-export the statement lifecycle status enum with a schema-friendly name.
 BankStatementStatusEnum = BankStatementStatus
-BankStatementTransactionStatusEnum = BankStatementTransactionStatus
-ConfidenceLevelEnum = ConfidenceLevel
+
+
+class BankStatementTransactionStatusEnum(str, Enum):
+    """Legacy per-transaction reconciliation status (API backward-compat only).
+
+    Layer-2 ``AtomicTransaction`` carries no per-transaction status; the match
+    status on ``ReconciliationMatch`` is the source of truth. These values are
+    kept solely to preserve the shape of existing API responses.
+    """
+
+    PENDING = "pending"
+    MATCHED = "matched"
+    UNMATCHED = "unmatched"
+
+
+class ConfidenceLevelEnum(str, Enum):
+    """Legacy confidence level (API backward-compat only)."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
 
 
 # --- Request Schemas ---
@@ -64,33 +88,55 @@ class TransactionUpdateRequest(BaseModel):
 # --- Response Schemas ---
 
 
-class BankStatementTransactionResponse(BaseModel):
-    """Single transaction extracted from statement."""
+class AtomicTransactionResponse(BaseModel):
+    """Single Layer-2 atomic transaction (DWD fact) exposed to the review API.
+
+    Mapped from ``AtomicTransaction``; the ``statement_id`` is the owning
+    ``StatementSummary`` id so existing API consumers keep a statement anchor.
+    """
 
     id: UUID
-    statement_id: UUID
+    statement_id: UUID | None = None
     txn_date: date
     description: str
     amount: Decimal
     direction: str
-    reference: str | None
+    reference: str | None = None
     currency: str | None = None
-    balance_after: Decimal | None = None
-    status: BankStatementTransactionStatusEnum
-    confidence: ConfidenceLevelEnum
-    confidence_reason: str | None
-    raw_text: str | None
-    suggested_category: str | None = None
-    category_confidence: Decimal | None = None
-    confidence_tier: str = "LOW"
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
+    @classmethod
+    def from_atomic(cls, txn: AtomicTransaction, statement_id: UUID | None = None) -> AtomicTransactionResponse:
+        return cls(
+            id=txn.id,
+            statement_id=statement_id,
+            txn_date=txn.txn_date,
+            description=txn.description,
+            amount=txn.amount,
+            direction=txn.direction.value if hasattr(txn.direction, "value") else txn.direction,
+            reference=txn.reference,
+            currency=txn.currency,
+            created_at=txn.created_at,
+            updated_at=txn.updated_at,
+        )
+
+
+# Backwards-compatible alias: the schema was renamed from
+# ``BankStatementTransactionResponse`` as part of EPIC-011 Stage 3.
+BankStatementTransactionResponse = AtomicTransactionResponse
+
 
 class BankStatementResponse(BaseModel):
-    """Parsed statement with transactions."""
+    """Parsed statement envelope with its atomic transactions.
+
+    Composed from ``StatementSummary`` (the DWD conform), the linked
+    ``UploadedDocument`` (for ``file_path`` / ``original_filename``), and the
+    list of ``AtomicTransaction`` rows resolved via ``source_documents``. Use
+    :func:`compose_statement_response` to build instances.
+    """
 
     id: UUID
     user_id: UUID
@@ -106,20 +152,60 @@ class BankStatementResponse(BaseModel):
     closing_balance: Decimal | None
     status: BankStatementStatusEnum
     confidence_score: int | None
-    parsing_progress: int | None = 0
     balance_validated: bool | None
     validation_error: str | None
     created_at: datetime
     updated_at: datetime
-    transactions: list[BankStatementTransactionResponse] = Field(default_factory=list)
+    transactions: list[AtomicTransactionResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+def compose_statement_response(
+    summary: StatementSummary,
+    uploaded_document: UploadedDocument | None,
+    atomic_txns: list[AtomicTransaction],
+) -> BankStatementResponse:
+    """Compose a ``BankStatementResponse`` from the layered DWD records.
+
+    ``file_path`` / ``original_filename`` come from the linked ODS
+    ``UploadedDocument``. Before the document link is written by the ingestion
+    pipeline (e.g. the upload 202 response), the upload handler stashes the same
+    values as transient attributes on the summary, so fall back to those.
+    The transactions list is built from ``atomic_txns`` (already resolved by the
+    caller via ``UploadedDocument`` -> ``source_documents``).
+    """
+    file_path = uploaded_document.file_path if uploaded_document else getattr(summary, "file_path", None)
+    original_filename = (
+        uploaded_document.original_filename if uploaded_document else getattr(summary, "original_filename", None)
+    )
+    return BankStatementResponse(
+        id=summary.id,
+        user_id=summary.user_id,
+        account_id=summary.account_id,
+        file_path=file_path or "",
+        original_filename=original_filename or "",
+        institution=summary.institution,
+        account_last4=summary.account_last4,
+        currency=summary.currency,
+        period_start=summary.period_start,
+        period_end=summary.period_end,
+        opening_balance=summary.opening_balance,
+        closing_balance=summary.closing_balance,
+        status=summary.status,
+        confidence_score=summary.confidence_score,
+        balance_validated=summary.balance_validated,
+        validation_error=summary.validation_error,
+        created_at=summary.created_at,
+        updated_at=summary.updated_at,
+        transactions=[AtomicTransactionResponse.from_atomic(txn, summary.id) for txn in atomic_txns],
+    )
 
 
 BankStatementListResponse = ListResponse[BankStatementResponse]
 
 
-BankStatementTransactionListResponse = ListResponse[BankStatementTransactionResponse]
+BankStatementTransactionListResponse = ListResponse[AtomicTransactionResponse]
 
 
 class ParsedStatementPreview(BaseModel):

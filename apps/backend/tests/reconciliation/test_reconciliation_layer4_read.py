@@ -15,12 +15,10 @@ from unittest.mock import patch
 
 import pytest
 
-from src.config import settings
 from src.models import (
     Account,
     AccountType,
     AtomicTransaction,
-    BankStatementTransaction,
     Direction,
     JournalEntry,
     JournalEntryStatus,
@@ -102,14 +100,13 @@ class TestReconciliationLayer4Read:
         await self._create_candidate_entry(db, test_user.id)
 
         # 1. Enable Dual Write AND Layer 4 Read
-        monkeypatch.setattr(settings, "enable_4_layer_write", True)
-        monkeypatch.setattr(settings, "enable_4_layer_read", True)
 
         service = ExtractionService()
         content = b"PDF-CONTENT-L4"
         file_hash = hashlib.sha256(content).hexdigest()
 
-        # Parse document to generate Layer 2 data
+        # Parse document with db -> parse_document runs dual_write_layer2 internally,
+        # persisting the UploadedDocument, AtomicTransaction rows and StatementSummary.
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             statement, transactions = await service.parse_document(
                 file_path=Path("test_l4.pdf"),
@@ -120,10 +117,6 @@ class TestReconciliationLayer4Read:
                 original_filename="test_l4.pdf",
                 db=db,
             )
-            # Add Layer 0 objects to session (even though we shouldn't use them)
-            db.add(statement)
-            for txn in transactions:
-                db.add(txn)
         await db.commit()
 
         # 2. Run Reconciliation
@@ -133,7 +126,6 @@ class TestReconciliationLayer4Read:
         assert len(matches) == 1
         match = matches[0]
         assert match.atomic_txn_id is not None
-        assert match.bank_txn_id is None
         assert match.status in (
             ReconciliationStatus.AUTO_ACCEPTED,
             ReconciliationStatus.PENDING_REVIEW,
@@ -144,20 +136,9 @@ class TestReconciliationLayer4Read:
         assert atomic_txn.amount == Decimal("500.00")
         assert atomic_txn.description == "Salary Deposit"
 
-        # 4. Verify Layer 0 Status is UNTOUCHED (still PENDING)
-        # Because we skipped status updates in Layer 4 mode
-        l0_txn = await db.get(BankStatementTransaction, transactions[0].id)
-        # Wait, if status is default PENDING, it remains PENDING.
-        from src.models import BankStatementTransactionStatus
-
-        assert l0_txn.status == BankStatementTransactionStatus.PENDING
-
     async def test_reconciliation_idempotency_layer2(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that already matched Layer 2 transactions are skipped."""
         await self._create_candidate_entry(db, test_user.id)
-
-        monkeypatch.setattr(settings, "enable_4_layer_write", True)
-        monkeypatch.setattr(settings, "enable_4_layer_read", True)
 
         # ... setup data ...
         service = ExtractionService()
@@ -174,9 +155,6 @@ class TestReconciliationLayer4Read:
                 original_filename="test_l4_idem.pdf",
                 db=db,
             )
-            db.add(statement)
-            for txn in transactions:
-                db.add(txn)
         await db.commit()
 
         # Run once

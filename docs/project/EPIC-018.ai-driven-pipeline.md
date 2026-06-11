@@ -296,8 +296,8 @@ Dependencies: AC18.7 Evidence Graph foundation and existing Layer 1/2, journal p
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
-| AC18.8.1 | Evidence lineage integration | Statement upload and parse create a `source_document` node for the uploaded source and `extracted_record` nodes for parsed bank statement transactions linked by `parsed_into` edges |
-| AC18.8.2 | Evidence lineage integration | Layer 2 dual-write creates `atomic_fact` nodes for atomic transactions and `deduped_into` edges from the parsed transaction records that produced them |
+| AC18.8.1 | Evidence lineage integration | Statement upload creates a `source_document` node for the uploaded source (`uploaded_document`). The legacy `extracted_record` (bank-statement-transaction) middle node was removed in EPIC-011 Stage 3 with the `bank_statements` tables |
+| AC18.8.2 | Evidence lineage integration | Layer 2 lineage creates `atomic_fact` nodes for atomic transactions and `deduped_into` edges from the `source_document` (uploaded document) that produced them |
 | AC18.8.3 | Evidence lineage integration | Journal posting creates `ledger_entry` and `ledger_line` nodes, links extracted or atomic transaction facts to the ledger entry with `posted_as`, and links the ledger entry to its lines with `contains` |
 | AC18.8.4 | Evidence lineage integration | `GET /api/reports/package/traceability` can resolve at least one report line from ledger anchors through Evidence Graph lineage back to source document anchors |
 | AC18.8.5 | Evidence lineage integration | Unknown or unsupported `JournalEntry.source_id` values produce explicit blocker codes and never fabricate statement, atomic, or document anchors |

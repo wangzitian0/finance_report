@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, AccountType, BankStatement, BankStatementStatus
+from src.models import Account, AccountType, BankStatementStatus, StatementSummary
 
 pytestmark = pytest.mark.asyncio
 
@@ -37,13 +37,11 @@ async def _create_statement(
     closing_balance: Decimal | None,
     institution: str = "DBS",
     currency: str = "SGD",
-) -> BankStatement:
-    statement = BankStatement(
+) -> StatementSummary:
+    statement = StatementSummary(
         user_id=user_id,
         account_id=account.id,
-        file_path=f"test/{file_hash}.pdf",
         file_hash=file_hash,
-        original_filename=f"{file_hash}.pdf",
         institution=institution,
         currency=currency,
         period_start=period_start,
@@ -55,6 +53,7 @@ async def _create_statement(
     )
     db.add(statement)
     await db.flush()
+    await db.refresh(statement)
     return statement
 
 

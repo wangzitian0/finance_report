@@ -8,7 +8,8 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from src.models import BankStatement, BankStatementStatus, Stage1Status
+from src.models import BankStatementStatus, Stage1Status, StatementSummary
+from src.models.layer1 import UploadedDocument
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -181,7 +182,7 @@ def _workflow_event_from_payload(
     return event
 
 
-def build_uploaded_statement_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+def build_uploaded_statement_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the deterministic uploaded-statement workflow event payload."""
     family = WorkflowEventFamily.SOURCE_UPLOADED
     return WorkflowEventCreate(
@@ -189,7 +190,7 @@ def build_uploaded_statement_event_payload(statement: BankStatement) -> Workflow
         family=family,
         severity=WorkflowEventSeverity.INFO,
         title="Statement uploaded",
-        summary=f"{statement.original_filename} was uploaded and is ready for processing.",
+        summary=f"{filename} was uploaded and is ready for processing.",
         source_type="bank_statement",
         source_id=statement.id,
         action_href=f"/statements/{statement.id}",
@@ -202,7 +203,7 @@ def build_uploaded_statement_event_payload(statement: BankStatement) -> Workflow
     )
 
 
-def build_statement_parsing_failed_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+def build_statement_parsing_failed_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the user-action event for a failed statement parse."""
     family = WorkflowEventFamily.SOURCE_PARSING_FAILED
     return WorkflowEventCreate(
@@ -210,7 +211,7 @@ def build_statement_parsing_failed_event_payload(statement: BankStatement) -> Wo
         family=family,
         severity=WorkflowEventSeverity.ACTION_REQUIRED,
         title="Statement parsing failed",
-        summary=f"{statement.original_filename} could not be parsed and needs attention.",
+        summary=f"{filename} could not be parsed and needs attention.",
         source_type="bank_statement",
         source_id=statement.id,
         action_href=f"/statements/{statement.id}",
@@ -223,7 +224,7 @@ def build_statement_parsing_failed_event_payload(statement: BankStatement) -> Wo
     )
 
 
-def build_review_required_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+def build_review_required_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the user-action event for pending Stage 1 review."""
     family = WorkflowEventFamily.REVIEW_REQUIRED
     return WorkflowEventCreate(
@@ -231,7 +232,7 @@ def build_review_required_event_payload(statement: BankStatement) -> WorkflowEve
         family=family,
         severity=WorkflowEventSeverity.ACTION_REQUIRED,
         title="Source review required",
-        summary=f"{statement.original_filename} needs source review before report readiness can advance.",
+        summary=f"{filename} needs source review before report readiness can advance.",
         source_type="bank_statement",
         source_id=statement.id,
         action_href="/review",
@@ -244,7 +245,7 @@ def build_review_required_event_payload(statement: BankStatement) -> WorkflowEve
     )
 
 
-def build_review_completed_event_payload(statement: BankStatement) -> WorkflowEventCreate:
+def build_review_completed_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the routine success event for completed Stage 1 review."""
     family = WorkflowEventFamily.REVIEW_COMPLETED
     reviewed_at = statement.stage1_reviewed_at or statement.updated_at or statement.created_at
@@ -253,7 +254,7 @@ def build_review_completed_event_payload(statement: BankStatement) -> WorkflowEv
         family=family,
         severity=WorkflowEventSeverity.SUCCESS,
         title="Source review completed",
-        summary=f"{statement.original_filename} source review is complete.",
+        summary=f"{filename} source review is complete.",
         source_type="bank_statement",
         source_id=statement.id,
         action_href=f"/statements/{statement.id}",
@@ -351,9 +352,26 @@ async def upsert_workflow_event(
     return event
 
 
+async def _statement_filename(db: AsyncSession, statement: StatementSummary) -> str:
+    """Resolve the display filename for a statement summary via its ODS document."""
+    document_id = statement.uploaded_document_id
+    if document_id is not None:
+        filename = await db.scalar(select(UploadedDocument.original_filename).where(UploadedDocument.id == document_id))
+        if filename:
+            return filename
+    filename = await db.scalar(
+        select(UploadedDocument.original_filename)
+        .where(UploadedDocument.user_id == statement.user_id)
+        .where(UploadedDocument.file_hash == statement.file_hash)
+        .order_by(UploadedDocument.created_at.desc(), UploadedDocument.id.desc())
+        .limit(1)
+    )
+    return filename or statement.file_hash
+
+
 async def derive_uploaded_statement_event(
     db: AsyncSession,
-    statement: BankStatement,
+    statement: StatementSummary,
     *,
     user_id: UUID,
 ) -> WorkflowEvent:
@@ -361,7 +379,8 @@ async def derive_uploaded_statement_event(
     if statement.user_id != user_id:
         raise ValueError("statement.user_id must match user_id")
 
-    payload = build_uploaded_statement_event_payload(statement)
+    filename = await _statement_filename(db, statement)
+    payload = build_uploaded_statement_event_payload(statement, filename)
     return await upsert_workflow_event(db, user_id=user_id, payload=payload)
 
 
@@ -369,25 +388,28 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
     """Derive deterministic workflow events from existing user-owned records."""
     workflow_session: WorkflowSession | None = None
     existing_event = aliased(WorkflowEvent)
+    ods_document = aliased(UploadedDocument)
     result = await db.execute(
-        select(BankStatement, existing_event)
+        select(StatementSummary, existing_event, ods_document.original_filename)
         .outerjoin(
             existing_event,
             and_(
                 existing_event.user_id == user_id,
                 existing_event.family == WorkflowEventFamily.SOURCE_UPLOADED,
                 existing_event.source_type == "bank_statement",
-                existing_event.source_id == BankStatement.id,
+                existing_event.source_id == StatementSummary.id,
             ),
         )
-        .where(BankStatement.user_id == user_id)
-        .order_by(BankStatement.created_at.asc())
+        .outerjoin(ods_document, ods_document.id == StatementSummary.uploaded_document_id)
+        .where(StatementSummary.user_id == user_id)
+        .order_by(StatementSummary.created_at.asc())
     )
     derived_payloads: list[WorkflowEventCreate] = []
-    for statement, event in result.all():
+    for statement, event, ods_filename in result.all():
         if workflow_session is None:
             workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
-        payload = build_uploaded_statement_event_payload(statement)
+        filename = ods_filename or statement.file_hash
+        payload = build_uploaded_statement_event_payload(statement, filename)
         if event is None:
             db.add(_workflow_event_from_payload(user_id=user_id, payload=payload, session_id=workflow_session.id))
         else:
@@ -395,13 +417,13 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
             if event.session_id is None:
                 event.session_id = workflow_session.id
         if statement.status == BankStatementStatus.REJECTED and statement.stage1_status is None:
-            derived_payloads.append(build_statement_parsing_failed_event_payload(statement))
+            derived_payloads.append(build_statement_parsing_failed_event_payload(statement, filename))
         if statement.status == BankStatementStatus.PARSED and statement.stage1_status is None:
-            derived_payloads.append(build_review_required_event_payload(statement))
+            derived_payloads.append(build_review_required_event_payload(statement, filename))
         elif statement.stage1_status == Stage1Status.PENDING_REVIEW:
-            derived_payloads.append(build_review_required_event_payload(statement))
+            derived_payloads.append(build_review_required_event_payload(statement, filename))
         elif statement.stage1_status in {Stage1Status.APPROVED, Stage1Status.REJECTED, Stage1Status.EDITED}:
-            derived_payloads.append(build_review_completed_event_payload(statement))
+            derived_payloads.append(build_review_completed_event_payload(statement, filename))
 
     package_readiness = await get_personal_report_package_readiness(db, user_id=user_id)
     for blocker in package_readiness.get("blockers", []):

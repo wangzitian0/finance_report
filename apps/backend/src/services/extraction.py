@@ -16,8 +16,12 @@ import httpx
 
 from src.config import settings
 from src.logger import get_logger
-from src.models import BankStatement, BankStatementStatus, BankStatementTransaction, ConfidenceLevel, DocumentType
+from src.models import DocumentType
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.prompts import get_parsing_prompt
+from src.schemas.extraction import ConfidenceLevelEnum
 from src.services.brokerage_positions import looks_like_brokerage_payload
 from src.services.deduplication import DeduplicationService, dual_write_layer2
 from src.services.openrouter_streaming import (
@@ -110,20 +114,20 @@ class ExtractionService:
         alphanumeric_only = re.sub(r"[^a-zA-Z0-9]", "", value)
         return alphanumeric_only[-4:] if alphanumeric_only else None
 
-    def _compute_event_confidence(self, txn: dict[str, Any]) -> ConfidenceLevel:
+    def _compute_event_confidence(self, txn: dict[str, Any]) -> ConfidenceLevelEnum:
         """Heuristic confidence for a single transaction."""
         required = ["date", "description", "amount", "direction"]
         missing = [f for f in required if not txn.get(f)]
         if missing:
-            return ConfidenceLevel.LOW
+            return ConfidenceLevelEnum.LOW
 
         # Validate date format
         try:
             date.fromisoformat(str(txn["date"]))
         except (ValueError, TypeError):
-            return ConfidenceLevel.LOW
+            return ConfidenceLevelEnum.LOW
 
-        return ConfidenceLevel.HIGH
+        return ConfidenceLevelEnum.HIGH
 
     def _validate_balance(self, extracted: dict[str, Any]) -> dict[str, Any]:
         """Wrapper for test compatibility."""
@@ -314,8 +318,17 @@ class ExtractionService:
         original_filename: str | None = None,
         force_model: str | None = None,
         db: Any | None = None,
-    ) -> tuple[BankStatement, list[BankStatementTransaction]]:
-        """Parse document using AI vision models or CSV parser."""
+    ) -> tuple[StatementSummary, list[AtomicTransaction]]:
+        """Parse document using AI vision models or CSV parser.
+
+        Builds a DWD ``StatementSummary`` envelope and a list of Layer-2
+        ``AtomicTransaction`` rows. The atomic rows carry a precomputed
+        ``dedup_hash`` (with the extracted running ``balance_after`` threaded in so
+        otherwise-identical transactions stay distinct) and an empty
+        ``source_documents`` placeholder; ``dual_write_layer2`` creates the
+        ``UploadedDocument``, fills ``source_documents``/upserts the rows, links the
+        summary's ``uploaded_document_id`` and persists the summary.
+        """
         model = force_model or self.ocr_model
         logger.info(
             "Parsing document",
@@ -351,15 +364,15 @@ class ExtractionService:
                 institution=final_institution,
             )
 
-            statement = BankStatement(
+            resolved_file_hash = file_hash or hashlib.sha256(file_content or b"").hexdigest()
+            statement_currency = extracted.get("currency", "SGD")
+            statement = StatementSummary(
                 user_id=user_id,
                 account_id=account_id,
-                file_path=str(file_path) if file_path else None,
-                file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
-                original_filename=original_filename or (file_path.name if file_path else "unknown"),
+                file_hash=resolved_file_hash,
                 institution=final_institution,
                 account_last4=self._sanitize_account_last4(extracted.get("account_last4")),
-                currency=extracted.get("currency", "SGD"),
+                currency=statement_currency,
                 period_start=(
                     self._safe_optional_date(extracted.get("period_start"))
                     if is_brokerage_payload
@@ -378,12 +391,11 @@ class ExtractionService:
                     extracted.get("closing_balance"),
                     required=not is_brokerage_payload,
                 ),
+                extraction_metadata={"extraction_payload": extracted},
             )
             statement._extracted_payload = extracted
-            if is_brokerage_payload:
-                statement.extraction_metadata = {"extraction_payload": extracted}
 
-            transactions = []
+            transactions: list[AtomicTransaction] = []
             net_transactions = Decimal("0.00")
             for txn in extracted.get("transactions", []):
                 if not txn.get("date") or txn.get("amount") is None:
@@ -438,25 +450,39 @@ class ExtractionService:
                 else:
                     net_transactions -= amount
 
-                event_confidence = self._compute_event_confidence(txn)
-                txn_currency = txn.get("currency")
+                txn_currency = txn.get("currency") or statement_currency or "SGD"
                 txn_balance_after = self._safe_decimal(txn.get("balance_after"))
+                txn_direction = TransactionDirection.IN if direction == "IN" else TransactionDirection.OUT
+                txn_description = txn.get("description", "Unknown")
+                txn_reference = txn.get("reference")
 
-                transaction = BankStatementTransaction(
-                    txn_date=parsed_date,
-                    description=txn.get("description", "Unknown"),
-                    amount=amount,
-                    direction=direction,
-                    reference=txn.get("reference"),
-                    currency=txn_currency,
+                # 🚨 Thread the EXTRACTED running balance_after into the dedup hash so
+                # two same-date/amount/direction/description rows with different running
+                # balances stay distinct. AtomicTransaction has no balance_after column,
+                # so the value lives only in the hash (and on a transient attribute that
+                # dual_write_layer2 reuses to keep its upsert hash identical).
+                dedup_hash = self.deduplication_service.calculate_transaction_hash(
+                    user_id,
+                    parsed_date,
+                    amount,
+                    txn_direction,
+                    txn_description,
+                    reference=txn_reference,
                     balance_after=txn_balance_after,
-                    confidence=event_confidence,
-                    confidence_reason=txn.get("confidence_reason"),
-                    raw_text=txn.get("raw_text"),
-                    suggested_category=txn.get("suggested_category"),
-                    category_confidence=self._safe_decimal(txn.get("category_confidence"), default="0.0"),
-                    statement=statement,
                 )
+
+                transaction = AtomicTransaction(
+                    user_id=user_id,
+                    txn_date=parsed_date,
+                    amount=amount,
+                    direction=txn_direction,
+                    description=txn_description,
+                    reference=txn_reference,
+                    currency=txn_currency,
+                    dedup_hash=dedup_hash,
+                    source_documents=[],
+                )
+                transaction._extracted_balance_after = txn_balance_after
                 transactions.append(transaction)
 
             # Validation
@@ -503,15 +529,14 @@ class ExtractionService:
                 tx_count=len(transactions),
             )
 
-            if settings.enable_4_layer_write and db:
+            if db:
                 await dual_write_layer2(
                     db=db,
                     user_id=user_id,
-                    file_path=file_path,
-                    file_hash=file_hash or hashlib.sha256(file_content or b"").hexdigest(),
-                    original_filename=original_filename or (file_path.name if file_path else "unknown"),
-                    institution=final_institution,
+                    statement=statement,
                     transactions=transactions,
+                    file_path=file_path,
+                    original_filename=original_filename or (file_path.name if file_path else "unknown"),
                     document_type=(
                         DocumentType.BROKERAGE_STATEMENT if is_brokerage_payload else DocumentType.BANK_STATEMENT
                     ),

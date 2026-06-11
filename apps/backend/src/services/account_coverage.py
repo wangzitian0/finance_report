@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Account, BankStatement, BankStatementStatus
+from src.models import Account, BankStatementStatus, StatementSummary
 from src.schemas.account import (
     AccountCoverageCadence,
     AccountCoverageIssue,
@@ -25,15 +25,15 @@ CRITICAL_SEVERITY = "critical"
 WARNING_SEVERITY = "warning"
 
 
-def _statement_currency(statement: BankStatement, fallback: str) -> str:
+def _statement_currency(statement: StatementSummary, fallback: str) -> str:
     return statement.currency or fallback
 
 
-def _is_complete_period(statement: BankStatement) -> bool:
+def _is_complete_period(statement: StatementSummary) -> bool:
     return statement.period_start is not None and statement.period_end is not None
 
 
-def _is_daily_snapshot(statement: BankStatement) -> bool:
+def _is_daily_snapshot(statement: StatementSummary) -> bool:
     return _is_complete_period(statement) and statement.period_start == statement.period_end
 
 
@@ -41,7 +41,7 @@ def _abs_decimal_delta(left: Decimal, right: Decimal) -> Decimal:
     return abs(left - right)
 
 
-def _latest_statement(statements: list[BankStatement]) -> BankStatement | None:
+def _latest_statement(statements: list[StatementSummary]) -> StatementSummary | None:
     candidates = [
         statement
         for statement in statements
@@ -52,13 +52,13 @@ def _latest_statement(statements: list[BankStatement]) -> BankStatement | None:
     return max(candidates, key=lambda statement: (statement.period_end, statement.updated_at, str(statement.id)))
 
 
-def _coverage_issues(statements: list[BankStatement], currency: str) -> list[AccountCoverageIssue]:
+def _coverage_issues(statements: list[StatementSummary], currency: str) -> list[AccountCoverageIssue]:
     complete_statements = [statement for statement in statements if _is_complete_period(statement)]
     monthly_statements = [statement for statement in complete_statements if not _is_daily_snapshot(statement)]
     monthly_statements.sort(key=lambda statement: (statement.period_start, statement.period_end, str(statement.id)))
 
     issues: list[AccountCoverageIssue] = []
-    seen_periods: dict[tuple[date, date], BankStatement] = {}
+    seen_periods: dict[tuple[date, date], StatementSummary] = {}
 
     for statement in monthly_statements:
         assert statement.period_start is not None
@@ -160,17 +160,22 @@ async def get_account_statement_coverage(
 
     if account_ids:
         statement_result = await db.execute(
-            select(BankStatement)
-            .where(BankStatement.user_id == user_id)
-            .where(BankStatement.status == BankStatementStatus.APPROVED)
-            .where(BankStatement.account_id.in_(account_ids))
-            .order_by(BankStatement.account_id, BankStatement.currency, BankStatement.period_start, BankStatement.id)
+            select(StatementSummary)
+            .where(StatementSummary.user_id == user_id)
+            .where(StatementSummary.status == BankStatementStatus.APPROVED)
+            .where(StatementSummary.account_id.in_(account_ids))
+            .order_by(
+                StatementSummary.account_id,
+                StatementSummary.currency,
+                StatementSummary.period_start,
+                StatementSummary.id,
+            )
         )
         statements = list(statement_result.scalars().all())
     else:
         statements = []
 
-    grouped: dict[tuple[UUID, str], list[BankStatement]] = defaultdict(list)
+    grouped: dict[tuple[UUID, str], list[StatementSummary]] = defaultdict(list)
     for statement in statements:
         assert statement.account_id is not None
         account = account_by_id[statement.account_id]

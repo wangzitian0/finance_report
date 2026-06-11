@@ -22,18 +22,23 @@ class ReconciliationStatusEnum(str, Enum):
 
 
 class BankTransactionSummary(BaseModel):
-    """Summary of a bank transaction for reconciliation."""
+    """Summary of a transaction for reconciliation.
+
+    Mapped from Layer-2 ``AtomicTransaction`` (EPIC-011 Stage 3). ``statement_id``
+    and ``status`` are retained as optional fields for backward compatibility with
+    API consumers; atomic transactions do not carry a per-transaction status.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    statement_id: UUID
+    statement_id: UUID | None = None
     txn_date: date
     description: str
     amount: Decimal
     direction: str
     reference: str | None
-    status: BankStatementTransactionStatusEnum
+    status: BankStatementTransactionStatusEnum | None = None
     confidence_tier: str = "LOW"
 
 
@@ -54,7 +59,7 @@ class ReconciliationMatchResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    bank_txn_id: UUID
+    atomic_txn_id: UUID | None = None
     journal_entry_ids: list[str]
     match_score: int
     score_breakdown: dict[str, float]

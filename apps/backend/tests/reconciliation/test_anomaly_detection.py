@@ -12,30 +12,31 @@ from decimal import Decimal
 
 import pytest
 
+from src.models.layer2 import TransactionDirection
 from src.services.anomaly import detect_anomalies
-from tests.factories import BankStatementFactory, BankStatementTransactionFactory
+from tests.factories import AtomicTransactionFactory
+
+OUT = TransactionDirection.OUT
 
 
 @pytest.mark.asyncio
 async def test_detect_large_amount_anomaly(db, test_user):
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
     # Use 30 small txns so even with target included in avg,
     # avg ≈ (30*1 + 5000)/31 ≈ 162, ratio ≈ 30.8x > 10x threshold.
     for i in range(30):
-        await BankStatementTransactionFactory.create_async(
+        await AtomicTransactionFactory.create_async(
             db,
-            statement_id=stmt.id,
+            user_id=test_user.id,
             amount=Decimal("1.00"),
-            direction="DR",
+            direction=OUT,
             txn_date=date.today() - timedelta(days=(i % 29) + 1),
         )
 
-    large_txn = await BankStatementTransactionFactory.create_async(
+    large_txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         amount=Decimal("5000.00"),
-        direction="DR",
+        direction=OUT,
         txn_date=date.today(),
         description="HUGE PURCHASE ELECTRONICS",
     )
@@ -48,23 +49,21 @@ async def test_detect_large_amount_anomaly(db, test_user):
 
 @pytest.mark.asyncio
 async def test_no_anomalies_for_normal_transaction(db, test_user):
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
     for i in range(5):
-        await BankStatementTransactionFactory.create_async(
+        await AtomicTransactionFactory.create_async(
             db,
-            statement_id=stmt.id,
+            user_id=test_user.id,
             amount=Decimal("50.00"),
-            direction="DR",
+            direction=OUT,
             txn_date=date.today() - timedelta(days=i + 1),
             description=f"GROCERY STORE {i}",
         )
 
-    normal_txn = await BankStatementTransactionFactory.create_async(
+    normal_txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         amount=Decimal("55.00"),
-        direction="DR",
+        direction=OUT,
         txn_date=date.today(),
         description="GROCERY STORE",
     )
@@ -77,13 +76,11 @@ async def test_no_anomalies_for_normal_transaction(db, test_user):
 
 @pytest.mark.asyncio
 async def test_detect_new_merchant_anomaly(db, test_user):
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
-    txn = await BankStatementTransactionFactory.create_async(
+    txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         amount=Decimal("30.00"),
-        direction="DR",
+        direction=OUT,
         txn_date=date.today(),
         description="BRANDNEWSHOP online",
     )
@@ -96,14 +93,12 @@ async def test_detect_new_merchant_anomaly(db, test_user):
 
 @pytest.mark.asyncio
 async def test_detect_weekend_large_anomaly(db, test_user):
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
     for i in range(5):
-        await BankStatementTransactionFactory.create_async(
+        await AtomicTransactionFactory.create_async(
             db,
-            statement_id=stmt.id,
+            user_id=test_user.id,
             amount=Decimal("10.00"),
-            direction="DR",
+            direction=OUT,
             txn_date=date.today() - timedelta(days=i + 1),
         )
 
@@ -111,11 +106,11 @@ async def test_detect_weekend_large_anomaly(db, test_user):
     while saturday.weekday() != 5:
         saturday += timedelta(days=1)
 
-    weekend_txn = await BankStatementTransactionFactory.create_async(
+    weekend_txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         amount=Decimal("500.00"),
-        direction="DR",
+        direction=OUT,
         txn_date=saturday,
         description="WEEKEND SPLURGE",
     )
@@ -128,24 +123,23 @@ async def test_detect_weekend_large_anomaly(db, test_user):
 
 @pytest.mark.asyncio
 async def test_detect_frequency_spike(db, test_user):
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
     today = date.today()
 
     for i in range(6):
-        await BankStatementTransactionFactory.create_async(
+        await AtomicTransactionFactory.create_async(
             db,
-            statement_id=stmt.id,
+            user_id=test_user.id,
             amount=Decimal("10.00"),
-            direction="DR",
+            direction=OUT,
             txn_date=today,
             description=f"COFFEESHOP order-{i}",
         )
 
-    target_txn = await BankStatementTransactionFactory.create_async(
+    target_txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         amount=Decimal("10.00"),
-        direction="DR",
+        direction=OUT,
         txn_date=today,
         description="COFFEESHOP order-7",
     )
@@ -158,23 +152,21 @@ async def test_detect_frequency_spike(db, test_user):
 
 @pytest.mark.asyncio
 async def test_anomaly_result_has_severity(db, test_user):
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
     # avg includes target; 30*1 + 5000 / 31 ≈ 162, ratio ≈ 30.8x > 10x
     for i in range(30):
-        await BankStatementTransactionFactory.create_async(
+        await AtomicTransactionFactory.create_async(
             db,
-            statement_id=stmt.id,
+            user_id=test_user.id,
             amount=Decimal("1.00"),
-            direction="DR",
+            direction=OUT,
             txn_date=date.today() - timedelta(days=(i % 29) + 1),
         )
 
-    large_txn = await BankStatementTransactionFactory.create_async(
+    large_txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        user_id=test_user.id,
         amount=Decimal("5000.00"),
-        direction="DR",
+        direction=OUT,
         txn_date=date.today(),
         description="BIGPURCHASE electronics",
     )

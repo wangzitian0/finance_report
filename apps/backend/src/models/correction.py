@@ -12,7 +12,7 @@ from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from src.models.account import Account
-    from src.models.statement import BankStatementTransaction
+    from src.models.layer2 import AtomicTransaction
 
 
 class CorrectionLog(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
@@ -27,7 +27,7 @@ class CorrectionLog(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     transaction_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("bank_statement_transactions.id", ondelete="CASCADE"),
+        ForeignKey("atomic_transactions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -61,8 +61,8 @@ class CorrectionLog(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     )
 
     # Relationships
-    transaction: Mapped["BankStatementTransaction"] = relationship(
-        "BankStatementTransaction",
+    transaction: Mapped["AtomicTransaction"] = relationship(
+        "AtomicTransaction",
     )
     original_account: Mapped["Account | None"] = relationship(
         "Account",

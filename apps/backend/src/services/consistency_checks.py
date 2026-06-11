@@ -4,9 +4,8 @@ from uuid import UUID
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.models import AtomicTransaction, TransactionDirection
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.services.anomaly import detect_anomalies
 
@@ -19,26 +18,15 @@ async def detect_duplicates(
     user_id: UUID,
     statement_id: UUID | None = None,
 ) -> list[ConsistencyCheck]:
-    base_query = (
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.status == BankStatementStatus.APPROVED)
-    )
+    base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
-    if statement_id:
-        anchor_result = await db.execute(base_query.where(BankStatementTransaction.statement_id == statement_id))
-        anchor_txns = list(anchor_result.scalars().all())
-        all_result = await db.execute(base_query)
-        all_txns = list(all_result.scalars().all())
-    else:
-        all_result = await db.execute(base_query)
-        all_txns = list(all_result.scalars().all())
-        anchor_txns = all_txns
+    all_result = await db.execute(base_query)
+    all_txns = list(all_result.scalars().all())
+    anchor_txns = all_txns
 
-    groups: dict[str, list[BankStatementTransaction]] = {}
+    groups: dict[str, list[AtomicTransaction]] = {}
     for txn in all_txns:
-        key = f"{txn.amount}_{txn.direction}_{txn.description[:50] if txn.description else ''}"
+        key = f"{txn.amount}_{txn.direction.value}_{txn.description[:50] if txn.description else ''}"
         if key not in groups:
             groups[key] = []
         groups[key].append(txn)
@@ -94,28 +82,16 @@ async def detect_transfer_pairs(
     user_id: UUID,
     statement_id: UUID | None = None,
 ) -> list[ConsistencyCheck]:
-    base_query = (
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.status == BankStatementStatus.APPROVED)
-        .options(selectinload(BankStatementTransaction.statement))
-    )
+    base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
-    if statement_id:
-        anchor_result = await db.execute(base_query.where(BankStatementTransaction.statement_id == statement_id))
-        anchor_txns = list(anchor_result.scalars().all())
-        all_result = await db.execute(base_query)
-        all_txns = list(all_result.scalars().all())
-    else:
-        all_result = await db.execute(base_query)
-        all_txns = list(all_result.scalars().all())
-        anchor_txns = all_txns
+    all_result = await db.execute(base_query)
+    all_txns = list(all_result.scalars().all())
+    anchor_txns = all_txns
 
-    out_txns = [t for t in anchor_txns if t.direction == "OUT"]
-    in_txns_by_amount: dict[Decimal, list[BankStatementTransaction]] = {}
+    out_txns = [t for t in anchor_txns if t.direction == TransactionDirection.OUT]
+    in_txns_by_amount: dict[Decimal, list[AtomicTransaction]] = {}
     for t in all_txns:
-        if t.direction == "IN":
+        if t.direction == TransactionDirection.IN:
             if t.amount not in in_txns_by_amount:
                 in_txns_by_amount[t.amount] = []
             in_txns_by_amount[t.amount].append(t)
@@ -175,14 +151,7 @@ async def detect_anomalies_batch(
     user_id: UUID,
     statement_id: UUID | None = None,
 ) -> list[ConsistencyCheck]:
-    query = (
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.status == BankStatementStatus.APPROVED)
-    )
-    if statement_id:
-        query = query.where(BankStatementTransaction.statement_id == statement_id)
+    query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
     result = await db.execute(query)
     transactions = list(result.scalars().all())

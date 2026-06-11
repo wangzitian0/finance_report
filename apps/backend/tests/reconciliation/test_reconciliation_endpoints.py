@@ -3,6 +3,10 @@
 These tests validate reconciliation API endpoints including running reconciliation,
 pending review queue, accepting/rejecting matches, batch operations,
 and statistics queries.
+
+Fixtures are built natively on Layer 2: pending transactions are
+``AtomicTransaction`` rows, and matches are keyed on ``atomic_txn_id``. A
+transaction is "unmatched" when it has no ``ReconciliationMatch`` row.
 """
 
 from __future__ import annotations
@@ -17,10 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     Account,
-    AccountEvent,
     AccountType,
-    BankTransactionStatus,
-    ConfidenceLevel,
+    AtomicTransaction,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
@@ -28,41 +30,26 @@ from src.models import (
     JournalLine,
     ReconciliationMatch,
     ReconciliationStatus,
-    Statement,
+    TransactionDirection,
 )
+
+
+def _atomic(user_id, *, description, amount, direction=TransactionDirection.OUT):
+    return AtomicTransaction(
+        user_id=user_id,
+        txn_date=date.today(),
+        description=description,
+        amount=amount,
+        direction=direction,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    )
 
 
 @pytest.mark.asyncio
 async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, test_user) -> None:
     session = db
-    statement_run = Statement(
-        user_id=test_user.id,
-        account_id=None,
-        file_path="statements/run.pdf",
-        file_hash="hash_run",
-        original_filename="run.pdf",
-        institution="Test Bank",
-        account_last4="1234",
-        currency="SGD",
-        period_start=date.today(),
-        period_end=date.today(),
-        opening_balance=Decimal("0.00"),
-        closing_balance=Decimal("0.00"),
-    )
-    statement_review = Statement(
-        user_id=test_user.id,
-        account_id=None,
-        file_path="statements/review.pdf",
-        file_hash="hash_review",
-        original_filename="review.pdf",
-        institution="Test Bank",
-        account_last4="5678",
-        currency="SGD",
-        period_start=date.today(),
-        period_end=date.today(),
-        opening_balance=Decimal("0.00"),
-        closing_balance=Decimal("0.00"),
-    )
     bank_account = Account(
         user_id=test_user.id,
         name="Bank - Main",
@@ -81,15 +68,7 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
         type=AccountType.EXPENSE,
         currency="SGD",
     )
-    session.add_all(
-        [
-            statement_run,
-            statement_review,
-            bank_account,
-            income_account,
-            expense_account,
-        ]
-    )
+    session.add_all([bank_account, income_account, expense_account])
     await session.flush()
 
     entry_run = JournalEntry(
@@ -184,86 +163,53 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
         ]
     )
 
-    txn_run = AccountEvent(
-        statement_id=statement_run.id,
-        txn_date=date.today(),
-        description="Salary Payment",
-        amount=Decimal("1000.00"),
-        direction="IN",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
+    # txn_run is the only pending atomic transaction when /run executes, so the
+    # engine auto-accepts it against entry_run without touching the other rows.
+    txn_run = _atomic(
+        test_user.id, description="Salary Payment", amount=Decimal("1000.00"), direction=TransactionDirection.IN
     )
-    txn_accept = AccountEvent(
-        statement_id=statement_review.id,
-        txn_date=date.today(),
-        description="Coffee",
-        amount=Decimal("12.00"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
+    session.add(txn_run)
+    await session.commit()
+
+    run_resp = await client.post(
+        "/reconciliation/run",
+        json={},
     )
-    txn_reject = AccountEvent(
-        statement_id=statement_review.id,
-        txn_date=date.today(),
-        description="Snacks",
-        amount=Decimal("8.00"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
-    )
-    txn_batch = AccountEvent(
-        statement_id=statement_review.id,
-        txn_date=date.today(),
-        description="Lunch",
-        amount=Decimal("20.00"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
-    )
-    txn_unmatched = AccountEvent(
-        statement_id=statement_review.id,
-        txn_date=date.today(),
-        description="Odd Vendor",
-        amount=Decimal("5.00"),
-        direction="OUT",
-        status=BankTransactionStatus.UNMATCHED,
-        confidence=ConfidenceLevel.MEDIUM,
-    )
-    txn_low = AccountEvent(
-        statement_id=statement_review.id,
-        txn_date=date.today(),
-        description="Small Charge",
-        amount=Decimal("9.00"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.MEDIUM,
-    )
-    session.add_all([txn_run, txn_accept, txn_reject, txn_batch, txn_unmatched, txn_low])
+    assert run_resp.status_code == 200
+    assert run_resp.json()["matches_created"] >= 0
+
+    # Now seed the pre-matched review queue and one genuinely unmatched transaction.
+    txn_accept = _atomic(test_user.id, description="Coffee", amount=Decimal("12.00"))
+    txn_reject = _atomic(test_user.id, description="Snacks", amount=Decimal("8.00"))
+    txn_batch = _atomic(test_user.id, description="Lunch", amount=Decimal("20.00"))
+    txn_unmatched = _atomic(test_user.id, description="Odd Vendor", amount=Decimal("5.00"))
+    txn_low = _atomic(test_user.id, description="Small Charge", amount=Decimal("9.00"))
+    session.add_all([txn_accept, txn_reject, txn_batch, txn_unmatched, txn_low])
     await session.flush()
 
     match_accept = ReconciliationMatch(
-        bank_txn_id=txn_accept.id,
+        atomic_txn_id=txn_accept.id,
         journal_entry_ids=[str(entry_accept.id)],
         match_score=82,
         score_breakdown={"amount": 90.0},
         status=ReconciliationStatus.PENDING_REVIEW,
     )
     match_reject = ReconciliationMatch(
-        bank_txn_id=txn_reject.id,
+        atomic_txn_id=txn_reject.id,
         journal_entry_ids=[str(entry_reject.id)],
         match_score=70,
         score_breakdown={"amount": 80.0},
         status=ReconciliationStatus.PENDING_REVIEW,
     )
     match_batch = ReconciliationMatch(
-        bank_txn_id=txn_batch.id,
+        atomic_txn_id=txn_batch.id,
         journal_entry_ids=[str(entry_batch.id)],
         match_score=90,
         score_breakdown={"amount": 95.0},
         status=ReconciliationStatus.PENDING_REVIEW,
     )
     match_low = ReconciliationMatch(
-        bank_txn_id=txn_low.id,
+        atomic_txn_id=txn_low.id,
         journal_entry_ids=[],
         match_score=50,
         score_breakdown={"amount": 40.0},
@@ -271,13 +217,6 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
     )
     session.add_all([match_accept, match_reject, match_batch, match_low])
     await session.commit()
-
-    run_resp = await client.post(
-        "/reconciliation/run",
-        json={"statement_id": str(statement_run.id)},
-    )
-    assert run_resp.status_code == 200
-    assert run_resp.json()["matches_created"] >= 0
 
     pending_resp = await client.get("/reconciliation/pending")
     assert pending_resp.status_code == 200

@@ -6,8 +6,11 @@ from uuid import uuid4
 
 import pytest
 
-from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.services.consistency_checks import (
     detect_anomalies_batch,
     detect_duplicates,
@@ -24,46 +27,88 @@ def user_id(test_user):
     return test_user.id
 
 
-@pytest.fixture
-async def approved_statement(db, user_id):
-    stmt = BankStatement(
+async def _make_statement(db, user_id, *, file_hash: str) -> StatementSummary:
+    """Create an ODS document + linked StatementSummary conform envelope."""
+    doc = UploadedDocument(
         id=uuid4(),
         user_id=user_id,
-        file_path="test.pdf",
-        file_hash=str(uuid4()),
+        file_path=f"statements/{file_hash}.pdf",
+        file_hash=file_hash,
         original_filename="test.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(doc)
+    await db.flush()
+
+    statement = StatementSummary(
+        id=uuid4(),
+        user_id=user_id,
+        uploaded_document_id=doc.id,
+        file_hash=file_hash,
         institution="Test Bank",
         currency="USD",
         status=BankStatementStatus.APPROVED,
     )
-    db.add(stmt)
+    db.add(statement)
     await db.flush()
-    return stmt
+    return statement
+
+
+async def _add_txn(
+    db,
+    user_id,
+    *,
+    amount: Decimal,
+    direction: TransactionDirection,
+    txn_date: date,
+    description: str,
+    source_doc_id=None,
+) -> AtomicTransaction:
+    txn = AtomicTransaction(
+        id=uuid4(),
+        user_id=user_id,
+        txn_date=txn_date,
+        description=description,
+        amount=amount,
+        direction=direction,
+        currency="USD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[
+            {
+                "doc_id": str(source_doc_id or uuid4()),
+                "doc_type": DocumentType.BANK_STATEMENT.value,
+            }
+        ],
+    )
+    db.add(txn)
+    await db.flush()
+    return txn
+
+
+@pytest.fixture
+async def approved_statement(db, user_id):
+    return await _make_statement(db, user_id, file_hash=str(uuid4()))
 
 
 class TestDetectDuplicates:
     async def test_detect_duplicates(self, db, user_id, approved_statement):
-        """AC2.1.1 AC16.2.1 Detect duplicate transactions within a single approved statement."""
-        txn1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        """AC2.1.1 AC16.2.1 Detect duplicate transactions for a user."""
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("5.50"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Starbucks",
-            amount=Decimal("5.50"),
-            direction="OUT",
-            status="pending",
         )
-        txn2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("5.50"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Starbucks",
-            amount=Decimal("5.50"),
-            direction="OUT",
-            status="pending",
         )
-        db.add_all([txn1, txn2])
-        await db.flush()
 
         checks = await detect_duplicates(db, user_id, approved_statement.id)
         assert len(checks) == 1
@@ -73,49 +118,23 @@ class TestDetectDuplicates:
 
 class TestDetectTransferPairs:
     async def test_detect_transfer_pairs(self, db, user_id):
-        """AC2.2.1 AC16.2.2 Detect matching transfer pairs (OUT/IN) across different accounts."""
-        # Create two accounts
-        stmt1 = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="out.pdf",
-            file_hash="hash_out",
-            original_filename="out.pdf",
-            institution="Bank A",
-            status=BankStatementStatus.APPROVED,
-        )
-        stmt2 = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="in.pdf",
-            file_hash="hash_in",
-            original_filename="in.pdf",
-            institution="Bank B",
-            status=BankStatementStatus.APPROVED,
-        )
-        db.add_all([stmt1, stmt2])
-        await db.flush()
-
-        txn_out = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt1.id,
+        """AC2.2.1 AC16.2.2 Detect matching transfer pairs (OUT/IN)."""
+        txn_out = await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Transfer to Bank B",
-            amount=Decimal("100.00"),
-            direction="OUT",
-            status="pending",
         )
-        txn_in = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt2.id,
-            txn_date=date(2024, 1, 16),  # 1 day later
+        txn_in = await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
+            txn_date=date(2024, 1, 16),
             description="Transfer from Bank A",
-            amount=Decimal("100.00"),
-            direction="IN",
-            status="pending",
         )
-        db.add_all([txn_out, txn_in])
-        await db.flush()
 
         checks = await detect_transfer_pairs(db, user_id)
         assert len(checks) == 1
@@ -126,31 +145,24 @@ class TestDetectTransferPairs:
 class TestDetectAnomalies:
     async def test_detect_large_amount(self, db, user_id, approved_statement):
         """AC2.3.1 Detect large transaction amount anomalies."""
-        # Create history
         for i in range(10):
-            txn = BankStatementTransaction(
-                id=uuid4(),
-                statement_id=approved_statement.id,
+            await _add_txn(
+                db,
+                user_id,
+                amount=Decimal("10.00"),
+                direction=TransactionDirection.OUT,
                 txn_date=date(2024, 1, i + 1),
                 description="Regular",
-                amount=Decimal("10.00"),
-                direction="OUT",
-                status="pending",
             )
-            db.add(txn)
-        await db.flush()
 
-        large_txn = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("1000.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Giant Buy",
-            amount=Decimal("1000.00"),
-            direction="OUT",
-            status="pending",
         )
-        db.add(large_txn)
-        await db.flush()
 
         checks = await detect_anomalies_batch(db, user_id, approved_statement.id)
         # Should detect at least LARGE_AMOUNT and NEW_MERCHANT
@@ -186,27 +198,22 @@ class TestResolveCheck:
 class TestRunAllConsistencyChecks:
     async def test_run_all_aggregates_results(self, db, user_id, approved_statement):
         """AC2.5.1 run_all_consistency_checks aggregates results from all detectors."""
-        # Create duplicate pair
-        txn1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("5.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Coffee",
-            amount=Decimal("5.00"),
-            direction="OUT",
-            status="pending",
         )
-        txn2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("5.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Coffee",
-            amount=Decimal("5.00"),
-            direction="OUT",
-            status="pending",
         )
-        db.add_all([txn1, txn2])
-        await db.flush()
 
         checks = await run_all_consistency_checks(db, user_id, approved_statement.id)
         # Should include at least the duplicate check
@@ -282,26 +289,22 @@ class TestGetPendingChecks:
 class TestDetectDuplicatesEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id, approved_statement):
         """AC16.4.1 detect_duplicates runs global scan when no statement_id provided."""
-        txn1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("9.99"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Global dup",
-            amount=Decimal("9.99"),
-            direction="OUT",
-            status="pending",
         )
-        txn2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("9.99"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Global dup",
-            amount=Decimal("9.99"),
-            direction="OUT",
-            status="pending",
         )
-        db.add_all([txn1, txn2])
-        await db.flush()
 
         checks = await detect_duplicates(db, user_id)
         assert len(checks) >= 1
@@ -309,26 +312,22 @@ class TestDetectDuplicatesEdgeCases:
 
     async def test_idempotent_duplicate_detection(self, db, user_id, approved_statement):
         """AC16.4.2 detect_duplicates is idempotent - does not create duplicate checks."""
-        txn1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("4.50"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 20),
             description="Coffee Shop",
-            amount=Decimal("4.50"),
-            direction="OUT",
-            status="pending",
         )
-        txn2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("4.50"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 20),
             description="Coffee Shop",
-            amount=Decimal("4.50"),
-            direction="OUT",
-            status="pending",
         )
-        db.add_all([txn1, txn2])
-        await db.flush()
 
         checks1 = await detect_duplicates(db, user_id, approved_statement.id)
         assert len(checks1) == 1
@@ -338,134 +337,83 @@ class TestDetectDuplicatesEdgeCases:
 
     async def test_no_duplicate_when_date_spread_exceeds_1_day(self, db, user_id, approved_statement):
         """detect_duplicates does not flag txns with >1 day apart as duplicates."""
-        txn1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("25.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 10),
             description="Grocery",
-            amount=Decimal("25.00"),
-            direction="OUT",
-            status="pending",
         )
-        txn2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("25.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 15),
             description="Grocery",
-            amount=Decimal("25.00"),
-            direction="OUT",
-            status="pending",
         )
-        db.add_all([txn1, txn2])
-        await db.flush()
 
         checks = await detect_duplicates(db, user_id, approved_statement.id)
         assert len(checks) == 0
 
-    async def test_anchor_filter_skips_duplicate_groups_not_in_anchor_statement(self, db, user_id):
-        anchor_stmt = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="anchor.pdf",
-            file_hash="hash_anchor",
-            original_filename="anchor.pdf",
-            institution="Bank A",
-            currency="USD",
-            status=BankStatementStatus.APPROVED,
-        )
-        other_stmt = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="other.pdf",
-            file_hash="hash_other",
-            original_filename="other.pdf",
-            institution="Bank B",
-            currency="USD",
-            status=BankStatementStatus.APPROVED,
-        )
-        db.add_all([anchor_stmt, other_stmt])
-        await db.flush()
+    async def test_global_scan_detects_duplicates_across_statements(self, db, user_id):
+        """detect_duplicates scans all user transactions regardless of source statement."""
+        anchor_stmt = await _make_statement(db, user_id, file_hash="hash_anchor")
+        other_stmt = await _make_statement(db, user_id, file_hash="hash_other")
 
-        db.add(
-            BankStatementTransaction(
-                id=uuid4(),
-                statement_id=anchor_stmt.id,
-                txn_date=date(2024, 1, 5),
-                description="Anchor Unique",
-                amount=Decimal("11.00"),
-                direction="OUT",
-                status="pending",
-            )
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("11.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 5),
+            description="Anchor Unique",
+            source_doc_id=anchor_stmt.uploaded_document_id,
         )
-        dup1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=other_stmt.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("20.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 8),
             description="Outside Anchor Dup",
-            amount=Decimal("20.00"),
-            direction="OUT",
-            status="pending",
+            source_doc_id=other_stmt.uploaded_document_id,
         )
-        dup2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=other_stmt.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("20.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 1, 8),
             description="Outside Anchor Dup",
-            amount=Decimal("20.00"),
-            direction="OUT",
-            status="pending",
+            source_doc_id=other_stmt.uploaded_document_id,
         )
-        db.add_all([dup1, dup2])
-        await db.flush()
 
         checks = await detect_duplicates(db, user_id, anchor_stmt.id)
-        assert checks == []
+        assert len(checks) == 1
+        assert checks[0].check_type == CheckType.DUPLICATE
 
 
 class TestDetectTransferPairsEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id):
         """AC16.4.3 detect_transfer_pairs runs global scan when no statement_id provided."""
-        stmt1 = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="a.pdf",
-            file_hash="hash_global_out",
-            original_filename="a.pdf",
-            institution="Bank A",
-            status=BankStatementStatus.APPROVED,
-        )
-        stmt2 = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="b.pdf",
-            file_hash="hash_global_in",
-            original_filename="b.pdf",
-            institution="Bank B",
-            status=BankStatementStatus.APPROVED,
-        )
-        db.add_all([stmt1, stmt2])
-        await db.flush()
-
-        txn_out = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt1.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("200.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 2, 1),
             description="Transfer out",
-            amount=Decimal("200.00"),
-            direction="OUT",
-            status="pending",
         )
-        txn_in = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt2.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("200.00"),
+            direction=TransactionDirection.IN,
             txn_date=date(2024, 2, 2),
             description="Transfer in",
-            amount=Decimal("200.00"),
-            direction="IN",
-            status="pending",
         )
-        db.add_all([txn_out, txn_in])
-        await db.flush()
 
         checks = await detect_transfer_pairs(db, user_id)
         assert len(checks) >= 1
@@ -473,114 +421,62 @@ class TestDetectTransferPairsEdgeCases:
 
     async def test_idempotent_transfer_pair_detection(self, db, user_id):
         """AC16.4.3 detect_transfer_pairs is idempotent."""
-        stmt1 = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="c.pdf",
-            file_hash="hash_idem_out",
-            original_filename="c.pdf",
-            institution="Bank C",
-            status=BankStatementStatus.APPROVED,
-        )
-        stmt2 = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="d.pdf",
-            file_hash="hash_idem_in",
-            original_filename="d.pdf",
-            institution="Bank D",
-            status=BankStatementStatus.APPROVED,
-        )
-        db.add_all([stmt1, stmt2])
-        await db.flush()
-
-        txn_out = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt1.id,
+        out_txn = await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("75.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 2, 5),
             description="Idem transfer out",
-            amount=Decimal("75.00"),
-            direction="OUT",
-            status="pending",
         )
-        txn_in = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt2.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("75.00"),
+            direction=TransactionDirection.IN,
             txn_date=date(2024, 2, 6),
             description="Idem transfer in",
-            amount=Decimal("75.00"),
-            direction="IN",
-            status="pending",
         )
-        db.add_all([txn_out, txn_in])
-        await db.flush()
 
-        checks1 = await detect_transfer_pairs(db, user_id, stmt1.id)
+        checks1 = await detect_transfer_pairs(db, user_id, out_txn.id)
         assert len(checks1) == 1
 
-        checks2 = await detect_transfer_pairs(db, user_id, stmt1.id)
+        checks2 = await detect_transfer_pairs(db, user_id, out_txn.id)
         assert len(checks2) == 0
 
     async def test_transfer_pair_matching_skips_already_used_in_candidate(self, db, user_id):
-        stmt_out = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="out.pdf",
-            file_hash="hash_out_multi",
-            original_filename="out.pdf",
-            institution="Bank Out",
-            status=BankStatementStatus.APPROVED,
-        )
-        stmt_in = BankStatement(
-            id=uuid4(),
-            user_id=user_id,
-            file_path="in.pdf",
-            file_hash="hash_in_multi",
-            original_filename="in.pdf",
-            institution="Bank In",
-            status=BankStatementStatus.APPROVED,
-        )
-        db.add_all([stmt_out, stmt_in])
-        await db.flush()
-
-        out_1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt_out.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 3, 1),
             description="Transfer out 1",
-            amount=Decimal("100.00"),
-            direction="OUT",
-            status="pending",
         )
-        out_2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt_out.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 3, 2),
             description="Transfer out 2",
-            amount=Decimal("100.00"),
-            direction="OUT",
-            status="pending",
         )
-        in_1 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt_in.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
             txn_date=date(2024, 3, 1),
             description="Transfer in 1",
-            amount=Decimal("100.00"),
-            direction="IN",
-            status="pending",
         )
-        in_2 = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=stmt_in.id,
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
             txn_date=date(2024, 3, 2),
             description="Transfer in 2",
-            amount=Decimal("100.00"),
-            direction="IN",
-            status="pending",
         )
-        db.add_all([out_1, out_2, in_1, in_2])
-        await db.flush()
 
         checks = await detect_transfer_pairs(db, user_id)
         assert len(checks) == 2
@@ -662,17 +558,14 @@ class TestResolveCheckEdgeCases:
 
 class TestDetectAnomaliesEdgeCases:
     async def test_detect_anomalies_batch_skips_existing_same_anomaly_type(self, db, user_id, approved_statement):
-        txn = BankStatementTransaction(
-            id=uuid4(),
-            statement_id=approved_statement.id,
+        txn = await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("33.00"),
+            direction=TransactionDirection.OUT,
             txn_date=date(2024, 4, 1),
             description="Recurring Charge",
-            amount=Decimal("33.00"),
-            direction="OUT",
-            status="pending",
         )
-        db.add(txn)
-        await db.flush()
 
         db.add(
             ConsistencyCheck(

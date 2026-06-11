@@ -13,8 +13,8 @@ from src.models import User
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
 from src.routers.evidence import _should_attempt_lazy_materialization
 from src.services.deduplication import DeduplicationService
 from src.services.evidence_lineage import EvidenceLineageService
@@ -29,7 +29,6 @@ async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_dire
     """AC18.9.1 AC18.9.2: API resolves an owned anchor and returns bounded bidirectional DTOs."""
     service = EvidenceLineageService()
     source_id = uuid4()
-    extracted_id = uuid4()
     atomic_id = uuid4()
     entry_id = uuid4()
     line_id = uuid4()
@@ -42,13 +41,6 @@ async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_dire
         entity_type="uploaded_document",
         entity_id=source_id,
         properties={"original_filename": "may.csv"},
-    )
-    extracted = await service.upsert_node(
-        db,
-        user_id=test_user.id,
-        node_kind="extracted_record",
-        entity_type="bank_statement_transaction",
-        entity_id=extracted_id,
     )
     atomic = await service.upsert_node(
         db,
@@ -79,10 +71,7 @@ async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_dire
         entity_id=report_line_id,
     )
     await service.upsert_edge(
-        db, user_id=test_user.id, from_node_id=source.id, to_node_id=extracted.id, relation="parsed_into"
-    )
-    await service.upsert_edge(
-        db, user_id=test_user.id, from_node_id=extracted.id, to_node_id=atomic.id, relation="deduped_into"
+        db, user_id=test_user.id, from_node_id=source.id, to_node_id=atomic.id, relation="deduped_into"
     )
     await service.upsert_edge(
         db, user_id=test_user.id, from_node_id=atomic.id, to_node_id=entry.id, relation="posted_as"
@@ -113,14 +102,12 @@ async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_dire
 
     node_keys = {(node["node_kind"], node["entity_type"], node["entity_id"]) for node in payload["nodes"]}
     assert ("source_document", "uploaded_document", str(source_id)) in node_keys
-    assert ("extracted_record", "bank_statement_transaction", str(extracted_id)) in node_keys
     assert ("atomic_fact", "atomic_transaction", str(atomic_id)) in node_keys
     assert ("ledger_entry", "journal_entry", str(entry_id)) in node_keys
     assert ("ledger_line", "journal_line", str(line_id)) in node_keys
     assert ("report_line", "package_traceability_line", str(report_line_id)) in node_keys
 
     edge_keys = {(edge["relation"], edge["direction"], edge["depth"]) for edge in payload["edges"]}
-    assert ("parsed_into", "upstream", 4) in edge_keys
     assert ("deduped_into", "upstream", 3) in edge_keys
     assert ("posted_as", "upstream", 2) in edge_keys
     assert ("contains", "upstream", 1) in edge_keys
@@ -144,7 +131,7 @@ async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_dire
     }
     assert ("ledger_line", "journal_line", str(line_id)) in source_downstream_nodes
     assert ("report_line", "package_traceability_line", str(report_line_id)) in source_downstream_nodes
-    assert ("aggregated_into", "downstream", 5) in {
+    assert ("aggregated_into", "downstream", 4) in {
         (edge["relation"], edge["direction"], edge["depth"]) for edge in source_payload["edges"]
     }
 
@@ -202,61 +189,55 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
     db.add_all([bank, income])
     await db.flush()
 
-    statement = BankStatement(
+    document = UploadedDocument(
         user_id=test_user.id,
-        account_id=bank.id,
         file_path="s3://lazy/api.csv",
         file_hash=f"lazy-api-{uuid4().hex}",
         original_filename="lazy-api.csv",
-        institution="Lazy API Bank",
-        currency="SGD",
-        status=BankStatementStatus.APPROVED,
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
     )
-    txn = BankStatementTransaction(
-        statement=statement,
-        txn_date=date(2026, 5, 2),
-        description="Lazy API income",
-        amount=Decimal("77.00"),
-        direction="IN",
-        currency="SGD",
-        reference="API-1",
-    )
-    db.add_all([statement, txn])
+    db.add(document)
     await db.flush()
 
+    txn_date = date(2026, 5, 2)
+    amount = Decimal("77.00")
+    description = "Lazy API income"
+    reference = "API-1"
     atomic = AtomicTransaction(
         user_id=test_user.id,
-        txn_date=txn.txn_date,
-        amount=txn.amount,
+        txn_date=txn_date,
+        amount=amount,
         direction=TransactionDirection.IN,
-        description=txn.description,
-        reference=txn.reference,
+        description=description,
+        reference=reference,
         currency="SGD",
         dedup_hash=DeduplicationService.calculate_transaction_hash(
             test_user.id,
-            txn.txn_date,
-            txn.amount,
+            txn_date,
+            amount,
             TransactionDirection.IN,
-            txn.description,
-            txn.reference,
+            description,
+            reference,
         ),
-        source_documents=[],
+        source_documents=[{"doc_id": str(document.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
     )
     entry = JournalEntry(
         user_id=test_user.id,
-        entry_date=txn.txn_date,
+        entry_date=txn_date,
         memo="Lazy API posted income",
         source_type=JournalEntrySourceType.USER_CONFIRMED,
-        source_id=txn.id,
+        source_id=None,
         status=JournalEntryStatus.POSTED,
     )
     db.add_all([atomic, entry])
     await db.flush()
+    entry.source_id = atomic.id
     line = JournalLine(
         journal_entry_id=entry.id,
         account_id=income.id,
         direction=Direction.CREDIT,
-        amount=txn.amount,
+        amount=amount,
         currency="SGD",
     )
     db.add(line)
@@ -277,12 +258,11 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
     payload = first.json()
     assert payload["blockers"] == []
     node_keys = {(node["node_kind"], node["entity_type"], node["entity_id"]) for node in payload["nodes"]}
-    assert ("source_document", "bank_statement", str(statement.id)) in node_keys
-    assert ("extracted_record", "bank_statement_transaction", str(txn.id)) in node_keys
+    assert ("source_document", "uploaded_document", str(document.id)) in node_keys
     assert ("atomic_fact", "atomic_transaction", str(atomic.id)) in node_keys
     assert ("ledger_entry", "journal_entry", str(entry.id)) in node_keys
     assert ("ledger_line", "journal_line", str(line.id)) in node_keys
-    assert {edge["relation"] for edge in payload["edges"]} >= {"parsed_into", "posted_as", "contains"}
+    assert {edge["relation"] for edge in payload["edges"]} >= {"deduped_into", "posted_as", "contains"}
     db_edges = {
         (edge.from_node_id, edge.to_node_id, edge.relation)
         for edge in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == test_user.id))).scalars()
@@ -291,14 +271,11 @@ async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_jo
         (node.node_kind, node.entity_type, node.entity_id): node
         for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()
     }
-    source_node = nodes_by_key[("source_document", "bank_statement", statement.id)]
-    extracted_node = nodes_by_key[("extracted_record", "bank_statement_transaction", txn.id)]
+    source_node = nodes_by_key[("source_document", "uploaded_document", document.id)]
     atomic_node = nodes_by_key[("atomic_fact", "atomic_transaction", atomic.id)]
     ledger_entry_node = nodes_by_key[("ledger_entry", "journal_entry", entry.id)]
     ledger_line_node = nodes_by_key[("ledger_line", "journal_line", line.id)]
-    assert (source_node.id, extracted_node.id, "parsed_into") in db_edges
-    assert (extracted_node.id, atomic_node.id, "deduped_into") in db_edges
-    assert (extracted_node.id, ledger_entry_node.id, "posted_as") in db_edges
+    assert (source_node.id, atomic_node.id, "deduped_into") in db_edges
     assert (atomic_node.id, ledger_entry_node.id, "posted_as") in db_edges
     assert (ledger_entry_node.id, ledger_line_node.id, "contains") in db_edges
 

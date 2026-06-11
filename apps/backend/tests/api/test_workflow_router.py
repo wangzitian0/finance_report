@@ -16,7 +16,6 @@ from src.main import app
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
     BankStatementStatus,
     ClassificationRule,
     JournalEntry,
@@ -25,8 +24,10 @@ from src.models import (
     ReportType,
     RuleType,
     Stage1Status,
+    StatementSummary,
     User,
 )
+from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
@@ -107,14 +108,50 @@ def _next_action(
     return {"type": action_type, "count": count, "href": href, "label": label, "summary": summary}
 
 
+async def _make_statement(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    original_filename: str,
+    file_hash: str,
+    institution: str = "Demo Bank",
+    status: BankStatementStatus = BankStatementStatus.UPLOADED,
+    stage1_status: Stage1Status | None = None,
+    balance_validated: bool | None = None,
+    validation_error: str | None = None,
+) -> StatementSummary:
+    """Create a StatementSummary linked to an UploadedDocument for workflow derivation."""
+    document = UploadedDocument(
+        user_id=user_id,
+        file_path=f"statements/{original_filename}",
+        file_hash=file_hash,
+        original_filename=original_filename,
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(document)
+    await db.flush()
+
+    statement = StatementSummary(
+        user_id=user_id,
+        uploaded_document_id=document.id,
+        file_hash=file_hash,
+        institution=institution,
+        status=status,
+        stage1_status=stage1_status,
+        balance_validated=balance_validated,
+        validation_error=validation_error,
+    )
+    db.add(statement)
+    await db.flush()
+    return statement
+
+
 def _approved_statement(user_id: UUID, *, account_id: UUID | None = None, updated_at: datetime | None = None):
     timestamp = updated_at or datetime.now(UTC)
-    return BankStatement(
+    return StatementSummary(
         user_id=user_id,
         account_id=account_id,
-        file_path=f"statements/{uuid4()}.csv",
         file_hash=uuid4().hex,
-        original_filename=f"{uuid4()}.csv",
         institution="Workflow Readiness Bank",
         status=BankStatementStatus.APPROVED,
         stage1_status=Stage1Status.APPROVED,
@@ -209,15 +246,12 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert empty["event_counts"] == {"unread": 0, "action_required": 0, "blocked": 0}
     assert empty["active_session"] is None
 
-    statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/status-demo.csv",
-        file_hash="c" * 64,
+    await _make_statement(
+        db,
+        test_user.id,
         original_filename="status-demo.csv",
-        institution="Demo Bank",
-        status=BankStatementStatus.UPLOADED,
+        file_hash="c" * 64,
     )
-    db.add(statement)
     await db.commit()
 
     processing = await _get_as_user(public_client, test_user.id, "/workflow/status")
@@ -346,18 +380,16 @@ async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
     blocked_user = User(email=f"package-blocked-{uuid4()}@example.com", hashed_password="hashed")
     db.add(blocked_user)
     await db.flush()
-    db.add(
-        BankStatement(
-            user_id=blocked_user.id,
-            file_path=f"statements/{uuid4()}.csv",
-            file_hash=uuid4().hex,
-            original_filename=f"{uuid4()}.csv",
-            institution="Workflow Blocker Bank",
-            status=BankStatementStatus.REJECTED,
-            stage1_status=Stage1Status.PENDING_REVIEW,
-            balance_validated=False,
-            validation_error="Closing balance mismatch",
-        )
+    await _make_statement(
+        db,
+        blocked_user.id,
+        original_filename=f"{uuid4()}.csv",
+        file_hash=uuid4().hex,
+        institution="Workflow Blocker Bank",
+        status=BankStatementStatus.REJECTED,
+        stage1_status=Stage1Status.PENDING_REVIEW,
+        balance_validated=False,
+        validation_error="Closing balance mismatch",
     )
     await db.commit()
 
@@ -495,15 +527,12 @@ async def test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_res
     test_user: User,
 ) -> None:
     """AC19.2.5: workflow reads derive statement events idempotently without lifecycle reset."""
-    statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/idempotent.csv",
-        file_hash="d" * 64,
+    statement = await _make_statement(
+        db,
+        test_user.id,
         original_filename="idempotent.csv",
-        institution="Demo Bank",
-        status=BankStatementStatus.UPLOADED,
+        file_hash="d" * 64,
     )
-    db.add(statement)
     await db.commit()
 
     first = await client.get("/workflow/events")
@@ -560,15 +589,12 @@ async def test_AC19_8_3_workflow_status_and_events_expose_session_timeline(
     test_user: User,
 ) -> None:
     """AC19.8.3: workflow status exposes active session and events return session-scoped timeline data."""
-    statement = BankStatement(
-        user_id=test_user.id,
-        file_path="statements/session-demo.csv",
-        file_hash="f" * 64,
+    await _make_statement(
+        db,
+        test_user.id,
         original_filename="session-demo.csv",
-        institution="Demo Bank",
-        status=BankStatementStatus.UPLOADED,
+        file_hash="f" * 64,
     )
-    db.add(statement)
     await db.commit()
 
     status_response = await client.get("/workflow/status")

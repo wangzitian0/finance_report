@@ -24,8 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.statement import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.models.user import User
 
 T = TypeVar("T")
@@ -166,16 +169,35 @@ class JournalLineFactory(factory.Factory, AsyncFactoryMixin):
         return {"entry_id": entry_id, "account_id": account_id, **kwargs}
 
 
-class BankStatementFactory(factory.Factory, AsyncFactoryMixin):
+class UploadedDocumentFactory(factory.Factory, AsyncFactoryMixin):
+    """Layer 1 (ODS) raw-document landing — the durable source kept after Stage 3."""
+
     class Meta:
-        model = BankStatement
+        model = UploadedDocument
 
     id = factory.LazyFunction(uuid4)
+    file_path = factory.Sequence(lambda n: f"statements/doc_{n}.pdf")
+    file_hash = factory.LazyFunction(lambda: uuid4().hex)
+    original_filename = factory.Sequence(lambda n: f"statement_{n}.pdf")
+    document_type = DocumentType.BANK_STATEMENT
+    created_at = factory.LazyFunction(lambda: datetime.now(UTC))
+    updated_at = factory.LazyFunction(lambda: datetime.now(UTC))
+
+    @classmethod
+    def _build_kwargs(cls, user_id: UUID, **kwargs) -> dict:
+        return {"user_id": user_id, **kwargs}
+
+
+class StatementSummaryFactory(factory.Factory, AsyncFactoryMixin):
+    """DWD conform envelope — the statement metadata table that replaces BankStatement."""
+
+    class Meta:
+        model = StatementSummary
+
+    id = factory.LazyFunction(uuid4)
+    file_hash = factory.LazyFunction(lambda: uuid4().hex)
     institution = factory.Sequence(lambda n: f"Bank {n}")
     account_last4 = factory.Sequence(lambda n: f"{n:04d}")
-    original_filename = factory.Sequence(lambda n: f"statement_{n}.pdf")
-    file_path = factory.Sequence(lambda n: f"s3://statements/statement_{n}.pdf")
-    file_hash = factory.LazyFunction(lambda: uuid4().hex)
     currency = "SGD"
     status = BankStatementStatus.UPLOADED
     created_at = factory.LazyFunction(lambda: datetime.now(UTC))
@@ -186,21 +208,31 @@ class BankStatementFactory(factory.Factory, AsyncFactoryMixin):
         return {"user_id": user_id, **kwargs}
 
 
-class BankStatementTransactionFactory(factory.Factory, AsyncFactoryMixin):
+class AtomicTransactionFactory(factory.Factory, AsyncFactoryMixin):
+    """Layer 2 deduplicated transaction fact."""
+
     class Meta:
-        model = BankStatementTransaction
+        model = AtomicTransaction
 
     id = factory.LazyFunction(uuid4)
-    txn_date = factory.LazyFunction(lambda: date.today())
+    txn_date = factory.LazyFunction(date.today)
     description = factory.Sequence(lambda n: f"Transaction {n}")
     amount = Decimal("50.00")
-    direction = "DR"
+    direction = TransactionDirection.OUT
+    reference = None
+    currency = "SGD"
+    # Unique by default so factory-built rows never collide; dedup tests override this.
+    dedup_hash = factory.LazyFunction(lambda: uuid4().hex + uuid4().hex)
     created_at = factory.LazyFunction(lambda: datetime.now(UTC))
     updated_at = factory.LazyFunction(lambda: datetime.now(UTC))
 
     @classmethod
-    def _build_kwargs(cls, statement_id: UUID, **kwargs) -> dict:
-        return {"statement_id": statement_id, **kwargs}
+    def _build_kwargs(cls, user_id: UUID, *, source_doc_id: UUID | None = None, **kwargs) -> dict:
+        source_documents = kwargs.pop(
+            "source_documents",
+            [{"doc_id": str(source_doc_id or uuid4()), "doc_type": DocumentType.BANK_STATEMENT.value}],
+        )
+        return {"user_id": user_id, "source_documents": source_documents, **kwargs}
 
 
 class ReconciliationMatchFactory(factory.Factory, AsyncFactoryMixin):
@@ -215,5 +247,5 @@ class ReconciliationMatchFactory(factory.Factory, AsyncFactoryMixin):
     updated_at = factory.LazyFunction(lambda: datetime.now(UTC))
 
     @classmethod
-    def _build_kwargs(cls, bank_txn_id: UUID, journal_entry_ids: list[str], **kwargs) -> dict:
-        return {"bank_txn_id": bank_txn_id, "journal_entry_ids": journal_entry_ids, **kwargs}
+    def _build_kwargs(cls, atomic_txn_id: UUID, journal_entry_ids: list[str], **kwargs) -> dict:
+        return {"atomic_txn_id": atomic_txn_id, "journal_entry_ids": journal_entry_ids, **kwargs}

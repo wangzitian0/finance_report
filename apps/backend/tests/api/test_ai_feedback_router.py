@@ -12,9 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     AiFeedback,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     ClassificationRule,
     ClassificationStatus,
     ReconciliationMatch,
@@ -24,7 +21,6 @@ from src.models import (
 )
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import RuleType
-from src.models.statement import BankStatementStatus
 
 pytestmark = pytest.mark.asyncio
 
@@ -145,30 +141,21 @@ async def _seed_reconciliation_suggestion(
     description: str,
     status_value: ReconciliationStatus = ReconciliationStatus.PENDING_REVIEW,
 ) -> ReconciliationMatch:
-    statement = BankStatement(
+    txn = AtomicTransaction(
         user_id=user_id,
-        file_path=f"statements/{uuid4()}.pdf",
-        file_hash=f"hash-{uuid4().hex[:10]}",
-        original_filename="stmt.pdf",
-        institution="Test Bank",
-        status=BankStatementStatus.PARSED,
-    )
-    db.add(statement)
-    await db.flush()
-
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
         txn_date=date(2024, 6, 2),
         description=description,
         amount=Decimal("25.00"),
-        direction="DR",
-        status=BankStatementTransactionStatus.UNMATCHED,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=f"recon-suggestion-{uuid4()}",
+        source_documents=[],
     )
     db.add(txn)
     await db.flush()
 
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[],
         status=status_value,
         match_score=match_score,

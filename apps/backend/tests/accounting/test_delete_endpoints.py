@@ -18,13 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
     BankStatementStatus,
     Direction,
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
 )
+from src.models.statement_summary import StatementSummary
 
 
 @pytest.mark.asyncio
@@ -124,11 +124,9 @@ async def test_delete_posted_journal_entry_fails(client: AsyncClient, db: AsyncS
 @pytest.mark.asyncio
 async def test_delete_statement(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create statement
-    stmt = BankStatement(
+    stmt = StatementSummary(
         user_id=test_user.id,
-        file_path="test/path.pdf",
         file_hash="hash123",
-        original_filename="test.pdf",
         institution="Bank",
         currency="SGD",
         period_start=date.today(),

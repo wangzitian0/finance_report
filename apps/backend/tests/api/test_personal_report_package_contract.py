@@ -15,9 +15,7 @@ from src.models import (
     Account,
     AccountType,
     AtomicTransaction,
-    BankStatement,
     BankStatementStatus,
-    BankStatementTransaction,
     CheckStatus,
     CheckType,
     ClassificationRule,
@@ -37,7 +35,7 @@ from src.models import (
 )
 from src.models.journal import JournalEntrySourceType
 from src.models.layer1 import DocumentType
-from src.models.layer2 import AssetType, AtomicPosition
+from src.models.layer2 import AssetType, AtomicPosition, TransactionDirection
 from src.models.layer3 import (
     CostBasisMethod,
     ManagedPosition,
@@ -47,6 +45,7 @@ from src.models.layer3 import (
     PositionStatus,
 )
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
+from src.models.statement_summary import StatementSummary
 from src.models.user import User
 from src.routers.reports import (
     ExportFormat,
@@ -64,6 +63,7 @@ from src.routers.reports import (
 )
 from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
 from src.services.deduplication import dual_write_layer2
+from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.services.fx import FxRateError
 from src.services.review_queue import create_entry_from_txn
 
@@ -259,14 +259,12 @@ def _statement(
     balance_validated: bool | None = True,
     validation_error: str | None = None,
     updated_at: datetime | None = None,
-) -> BankStatement:
+) -> StatementSummary:
     timestamp = updated_at or datetime.now(UTC)
-    return BankStatement(
+    return StatementSummary(
         user_id=user_id,
         account_id=account_id,
-        file_path=f"s3://test/{uuid4()}.csv",
         file_hash=uuid4().hex,
-        original_filename=f"{uuid4()}.csv",
         institution="Readiness Bank",
         period_start=date(2026, 5, 1),
         period_end=date(2026, 5, 31),
@@ -423,19 +421,21 @@ async def test_AC19_5_2_package_readiness_lists_actionable_blockers(
     db.add_all([rejected, approved])
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=rejected.id,
+    txn = AtomicTransaction(
+        user_id=test_user.id,
         txn_date=date(2026, 5, 2),
         description="Needs reconciliation",
         amount=Decimal("25.00"),
-        direction="DR",
+        direction=TransactionDirection.OUT,
         currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[],
     )
     db.add(txn)
     await db.flush()
     db.add(
         ReconciliationMatch(
-            bank_txn_id=txn.id,
+            atomic_txn_id=txn.id,
             journal_entry_ids=[],
             match_score=60,
             score_breakdown={"amount": 60},
@@ -871,12 +871,20 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     db.add_all([bank, income, investment, other_income])
     await db.flush()
 
-    statement = BankStatement(
+    document = UploadedDocument(
         user_id=test_user.id,
-        account_id=bank.id,
         file_path="s3://trace/statement.csv",
         file_hash=f"trace-{uuid4().hex}",
         original_filename="trace-statement.csv",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(document)
+    await db.flush()
+    statement = StatementSummary(
+        user_id=test_user.id,
+        account_id=bank.id,
+        uploaded_document_id=document.id,
+        file_hash=document.file_hash,
         institution="Trace Bank",
         period_start=date(2026, 5, 1),
         period_end=report_date,
@@ -887,14 +895,16 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     db.add(statement)
     await db.flush()
     db.add(
-        BankStatementTransaction(
+        AtomicTransaction(
             id=statement_txn_id,
-            statement_id=statement.id,
+            user_id=test_user.id,
             txn_date=report_date,
             description="Traceable income",
             amount=Decimal("100.00"),
-            direction="IN",
+            direction=TransactionDirection.IN,
             currency="SGD",
+            dedup_hash=uuid4().hex + uuid4().hex,
+            source_documents=[{"doc_id": str(document.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
         )
     )
 
@@ -1006,11 +1016,11 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     lines = {line["line_id"]: line for line in response.model_dump(mode="json")["lines"]}
 
     total_assets = lines["balance_sheet.total_assets"]
-    assert f"statement_transaction:{statement_txn_id}" in total_assets["source_anchor"]["identifiers"]
+    assert f"atomic_transaction:{statement_txn_id}" in total_assets["source_anchor"]["identifiers"]
     assert any(
-        detail["source_kind"] == "bank_statement_transaction"
+        detail["source_kind"] == "atomic_transaction"
         and detail["source_id"] == str(statement_txn_id)
-        and detail["source_type"] == "bank_statement"
+        and detail["source_type"] == "atomic_transaction"
         and detail["amount"] == "100.00"
         and detail["currency"] == "SGD"
         and detail["review_state"] == "reviewed_source"
@@ -1019,7 +1029,7 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
         and detail["journal_entry_id"] == str(entry.id)
         and detail["account_id"] == str(bank.id)
         and detail["account_type"] == "ASSET"
-        and detail["identifier"] == f"statement_transaction:{statement_txn_id}"
+        and detail["identifier"] == f"atomic_transaction:{statement_txn_id}"
         for detail in total_assets["source_anchor"]["details"]
     )
     assert f"manual_valuation_snapshot:{manual.id}" in total_assets["source_anchor"]["identifiers"]
@@ -1038,7 +1048,7 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
         for anchor_name in ("source_anchor", "ledger_anchor")
         for identifier in line[anchor_name]["identifiers"]
     }
-    assert f"statement_transaction:{other_source_id}" not in all_identifiers
+    assert f"atomic_transaction:{other_source_id}" not in all_identifiers
 
 
 def test_AC19_10_1_source_anchor_resolver_requires_typed_source_membership():
@@ -1245,12 +1255,11 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
     db.add(bank)
     await db.flush()
 
-    statement = BankStatement(
+    file_hash = f"evidence-trace-{uuid4().hex}"
+    statement = StatementSummary(
         user_id=test_user.id,
         account_id=bank.id,
-        file_path="s3://trace/evidence-statement.csv",
-        file_hash=f"evidence-trace-{uuid4().hex}",
-        original_filename="evidence-statement.csv",
+        file_hash=file_hash,
         institution="Trace Bank",
         currency="SGD",
         period_start=date(2026, 5, 1),
@@ -1259,44 +1268,54 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
         balance_validated=True,
         stage1_status=Stage1Status.APPROVED,
     )
-    txn = BankStatementTransaction(
-        statement=statement,
+    txn = AtomicTransaction(
+        user_id=test_user.id,
         txn_date=report_date,
         description="Evidence graph income",
         amount=Decimal("120.00"),
-        direction="IN",
+        direction=TransactionDirection.IN,
         currency="SGD",
         reference="EG-INC",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[],
     )
-    db.add_all([statement, txn])
-    await db.flush()
 
     await dual_write_layer2(
         db=db,
         user_id=test_user.id,
-        file_path=None,
-        file_hash=statement.file_hash,
-        original_filename=statement.original_filename,
-        institution=statement.institution,
+        statement=statement,
         transactions=[txn],
+        original_filename="evidence-statement.csv",
         document_type=DocumentType.BANK_STATEMENT,
     )
+    await db.flush()
+
+    atomic_txn = (
+        await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
+    ).scalar_one()
     entry = await create_entry_from_txn(
         db,
-        txn,
+        atomic_txn,
         user_id=test_user.id,
         auto_post=True,
         source_type=JournalEntrySourceType.USER_CONFIRMED,
         preloaded_statement=statement,
         preloaded_bank_account=bank,
     )
+    await db.flush()
+    await db.refresh(entry, ["lines"])
+    # Record the AtomicTransaction -> JournalEntry lineage so traceability can resolve
+    # the upstream UploadedDocument source via the Evidence Graph.
+    await EvidenceGraphIntegrationService().record_journal_posting(
+        db,
+        user_id=test_user.id,
+        atomic_transaction=atomic_txn,
+        journal_entry=entry,
+    )
     await db.commit()
 
     uploaded_doc = (
         await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
-    ).scalar_one()
-    atomic_txn = (
-        await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
     ).scalar_one()
 
     traceability = await personal_report_package_traceability(

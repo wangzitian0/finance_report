@@ -1,19 +1,18 @@
-"""Tests for the StatementSummary conform sync + custody-account resolver (EPIC-011 PR-A)."""
+"""Tests for the StatementSummary custody-account resolver (EPIC-011 PR-A)."""
 
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement import BankStatement, BankStatementStatus, Stage1Status
-from src.models.statement_summary import StatementSummary
-from src.services.statement_summary import resolve_custody_account_id, sync_statement_summary
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.services.statement_summary import resolve_custody_account_id
+from tests.factories import StatementSummaryFactory
 
 
 async def _make_account(db: AsyncSession, user_id) -> Account:
@@ -23,13 +22,13 @@ async def _make_account(db: AsyncSession, user_id) -> Account:
     return account
 
 
-async def _make_statement(db: AsyncSession, user_id, *, file_hash: str, account_id=None) -> BankStatement:
-    statement = BankStatement(
-        user_id=user_id,
+async def _make_summary(db: AsyncSession, user_id, *, file_hash: str, account_id=None, uploaded_document_id=None):
+    return await StatementSummaryFactory.create_async(
+        db,
+        user_id,
         account_id=account_id,
-        file_path=f"statements/{file_hash}.pdf",
+        uploaded_document_id=uploaded_document_id,
         file_hash=file_hash,
-        original_filename="dbs.pdf",
         institution="DBS",
         account_last4="1234",
         currency="SGD",
@@ -41,67 +40,13 @@ async def _make_statement(db: AsyncSession, user_id, *, file_hash: str, account_
         stage1_status=Stage1Status.APPROVED,
         balance_validated=True,
     )
-    db.add(statement)
-    await db.flush()
-    return statement
 
 
 @pytest.mark.asyncio
 class TestStatementSummaryConform:
-    async def test_sync_mirrors_bank_statement_envelope(self, db, test_user):
-        """AC11.15.1: sync projects the BankStatement envelope into StatementSummary."""
-        account = await _make_account(db, test_user.id)
-        await _make_statement(db, test_user.id, file_hash="hash-sum-1", account_id=account.id)
-        statement = (
-            await db.execute(select(BankStatement).where(BankStatement.file_hash == "hash-sum-1"))
-        ).scalar_one()
-
-        summary = await sync_statement_summary(db, statement)
-        await db.commit()
-
-        assert summary.user_id == test_user.id
-        assert summary.file_hash == "hash-sum-1"
-        assert summary.account_id == account.id
-        assert summary.institution == "DBS"
-        assert summary.period_start == date(2024, 1, 1)
-        assert summary.closing_balance == Decimal("1500.00")
-        assert summary.status == BankStatementStatus.APPROVED
-        assert summary.balance_validated is True
-
-    async def test_sync_is_idempotent_and_links_uploaded_document(self, db, test_user):
-        """AC11.15.2: re-sync updates in place and links the UploadedDocument when present."""
-        account = await _make_account(db, test_user.id)
-        statement = await _make_statement(db, test_user.id, file_hash="hash-sum-2", account_id=None)
-        doc = UploadedDocument(
-            user_id=test_user.id,
-            file_path="statements/hash-sum-2.pdf",
-            file_hash="hash-sum-2",
-            original_filename="dbs.pdf",
-            document_type=DocumentType.BANK_STATEMENT,
-        )
-        db.add(doc)
-        await db.flush()
-
-        # First sync: no account yet.
-        await sync_statement_summary(db, statement)
-        await db.commit()
-
-        # Confirm sets the custody account; re-sync should update in place.
-        statement.account_id = account.id
-        await sync_statement_summary(db, statement)
-        await db.commit()
-
-        summaries = (
-            (await db.execute(select(StatementSummary).where(StatementSummary.user_id == test_user.id))).scalars().all()
-        )
-        assert len(summaries) == 1
-        assert summaries[0].account_id == account.id
-        assert summaries[0].uploaded_document_id == doc.id
-
     async def test_resolve_custody_account_from_atomic_txn(self, db, test_user):
         """AC11.15.3: custody account resolves from an atomic txn via the conform (DWD-native)."""
         account = await _make_account(db, test_user.id)
-        statement = await _make_statement(db, test_user.id, file_hash="hash-sum-3", account_id=account.id)
         doc = UploadedDocument(
             user_id=test_user.id,
             file_path="statements/hash-sum-3.pdf",
@@ -111,7 +56,9 @@ class TestStatementSummaryConform:
         )
         db.add(doc)
         await db.flush()
-        await sync_statement_summary(db, statement)
+        await _make_summary(
+            db, test_user.id, file_hash="hash-sum-3", account_id=account.id, uploaded_document_id=doc.id
+        )
 
         atomic = AtomicTransaction(
             user_id=test_user.id,
@@ -130,7 +77,6 @@ class TestStatementSummaryConform:
         assert resolved == account.id
 
     async def _confirmed_doc(self, db, user_id, *, file_hash, account_id):
-        statement = await _make_statement(db, user_id, file_hash=file_hash, account_id=account_id)
         doc = UploadedDocument(
             user_id=user_id,
             file_path=f"statements/{file_hash}.pdf",
@@ -140,7 +86,7 @@ class TestStatementSummaryConform:
         )
         db.add(doc)
         await db.flush()
-        await sync_statement_summary(db, statement)
+        await _make_summary(db, user_id, file_hash=file_hash, account_id=account_id, uploaded_document_id=doc.id)
         return doc
 
     def _atomic(self, user_id, *, source_documents, dedup_hash):

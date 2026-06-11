@@ -7,12 +7,12 @@ from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
 from src.models import (
-    BankStatement,
-    BankStatementTransaction,
     JournalEntry,
     JournalEntryStatus,
+    StatementSummary,
 )
 from src.models.consistency_check import CheckStatus, CheckType
+from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.schemas.review import (
     BatchApproveRequest,
@@ -34,6 +34,7 @@ from src.services.consistency_checks import (
 )
 from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
+from src.services.statement_validation import resolve_statement_transactions
 from src.utils import raise_not_found
 
 router = APIRouter(prefix="/statements", tags=["review"])
@@ -48,45 +49,39 @@ async def get_review_conflicts(
 ) -> ReviewConflictsResponse:
     """Return duplicate and transfer-pair candidates for a statement."""
     statement_result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
+        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
     )
     statement = statement_result.scalar_one_or_none()
     if not statement:
         raise_not_found("Statement")
 
-    tx_result = await db.execute(
-        select(BankStatementTransaction)
-        .where(BankStatementTransaction.statement_id == statement_id)
-        .order_by(BankStatementTransaction.txn_date, BankStatementTransaction.description)
-    )
-    transactions = list(tx_result.scalars().all())
+    transactions = await resolve_statement_transactions(db, statement)
+
+    def _candidate(txn: AtomicTransaction) -> ReviewConflictCandidate:
+        return ReviewConflictCandidate(
+            id=txn.id,
+            txn_date=txn.txn_date,
+            description=txn.description,
+            amount=txn.amount,
+            direction=txn.direction.value if hasattr(txn.direction, "value") else str(txn.direction),
+        )
 
     duplicates: list[ReviewConflictCandidate] = []
     transfer_pairs: list[ReviewConflictCandidate] = []
-    seen: dict[tuple, BankStatementTransaction] = {}
+    seen: dict[tuple, AtomicTransaction] = {}
     for txn in transactions:
         key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction)
         if key in seen:
-            duplicates.extend(
-                [
-                    ReviewConflictCandidate.model_validate(seen[key], from_attributes=True),
-                    ReviewConflictCandidate.model_validate(txn, from_attributes=True),
-                ]
-            )
+            duplicates.extend([_candidate(seen[key]), _candidate(txn)])
         else:
             seen[key] = txn
 
-    by_abs_amount: dict[tuple, BankStatementTransaction] = {}
+    by_abs_amount: dict[tuple, AtomicTransaction] = {}
     for txn in transactions:
         key = (txn.txn_date, txn.amount.copy_abs())
         paired = by_abs_amount.get(key)
         if paired and paired.direction != txn.direction:
-            transfer_pairs.extend(
-                [
-                    ReviewConflictCandidate.model_validate(paired, from_attributes=True),
-                    ReviewConflictCandidate.model_validate(txn, from_attributes=True),
-                ]
-            )
+            transfer_pairs.extend([_candidate(paired), _candidate(txn)])
         else:
             by_abs_amount[key] = txn
 
@@ -103,7 +98,7 @@ async def get_stage2_review_queue(
     matches = await get_stage2_queue(db, user_id, run_id=run_id)
     pending_matches = []
     for match in matches:
-        transaction = match.transaction
+        transaction = match.atomic_transaction
         pending_matches.append(
             {
                 "id": str(match.id),
@@ -134,7 +129,7 @@ async def run_stage2_checks(
 ) -> ConsistencyCheckListResponse:
     """Run consistency checks for a statement."""
     result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).where(BankStatement.user_id == user_id)
+        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
     )
     statement = result.scalar_one_or_none()
     if not statement:
@@ -219,12 +214,11 @@ async def batch_approve_matches(
 
     matches_query = (
         select(ReconciliationMatch)
-        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(
             ReconciliationMatch.id.in_(request.match_ids),
             ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-            BankStatement.user_id == user_id,
+            AtomicTransaction.user_id == user_id,
         )
     )
     if request.run_id:
@@ -238,12 +232,12 @@ async def batch_approve_matches(
     for match in matches:
         before_entry_ids = set(match.journal_entry_ids or [])
         had_source_entry = False
-        if match.bank_txn_id and not before_entry_ids:
+        if match.atomic_txn_id and not before_entry_ids:
             existing_entry_result = await db.execute(
                 select(JournalEntry.id)
                 .where(JournalEntry.user_id == user_id)
                 .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-                .where(JournalEntry.source_id == match.bank_txn_id)
+                .where(JournalEntry.source_id == match.atomic_txn_id)
                 .where(JournalEntry.status != JournalEntryStatus.VOID)
                 .limit(1)
             )
@@ -290,12 +284,11 @@ async def batch_reject_matches(
 
     result = await db.execute(
         select(ReconciliationMatch)
-        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
         .where(
             ReconciliationMatch.id.in_(request.match_ids),
             ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,
-            BankStatement.user_id == user_id,
+            AtomicTransaction.user_id == user_id,
         )
     )
     matches = list(result.scalars().all())
