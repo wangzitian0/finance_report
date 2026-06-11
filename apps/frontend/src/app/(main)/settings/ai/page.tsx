@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
@@ -60,6 +61,12 @@ export default function AiSettingsPage() {
       <div className="page-header">
         <h1 className="page-title">AI Settings</h1>
         <p className="page-description">Control AI-assisted reconciliation and classification feature flags.</p>
+      </div>
+
+      <div className="mb-4">
+        <Link href="/review/ai-suggestions" className="btn-secondary inline-flex text-sm">
+          Review AI suggestions
+        </Link>
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}

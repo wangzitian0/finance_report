@@ -118,3 +118,16 @@ slices land, so every registered AC has a behavioral test in the same change.
 | AC22.3.4 | A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines, and open the full evidence chain (journal line → bank statement transaction → atomic transaction → source document) | `lineagePanel.test.tsx`, `balanceSheetDrilldown.test.tsx` | P1 |
 | AC22.3.5 | Accounts/amounts with no contributing lines or no graph-compatible anchor degrade gracefully with an explicit empty/"no source linked" state and no crash | `balanceSheetDrilldown.test.tsx` | P1 |
 | AC22.3.6 | Desktop and mobile smoke covers the four-block cockpit and a Balance Sheet drill-down open/close without layout overflow | `reports-cockpit.spec.ts` | P1 |
+
+### AC22.4 — Hardening: Stage 2 Inbox, Orphan Routes, Lean Home, E2E
+
+> PR4 slice. Closes the holistic-review findings and adds end-to-end journeys.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.4.1 | A user with pending Stage 2 reconciliation matches gets a reconciliation-review attention event in the workflow inbox that deep-links to `/reconciliation/review-queue` (proven from match state through to event) | `test_workflow_events.py` | P1 |
+| AC22.4.2 | The duplicate `/review/run/{runId}` route is removed and redirects to `/reconciliation/review-queue` | `nextConfigRedirects.test.ts` | P1 |
+| AC22.4.3 | `/review/ai-suggestions` is reachable from AI Settings, so no orphan routes remain under `/review` | `aiSettingsPage.test.tsx` | P1 |
+| AC22.4.4 | The Home (`/`) defaults to a lean view (action-required summary, financial key numbers, quick upload) with heavy analytics/charts behind an opt-in toggle | `dashboardPage.test.tsx` | P1 |
+| AC22.4.5 | E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface | `epic022-attention-journey.spec.ts` | P1 |
+| AC22.4.6 | E2E: an amount on the Balance Sheet drills down to its contributing journal lines and on to the source document | `epic022-drilldown-journey.spec.ts` | P1 |

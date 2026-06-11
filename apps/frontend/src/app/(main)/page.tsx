@@ -128,6 +128,8 @@ export default function HomePage() {
   const [annualizedIncome, setAnnualizedIncome] = useState<AnnualizedIncomeResponse | null>(null);
   const [restrictedHoldings, setRestrictedHoldings] = useState<RestrictedHolding[]>([]);
   const [includeRestricted, setIncludeRestricted] = useState(false);
+  // EPIC-022 PR4: Home defaults to a lean view; heavy charts are opt-in.
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trendAccountId, setTrendAccountId] = useState<string | null>(null);
@@ -465,6 +467,19 @@ export default function HomePage() {
       })()}
 
 
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => setShowAnalytics((open) => !open)}
+          className="btn-secondary inline-flex items-center gap-2 text-sm"
+          aria-expanded={showAnalytics}
+        >
+          {showAnalytics ? "Hide analytics" : "Show analytics"}
+        </button>
+      </div>
+
+      {showAnalytics && (
+        <>
       {/* Charts Row */}
       <div className="mb-6">
         <NetWorthTimeSeriesChart />
@@ -560,6 +575,8 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+        </>
+      )}
           </>
         )}
       </section>

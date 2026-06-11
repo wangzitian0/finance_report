@@ -242,6 +242,12 @@ async function waitForDashboardAnalyticsReady() {
   await waitFor(() =>
     expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
   )
+  // EPIC-022 PR4: heavy charts/analytics are opt-in on the lean Home. Expand them
+  // when available so the analytics assertions below can see the charts.
+  const analyticsToggle = screen.queryByRole("button", { name: /Show analytics/i })
+  if (analyticsToggle) {
+    fireEvent.click(analyticsToggle)
+  }
 }
 
 describe("HomePage", () => {
@@ -288,6 +294,25 @@ describe("HomePage", () => {
     expect(screen.getByText("BarChartMock")).toBeInTheDocument()
     expect(screen.getByText("Recent Entries")).toBeInTheDocument()
     expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
+  })
+
+  it("AC22.4.4 defaults to a lean Home with heavy analytics behind an opt-in toggle", async () => {
+    mockDashboardApi()
+
+    render(<HomePage />)
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
+    )
+    // Lean default: action-required home + financial key numbers are visible…
+    expect(screen.getByText("Net Worth")).toBeInTheDocument()
+    expect(screen.getByText("Total Assets")).toBeInTheDocument()
+    // …but the heavy charts are collapsed until opted into.
+    expect(screen.queryByText("BarChartMock")).toBeNull()
+    expect(screen.queryByText("PieChartMock")).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: /Show analytics/i }))
+    await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
   })
 
   it("AC19.3.6 renders the workflow status feed on the dashboard landing surface", async () => {

@@ -62,6 +62,8 @@ const nextConfig = {
             { source: '/statements', destination: '/upload', permanent: true },
             // EPIC-022 PR2: the standalone Review Queue folds into the notification center.
             { source: '/review', destination: '/notifications', permanent: true },
+            // EPIC-022 PR4: /review/run duplicated the reconciliation review queue.
+            { source: '/review/run/:runId*', destination: '/reconciliation/review-queue', permanent: true },
         ];
     },
     // Local development without an explicit API URL proxies /api/* to the backend.

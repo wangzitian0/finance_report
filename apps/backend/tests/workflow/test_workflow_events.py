@@ -1007,3 +1007,27 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
     assert status.primary_state.value == "needs_action"
     assert len(count_queries) == 1
     assert len(representative_queries) == 1
+
+
+@pytest.mark.asyncio
+async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user):
+    """AC22.4.1: a pending Stage 2 reconciliation match surfaces a reconciliation-review
+    event in the inbox that deep-links to /reconciliation/review-queue, and re-syncing
+    does not duplicate it."""
+    from tests.factories import AtomicTransactionFactory, ReconciliationMatchFactory
+
+    atomic_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
+    await ReconciliationMatchFactory.create_async(db, atomic_txn_id=atomic_txn.id, journal_entry_ids=[])
+    await db.commit()
+
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events = await list_workflow_events(db, user_id=test_user.id)
+    recon = [e for e in events if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
+    assert recon, "pending Stage 2 match must surface a reconciliation-review event in the inbox"
+    assert recon[0].action_href == "/reconciliation/review-queue"
+
+    # Re-sync is idempotent (no duplicate inbox card).
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    events_again = await list_workflow_events(db, user_id=test_user.id)
+    recon_again = [e for e in events_again if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
+    assert len(recon_again) == len(recon)
