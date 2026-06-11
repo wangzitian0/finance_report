@@ -730,9 +730,12 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     assert "test-results/in-runner-e2e.xml" in pr_preview
     assert "ci-context/pr-preview-context.txt" in pr_preview
     assert "preview_runtime=github-runner-compose" in pr_preview
-    assert "persistent_preview_url=none" in pr_preview
+    assert (
+        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}"
+        in pr_preview
+    )
     assert "registry_image_push=false" in pr_preview
-    assert "dokploy_deploy=false" in pr_preview
+    assert "dokploy_deploy=after-e2e-non-blocking-build-from-source" in pr_preview
     assert "e2e_outcome=${{ steps.e2e_tests.outcome }}" in pr_preview
 
     assert "staging-deploy-test-context" in staging
@@ -1548,6 +1551,8 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
 
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     cleanup_block = workflow.split("  cleanup:", 1)[1]
+    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  e2e:", 1)[0]
+    pr_preview_compose = read("docker-compose.pr-preview.yml")
     frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
     assert "workflow_run:" in workflow
@@ -1558,13 +1563,27 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     assert "github.event.workflow_run.pull_requests[0].number" in workflow
     assert "gate-cheap-ci:" not in workflow
     assert "tools/wait_for_cheap_ci.py" not in workflow
+    # No PR preview IMAGES are built/pushed/preflighted in CI: the persistent
+    # preview is built from source on the Dokploy host instead.
     assert "build-preview-backend-image:" not in workflow
     assert "build-preview-frontend-image:" not in workflow
-    assert "Deploy preview lifecycle" not in workflow
     assert "Preflight PR preview image tags" not in workflow
     assert "docker/build-push-action@v5" not in workflow
     assert "push: true" not in workflow
     assert "packages: write" not in workflow
+    # Persistent preview: non-blocking deploy job, after the in-runner E2E gate,
+    # building from the PR source on the Dokploy host (no image pull/push).
+    assert "deploy-preview:" in workflow
+    assert "needs: [setup, e2e]" in deploy_block
+    assert "needs.e2e.result == 'success'" in workflow
+    assert "continue-on-error: true" in deploy_block
+    assert "--action deploy" in deploy_block
+    assert "--github-integration-id" in deploy_block
+    assert "build from source on Dokploy host" in deploy_block
+    # The preview compose builds backend/frontend from source (no image pull).
+    assert "context: ./apps/backend" in pr_preview_compose
+    assert "context: ./apps/frontend" in pr_preview_compose
+    assert "pull_policy: always" not in pr_preview_compose
     assert "GIT_COMMIT_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
     assert "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
     assert "APP_URL: http://localhost:8080" in e2e_block
@@ -1589,11 +1608,12 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     )
     assert 'curl -fsS "$APP_URL/api/health"' in e2e_block
     assert "bash tools/smoke_test.sh" in e2e_block
-    assert "No persistent Dokploy URL or PR preview image is created." in e2e_block
+    assert "no PR preview image is pushed" in e2e_block
     assert "Delete GHCR images" not in cleanup_block
     assert "pr_preview_images=not-created" in cleanup_block
     assert "PR preview follows the matching successful PR `CI` `workflow_run`" in ci_cd
-    assert "does not build, push, preflight, or delete PR preview images" in ci_cd
+    assert "does not push, preflight, pull, or delete PR preview images" in ci_cd
+    assert "built from the PR source on the Dokploy host" in ci_cd
     assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
 
 
@@ -2106,8 +2126,10 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
         "PR preview Dokploy API responses are parsed for required fields only" in ci_cd
     )
     assert "Cleanup preview lifecycle" in preview
-    assert "Cleanup legacy preview lifecycle" in preview
-    assert "Deploy preview lifecycle" not in preview
+    # Deploy + cleanup both go through pr_preview_lifecycle.py (no hand-rolled
+    # Dokploy curl), so neither logs raw responses.
+    assert "Deploy preview lifecycle" in preview
+    assert "--action deploy" in preview
     assert "--action cleanup" in preview
     assert "Response body" not in lifecycle
     assert "raw_body_printed: false" in lifecycle

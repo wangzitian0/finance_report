@@ -74,7 +74,9 @@ PR_PREVIEW_SOURCE_TYPE = "github"
 PR_PREVIEW_REPOSITORY = "finance_report"
 PR_PREVIEW_OWNER = "wangzitian0"
 PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS = 120
-PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV = "PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS"
+PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS_ENV = (
+    "PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS"
+)
 DOKPLOY_API_CONNECT_TIMEOUT_SECONDS = 10
 DOKPLOY_API_MAX_TIME_SECONDS = 20
 PR_PREVIEW_CONTEXT_ENV = "PR_PREVIEW_CONTEXT_PATH"
@@ -307,7 +309,9 @@ def preview_stable_app_url(pr_number: int, internal_domain: str) -> str:
     return f"https://report-pr-{pr_number}.{internal_domain}"
 
 
-def preview_commit_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> str:
+def preview_commit_app_url(
+    pr_number: int, commit_sha: str, internal_domain: str
+) -> str:
     return (
         f"https://report{preview_env_suffix(pr_number, commit_sha)}.{internal_domain}"
     )
@@ -318,9 +322,13 @@ def preview_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> st
 
 
 def preview_compose_command(pr_number: int) -> str:
+    # Build the PR's source on the Dokploy host (GitHub-source deploy) instead of
+    # pulling a CI-pushed image. PR previews never push images; image building +
+    # promotion happens only post-merge (staging-deploy). `--build` rebuilds the
+    # backend/frontend contexts that the preview compose now declares.
     return (
         f"compose -p {preview_compose_project(pr_number)} "
-        f"-f {PR_PREVIEW_COMPOSE_PATH} up -d --pull always --no-build --remove-orphans"
+        f"-f {PR_PREVIEW_COMPOSE_PATH} up -d --build --remove-orphans"
     )
 
 
@@ -803,7 +811,9 @@ def deploy_compose_and_wait_for_rollout(
 ) -> None:
     compose_data = get_compose_data(config, compose_id=compose_id)
     previous_deployment_ids = deployment_ids(compose_data.get("deployments"))
-    previous_deployment_signatures = deployment_signatures(compose_data.get("deployments"))
+    previous_deployment_signatures = deployment_signatures(
+        compose_data.get("deployments")
+    )
     deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
     print_compose_summary(config, compose_id=compose_id, label="after-deploy-trigger")
     wait_for_dokploy_deployment_rollout(
@@ -929,12 +939,12 @@ def wait_for_dokploy_deployment_rollout(
             and existing_deployment_updates
             and compose_status in DEPLOYMENT_READY_FOR_READINESS_STATUSES
         ):
-            existing_latest = latest_new_deployment(
-                deployments, set(existing_deployment_updates)
-            ) or {}
+            existing_latest = (
+                latest_new_deployment(deployments, set(existing_deployment_updates))
+                or {}
+            )
             existing_latest_id = str(
-                existing_latest.get("deploymentId")
-                or existing_deployment_updates[-1]
+                existing_latest.get("deploymentId") or existing_deployment_updates[-1]
             )
             existing_latest_status = str(existing_latest.get("status") or "unknown")
             print(

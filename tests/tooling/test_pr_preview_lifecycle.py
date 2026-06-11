@@ -67,7 +67,7 @@ def test_AC8_13_101_preview_app_url_prefers_stable_alias() -> None:
     ) != lifecycle.preview_port_offset(591, "def456")
     assert lifecycle.preview_compose_command(591) == (
         "compose -p finance_report_pr_591 -f docker-compose.pr-preview.yml "
-        "up -d --pull always --no-build --remove-orphans"
+        "up -d --build --remove-orphans"
     )
 
 
@@ -1986,9 +1986,11 @@ def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> N
     assert "Stack logs on failure" in e2e_block
     assert "docker compose logs --no-color --tail=400" in e2e_block
     assert "preview_runtime=github-runner-compose" in e2e_block
-    assert "persistent_preview_url=none" in e2e_block
+    assert (
+        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}" in e2e_block
+    )
     assert "registry_image_push=false" in e2e_block
-    assert "dokploy_deploy=false" in e2e_block
+    assert "dokploy_deploy=after-e2e-non-blocking-build-from-source" in e2e_block
     assert "route_probe attempt=" not in workflow
     assert "app_readiness_classification=" not in workflow
     assert "platform_failure_domain=" not in workflow
@@ -2200,12 +2202,18 @@ def test_AC8_13_107_pr_preview_workflow_uploads_context_without_image_preflight(
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     cleanup_block = workflow.split("  cleanup:", 1)[1]
 
+    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  e2e:", 1)[0]
+
     assert "docker/build-push-action@v5" not in workflow
     assert "- name: Preflight PR preview image tags" not in workflow
     assert "docker buildx imagetools inspect" not in workflow
-    assert "PR_PREVIEW_CONTEXT_PATH" not in workflow
+    # The persistent deploy job writes its own context (no image preflight).
+    assert (
+        "PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json"
+        in deploy_block
+    )
     assert "registry_image_push=false" in e2e_block
-    assert "dokploy_deploy=false" in e2e_block
+    assert "dokploy_deploy=after-e2e-non-blocking-build-from-source" in e2e_block
     assert "preview_runtime=github-runner-compose" in e2e_block
     assert "pr_preview_images=not-created" in cleanup_block
     assert "test-results/" in e2e_block
@@ -2233,8 +2241,12 @@ def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
     assert "APP_URL: http://localhost:8080" in e2e_block
     assert "app_url=http://localhost:8080" in e2e_block
     assert "api_health_url=http://localhost:8080/api/health" in e2e_block
-    assert "persistent_preview_url=none" in e2e_block
-    assert "No persistent Dokploy URL or PR preview image is created." in e2e_block
+    # The in-runner E2E consumes the runner-local URL; the persistent Dokploy
+    # preview URL is recorded for the separate non-blocking deploy job.
+    assert (
+        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}" in e2e_block
+    )
+    assert "no PR preview image is pushed" in e2e_block
     assert "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
     assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" not in workflow
 

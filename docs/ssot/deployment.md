@@ -14,7 +14,7 @@ Finance Report uses **two git repositories** for configuration:
 | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
 | **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
-| **PR preview** | `/docker-compose.yml` + `/docker-compose.ci-e2e.yml` | GitHub-runner preview after successful PR CI; no registry push and no persistent Dokploy URL |
+| **PR preview** | in-runner: `/docker-compose.yml` + `/docker-compose.ci-e2e.yml`; persistent: `/docker-compose.pr-preview.yml` | After successful PR CI: in-runner smoke/E2E (merge authority), then a non-blocking persistent Dokploy preview built from source on the host (no registry push) at `report-pr-<N>.<domain>` |
 | **Staging/Production** | `/repo/finance_report/.../compose.yaml` | Production with Vault secrets |
 
 The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2).
@@ -25,9 +25,11 @@ The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.
 - Env vars for staging/prod stored in HashiCorp Vault
 - Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`.
 - Container names include env suffix (e.g., `-staging`)
-- Historical Dokploy PR previews used `/docker-compose.pr-preview.yml`; the
-  current default preview path only uses it for cleanup/reconciliation
-  compatibility and does not create new Dokploy preview deployments.
+- Persistent Dokploy PR previews use `/docker-compose.pr-preview.yml`, deployed
+  non-blocking after the in-runner E2E gate passes. Dokploy clones the PR branch
+  and builds backend/frontend from source on the host (`up -d --build`); no GHCR
+  image is pulled or pushed. The preview persists until PR close, then is removed
+  by native `compose.delete`.
 
 ---
 

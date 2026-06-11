@@ -1,8 +1,10 @@
 # PR Preview Docker Compose Configuration
 #
 # Dokploy uses this file for per-PR preview environments. Backend and frontend
-# intentionally have no build sections so preview deploys use the CI-pushed,
-# commit-scoped GHCR images instead of rebuilding on the VPS.
+# are built from the PR's source on the Dokploy host (GitHub-source deploy with
+# `up --build`); PR previews never pull or push GHCR images. Image building and
+# promotion to staging/production happen only post-merge (staging-deploy). The
+# `image:` tags below are just local build tags.
 
 x-json-logging: &json-logging
   driver: json-file
@@ -80,7 +82,13 @@ services:
 
   backend:
     image: ${REGISTRY:-ghcr.io}/${IMAGE_PREFIX:-wangzitian0/finance_report}-backend:${IMAGE_TAG:-latest}
-    pull_policy: always
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12.12-slim}
+        UV_IMAGE: ${UV_IMAGE:-ghcr.io/astral-sh/uv:0.9.18}
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
     container_name: finance-report-backend${ENV_SUFFIX:-}
     restart: ${RESTART_POLICY:-unless-stopped}
     logging: *json-logging
@@ -142,7 +150,14 @@ services:
 
   frontend:
     image: ${REGISTRY:-ghcr.io}/${IMAGE_PREFIX:-wangzitian0/finance_report}-frontend:${IMAGE_TAG:-latest}
-    pull_policy: always
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:20.19.0-alpine}
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
     container_name: finance-report-frontend${ENV_SUFFIX:-}
     restart: ${RESTART_POLICY:-unless-stopped}
     logging: *json-logging
