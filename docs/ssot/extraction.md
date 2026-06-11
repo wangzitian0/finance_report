@@ -59,7 +59,9 @@ The system is migrating to a 4-layer architecture. As of Stage 1 cutover, dual-w
 - Status tracking: `uploaded` → `processing` → `completed`
 
 **Layer 2: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
-- Deduplicated via SHA256 hash of core fields
+- Deduplicated via SHA256 hash of core fields. For transactions the hash includes
+  the statement running balance (`balance_after`), so two real but otherwise
+  identical transactions stay distinct while genuine duplicate extractions collapse.
 - `source_documents` (JSONB) tracks lineage (which files contributed this record)
 - Immutable once written (except for appending sources)
 

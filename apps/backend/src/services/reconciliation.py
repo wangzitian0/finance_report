@@ -42,6 +42,7 @@ from src.services.processing_account import (
     find_transfer_pairs,
 )
 from src.services.source_type_priority import promote_entry_source_type, source_type_rank
+from src.services.statement_summary import resolve_custody_account_id
 
 logger = get_logger(__name__)
 
@@ -1158,16 +1159,23 @@ async def execute_matching(
                     matched_txn_ids.add(txn.id)
                     continue
 
-                # Fetch statement to get account_id
-                stmt_result = await db.execute(select(BankStatement).where(BankStatement.id == txn.statement_id))
-                stmt = stmt_result.scalar_one()
+                # Resolve the custody (source) account. Under the Layer-2/DWD read
+                # path the txn is an AtomicTransaction with no statement_id, so the
+                # custody account comes from the StatementSummary conform; the legacy
+                # path reads it from the originating BankStatement (ODS).
+                if settings.enable_4_layer_read:
+                    source_account_id = await resolve_custody_account_id(db, txn)
+                else:
+                    stmt = (
+                        await db.execute(select(BankStatement).where(BankStatement.id == txn.statement_id))
+                    ).scalar_one()
+                    source_account_id = stmt.account_id
 
-                # Skip transfer detection if statement has no linked account
-                if stmt.account_id is None:
+                # Skip transfer detection if the source statement has no linked account
+                if source_account_id is None:
                     logger.warning(
-                        "Transfer detected but statement has no linked account - skipping Processing entry",
+                        "Transfer detected but source statement has no linked account - skipping Processing entry",
                         txn_id=str(txn.id),
-                        statement_id=str(txn.statement_id),
                     )
                     continue
                 # Create Processing account entry based on direction
@@ -1175,7 +1183,7 @@ async def execute_matching(
                     transfer_entry = await create_transfer_out_entry(
                         db=db,
                         user_id=user_id,
-                        source_account_id=stmt.account_id,
+                        source_account_id=source_account_id,
                         amount=txn.amount,
                         txn_date=txn.txn_date,
                         description=txn.description,
@@ -1209,7 +1217,7 @@ async def execute_matching(
                     transfer_entry = await create_transfer_in_entry(
                         db=db,
                         user_id=user_id,
-                        dest_account_id=stmt.account_id,
+                        dest_account_id=source_account_id,
                         amount=txn.amount,
                         txn_date=txn.txn_date,
                         description=txn.description,

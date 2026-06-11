@@ -57,6 +57,9 @@ class TestReconciliationDualRead:
     async def test_dual_read_validation_logs_consistency(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that consistent Layer 0/2 data is validated."""
         monkeypatch.setattr(settings, "enable_4_layer_write", True)
+        # Layer 0/2 consistency validation only runs on the legacy dual-read path
+        # (removed in Stage 3 with the Layer-0 read path).
+        monkeypatch.setattr(settings, "enable_4_layer_read", False)
 
         service = ExtractionService()
         content = b"PDF-CONTENT"
@@ -87,6 +90,9 @@ class TestReconciliationDualRead:
     async def test_dual_read_validation_detects_mismatch(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that missing Layer 2 data triggers mismatch warning."""
         monkeypatch.setattr(settings, "enable_4_layer_write", True)
+        # Layer 0/2 consistency validation only runs on the legacy dual-read path
+        # (removed in Stage 3 with the Layer-0 read path).
+        monkeypatch.setattr(settings, "enable_4_layer_read", False)
 
         service = ExtractionService()
         content = b"PDF-CONTENT-MISMATCH"

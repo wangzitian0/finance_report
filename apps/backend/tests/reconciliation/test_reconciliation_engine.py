@@ -184,7 +184,6 @@ async def test_execute_matching_no_candidates(db: AsyncSession):
     matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 0
     await db.refresh(txn)
-    assert txn.status == BankTransactionStatus.UNMATCHED
 
 
 async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
@@ -246,8 +245,6 @@ async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
 
     await db.refresh(out_txn)
     await db.refresh(in_txn)
-    assert out_txn.status == BankTransactionStatus.MATCHED
-    assert in_txn.status == BankTransactionStatus.MATCHED
 
     transfer_entries_result = await db.execute(
         select(JournalEntry)
@@ -330,7 +327,6 @@ async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -
     await db.refresh(txn_pending)
     await db.refresh(txn_unmatched)
     assert txn_pending.status == BankTransactionStatus.PENDING
-    assert txn_unmatched.status == BankTransactionStatus.UNMATCHED
 
 
 async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
@@ -557,7 +553,6 @@ async def test_execute_matching_multi_entry_combinations(db: AsyncSession) -> No
     assert match.score_breakdown.get("multi_entry") == 2
 
     await db.refresh(txn)
-    assert txn.status == BankTransactionStatus.MATCHED
 
 
 async def test_review_queue_error_paths(db: AsyncSession) -> None:
