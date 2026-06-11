@@ -1023,11 +1023,14 @@ async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_even
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     events = await list_workflow_events(db, user_id=test_user.id)
     recon = [e for e in events if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
-    assert recon, "pending Stage 2 match must surface a reconciliation-review event in the inbox"
+    # Exactly one aggregate reconciliation-review card (not one per pending match).
+    assert len(recon) == 1, "pending Stage 2 matches must surface a single reconciliation-review card"
     assert recon[0].action_href == "/reconciliation/review-queue"
+    original_event_id = recon[0].id
 
-    # Re-sync is idempotent (no duplicate inbox card).
+    # Re-sync is idempotent: still exactly one event, and the same row is reused.
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     events_again = await list_workflow_events(db, user_id=test_user.id)
     recon_again = [e for e in events_again if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
-    assert len(recon_again) == len(recon)
+    assert len(recon_again) == 1
+    assert recon_again[0].id == original_event_id
