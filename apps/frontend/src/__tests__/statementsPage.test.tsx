@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementsPage from "@/app/(main)/upload/page"
 import { apiFetch } from "@/lib/api"
+import type { BankStatement } from "@/lib/types"
 
 const showToastMock = vi.fn()
 
@@ -150,6 +151,51 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(screen.getByText("fresh.pdf")).toBeInTheDocument())
     expect(screen.getByText("Uploaded")).toBeInTheDocument()
     expect(screen.queryByText("uploaded")).toBeNull()
+  })
+
+  it("AC22.5.x labels rejected statements and falls back gracefully for unknown statuses", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "s11",
+          original_filename: "rejected.pdf",
+          institution: "DBS",
+          status: "rejected",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          currency: "SGD",
+          confidence_score: 40,
+          transactions: [],
+          opening_balance: 0,
+          closing_balance: 0,
+          balance_validated: false,
+          validation_error: "Could not read totals",
+        },
+        {
+          id: "s12",
+          original_filename: "weird.pdf",
+          institution: "DBS",
+          // Defensive: a status outside the known union still renders, unstyled.
+          status: "frobnicating" as unknown as BankStatement["status"],
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          currency: "SGD",
+          confidence_score: 50,
+          transactions: [],
+          opening_balance: 0,
+          closing_balance: 0,
+          balance_validated: null,
+          validation_error: null,
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("rejected.pdf")).toBeInTheDocument())
+    expect(screen.getByText("Rejected")).toBeInTheDocument()
+    // Unknown status degrades to its raw value rather than crashing.
+    expect(screen.getByText("frobnicating")).toBeInTheDocument()
   })
 
   it("AC16.14.11 enables polling when parsing statements exist", async () => {
