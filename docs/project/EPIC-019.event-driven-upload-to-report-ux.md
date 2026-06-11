@@ -426,6 +426,18 @@ workflow state exists.
 | AC19.12.5 | Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent | `workflowSurfaces.test.tsx` | P0 |
 | AC19.12.6 | Lightweight derivation tests cover multi-user isolation, repeated sync idempotency, lifecycle preservation, and resolved-blocker archival | `test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved`, `test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers`, `test_AC19_12_4_readiness_blocker_events_are_user_action_scoped` | P0 |
 
+### AC19.13 — Durable Orchestration via Prefect
+
+Realizes the deferred "full event bus or message queue" non-goal: upload→report
+parsing migrates from in-process `asyncio.create_task` to durable Prefect flow
+runs, behind a config gate so CI/local/preview keep running without any Prefect
+dependency (delivery speed unaffected).
+
+| AC | Description | Test Anchor | Priority |
+|----|-------------|-------------|----------|
+| AC19.13.1 | Statement parse dispatch is config-gated: with `PREFECT_API_URL` unset, `submit_parse_pipeline` runs the existing in-process `asyncio.create_task` fallback (no Prefect import) and returns the task to track | `test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset` | P0 |
+| AC19.13.2 | With `PREFECT_API_URL` set, `submit_parse_pipeline` submits a Prefect flow run with serializable params only (no raw bytes, no session maker — the worker re-fetches content and builds its own session) and returns None | `test_AC19_13_2_dispatch_submits_serializable_params_to_prefect` | P0 |
+
 ## How To Build It
 
 ### Backend

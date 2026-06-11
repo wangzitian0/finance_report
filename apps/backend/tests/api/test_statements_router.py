@@ -44,6 +44,7 @@ from src.services import (
     ExtractionError,
     StorageError,
     statement_parsing as statement_parsing_mod,
+    statement_pipeline,
     statement_validation as statement_validation_mod,
 )
 from src.services.review_queue import accept_match as accept_match_service, create_entry_from_txn
@@ -319,7 +320,7 @@ async def test_AC3_5_upload_rejects_cross_user_account_id(db, monkeypatch, test_
 async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage_stub, test_user):
     """AC3.5.7: PDF/image uploads may omit model and use the default OCR pipeline."""
     mock_parse = AsyncMock(return_value=None)
-    monkeypatch.setattr(statements_router, "parse_statement_background", mock_parse)
+    monkeypatch.setattr(statement_pipeline, "parse_statement_background", mock_parse)
 
     upload_file = make_upload_file("statement.pdf", b"content")
 
@@ -350,7 +351,7 @@ async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
     content = b"audit-log-input"
     mock_parse = AsyncMock(return_value=None)
     mock_info = MagicMock()
-    monkeypatch.setattr(statements_router, "parse_statement_background", mock_parse)
+    monkeypatch.setattr(statement_pipeline, "parse_statement_background", mock_parse)
     monkeypatch.setattr(statements_router.logger, "info", mock_info)
 
     upload_file = make_upload_file("staging-audit.pdf", content)
@@ -673,7 +674,7 @@ async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, tes
     async def fake_parse_statement_background(**kwargs):
         queued.update(kwargs)
 
-    monkeypatch.setattr(statements_router, "parse_statement_background", fake_parse_statement_background)
+    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_parse_statement_background)
 
     response = await statements_router.reject_statement_stage1(
         statement_id=statement.id,

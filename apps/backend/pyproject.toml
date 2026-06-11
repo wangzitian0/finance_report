@@ -31,6 +31,14 @@ dependencies = [
     "pymupdf>=1.24.0",
 ]
 
+[project.optional-dependencies]
+# EPIC-019: installed (`pip install .[prefect]`) by any process that runs with
+# PREFECT_API_URL set — the API (to submit flow runs) AND the worker (to execute
+# them). The base image / CI / local fallback run in-process without Prefect.
+prefect = [
+    "prefect>=3.7.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",

@@ -15,7 +15,6 @@ from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.constants.error_ids import ErrorIds
-from src.database import create_session_maker_from_db
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import (
@@ -45,7 +44,7 @@ from src.schemas.review import (
 from src.services import StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
-from src.services.statement_parsing import parse_statement_background
+from src.services.statement_pipeline import submit_parse_pipeline
 from src.services.statement_posting import auto_create_posted_entries_for_statement
 from src.services.statement_summary import sync_statement_summary
 from src.services.statement_validation import (
@@ -103,22 +102,21 @@ async def _queue_statement_reparse(
     content = await run_in_threadpool(storage.get_object, statement.file_path)
     request_id = _current_request_id()
     model_to_use = None if model == settings.ocr_model else model
-    task = asyncio.create_task(
-        parse_statement_background(
-            statement_id=statement.id,
-            filename=statement.original_filename,
-            institution=statement.institution,
-            user_id=user_id,
-            account_id=statement.account_id,
-            file_hash=statement.file_hash,
-            storage_key=statement.file_path,
-            content=content,
-            model=model_to_use,
-            session_maker=create_session_maker_from_db(db),
-            request_id=request_id,
-        )
+    task = await submit_parse_pipeline(
+        statement_id=statement.id,
+        filename=statement.original_filename,
+        institution=statement.institution,
+        user_id=user_id,
+        account_id=statement.account_id,
+        file_hash=statement.file_hash,
+        storage_key=statement.file_path,
+        content=content,
+        model=model_to_use,
+        db=db,
+        request_id=request_id,
     )
-    _track_task(task)
+    if task is not None:
+        _track_task(task)
     logger.info(
         "statement.parse.enqueued",
         audit_event="statement.parse.enqueued",
@@ -339,22 +337,21 @@ async def upload_statement(
             )
         raise_internal_error("Failed to persist statement metadata", cause=exc)
 
-    task = asyncio.create_task(
-        parse_statement_background(
-            statement_id=statement_id,
-            filename=filename,
-            institution=institution,
-            user_id=user_id,
-            account_id=account_id,
-            file_hash=file_hash,
-            storage_key=storage_key,
-            content=content,
-            model=model_to_use,
-            session_maker=create_session_maker_from_db(db),
-            request_id=request_id,
-        )
+    task = await submit_parse_pipeline(
+        statement_id=statement_id,
+        filename=filename,
+        institution=institution,
+        user_id=user_id,
+        account_id=account_id,
+        file_hash=file_hash,
+        storage_key=storage_key,
+        content=content,
+        model=model_to_use,
+        db=db,
+        request_id=request_id,
     )
-    _track_task(task)
+    if task is not None:
+        _track_task(task)
     logger.info(
         "statement.parse.enqueued",
         audit_event="statement.parse.enqueued",
