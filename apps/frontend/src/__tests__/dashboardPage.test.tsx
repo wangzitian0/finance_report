@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import DashboardPage from "@/app/(main)/dashboard/page"
+import HomePage from "@/app/(main)/page"
 import { apiFetch } from "@/lib/api"
 
 vi.mock("next/link", () => ({
@@ -244,7 +244,7 @@ async function waitForDashboardAnalyticsReady() {
   )
 }
 
-describe("DashboardPage", () => {
+describe("HomePage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
 
   beforeEach(() => {
@@ -254,7 +254,7 @@ describe("DashboardPage", () => {
   it("AC16.12.1 shows loading state before dashboard data resolves", () => {
     mockedApiFetch.mockImplementation(() => new Promise(() => {}))
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     expect(screen.getByText("Loading upload-to-report workflow...")).toBeInTheDocument()
     expect(screen.getByText("Loading dashboard analytics...")).toBeInTheDocument()
@@ -263,7 +263,7 @@ describe("DashboardPage", () => {
   it("AC16.12.2 renders error fallback and retry action on failure", async () => {
     mockedApiFetch.mockRejectedValue(new Error("dashboard failed"))
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Upload to report")).toBeInTheDocument())
     expect(screen.getByText("Workflow status is unavailable. You can still upload files or open reports.")).toBeInTheDocument()
@@ -274,10 +274,10 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
-  it("AC16.12.3 renders KPI, chart, activity, and alert sections when API succeeds", async () => {
+  it("AC16.12.3 AC22.1.2 renders KPI, chart, activity, and alert sections when API succeeds", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/chat/suggestions?language=en&include_structured=true")
@@ -293,7 +293,7 @@ describe("DashboardPage", () => {
   it("AC19.3.6 renders the workflow status feed on the dashboard landing surface", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument())
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/workflow/status")
@@ -302,10 +302,10 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
   })
 
-  it("AC19.4.2 renders the upload-to-report home before secondary dashboard metrics", async () => {
+  it("AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Upload to report" })).toBeInTheDocument())
     const workflowHome = screen.getByLabelText("Upload-to-report home")
@@ -316,7 +316,7 @@ describe("DashboardPage", () => {
   it("AC21.3.3 test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     const brief = await screen.findByLabelText("Advisor Brief")
     expect(within(brief).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument()
@@ -332,7 +332,7 @@ describe("DashboardPage", () => {
   it("AC21.3.3 keeps dashboard analytics usable when Advisor Brief suggestions are unavailable", async () => {
     mockDashboardApi({ chatSuggestionsError: new Error("advisor suggestions failed") })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
     expect(screen.queryByLabelText("Advisor Brief")).not.toBeInTheDocument()
@@ -342,7 +342,7 @@ describe("DashboardPage", () => {
   it("AC19.4.3 follows workflow next_action for blocker and upload primary CTAs", async () => {
     mockDashboardApi()
 
-    const { unmount } = render(<DashboardPage />)
+    const { unmount } = render(<HomePage />)
 
     await waitFor(() => {
       const uploadHome = within(screen.getByLabelText("Upload-to-report home"))
@@ -367,7 +367,7 @@ describe("DashboardPage", () => {
       workflowEvents: { total: 0, items: [], sessions: [] },
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => {
       const uploadHome = within(screen.getByLabelText("Upload-to-report home"))
@@ -378,7 +378,7 @@ describe("DashboardPage", () => {
   it("AC19.4.4 renders report readiness above analytics with blocker count and link", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByLabelText("Report readiness")).toHaveAttribute("href", "/reports/package"))
     expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
@@ -391,7 +391,7 @@ describe("DashboardPage", () => {
   it("AC19.4.5 shows actionable recent events and summarizes routine automation", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Action required")).toBeInTheDocument())
     expect(screen.getAllByText("Review required").length).toBeGreaterThanOrEqual(1)
@@ -403,7 +403,7 @@ describe("DashboardPage", () => {
   it("AC19.4.6 keeps upload-to-report home visible when secondary analytics fail", async () => {
     mockDashboardApi({ balanceError: new Error("balance failed") })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Upload to report" })).toBeInTheDocument())
     const uploadHome = within(screen.getByLabelText("Upload-to-report home"))
@@ -415,7 +415,7 @@ describe("DashboardPage", () => {
   it("AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Annualized Income")).toBeInTheDocument())
     expect(screen.getByText("Salary")).toBeInTheDocument()
@@ -428,7 +428,7 @@ describe("DashboardPage", () => {
   it("AC11.8.4 renders Restricted Holdings separately with vesting metadata", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
     expect(screen.getByText("SHOP-RSU")).toBeInTheDocument()
@@ -439,7 +439,7 @@ describe("DashboardPage", () => {
   it("AC11.8.5 defaults to liquid net worth and refetches when restricted holdings are included", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Include restricted holdings")).toBeInTheDocument())
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/balance-sheet?include_restricted=false")
@@ -456,7 +456,7 @@ describe("DashboardPage", () => {
   it("uses empty fallbacks when optional asset APIs return null", async () => {
     mockDashboardApi({ restricted: null })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
     expect(screen.getByText("No restricted holdings.")).toBeInTheDocument()
@@ -476,7 +476,7 @@ describe("DashboardPage", () => {
       postedJournal: null,
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
     expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
@@ -488,7 +488,7 @@ describe("DashboardPage", () => {
   it("AC16.23.1 renders This Month KPI row with income, expenses, and net from last trend period", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument())
     expect(screen.getByText("This Month \u2014 Expenses")).toBeInTheDocument()
@@ -504,7 +504,7 @@ describe("DashboardPage", () => {
       },
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument())
     const links = screen.getAllByRole("link", { name: /This Month/i })
@@ -525,7 +525,7 @@ describe("DashboardPage", () => {
       postedJournal: { items: [], total: 0 },
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
     expect(screen.getByText(/No trend data/)).toBeInTheDocument()
@@ -539,7 +539,7 @@ describe("DashboardPage", () => {
   it("AC16.23.6 data health bar uses matched_transactions/total_transactions not auto_accepted", async () => {
     mockDashboardApi()
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Data health")).toBeInTheDocument())
     expect(screen.getByText("80%")).toBeInTheDocument()
@@ -561,7 +561,7 @@ describe("DashboardPage", () => {
       },
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
     const selector = screen.getByRole("combobox") as HTMLSelectElement
@@ -580,7 +580,7 @@ describe("DashboardPage", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
     mockDashboardApi({ trendError: new Error("trend failed") })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
     await waitFor(() => expect(screen.getByText(/No trend data/)).toBeInTheDocument())
@@ -602,12 +602,12 @@ describe("DashboardPage", () => {
       trend: { points: [] },
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
     expect(screen.getByText("Build your first accurate financial view")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /Add your first account/i })).toHaveAttribute("href", "/accounts")
-    expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/statements")
+    expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/upload")
     expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/review")
   })
 
@@ -624,7 +624,7 @@ describe("DashboardPage", () => {
       trend: { points: [] },
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
     expect(screen.getAllByText("Done")).toHaveLength(2)
@@ -643,7 +643,7 @@ describe("DashboardPage", () => {
       postedJournal: { items: [{ id: "j1", status: "posted" }], total: 1 },
     })
 
-    render(<DashboardPage />)
+    render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
     await waitFor(() => expect(screen.getByText("Total Assets")).toBeInTheDocument())

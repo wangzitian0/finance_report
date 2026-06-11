@@ -29,7 +29,7 @@ describe("LoginPage", () => {
     pushMock.mockReset()
   })
 
-  it("AC16.12.5 submits login payload and redirects", async () => {
+  it("AC16.12.5 AC22.1.3 submits login payload and redirects to Home", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       id: "u1",
       email: "user@example.com",
@@ -57,7 +57,7 @@ describe("LoginPage", () => {
     expect(mockedSetUser).toHaveBeenCalledTimes(1)
     expect(mockedSetUser).toHaveBeenCalledWith("u1", "user@example.com", "token-1")
     expect(pushMock).toHaveBeenCalledTimes(1)
-    expect(pushMock).toHaveBeenCalledWith("/dashboard")
+    expect(pushMock).toHaveBeenCalledWith("/")
   })
 
   it("AC16.12.6 switches to register mode and uses register endpoint", async () => {

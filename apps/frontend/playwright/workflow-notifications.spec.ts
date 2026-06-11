@@ -161,7 +161,7 @@ test.describe("AC19.3.7 workflow notification smoke", () => {
       await page.setViewportSize(scenario.viewport);
       await installWorkflowMocks(page);
 
-      await page.goto("/dashboard", { waitUntil: "networkidle" });
+      await page.goto("/", { waitUntil: "networkidle" });
       await expect(page.getByRole("heading", { name: "Workflow status" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(page.getByRole("link", { name: "Review required", exact: true })).toHaveAttribute("href", "/review");
 

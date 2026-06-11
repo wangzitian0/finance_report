@@ -71,7 +71,7 @@ describe("IncomeStatementPage", () => {
       "href",
       expect.stringContaining("/chat?prompt=")
     )
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard")
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
     expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
     expect(screen.getByText("Total Income").closest("div")).toHaveTextContent("5,000.00")
     expect(screen.getByText("Total Expenses").closest("div")).toHaveTextContent("1,200.00")

@@ -79,7 +79,7 @@ describe("CashFlowPage", () => {
       "href",
       expect.stringContaining("/chat?prompt=")
     )
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard")
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
     expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
 
     const netCashFlowCard = screen.getByText("Net Cash Flow").closest("div")

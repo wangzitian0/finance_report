@@ -311,7 +311,7 @@ export function WorkflowInbox({ events, sessions = [], onStatusChange }: Workflo
         title="No action required"
         description="Workflow events will appear here when review or blockers need attention."
         action={
-          <Link href="/statements/upload" className="btn-primary inline-flex">
+          <Link href="/upload" className="btn-primary inline-flex">
             Upload statements
           </Link>
         }
@@ -579,7 +579,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
                 )}
                 {primaryLabel}
               </Link>
-              <Link href="/events" className="btn-secondary inline-flex items-center justify-center gap-2 text-sm">
+              <Link href="/notifications" className="btn-secondary inline-flex items-center justify-center gap-2 text-sm">
                 <Inbox className="h-4 w-4" aria-hidden="true" />
                 Session history
               </Link>
@@ -687,7 +687,7 @@ export function UploadToReportHomePanel() {
             <p className="mt-1 text-sm text-muted">Workflow status is unavailable. You can still upload files or open reports.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/statements/upload" className="btn-primary text-sm">Upload statements</Link>
+            <Link href="/upload" className="btn-primary text-sm">Upload statements</Link>
             <Link href="/reports" className="btn-secondary text-sm">Open reports</Link>
           </div>
         </div>
@@ -707,10 +707,10 @@ export function WorkflowEventsPageContent() {
     <div className="p-6">
       <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="page-title">Events</h1>
+          <h1 className="page-title">Notifications</h1>
           <p className="page-description">Workflow attention for upload, review, reconciliation, and reports</p>
         </div>
-        <Link href="/statements/upload" className="btn-primary inline-flex justify-center text-sm">
+        <Link href="/upload" className="btn-primary inline-flex justify-center text-sm">
           Upload statements
         </Link>
       </div>

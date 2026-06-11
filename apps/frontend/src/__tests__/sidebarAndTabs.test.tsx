@@ -97,8 +97,8 @@ describe("Sidebar and WorkspaceTabs", () => {
   it("AC16.19.3 shows auth-aware sidebar actions and logout behavior", async () => {
     render(<Sidebar />)
 
-    await waitFor(() => expect(screen.getByRole("link", { name: /Upload Pipeline/i })).toBeInTheDocument())
-    expect(screen.getByRole("link", { name: /^AI$/i })).toHaveAttribute("href", "/chat")
+    await waitFor(() => expect(screen.getByRole("link", { name: /^Upload$/i })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: /^Chat$/i })).toHaveAttribute("href", "/chat")
     expect(screen.getByRole("button", { name: /Advanced/i })).toBeInTheDocument()
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
@@ -108,13 +108,17 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(pushMock).toHaveBeenCalledWith("/login")
   })
 
+  it("AC22.1.3 links the sidebar brand to Home", async () => {
+    render(<Sidebar />)
+    const brand = await screen.findByRole("link", { name: /Finance Report home/i })
+    expect(brand).toHaveAttribute("href", "/")
+  })
+
   it("AC19.6.3 exposes advanced accounting surfaces behind the Advanced group", async () => {
     render(<Sidebar />)
 
     fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
-    expect(screen.getByRole("link", { name: /Events/i })).toHaveAttribute("href", "/events")
     expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio")
-    expect(screen.getByRole("link", { name: /Statements/i })).toHaveAttribute("href", "/statements")
     expect(screen.getByRole("link", { name: /Review/i })).toHaveAttribute("href", "/review")
     expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/accounts")
     expect(screen.getByRole("link", { name: /Journal/i })).toHaveAttribute("href", "/journal")

@@ -38,7 +38,7 @@ export default function LoginPage() {
             });
 
             setUser(data.id, data.email, data.access_token);
-            router.push("/dashboard");
+            router.push("/");
         } catch (err) {
             setError(err instanceof Error ? err.message : "An error occurred");
         } finally {

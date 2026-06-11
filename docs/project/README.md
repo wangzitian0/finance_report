@@ -69,6 +69,7 @@ owning source instead of copying:
 | [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md) | Event-driven upload-to-report UX |
 | [EPIC-020](./EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
 | [EPIC-021](./EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
+| [EPIC-022](./EPIC-022.everyday-user-ia.md) | Everyday-user information architecture |
 
 ## Current Audit Reports
 

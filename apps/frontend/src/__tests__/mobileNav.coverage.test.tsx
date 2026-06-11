@@ -3,7 +3,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import { MobileNav } from "@/components/MobileNav";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
-let pathnameMock = "/dashboard";
+let pathnameMock = "/upload";
 
 vi.mock("next/navigation", () => ({
     usePathname: () => pathnameMock,
@@ -12,25 +12,23 @@ vi.mock("next/navigation", () => ({
 
 describe("MobileNav coverage (AC16.23.6)", () => {
     beforeEach(() => {
-        pathnameMock = "/dashboard";
+        pathnameMock = "/upload";
     });
 
     it("AC19.6.4 opens workflow mobile nav, exposes Advanced drill-downs, and closes via link click", () => {
         renderReviewComponent(<MobileNav />);
         const trigger = screen.getByLabelText("Open navigation menu");
         fireEvent.click(trigger);
-        const uploadLink = screen.getByRole("link", { name: /upload pipeline/i });
-        expect(uploadLink).toHaveAttribute("href", "/dashboard");
+        const uploadLink = screen.getByRole("link", { name: /^upload$/i });
+        expect(uploadLink).toHaveAttribute("href", "/upload");
         expect(screen.getByRole("link", { name: /reports/i })).toHaveAttribute("href", "/reports");
-        expect(screen.getByRole("link", { name: /^ai$/i })).toHaveAttribute("href", "/chat");
+        expect(screen.getByRole("link", { name: /^chat$/i })).toHaveAttribute("href", "/chat");
         expect(screen.queryByRole("link", { name: /accounts/i })).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: /advanced/i })).toBeInTheDocument();
         expect(uploadLink.className).toContain("accent-muted");
 
         fireEvent.click(screen.getByRole("button", { name: /advanced/i }));
-        expect(screen.getByRole("link", { name: /events/i })).toHaveAttribute("href", "/events");
         expect(screen.getByRole("link", { name: /portfolio/i })).toHaveAttribute("href", "/portfolio");
-        expect(screen.getByRole("link", { name: /statements/i })).toHaveAttribute("href", "/statements");
         expect(screen.getByRole("link", { name: /review/i })).toHaveAttribute("href", "/review");
         expect(screen.getByRole("link", { name: /accounts/i })).toHaveAttribute("href", "/accounts");
         expect(screen.getByRole("link", { name: /journal/i })).toHaveAttribute("href", "/journal");

@@ -12,7 +12,7 @@ import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/currency";
 
-export default function StatementsPage() {
+export default function UploadPage() {
     const { showToast } = useToast();
     const [statements, setStatements] = useState<BankStatement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -79,8 +79,8 @@ export default function StatementsPage() {
     return (
         <div className="p-6">
             <PageHeader
-                title="Bank Statements"
-                description="Upload bank statements for AI-powered parsing and reconciliation."
+                title="Upload"
+                description="Upload bank statements for AI parsing, and review your upload history."
                 className="sm:block"
             />
 

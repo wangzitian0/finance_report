@@ -493,8 +493,8 @@ describe("workflow notification surfaces", () => {
 
     const { unmount } = renderWithQuery(<WorkflowEventsPageContent />)
 
-    expect(screen.getByRole("heading", { name: "Events" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/statements/upload")
+    expect(screen.getByRole("heading", { name: "Notifications" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/upload")
     expect(screen.getByText("Loading workflow status...")).toBeInTheDocument()
     expect(screen.getByText("Loading workflow events...")).toBeInTheDocument()
 

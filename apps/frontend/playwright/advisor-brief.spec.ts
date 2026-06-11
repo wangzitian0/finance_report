@@ -148,7 +148,7 @@ test.describe("AC21.3.4 Advisor Brief responsive layout", () => {
       await page.setViewportSize(scenario.viewport);
       await installAdvisorBriefMocks(page);
 
-      await page.goto("/dashboard", { waitUntil: "networkidle" });
+      await page.goto("/", { waitUntil: "networkidle" });
 
       const brief = page.getByLabel("Advisor Brief");
       await expect(brief.getByRole("heading", { name: "Advisor Brief" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });

@@ -25,7 +25,7 @@ async def test_registration_flow(page):
     EPIC-001 EPIC-016 / AC8.2.1: User registration flow
     GIVEN a new user visits the registration page
     WHEN they complete the registration form with valid data
-    THEN they should be successfully registered and redirected to dashboard
+    THEN they should be successfully registered and redirected to Home
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
@@ -39,8 +39,8 @@ async def test_registration_flow(page):
 
     await page.click("button[type='submit']")
 
-    await page.wait_for_url("**/dashboard**")
-    assert "dashboard" in page.url
+    await page.wait_for_url(lambda url: "/login" not in url)
+    assert "/login" not in page.url
 
 
 @pytest.mark.e2e
@@ -49,7 +49,7 @@ async def test_login_flow(page):
     EPIC-001 EPIC-016 / AC8.2.3: Login with valid credentials
     GIVEN a registered user visits the login page
     WHEN they enter valid credentials
-    THEN they should be logged in and redirected to dashboard
+    THEN they should be logged in and redirected to Home
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
@@ -62,8 +62,8 @@ async def test_login_flow(page):
 
     await page.click("button[type='submit']")
 
-    await page.wait_for_url("**/dashboard**")
-    assert "dashboard" in page.url
+    await page.wait_for_url(lambda url: "/login" not in url)
+    assert "/login" not in page.url
 
 
 @pytest.mark.e2e
@@ -101,7 +101,7 @@ async def test_logout_flow(page):
     if not frontend_url:
         pytest.skip("FRONTEND_URL not set")
 
-    await page.goto(f"{frontend_url}/dashboard")
+    await page.goto(f"{frontend_url}/")
 
     await page.click("text=Logout")
     await page.click("button:has-text('Confirm')")

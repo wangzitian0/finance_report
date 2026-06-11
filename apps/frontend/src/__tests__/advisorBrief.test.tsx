@@ -75,7 +75,7 @@ describe("AdvisorBrief", () => {
       "/portfolio/prices",
       "/assets",
     ]);
-    expect(safeAdvisorHref("https://evil.example/review")).toBe("/dashboard");
+    expect(safeAdvisorHref("https://evil.example/review")).toBe("/");
     expect(safeAdvisorHref("/portfolio/prices/update?source=advisor")).toBe("/portfolio/prices");
     expect(within(cards[0]).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
       "href",

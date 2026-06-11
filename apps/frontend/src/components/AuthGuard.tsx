@@ -35,12 +35,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
             if (e.key !== AUTH_SESSION_KEY) return;
-            
+
             if (e.newValue === null && !isPublicPath(pathname)) {
                 setAuthorized(false);
                 router.push("/login");
             } else if (e.newValue !== null && pathname === "/login") {
-                router.push("/dashboard");
+                router.push("/");
             }
         };
 

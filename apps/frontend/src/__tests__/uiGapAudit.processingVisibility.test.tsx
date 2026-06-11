@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProcessingSummaryCard from '@/components/ProcessingSummaryCard';
 import ProcessingPage from '@/app/(main)/processing/page';
-import DashboardPage from '@/app/(main)/dashboard/page';
+import DashboardPage from '@/app/(main)/page';
 import { apiFetch } from '@/lib/api';
 import type { ReactNode } from 'react';
 
