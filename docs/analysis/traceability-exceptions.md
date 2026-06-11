@@ -86,6 +86,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/unit/services/test_source_type_priority.py` | `docs/ssot/source-type-priority.md` |
 | `apps/backend/tests/unit/utils/test_exceptions.py` | `docs/ssot/development.md` |
 | `apps/backend/tests/test_factories.py` | `apps/backend/tests/factories.py` |
+| `apps/frontend/src/__tests__/analytics.test.tsx` | Frontend analytics tracking (OpenPanel PV) — non-blocking infra, not product behavior |
 | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/ThemeToggle.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `docs/ssot/frontend-patterns.md` |

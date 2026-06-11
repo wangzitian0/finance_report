@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
+import { Analytics } from "@/components/Analytics";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Inter } from "next/font/google";
 import { Providers } from "./providers";
@@ -36,14 +37,35 @@ export const viewport: Viewport = {
   themeColor: "#7c3aed",
 };
 
+// Read OpenPanel config at request time (server-side), not build time. These are
+// plain (non-NEXT_PUBLIC) vars so they are NOT inlined into the client bundle:
+// staging and production share the same promoted image, and each environment
+// supplies its own values via the container `environment:` block at runtime.
+// `force-dynamic` opts the root segment out of static pre-render so the env is
+// read per request rather than captured at build (the finance app is auth-gated
+// and already effectively dynamic).
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Gate entirely on the client id: when unset, no <Analytics> (and no extra
+  // client boundary / analytics bundle) is rendered at all — a complete no-op.
+  const openpanelClientId = process.env.OPENPANEL_CLIENT_ID?.trim();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
+        {openpanelClientId ? (
+          <Analytics
+            clientId={openpanelClientId}
+            apiUrl={process.env.OPENPANEL_API_URL}
+            scriptUrl={process.env.OPENPANEL_SCRIPT_URL}
+            environment={process.env.OPENPANEL_ENVIRONMENT}
+          />
+        ) : null}
         <Providers>
           <AuthGuard>
             {children}
