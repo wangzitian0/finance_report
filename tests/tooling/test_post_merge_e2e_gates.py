@@ -1578,7 +1578,9 @@ def test_AC8_13_89_pr_preview_builds_pr_tagged_images_before_deploy() -> None:
         assert "docker/login-action@v3" in build_block
         assert "Set up Docker Buildx" in build_block
         assert "push: true" in build_block
-        assert "cache-to: type=gha,mode=max,ignore-error=true" in build_block
+        # Persistent registry-backed layer cache (survives GHA cache eviction).
+        assert "cache-to: type=registry,ref=" in build_block
+        assert ":buildcache,mode=max,ignore-error=true" in build_block
     assert (
         "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}"
         in backend_build_block
