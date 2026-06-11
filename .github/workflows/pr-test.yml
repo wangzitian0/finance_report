@@ -51,6 +51,10 @@ jobs:
       preview_commit_slug: ${{ steps.info.outputs.preview_commit_slug }}
       pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}
       pr_preview_reason: ${{ steps.preview_gate.outputs.pr_preview_reason }}
+      # Opt-in gate (issue #839): previews are OFF by default. Enable per-PR with
+      # the `preview` label, or via manual workflow_dispatch. Authoritative
+      # deployment validation is post-merge (Staging), not every PR commit.
+      preview_opt_in: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'preview') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -145,7 +149,7 @@ jobs:
 
   gate-cheap-ci:
     name: Gate on Cheap CI
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
     needs: setup
     runs-on: ubuntu-latest
     permissions:
@@ -165,7 +169,7 @@ jobs:
 
   build-preview-backend-image:
     name: Build Backend PR Preview Image
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
     needs: [setup, gate-cheap-ci]
     runs-on: ubuntu-latest
     env:
@@ -206,7 +210,7 @@ jobs:
 
   build-preview-frontend-image:
     name: Build Frontend PR Preview Image
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
     needs: [setup, gate-cheap-ci]
     runs-on: ubuntu-latest
     env:
@@ -249,7 +253,7 @@ jobs:
 
   deploy:
     name: Deploy Test Environment
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.setup.outputs.preview_opt_in == 'true'
     needs: [setup, build-preview-backend-image, build-preview-frontend-image]
     runs-on: ubuntu-latest
     permissions:
