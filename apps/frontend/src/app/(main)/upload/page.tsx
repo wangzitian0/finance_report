@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
 import StatementUploader from "@/components/statements/StatementUploader";
@@ -10,12 +11,31 @@ import { InfoHint } from "@/components/ui/InfoHint";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
+import type { BadgeVariant } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/currency";
 
+// Plain-language status for everyday users. "parsed" means the AI finished and
+// it is the user's turn to review — surface that as an action, not a warning.
+function statusDisplay(status: string): { label: string; variant: BadgeVariant } {
+    switch (status) {
+        case "approved":
+            return { label: "Approved", variant: "success" };
+        case "rejected":
+            return { label: "Rejected", variant: "error" };
+        case "parsed":
+            return { label: "Ready to review", variant: "info" };
+        case "parsing":
+            return { label: "Parsing", variant: "muted" };
+        default:
+            return { label: status, variant: "muted" };
+    }
+}
+
 export default function UploadPage() {
     const { showToast } = useToast();
+    const router = useRouter();
     const [statements, setStatements] = useState<BankStatement[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -167,15 +187,11 @@ export default function UploadPage() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="font-medium truncate">{statement.original_filename}</span>
-                                            <Badge variant={statement.status === "approved" ? "success" :
-                                                statement.status === "rejected" ? "error" :
-                                                    statement.status === "parsed" ? "warning" :
-                                                        "muted"
-                                            }>
+                                            <Badge variant={statusDisplay(statement.status).variant}>
                                                 {statement.status === "parsing" && (
                                                     <span className="inline-block w-3 h-3 mr-1 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                                 )}
-                                                {statement.status}
+                                                {statusDisplay(statement.status).label}
                                             </Badge>
                                         </div>
                                         {statement.status === "rejected" && statement.validation_error && (
@@ -192,6 +208,19 @@ export default function UploadPage() {
                                         </div>
                                     </div>
                                     <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
+                                        {statement.status === "parsed" && (
+                                            <Button
+                                                variant="primary"
+                                                className="text-sm"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    router.push(`/statements/${statement.id}/review`);
+                                                }}
+                                            >
+                                                Review →
+                                            </Button>
+                                        )}
                                         <IconButton
                                             icon={Trash2}
                                             label="Delete Statement"

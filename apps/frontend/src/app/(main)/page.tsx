@@ -238,7 +238,7 @@ export default function HomePage() {
     return [
       { label: "Add your first account", href: "/accounts", done: hasAccount, Icon: Landmark },
       { label: "Upload a bank statement", href: "/upload", done: hasStatement, Icon: FileText },
-      { label: "Review and approve", href: "/review", done: hasApprovedOutput, Icon: BookOpen },
+      { label: "Review and approve", href: "/notifications", done: hasApprovedOutput, Icon: BookOpen },
     ];
   }, [isCoreFlowComplete, onboardingStatus]);
 
@@ -322,8 +322,9 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      {/* KPI Cards — Net Worth lives in the hero banner below, so it is not
+          duplicated here as a "Net Assets" card. */}
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
         <ProcessingSummaryCard />
         <div className="card p-5">
           <p className="text-xs text-muted uppercase tracking-wide">Total Assets</p>
@@ -338,13 +339,6 @@ export default function HomePage() {
             {balanceSheet ? formatCurrencyLocale(balanceSheet.total_liabilities, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
           </p>
           <p className="text-xs text-muted mt-1">Obligations</p>
-        </div>
-        <div className="card p-5">
-          <p className="text-xs text-muted uppercase tracking-wide">Net Assets</p>
-          <p className="text-2xl font-semibold mt-1">
-            {balanceSheet ? formatCurrencyLocale(netAssets, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : "—"}
-          </p>
-          <p className="text-xs text-muted mt-1">{balanceSheet?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</p>
         </div>
       </div>
       {/* Hero: Net Worth Banner (C2 + C3) */}

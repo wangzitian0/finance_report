@@ -15,6 +15,12 @@ vi.mock("next/link", () => ({
   ),
 }))
 
+const routerPushMock = vi.fn()
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPushMock }),
+}))
+
 vi.mock("@/components/statements/StatementUploader", () => ({
   default: ({ onUploadComplete }: { onUploadComplete: () => void }) => (
     <button onClick={onUploadComplete}>UploadMock</button>
@@ -82,6 +88,40 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(screen.getByText("No statements uploaded yet")).toBeInTheDocument())
     fireEvent.click(screen.getByText("UploadMock"))
     await waitFor(() => expect(screen.getByText("stmt.pdf")).toBeInTheDocument())
+  })
+
+  it("AC22.5.x surfaces a parsed statement as ready-to-review with a direct review deep-link", async () => {
+    routerPushMock.mockClear()
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "s9",
+          original_filename: "ready.pdf",
+          institution: "DBS",
+          status: "parsed",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          currency: "SGD",
+          confidence_score: 90,
+          transactions: [],
+          opening_balance: 100,
+          closing_balance: 200,
+          balance_validated: true,
+          validation_error: null,
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("ready.pdf")).toBeInTheDocument())
+    // Plain-language status, not the raw "parsed" word.
+    expect(screen.getByText("Ready to review")).toBeInTheDocument()
+    expect(screen.queryByText("parsed")).toBeNull()
+
+    // Direct deep-link into the review page, skipping the detail-page hop.
+    fireEvent.click(screen.getByRole("button", { name: /Review/i }))
+    expect(routerPushMock).toHaveBeenCalledWith("/statements/s9/review")
   })
 
   it("AC16.14.11 enables polling when parsing statements exist", async () => {

@@ -289,7 +289,8 @@ describe("HomePage", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/chat/suggestions?language=en&include_structured=true")
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
     expect(screen.getByText("Total Liabilities")).toBeInTheDocument()
-    expect(screen.getByText("Net Assets")).toBeInTheDocument()
+    // Net worth is shown once, in the hero banner — not duplicated as a KPI card.
+    expect(screen.getByText("Net Worth")).toBeInTheDocument()
     expect(screen.getByText("PieChartMock")).toBeInTheDocument()
     expect(screen.getByText("BarChartMock")).toBeInTheDocument()
     expect(screen.getByText("Recent Entries")).toBeInTheDocument()
@@ -654,7 +655,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Build your first accurate financial view")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /Add your first account/i })).toHaveAttribute("href", "/accounts")
     expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/upload")
-    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/review")
+    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
   })
 
   it("AC16.12.17 keeps onboarding visible with partial progress markers", async () => {
@@ -675,7 +676,7 @@ describe("HomePage", () => {
     await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
     expect(screen.getAllByText("Done")).toHaveLength(2)
     expect(screen.getByText("Next")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/review")
+    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
   })
 
   it("AC16.12.19 hides first-time onboarding after approved statement and posted journal entry exist", async () => {
