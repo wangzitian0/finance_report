@@ -311,6 +311,8 @@ concepts:
       - docs/ssot/development.md
       - docs/ssot/ci-cd.md
       - docs/ssot/deployment.md
+    proofs:
+      - tests/tooling/test_issue_489_deployment_contracts.py
 
   container_naming:
     owner: docs/ssot/environments.md#container-naming-patterns

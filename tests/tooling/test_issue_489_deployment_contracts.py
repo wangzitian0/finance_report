@@ -340,3 +340,37 @@ def test_pr_preview_deploy_gate_exercises_health_smoke_e2e_and_storage_paths() -
     assert "test_statement_upload_to_dashboard_vision_hard_gate" in hard_gate
     assert "/api/statements/upload" in hard_gate
     assert "dashboard" in hard_gate.lower()
+
+
+def test_pr_preview_deploy_is_opt_in() -> None:
+    """Issue #839: PR preview build/deploy is opt-in, not a per-PR gate.
+
+    Default PRs must not build images or deploy to Dokploy; a preview is only
+    produced on manual dispatch or when the PR carries the ``preview`` label.
+    Authoritative deployment validation is post-merge (Staging).
+    """
+    workflow = load_yaml(".github/workflows/pr-test.yml")
+    jobs = workflow["jobs"]
+
+    opt_in = jobs["setup"]["outputs"]["preview_opt_in"]
+    assert "workflow_dispatch" in opt_in
+    assert "labels" in opt_in and "preview" in opt_in
+
+    gated_jobs = (
+        "gate-cheap-ci",
+        "build-preview-backend-image",
+        "build-preview-frontend-image",
+        "deploy",
+    )
+    for job in gated_jobs:
+        condition = jobs[job]["if"]
+        assert (
+            "preview_opt_in == 'true'" in condition
+        ), f"{job} must require preview opt-in"
+
+    # Teardown on PR close must stay ungated so a deployed preview is cleaned up.
+    assert "preview_opt_in" not in jobs["cleanup"]["if"]
+
+    env_doc = read("docs/ssot/environments.md")
+    assert "Opt-in" in env_doc
+    assert "`preview` label" in env_doc
