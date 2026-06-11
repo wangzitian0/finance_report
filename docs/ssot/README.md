@@ -54,6 +54,7 @@ contracts is tracked in
 | [auth.md](./auth.md) | `auth` | Auth architecture rationale and code references |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | Frontend integration rules and proof references |
 | [schema.md](./schema.md) | `schema` | Database model rationale; code owner is models/migrations |
+| [migration-risk.yaml](./migration-risk.yaml) | `migration_risk_classification` | Alembic migration risk levels and required release proof notes |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rationale and invariant references |
 | [MANIFEST.yaml](./MANIFEST.yaml) | `manifest` | Machine-readable concept owner registry |
 

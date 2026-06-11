@@ -176,6 +176,7 @@ The test system separates proof by where the failure can be acted on:
 |---|---|---|
 | Behavioral tests | PR CI before merge | Prove deterministic product behavior, accounting invariants, API contracts, frontend flows, and tooling contracts before code enters `main`. |
 | Schema migration contract | PR CI before merge | Prove Alembic can build the production schema from empty Postgres and that model definitions do not drift from generated migrations. |
+| Migration risk contract | PR CI lint and production dry-run | Prove each Alembic revision has a right-sized risk classification. High and critical migrations must carry staging, production preflight, and rollback/expand-contract notes; this does not guarantee production data safety. |
 | Environment gates | Post-merge deploy workflows | Prove the exact merged SHA can run in staging/production-like environments with real routing, Vault/Dokploy/GHCR/SigNoz wiring, deployed images, and provider-backed OCR/LLM credentials. |
 | Reference traceability | PR and `main` CI | Prove every mandatory AC has a real non-placeholder test reference in a CI-required execution stage from `docs/ssot/test-execution-matrix.yaml`; this is not line coverage. |
 | E2E EPIC traceability | PR and `main` CI | Prove every product E2E root `test_*` function has a function-level EPIC ID, every project EPIC has at least one product E2E owner test, the README EPIC map matches project EPIC files, and E2E-like assets are declared as product or non-product. |
@@ -189,6 +190,11 @@ must not be the first proof for deterministic business behavior.
 Schema DDL correctness is deterministic and belongs in PR CI through
 `schema-migrations`; preview and staging may catch environment-specific
 deployment wiring, but they are not substitutes for migration proof.
+Production data migration safety is not fully provable before production. The
+migration risk contract classifies the risk and required evidence so staging is
+used for the issues it can realistically catch, while production residual risk
+is handled through preflight, backup, feature-flag, idempotency, and
+post-deploy controls.
 
 ---
 
