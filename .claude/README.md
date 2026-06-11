@@ -1,7 +1,7 @@
 # Multi-runtime agent bridge
 
 This repo is open-and-develop for **Claude Code**, **Codex**, **OpenCode**, and
-the **Gemini / Antigravity CLI**. The single source of truth is `AGENTS.md`. The
+the **Gemini / Antigravity CLI**. The authoritative entry point is `AGENTS.md`. The
 instruction docs and skill libraries are symlinks (nothing to sync by hand); a
 few small committed config files (`.claude/settings.json`, `.mcp.json`,
 `.gemini/settings.json`, `opencode.json`) declare per-runtime MCP/approval.

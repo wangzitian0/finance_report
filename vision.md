@@ -1,30 +1,30 @@
 # Finance Report Vision
 
+This file is culture, not specification. It carries the few irreducible bets
+and the rules for choosing when those bets conflict. It does not own status,
+scope, or contracts — see [Where Detail Lives](#where-detail-lives).
+
 ## Terminal Goal
 
 **A generated personal financial-report package backed by an accurate asset
 dashboard and an explainable financial assistant.**
 
-The final product should generate a self-hosted personal financial report
-package whose structure is inspired by US GAAP and Hong Kong listed-company
-reporting: statements, schedules, notes, and source traceability. It is a
-personal management report, not a regulated filing, audit opinion, legal
-advice, tax advice, or regulated investment advice.
+The output is a self-hosted personal report package — statements, schedules,
+notes, and source traceability — whose structure is inspired by US GAAP and
+Hong Kong listed-company reporting. The US public-company framing is not
+decoration: it is our schema discipline (see Axiom C). It is a personal
+management report, not a regulated filing, audit opinion, legal advice, tax
+advice, or regulated investment advice.
 
-## Product Promise
+## Why This Exists
 
-The user should only need to upload financial source documents, such as bank
-statements, brokerage statements, settlement notes, ESOP/RSU plan documents,
-property or liability statements, CSV exports, and other supported records.
+Financial data is scattered across banks, brokers, statements, PDFs, CSVs, and
+manual records. Manual entry can omit data; automated extraction can be wrong.
 
-After upload, the system should automate the rest where the behavior can be
-made trustworthy: extraction, validation, deduplication, reconciliation, FX and
-stock-price refresh, ESOP and long-term compensation schedules, recurring fixed
-expense accruals or pre-deductions, dashboard updates, and report-package
-preparation.
-
-Human review remains part of the product when source data is missing,
-ambiguous, material, or inconsistent.
+The product exists to make asset data trustworthy, auditable, explainable, and
+useful for personal financial decisions. The user uploads source documents; the
+system automates the rest wherever the behavior can be made trustworthy, and
+asks for human attention only where it cannot.
 
 At any time, the system should help answer:
 
@@ -35,55 +35,93 @@ At any time, the system should help answer:
 - How are my investments performing?
 - What is my annualized income across salary, ESOP, dividends, and other
   long-term components?
-- What financial suggestions should my assistant surface from trusted data,
-  known limitations, and pending actions?
+- What should my assistant surface from trusted data, known limitations, and
+  pending actions?
 
-## Core Challenge
+## The Three Axioms
 
-Financial data is scattered across banks, brokers, statements, PDFs, CSVs, and
-manual records. Manual entry can omit data; automated extraction can be wrong.
+These are the irreducible bets. When a product or architecture choice is
+ambiguous, derive the answer from these axioms first, then from the
+[Trade-off Rules](#trade-off-rules), then from the
+[Decision Filter](#decision-filter).
 
-The product exists to make asset data trustworthy, auditable, explainable, and
-useful for personal financial decisions.
+### Axiom A — Data is append-only; truth is recomputed, not edited
 
-## Product Principles
+Stored facts only accumulate; a recorded fact is never changed in place. Truth
+itself may change — a later statement corrects an earlier one, a price refreshes
+— but it changes by **recomputing from the accumulated record**, never by
+editing history.
 
-- Accounting integrity is non-negotiable.
-- Confirmed data is more valuable than merely imported data.
-- AI may parse, classify, explain, and suggest; it must not become the source of
-  record.
-- Deterministic logic owns core bookkeeping and report calculations.
-- Automation should reduce user effort without hiding uncertainty.
-- Human review should focus on uncertainty, exceptions, and material judgments.
-- Self-hosting and data ownership are first-class constraints.
-- Every workflow should preserve traceability from source document to ledger to
-  report.
+Every value carries a version, and one version maps to exactly one value as it
+propagates downstream. That is what lets the same number be both auditable and
+current: pin a version and it stays reproducible; recompute and it stays fresh.
+Append-only history plus versioned recomputation is what gives us retrospective
+analysis. (How the layers and versions are actually structured is implementation,
+owned downstream — not here.)
 
-## Confidence Accumulation
+### Axiom B — Automation by default; attention only on the low-confidence tail
 
-The guiding model is staged confidence:
+The default is fully automatic. The user is asked to look only at the nodes the
+system flags — the issues automated review could not resolve with confidence.
 
-```text
-raw source
-  -> extracted record
-  -> machine validation
-  -> human confirmation
-  -> reconciliation and deduplication
-  -> trusted ledger knowledge
-  -> dashboard, assistant, and reports
-```
+Confidence is a first-class, measured property, co-equal with traceability.
+What we ask a human to review, or an engineer to redesign, is exactly the
+computation that — in hindsight — looks low-confidence. The same problem has a
+macro face (which nodes the user reviews) and a micro face (which computations
+the team improves). The mission over time is to **drive the proportion of
+low-confidence data down**.
 
-Only trusted or explicitly reviewed data should drive conclusions that claim to
-be accurate.
+### Axiom C — Boundaries are risk-managed, not absolute
+
+Our hard constraints are managed as risk, not absolutes.
+
+- **Privacy / self-hosting**: the rule is *no catastrophically short stave*, not
+  *no data ever leaves the box*. A trusted vendor leaking is a low-probability
+  event; sending a statement image to a trusted extraction provider is
+  acceptable. What is not acceptable is a single weak link far worse than the
+  rest.
+- **Schema**: the messy variety of real-world instruments is absorbed by
+  adopting the discipline of US public-company reporting. Public companies have
+  already generalized the fancy operations; we align to that standard rather
+  than invent our own. Minor representational gaps are tolerable.
+
+## North-Star Metric
+
+**The proportion of low-confidence data trends down over time.** This is the
+single measurable expression of the axioms: more data crossing from
+machine-uncertain to trusted, with traceability intact, and less human attention
+required per unit of trust.
+
+## Trade-off Rules
+
+When two goods conflict, the higher rule wins.
+
+1. **Append-only over in-place truth.** The live number is a recompute; history
+   is never edited to make it look right. (Axiom A)
+2. **Accuracy over coverage.** Support fewer sources well before supporting many
+   unreliably.
+3. **Auditability over convenience — but automation stays the default.** We do
+   not collapse source→ledger→report traceability for a cleaner surface. The
+   cost of trust is paid as confidence-flagged review, not blanket manual entry.
+   (Axiom B)
+4. **No short stave over absolute isolation.** We drop a feature before we accept
+   a weakest link far worse than the rest — but not before we accept a
+   low-probability, well-bounded one. (Axiom C)
+5. **Deterministic logic owns the number.** Anything that lands a value in the
+   ledger or a report line is deterministic. AI may parse, classify, explain, and
+   suggest; it is measured by confidence and never becomes the source of record.
+
+If a choice still feels balanced after these rules, run the Decision Filter and
+take the smaller step that improves proof quality.
 
 <a id="decision-filter-accuracy-auditability"></a>
 
 ## Decision Filter
 
-Use this when product or architecture choices are ambiguous:
+Use this when the axioms and trade-off rules still leave a choice ambiguous:
 
 1. Does it improve accuracy, auditability, or reconciliation confidence?
-2. Does it keep the system self-hostable and data-private?
+2. Does it keep the system self-hostable and data-private (no short stave)?
 3. Does it reduce user cognitive load without hiding critical details?
 4. Does it preserve double-entry integrity and traceability?
 5. Can the behavior be expressed as EPIC -> AC -> test?
@@ -92,67 +130,40 @@ If the answer is unclear, choose the smaller step that improves proof quality.
 
 ## Directional Commitments
 
-These commitments describe product direction. Implementation contracts belong
-in `docs/ssot/`; delivery scope belongs in `docs/project/`.
-
-### Personal Report Package Is The North-Star Output
-
-Dashboards are working surfaces; the durable product output is a generated
-personal financial-report package with report sections, schedules, notes, and
-source-to-ledger-to-report traceability. Reporting contracts are owned by
-`docs/ssot/reporting.md` and `docs/ssot/framework-reporting.md`.
+Settled directions that the rest of the repo anchors to. Each one carries a
+cost; if it did not, it would not be a commitment. Implementation contracts are
+owned under [Where Detail Lives](#where-detail-lives).
 
 <a id="decision-1-portfolio-self-developed"></a>
-
-### Portfolio Is Native
-
-Portfolio management is part of the system, not an outsourced portfolio SaaS.
-Holdings, cost basis, dividends, allocation, performance, and restricted
-compensation must remain tied to the accounting and reporting model. Detailed
-contracts are owned by `docs/ssot/assets.md` and `docs/ssot/reporting.md`.
+**Portfolio is native.** Holdings, cost basis, dividends, allocation,
+performance, and restricted compensation stay tied to the accounting and
+reporting model — even at the cost of not outsourcing to a portfolio SaaS that
+would be faster to ship.
 
 <a id="decision-2-event-middle-layer"></a>
 <a id="decision-3-record-layer"></a>
-
-### Uploaded Sources Become Reviewed Records Before Ledger Knowledge
-
-Uploaded documents should become traceable records before they become trusted
-ledger facts. The upload, extraction, record, workflow-event, and review
-contracts are owned by `docs/ssot/extraction.md`,
-`docs/ssot/workflow-events.md`, and `docs/ssot/confirmation-workflow.md`.
+**Uploaded sources become reviewed records before ledger knowledge.** An upload
+becomes a traceable record, then a trusted ledger fact — even at the cost of an
+extra event/record layer between import and conclusion.
 
 <a id="decision-4-two-stage-review"></a>
-
-### Review Separates Source Accuracy From Batch Consistency
-
-Review should separate whether a source parsed correctly from whether the full
-batch reconciles consistently. Detailed review-state rules are owned by
-`docs/ssot/confirmation-workflow.md` and `docs/ssot/reconciliation.md`.
+**Review separates source accuracy from batch consistency.** Whether a source
+parsed correctly is judged apart from whether the full batch reconciles — even at
+the cost of two review concerns instead of one.
 
 <a id="decision-5-processing-account"></a>
+**In-transit funds stay visible.** Value that has left one account but not
+arrived in another remains visible and reconcilable in a Processing account —
+even at the cost of carrying balances that are not yet settled anywhere.
 
-### In-Transit Funds Must Stay Visible
-
-Transfers can leave one account before arriving in another. In-transit value
-must remain visible and reconcilable instead of disappearing from net worth.
-The detailed Processing account contract is owned by
-`docs/ssot/processing_account.md`.
-
-### Manual Data Is Explicitly Trusted
-
-Some assets and liabilities cannot be verified by imported statements. Manual
-records are trusted because the user explicitly supplied them, but they must
-remain clearly labeled as manual data. Source-type priority is owned by
-`docs/ssot/source-type-priority.md`.
+**Manual data is explicitly trusted.** Assets that no statement can verify are
+trusted because the user supplied them — at the cost of labeling them clearly as
+manual so they never masquerade as imported proof.
 
 <a id="decision-7-tech-stack"></a>
-
-### The Stack Must Stay Self-Hostable
-
-The stack should support transactional control, Decimal-safe accounting,
-explicit schemas, private deployment, and reproducible CI. Runtime and
-environment contracts are owned by `docs/ssot/development.md`,
-`docs/ssot/schema.md`, and `docs/ssot/deployment.md`.
+**The stack stays self-hostable.** Transactional control, Decimal-safe
+accounting, explicit schemas, private deployment, reproducible CI — even at the
+cost of declining managed services that would break private hosting.
 
 ## Non-Goals
 
@@ -164,12 +175,18 @@ environment contracts are owned by `docs/ssot/development.md`,
 - <a id="non-goals-not-robo-advisor"></a>Automated trading, portfolio
   optimization, or robo-advisory execution.
 
-## Relationship To Project Documents
+## Where Detail Lives
 
-This file does not own project status. Current implementation status lives in
-`README.md`, EPIC scope lives in `docs/project/`, and proof lives in AC
-registries plus tests.
+This file holds no contracts, status, or enumerations. They live with their
+owners:
 
-Vision changes should be rare and directional. Implementation details should be
-captured as EPIC -> AC -> test, or as code-owned contracts referenced by
-`docs/ssot/`.
+- **Implementation contracts** → `docs/ssot/`, routed by
+  `docs/ssot/MANIFEST.yaml` (one owner per concept). The staged
+  confidence pipeline (raw -> extracted -> validated -> confirmed -> reconciled
+  -> trusted -> reports) is owned by `docs/ssot/confirmation-workflow.md`;
+  supported source classes by `docs/ssot/source-coverage-matrix.yaml`.
+- **Delivery scope & status** → `docs/project/` (EPICs) and `README.md`.
+- **Agent process & governance** → `AGENTS.md` and `docs/agents/`.
+
+Vision changes should be rare and directional. Implementation belongs in
+EPIC -> AC -> test, or in code-owned contracts referenced by `docs/ssot/`.

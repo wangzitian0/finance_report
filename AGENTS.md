@@ -20,6 +20,26 @@ Quick reference:
 
 ---
 
+## 🧱 Four Orthogonal Concerns
+
+These four are **orthogonal axes, not a hierarchy** — each answers a different
+question, so they never compete for ownership:
+
+| Concern | Question it answers | Axis |
+|---------|--------------------|------|
+| **vision.md** | *Why* — the overall product goal and culture | north star |
+| **SSOT** (`docs/ssot/`) | *In what shared language* — the canonical base elements, vocabulary, and contracts that everything else reuses | common dictionary |
+| **EPIC** (`docs/project/`) | *What, horizontally* — a cross-module goal, verified via `EPIC → AC → test` | feature slice |
+| **README** (root, `apps/*`) | *What, per module* — one module's goal and how it is built | module slice |
+
+Because they slice the project on different axes, the **same fact appearing in
+more than one is not drift** — each states it in its own register: vision as
+direction, SSOT as a defined term, EPIC as a horizontal goal, README as a module
+goal. Drift is only when a doc adopts another axis's *job* (e.g. vision dictating
+implementation, or an EPIC redefining a base element that SSOT already owns).
+
+---
+
 ## 🧭 Navigation Map
 
 | Goal | Go to |
@@ -32,7 +52,7 @@ Quick reference:
 | Copilot-specific settings | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
 **Routing Rules**:
-- Business logic → [vision.md](vision.md)
+- Product goal, direction & culture → [vision.md](vision.md)
 - Moon commands / environment setup → [docs/ssot/development.md](docs/ssot/development.md)
 - Six environments (naming, isolation) → [docs/ssot/environments.md](docs/ssot/environments.md)
 - CI job structure / test strategy → [docs/ssot/ci-cd.md](docs/ssot/ci-cd.md)
@@ -44,10 +64,13 @@ Quick reference:
 
 ## 📐 SSOT-First Principle
 
-The **sole authoritative source** is `docs/ssot/`.  
+`docs/ssot/` is the **authoritative source for the shared base elements and
+contracts** — the common language the rest of the repo reuses. It does not own
+goals (vision / EPICs) or module design (READMEs); it owns the *terms* they
+speak in.  
 The SSOT ownership map is: **[docs/ssot/MANIFEST.yaml](docs/ssot/MANIFEST.yaml)**
 
-1. **No SSOT, no work**: Define truth in `docs/ssot/` before writing code.
+1. **No SSOT, no work**: Define the shared terms in `docs/ssot/` before writing code.
 2. **No hidden drift**: When code differs from SSOT, sync immediately.
 3. **Single owner**: Each concept has exactly one SSOT file; see MANIFEST.
 
@@ -126,6 +149,6 @@ tracking. Do not duplicate phase status in this quick-reference file.
 |----------|------|---------|
 | **Agent governance** | `docs/agents/` | Red lines, orchestration |
 | **Contributor guide** | `docs/contributing/` | Branch policy, pre-commit |
-| **SSOT** | `docs/ssot/` | Technical truth |
-| **Project EPICs** | `docs/project/` | Task tracking |
-| **Module READMEs** | `apps/*/README.md` | Per-app design guide |
+| **SSOT** | `docs/ssot/` | Shared base-element language & contracts |
+| **Project EPICs** | `docs/project/` | Horizontal (cross-module) goals & tracking |
+| **Module READMEs** | `apps/*/README.md` | Per-module goal & design guide |

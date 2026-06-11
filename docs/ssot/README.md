@@ -97,5 +97,5 @@ contracts is tracked in
 ## Related
 
 - [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md) — project fact entry point
-- [Project vision](../target.md) — decision filter and long-term direction
+- [Project vision](../target.md) — north-star goal, culture, and long-term direction
 - [Project EPIC index](../project/README.md)

@@ -88,7 +88,7 @@ sync with ACs and tests.
 | Documentation surface | Owner EPIC | Role |
 |---|---|---|
 | [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md) | Root project entry point | Status/proof summary generated or validated from registries and reports |
-| [Project vision](../target.md) | Vision layer | Decision filter, not implementation status |
+| [Project vision](../target.md) | Vision layer | North-star goal & culture (axioms, trade-off rules); not implementation status |
 | [../index.md](../index.md) | EPIC-001 | Documentation site navigation |
 | [../user-guide/getting-started.md](../user-guide/getting-started.md) | EPIC-001 | First-use guide and onboarding route |
 | [Backend README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/README.md) | EPIC-001 | Backend module entry point |

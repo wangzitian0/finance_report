@@ -18,7 +18,8 @@ README.md -> docs/project/EPIC-*.md -> docs/*_registry.yaml -> tests
 3. **AC registries** are generated from EPIC documents.
 4. **Tests** prove behavior.
 
-`vision.md` is a decision filter, not a status or acceptance document.
+`vision.md` owns the product's north-star goal, culture, and decision filters —
+not a status or acceptance document.
 
 ## Acceptance Criteria
 
