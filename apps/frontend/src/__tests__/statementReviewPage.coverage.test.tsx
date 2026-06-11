@@ -233,4 +233,77 @@ describe("StatementReviewPage - coverage additions", () => {
         fireEvent.click(within(rejectDialog).getByRole("button", { name: "Reject" }));
         expect(await screen.findByText("reject failed")).toBeInTheDocument();
     });
+
+    // AC22.5.2: a balance-validation block surfaces an in-place "Re-parse statement"
+    // action that hits the retry endpoint without leaving the review page.
+    it("AC22.5.2 re-parses in place when balance validation blocks approval", async () => {
+        const stmt = {
+            id: "s1",
+            original_filename: "file.pdf",
+            institution: "BankX",
+            currency: "SGD",
+            period_start: "2024-01-01",
+            period_end: "2024-01-31",
+            opening_balance: 100,
+            closing_balance: 200,
+            status: "pending",
+            stage1_status: null,
+            balance_validation_result: { opening_match: false, closing_match: false, calculated_closing: "150" },
+            pdf_url: null,
+            transactions: [],
+        };
+
+        const retryResolved = vi.fn();
+        mockedApi.mockImplementation((path: string, init?: any) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+            if (path === "/api/statements/s1/retry") {
+                retryResolved(init?.method);
+                return Promise.resolve({});
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as any);
+
+        // Approve is blocked with a plain-language reason instead of a bare tooltip.
+        expect(await screen.findByText(/closing balance doesn't match/i)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+
+        fireEvent.click(screen.getByRole("button", { name: /Re-parse statement/i }));
+
+        await waitFor(() => expect(retryResolved).toHaveBeenCalledWith("POST"));
+    });
+
+    it("AC22.5.2 surfaces an error when in-place re-parse fails", async () => {
+        const stmt = {
+            id: "s1",
+            original_filename: "file.pdf",
+            institution: "BankX",
+            currency: "SGD",
+            period_start: "2024-01-01",
+            period_end: "2024-01-31",
+            opening_balance: 100,
+            closing_balance: 200,
+            status: "pending",
+            stage1_status: null,
+            balance_validation_result: { opening_match: false, closing_match: false, calculated_closing: "150" },
+            pdf_url: null,
+            transactions: [],
+        };
+
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [] });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+            if (path === "/api/statements/s1/retry") return Promise.reject(new Error("re-parse failed"));
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as any);
+
+        fireEvent.click(await screen.findByRole("button", { name: /Re-parse statement/i }));
+        expect(await screen.findByText("re-parse failed")).toBeInTheDocument();
+    });
 });
