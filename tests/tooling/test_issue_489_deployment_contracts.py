@@ -394,7 +394,9 @@ def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:
     blob = yaml.safe_dump(e2e)
     assert "docker compose up --build" in blob  # local build, not a registry push
     assert "push: true" not in blob
-    assert "dokploy" not in blob.lower()
+    # No Dokploy DEPLOY (the local `dokploy-network` stand-in network is fine).
+    assert "pr_preview_lifecycle" not in blob
+    assert "DOKPLOY_API" not in blob
 
     # Lifecycle guard: an always() teardown that removes volumes and orphans.
     teardown = [
