@@ -166,7 +166,7 @@ async function expectAppShellVisible(page: Page, mobile: boolean) {
 async function expectVisualSmokePage(page: Page, path: string, heading: string, mobile: boolean) {
   await gotoReady(page, path);
   await expectAppShellVisible(page, mobile);
-  await expect(page.getByRole("heading", { name: heading })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+  await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
   await expectNonblankScreenshot(page);
 }
