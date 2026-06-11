@@ -161,6 +161,10 @@ migrations:
     production_preflight: Production has no real data yet; confirm reconciliation_matches and correction_logs are empty before applying.
     rollback_strategy: Restore from pre-migration snapshot; the column/FK changes are recreatable from the prior schema revision and no production data is affected.
     destructive_confirmation: Confirmed destructive drop of reconciliation_matches.bank_txn_id column and FK repoint; no production data exists.
+  0031_drop_orphan_stage1_enum:
+    file: 0031_drop_orphan_stage1_status_enum.py
+    risk: low
+    proof: "Drops the orphaned stage1_status_enum left after EPIC-011 Stage 3 dropped bank_statements; no column references it."
   51aa128d8189:
     file: 51aa128d8189_remove_report_snapshot_constraint.py
     risk: medium

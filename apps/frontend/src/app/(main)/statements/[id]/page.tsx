@@ -343,29 +343,24 @@ export default function StatementDetailPage() {
                 </div>
             )}
 
-            {/* Parsing Progress Indicator */}
+            {/* Parsing Progress Indicator (indeterminate) */}
             {polling && (
                 <div className="mb-4 card p-4">
-                    <div className="flex items-center gap-3 mb-3">
+                    <div
+                        className="flex items-center gap-3"
+                        role="status"
+                        aria-live="polite"
+                        aria-busy="true"
+                    >
                         <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                         <div className="flex-1">
                             <div className="text-sm font-medium text-[var(--accent)]">
-                                Parsing in progress... {statement.parsing_progress ?? 0}%
+                                Parsing in progress…
                             </div>
                             <div className="text-xs text-muted mt-0.5">
                                 AI is extracting transaction data. This may take up to 3 minutes.
                             </div>
                         </div>
-                    </div>
-                    <div className="w-full bg-[var(--background-muted)] rounded-full h-2">
-                        <div
-                            className="bg-[var(--accent)] h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${statement.parsing_progress ?? 0}%` }}
-                            role="progressbar"
-                            aria-valuenow={statement.parsing_progress ?? 0}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                        />
                     </div>
                 </div>
             )}

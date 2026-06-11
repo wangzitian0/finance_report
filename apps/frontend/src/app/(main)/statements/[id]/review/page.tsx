@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -65,11 +65,8 @@ export default function StatementReviewPage() {
     const params = useParams();
     const router = useRouter();
     const statementId = params.id as string;
-    const queryClient = useQueryClient();
 
-    const [pendingEdits, setPendingEdits] = useState<Map<string, Partial<{ description: string; amount: string; direction: string; txn_date: string }>>>(new Map());
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
-    const [editApproveDialogOpen, setEditApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
     const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
@@ -94,49 +91,6 @@ export default function StatementReviewPage() {
     const transferPairCandidates = conflicts?.transfer_pairs || [];
 
     // Mutations
-    const editMutation = useMutation({
-        mutationFn: async (edits: any[]): Promise<Stage1ApprovalResponse> => {
-            return apiFetch<Stage1ApprovalResponse>(`/api/statements/${statementId}/review/edit`, {
-                method: "POST",
-                body: JSON.stringify({ edits }),
-            });
-        },
-        onMutate: async (edits) => {
-            await queryClient.cancelQueries({ queryKey: ["statement-review", statementId] });
-            const previousData = queryClient.getQueryData<StatementReview>(["statement-review", statementId]);
-
-            if (previousData) {
-                const updatedTransactions = previousData.transactions.map(txn => {
-                    const edit = edits.find((e: any) => e.txn_id === txn.id);
-                    if (edit) {
-                        const { txn_id: _txnId, ...transactionUpdates } = edit;
-                        return { ...txn, ...transactionUpdates };
-                    }
-                    return txn;
-                });
-                queryClient.setQueryData(["statement-review", statementId], {
-                    ...previousData,
-                    transactions: updatedTransactions
-                });
-            }
-
-            return { previousData };
-        },
-        onError: (err, edits, context) => {
-            if (context?.previousData) {
-                queryClient.setQueryData(["statement-review", statementId], context.previousData);
-            }
-            showToast(err instanceof Error ? err.message : "Failed to save edits", "error");
-        },
-        onSuccess: (result) => {
-            const createdCount = result.journal_entries_created ?? 0;
-            showToast(`Statement approved. ${createdCount} journal entries posted.`, "success");
-            setEditApproveDialogOpen(false);
-            setPendingEdits(new Map());
-            router.push(`/statements/${statementId}?approved=1&entriesCreated=${createdCount}`);
-        }
-    });
-
     const approveMutation = useMutation({
         mutationFn: () => apiFetch<Stage1ApprovalResponse>(`/api/statements/${statementId}/review/approve`, {
             method: "POST",
@@ -163,27 +117,6 @@ export default function StatementReviewPage() {
         },
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error")
     });
-
-    const handleSaveEdits = () => {
-        const edits = Array.from(pendingEdits.entries()).map(([txn_id, fields]) => ({
-            txn_id,
-            ...fields,
-        }));
-        editMutation.mutate(edits);
-    };
-
-    const handleDiscardEdits = () => {
-        setPendingEdits(new Map());
-    };
-
-    const handleEditChange = (txnId: string, field: string, value: string) => {
-        setPendingEdits((prev) => {
-            const newMap = new Map(prev);
-            const currentEdit = newMap.get(txnId) || {};
-            newMap.set(txnId, { ...currentEdit, [field]: value });
-            return newMap;
-        });
-    };
 
     useEffect(() => {
         if (duplicateCandidates.length || transferPairCandidates.length) {
@@ -315,11 +248,6 @@ export default function StatementReviewPage() {
                 <TransactionTable
                     transactions={data.transactions}
                     currency={data.currency || "SGD"}
-                    onEdit={handleEditChange}
-                    pendingEdits={pendingEdits}
-                    onSave={() => setEditApproveDialogOpen(true)}
-                    onDiscard={handleDiscardEdits}
-                    actionLoading={editMutation.isPending}
                 />
             </div>
 
@@ -345,21 +273,11 @@ export default function StatementReviewPage() {
             />
 
             <ConfirmDialog
-                isOpen={editApproveDialogOpen}
-                onCancel={() => setEditApproveDialogOpen(false)}
-                onConfirm={handleSaveEdits}
-                title="Approve Edited Statement"
-                message="This will save these edits, validate the balance chain, approve the statement, and post journal entries. Proceed?"
-                confirmLabel="Approve Edits"
-                loading={editMutation.isPending}
-            />
-
-            <ConfirmDialog
                 isOpen={rejectDialogOpen}
                 onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)}
                 onConfirm={(reason) => rejectMutation.mutate(reason)}
                 title="Reject Statement"
-                message="This will mark the statement as rejected. You can re-parse it later."
+                message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement and re-parse it (Retry Parse) from the statement page. This will mark the statement as rejected."
                 confirmLabel="Reject"
                 confirmVariant="danger"
                 showInput

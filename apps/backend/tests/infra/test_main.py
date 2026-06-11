@@ -189,14 +189,6 @@ class TestSchemas:
         decision = StatementDecisionRequest(notes="Incorrect amount")
         assert decision.notes == "Incorrect amount"
 
-    def test_confidence_level_enum(self):
-        """Test ConfidenceLevelEnum values."""
-        from src.schemas.extraction import ConfidenceLevelEnum
-
-        assert ConfidenceLevelEnum.HIGH.value == "high"
-        assert ConfidenceLevelEnum.MEDIUM.value == "medium"
-        assert ConfidenceLevelEnum.LOW.value == "low"
-
     def test_statement_status_enum(self):
         """Test StatementStatusEnum values."""
         from src.schemas.extraction import BankStatementStatusEnum

@@ -43,7 +43,7 @@ sits in the wrong layer, that is drift to be fixed, not worked around.
 | Layer | Tables |
 |-------|--------|
 | **DIM** | `accounts` (chart of accounts, including the account-type enum column); `classification_rules`; `fx_rates`, `stock_prices`, `market_data_sync_state`, `market_data_overrides`; security / institution master data |
-| **ODS** | `uploaded_documents`; `manual_valuation_snapshots`; *(legacy, deprecating)* `bank_statements`, `bank_statement_transactions` |
+| **ODS** | `uploaded_documents`; `manual_valuation_snapshots` |
 | **DWD** | `atomic_transactions`, `atomic_positions`; `transaction_classification` (posting-account conform); `statement_summaries` (statement envelope + custody-account conform); `journal_entries`, `journal_lines` (double-entry ledger); `investment_transactions`; `dividend_income` |
 | **DWM** | `reconciliation_matches`, `consistency_checks` (matching + transfer-pair / Processing-account resolution) |
 | **DWS** | `managed_positions`; `investment_lots`; derived account balances / period aggregates |
@@ -56,21 +56,20 @@ sits in the wrong layer, that is drift to be fixed, not worked around.
    is built (`transaction_classification.account_id`, `journal_lines.account_id`),
    conformed from the `accounts` DIM. ODS must not be the source of account
    identity for downstream logic.
-2. **DWM/DWS/ADS must resolve dimensions from DWD/DIM, never from ODS.** Reaching
-   into `bank_statements.account_id` (ODS) for account context is drift — it only
-   appears to work because the legacy ODS row conflates source file and account.
+2. **DWM/DWS/ADS must resolve dimensions from DWD/DIM, never from ODS.** Account
+   context for matching/transfer logic is resolved from DWD
+   (`statement_summaries.account_id`), never from an ODS source-file row.
 3. **No reference-data-in-code.** Non-user reference that affects ADS (default
    accounts, category/classification mappings, framework policy) belongs in DIM
    tables, not in Python constants.
 4. **DWM stays thin.** Add a DWM table only for a genuinely complex cross-fact
    domain (today: reconciliation/transfer matching). Default new work to DWD or DWS.
 
-> **Drift closed (PR-B):** under the default Layer-2 read path
-> (`ENABLE_4_LAYER_READ=true`), reconciliation transfer detection now resolves
-> the custody account from DWD (`statement_summaries` via
-> `resolve_custody_account_id`), not from ODS (`bank_statements.account_id`).
-> The legacy Layer-0 read path remains behind the flag until Stage 3 removes
-> the `bank_statement*` tables. See `docs/project/EPIC-011.asset-lifecycle.md`.
+> **Drift closed (EPIC-011 Stage 3, COMPLETED):** reconciliation transfer
+> detection resolves the custody account from DWD (`statement_summaries` via
+> `resolve_custody_account_id`). The legacy `bank_statement*` ODS tables and the
+> Layer-0 read path have been removed; there is no flag and no ODS account
+> reach-back. See `docs/project/EPIC-011.asset-lifecycle.md`.
 
 ---
 
@@ -91,11 +90,11 @@ erDiagram
     JournalEntry ||--o{ ReconciliationMatch : matched_by
     ChatSession ||--o{ ChatMessage : contains
 
-    BankStatement ||--|{ BankStatementTransaction : contains
-    BankStatementTransaction ||--o{ ReconciliationMatch : matched_to
+    AtomicTransaction ||--o{ ReconciliationMatch : matched_to
 
     UploadedDocument ||--o{ AtomicTransaction : sources
     UploadedDocument ||--o{ AtomicPosition : sources
+    UploadedDocument ||--o{ StatementSummary : summarizes
     
     AtomicTransaction {
         uuid id PK
@@ -190,13 +189,12 @@ erDiagram
         timestamp updated_at
     }
 
-    BankStatement {
+    StatementSummary {
         uuid id PK
         uuid user_id FK
         uuid account_id FK
-        string file_path
+        uuid uploaded_document_id FK
         string file_hash
-        string original_filename
         string institution
         string account_last4
         string currency
@@ -204,35 +202,18 @@ erDiagram
         date period_end
         decimal opening_balance
         decimal closing_balance
+        decimal manual_opening_balance
         enum status "uploaded|parsing|parsed|approved|rejected"
-        int confidence_score
-        boolean balance_validated
-        string validation_error
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    BankStatementTransaction {
-        uuid id PK
-        uuid statement_id FK
-        date txn_date
-        decimal amount
-        enum direction "IN|OUT"
-        string description
-        string reference
-        string currency
-        decimal balance_after
-        enum status "pending|matched|unmatched"
-        enum confidence "high|medium|low"
-        string confidence_reason
-        string raw_text
+        enum stage1_status "pending_review|approved|rejected"
+        jsonb balance_validation_result
+        timestamp stage1_reviewed_at
         timestamp created_at
         timestamp updated_at
     }
 
     ReconciliationMatch {
         uuid id PK
-        uuid bank_txn_id FK
+        uuid atomic_txn_id FK
         jsonb journal_entry_ids
         string run_id
         int match_score
@@ -400,17 +381,20 @@ Individual chat messages.
 | model_name | VARCHAR(100) | | Model identifier |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 
-### BankStatements
-Statement header table for imported statements.
+### DWD: StatementSummaries (EPIC-011)
+Statement envelope (DWD) for imported statements. Replaces the legacy
+`BankStatements` header. Carries the conformed custody `account_id` and the
+Stage 1 review/workflow state; per-transaction detail lives in
+`atomic_transactions`. Enums `BankStatementStatus` and `Stage1Status` live in
+`src/models/statement_enums.py`.
 
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
 | id | UUID | PK | Primary key |
 | user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| account_id | UUID | FK -> Accounts | Linked account (nullable until confirmed) |
-| file_path | VARCHAR(500) | NOT NULL | Storage path |
+| account_id | UUID | FK -> Accounts | Conformed custody account (nullable until confirmed) |
+| uploaded_document_id | UUID | FK -> UploadedDocuments | Source ODS document |
 | file_hash | VARCHAR(64) | NOT NULL | SHA256 for dedup |
-| original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
 | institution | VARCHAR(100) | NOT NULL | Bank/broker name |
 | account_last4 | VARCHAR(4) | | Last 4 digits |
 | currency | VARCHAR(3) |  | Currency (nullable while parsing) |
@@ -418,11 +402,11 @@ Statement header table for imported statements.
 | period_end | DATE |  | Statement end (nullable while parsing) |
 | opening_balance | DECIMAL(18,2) |  | Opening balance (nullable while parsing) |
 | closing_balance | DECIMAL(18,2) |  | Closing balance (nullable while parsing) |
-| status | ENUM | NOT NULL | uploaded/parsing/parsed/approved/rejected |
-| confidence_score | INT |  | Extraction confidence (nullable while parsing) |
-| balance_validated | BOOLEAN |  | Balance check result (nullable while parsing) |
-| validation_error | TEXT | | Validation notes |
-| extraction_metadata | JSONB | | Durable parser handoff metadata, including structured brokerage OCR positions used by statement-scoped imports |
+| manual_opening_balance | DECIMAL(18,2) | | Manual opening-balance override for first statement |
+| status | ENUM | NOT NULL | uploaded/parsing/parsed/approved/rejected (name="bank_statement_status") |
+| stage1_status | ENUM | | Stage 1 review state (nullable at upload): pending_review/approved/rejected (name="stage1_status") |
+| balance_validation_result | JSONB | | Stage 1 balance-chain validation details (opening/closing deltas, mismatch note) |
+| stage1_reviewed_at | TIMESTAMP | | Stage 1 review timestamp |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
@@ -431,34 +415,14 @@ Statement header table for imported statements.
 
 **Derived API Surface**:
 - `GET /api/accounts/coverage` derives account-level statement coverage from
-  approved `BankStatements` only. It reports the latest confirmed `period_end`
-  and `closing_balance` per active account/currency pair, stale status based on
-  the caller's `as_of` date and `stale_after_days`, and continuity issues for
-  gaps, overlaps, duplicate periods, and adjacent opening/closing mismatches.
+  approved `StatementSummaries` only. It reports the latest confirmed
+  `period_end` and `closing_balance` per active account/currency pair, stale
+  status based on the caller's `as_of` date and `stale_after_days`, and
+  continuity issues for gaps, overlaps, duplicate periods, and adjacent
+  opening/closing mismatches.
 - One-day brokerage snapshots (`period_start == period_end`) can update the
   latest confirmed source date and balance without forcing daily continuity;
   monthly statements remain the baseline for gap and overlap detection.
-
-### BankStatementTransactions
-Statement transaction table (reconciliation input).
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| statement_id | UUID | FK -> BankStatements | Parent statement |
-| txn_date | DATE | NOT NULL | Transaction date |
-| amount | DECIMAL(18,2) | NOT NULL | Absolute amount |
-| direction | ENUM | NOT NULL | IN/OUT |
-| description | TEXT | NOT NULL | Description/merchant |
-| reference | VARCHAR(100) | | Reference |
-| currency | VARCHAR(3) | | Per-transaction ISO currency code |
-| balance_after | DECIMAL(18,2) | | Running balance after this transaction |
-| status | ENUM | NOT NULL | pending/matched/unmatched |
-| confidence | ENUM | NOT NULL | high/medium/low |
-| confidence_reason | TEXT | | Extraction notes |
-| raw_text | TEXT | | OCR raw content |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
 
 ### ReconciliationMatches
 Reconciliation match table.
@@ -466,7 +430,7 @@ Reconciliation match table.
 | Column | Type | Constraint | Description |
 |--------|------|------------|-------------|
 | id | UUID | PK | Primary key |
-| bank_txn_id | UUID | FK -> BankStatementTransactions | Bank transaction |
+| atomic_txn_id | UUID | FK -> AtomicTransactions | Atomic transaction (DWD reconciliation input) |
 | journal_entry_ids | JSONB | | Journal entry IDs |
 | run_id | VARCHAR(128) | nullable, indexed | Optional workflow/session scope for run-scoped Stage 2 review queues and approval |
 | match_score | INT | NOT NULL | Composite score |
@@ -699,16 +663,9 @@ CREATE INDEX idx_journal_entries_status ON journal_entries(status);
 
 -- Date range queries
 CREATE INDEX idx_journal_entries_date ON journal_entries(entry_date);
-CREATE INDEX idx_bank_statement_transactions_date ON bank_statement_transactions(txn_date);
 
 -- Status queries
-CREATE INDEX idx_bank_statements_status ON bank_statements(status);
-CREATE INDEX idx_bank_statement_transactions_status ON bank_statement_transactions(status);
 CREATE INDEX idx_recon_match_status ON reconciliation_matches(status);
-
--- Dedup for statement imports
-CREATE UNIQUE INDEX idx_bank_statements_user_file_hash
-    ON bank_statements(user_id, file_hash);
 
 -- ODS/DWD Indexes (EPIC-011)
 CREATE UNIQUE INDEX idx_uploaded_documents_dedup ON uploaded_documents(user_id, file_hash);
@@ -719,6 +676,9 @@ CREATE INDEX idx_atomic_transactions_date ON atomic_transactions(txn_date);
 
 CREATE UNIQUE INDEX idx_atomic_positions_dedup ON atomic_positions(user_id, dedup_hash);
 CREATE INDEX idx_atomic_positions_date ON atomic_positions(snapshot_date);
+
+CREATE UNIQUE INDEX idx_statement_summaries_user_file_hash ON statement_summaries(user_id, file_hash);
+CREATE INDEX idx_statement_summaries_status ON statement_summaries(status);
 ```
 
 ---

@@ -393,9 +393,15 @@ async def dual_write_layer2(
                 extraction_metadata=extraction_metadata,
             )
 
+        # Lazily import to avoid an import cycle (evidence_graph_integration imports
+        # models that transitively reach back here).
+        from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+
+        evidence_graph = EvidenceGraphIntegrationService()
+
         layer2_count = 0
         for txn in transactions:
-            await dedup_service.upsert_atomic_transaction(
+            upserted_txn = await dedup_service.upsert_atomic_transaction(
                 db=db,
                 user_id=user_id,
                 txn_date=txn.txn_date,
@@ -410,6 +416,26 @@ async def dual_write_layer2(
                 occurrence_index=getattr(txn, "_occurrence_index", 0),
             )
             layer2_count += 1
+
+            # Eager evidence-graph lineage (UploadedDocument --deduped_into-->
+            # AtomicTransaction). Best-effort: provenance must never break the
+            # money/atomic write, which is the priority.
+            try:
+                await evidence_graph.record_layer2_dual_write(
+                    db,
+                    user_id=user_id,
+                    uploaded_document=uploaded_doc,
+                    atomic_transaction=upserted_txn,
+                    document_type=doc_type,
+                )
+            except Exception as evidence_exc:
+                logger.warning(
+                    "Evidence-graph dual-write lineage failed (ingestion continues)",
+                    error=str(evidence_exc),
+                    error_type=type(evidence_exc).__name__,
+                    user_id=str(user_id),
+                    atomic_transaction_id=str(upserted_txn.id),
+                )
 
         # DWD conform: bind the confirmed envelope to its ODS document and persist.
         # The ingestion pipeline (statement upload) pre-creates the ``StatementSummary``

@@ -152,12 +152,13 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 
 ### AC13.7: Extraction Service Helpers
 
+> **Note:** the per-transaction event-confidence helper (`_compute_event_confidence`)
+> was removed in EPIC-011 Stage 3 — confidence is now a statement-level score only and
+> `AtomicTransaction` has no per-row confidence. The four event-confidence acceptance
+> criteria are retired with it.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.7.1 | Test event confidence with complete data | `test_compute_event_confidence_complete()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.2 | Test event confidence with missing fields | `test_compute_event_confidence_missing_fields()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.3 | Test event confidence with invalid date format | `test_compute_event_confidence_invalid_date()` | `extraction/test_extraction.py` | P0 |
-| AC13.7.4 | Test event confidence with null date | `test_compute_event_confidence_null_date()` | `extraction/test_extraction.py` | P0 |
 | AC13.7.5 | Test _safe_date with valid input | `test_safe_date_valid()` | `extraction/test_extraction.py` | P0 |
 | AC13.7.6 | Test _safe_date with invalid format | `test_safe_date_invalid_format()` | `extraction/test_extraction.py` | P0 |
 | AC13.7.7 | Test _safe_date with empty input | `test_safe_date_empty()` | `extraction/test_extraction.py` | P0 |

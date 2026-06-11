@@ -21,7 +21,6 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.prompts import get_parsing_prompt
-from src.schemas.extraction import ConfidenceLevelEnum
 from src.services.brokerage_positions import looks_like_brokerage_payload
 from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.services.openrouter_streaming import (
@@ -113,21 +112,6 @@ class ExtractionService:
             return None
         alphanumeric_only = re.sub(r"[^a-zA-Z0-9]", "", value)
         return alphanumeric_only[-4:] if alphanumeric_only else None
-
-    def _compute_event_confidence(self, txn: dict[str, Any]) -> ConfidenceLevelEnum:
-        """Heuristic confidence for a single transaction."""
-        required = ["date", "description", "amount", "direction"]
-        missing = [f for f in required if not txn.get(f)]
-        if missing:
-            return ConfidenceLevelEnum.LOW
-
-        # Validate date format
-        try:
-            date.fromisoformat(str(txn["date"]))
-        except (ValueError, TypeError):
-            return ConfidenceLevelEnum.LOW
-
-        return ConfidenceLevelEnum.HIGH
 
     def _validate_balance(self, extracted: dict[str, Any]) -> dict[str, Any]:
         """Wrapper for test compatibility."""

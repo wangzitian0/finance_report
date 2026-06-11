@@ -13,7 +13,7 @@ from itertools import combinations
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -82,8 +82,16 @@ async def get_reconciliation_stats(
         .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
     )
 
+    # Count DISTINCT atomic transactions that have an accepted/auto-accepted
+    # match. A single atomic transaction can carry multiple active accepted
+    # matches; counting rows would inflate `matched` and let match_rate exceed
+    # 100%.
     matched_result = await db.execute(
-        match_base.where(
+        select(func.count(distinct(ReconciliationMatch.atomic_txn_id)))
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
+        .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
+        .where(
             ReconciliationMatch.status.in_(
                 [
                     ReconciliationStatus.ACCEPTED,

@@ -660,6 +660,9 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
     response = await personal_report_package_readiness(db=db, user_id=test_user.id)
     assert response.state == "processing"
     assert response.action_href == "/statements"
+    # An in-flight PARSING summary is not confirmed data: it must not count as a
+    # report input / statement source.
+    assert response.model_dump(mode="json")["source_summary"]["statements"] == 0
 
     processing.status = BankStatementStatus.APPROVED
     processing.stage1_status = Stage1Status.APPROVED
