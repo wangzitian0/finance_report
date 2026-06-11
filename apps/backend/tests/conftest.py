@@ -23,6 +23,29 @@ from src.services.fx import clear_fx_cache
 logger = get_logger(__name__)
 
 
+# --- AC behavioral-evidence emission ---
+# Lets a backend test attach a measured (code, score, metric, comment,
+# provenance) record per AC to its junit result. The repo-root path is appended
+# lazily *inside* the fixture so only tests that opt in can import ``common``;
+# the rest of the backend suite is unaffected.
+@pytest.fixture
+def ac_evidence(record_property):
+    """Return an emitter: ac_evidence(ac_id=..., score=..., metric=..., ...)."""
+    from pathlib import Path
+
+    repo_root = str(Path(__file__).resolve().parents[3])
+    if repo_root not in sys.path:
+        # Insert at the front so the repo's `common/` wins over any third-party
+        # `common` that may sit in site-packages.
+        sys.path.insert(0, repo_root)
+    from common.testing.ac_evidence import record_ac_evidence
+
+    def _emit(**kwargs):
+        return record_ac_evidence(record_property, **kwargs)
+
+    return _emit
+
+
 # --- Bootloader Mock ---
 # Prevent Bootloader from creating its own engine (causes event loop conflicts)
 @pytest.fixture(autouse=True)

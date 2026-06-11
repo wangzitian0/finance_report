@@ -1,0 +1,10 @@
+{
+  "acs": {
+    "AC4.1.4": {
+      "metric": "description_similarity_pct",
+      "provenance": "deterministic",
+      "score": 1.0
+    }
+  },
+  "version": 1
+}

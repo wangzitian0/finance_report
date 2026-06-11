@@ -161,13 +161,23 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
         assert config.auto_accept == 85  # Default
 
 
-def test_normalize_and_description_scoring() -> None:
+def test_normalize_and_description_scoring(ac_evidence) -> None:
     """[AC4.1.4] Test description similarity."""
     assert normalize_text("  ACME-CO.  ") == "acme co"
     assert score_description(None, "value") == 0.0
     assert score_description("   ", "value") == 0.0
     # Description Similarity [AC4.1.4]
-    assert score_description("Coffee Shop", "coffee shop") >= 95.0
+    similarity = score_description("Coffee Shop", "coffee shop")
+    assert similarity >= 95.0
+    # Emit measured behavioral evidence for the ratchet gate. The score is the
+    # measured similarity (0-100) normalised to [0,1] — not a hand-assigned grade.
+    ac_evidence(
+        ac_id="AC4.1.4",
+        score=similarity / 100.0,
+        metric="description_similarity_pct",
+        comment=(f"score_description('Coffee Shop','coffee shop')={similarity:.1f}/100"),
+        provenance="deterministic",
+    )
 
 
 def test_extract_merchant_tokens() -> None:
