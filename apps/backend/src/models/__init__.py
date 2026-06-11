@@ -41,12 +41,11 @@ from src.models.portfolio import (
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.models.statement import (
     BankStatement,
-    BankStatementStatus,
     BankStatementTransaction,
     BankStatementTransactionStatus,
     ConfidenceLevel,
-    Stage1Status,
 )
+from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.models.user import AiFeedback, User
 from src.models.workflow import (

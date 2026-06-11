@@ -13,18 +13,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
+# BankStatementStatus / Stage1Status outlive this module (EPIC-011 Stage 3); they
+# now live in statement_enums and are re-exported here for backward compatibility.
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+
 if TYPE_CHECKING:
     from src.models.reconciliation import ReconciliationMatch
-
-
-class BankStatementStatus(str, Enum):
-    """Statement processing status."""
-
-    UPLOADED = "uploaded"
-    PARSING = "parsing"
-    PARSED = "parsed"
-    APPROVED = "approved"
-    REJECTED = "rejected"
 
 
 class BankStatementTransactionStatus(str, Enum):
@@ -41,15 +35,6 @@ class ConfidenceLevel(str, Enum):
     HIGH = "high"  # >=85: Auto-accept
     MEDIUM = "medium"  # 60-84: Review queue
     LOW = "low"  # <60: Manual entry required
-
-
-class Stage1Status(str, Enum):
-    """Stage 1 review status for statements."""
-
-    PENDING_REVIEW = "pending_review"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    EDITED = "edited"
 
 
 class BankStatement(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
