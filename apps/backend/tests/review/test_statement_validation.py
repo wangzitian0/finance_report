@@ -5,6 +5,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from src.models import Account, AccountType
 from src.models.layer1 import DocumentType, UploadedDocument
@@ -21,10 +22,32 @@ from src.services.statement_validation import (
     validate_balance_chain,
 )
 
+DEFAULT_ACCOUNT_NAME = "Statement Validation Default Account"
+
 
 @pytest.fixture
 def user_id(test_user):
     return test_user.id
+
+
+async def _default_account_id(db, user_id):
+    result = await db.execute(
+        select(Account.id).where(Account.user_id == user_id, Account.name == DEFAULT_ACCOUNT_NAME).limit(1)
+    )
+    account_id = result.scalar_one_or_none()
+    if account_id is not None:
+        return account_id
+
+    account = Account(
+        id=uuid4(),
+        user_id=user_id,
+        name=DEFAULT_ACCOUNT_NAME,
+        type=AccountType.ASSET,
+        currency="USD",
+    )
+    db.add(account)
+    await db.flush()
+    return account.id
 
 
 async def _make_statement(
@@ -53,6 +76,9 @@ async def _make_statement(
     )
     db.add(doc)
     await db.flush()
+
+    if account_id is None:
+        account_id = await _default_account_id(db, user_id)
 
     statement = StatementSummary(
         id=uuid4(),
@@ -335,8 +361,8 @@ class TestGetPendingStage1Review:
             db,
             user_id,
             file_hash="hash_approved",
-            period_start=None,
-            period_end=None,
+            opening_balance=Decimal("0.00"),
+            closing_balance=Decimal("0.00"),
             status=BankStatementStatus.APPROVED,
             stage1_status=Stage1Status.APPROVED,
         )

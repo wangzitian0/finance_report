@@ -35,6 +35,7 @@ async def _create_statement(
     period_end: date,
     opening_balance: Decimal | None,
     closing_balance: Decimal | None,
+    status: BankStatementStatus = BankStatementStatus.APPROVED,
     institution: str = "DBS",
     currency: str = "SGD",
 ) -> StatementSummary:
@@ -48,8 +49,8 @@ async def _create_statement(
         period_end=period_end,
         opening_balance=opening_balance,
         closing_balance=closing_balance,
-        status=BankStatementStatus.APPROVED,
-        balance_validated=True,
+        status=status,
+        balance_validated=status == BankStatementStatus.APPROVED,
     )
     db.add(statement)
     await db.flush()
@@ -166,10 +167,10 @@ async def test_account_coverage_detects_adjacent_opening_balance_mismatch(
     assert _decimal(issue["delta"]) == Decimal("0.01")
 
 
-async def test_account_coverage_skips_opening_mismatch_when_boundary_balances_are_missing(
+async def test_account_coverage_ignores_incomplete_unapproved_boundary_statement(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
-    """AC3.7.2: Balance continuity is skipped when either boundary balance is absent."""
+    """AC3.7.2: Incomplete unapproved boundary statements do not create continuity issues."""
     account = await _create_account(db, test_user.id, name="Pending Balance Boundary")
     await _create_statement(
         db,
@@ -180,6 +181,7 @@ async def test_account_coverage_skips_opening_mismatch_when_boundary_balances_ar
         period_end=date(2025, 1, 31),
         opening_balance=Decimal("1000.00"),
         closing_balance=None,
+        status=BankStatementStatus.PARSED,
     )
     await _create_statement(
         db,

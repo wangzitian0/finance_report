@@ -23,6 +23,8 @@ async def _make_account(db: AsyncSession, user_id) -> Account:
 
 
 async def _make_summary(db: AsyncSession, user_id, *, file_hash: str, account_id=None, uploaded_document_id=None):
+    status = BankStatementStatus.APPROVED if account_id is not None else BankStatementStatus.PARSED
+    stage1_status = Stage1Status.APPROVED if account_id is not None else Stage1Status.PENDING_REVIEW
     return await StatementSummaryFactory.create_async(
         db,
         user_id,
@@ -36,9 +38,9 @@ async def _make_summary(db: AsyncSession, user_id, *, file_hash: str, account_id
         period_end=date(2024, 1, 31),
         opening_balance=Decimal("1000.00"),
         closing_balance=Decimal("1500.00"),
-        status=BankStatementStatus.APPROVED,
-        stage1_status=Stage1Status.APPROVED,
-        balance_validated=True,
+        status=status,
+        stage1_status=stage1_status,
+        balance_validated=account_id is not None,
     )
 
 

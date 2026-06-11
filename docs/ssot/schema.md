@@ -347,6 +347,13 @@ Auditable brokerage transaction table for buy, sell, and dividend accounting.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
+**Constraints**:
+- `gross_amount > 0`
+- `fees >= 0`
+- Buy and sell rows require `quantity > 0`, `unit_price >= 0`, and
+  `cost_basis >= 0`; dividend rows carry positive `gross_amount` without trade
+  quantity requirements.
+
 ### InvestmentLots
 Open lot table used for FIFO, LIFO, and average-cost realized P&L.
 
@@ -365,6 +372,13 @@ Open lot table used for FIFO, LIFO, and average-cost realized P&L.
 | disposed_date | DATE | | Date the lot was fully consumed |
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
+
+**Constraints**:
+- `original_quantity > 0`
+- `remaining_quantity >= 0`
+- `remaining_quantity <= original_quantity`
+- `unit_cost >= 0`
+- `disposed_date` cannot precede `acquisition_date`
 
 ### ChatSessions
 Chat session header table.
@@ -424,6 +438,9 @@ Stage 1 review/workflow state; per-transaction detail lives in
 
 **Constraints**:
 - `(user_id, file_hash)` unique to prevent duplicate imports
+- `period_start <= period_end` when both dates are present
+- `status=approved` requires `account_id`, `currency`, `period_start`,
+  `period_end`, `opening_balance`, and `closing_balance`
 
 **Derived API Surface**:
 - `GET /api/accounts/coverage` derives account-level statement coverage from
@@ -517,6 +534,7 @@ fact; account is **not** stored here (conformed downstream via
 
 **Constraints**:
 - `(user_id, dedup_hash)` unique
+- `amount > 0`
 - Append-only `source_documents` array
 
 ### DWD: AtomicPositions (EPIC-011)
@@ -539,6 +557,7 @@ Deduplicated, immutable asset snapshots (source-pure detail fact).
 
 **Constraints**:
 - `(user_id, dedup_hash)` unique
+- `market_value >= 0`; `quantity` may be negative for short positions
 
 ### DIM + DWD: ClassificationRules (DIM) and TransactionClassification (DWD) (EPIC-011)
 `classification_rules` are **DIM** reference data (versioned mapping rules,
@@ -580,6 +599,28 @@ drives presentation downstream).
 **Constraints**:
 - `(user_id, component_type, source, as_of_date)` unique
 - Values remain positive; `liquidity_class=liability` controls liability presentation.
+- `recurrence_days` is either null or positive.
+
+### ADS: ReportSnapshots (EPIC-011/EPIC-005)
+Report snapshot rows are immutable generated report payloads. Historical
+non-latest rows may repeat the same report date when a report is regenerated,
+but published latest rows must be deterministic.
+
+**Constraints**:
+- `start_date <= as_of_date` when `start_date` is present.
+- Only one latest point-in-time snapshot can exist per
+  `(user_id, report_type, as_of_date)`.
+- Only one latest range snapshot can exist per
+  `(user_id, report_type, start_date, as_of_date)`.
+
+### Market Data Fact Constraints
+Market data facts are source-bearing valuation inputs.
+
+**Constraints**:
+- `fx_rates.rate > 0`
+- `stock_prices.price > 0`
+- `stock_prices` are unique by `(symbol, currency, source, price_date)`, while
+  `idx_stock_prices_lookup(symbol, price_date)` remains the report lookup index.
 
 ---
 

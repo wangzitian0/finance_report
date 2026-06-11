@@ -717,7 +717,7 @@ async def get_investment_performance_report_schedule(
             select(StockPrice)
             .where(StockPrice.symbol.in_(asset_identifiers))
             .where(StockPrice.price_date <= as_of_date)
-            .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc())
+            .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc(), StockPrice.source.asc())
         )
         stock_prices = list(stock_price_result.scalars().all())
     latest_stock_price_by_asset: dict[str, StockPrice] = {}

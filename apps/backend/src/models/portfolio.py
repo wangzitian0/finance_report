@@ -6,7 +6,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Date, Enum as SQLEnum, ForeignKey, Numeric, String
+from sqlalchemy import CheckConstraint, Date, Enum as SQLEnum, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,18 @@ class InvestmentTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Auditable brokerage transaction that drives portfolio accounting."""
 
     __tablename__ = "investment_transactions"
+    __table_args__ = (
+        CheckConstraint("gross_amount > 0", name="ck_investment_transactions_gross_amount_positive"),
+        CheckConstraint("fees >= 0", name="ck_investment_transactions_fees_non_negative"),
+        CheckConstraint(
+            "transaction_type::text NOT IN ('buy', 'sell') OR ("
+            "quantity IS NOT NULL AND quantity > 0 AND "
+            "unit_price IS NOT NULL AND unit_price >= 0 AND "
+            "cost_basis IS NOT NULL AND cost_basis >= 0"
+            ")",
+            name="ck_investment_transactions_trade_values_valid",
+        ),
+    )
 
     position_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -80,6 +92,19 @@ class InvestmentLot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Open tax/accounting lot for cost-basis calculations."""
 
     __tablename__ = "investment_lots"
+    __table_args__ = (
+        CheckConstraint("original_quantity > 0", name="ck_investment_lots_original_quantity_positive"),
+        CheckConstraint("remaining_quantity >= 0", name="ck_investment_lots_remaining_quantity_non_negative"),
+        CheckConstraint(
+            "remaining_quantity <= original_quantity",
+            name="ck_investment_lots_remaining_not_above_original",
+        ),
+        CheckConstraint("unit_cost >= 0", name="ck_investment_lots_unit_cost_non_negative"),
+        CheckConstraint(
+            "disposed_date IS NULL OR disposed_date >= acquisition_date",
+            name="ck_investment_lots_disposed_after_acquisition",
+        ),
+    )
 
     position_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -121,6 +146,7 @@ class DividendIncome(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "dividend_income"
+    __table_args__ = (CheckConstraint("amount > 0", name="ck_dividend_income_amount_positive"),)
 
     position_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -164,6 +190,7 @@ class MarketDataOverride(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "market_data_override"
+    __table_args__ = (CheckConstraint("price > 0", name="ck_market_data_override_price_positive"),)
 
     asset_identifier: Mapped[str] = mapped_column(String(100), nullable=False)
     price_date: Mapped[date] = mapped_column(Date, nullable=False)

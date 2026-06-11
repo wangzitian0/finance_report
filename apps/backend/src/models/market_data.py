@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import DECIMAL, Date, DateTime, Index, String, UniqueConstraint
+from sqlalchemy import DECIMAL, CheckConstraint, Date, DateTime, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,7 @@ class FxRate(Base):
             "rate_date",
             name="uq_fx_rates_pair_date",
         ),
+        CheckConstraint("rate > 0", name="ck_fx_rates_rate_positive"),
         Index("idx_fx_rates_lookup", "base_currency", "quote_currency", "rate_date"),
     )
 
@@ -46,7 +47,14 @@ class StockPrice(Base):
 
     __tablename__ = "stock_prices"
     __table_args__ = (
-        UniqueConstraint("symbol", "price_date", name="uq_stock_prices_symbol_date"),
+        UniqueConstraint(
+            "symbol",
+            "currency",
+            "source",
+            "price_date",
+            name="uq_stock_prices_symbol_currency_source_date",
+        ),
+        CheckConstraint("price > 0", name="ck_stock_prices_price_positive"),
         Index("idx_stock_prices_lookup", "symbol", "price_date"),
     )
 

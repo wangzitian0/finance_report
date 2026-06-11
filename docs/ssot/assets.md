@@ -45,7 +45,7 @@ ROW_NUMBER() OVER (
 For each latest atomic position:
 
 1. **Skip** if `quantity` or `market_value` is NULL → recorded in `skipped_assets`
-2. **Lookup** existing `ManagedPosition` by `(account_id, asset_identifier)`
+2. **Lookup** existing `ManagedPosition` by `(user_id, account_id, asset_identifier)`
 3. **Update** if found — refresh quantity, cost_basis, currency, metadata, clear disposal
 4. **Create** if not found — new ACTIVE position with auto-created broker account
 5. **Dispose** any existing managed positions not seen in the latest snapshot → set `status=DISPOSED`, `disposal_date=today`
@@ -172,6 +172,7 @@ class DepreciationResult:
 ```sql
 CREATE TABLE managed_positions (
     id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     account_id UUID NOT NULL REFERENCES accounts(id),
     asset_identifier VARCHAR(100) NOT NULL,
     quantity NUMERIC(18,6) NOT NULL,
@@ -185,6 +186,11 @@ CREATE TABLE managed_positions (
     updated_at TIMESTAMP NOT NULL
 );
 ```
+
+Constraints: `(user_id, account_id, asset_identifier)` is unique,
+`cost_basis >= 0`, and `disposal_date` cannot precede `acquisition_date`.
+`quantity` may be negative for short positions; short positions still require
+non-negative market value and cost facts.
 
 ### InvestmentTransaction
 
@@ -211,6 +217,9 @@ CREATE TABLE investment_transactions (
 );
 ```
 
+Constraints: `gross_amount > 0`, `fees >= 0`, and buy/sell rows require
+positive quantity plus non-negative unit price and cost basis.
+
 ### InvestmentLot
 
 ```sql
@@ -230,6 +239,10 @@ CREATE TABLE investment_lots (
     updated_at TIMESTAMP NOT NULL
 );
 ```
+
+Constraints: original quantity is positive, remaining quantity is non-negative
+and cannot exceed original quantity, unit cost is non-negative, and disposed
+date cannot precede acquisition date.
 
 ### PositionStatus Enum
 
@@ -262,6 +275,7 @@ CREATE TABLE manual_valuation_snapshots (
 ```
 
 Manual snapshots cover property value, mortgage or loan balance, CPF or long-term savings, tax payable/refund, insurance cash value, ESOP, RSU, stock options, and generic assets/liabilities. The value is always stored as a positive `Decimal`; the liquidity class determines whether it contributes to assets, liabilities, restricted, or illiquid net worth presentation.
+Reminder cadence is optional; when present, `recurrence_days` is positive.
 
 ---
 

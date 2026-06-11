@@ -220,6 +220,24 @@ the `StatementSummary` conform (DWD) instead of `bank_statements.account_id`
 | AC11.17.1 | Transfer OUT/IN detection resolves custody account from DWD and creates the Processing entry under the Layer-2 read path | `test_transfer_out_creates_match()`, `test_transfer_in_creates_match()` | `reconciliation/test_reconciliation_matching_unit.py` | P0 |
 | AC11.17.2 | Mixed transfer + normal transactions both reconcile under the Layer-2 read path | `test_mixed_transactions_both_phases_execute()` | `reconciliation/test_transfer_integration.py` | P0 |
 
+### AC11.18: 4-Layer Migration — Financial Fact Schema Invariants
+
+Financial source facts and derived snapshots reject invalid financial states at
+the database layer before reporting, readiness checks, or export paths need to
+guess around them. The invariant set covers positive financial facts, statement
+envelope completeness, deterministic asset and market-data uniqueness, and
+latest-report snapshot guards. Short positions remain valid: negative position
+quantity is allowed, while market value and cost facts stay non-negative.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.18.1 | Positive source fact constraints reject zero or negative atomic and manual valuation amounts while allowing valid short-position quantities | `test_AC11_18_1_positive_source_fact_constraints()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
+| AC11.18.2 | Approved statement summaries require account, currency, period, and balance fields, and statement periods cannot be inverted | `test_AC11_18_2_statement_summary_approved_completeness_and_period_order()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
+| AC11.18.3 | Managed positions, investment lots, and investment facts enforce deterministic uniqueness and non-negative quantity/cost relationships | `test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniqueness()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
+| AC11.18.4 | Latest report snapshots cannot conflict for the same logical report scope and report date ranges cannot be inverted | `test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
+| AC11.18.5 | Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date | `test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
+| AC11.18.6 | The constraint migration declares preflight checks and migration-risk classification for existing data compatibility | `test_AC11_18_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

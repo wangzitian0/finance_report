@@ -514,6 +514,8 @@ class ExtractionService:
                 status = (
                     BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
                 )
+                if status == BankStatementStatus.APPROVED and account_id is None:
+                    status = BankStatementStatus.PARSED
 
             statement.balance_validated = is_valid
             if has_inferred_csv_balances:

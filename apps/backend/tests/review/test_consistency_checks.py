@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.models import Account, AccountType
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
@@ -29,6 +30,12 @@ def user_id(test_user):
 
 async def _make_statement(db, user_id, *, file_hash: str) -> StatementSummary:
     """Create an ODS document + linked StatementSummary conform envelope."""
+    account = Account(
+        user_id=user_id,
+        name=f"Consistency Account {uuid4()}",
+        type=AccountType.ASSET,
+        currency="USD",
+    )
     doc = UploadedDocument(
         id=uuid4(),
         user_id=user_id,
@@ -37,7 +44,7 @@ async def _make_statement(db, user_id, *, file_hash: str) -> StatementSummary:
         original_filename="test.pdf",
         document_type=DocumentType.BANK_STATEMENT,
     )
-    db.add(doc)
+    db.add_all([account, doc])
     await db.flush()
 
     statement = StatementSummary(
@@ -45,8 +52,13 @@ async def _make_statement(db, user_id, *, file_hash: str) -> StatementSummary:
         user_id=user_id,
         uploaded_document_id=doc.id,
         file_hash=file_hash,
+        account_id=account.id,
         institution="Test Bank",
         currency="USD",
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
         status=BankStatementStatus.APPROVED,
     )
     db.add(statement)

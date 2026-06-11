@@ -24,6 +24,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from src.models import Account, AccountType, User
@@ -690,6 +691,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     ):
         score = score_by_hash[file_hash or ""]
         statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
+        statement.account_id = account_id
         statement.closing_balance = Decimal("100.00")
         await dual_write_layer2(db, test_user.id, statement, [], original_filename=original_filename)
         return statement, []
@@ -700,13 +702,14 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         fake_parse_document,
     )
 
+    account = await create_statement_account(db, test_user.id, "Review Queue Account")
     created_ids = []
     for index, content in enumerate(contents):
         upload_file = make_upload_file(f"statement-{index}.pdf", content)
         created = await statements_router.upload_statement(
             file=upload_file,
             institution="DBS",
-            account_id=None,
+            account_id=account.id,
             model="google/gemini-3-flash-preview",
             db=db,
             user_id=test_user.id,
@@ -1640,8 +1643,10 @@ async def test_approve_statement_stage1_success(db, test_user, monkeypatch):
     When approve_statement_stage1 is called,
     Then it approves the statement (lines 761-771).
     """
+    account = await create_statement_account(db, test_user.id, "Stage 1 Approve Account")
     statement = build_statement(test_user.id, "hash_s1_approve", 80)
     statement.status = BankStatementStatus.PARSED
+    statement.account_id = account.id
     # With no transactions, calculated_closing = opening_balance = 100.
     # Set closing_balance to match so validation passes.
     statement.closing_balance = Decimal("100.00")
@@ -1732,7 +1737,8 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     statement.account_id = None
     statement.period_start = date(2025, 2, 1)
     statement.period_end = date(2025, 2, 28)
-    statement.closing_balance = Decimal("120.00")
+    statement.opening_balance = Decimal("110.00")
+    statement.closing_balance = Decimal("130.00")
     db.add(statement)
     await db.flush()
     statement_id = statement.id
@@ -1820,9 +1826,18 @@ async def test_auto_approve_high_confidence_statement_returns_zero_for_non_candi
 
 async def test_auto_approve_high_confidence_statement_falls_back_to_pending_review_on_guard_failure(db, test_user):
     """AC3.3.1: Unsafe high-confidence statements remain reviewable instead of failing parsing."""
+    unsafe_account = Account(
+        user_id=test_user.id,
+        name="High Confidence Liability",
+        type=AccountType.LIABILITY,
+        currency="SGD",
+    )
+    db.add(unsafe_account)
+    await db.flush()
+
     statement = build_statement(test_user.id, "hash_s1_high_confidence_guard_failure", 90)
     statement.status = BankStatementStatus.APPROVED
-    statement.account_id = None
+    statement.account_id = unsafe_account.id
     statement.closing_balance = Decimal("120.00")
     db.add(statement)
     await db.flush()
@@ -1843,14 +1858,23 @@ async def test_auto_approve_high_confidence_statement_falls_back_to_pending_revi
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.PARSED
     assert statement.stage1_status == Stage1Status.PENDING_REVIEW
-    assert "Account mapping required" in (statement.validation_error or "")
+    assert "active asset account" in (statement.validation_error or "")
 
 
 async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, test_user):
     """AC3.3.1: Auto-approval guard fallback must not roll back parsed statement data."""
+    unsafe_account = Account(
+        user_id=test_user.id,
+        name="Uncommitted Liability",
+        type=AccountType.LIABILITY,
+        currency="SGD",
+    )
+    db.add(unsafe_account)
+    await db.flush()
+
     statement = build_statement(test_user.id, "hash_s1_guard_failure_preserves_parse", 90)
     statement.status = BankStatementStatus.APPROVED
-    statement.account_id = None
+    statement.account_id = unsafe_account.id
     statement.closing_balance = Decimal("120.00")
     db.add(statement)
     await db.flush()
@@ -1874,7 +1898,7 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     assert persisted_statement is not None
     assert persisted_statement.status == BankStatementStatus.PARSED
     assert persisted_statement.stage1_status == Stage1Status.PENDING_REVIEW
-    assert "Account mapping required" in (persisted_statement.validation_error or "")
+    assert "active asset account" in (persisted_statement.validation_error or "")
 
     persisted_txns = await statement_validation_mod.resolve_statement_transactions(db, persisted_statement)
     assert len(persisted_txns) == 1
@@ -2046,24 +2070,9 @@ async def test_approve_statement_stage1_blocks_invalid_statement_period_before_p
     statement.period_start = date(2025, 2, 1)
     statement.period_end = date(2025, 1, 31)
     statement.closing_balance = Decimal("120.00")
-    db.add(statement)
-    await db.flush()
-
-    await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 20),
-        description="Salary",
-        amount=Decimal("20.00"),
-        direction="IN",
-    )
-    await db.commit()
-
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
-
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Statement period is invalid" in str(exc.value.detail)
+    with pytest.raises(IntegrityError, match="ck_statement_summaries_period_order"):
+        db.add(statement)
+        await db.flush()
 
 
 async def test_approve_statement_stage1_blocks_missing_statement_currency_before_posting(db, test_user):
@@ -2368,8 +2377,10 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
 
 
 async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, test_user):
+    bank_account = await create_statement_account(db, test_user.id, "Transfer Priority Account")
     statement = build_statement(test_user.id, "hash_s1_transfer_priority", 90)
     statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
     statement.closing_balance = Decimal("90.00")
     db.add(statement)
     await db.flush()
@@ -2471,7 +2482,9 @@ async def test_approve_statement_stage1_balance_mismatch(db, test_user):
     When approve_statement_stage1 is called,
     Then it raises 400 (lines 764-765).
     """
+    account = await create_statement_account(db, test_user.id, "Balance Mismatch Account")
     statement = build_statement(test_user.id, "hash_s1_mismatch", 80)
+    statement.account_id = account.id
     statement.closing_balance = Decimal("999.99")  # Wrong closing balance
     db.add(statement)
     await db.commit()
@@ -2501,8 +2514,8 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(db,
     with pytest.raises(HTTPException) as exc:
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
 
-    assert exc.value.status_code == 400
-    assert "access denied" in exc.value.detail
+    assert exc.value.status_code == 404
+    assert "Statement not found" in exc.value.detail
     validation.assert_not_awaited()
 
 
@@ -2687,8 +2700,10 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     """
     from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 
+    account = await create_statement_account(db, test_user.id, "Stage 2 Queue Account")
     statement = build_statement(test_user.id, "hash_s2_queue", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
 
@@ -2726,8 +2741,10 @@ async def test_run_stage2_checks_success(db, test_user):
     When run_stage2_checks is called,
     Then it runs consistency checks and returns results (lines 881-891).
     """
+    account = await create_statement_account(db, test_user.id, "Stage 2 Checks Account")
     statement = build_statement(test_user.id, "hash_s2_checks", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
     statement_id = statement.id
@@ -2944,8 +2961,10 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_us
 
 async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, test_user):
     """AC16.32.1: Stage 1 approval cannot bypass unresolved transfer-pair candidates."""
+    account = await create_statement_account(db, test_user.id, "Transfer Conflict Account")
     statement = build_statement(test_user.id, "hash_stage1_transfer_conflict", 90)
     statement.status = BankStatementStatus.PARSED
+    statement.account_id = account.id
     statement.closing_balance = Decimal("100.00")
     db.add(statement)
     await db.commit()
@@ -3569,8 +3588,10 @@ async def test_batch_reject_matches_success(db, test_user):
     """
     from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 
+    account = await create_statement_account(db, test_user.id, "DBS Batch Reject")
     statement = build_statement(test_user.id, "hash_batch_rej", 90)
     statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
     db.add(statement)
     await db.commit()
 

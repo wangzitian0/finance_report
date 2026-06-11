@@ -266,8 +266,11 @@ def _statement(
         account_id=account_id,
         file_hash=uuid4().hex,
         institution="Readiness Bank",
+        currency="SGD",
         period_start=date(2026, 5, 1),
         period_end=date(2026, 5, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
         status=status,
         balance_validated=balance_validated,
         validation_error=validation_error,
@@ -682,6 +685,15 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
     # report input / statement source.
     assert response.model_dump(mode="json")["source_summary"]["statements"] == 0
 
+    processing_account = Account(
+        user_id=test_user.id,
+        name=f"Processing Cash {uuid4()}",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(processing_account)
+    await db.flush()
+    processing.account_id = processing_account.id
     processing.status = BankStatementStatus.APPROVED
     processing.stage1_status = Stage1Status.APPROVED
     processing.balance_validated = True
@@ -908,8 +920,11 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
         uploaded_document_id=document.id,
         file_hash=document.file_hash,
         institution="Trace Bank",
+        currency="SGD",
         period_start=date(2026, 5, 1),
         period_end=report_date,
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("100.00"),
         status=BankStatementStatus.APPROVED,
         balance_validated=True,
         stage1_status=Stage1Status.APPROVED,
@@ -1293,6 +1308,8 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
         currency="SGD",
         period_start=date(2026, 5, 1),
         period_end=report_date,
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("120.00"),
         status=BankStatementStatus.APPROVED,
         balance_validated=True,
         stage1_status=Stage1Status.APPROVED,

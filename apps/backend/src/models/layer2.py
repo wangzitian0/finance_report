@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import Date, Enum as SQLEnum, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, Enum as SQLEnum, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,7 +46,10 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "atomic_transactions"
-    __table_args__ = (UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_transactions_user_dedup_hash"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_transactions_user_dedup_hash"),
+        CheckConstraint("amount > 0", name="ck_atomic_transactions_amount_positive"),
+    )
 
     txn_date: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, comment="Absolute value")
@@ -89,7 +92,10 @@ class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "atomic_positions"
-    __table_args__ = (UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_positions_user_dedup_hash"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "dedup_hash", name="uq_atomic_positions_user_dedup_hash"),
+        CheckConstraint("market_value >= 0", name="ck_atomic_positions_market_value_non_negative"),
+    )
 
     snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
     asset_identifier: Mapped[str] = mapped_column(

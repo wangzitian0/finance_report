@@ -182,12 +182,28 @@ def _raise_if_statement_conflicts_unresolved(transactions: list[AtomicTransactio
         raise ValueError("Cannot approve statement while unresolved duplicate or transfer-pair candidates remain")
 
 
+def _raise_if_approved_envelope_incomplete(statement: StatementSummary) -> None:
+    if statement.account_id is None:
+        raise ValueError("Account mapping required before posting. Confirm the statement account before posting.")
+    if not (statement.currency or "").strip():
+        raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
+    if statement.period_start is None or statement.period_end is None:
+        raise ValueError("Statement period required before posting. Confirm the source date range before posting.")
+    if statement.period_start > statement.period_end:
+        raise ValueError("Statement period is invalid. Confirm the source date range before posting.")
+    if statement.opening_balance is None or statement.closing_balance is None:
+        raise ValueError(
+            "Statement opening and closing balances required before approval. Confirm the source balances first."
+        )
+
+
 async def approve_statement(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
 ) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
+    _raise_if_approved_envelope_incomplete(statement)
     validation_result = await validate_balance_chain(db, statement_id)
     transactions = await resolve_statement_transactions(db, statement)
 

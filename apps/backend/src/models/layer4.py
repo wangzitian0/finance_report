@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, Date, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum as SQLEnum, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,7 +33,29 @@ class ReportSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "report_snapshots"
-    __table_args__ = ()
+    __table_args__ = (
+        CheckConstraint(
+            "start_date IS NULL OR start_date <= as_of_date",
+            name="ck_report_snapshots_date_order",
+        ),
+        Index(
+            "uq_report_snapshots_latest_point_scope",
+            "user_id",
+            "report_type",
+            "as_of_date",
+            unique=True,
+            postgresql_where=text("is_latest = true AND start_date IS NULL"),
+        ),
+        Index(
+            "uq_report_snapshots_latest_range_scope",
+            "user_id",
+            "report_type",
+            "start_date",
+            "as_of_date",
+            unique=True,
+            postgresql_where=text("is_latest = true AND start_date IS NOT NULL"),
+        ),
+    )
 
     report_type: Mapped[ReportType] = mapped_column(
         SQLEnum(

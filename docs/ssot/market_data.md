@@ -92,6 +92,7 @@ CREATE TABLE fx_rates (
     rate_date DATE NOT NULL,
     source VARCHAR(50) NOT NULL,
     created_at TIMESTAMP NOT NULL,
+    CHECK (rate > 0),
     UNIQUE(base_currency, quote_currency, rate_date)
 );
 
@@ -109,12 +110,19 @@ CREATE TABLE stock_prices (
     price_date DATE NOT NULL,
     source VARCHAR(50) NOT NULL,
     created_at TIMESTAMP NOT NULL,
-    UNIQUE(symbol, price_date)
+    CHECK (price > 0),
+    UNIQUE(symbol, currency, source, price_date)
 );
 
 CREATE INDEX idx_stock_prices_lookup 
     ON stock_prices(symbol, price_date);
 ```
+
+`stock_prices` uses provider-scoped uniqueness because the same symbol/date can
+arrive from different sources or currencies. Report and portfolio read paths
+still query by `symbol` and `price_date`; when more than one provider-scoped row
+exists on the same date, they select deterministically by latest `created_at`
+and then `source`.
 
 ### market_data_sync_state
 ```sql
@@ -194,6 +202,8 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 - **Pattern B**: Use Decimal(6) for rates, Decimal(2) for converted amounts
 - **Pattern C**: Prefer historical rates over real-time for reporting
 - **Pattern D**: Persist derived report-side rates with `source` values such as `derived:inverse:SGD/HKD`, `derived:bridge:USD`, or `yahoo_finance`.
+- **Pattern E**: Persist only positive FX rates and stock prices; invalid
+  zero/negative provider outputs are rejected at the database boundary.
 
 ### ⛔ Prohibited Patterns
 - **Anti-pattern A**: **NEVER** hardcode exchange rates

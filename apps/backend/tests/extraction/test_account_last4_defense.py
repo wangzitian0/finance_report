@@ -16,6 +16,7 @@ Each test class below closes one specific gap.
 """
 
 import string
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -25,10 +26,24 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.account import Account, AccountType
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.services.extraction import ExtractionService
 from tests.factories import StatementSummaryFactory
+
+
+async def _make_statement_account(db: AsyncSession, user_id) -> Account:
+    account = Account(
+        user_id=user_id,
+        name=f"DBS Statement {uuid4().hex[:8]}",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+    return account
+
 
 # ---------------------------------------------------------------------------
 # Gap 1: AI returns dirty account_last4 → parse_document sanitizes → DB stores ≤ 4 chars
@@ -96,6 +111,7 @@ class TestDirtyAccountLast4Integration:
     async def test_dirty_account_last4_persists_to_db(self, db, test_user):
         """End-to-end: AI returns "553-3" → sanitized → saved to real DB → read back OK."""
         service = ExtractionService()
+        account = await _make_statement_account(db, test_user.id)
 
         mock_data = {
             "institution": "DBS",
@@ -123,6 +139,7 @@ class TestDirtyAccountLast4Integration:
                 user_id=uid,
                 file_content=b"dummy",
                 file_hash=f"persist_test_{uuid4().hex[:8]}",
+                account_id=account.id,
             )
 
         db.add(stmt)
@@ -132,6 +149,42 @@ class TestDirtyAccountLast4Integration:
         assert saved is not None
         assert saved.account_last4 == "5533"
         assert len(saved.account_last4) <= 4
+
+    @pytest.mark.no_db
+    @pytest.mark.asyncio
+    async def test_parse_document_without_account_stays_parsed_before_approval(self):
+        """High-confidence extraction without a custody account cannot become APPROVED."""
+        service = ExtractionService()
+
+        mock_data = {
+            "institution": "DBS",
+            "account_last4": "553-3",
+            "currency": "SGD",
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "1000.00",
+            "closing_balance": "1100.00",
+            "transactions": [
+                {
+                    "date": "2025-01-15",
+                    "description": "Test",
+                    "amount": "100.00",
+                    "direction": "IN",
+                },
+            ],
+        }
+
+        with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
+            stmt, _ = await service.parse_document(
+                file_path=Path("/tmp/test_requires_account.pdf"),
+                institution="DBS",
+                user_id=uuid4(),
+                file_content=b"dummy",
+                file_hash=f"requires_account_{uuid4().hex[:8]}",
+            )
+
+        assert stmt.balance_validated is True
+        assert stmt.status == BankStatementStatus.PARSED
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +270,7 @@ class TestBackgroundTaskDirtyData:
 
         sid = uuid4()
         uid = test_user.id
+        account = await _make_statement_account(db, uid)
         stmt = StatementSummaryFactory.build(
             id=sid,
             user_id=uid,
@@ -234,7 +288,10 @@ class TestBackgroundTaskDirtyData:
             session = kwargs["db"]
             summary = await session.get(StatementSummary, sid)
             summary.account_last4 = "5533"  # Already sanitized by _sanitize_account_last4
+            summary.account_id = account.id
             summary.currency = "SGD"
+            summary.period_start = date(2025, 1, 1)
+            summary.period_end = date(2025, 1, 31)
             summary.opening_balance = Decimal("1000.00")
             summary.closing_balance = Decimal("1000.00")
             summary.confidence_score = 90
@@ -257,7 +314,7 @@ class TestBackgroundTaskDirtyData:
             filename="test.pdf",
             institution="DBS",
             user_id=uid,
-            account_id=None,
+            account_id=account.id,
             file_hash=f"bg_dirty_{uuid4().hex[:8]}",
             storage_key="test_path",
             content=b"dummy content",
@@ -342,7 +399,7 @@ class TestCascadingFailureRecovery:
         stmt1 = StatementSummaryFactory.build(
             id=uuid4(),
             user_id=uid,
-            status=BankStatementStatus.APPROVED,
+            status=BankStatementStatus.PARSED,
             file_hash=shared_hash,
             institution="DBS",
         )
@@ -390,6 +447,7 @@ class TestCascadingFailureRecovery:
 
         sid = uuid4()
         uid = test_user.id
+        account = await _make_statement_account(db, uid)
         stmt = StatementSummaryFactory.build(
             id=sid,
             user_id=uid,
@@ -424,10 +482,11 @@ class TestCascadingFailureRecovery:
         parsed_stmt = StatementSummaryFactory.build(
             user_id=uid,
             institution="DBS",
+            account_id=account.id,
             account_last4="1234",
             currency="SGD",
-            period_start=None,
-            period_end=None,
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 31),
             opening_balance=Decimal("1000.00"),
             closing_balance=Decimal("1100.00"),
             confidence_score=90,
@@ -461,7 +520,7 @@ class TestCascadingFailureRecovery:
                 filename="test.pdf",
                 institution="DBS",
                 user_id=uid,
-                account_id=None,
+                account_id=account.id,
                 file_hash=f"commit_fail_{uuid4().hex[:8]}",
                 storage_key="test_path",
                 content=b"dummy content",
