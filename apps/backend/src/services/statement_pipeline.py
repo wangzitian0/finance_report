@@ -22,13 +22,11 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
-from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.database import create_session_maker_from_db
 from src.logger import get_logger
-from src.services import StorageService
 from src.services.statement_parsing import parse_statement_background
 
 logger = get_logger(__name__)
@@ -46,20 +44,20 @@ async def submit_parse_pipeline(
     account_id: UUID | None,
     file_hash: str,
     storage_key: str,
-    content: bytes | None = None,
+    content: bytes,
     model: str | None,
     db: AsyncSession,
     request_id: str | None,
 ) -> asyncio.Task[None] | None:
     """Dispatch statement parsing.
 
-    ``content`` is optional: pass it when the bytes are already in hand (e.g. a
-    fresh upload). In Prefect mode it is never used (the worker re-fetches from
-    ``storage_key``), so callers should NOT pre-download it just to dispatch. In
-    fallback mode, if ``content`` is None it is fetched from ``storage_key``.
-
     Returns the in-process ``asyncio.Task`` for the caller to track in fallback
     mode, or ``None`` when the work was submitted to Prefect.
+
+    Note: in Prefect mode ``content`` is not sent to the worker (it re-fetches
+    from ``storage_key``). Avoiding the caller's pre-download in that mode is a
+    P1 optimization deferred until the worker lands; in P0 (fallback only) the
+    content is needed in-process anyway.
     """
     if settings.prefect_api_url:
         # Remote durable execution. Only serializable params cross the boundary
@@ -89,9 +87,6 @@ async def submit_parse_pipeline(
             request_id=request_id,
         )
         return None
-
-    if content is None:
-        content = await run_in_threadpool(StorageService().get_object, storage_key)
 
     return asyncio.create_task(
         parse_statement_background(
