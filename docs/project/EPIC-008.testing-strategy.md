@@ -396,6 +396,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.123 | Schema guardrails scan the real `apps/backend/migrations/versions` directory instead of a test-local path | `test_AC8_13_123_schema_guardrails_scan_real_migration_directory` | `tests/tooling/test_schema_quality_contract.py` | P0 |
 | AC8.13.124 | AC traceability gate and uploaded audit builder consume the same SSOT test-surface definition, including frontend Playwright tests | `test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface` | `tests/tooling/test_schema_quality_contract.py` | P1 |
 | AC8.13.125 | PR preview waits stay bounded: current runner preview has a hard workflow timeout and legacy Dokploy busy-queue extensions cannot exceed the compatibility rollout deadline | `test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline`; `test_AC8_13_125_pr_preview_runner_lifecycle_has_hard_timeout` | `tests/tooling/test_pr_preview_lifecycle.py` | P1 |
+| AC8.13.126 | Runtime incident response SSOT centralizes service-failure triage and stability proof ownership, while deployment, observability, CI/CD, and environment smoke docs link to it instead of duplicating playbooks | `test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage` | `tests/tooling/test_runtime_incident_response_ssot.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 

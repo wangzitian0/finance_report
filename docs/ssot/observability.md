@@ -233,33 +233,18 @@ the shared rule can query.
 
 ---
 
-## 8. Troubleshooting
+## 8. Runtime Incident Routing
 
-### Logs not appearing in SigNoz
+Runtime failure triage is owned by
+[runtime-incident-response.md](./runtime-incident-response.md). This document
+owns the observability contract only: structured log shape, OTEL/SigNoz
+configuration, the redacted `/health.observability` fields, and app service
+metadata used by the shared alert rule.
 
-1. **Check OTEL endpoint is reachable** (from backend container):
-   ```bash
-   # Enter the backend container (which is in dokploy-network)
-   docker exec -it finance-report-backend sh
-   
-   # Test connectivity to OTEL collector
-   curl -v http://platform-signoz-otel-collector:4318/v1/logs
-   ```
-
-2. **Verify environment variables are set**:
-   ```bash
-   # Check container env
-   docker exec finance-report-backend env | grep OTEL
-   ```
-
-3. **Check backend logs for OTLP errors**:
-   ```bash
-   docker logs finance-report-backend 2>&1 | grep -i otel
-   ```
-
-### Wrong environment showing
-
-Ensure `OTEL_RESOURCE_ATTRIBUTES` includes correct `deployment.environment` value.
+Use the runtime incident SSOT for missing logs, wrong environment labels,
+502/503 responses, route failures, stale deployed versions, and flapping
+recovery proof. Use `repo/docs/ssot/ops.alerting.md` for shared SigNoz alert
+automation, bridge delivery, and Lark channel behavior.
 
 ---
 
@@ -365,19 +350,12 @@ infra2/platform (repo submodule)
 
 ### 10.4 Post-Deployment Verification
 
-After deploying to staging/production, verify observability:
+After staging or production deploys, keep observability verification narrow:
 
-```bash
-# 1. Check logs are arriving in SigNoz (within 2 minutes)
-open https://signoz.zitian.party
-# Filter: deployment.environment = staging
-# Look for recent logs from finance-report-backend
-
-# 2. Verify OTEL endpoint is reachable from container
-ssh root@$VPS_HOST
-# For production:
-docker exec finance_report-backend curl -sf http://platform-signoz-otel-collector:4318/v1/logs
-# For staging:
-docker exec finance_report-backend-staging curl -sf http://platform-signoz-otel-collector:4318/v1/logs
-# Should return HTTP 405 (Method Not Allowed) - means endpoint is reachable
-```
+1. Confirm `/health.observability` exposes the expected service name, deployment
+   environment, alert rule, and alerting pipeline without secret URLs or keys.
+2. Confirm SigNoz has recent `finance-report-backend` logs for the target
+   `deployment.environment`.
+3. If logs or alerts are missing during an incident, route through
+   [runtime-incident-response.md](./runtime-incident-response.md) instead of
+   adding environment-specific debugging steps here.

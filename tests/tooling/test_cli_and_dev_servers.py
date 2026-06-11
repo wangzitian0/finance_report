@@ -189,6 +189,34 @@ def test_AC16_11_17_cmd_test_backend_path_route(monkeypatch):
     ]
 
 
+def test_AC16_11_17_cmd_test_backend_path_route_honors_fast_mode(monkeypatch):
+    """AC16.11.17: focused backend test paths keep lifecycle flags."""
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "run",
+        lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
+    )
+    cli.cmd_test(
+        SimpleNamespace(
+            frontend=False,
+            e2e=False,
+            backend_e2e=False,
+            perf=False,
+            fast=True,
+            smart=False,
+            ephemeral=False,
+        ),
+        ["tests/infra/test_boot.py"],
+    )
+
+    cmd = calls[0][0]
+    assert cmd[:2] == [sys.executable, str(cli.REPO_ROOT / "tools" / "test_lifecycle.py")]
+    assert "--fast" in cmd
+    assert "tests/infra/test_boot.py" in cmd
+    assert calls[0][1] == cli.BACKEND_DIR
+
+
 def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
     calls = []
     monkeypatch.setattr(

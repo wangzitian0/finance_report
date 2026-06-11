@@ -258,6 +258,23 @@ concepts:
       - .github/workflows/staging-deploy.yml
       - .github/workflows/staging-ai-ocr-gate.yml
 
+  runtime_incident_response:
+    owner: docs/ssot/runtime-incident-response.md
+    description: App-side runtime incident triage and stability-proof routing.
+    family: runtime
+    kind: playbook
+    cross_refs:
+      - docs/ssot/deployment.md
+      - docs/ssot/observability.md
+      - docs/ssot/ci-cd.md
+      - docs/ssot/env_smoke_test.md
+      - docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md
+      - repo/docs/ssot/ops.alerting.md
+      - repo/docs/ssot/ops.availability-ledger.md
+      - repo/docs/ssot/ops.recovery.md
+    proofs:
+      - tests/tooling/test_runtime_incident_response_ssot.py
+
   # ── Development environment ────────────────────────────────────────────
   moon_commands:
     owner: docs/ssot/development.md#moon-commands
@@ -477,3 +494,5 @@ concepts:
     description: Environment smoke testing via real boot operations.
     cross_refs:
       - docs/ssot/development.md
+    proofs:
+      - tests/tooling/test_runtime_incident_response_ssot.py
