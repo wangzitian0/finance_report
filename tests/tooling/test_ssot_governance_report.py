@@ -871,3 +871,38 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
         "docs/ssot/ac-score-baseline.json"
     )
     assert concepts["ac_score_ratchet_baseline"]["parent"] == "tdd_workflow"
+
+
+def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() -> None:
+    """AC14.1.15: #824 migrates machine-owned FR SSOT entries by example."""
+
+    report = governance_report.build_report(ROOT, include_infra2=False)
+    finance = _source(report, "finance_report")
+
+    assert report["overall"]["errors"] == []
+    assert finance["errors"] == []
+    assert finance["entry_count"] > 0
+    assert finance["machine_owner_entries"]["missing_proof"] == []
+    machine_candidate = next(
+        candidate
+        for candidate in finance["future_gate_candidates"]
+        if candidate["code"] == "machine_owner_entries_missing_proof"
+    )
+    assert machine_candidate["count"] == 0
+
+    manifest = yaml.safe_load(
+        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+    )
+    concepts = manifest["concepts"]
+
+    assert concepts["extraction_failed_case_registry"]["family"] == "extraction"
+    assert concepts["extraction_failed_case_registry"]["kind"] == "registry"
+    assert concepts["extraction_failed_case_registry"]["proofs"] == [
+        "tests/tooling/test_extraction_failed_case_registry.py",
+    ]
+    assert concepts["source_coverage_matrix"]["family"] == "source"
+    assert concepts["source_coverage_matrix"]["kind"] == "matrix"
+    assert concepts["source_coverage_matrix"]["proofs"] == [
+        "tests/tooling/test_source_coverage_matrix.py",
+        "tools/check_source_coverage_matrix.py",
+    ]
