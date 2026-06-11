@@ -165,6 +165,9 @@ jobs:
       # Baked into the images at build time and reported by both services; the
       # smoke version check compares it against the source SHA (else "unknown").
       GIT_COMMIT_SHA: ${{ github.sha }}
+      # The stack is reached through the edge origin; allow it for CORS so the
+      # smoke CORS check (Origin: http://localhost:8080) passes.
+      CORS_ORIGINS: http://localhost:8080,http://localhost:3000
       # Unique per run+attempt so teardown targets exactly this run's resources.
       COMPOSE_PROJECT_NAME: fr-e2e-${{ github.run_id }}-${{ github.run_attempt }}
       APP_URL: http://localhost:8080
