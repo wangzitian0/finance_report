@@ -28,6 +28,7 @@ from common.testing.ac_evidence import (
     PROPERTY_KEY,
     ACEvidence,
     ACEvidenceError,
+    record_ac_evidence,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -256,6 +257,100 @@ def test_update_refuses_to_cement_a_broken_run(tmp_path):
     # Baseline must be untouched.
     after = json.loads(baseline_path.read_text())
     assert after["acs"]["AC4.1.4"]["score"] == 0.9
+
+
+def test_record_ac_evidence_emits_serialised_record():
+    captured: dict[str, str] = {}
+
+    def fake_record_property(key, value):
+        captured[key] = value
+
+    evidence = record_ac_evidence(
+        fake_record_property,
+        ac_id="AC1.1.1",
+        score=0.5,
+        metric="m",
+        comment="c",
+        provenance="deterministic",
+    )
+    assert captured[PROPERTY_KEY] == evidence.to_json()
+    assert ACEvidence.from_json(captured[PROPERTY_KEY]).ac_id == "AC1.1.1"
+
+
+def test_from_json_rejects_invalid_json():
+    with pytest.raises(ACEvidenceError):
+        ACEvidence.from_json("{not json")
+
+
+def test_golden_fixture_at_ref_round_trips():
+    evidence = ACEvidence(**_valid_kwargs(provenance="golden_fixture@deadbeef"))
+    assert (
+        ACEvidence.from_json(evidence.to_json()).provenance == "golden_fixture@deadbeef"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# CLI entrypoints                                                             #
+# --------------------------------------------------------------------------- #
+def test_aggregate_main_to_stdout_and_file(tmp_path, capsys):
+    junit = _junit_with([_valid_kwargs(score=0.8)], tmp_path / "j.xml")
+    assert agg.main([str(junit)]) == 0
+    assert "AC4.1.4" in capsys.readouterr().out
+    out_path = tmp_path / "agg.json"
+    assert agg.main([str(junit), "--output", str(out_path)]) == 0
+    assert json.loads(out_path.read_text())["acs"]["AC4.1.4"]["score"] == 0.8
+
+
+def test_aggregate_main_rejects_malformed_evidence(tmp_path):
+    bad = tmp_path / "bad.xml"
+    bad.write_text(
+        '<testsuites><testsuite><testcase name="t"><properties>'
+        '<property name="ac_evidence" value="not-json"/>'
+        "</properties></testcase></testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    assert agg.main([str(bad)]) == 1
+
+
+def test_iter_evidence_skips_missing_files_and_other_properties(tmp_path):
+    assert agg.iter_evidence([tmp_path / "nope.xml"]) == []
+    p = tmp_path / "j.xml"
+    p.write_text(
+        '<testsuites><testsuite><testcase name="t"><properties>'
+        '<property name="ac_evidence"/>'  # no value -> skipped
+        '<property name="other" value="x"/>'  # other name -> skipped
+        "</properties></testcase></testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    assert agg.iter_evidence([p]) == []
+
+
+def test_ratchet_main_pass_then_regression(tmp_path, capsys):
+    baseline = tmp_path / "b.json"
+    baseline.write_text(
+        json.dumps({"version": 1, "acs": {"AC4.1.4": {"score": 0.9}}}), encoding="utf-8"
+    )
+    cur = tmp_path / "c.json"
+    cur.write_text(json.dumps(_payload("AC4.1.4", 0.95)), encoding="utf-8")
+    assert ratchet.main([str(cur), "--baseline", str(baseline)]) == 0
+    assert "passed" in capsys.readouterr().out
+    cur.write_text(json.dumps(_payload("AC4.1.4", 0.5)), encoding="utf-8")
+    assert ratchet.main([str(cur), "--baseline", str(baseline)]) == 1
+
+
+def test_ratchet_main_update_writes_new_baseline(tmp_path):
+    baseline = tmp_path / "b.json"  # missing -> starts empty
+    cur = tmp_path / "c.json"
+    cur.write_text(json.dumps(_payload("AC9.9.9", 0.7)), encoding="utf-8")
+    assert ratchet.main([str(cur), "--baseline", str(baseline), "--update"]) == 0
+    assert json.loads(baseline.read_text())["acs"]["AC9.9.9"]["score"] == 0.7
+
+
+def test_load_json_rejects_non_object(tmp_path):
+    path = tmp_path / "x.json"
+    path.write_text("[1, 2, 3]", encoding="utf-8")
+    with pytest.raises(ValueError):
+        ratchet._load_json(path)
 
 
 def test_committed_baseline_matches_schema():
