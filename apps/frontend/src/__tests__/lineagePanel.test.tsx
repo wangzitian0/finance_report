@@ -69,6 +69,14 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
     expect(screen.getByText("No source records are linked to this amount yet.")).toBeInTheDocument()
   })
 
+  it("AC22.3.5 surfaces a load error without crashing", async () => {
+    mockedApiFetch.mockRejectedValue(new Error("lineage boom"))
+
+    render(<LineagePanel anchor={JOURNAL_ANCHOR} title="Erroring amount" onClose={() => {}} />)
+
+    await waitFor(() => expect(screen.getByText("lineage boom")).toBeInTheDocument())
+  })
+
   it("AC22.3.5 stays closed and issues no request when there is no anchor", () => {
     render(<LineagePanel anchor={null} title="None" onClose={() => {}} />)
 

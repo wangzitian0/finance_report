@@ -6,9 +6,20 @@ import { AccountLineageDrawer } from "@/components/reports/AccountLineageDrawer"
 import { apiFetch } from "@/lib/api"
 
 vi.mock("@/components/ui/Sheet", () => ({
-  default: ({ isOpen, title, children }: { isOpen: boolean; title: string; children: ReactNode }) =>
+  default: ({
+    isOpen,
+    title,
+    children,
+    onClose,
+  }: {
+    isOpen: boolean
+    title: string
+    children: ReactNode
+    onClose: () => void
+  }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
+        <button onClick={onClose}>{`Close ${title}`}</button>
         {children}
       </div>
     ) : null,
@@ -52,6 +63,17 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
               original_currency: "SGD",
               amount: "1000.00",
             },
+            {
+              // Empty memo exercises the "Journal line" fallback label.
+              journal_line_id: "55555555-5555-4555-8555-555555555555",
+              journal_entry_id: "44444444-4444-4444-8444-444444444444",
+              entry_date: "2026-01-12",
+              memo: "",
+              direction: "CREDIT",
+              original_amount: "250.00",
+              original_currency: "SGD",
+              amount: "-250.00",
+            },
           ],
         })
       }
@@ -73,10 +95,16 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
     render(<AccountLineageDrawer target={TARGET} onClose={() => {}} />)
 
     await waitFor(() => expect(screen.getByText("Salary deposit")).toBeInTheDocument())
+    // The memo-less line falls back to a generic label.
+    expect(screen.getByText("Journal line")).toBeInTheDocument()
     // Drill from the contributing line into its evidence lineage.
     fireEvent.click(screen.getByText("Salary deposit"))
     await waitFor(() => expect(screen.getByText("source document")).toBeInTheDocument())
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/evidence/lineage?entity_type=journal_line"))
+
+    // Closing the lineage drawer clears the anchor.
+    fireEvent.click(screen.getByText("Close Source lineage"))
+    await waitFor(() => expect(screen.queryByText("source document")).toBeNull())
   })
 
   it("AC22.3.5 shows an empty state when no transactions contribute", async () => {
@@ -96,6 +124,14 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
     await waitFor(() =>
       expect(screen.getByText("No source transactions contribute to this balance yet.")).toBeInTheDocument(),
     )
+  })
+
+  it("AC22.3.5 surfaces a load error for contributing transactions", async () => {
+    mockedApiFetch.mockRejectedValue(new Error("lineage list boom"))
+
+    render(<AccountLineageDrawer target={TARGET} onClose={() => {}} />)
+
+    await waitFor(() => expect(screen.getByText("lineage list boom")).toBeInTheDocument())
   })
 
   it("AC22.3.5 issues no request and stays closed without a target", () => {

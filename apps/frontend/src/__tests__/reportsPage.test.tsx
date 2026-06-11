@@ -53,6 +53,18 @@ describe("ReportsPage", () => {
     expect(screen.getByText("Equity")).toBeInTheDocument()
   })
 
+  it("falls back to placeholders when the live figures fail to load", async () => {
+    mockedApiFetch.mockReset()
+    mockedApiFetch.mockRejectedValue(new Error("offline"))
+
+    render(<ReportsPage />)
+
+    // The cockpit still renders all four blocks; stat values degrade to "—".
+    await waitFor(() => expect(screen.getByText("Annualized Income")).toBeInTheDocument())
+    expect(screen.getByText("Statistics Accuracy")).toBeInTheDocument()
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1)
+  })
+
   it("AC16.23.5 renders SVG icons for report cards (no emoji)", () => {
     render(<ReportsPage />)
 

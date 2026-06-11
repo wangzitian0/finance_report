@@ -78,6 +78,52 @@ describe("IncomeStatementPage", () => {
     expect(screen.getByText("Net Income").closest("div")).toHaveTextContent("3,800.00")
   })
 
+  it("AC22.3.4 opens the source drill-down when an income amount is clicked", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/reports/account-lineage")) {
+        return Promise.resolve({
+          account_id: "i1",
+          account_name: "Salary",
+          account_type: "INCOME",
+          currency: "SGD",
+          as_of_date: "2026-02-01",
+          start_date: "2026-01-01",
+          total: "5000.00",
+          lines: [
+            {
+              journal_line_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              journal_entry_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              entry_date: "2026-01-25",
+              memo: "January payroll",
+              direction: "CREDIT",
+              original_amount: "5000.00",
+              original_currency: "SGD",
+              amount: "5000.00",
+            },
+          ],
+        })
+      }
+      return Promise.resolve({
+        start_date: "2026-01-01",
+        end_date: "2026-02-01",
+        currency: "SGD",
+        income: [{ account_id: "i1", name: "Salary", type: "INCOME", amount: "5000" }],
+        expenses: [],
+        total_income: "5000",
+        total_expenses: "0",
+        net_income: "5000",
+        trends: [],
+        filters_applied: { tags: null, account_type: null },
+      })
+    })
+
+    render(<IncomeStatementPage />)
+
+    await waitFor(() => expect(screen.getByText("Salary")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "View source transactions for Salary" }))
+    await waitFor(() => expect(screen.getByText("January payroll")).toBeInTheDocument())
+  })
+
   it("AC16.14.6 supports selecting and clearing tags", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
