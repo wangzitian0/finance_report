@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementsPage from "@/app/(main)/upload/page"
 import { apiFetch } from "@/lib/api"
+import type { BankStatement } from "@/lib/types"
 
 const showToastMock = vi.fn()
 
@@ -13,6 +14,12 @@ vi.mock("next/link", () => ({
       {children}
     </a>
   ),
+}))
+
+const routerPushMock = vi.fn()
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPushMock }),
 }))
 
 vi.mock("@/components/statements/StatementUploader", () => ({
@@ -82,6 +89,113 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(screen.getByText("No statements uploaded yet")).toBeInTheDocument())
     fireEvent.click(screen.getByText("UploadMock"))
     await waitFor(() => expect(screen.getByText("stmt.pdf")).toBeInTheDocument())
+  })
+
+  it("AC22.5.x surfaces a parsed statement as ready-to-review with a direct review deep-link", async () => {
+    routerPushMock.mockClear()
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "s9",
+          original_filename: "ready.pdf",
+          institution: "DBS",
+          status: "parsed",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          currency: "SGD",
+          confidence_score: 90,
+          transactions: [],
+          opening_balance: 100,
+          closing_balance: 200,
+          balance_validated: true,
+          validation_error: null,
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("ready.pdf")).toBeInTheDocument())
+    // Plain-language status, not the raw "parsed" word.
+    expect(screen.getByText("Ready to review")).toBeInTheDocument()
+    expect(screen.queryByText("parsed")).toBeNull()
+
+    // Direct deep-link into the review page, skipping the detail-page hop.
+    fireEvent.click(screen.getByRole("button", { name: /Review/i }))
+    expect(routerPushMock).toHaveBeenCalledWith("/statements/s9/review")
+  })
+
+  it("AC22.5.x maps every status to a plain-language label (no raw 'uploaded')", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "s10",
+          original_filename: "fresh.pdf",
+          institution: "DBS",
+          status: "uploaded",
+          period_start: null,
+          period_end: null,
+          currency: "SGD",
+          confidence_score: null,
+          transactions: [],
+          opening_balance: null,
+          closing_balance: null,
+          balance_validated: null,
+          validation_error: null,
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("fresh.pdf")).toBeInTheDocument())
+    expect(screen.getByText("Uploaded")).toBeInTheDocument()
+    expect(screen.queryByText("uploaded")).toBeNull()
+  })
+
+  it("AC22.5.x labels rejected statements and falls back gracefully for unknown statuses", async () => {
+    mockedApiFetch.mockResolvedValueOnce({
+      items: [
+        {
+          id: "s11",
+          original_filename: "rejected.pdf",
+          institution: "DBS",
+          status: "rejected",
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          currency: "SGD",
+          confidence_score: 40,
+          transactions: [],
+          opening_balance: 0,
+          closing_balance: 0,
+          balance_validated: false,
+          validation_error: "Could not read totals",
+        },
+        {
+          id: "s12",
+          original_filename: "weird.pdf",
+          institution: "DBS",
+          // Defensive: a status outside the known union still renders, unstyled.
+          status: "frobnicating" as unknown as BankStatement["status"],
+          period_start: "2026-01-01",
+          period_end: "2026-01-31",
+          currency: "SGD",
+          confidence_score: 50,
+          transactions: [],
+          opening_balance: 0,
+          closing_balance: 0,
+          balance_validated: null,
+          validation_error: null,
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("rejected.pdf")).toBeInTheDocument())
+    expect(screen.getByText("Rejected")).toBeInTheDocument()
+    // Unknown status degrades to its raw value rather than crashing.
+    expect(screen.getByText("frobnicating")).toBeInTheDocument()
   })
 
   it("AC16.14.11 enables polling when parsing statements exist", async () => {

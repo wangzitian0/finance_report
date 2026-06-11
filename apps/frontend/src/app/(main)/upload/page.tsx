@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
 import StatementUploader from "@/components/statements/StatementUploader";
@@ -10,12 +11,33 @@ import { InfoHint } from "@/components/ui/InfoHint";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
+import type { BadgeVariant } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/currency";
 
+// Plain-language status for everyday users. "parsed" means the AI finished and
+// it is the user's turn to review — surface that as an action, not a warning.
+function statusDisplay(status: string): { label: string; variant: BadgeVariant } {
+    switch (status) {
+        case "approved":
+            return { label: "Approved", variant: "success" };
+        case "rejected":
+            return { label: "Rejected", variant: "error" };
+        case "parsed":
+            return { label: "Ready to review", variant: "info" };
+        case "parsing":
+            return { label: "Parsing", variant: "muted" };
+        case "uploaded":
+            return { label: "Uploaded", variant: "muted" };
+        default:
+            return { label: status, variant: "muted" };
+    }
+}
+
 export default function UploadPage() {
     const { showToast } = useToast();
+    const router = useRouter();
     const [statements, setStatements] = useState<BankStatement[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -158,24 +180,27 @@ export default function UploadPage() {
                 ) : (
                     <div className="divide-y divide-[var(--border)]">
                         {statements.map((statement) => (
-                            <Link
+                            <div
                                 key={statement.id}
-                                href={`/statements/${statement.id}`}
-                                className="block px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
+                                className="relative block px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors"
                             >
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="font-medium truncate">{statement.original_filename}</span>
-                                            <Badge variant={statement.status === "approved" ? "success" :
-                                                statement.status === "rejected" ? "error" :
-                                                    statement.status === "parsed" ? "warning" :
-                                                        "muted"
-                                            }>
+                                            {/* Stretched link: makes the whole row open the detail page while
+                                                keeping the action buttons as non-nested, separately clickable
+                                                elements (valid HTML, no <button> inside <a>). */}
+                                            <Link
+                                                href={`/statements/${statement.id}`}
+                                                className="font-medium truncate hover:text-[var(--accent)] after:absolute after:inset-0"
+                                            >
+                                                {statement.original_filename}
+                                            </Link>
+                                            <Badge variant={statusDisplay(statement.status).variant}>
                                                 {statement.status === "parsing" && (
                                                     <span className="inline-block w-3 h-3 mr-1 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                                 )}
-                                                {statement.status}
+                                                {statusDisplay(statement.status).label}
                                             </Badge>
                                         </div>
                                         {statement.status === "rejected" && statement.validation_error && (
@@ -191,7 +216,16 @@ export default function UploadPage() {
                                             <span>{formatCurrency(statement.currency)}</span>
                                         </div>
                                     </div>
-                                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-2">
+                                    <div className="relative z-10 text-right flex-shrink-0 flex flex-col items-end gap-2">
+                                        {statement.status === "parsed" && (
+                                            <Button
+                                                variant="primary"
+                                                className="text-sm"
+                                                onClick={() => router.push(`/statements/${statement.id}/review`)}
+                                            >
+                                                Review →
+                                            </Button>
+                                        )}
                                         <IconButton
                                             icon={Trash2}
                                             label="Delete Statement"
@@ -225,13 +259,13 @@ export default function UploadPage() {
                                     ) : statement.balance_validated ? (
                                         <Badge variant="success">✓ Verified</Badge>
                                     ) : (
-                                        <span className="inline-flex items-center">
+                                        <span className="relative z-10 inline-flex items-center">
                                             <Badge variant="warning">Needs Review</Badge>
                                             <InfoHint term="needs_review" label="Needs review" />
                                         </span>
                                     )}
                                 </div>
-                            </Link>
+                            </div>
                         ))}
                     </div>
                 )}

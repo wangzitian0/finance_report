@@ -548,7 +548,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
     <section className="space-y-4" aria-label="Upload-to-report home">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
         <div className="card p-5">
-          <p className="text-xs uppercase tracking-wide text-muted">Upload Pipeline</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Your statements</p>
           <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold">{activeSession?.title ?? "Upload to report"}</h1>
