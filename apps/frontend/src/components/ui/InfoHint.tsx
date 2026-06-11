@@ -42,11 +42,13 @@ export function InfoHint({ term, label, className }: InfoHintProps) {
             >
                 i
             </span>
-            {/* Visible on hover and keyboard focus so sighted keyboard users get
-                the explanation too; aria-label still serves screen readers. */}
+            {/* Shown on hover and keyboard focus so sighted keyboard users get
+                the explanation too; aria-label still serves screen readers.
+                Hidden (display:none) at rest so it never contributes to page
+                overflow on narrow viewports. */}
             <span
                 role="tooltip"
-                className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 w-56 -translate-x-1/2 rounded-md border border-[var(--border)] bg-[var(--background-card)] p-2 text-xs font-normal normal-case leading-snug text-[var(--foreground)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-56 max-w-[90vw] -translate-x-1/2 rounded-md border border-[var(--border)] bg-[var(--background-card)] p-2 text-xs font-normal normal-case leading-snug text-[var(--foreground)] shadow-md group-hover:block group-focus-within:block"
             >
                 {text}
             </span>
