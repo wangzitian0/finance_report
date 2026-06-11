@@ -98,6 +98,55 @@ async def test_get_reconciliation_stats_basic(db):
     assert stats.score_distribution is None
 
 
+async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db):
+    """Two accepted matches on the same atomic txn count as one matched txn.
+
+    ``matched`` counts DISTINCT atomic transactions, so multiple active accepted
+    matches on a single transaction must not inflate the count or push
+    ``match_rate`` above 100%.
+    """
+    user_id = uuid4()
+    account = Account(
+        user_id=user_id,
+        name="Test Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+
+    txn = _make_atomic(user_id, txn_date=date(2024, 1, 15), description="Salary", amount=Decimal("5000"))
+    db.add(txn)
+    await db.flush()
+
+    # Two active accepted matches on the SAME atomic transaction.
+    match_a = ReconciliationMatch(
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[str(uuid4())],
+        match_score=95,
+        score_breakdown={"amount": 100.0, "date": 100.0},
+        status=ReconciliationStatus.ACCEPTED,
+    )
+    match_b = ReconciliationMatch(
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[str(uuid4())],
+        match_score=91,
+        score_breakdown={"amount": 100.0, "date": 90.0},
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+    )
+    db.add_all([match_a, match_b])
+    await db.flush()
+
+    stats = await get_reconciliation_stats(db, user_id, include_distribution=False)
+
+    assert stats.total_transactions == 1
+    # Two accepted matches on one txn => counted once.
+    assert stats.matched_transactions == 1
+    assert stats.unmatched_transactions == 0
+    assert stats.match_rate == pytest.approx(100.0)
+    assert stats.match_rate <= 100.0
+
+
 async def test_get_reconciliation_stats_zero_division(db):
     """Test that zero division is handled when there are no transactions."""
     user_id = uuid4()

@@ -100,6 +100,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/reviewPages.test.tsx` | `docs/ssot/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/reviewQueuePage.actions.test.tsx` | `docs/ssot/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/reviewQueuePage.coverage.test.tsx` | `docs/ssot/confirmation-workflow.md` |
+| `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx` | `docs/ssot/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/sheetAndDetailDialogComponents.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/theme.coverage.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/types.test.ts` | `docs/ssot/frontend-patterns.md` |

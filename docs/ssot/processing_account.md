@@ -148,7 +148,7 @@ JournalEntry(
     entry_date=date(2026, 1, 1),
     memo="Transfer OUT to Bank B",
     source_type="bank_statement",
-    source_id=bank_txn_id,
+    source_id=atomic_txn_id,
     status="posted",
     lines=[
         JournalLine(account=processing, direction="DEBIT", amount=10000),  # Processing +10k
@@ -164,7 +164,7 @@ JournalEntry(
     entry_date=date(2026, 1, 3),
     memo="Transfer IN from Bank A",
     source_type="bank_statement",
-    source_id=bank_txn_id,
+    source_id=atomic_txn_id,
     status="posted",
     lines=[
         JournalLine(account=bank_b, direction="DEBIT", amount=10000),      # Bank B +10k
@@ -220,11 +220,14 @@ JournalEntry(
 
 ```python
 def reconcile_with_transfer_detection(
-    statement: BankStatement,
-    transactions: list[BankStatementTransaction]
+    summary: StatementSummary,
+    transactions: list[AtomicTransaction]
 ) -> list[ReconciliationMatch]:
     matches = []
-    
+
+    # Custody account is resolved from DWD (statement_summaries), not from ODS.
+    custody_account_id = resolve_custody_account_id(summary)
+
     for txn in transactions:
         # 1. Try normal reconciliation first
         journal_matches = find_journal_entry_candidates(txn)
@@ -240,14 +243,14 @@ def reconcile_with_transfer_detection(
                 # Create outgoing transfer entry
                 entry = create_transfer_out_entry(
                     txn, 
-                    source_account=statement.account_id,
+                    source_account=custody_account_id,
                     processing_account=processing_account
                 )
             else:  # direction == "IN"
                 # Create incoming transfer entry
                 entry = create_transfer_in_entry(
                     txn,
-                    dest_account=statement.account_id,
+                    dest_account=custody_account_id,
                     processing_account=processing_account
                 )
             
@@ -255,7 +258,7 @@ def reconcile_with_transfer_detection(
     
     return matches
 
-def is_transfer_pattern(txn: BankStatementTransaction) -> bool:
+def is_transfer_pattern(txn: AtomicTransaction) -> bool:
     keywords = ["transfer", "payment to", "fund transfer", "withdrawal", 
                 "paynow", "fast", "giro"]
     description_lower = txn.description.lower()
@@ -267,14 +270,18 @@ def is_transfer_pattern(txn: BankStatementTransaction) -> bool:
 **Query for Unpaired Transfers**:
 
 ```sql
--- Find non-zero Processing balance entries
+-- Find non-zero Processing balance entries.
+-- The source transaction is an AtomicTransaction (DWD); atomic rows carry no
+-- per-transaction status, so reconciliation state is read from the
+-- reconciliation_matches envelope keyed on atomic_txn_id.
 SELECT 
     je.entry_date,
     je.memo,
     jl.direction,
     jl.amount,
     je.source_id,
-    (SELECT status FROM bank_statement_transactions WHERE id = je.source_id) as txn_status
+    (SELECT status FROM reconciliation_matches WHERE atomic_txn_id = je.source_id
+       ORDER BY version DESC LIMIT 1) as match_status
 FROM journal_entries je
 JOIN journal_lines jl ON je.id = jl.journal_entry_id
 JOIN accounts a ON jl.account_id = a.id

@@ -430,7 +430,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 | AC ID | Description | Test Function | File | Priority |
 |-------|-------------|---------------|------|----------|
-| AC16.26.1 | Stage 1 statement review uses editable transaction cards on phone widths, with save, discard, approve, and reject actions visible without horizontal dragging | `AC16.26.1 stage 1 mobile review exposes editable transaction cards and completion actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC16.26.1 | Stage 1 statement review shows read-only transaction cards on phone widths (inline editing was removed in EPIC-011 Stage 3; correct a mis-parse via reject + re-parse), with approve and reject actions visible without horizontal dragging | `AC16.26.1 stage 1 mobile review exposes read-only transaction cards and completion actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 | AC16.26.2 | Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible without horizontal dragging | `AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch actions` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 | AC16.26.3 | Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without document-level horizontal scrolling | `AC16.26.3 stage 2 run review preserves mobile approval gate and match workflow` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 
@@ -542,7 +542,7 @@ the shared UI-system contract.
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 
 - [x] **AC16.11.32** Vitest harness for Stage 1 split components — shared `renderReviewComponent()` helper in `apps/frontend/src/__tests__/helpers/`
-- [x] **AC16.11.33** Playwright smoke covers inline-edit happy path on Stage 1 (open review → edit amount → save → assert persisted)
+- ~~Playwright smoke covers inline-edit happy path on Stage 1~~ — **retired**: inline transaction editing was removed in EPIC-011 Stage 3 (parsed transactions are immutable; the correction path is reject + re-parse), so the inline-edit acceptance criterion and its Playwright smoke are removed.
 
 ### Acceptance Criteria — Infra (group 13, conflict resolution backend contract)
 

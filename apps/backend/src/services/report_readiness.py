@@ -362,9 +362,15 @@ async def get_personal_report_package_readiness(
     report_as_of = as_of_date or report_period_end or date.today()
     report_end = report_period_end or report_as_of
     report_start = report_period_start or report_end - timedelta(days=365)
+    # Only confirmed summaries should drive report inputs and source-trust
+    # classes. UPLOADED/PARSING summaries are in-flight and half-populated;
+    # counting them inflates report inputs and source classes.
     statement_count = await _count(
         db,
-        select(func.count(StatementSummary.id)).where(StatementSummary.user_id == user_id),
+        select(func.count(StatementSummary.id)).where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status.in_([BankStatementStatus.PARSED, BankStatementStatus.APPROVED]),
+        ),
     )
     active_account_count = await _count(
         db,

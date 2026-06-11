@@ -32,7 +32,7 @@ describe("StatementReviewPage - coverage additions", () => {
         expect(await screen.findByRole("link", { name: /Back to Statements/i })).toBeInTheDocument();
     });
 
-    it("AC16.11.33 handles inline edit flow with explicit approve-edits confirmation", async () => {
+    it("renders parsed transactions read-only with no inline-edit or approve-edits affordance", async () => {
         const stmt = {
             id: "s1",
             original_filename: "file.pdf",
@@ -56,57 +56,27 @@ describe("StatementReviewPage - coverage additions", () => {
             if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
             if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
             if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
-            if (path === "/api/statements/s1/review/edit") return Promise.resolve({ journal_entries_created: 2 });
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
         renderReviewComponent(<StatementReviewPage /> as any);
 
-        // wait for approve button enabled
+        // wait for approve button enabled (as-is parse approval still exists)
         const approveBtn = await screen.findByRole("button", { name: /Approve/ });
         expect(approveBtn).toBeEnabled();
 
-        // begin edit by clicking description cell
+        // Transactions render as static text; clicking does not open any inline editor.
         const desktopRegion = await screen.findByTestId("stage1-desktop-transaction-region");
         const desktopTransactions = within(desktopRegion);
-        const desc = desktopTransactions.getByText("Lunch");
-        fireEvent.click(desc);
-
-        const input = desktopTransactions.getByDisplayValue("Lunch");
-        fireEvent.change(input, { target: { value: "Lunch at cafe" } });
-        // blur to end edit
-        fireEvent.blur(input);
-
-        // Approve edits button should appear because the endpoint validates, approves, and posts.
-        const saveBtn = await screen.findByRole("button", { name: /Approve Edits/i });
-        expect(saveBtn).toBeInTheDocument();
-        const discardBtn = await screen.findByRole("button", { name: /Discard/i });
-        fireEvent.click(discardBtn);
-
         fireEvent.click(desktopTransactions.getByText("Lunch"));
-        const secondInput = desktopTransactions.getByDisplayValue("Lunch");
-        fireEvent.change(secondInput, { target: { value: "Lunch at cafe" } });
-        fireEvent.blur(secondInput);
+        expect(desktopTransactions.queryByDisplayValue("Lunch")).toBeNull();
 
-        fireEvent.click(await screen.findByRole("button", { name: /Approve Edits/i }));
+        // The dead "Approve Edits" path must be gone.
+        expect(screen.queryByRole("button", { name: /Approve Edits/i })).toBeNull();
+        expect(screen.queryByRole("button", { name: /Discard/i })).toBeNull();
 
-        const approveEditsDialog = await screen.findByRole("dialog", { name: "Approve Edited Statement" });
-        expect(
-            within(approveEditsDialog).getByText(/save these edits, validate the balance chain, approve the statement, and post journal entries/i)
-        ).toBeInTheDocument();
-        fireEvent.click(within(approveEditsDialog).getByRole("button", { name: "Approve Edits" }));
-
-        // edit API should have been called (third api call)
-        await (async () => {
-            // wait for api to be called with edit endpoint
-            const max = 20;
-            for (let i = 0; i < max; i++) {
-                if (mockedApi.mock.calls.some(c => String(c[0]).includes("/review/edit"))) return;
-                await new Promise(r => setTimeout(r, 50));
-            }
-            // final assertion
-            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("/review/edit"))).toBe(true);
-        })();
+        // The edit endpoint must never be called.
+        expect(mockedApi.mock.calls.some((c) => String(c[0]).includes("/review/edit"))).toBe(false);
     });
 
     it("opens conflict dialog when duplicate/transfer candidates present", async () => {
@@ -222,48 +192,6 @@ describe("StatementReviewPage - coverage additions", () => {
             }
             expect(mockedApi.mock.calls.some(c => String(c[0]).includes("/review/reject"))).toBe(true);
         })();
-    });
-
-    it("test_AC8_13_48 surfaces failed inline edit saves", async () => {
-        const stmt = {
-            id: "s1",
-            original_filename: "file.pdf",
-            institution: "BankX",
-            currency: "SGD",
-            period_start: "2024-01-01",
-            period_end: "2024-01-31",
-            opening_balance: 100,
-            closing_balance: 200,
-            status: "pending",
-            stage1_status: null,
-            balance_validation_result: { opening_match: true, closing_match: true, calculated_closing: "200" },
-            pdf_url: null,
-            transactions: [
-                { id: "t1", txn_date: "2024-01-02", description: "Lunch", amount: 12.5, direction: "OUT", currency: "SGD", confidence: "medium" },
-            ],
-        };
-
-        mockedApi.mockImplementation((path: string) => {
-            if (path === "/api/statements/s1/review") return Promise.resolve(stmt as any);
-            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
-            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
-            if (path === "/api/statements/s1/review/edit") return Promise.reject(new Error("edit failed"));
-            return Promise.reject(new Error(`Unexpected path ${path}`));
-        });
-
-        renderReviewComponent(<StatementReviewPage /> as any);
-
-        const desktopRegion = await screen.findByTestId("stage1-desktop-transaction-region");
-        const desktopTransactions = within(desktopRegion);
-        fireEvent.click(desktopTransactions.getByText("Lunch"));
-        fireEvent.change(desktopTransactions.getByDisplayValue("Lunch"), { target: { value: "Lunch at cafe" } });
-        fireEvent.blur(desktopTransactions.getByDisplayValue("Lunch at cafe"));
-        fireEvent.click(await screen.findByRole("button", { name: /Approve Edits/i }));
-        const approveEditsDialog = await screen.findByRole("dialog", { name: "Approve Edited Statement" });
-        fireEvent.click(within(approveEditsDialog).getByRole("button", { name: "Approve Edits" }));
-
-        expect(await screen.findByText("edit failed")).toBeInTheDocument();
-        expect(mockedApi.mock.calls.some((call) => String(call[0]).includes("/review/edit"))).toBe(true);
     });
 
     it("test_AC8_13_48 surfaces approve and reject mutation failures", async () => {

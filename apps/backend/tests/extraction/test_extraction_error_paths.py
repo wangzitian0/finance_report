@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from src.models.statement_enums import BankStatementStatus
-from src.schemas.extraction import ConfidenceLevelEnum
 from src.services.deduplication import dual_write_layer2
 from src.services.extraction import ExtractionError, ExtractionService
 from tests.factories import StatementSummaryFactory
@@ -530,17 +529,6 @@ def test_safe_decimal_invalid():
     assert service._safe_decimal(None) is None
     with pytest.raises(ValueError, match="Decimal value is required"):
         service._safe_decimal(None, required=True)
-
-
-def test_compute_event_confidence_missing_fields():
-    service = ExtractionService()
-    # Missing 'direction'
-    txn = {"date": "2023-01-01", "description": "test", "amount": "10.00"}
-    assert service._compute_event_confidence(txn) == ConfidenceLevelEnum.LOW
-
-    # Invalid date format
-    txn = {"date": "bad", "description": "test", "amount": "10.00", "direction": "IN"}
-    assert service._compute_event_confidence(txn) == ConfidenceLevelEnum.LOW
 
 
 def test_validate_external_url_invalid_cases():
@@ -1296,6 +1284,12 @@ async def test_parse_document_csv_no_institution():
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
     """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
     db = AsyncMock()
+    # No pre-existing UploadedDocument for (user_id, file_hash), so dual_write takes the
+    # create branch; a concurrent race then makes create_uploaded_document raise
+    # IntegrityError, which must be swallowed without failing ingestion.
+    no_existing = MagicMock()
+    no_existing.scalar_one_or_none.return_value = None
+    db.execute.return_value = no_existing
     with patch("src.services.deduplication.DeduplicationService") as mock_dedup_cls:
         mock_dedup = mock_dedup_cls.return_value
         mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))

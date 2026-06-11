@@ -469,6 +469,30 @@ async def create_entry_from_txn(
     db.add(entry)
     await db.flush()
     await db.refresh(entry, ["lines"])
+
+    # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
+    # --contains--> JournalLine). Imported lazily to avoid an import cycle.
+    # Best-effort: provenance must never break journal posting.
+    try:
+        from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
+
+        await EvidenceGraphIntegrationService().record_journal_posting(
+            db,
+            user_id=user_id,
+            atomic_transaction=txn,
+            journal_entry=entry,
+        )
+    except Exception as evidence_exc:
+        logger.warning(
+            "Evidence-graph journal-posting lineage failed (posting continues)",
+            extra={
+                "error": str(evidence_exc),
+                "error_type": type(evidence_exc).__name__,
+                "user_id": str(user_id),
+                "journal_entry_id": str(entry.id),
+            },
+        )
+
     return entry
 
 

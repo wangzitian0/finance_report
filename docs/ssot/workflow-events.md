@@ -45,7 +45,7 @@ They are intentionally separate from:
 
 - `JournalAuditLog`, which is audit proof for journal mutations.
 - `JournalLine.event_type`, which is accounting metadata.
-- `BankStatement.status` and `BankStatement.stage1_status`, which are
+- `StatementSummary.status` and `StatementSummary.stage1_status`, which are
   statement processing and Stage 1 review state.
 - `ReconciliationMatch.status`, which is Stage 2 matching state.
 - Report package traceability, which proves report line support.
@@ -429,7 +429,7 @@ Rules:
 
 ## 12. Initial Derivation
 
-The first implementation derives `source.uploaded` from `BankStatement` upload
+The first implementation derives `source.uploaded` from `StatementSummary` upload
 state. Workflow status and event reads run this deterministic sync before
 returning data. Repeated reads must not duplicate events or reset read/archive
 lifecycle state. The synthetic active `WorkflowSession` creation path is

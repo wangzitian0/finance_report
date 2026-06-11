@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -163,7 +164,10 @@ class StorageService:
         self._ensure_bucket()
         try:
             response = self.client.get_object(Bucket=self.bucket, Key=key)
-            return response["Body"].read()
+            # Close the StreamingBody even if .read() fails mid-stream to avoid
+            # leaking connection-pool slots (the reparse path routes through here).
+            with contextlib.closing(response["Body"]) as body:
+                return body.read()
         except (BotoCoreError, ClientError) as exc:
             logger.error("Failed to download from S3", bucket=self.bucket, key=key, error=str(exc))
             raise StorageError(f"Failed to download {key} from {self.bucket}") from exc

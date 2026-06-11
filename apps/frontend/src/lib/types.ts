@@ -105,7 +105,6 @@ export interface BankStatement {
   closing_balance?: MoneyValue | null;
   status: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
   confidence_score?: number | null;
-  parsing_progress?: number | null;
   balance_validated?: boolean | null;
   validation_error?: string | null;
   created_at: string;

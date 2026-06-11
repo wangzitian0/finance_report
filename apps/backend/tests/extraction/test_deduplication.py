@@ -97,6 +97,40 @@ class TestDeduplicationService:
         )
         # Scale differences are canonicalized: amount/balance differing only in scale hash identically.
         assert _hash(Decimal("950")) == _hash(Decimal("950.00")) == _hash(Decimal("950.000"))
+
+    def test_occurrence_index_distinguishes_balanceless_repeats(self):
+        """AC11.16.2: without a running balance, the per-document occurrence ordinal keeps
+        genuinely-repeated identical rows distinct (recall first), while the first occurrence
+        is unchanged and the running-balance path ignores the ordinal."""
+        service = DeduplicationService()
+        user_id = uuid4()
+        txn_date = date(2024, 1, 1)
+        amount = Decimal("5.00")
+        direction = TransactionDirection.OUT
+        description = "Coffee"
+
+        def _hash(*, occurrence_index=0, balance_after=None):
+            return service.calculate_transaction_hash(
+                user_id,
+                txn_date,
+                amount,
+                direction,
+                description,
+                reference=None,
+                balance_after=balance_after,
+                occurrence_index=occurrence_index,
+            )
+
+        # Two identical balance-less rows in one document -> distinct (two real coffees).
+        assert _hash(occurrence_index=0) != _hash(occurrence_index=1)
+        # First occurrence is the default; back-compat with the no-arg hash.
+        assert _hash(occurrence_index=0) == service.calculate_transaction_hash(
+            user_id, txn_date, amount, direction, description, reference=None
+        )
+        # When a running balance is present it is the disambiguator; the ordinal is ignored.
+        assert _hash(occurrence_index=0, balance_after=Decimal("100.00")) == _hash(
+            occurrence_index=7, balance_after=Decimal("100.00")
+        )
         assert service.calculate_transaction_hash(
             user_id, txn_date, Decimal("50"), direction, description
         ) == service.calculate_transaction_hash(user_id, txn_date, Decimal("50.00"), direction, description)
