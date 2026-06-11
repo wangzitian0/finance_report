@@ -107,6 +107,12 @@ def _source(report: dict[str, object], system: str) -> dict[str, object]:
     return matched[0]
 
 
+def _assert_file_mentions(path: str, expected: list[str]) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8")
+    for marker in expected:
+        assert marker in text, f"{path} must mention {marker}"
+
+
 def test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes(
     tmp_path: Path,
 ) -> None:
@@ -871,3 +877,64 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
         "docs/ssot/ac-score-baseline.json"
     )
     assert concepts["ac_score_ratchet_baseline"]["parent"] == "tdd_workflow"
+
+
+def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() -> None:
+    """AC14.1.15: #824 migrates machine-owned FR SSOT entries by example."""
+
+    report = governance_report.build_report(ROOT, include_infra2=False)
+    finance = _source(report, "finance_report")
+
+    assert report["overall"]["errors"] == []
+    assert finance["errors"] == []
+    assert finance["entry_count"] > 0
+    assert finance["machine_owner_entries"]["missing_proof"] == []
+    machine_candidate = next(
+        candidate
+        for candidate in finance["future_gate_candidates"]
+        if candidate["code"] == "machine_owner_entries_missing_proof"
+    )
+    assert machine_candidate["count"] == 0
+
+    manifest = yaml.safe_load(
+        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+    )
+    concepts = manifest["concepts"]
+
+    assert concepts["extraction_failed_case_registry"]["family"] == "extraction"
+    assert concepts["extraction_failed_case_registry"]["kind"] == "registry"
+    assert concepts["extraction_failed_case_registry"]["proofs"] == [
+        "tests/tooling/test_extraction_failed_case_registry.py",
+    ]
+    assert concepts["source_coverage_matrix"]["family"] == "source"
+    assert concepts["source_coverage_matrix"]["kind"] == "matrix"
+    assert concepts["source_coverage_matrix"]["proofs"] == [
+        "tests/tooling/test_source_coverage_matrix.py",
+        "tools/check_source_coverage_matrix.py",
+    ]
+
+    inbound_refs = {
+        "docs/ssot/README.md": [
+            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
+        ],
+        "docs/ssot/extraction.md": [
+            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
+        ],
+        "docs/project/EPIC-003.statement-parsing.md": [
+            "[`extraction_failed_case_registry`](../ssot/extraction-audit-failed-cases.yaml)",
+        ],
+        "docs/project/EPIC-013.statement-parsing-v2.md": [
+            "[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml)",
+        ],
+        "vision.md": [
+            "[`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml)",
+        ],
+        "docs/ssot/tdd.md": [
+            "[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml)",
+            "[`source_coverage_matrix`](./source-coverage-matrix.yaml)",
+        ],
+    }
+    for path, markers in inbound_refs.items():
+        _assert_file_mentions(path, markers)

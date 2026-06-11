@@ -206,6 +206,9 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 
 ### AC13.12: Source Coverage Matrix
 
+The authoritative source-class registry is
+[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml).
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC13.12.1 | Source coverage matrix covers every source class named by vision.md with owner EPICs, proof levels, ingestion path, review requirement, traceability target, and test anchors | `test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes`, `test_AC13_12_1_source_coverage_matrix_rejects_non_list_required_classes_and_proof_levels` | `tests/tooling/test_source_coverage_matrix.py` | P0 |

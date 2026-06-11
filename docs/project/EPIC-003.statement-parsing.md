@@ -242,7 +242,8 @@ or HK-like report classification, measurement, presentation, or disclosure.
 Audit-failed parsing cases are not parser expansion requirements by default.
 LLM/OCR remains the polymorphic extraction layer. Cases that fail schema,
 balance, confidence, account-mapping, provider-shape, or user-review audit are
-tracked in [extraction-audit-failed-cases.yaml](../ssot/extraction-audit-failed-cases.yaml)
+tracked in
+[`extraction_failed_case_registry`](../ssot/extraction-audit-failed-cases.yaml)
 with sanitized evidence only; follow-up work may tune prompts, models, review
 workflow, or parser rules after separate EPIC -> AC registration.
 

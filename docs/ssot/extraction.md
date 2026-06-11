@@ -21,6 +21,14 @@ portfolio valuation, ESOP schedule presentation, recurring accrual treatment,
 and report preparation is delegated to the owning SSOT documents and must not
 weaken extraction confidence or balance-validation rules.
 
+## Source Coverage Matrix
+
+Supported source classes, proof levels, review requirements, and traceability
+targets are owned by
+[`source_coverage_matrix`](./source-coverage-matrix.yaml). This document
+explains extraction behavior; source-class changes must land through the matrix
+and its EPIC -> AC -> test anchors.
+
 ## Data Flow
 
 ```mermaid
@@ -215,8 +223,8 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 LLM/OCR is the polymorphic extraction layer for statement formats. The system
 does not expand deterministic parser rules just because one provider output or
 source layout fails audit. Instead, failed cases are captured in
-[`extraction-audit-failed-cases.yaml`](./extraction-audit-failed-cases.yaml)
-with sanitized evidence and one of the approved failure categories:
+[`extraction_failed_case_registry`](./extraction-audit-failed-cases.yaml) with
+sanitized evidence and one of the approved failure categories:
 
 - `parse_schema_failure`
 - `balance_mismatch`

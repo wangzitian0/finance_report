@@ -126,14 +126,23 @@ concepts:
 
   extraction_failed_case_registry:
     owner: docs/ssot/extraction-audit-failed-cases.yaml
+    family: extraction
+    kind: registry
     description: Sanitized registry for parsing cases that fail audit without expanding deterministic parser scope.
+    proofs:
+      - tests/tooling/test_extraction_failed_case_registry.py
     cross_refs:
       - docs/ssot/extraction.md
       - docs/project/EPIC-003.statement-parsing.md
 
   source_coverage_matrix:
     owner: docs/ssot/source-coverage-matrix.yaml
+    family: source
+    kind: matrix
     description: Machine-readable source-class coverage, proof level, review requirement, and traceability target registry.
+    proofs:
+      - tests/tooling/test_source_coverage_matrix.py
+      - tools/check_source_coverage_matrix.py
     cross_refs:
       - vision.md
       - docs/ssot/extraction.md
