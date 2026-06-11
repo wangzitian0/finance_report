@@ -875,7 +875,7 @@ async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atom
     disposed = ManagedPosition(
         user_id=test_user.id,
         account_id=account.id,
-        asset_identifier="AAPL",
+        asset_identifier="MSFT",
         quantity=Decimal("50"),
         cost_basis=Decimal("5000.00"),
         currency="SGD",
