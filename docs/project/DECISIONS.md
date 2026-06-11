@@ -283,8 +283,8 @@ Adjusted based on decision complexity:
 **Rationale**:
 - `README.md` is the project fact entry point for EPIC status, proof metrics,
   blocker links, and generated-report links.
-- `vision.md` is a decision filter for ambiguous direction and should not own
-  implementation status.
+- `vision.md` owns the product's north-star goal, culture, and decision filters
+  for ambiguous direction; it does not own implementation status.
 - EPIC documents own scope and AC definitions.
 - AC registries are generated from EPIC documents.
 - Tests and generated reports are the proof layer.

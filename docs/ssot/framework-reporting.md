@@ -6,9 +6,9 @@
 
 ---
 
-## 1. Objective
+## 1. Policy Scope
 
-The product goal is:
+This framework policy governs the path:
 
 ```text
 Upload all settlement evidence -> choose US-like or HK-like framework ->

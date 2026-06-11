@@ -27,7 +27,8 @@ README -> EPIC -> AC -> test
 - **Tests** are the proof. A referenced AC is not enough; behavior must be
   asserted by real tests.
 
-`vision.md` is intentionally different. It is a decision filter for ambiguous
+`vision.md` is intentionally different. It owns the product's north-star goal
+and culture — the axioms, trade-off rules, and decision filter for ambiguous
 product and architecture choices. It guides endless iteration, but it does not
 own implementation status.
 
@@ -39,7 +40,7 @@ from project intent to executable proof without reading archive fragments.
 | Layer | Owner | What It Shows | Proof / Guard |
 |---|---|---|---|
 | Project entry | `README.md` | EPIC map, tracker entry points, and proof commands | `tools/check_ac_traceability.py` |
-| Decision filter | `vision.md` | Direction for ambiguous product and architecture choices | Referenced by EPIC vision anchors |
+| Goal & culture | `vision.md` | North-star goal, axioms, trade-off rules, and direction for ambiguous choices | Referenced by EPIC vision anchors |
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
 | EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
 | AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, `docs/ac_registry_overrides.yaml` | Generated acceptance criteria inventory and explicit non-derived overrides | `tools/generate_ac_registry.py --check` |
