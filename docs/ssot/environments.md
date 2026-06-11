@@ -75,10 +75,22 @@ before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 - Runtime, test, script, CI, dependency, and coverage-policy changes run the full backend/frontend/unified coverage gate.
 - Lightweight documentation, markdown, issue-template, and `.github/workflows/docs.yml` changes skip the heavy backend/frontend/coverage jobs while still running lint, SSOT checks, AC traceability, and the final aggregate check.
 
-**PR Preview** — Opt-in full deployment for on-demand inspection:
+PR validation is split into two independent things (issue #839):
+
+**In-runner E2E** — the per-PR validation gate:
+- Runs on every runtime-relevant PR (the `e2e` job in `pr-test.yml`).
+- Stands up the full stack **inside the GitHub runner** via
+  `docker compose up --build` (base compose + `docker-compose.ci-e2e.yml`,
+  which adds an nginx single-origin edge), runs the non-LLM E2E against
+  `http://localhost:8080`, then **always tears the stack down**
+  (`docker compose down -v --remove-orphans`) so nothing leaks.
+- **Image-free**: builds locally and pushes nothing; no Dokploy, no shared
+  VPS, no SSL wait. This is what keeps E2E coverage cheap and fast.
+
+**PR Preview (Dokploy)** — opt-in human-inspection environment:
 - **Opt-in**: off by default; enable per-PR with the `preview` label or manual
   `workflow_dispatch`. Authoritative deployment validation is post-merge
-  (Staging), so most PRs do not need a per-commit preview. See issue #839.
+  (Staging); the preview is for clicking/manual testing, not a gate.
 - **Builds Docker images** from PR branch (only when opted in)
 - Deploys to Dokploy with unique URLs (`report-pr-123.zitian.party`)
 - **Ephemeral**: Destroyed when PR closes

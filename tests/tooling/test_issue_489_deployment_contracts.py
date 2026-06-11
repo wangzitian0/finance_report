@@ -374,3 +374,37 @@ def test_pr_preview_deploy_is_opt_in() -> None:
     env_doc = read("docs/ssot/environments.md")
     assert "Opt-in" in env_doc
     assert "`preview` label" in env_doc
+
+
+def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:
+    """Issue #839: full-stack E2E runs in-runner, image-free, and never leaks.
+
+    The ``e2e`` job is the per-PR validation gate: it runs on every
+    runtime-relevant PR (not gated behind the opt-in ``preview`` label), builds
+    and runs the stack locally (no image push, no Dokploy), and always tears the
+    stack down so no container / volume / network leaks.
+    """
+    workflow = load_yaml(".github/workflows/pr-test.yml")
+    e2e = workflow["jobs"]["e2e"]
+
+    # Runs by default on runtime PRs — NOT behind the opt-in preview label.
+    assert "pr_preview_required == 'true'" in e2e["if"]
+    assert "preview_opt_in" not in e2e["if"]
+
+    blob = yaml.safe_dump(e2e)
+    assert "docker compose up --build" in blob  # local build, not a registry push
+    assert "push: true" not in blob
+    assert "dokploy" not in blob.lower()
+
+    # Lifecycle guard: an always() teardown that removes volumes and orphans.
+    teardown = [
+        step
+        for step in e2e["steps"]
+        if "down --volumes --remove-orphans" in str(step.get("run", ""))
+    ]
+    assert teardown, "e2e job must tear the stack down"
+    assert "always()" in str(teardown[0].get("if", ""))
+
+    # The CI override + single-origin edge config exist.
+    assert (ROOT / "docker-compose.ci-e2e.yml").is_file()
+    assert (ROOT / "tools" / "ci" / "e2e-nginx.conf").is_file()
