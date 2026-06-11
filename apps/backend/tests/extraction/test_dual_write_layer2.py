@@ -78,38 +78,9 @@ class TestDualWriteLayer2:
         atomic_txns = result.scalars().all()
         assert len(atomic_txns) == 2
 
-    async def test_dual_write_can_be_disabled_via_flag(
-        self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
-    ):
-        """AC11.13.2: ENABLE_4_LAYER_WRITE=false preserves the legacy Layer-0-only opt-out."""
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", False)
-        service = ExtractionService()
-
-        with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_statement.pdf"),
-                institution="DBS",
-                user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=hashlib.sha256(sample_file_content).hexdigest(),
-                original_filename="test_statement.pdf",
-                db=db,
-            )
-
-        assert statement is not None
-        assert len(transactions) == 2
-
-        result = await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
-        assert len(result.scalars().all()) == 0
-
-        result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
-        assert len(result.scalars().all()) == 0
-
     async def test_dual_write_creates_layer1_document(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
-
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
@@ -138,7 +109,6 @@ class TestDualWriteLayer2:
         self, db, test_user, sample_file_content, monkeypatch
     ):
         """AC17.4.7: Brokerage dual-write keeps structured OCR positions available for import."""
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
 
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
@@ -182,8 +152,6 @@ class TestDualWriteLayer2:
     async def test_dual_write_creates_atomic_transactions(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
-
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
@@ -228,7 +196,6 @@ class TestDualWriteLayer2:
         self, db, test_user, sample_file_content, monkeypatch
     ):
         """AC18.8.1 AC18.8.2 AC18.8.7: Layer 1/2 dual-write records source->extracted->atomic lineage."""
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
         from src.models import BankStatement, BankStatementTransaction
@@ -296,8 +263,6 @@ class TestDualWriteLayer2:
     async def test_dual_write_deduplication_on_reupload(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
-
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
@@ -342,8 +307,6 @@ class TestDualWriteLayer2:
     async def test_dual_write_preserves_layer0_behavior(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
-
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
@@ -368,7 +331,6 @@ class TestDualWriteLayer2:
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
         """Test that dual-write failures (non-IntegrityError) raise RuntimeError."""
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
 
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
@@ -397,8 +359,6 @@ class TestDualWriteLayer2:
     async def test_dual_write_handles_missing_db_session(
         self, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
-
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
@@ -421,8 +381,6 @@ class TestDualWriteLayer2:
         from sqlalchemy.exc import IntegrityError
 
         from src.services.deduplication import dual_write_layer2
-
-        monkeypatch.setattr("src.config.settings.enable_4_layer_write", True)
 
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 

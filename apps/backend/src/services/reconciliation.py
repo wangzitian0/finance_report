@@ -32,7 +32,6 @@ from src.models import (
     JournalLine,
     ReconciliationMatch,
     ReconciliationStatus,
-    UploadedDocument,
 )
 from src.services.accounting import ValidationError, validate_journal_balance
 from src.services.processing_account import (
@@ -722,81 +721,6 @@ async def find_candidates(
     return result.scalars().all()
 
 
-async def _validate_layer_consistency(db: AsyncSession, statement_ids: set[UUID]) -> None:
-    """Phase 3: Validate consistency between Layer 0 and Layer 2 data.
-
-    Logs warnings if discrepancies are found between legacy BankStatementTransactions
-    and new AtomicTransactions. Skipped for statements processed before Phase 2.
-    """
-    if not statement_ids:
-        return
-
-    stmt_query = select(BankStatement).where(BankStatement.id.in_(statement_ids))
-    res = await db.execute(stmt_query)
-    statements = res.scalars().all()
-
-    for stmt in statements:
-        doc_query = select(UploadedDocument).where(
-            UploadedDocument.file_hash == stmt.file_hash,
-            UploadedDocument.user_id == stmt.user_id,
-        )
-        res = await db.execute(doc_query)
-        doc = res.scalar_one_or_none()
-
-        if not doc:
-            continue
-
-        l2_query = select(AtomicTransaction).where(
-            AtomicTransaction.user_id == stmt.user_id,
-            AtomicTransaction.source_documents.contains([{"doc_id": str(doc.id)}]),
-        )
-        res = await db.execute(l2_query)
-        l2_txns = res.scalars().all()
-
-        l0_query = select(BankStatementTransaction).where(BankStatementTransaction.statement_id == stmt.id)
-        res = await db.execute(l0_query)
-        l0_txns = res.scalars().all()
-
-        l0_count = len(l0_txns)
-        l2_count = len(l2_txns)
-
-        if l0_count != l2_count:
-            logger.warning(
-                "Layer 0/2 Count Mismatch (EPIC-011 Phase 3)",
-                extra={
-                    "statement_id": str(stmt.id),
-                    "file_hash": stmt.file_hash,
-                    "layer0_count": l0_count,
-                    "layer2_count": l2_count,
-                    "diff": l0_count - l2_count,
-                },
-            )
-
-        l0_total = sum((t.amount for t in l0_txns), Decimal("0.00"))
-        l2_total = sum((t.amount for t in l2_txns), Decimal("0.00"))
-
-        if l0_total != l2_total:
-            logger.warning(
-                "Layer 0/2 Amount Mismatch (EPIC-011 Phase 3)",
-                extra={
-                    "statement_id": str(stmt.id),
-                    "layer0_total": str(l0_total),
-                    "layer2_total": str(l2_total),
-                    "diff": str(abs(l0_total - l2_total)),
-                },
-            )
-
-        if l0_count == l2_count and l0_total == l2_total:
-            logger.info(
-                "Layer 0/2 Consistency Verified (EPIC-011 Phase 3)",
-                extra={
-                    "statement_id": str(stmt.id),
-                    "count": l0_count,
-                    "total": str(l0_total),
-                },
-            )
-
-
 async def _get_pending_layer2_transactions(
     db: AsyncSession, user_id: UUID, limit: int | None = None
 ) -> list[AtomicTransaction]:
@@ -1071,35 +995,12 @@ async def execute_matching(
     """Execute reconciliation matching for pending transactions."""
     config = load_reconciliation_config()
 
-    if settings.enable_4_layer_read:
-        transactions = await _get_pending_layer2_transactions(db, user_id, limit)
-    else:
-        query = (
-            select(BankStatementTransaction)
-            .join(BankStatement)
-            .where(BankStatementTransaction.status == BankStatementTransactionStatus.PENDING)
-            .where(BankStatement.user_id == user_id)
-        )
-
-        if statement_id:
-            statement_uuid = UUID(statement_id) if isinstance(statement_id, str) else statement_id
-            query = query.where(BankStatementTransaction.statement_id == statement_uuid)
-        if limit:
-            query = query.limit(limit)
-
-        result = await db.execute(query)
-        transactions = result.scalars().all()
+    # Read pending transactions from Layer 2 (atomic_transactions). ``statement_id``
+    # has no meaning on the atomic stream and is accepted only for caller compatibility.
+    transactions = await _get_pending_layer2_transactions(db, user_id, limit)
 
     if not transactions:
         return []
-
-    # Phase 3: Dual Read Validation (Only runs if NOT in Phase 4 Read mode)
-    # If we are in Phase 4, we ARE reading Layer 2.
-    # Dual read validation against Layer 0 is tricky because we don't have statement_ids easily.
-    # Let's disable Phase 3 validation if Phase 4 read is enabled, as we trust Layer 2.
-    if not settings.enable_4_layer_read:
-        stmt_ids = {txn.statement_id for txn in transactions if txn.statement_id}
-        await _validate_layer_consistency(db, stmt_ids)
 
     # Optimization: Pre-fetch all candidates for the entire period to avoid N+1 find_candidates
     min_date = min(txn.txn_date for txn in transactions) - timedelta(days=config.date_days)
@@ -1147,9 +1048,7 @@ async def execute_matching(
         if detect_transfer_pattern(txn):
             try:
                 # Idempotency check: skip if this transaction already has an active match
-                existing_transfer_match = await _get_existing_active_match(
-                    db, txn.id, is_layer2=settings.enable_4_layer_read
-                )
+                existing_transfer_match = await _get_existing_active_match(db, txn.id, is_layer2=True)
                 if existing_transfer_match:
                     logger.warning(
                         "Transfer already matched - skipping duplicate match creation",
@@ -1159,17 +1058,9 @@ async def execute_matching(
                     matched_txn_ids.add(txn.id)
                     continue
 
-                # Resolve the custody (source) account. Under the Layer-2/DWD read
-                # path the txn is an AtomicTransaction with no statement_id, so the
-                # custody account comes from the StatementSummary conform; the legacy
-                # path reads it from the originating BankStatement (ODS).
-                if settings.enable_4_layer_read:
-                    source_account_id = await resolve_custody_account_id(db, txn)
-                else:
-                    stmt = (
-                        await db.execute(select(BankStatement).where(BankStatement.id == txn.statement_id))
-                    ).scalar_one()
-                    source_account_id = stmt.account_id
+                # Resolve the custody (source) account from the StatementSummary conform
+                # (the atomic txn has no statement_id).
+                source_account_id = await resolve_custody_account_id(db, txn)
 
                 # Skip transfer detection if the source statement has no linked account
                 if source_account_id is None:
@@ -1192,8 +1083,8 @@ async def execute_matching(
 
                     # Create reconciliation match for transfer OUT
                     match = ReconciliationMatch(
-                        bank_txn_id=txn.id if not settings.enable_4_layer_read else None,
-                        atomic_txn_id=txn.id if settings.enable_4_layer_read else None,
+                        bank_txn_id=None,
+                        atomic_txn_id=txn.id,
                         journal_entry_ids=[str(transfer_entry.id)],
                         match_score=100,  # Transfer detection is exact match
                         score_breakdown={"transfer_out": 100.0},
@@ -1202,8 +1093,6 @@ async def execute_matching(
                     db.add(match)
                     matches.append(match)
 
-                    if not settings.enable_4_layer_read:
-                        txn.status = BankStatementTransactionStatus.MATCHED
                     if transfer_entry.status != JournalEntryStatus.VOID:
                         transfer_entry.status = JournalEntryStatus.RECONCILED
 
@@ -1226,8 +1115,8 @@ async def execute_matching(
 
                     # Create reconciliation match for transfer IN
                     match = ReconciliationMatch(
-                        bank_txn_id=txn.id if not settings.enable_4_layer_read else None,
-                        atomic_txn_id=txn.id if settings.enable_4_layer_read else None,
+                        bank_txn_id=None,
+                        atomic_txn_id=txn.id,
                         journal_entry_ids=[str(transfer_entry.id)],
                         match_score=100,  # Transfer detection is exact match
                         score_breakdown={"transfer_in": 100.0},
@@ -1236,8 +1125,6 @@ async def execute_matching(
                     db.add(match)
                     matches.append(match)
 
-                    if not settings.enable_4_layer_read:
-                        txn.status = BankStatementTransactionStatus.MATCHED
                     if transfer_entry.status != JournalEntryStatus.VOID:
                         transfer_entry.status = JournalEntryStatus.RECONCILED
 
@@ -1310,7 +1197,7 @@ async def execute_matching(
             for txn in group:
                 if txn.id in matched_txn_ids:
                     continue
-                existing_match = await _get_existing_active_match(db, txn.id, is_layer2=settings.enable_4_layer_read)
+                existing_match = await _get_existing_active_match(db, txn.id, is_layer2=True)
                 if existing_match:
                     existing_je_ids = set(existing_match.journal_entry_ids or [])
                     new_je_ids = set(best_candidate.journal_entry_ids or [])
@@ -1325,10 +1212,7 @@ async def execute_matching(
                     "score_breakdown": best_candidate.breakdown,
                     "status": status,
                 }
-                if settings.enable_4_layer_read:
-                    match_kwargs["atomic_txn_id"] = txn.id
-                else:
-                    match_kwargs["bank_txn_id"] = txn.id
+                match_kwargs["atomic_txn_id"] = txn.id
 
                 match = ReconciliationMatch(**match_kwargs)
                 db.add(match)
@@ -1340,14 +1224,9 @@ async def execute_matching(
                 matches.append(match)
                 matched_txn_ids.add(txn.id)
                 if status == ReconciliationStatus.AUTO_ACCEPTED:
-                    if not settings.enable_4_layer_read:
-                        txn.status = BankStatementTransactionStatus.MATCHED
                     if best_entry.status != JournalEntryStatus.VOID:
                         best_entry.status = JournalEntryStatus.RECONCILED
                         promote_entry_source_type(best_entry, JournalEntrySourceType.AUTO_MATCHED)
-                else:
-                    if not settings.enable_4_layer_read:
-                        txn.status = BankStatementTransactionStatus.PENDING
 
     # Phase 2: Normal Matching (existing logic)
     # Skip transactions already matched in Phase 1 (transfer detection)
@@ -1356,8 +1235,6 @@ async def execute_matching(
             continue
         candidates = get_candidates_for_date(txn.txn_date)
         if not candidates:
-            if not settings.enable_4_layer_read:
-                txn.status = BankStatementTransactionStatus.UNMATCHED
             continue
         candidates = prune_candidates(
             candidates,
@@ -1424,11 +1301,9 @@ async def execute_matching(
                 best_match = candidate
 
         if not best_match or best_match.score < config.pending_review:
-            if not settings.enable_4_layer_read:
-                txn.status = BankStatementTransactionStatus.UNMATCHED
             continue
 
-        existing_match = await _get_existing_active_match(db, txn.id, is_layer2=settings.enable_4_layer_read)
+        existing_match = await _get_existing_active_match(db, txn.id, is_layer2=True)
         if existing_match:
             existing_je_ids = set(existing_match.journal_entry_ids or [])
             new_je_ids = set(best_match.journal_entry_ids or [])
@@ -1447,10 +1322,7 @@ async def execute_matching(
             "score_breakdown": best_match.breakdown,
             "status": status,
         }
-        if settings.enable_4_layer_read:
-            match_kwargs["atomic_txn_id"] = txn.id
-        else:
-            match_kwargs["bank_txn_id"] = txn.id
+        match_kwargs["atomic_txn_id"] = txn.id
 
         match = ReconciliationMatch(**match_kwargs)
         db.add(match)
@@ -1461,21 +1333,15 @@ async def execute_matching(
 
         matches.append(match)
 
-        if status == ReconciliationStatus.AUTO_ACCEPTED:
-            if not settings.enable_4_layer_read:
-                txn.status = BankStatementTransactionStatus.MATCHED
-            if best_match.journal_entry_ids:
-                entry_ids = [UUID(entry_id) for entry_id in best_match.journal_entry_ids]
-                result = await db.execute(
-                    select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
-                )
-                for entry in result.scalars():
-                    if entry.status != JournalEntryStatus.VOID:
-                        entry.status = JournalEntryStatus.RECONCILED
-                        promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
-        else:
-            if not settings.enable_4_layer_read:
-                txn.status = BankStatementTransactionStatus.PENDING
+        if status == ReconciliationStatus.AUTO_ACCEPTED and best_match.journal_entry_ids:
+            entry_ids = [UUID(entry_id) for entry_id in best_match.journal_entry_ids]
+            result = await db.execute(
+                select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
+            )
+            for entry in result.scalars():
+                if entry.status != JournalEntryStatus.VOID:
+                    entry.status = JournalEntryStatus.RECONCILED
+                    promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
 
     # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
     # Find and pair transfers automatically per processing_account.md

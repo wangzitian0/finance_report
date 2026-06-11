@@ -1049,7 +1049,6 @@ async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncS
 async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncSession, monkeypatch) -> None:
     """AC4.6.9: Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging."""
     user_id = uuid4()
-    monkeypatch.setattr("src.config.settings.enable_4_layer_read", True)
 
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 8, 10))
     db.add(statement)
@@ -1159,7 +1158,6 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
 async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(db: AsyncSession, monkeypatch) -> None:
     """AC4.7.4: Reconciliation phase-2 – atomic match and transfer pair logging in layer-2."""
     user_id = uuid4()
-    monkeypatch.setattr("src.config.settings.enable_4_layer_read", True)
 
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 9, 1))
     db.add(statement)

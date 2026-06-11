@@ -11,7 +11,6 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from src.config import settings
 from src.logger import get_logger
 from src.models import BankStatement, BankStatementStatus
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
@@ -438,10 +437,11 @@ async def parse_statement_background(
                 await session.delete(existing_tx)
             await session.flush()
 
-            if settings.enable_layer_0_write:
-                for txn in transactions:
-                    txn.statement = statement
-                statement.transactions = list(transactions)
+            # Persist Layer 0 transactions (still the dual-write source until Stage 3
+            # drops the bank_statement* tables).
+            for txn in transactions:
+                txn.statement = statement
+            statement.transactions = list(transactions)
 
             await update_progress(90)
 
