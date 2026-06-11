@@ -119,7 +119,6 @@ describe("Sidebar and WorkspaceTabs", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Advanced/i }))
     expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio")
-    expect(screen.getByRole("link", { name: /Review/i })).toHaveAttribute("href", "/review")
     expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/accounts")
     expect(screen.getByRole("link", { name: /Journal/i })).toHaveAttribute("href", "/journal")
     expect(screen.getByRole("link", { name: /Reconciliation/i })).toHaveAttribute("href", "/reconciliation")
@@ -129,12 +128,12 @@ describe("Sidebar and WorkspaceTabs", () => {
   })
 
   it("AC19.6.3 opens Advanced automatically for active advanced routes", async () => {
-    pathnameMock = "/review/run/run-1"
+    pathnameMock = "/reconciliation/unmatched"
     render(<Sidebar />)
 
     const advancedButton = await screen.findByRole("button", { name: /Advanced/i })
     expect(advancedButton).toHaveAttribute("aria-expanded", "true")
-    expect(screen.getByRole("link", { name: /Review/i })).toHaveAttribute("href", "/review")
+    expect(screen.getByRole("link", { name: /Reconciliation/i })).toHaveAttribute("href", "/reconciliation")
   })
 
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {

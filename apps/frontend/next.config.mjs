@@ -60,6 +60,8 @@ const nextConfig = {
             { source: '/assets', destination: '/portfolio', permanent: true },
             { source: '/statements/upload', destination: '/upload', permanent: true },
             { source: '/statements', destination: '/upload', permanent: true },
+            // EPIC-022 PR2: the standalone Review Queue folds into the notification center.
+            { source: '/review', destination: '/notifications', permanent: true },
         ];
     },
     // Local development without an explicit API URL proxies /api/* to the backend.

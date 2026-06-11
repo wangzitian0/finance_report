@@ -200,7 +200,7 @@ describe("workflow notification surfaces", () => {
     vi.mocked(updateWorkflowEventStatus).mockResolvedValue(workflowEvents.items[0])
   })
 
-  it("AC19.3.4 shows the header badge from compact workflow counts and hides counts when quiet", async () => {
+  it("AC19.3.4 AC22.2.3 shows the header badge from compact workflow counts and hides counts when quiet", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 
     const button = await screen.findByRole("button", { name: /Workflow events/i })

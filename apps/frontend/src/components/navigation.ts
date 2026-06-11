@@ -40,7 +40,6 @@ export const advancedNavItems: NavItem[] = [
     { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
     { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
-    { icon: ClipboardCheck, label: "Review", href: "/review", protected: true },
     { icon: Clock, label: "Processing", href: "/processing", protected: true },
     { icon: SlidersHorizontal, label: "AI Settings", href: "/settings/ai", protected: true },
 ];

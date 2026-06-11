@@ -29,7 +29,6 @@ describe("MobileNav coverage (AC16.23.6)", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /advanced/i }));
         expect(screen.getByRole("link", { name: /portfolio/i })).toHaveAttribute("href", "/portfolio");
-        expect(screen.getByRole("link", { name: /review/i })).toHaveAttribute("href", "/review");
         expect(screen.getByRole("link", { name: /accounts/i })).toHaveAttribute("href", "/accounts");
         expect(screen.getByRole("link", { name: /journal/i })).toHaveAttribute("href", "/journal");
         expect(screen.getByRole("link", { name: /reconciliation/i })).toHaveAttribute("href", "/reconciliation");
@@ -42,19 +41,19 @@ describe("MobileNav coverage (AC16.23.6)", () => {
 
         fireEvent.click(screen.getByLabelText("Open navigation menu"));
         fireEvent.click(screen.getByRole("button", { name: /advanced/i }));
-        fireEvent.click(screen.getByRole("link", { name: /review/i }));
-        expect(screen.queryByRole("link", { name: /review/i })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("link", { name: /journal/i }));
+        expect(screen.queryByRole("link", { name: /journal/i })).not.toBeInTheDocument();
     });
 
     it("AC19.6.4 highlights active advanced routes in mobile navigation", () => {
-        pathnameMock = "/review/run/run-1";
+        pathnameMock = "/reconciliation/unmatched";
         renderReviewComponent(<MobileNav />);
 
         fireEvent.click(screen.getByLabelText("Open navigation menu"));
         const advancedButton = screen.getByRole("button", { name: /advanced/i });
         expect(advancedButton.className).toContain("accent-muted");
         fireEvent.click(advancedButton);
-        const reviewLink = screen.getByRole("link", { name: /review/i });
-        expect(reviewLink.className).toContain("accent-muted");
+        const reconciliationLink = screen.getByRole("link", { name: /reconciliation/i });
+        expect(reconciliationLink.className).toContain("accent-muted");
     });
 });

@@ -10,7 +10,7 @@ import {
 const ACCOUNTING_JARGON_HREFS = ["/journal", "/reconciliation", "/accounts", "/statements"];
 
 describe("navigation metadata", () => {
-  it("AC19.6.2 AC19.8.5 AC22.1.1 exposes exactly three everyday peers and folds the rest into advanced", () => {
+  it("AC19.6.2 AC19.8.5 AC22.1.1 AC22.2.4 exposes exactly three everyday peers and folds the rest into advanced", () => {
     expect(primaryWorkflowNavItems.map((item) => item.label)).toEqual([
       "Upload",
       "Reports",
@@ -33,7 +33,6 @@ describe("navigation metadata", () => {
       "Accounts",
       "Journal",
       "Reconciliation",
-      "Review",
       "Processing",
       "AI Settings",
     ]);
@@ -44,6 +43,8 @@ describe("navigation metadata", () => {
     expect(allLabels).not.toContain("Upload Pipeline");
     // Events lives in the header bell, not the sidebar nav.
     expect(allLabels).not.toContain("Events");
+    // AC22.2.4: the standalone Review Queue is folded into the notification center.
+    expect(allLabels).not.toContain("Review");
   });
 
   it("AC22.1.6 lists Portfolio exactly once across the navigation model", () => {
