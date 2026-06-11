@@ -30,6 +30,11 @@ async def test_everyday_user_shell(page):
     if not frontend_url:
         pytest.skip("FRONTEND_URL not set")
 
+    # Seed auth so the shell renders instead of redirecting to /login.
+    await page.add_init_script(
+        "localStorage.setItem('finance_user_id', 'epic022-e2e-user');"
+        "localStorage.setItem('finance_user_email', 'epic022-e2e@example.com');"
+    )
     await page.goto(f"{frontend_url}/")
 
     nav = page.get_by_role("navigation", name="Sidebar navigation")

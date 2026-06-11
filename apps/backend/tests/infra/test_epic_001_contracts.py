@@ -49,7 +49,8 @@ def test_epic_001_frontend_skeleton_exists() -> None:
     """AC1.3.1 AC1.3.2 AC1.3.3: Frontend skeleton, Tailwind, and ping-pong page must exist."""
     required_files = [
         REPO_ROOT / "apps/frontend/src/app/layout.tsx",
-        REPO_ROOT / "apps/frontend/src/app/page.tsx",
+        # EPIC-022 moved the authenticated root page into the (main) shell group.
+        REPO_ROOT / "apps/frontend/src/app/(main)/page.tsx",
         REPO_ROOT / "apps/frontend/src/app/ping-pong/page.tsx",
         REPO_ROOT / "apps/frontend/tailwind.config.ts",
         REPO_ROOT / "apps/frontend/src/app/providers.tsx",

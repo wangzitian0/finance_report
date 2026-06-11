@@ -182,7 +182,7 @@ test.describe("AC16.30.5 desktop visual smoke", () => {
     await expectVisualSmokePage(page, "/accounts", "Accounts", false);
     await expect(page.getByText("Operating Cash")).toBeVisible();
 
-    await expectVisualSmokePage(page, "/statements", "Bank Statements", false);
+    await expectVisualSmokePage(page, "/upload", "Upload", false);
     await expect(page.getByText("visual-smoke-statement-june-2026.pdf")).toBeVisible();
 
     await expectVisualSmokePage(page, "/statements/stmt-visual/review", "visual-smoke-statement-june-2026.pdf", false);
@@ -205,7 +205,7 @@ test.describe("AC16.30.5 mobile visual smoke", () => {
     await expectVisualSmokePage(page, "/accounts", "Accounts", true);
     await expect(page.getByText("Operating Cash")).toBeVisible();
 
-    await expectVisualSmokePage(page, "/statements", "Bank Statements", true);
+    await expectVisualSmokePage(page, "/upload", "Upload", true);
     await expect(page.getByText("visual-smoke-statement-june-2026.pdf")).toBeVisible();
 
     await expectVisualSmokePage(page, "/statements/stmt-visual/review", "visual-smoke-statement-june-2026.pdf", true);

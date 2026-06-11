@@ -25,7 +25,7 @@ async def test_registration_flow(page):
     EPIC-001 EPIC-016 / AC8.2.1: New User Registration
     GIVEN a new user visits the registration page
     WHEN they complete the registration form with valid data
-    THEN they should be successfully registered and redirected to dashboard
+    THEN they should be successfully registered and redirected to Home
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
@@ -39,8 +39,8 @@ async def test_registration_flow(page):
 
     await page.click("button[type='submit']")
 
-    await page.wait_for_url("**/dashboard**")
-    assert "dashboard" in page.url
+    await page.wait_for_url(lambda url: "/login" not in url)
+    assert "/login" not in page.url
 
 
 @pytest.mark.e2e
@@ -49,7 +49,7 @@ async def test_login_flow(page):
     EPIC-001 EPIC-016 / AC8.2.1: Login flow
     GIVEN a registered user visits the login page
     WHEN they enter valid credentials
-    THEN they should be logged in and redirected to dashboard
+    THEN they should be logged in and redirected to Home
     """
     frontend_url = os.getenv("FRONTEND_URL")
     if not frontend_url:
@@ -62,8 +62,8 @@ async def test_login_flow(page):
 
     await page.click("button[type='submit']")
 
-    await page.wait_for_url("**/dashboard**")
-    assert "dashboard" in page.url
+    await page.wait_for_url(lambda url: "/login" not in url)
+    assert "/login" not in page.url
 
 
 @pytest.mark.e2e
@@ -78,15 +78,18 @@ async def test_navigation_flow(page):
     if not frontend_url:
         pytest.skip("FRONTEND_URL not set")
 
-    await page.goto(f"{frontend_url}/dashboard")
+    await page.goto(f"{frontend_url}/")
 
+    # EPIC-022: internal accounting modules live under the collapsed Advanced group.
+    await page.click("button:has-text('Advanced')")
     await page.click("text=Accounts")
     await page.wait_for_url("**/accounts**")
     assert "accounts" in page.url
 
-    await page.click("text=Journal Entries")
-    await page.wait_for_url("**/journal-entries**")
-    assert "journal-entries" in page.url
+    # Advanced auto-expands while on an advanced route, so Journal is reachable.
+    await page.click("text=Journal")
+    await page.wait_for_url("**/journal**")
+    assert "journal" in page.url
 
     await page.click("text=Reports")
     await page.wait_for_url("**/reports**")

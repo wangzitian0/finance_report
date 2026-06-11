@@ -133,7 +133,7 @@ test.describe("AC19.4.7 upload-first dashboard smoke", () => {
       await page.setViewportSize(scenario.viewport);
       await installDashboardMocks(page);
 
-      await page.goto("/dashboard", { waitUntil: "networkidle" });
+      await page.goto("/", { waitUntil: "networkidle" });
 
       const uploadHome = page.getByLabel("Upload-to-report home");
       await expect(uploadHome.getByRole("heading", { name: "Upload-to-report session" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });

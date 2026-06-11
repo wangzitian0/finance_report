@@ -49,6 +49,10 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/": { label: "Home", Icon: Home },
     "/upload": { label: "Upload", Icon: UploadCloud },
     "/notifications": { label: "Notifications", Icon: Bell },
+    // Legacy routes redirect to the new IA; keep label/icon mappings so any
+    // persisted workspace tabs or breadcrumbs render with the new names.
+    "/dashboard": { label: "Home", Icon: Home },
+    "/events": { label: "Notifications", Icon: Bell },
     "/accounts": { label: "Accounts", Icon: Landmark },
     "/journal": { label: "Journal", Icon: BookOpen },
     "/statements": { label: "Statements", Icon: UploadCloud },

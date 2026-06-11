@@ -2,8 +2,8 @@
 
 > **Status**: In Progress — PR1 (IA skeleton) slice landing; unified inbox and
 > report drill-down slices tracked separately.
-> **Vision Anchor**: builds on EPIC-019 (`upload + reports primary, events
-> notify`). EPIC-019 introduced workflow events but kept internal accounting
+> **Vision Anchor**: `decision-2-event-middle-layer`, `decision-4-two-stage-review`.
+> Builds on EPIC-019: it introduced workflow events but kept internal accounting
 > modules as first-class navigation; EPIC-022 restructures the shell so an
 > everyday, non-accountant user only sees what they need.
 > **Phase**: Product UX simplification
@@ -78,12 +78,12 @@ slices land, so every registered AC has a behavioral test in the same change.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.1.1 | Primary navigation renders exactly three peers (Upload, Reports, Chat) plus a collapsible Advanced group; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) appears at the top level | `epic022Navigation.test.tsx` | P1 |
-| AC22.1.2 | The authenticated Home renders financial key numbers, an action-required summary, and a quick-upload entry | `homePage.test.tsx` | P1 |
-| AC22.1.3 | The sidebar brand links to `/` and the login flow redirects to `/` after authentication | `epic022Navigation.test.tsx` | P1 |
-| AC22.1.4 | `/dashboard` redirects to `/` and the label "Upload Pipeline" no longer appears in the navigation model | `nextConfigRedirects.test.ts`, `epic022Navigation.test.tsx` | P1 |
+| AC22.1.1 | Primary navigation renders exactly three peers (Upload, Reports, Chat) plus a collapsible Advanced group; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) appears at the top level | `navigation.test.ts` | P1 |
+| AC22.1.2 | The authenticated Home renders financial key numbers, an action-required summary, and a quick-upload entry | `dashboardPage.test.tsx` | P1 |
+| AC22.1.3 | The sidebar brand links to `/` and the login flow redirects to `/` after authentication | `sidebarAndTabs.test.tsx`, `loginPage.test.tsx` | P1 |
+| AC22.1.4 | `/dashboard` redirects to `/` and the label "Upload Pipeline" no longer appears in the navigation model | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 |
 | AC22.1.5 | `/events` redirects to `/notifications` and the notifications page renders the workflow event center | `nextConfigRedirects.test.ts`, `notificationsPage.test.tsx` | P1 |
-| AC22.1.6 | `/assets` redirects to `/portfolio` and exactly one navigation entry is labeled "Portfolio" | `nextConfigRedirects.test.ts`, `epic022Navigation.test.tsx` | P1 |
-| AC22.1.7 | Chat and AI Settings navigation entries use distinct icons | `epic022Navigation.test.tsx` | P1 |
-| AC22.1.8 | `/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload` | `uploadPage.test.tsx`, `nextConfigRedirects.test.ts` | P1 |
+| AC22.1.6 | `/assets` redirects to `/portfolio` and exactly one navigation entry is labeled "Portfolio" | `nextConfigRedirects.test.ts`, `navigation.test.ts` | P1 |
+| AC22.1.7 | Chat and AI Settings navigation entries use distinct icons | `navigation.test.ts` | P1 |
+| AC22.1.8 | `/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload` | `statementsPage.test.tsx`, `nextConfigRedirects.test.ts` | P1 |
 | AC22.1.9 | Desktop and mobile smoke covers the 3-peer navigation, the Advanced toggle, and the notification bell without layout overflow | `epic022-ia-shell.spec.ts` | P1 |
