@@ -80,7 +80,7 @@ export default function IncomeStatementPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
-          <Link href="/dashboard" className="btn-secondary text-sm">Dashboard</Link>
+          <Link href="/" className="btn-secondary text-sm">Home</Link>
           <ExportCsvButton path={exportPath} />
         </div>
       </div>

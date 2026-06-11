@@ -79,7 +79,7 @@ describe("ChatPageClient", () => {
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)
 
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard")
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
     expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports/balance-sheet")
   })
 

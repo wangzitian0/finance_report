@@ -12,7 +12,7 @@ import {
 
 import type { AdvisorSuggestion } from "@/lib/types";
 
-const SAFE_ROUTE_FALLBACK = "/dashboard";
+const SAFE_ROUTE_FALLBACK = "/";
 
 const ROUTE_MAP: Array<[RegExp, string]> = [
   [/^\/reports\/package(?:[/?#].*)?$/, "/reports/package"],

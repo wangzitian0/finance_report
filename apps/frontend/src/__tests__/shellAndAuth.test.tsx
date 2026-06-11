@@ -115,7 +115,7 @@ describe("AppShell and AuthGuard", () => {
     render(<AuthGuard><div>Login Content</div></AuthGuard>)
     await waitFor(() => expect(screen.getByText("Login Content")).toBeInTheDocument())
     window.dispatchEvent(new StorageEvent("storage", { key: "finance_user_id", newValue: "user-1" }))
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/dashboard"))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"))
   })
 
   it("AC16.19.2 ignores unrelated storage events", async () => {

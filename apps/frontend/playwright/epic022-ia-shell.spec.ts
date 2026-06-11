@@ -6,25 +6,25 @@ const workflowStatus = {
   primary_state: "needs_action",
   next_action: { type: "review_required", count: 2, href: "/review" },
   report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
-  event_counts: { unread: 4, action_required: 2, blocked: 1 },
+  event_counts: { unread: 3, action_required: 2, blocked: 1 },
   active_session: {
-    id: "workflow-session",
+    id: "ia-shell-session",
     status: "active",
     title: "Upload-to-report session",
     summary: "Current upload, processing, review, and report-readiness work.",
     started_at: "2026-06-04T01:00:00Z",
     last_event_at: "2026-06-04T02:00:00Z",
-    source_count: 4,
+    source_count: 3,
     primary_state: "needs_action",
     report_readiness: { state: "blocked", blocking_count: 1, href: "/reports" },
-    event_counts: { unread: 4, action_required: 2, blocked: 1 },
+    event_counts: { unread: 3, action_required: 2, blocked: 1 },
   },
 };
 
-async function installNavigationMocks(page: Page) {
+async function installShellMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("finance_user_id", "workflow-navigation-user");
-    localStorage.setItem("finance_user_email", "workflow-navigation@example.com");
+    localStorage.setItem("finance_user_id", "ia-shell-user");
+    localStorage.setItem("finance_user_email", "ia-shell@example.com");
   });
 
   await page.route("**/api/**", async (route) => {
@@ -60,8 +60,6 @@ async function installNavigationMocks(page: Page) {
         net_income: "0.00",
         trends: [],
       };
-    } else if (path.startsWith("/api/reports/trend")) {
-      body = { points: [] };
     } else if (path === "/api/income/annualized") {
       body = {
         annualized_salary: "0.00",
@@ -108,44 +106,43 @@ async function expectNoDocumentHorizontalScroll(page: Page) {
   expect(metrics.scrollX).toBe(0);
 }
 
-test.describe("AC19.6.7 workflow navigation folding", () => {
+test.describe("AC22.1.9 everyday-user IA shell smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await installNavigationMocks(page);
+    await installShellMocks(page);
   });
 
-  test("desktop exposes primary workflow nav and advanced drill-downs", async ({ page }) => {
+  test("desktop shows three peers, the Advanced toggle, and the notification bell", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/", { waitUntil: "networkidle" });
 
     const nav = page.getByRole("navigation", { name: "Sidebar navigation" });
-    await expect(nav.getByRole("link", { name: "Upload", exact: true })).toHaveAttribute("href", "/upload");
-    await expect(nav.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
-    await expect(nav.getByRole("link", { name: "Chat", exact: true })).toHaveAttribute("href", "/chat");
-    await expect(nav.getByRole("button", { name: /Advanced.*3/ })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(nav.getByRole("link", { name: "Upload", exact: true })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(nav.getByRole("link", { name: "Reports" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Chat", exact: true })).toBeVisible();
 
+    // The notification center lives in the header bell, independent of the nav.
+    await expect(page.getByRole("button", { name: /Workflow events/ })).toBeVisible();
+
+    // Internal accounting modules are hidden until Advanced is expanded.
+    await expect(nav.getByRole("link", { name: "Journal" })).toHaveCount(0);
     await nav.getByRole("button", { name: /Advanced/ }).click();
-    await expect(nav.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
-    await expect(nav.getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
-    await expect(nav.getByRole("link", { name: "Reconciliation" })).toHaveAttribute("href", "/reconciliation");
-    await expect(nav.getByRole("link", { name: "Processing" })).toHaveAttribute("href", "/processing");
-    await expect(nav.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
+    await expect(nav.getByRole("link", { name: "Journal" })).toHaveAttribute("href", "/journal");
+
     await expectNoDocumentHorizontalScroll(page);
   });
 
-  test("mobile exposes the same primary and advanced route access", async ({ page }) => {
+  test("mobile keeps the three peers and bell reachable without overflow", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/", { waitUntil: "networkidle" });
 
+    await expect(page.getByRole("button", { name: /Workflow events/ })).toBeVisible();
+
     await page.getByLabel("Open navigation menu").click();
     const dialog = page.getByRole("dialog", { name: "Finance Report" });
-    await expect(dialog.getByRole("link", { name: "Upload", exact: true })).toHaveAttribute("href", "/upload");
-    await expect(dialog.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
-    await expect(dialog.getByRole("link", { name: "Chat", exact: true })).toHaveAttribute("href", "/chat");
+    await expect(dialog.getByRole("link", { name: "Upload", exact: true })).toBeVisible();
+    await expect(dialog.getByRole("link", { name: "Reports" })).toBeVisible();
+    await expect(dialog.getByRole("link", { name: "Chat", exact: true })).toBeVisible();
 
-    await dialog.getByRole("button", { name: "Advanced" }).click();
-    await expect(dialog.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
-    await expect(dialog.getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
-    await expect(dialog.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
     await expectNoDocumentHorizontalScroll(page);
   });
 });

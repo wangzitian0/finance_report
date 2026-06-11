@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import StatementsPage from "@/app/(main)/statements/page"
+import StatementsPage from "@/app/(main)/upload/page"
 import { apiFetch } from "@/lib/api"
 
 const showToastMock = vi.fn()
@@ -51,7 +51,7 @@ describe("StatementsPage", () => {
     vi.restoreAllMocks()
   })
 
-  it("AC16.14.10 renders loading, error, empty, and populated states", async () => {
+  it("AC16.14.10 AC22.1.8 renders the uploader and upload history (loading, error, empty, populated)", async () => {
     mockedApiFetch
       .mockRejectedValueOnce(new Error("load failed"))
       .mockResolvedValueOnce({ items: [] })

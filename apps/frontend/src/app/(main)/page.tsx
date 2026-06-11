@@ -116,7 +116,7 @@ interface OnboardingStatus {
   postedEntryCount: number;
 }
 
-export default function DashboardPage() {
+export default function HomePage() {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(null);
   const [incomeStatement, setIncomeStatement] = useState<IncomeStatementResponse | null>(null);
   const [trend, setTrend] = useState<TrendResponse | null>(null);
@@ -234,7 +234,7 @@ export default function DashboardPage() {
     const hasApprovedOutput = isCoreFlowComplete;
     return [
       { label: "Add your first account", href: "/accounts", done: hasAccount, Icon: Landmark },
-      { label: "Upload a bank statement", href: "/statements", done: hasStatement, Icon: FileText },
+      { label: "Upload a bank statement", href: "/upload", done: hasStatement, Icon: FileText },
       { label: "Review and approve", href: "/review", done: hasApprovedOutput, Icon: BookOpen },
     ];
   }, [isCoreFlowComplete, onboardingStatus]);
@@ -281,7 +281,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button onClick={fetchData} className="btn-secondary text-sm">Retry analytics</button>
-                <Link href="/statements/upload" className="btn-primary text-sm">Upload statements</Link>
+                <Link href="/upload" className="btn-primary text-sm">Upload statements</Link>
               </div>
             </div>
           </div>

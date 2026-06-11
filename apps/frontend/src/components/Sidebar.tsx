@@ -19,7 +19,6 @@ export function Sidebar() {
     const { isCollapsed, toggleSidebar } = useWorkspace();
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isAuth, setIsAuth] = useState(false);
-    const [workflowBadgeCount, setWorkflowBadgeCount] = useState(0);
     const [advancedAttentionCount, setAdvancedAttentionCount] = useState(0);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(() =>
         advancedNavItems.some((item) => pathname === item.href || pathname.startsWith(item.href + "/")),
@@ -32,7 +31,6 @@ export function Sidebar() {
 
     useEffect(() => {
         if (!isAuth) {
-            setWorkflowBadgeCount(0);
             setAdvancedAttentionCount(0);
             return;
         }
@@ -41,10 +39,8 @@ export function Sidebar() {
             try {
                 const status = await fetchWorkflowStatus();
                 const attentionCount = status.event_counts.blocked + status.event_counts.action_required;
-                setWorkflowBadgeCount(status.event_counts.unread || attentionCount);
                 setAdvancedAttentionCount(attentionCount);
             } catch {
-                setWorkflowBadgeCount(0);
                 setAdvancedAttentionCount(0);
             }
         };
@@ -128,7 +124,7 @@ export function Sidebar() {
         >
             {/* Logo & Collapse Toggle */}
             <div className="flex items-center justify-between h-14 px-3 border-b border-[var(--border)]">
-                <div className="flex items-center gap-2.5 overflow-hidden">
+                <Link href="/" className="flex items-center gap-2.5 overflow-hidden" aria-label="Finance Report home">
                     <div className="w-8 h-8 bg-[var(--accent)] rounded-md flex items-center justify-center flex-shrink-0">
                         <span className="text-white font-bold text-sm">$</span>
                     </div>
@@ -137,7 +133,7 @@ export function Sidebar() {
                             Finance Report
                         </span>
                     )}
-                </div>
+                </Link>
                 <div className="flex items-center gap-1">
                     <ThemeToggle />
                     <button
@@ -159,10 +155,7 @@ export function Sidebar() {
 
             {/* Navigation */}
             <nav className="p-2 space-y-0.5" aria-label="Sidebar navigation">
-                {visiblePrimaryItems.map((item) => renderNavLink(
-                    item,
-                    item.href === "/events" ? workflowBadgeCount : 0,
-                ))}
+                {visiblePrimaryItems.map((item) => renderNavLink(item))}
 
                 {visibleAdvancedItems.length > 0 && (
                     <div className="pt-1">

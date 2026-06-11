@@ -51,13 +51,15 @@ const nextConfig = {
             },
         ];
     },
+    // EPIC-022: align legacy routes onto the everyday-user IA. `/` now renders
+    // the smart Home inside the app shell, so it is no longer redirected.
     async redirects() {
         return [
-            {
-                source: '/',
-                destination: '/dashboard',
-                permanent: false,
-            },
+            { source: '/dashboard', destination: '/', permanent: true },
+            { source: '/events', destination: '/notifications', permanent: true },
+            { source: '/assets', destination: '/portfolio', permanent: true },
+            { source: '/statements/upload', destination: '/upload', permanent: true },
+            { source: '/statements', destination: '/upload', permanent: true },
         ];
     },
     // Local development without an explicit API URL proxies /api/* to the backend.

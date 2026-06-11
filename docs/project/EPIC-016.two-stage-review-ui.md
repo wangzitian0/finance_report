@@ -330,7 +330,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 | AC ID | Description | Status |
 |-------|-------------|--------|
-| AC16.16.1 | Root page redirects to dashboard | ⏳ |
+| AC16.16.1 | Root resolves to the authenticated Home entry (superseded by EPIC-022) | ⏳ |
 | AC16.16.2 | Main layout renders children through `AppShell` wrapper | ⏳ |
 | AC16.16.3 | Chat page renders advisor client within suspense boundary | ⏳ |
 | AC16.16.4 | Reconciliation entry pages render workbench and unmatched board components | ⏳ |
