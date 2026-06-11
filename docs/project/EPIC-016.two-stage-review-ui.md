@@ -542,7 +542,7 @@ the shared UI-system contract.
 ### Acceptance Criteria — Infra (group 11, test infra extension)
 
 - [x] **AC16.11.32** Vitest harness for Stage 1 split components — shared `renderReviewComponent()` helper in `apps/frontend/src/__tests__/helpers/`
-- [x] **AC16.11.33** Playwright smoke covers inline-edit happy path on Stage 1 (open review → edit amount → save → assert persisted)
+- ~~Playwright smoke covers inline-edit happy path on Stage 1~~ — **retired**: inline transaction editing was removed in EPIC-011 Stage 3 (parsed transactions are immutable; the correction path is reject + re-parse), so the inline-edit acceptance criterion and its Playwright smoke are removed.
 
 ### Acceptance Criteria — Infra (group 13, conflict resolution backend contract)
 

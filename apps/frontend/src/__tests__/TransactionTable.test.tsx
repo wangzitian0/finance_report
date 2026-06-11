@@ -95,6 +95,41 @@ describe("TransactionTable (read-only)", () => {
         expect(low.className).toContain("badge-error");
     });
 
+    it("renders an empty table when transactions is nullish", () => {
+        render(
+            <TransactionTable
+                transactions={undefined as unknown as BankStatementTransaction[]}
+                currency="SGD"
+            />,
+        );
+
+        expect(screen.getByText("Transactions")).toBeInTheDocument();
+        expect(screen.getByText("0 total")).toBeInTheDocument();
+        expect(
+            within(screen.getByTestId("stage1-desktop-transaction-region")).queryByRole("row", {
+                name: /SGD/,
+            }),
+        ).toBeNull();
+    });
+
+    it("prefers the confidence tier badge over the raw confidence label", () => {
+        const tiered: BankStatementTransaction[] = [
+            {
+                ...sample[0],
+                id: "tier-1",
+                confidence: "low",
+                confidence_tier: "HIGH",
+            } as unknown as BankStatementTransaction,
+        ];
+
+        render(<TransactionTable transactions={tiered} currency="SGD" />);
+
+        const desktopRegion = within(screen.getByTestId("stage1-desktop-transaction-region"));
+        // ConfidenceBadge branch is taken, so the raw confidence label is not rendered.
+        expect(desktopRegion.queryByText("low")).toBeNull();
+        expect(desktopRegion.getAllByText("HIGH").length).toBeGreaterThan(0);
+    });
+
     it("calls formatCurrencyLocale for each transaction amount", () => {
         const spy = vi.spyOn(currency, "formatCurrencyLocale");
 
