@@ -12,6 +12,10 @@ vi.mock("@/components/AuthGuard", () => ({
   AuthGuard: ({ children }: { children: ReactNode }) => <div data-testid="auth-guard">{children}</div>,
 }))
 
+vi.mock("@/components/Analytics", () => ({
+  Analytics: () => <div data-testid="analytics" />,
+}))
+
 vi.mock("@/app/providers", () => ({
   Providers: ({ children }: { children: ReactNode }) => <div data-testid="providers">{children}</div>,
 }))
