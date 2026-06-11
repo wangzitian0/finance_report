@@ -210,6 +210,7 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
 def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
     """AC8.13.58: CI commands keep common contracts separate from tool reports."""
     command_modules = {
+        "tools.check_migration_risk": "common.ci.migration_risk",
         "tools.check_toolchain_contract": "common.ci.check_toolchain_contract",
         "tools.ci_change_classifier": "common.ci.change_classifier",
         "tools.github_workflow_timing_summary": (
