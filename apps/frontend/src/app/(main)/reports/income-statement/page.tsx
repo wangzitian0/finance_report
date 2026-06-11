@@ -7,6 +7,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { BarChart } from "@/components/charts/BarChart";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
+import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -36,6 +37,7 @@ export default function IncomeStatementPage() {
   const [currency, setCurrency] = useState("SGD");
   const [accountTypeFilter, setAccountTypeFilter] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
 
   const toggleTag = (tag: string) => {
@@ -152,7 +154,7 @@ export default function IncomeStatementPage() {
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {report?.income?.length ? report.income.map((l) => (
               <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-                <span>{l.name}</span><span className="font-medium">{formatCurrencyLocale(l.amount, report.currency)}</span>
+                <span>{l.name}</span><button type="button" className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline" onClick={() => setDrillTarget({ accountId: l.account_id, accountName: l.name, asOfDate: endDate, startDate, currency: report.currency })} aria-label={`View source transactions for ${l.name}`}>{formatCurrencyLocale(l.amount, report.currency)}</button>
               </div>
             )) : <p className="text-sm text-muted">No income categories.</p>}
           </div>
@@ -164,11 +166,13 @@ export default function IncomeStatementPage() {
         <div className="grid gap-2 md:grid-cols-2 max-h-96 overflow-y-auto">
           {report?.expenses?.length ? report.expenses.map((l) => (
             <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-              <span>{l.name}</span><span className="font-medium">{formatCurrencyLocale(l.amount, report.currency)}</span>
+              <span>{l.name}</span><button type="button" className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline" onClick={() => setDrillTarget({ accountId: l.account_id, accountName: l.name, asOfDate: endDate, startDate, currency: report.currency })} aria-label={`View source transactions for ${l.name}`}>{formatCurrencyLocale(l.amount, report.currency)}</button>
             </div>
           )) : <p className="text-sm text-muted">No expense categories.</p>}
         </div>
       </div>
+
+      <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </div>
   );
 }

@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `117`
-- Schema count: `195`
+- Endpoint count: `118`
+- Schema count: `197`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -28,7 +28,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `market-data` | 3 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
-| `reports` | 15 |
+| `reports` | 16 |
 | `review` | 7 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -179,6 +179,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
+| `GET` | `/reports/account-lineage` | yes | `account_id`* (query), `as_of_date` (query), `start_date` (query), `currency` (query) | - | `200` `AccountLineageResponse` | Account Lineage |
 | `GET` | `/reports/balance-sheet` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `BalanceSheetResponse` | Balance Sheet |
 | `GET` | `/reports/breakdown` | yes | `type`* (query), `period` (query), `currency` (query) | - | `200` `CategoryBreakdownResponse` | Category Breakdown |
 | `GET` | `/reports/cash-flow` | yes | `start_date`* (query), `end_date`* (query), `currency` (query) | - | `200` `CashFlowResponse` | Cash Flow |

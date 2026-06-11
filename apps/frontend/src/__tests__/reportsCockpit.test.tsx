@@ -1,0 +1,57 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ReactNode } from "react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+import ReportsPage from "@/app/(main)/reports/page"
+import { apiFetch } from "@/lib/api"
+
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
+}))
+
+vi.mock("@/lib/api", () => ({
+  apiFetch: vi.fn(),
+}))
+
+const mockedApiFetch = vi.mocked(apiFetch)
+
+beforeEach(() => {
+  mockedApiFetch.mockReset()
+  mockedApiFetch.mockImplementation((path: string) => {
+    if (path === "/api/income/annualized") {
+      return Promise.resolve({ annualized_total: "120000.00", currency: "SGD" })
+    }
+    if (path === "/api/reconciliation/stats") {
+      return Promise.resolve({ match_rate: 0.92, unmatched_transactions: 3 })
+    }
+    return Promise.resolve({})
+  })
+})
+
+describe("Reports cockpit (EPIC-022 AC22.3)", () => {
+  it("AC22.3.1 leads with exactly the four everyday report blocks and their live figures", async () => {
+    render(<ReportsPage />)
+
+    for (const title of ["Balance Sheet", "Income Statement", "Annualized Income", "Statistics Accuracy"]) {
+      expect(screen.getByText(title)).toBeInTheDocument()
+    }
+
+    // Annualized Income and Statistics Accuracy surface live numbers.
+    await waitFor(() => expect(screen.getByText("92% matched")).toBeInTheDocument())
+    expect(screen.getByText("3 unmatched")).toBeInTheDocument()
+    expect(screen.getByText(/120,000/)).toBeInTheDocument()
+  })
+
+  it("AC22.3.2 keeps Cash Flow and the Personal Report Package behind the More control", async () => {
+    render(<ReportsPage />)
+
+    // Hidden from the front section until expanded.
+    expect(screen.queryByText("Cash Flow Statement")).toBeNull()
+    expect(screen.queryByText("Personal Report Package")).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: /More reports/i }))
+
+    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    expect(screen.getByText("Personal Report Package")).toBeInTheDocument()
+  })
+})

@@ -222,6 +222,26 @@ Mixed-currency income lines must be converted into the dashboard reporting
 currency before bucket and total aggregation. Non-reporting-currency income
 uses the trailing-period average FX rate for the window.
 
+### 2.6a Account Lineage Drill-Down
+
+Powers Balance Sheet / Income Statement amount drill-down (EPIC-022). Returns
+the individual posted/reconciled journal lines behind one account's report
+balance so the UI can reach source transactions via the evidence-lineage graph.
+
+Endpoint:
+`GET /api/reports/account-lineage?account_id=UUID&as_of_date=YYYY-MM-DD&start_date=YYYY-MM-DD&currency=SGD`
+
+- Applies the same status (`POSTED`/`RECONCILED`) and date filters as the
+  aggregated reports; `start_date` is optional (used for period reports like the
+  income statement), `currency` defaults to the account currency.
+- Each line is Decimal-safe and signed with the same accounting rules as the
+  balance (ASSET/EXPENSE debit positive; LIABILITY/EQUITY/INCOME credit
+  positive), converted into the report currency.
+- Each line exposes a `journal_line` identifier the UI hands to
+  `GET /api/evidence/lineage` to reach the bank statement transaction, atomic
+  fact, and source document. It is report-only and must not mutate ledger state.
+- Accounts the user does not own return `404`.
+
 ### 2.7 Personal Financial-Report Package Contract
 
 Issue [#570](https://github.com/wangzitian0/finance_report/issues/570) owns the

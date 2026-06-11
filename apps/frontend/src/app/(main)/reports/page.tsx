@@ -1,25 +1,85 @@
-import Link from "next/link";
-import { BarChart2, TrendingUp, DollarSign, FileText } from "lucide-react";
+"use client";
 
-const reports = [
-    { id: "personal-package", title: "Personal Report Package", description: "Stable package contract for statements, schedules, notes, and traceability", icon: FileText, href: "/reports/package", available: true },
-    { id: "balance-sheet", title: "Balance Sheet", description: "Assets, liabilities, and equity at a point in time", icon: BarChart2, href: "/reports/balance-sheet", available: true },
-    { id: "income-statement", title: "Income Statement", description: "Revenue and expenses over a period", icon: TrendingUp, href: "/reports/income-statement", available: true },
-    { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: DollarSign, href: "/reports/cash-flow", available: true },
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { BarChart2, TrendingUp, DollarSign, FileText, CalendarClock, ShieldCheck, ChevronDown } from "lucide-react";
+
+import { apiFetch } from "@/lib/api";
+import { formatCurrencyLocale } from "@/lib/currency";
+import type { AnnualizedIncomeResponse, ReconciliationStatsResponse } from "@/lib/types";
+
+// The four reports an everyday user reads (EPIC-022 AC22.3.1). Everything else
+// lives behind "More" (AC22.3.2).
+const MORE_REPORTS = [
+    { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: DollarSign, href: "/reports/cash-flow" },
+    { id: "personal-package", title: "Personal Report Package", description: "Stable package contract for statements, schedules, notes, and traceability", icon: FileText, href: "/reports/package" },
 ];
 
 export default function ReportsPage() {
+    const [annualized, setAnnualized] = useState<AnnualizedIncomeResponse | null>(null);
+    const [stats, setStats] = useState<ReconciliationStatsResponse | null>(null);
+    const [showMore, setShowMore] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        apiFetch<AnnualizedIncomeResponse>("/api/income/annualized")
+            .then((data) => active && setAnnualized(data))
+            .catch(() => active && setAnnualized(null));
+        apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats")
+            .then((data) => active && setStats(data))
+            .catch(() => active && setStats(null));
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const matchRate = stats ? Math.round((stats.match_rate ?? 0) * 100) : null;
+
     return (
         <div className="p-6">
             <div className="page-header">
                 <h1 className="page-title">Reports</h1>
-                <p className="page-description">Generate and view financial reports following standard accounting principles.</p>
+                <p className="page-description">The four reports you read most. Open one to drill any amount down to its source transactions.</p>
             </div>
 
             <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-                {reports.map((report) => (
-                    <ReportCard key={report.id} report={report} />
-                ))}
+                <ReportNavCard title="Balance Sheet" description="Assets, liabilities, and equity at a point in time" icon={BarChart2} href="/reports/balance-sheet" />
+                <ReportNavCard title="Income Statement" description="Revenue and expenses over a period" icon={TrendingUp} href="/reports/income-statement" />
+
+                <StatCard
+                    title="Annualized Income"
+                    icon={CalendarClock}
+                    href="/reports/package"
+                    value={annualized ? formatCurrencyLocale(annualized.annualized_total, annualized.currency) : "—"}
+                    caption="Projected annual total"
+                />
+                <StatCard
+                    title="Statistics Accuracy"
+                    icon={ShieldCheck}
+                    href="/reconciliation"
+                    value={matchRate === null ? "—" : `${matchRate}% matched`}
+                    caption={stats ? `${stats.unmatched_transactions} unmatched` : "Reconciliation coverage"}
+                />
+            </div>
+
+            <div className="mb-6">
+                <button
+                    type="button"
+                    onClick={() => setShowMore((open) => !open)}
+                    className="btn-secondary inline-flex items-center gap-2 text-sm"
+                    aria-expanded={showMore}
+                >
+                    More reports
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showMore ? "rotate-180" : ""}`} aria-hidden="true" />
+                </button>
+
+                {showMore && (
+                    <div className="grid md:grid-cols-2 gap-4 mt-4">
+                        {MORE_REPORTS.map((report) => (
+                            <ReportNavCard key={report.id} title={report.title} description={report.description} icon={report.icon} href={report.href} />
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className="card p-5">
@@ -37,32 +97,49 @@ export default function ReportsPage() {
     );
 }
 
-interface ReportCardProps {
-    report: { id: string; title: string; description: string; icon: React.ComponentType<{ className?: string }>; href: string; available: boolean };
+interface ReportNavCardProps {
+    title: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    href: string;
 }
 
-function ReportCard({ report }: ReportCardProps) {
-    const Icon = report.icon;
-    const content = (
-        <div className={`card p-5 transition-colors ${report.available ? "hover:border-[var(--accent)] cursor-pointer" : "opacity-60 cursor-default"}`}>
-            <div className="flex items-start justify-between mb-3">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)]">
+function ReportNavCard({ title, description, icon: Icon, href }: ReportNavCardProps) {
+    return (
+        <Link href={href}>
+            <div className="card p-5 transition-colors hover:border-[var(--accent)] cursor-pointer h-full">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)] mb-3">
                     <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
                 </div>
-                {!report.available && <span className="badge badge-muted">Coming Soon</span>}
-            </div>
-            <h3 className="font-semibold text-[var(--accent)] mb-1">{report.title}</h3>
-            <p className="text-sm text-muted">{report.description}</p>
-            {report.available && (
+                <h3 className="font-semibold text-[var(--accent)] mb-1">{title}</h3>
+                <p className="text-sm text-muted">{description}</p>
                 <div className="mt-3 flex items-center text-xs text-muted">
                     <span>View report</span>
-                    <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
                 </div>
-            )}
-        </div>
+            </div>
+        </Link>
     );
+}
 
-    return report.available ? <Link href={report.href}>{content}</Link> : content;
+interface StatCardProps {
+    title: string;
+    icon: React.ComponentType<{ className?: string }>;
+    href: string;
+    value: string;
+    caption: string;
+}
+
+function StatCard({ title, icon: Icon, href, value, caption }: StatCardProps) {
+    return (
+        <Link href={href}>
+            <div className="card p-5 transition-colors hover:border-[var(--accent)] cursor-pointer h-full">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)] mb-3">
+                    <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
+                </div>
+                <h3 className="font-semibold text-[var(--accent)] mb-1">{title}</h3>
+                <p className="text-xl font-semibold">{value}</p>
+                <p className="text-xs text-muted mt-1">{caption}</p>
+            </div>
+        </Link>
+    );
 }

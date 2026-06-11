@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.models import AccountType
+from src.models import AccountType, Direction
 
 
 def _validate_internal_action_href(value: str) -> str:
@@ -24,6 +24,37 @@ class ReportLine(BaseModel):
     type: AccountType
     parent_id: UUID | None = None
     amount: Decimal
+
+
+class AccountLineageLine(BaseModel):
+    """One posted journal line contributing to an account's report balance.
+
+    Carries a ``journal_line`` evidence anchor so the UI can drill into the full
+    lineage graph (journal line -> statement transaction -> atomic fact ->
+    source document).
+    """
+
+    journal_line_id: UUID = Field(description="Evidence anchor for /api/evidence/lineage drill-down")
+    journal_entry_id: UUID = Field(description="Parent journal entry id")
+    entry_date: date = Field(description="Journal entry date")
+    memo: str = Field(description="Journal entry memo")
+    direction: Direction = Field(description="Line direction: DEBIT or CREDIT")
+    original_amount: Decimal = Field(description="Line amount in its original currency")
+    original_currency: str = Field(min_length=3, max_length=3, description="Original line currency")
+    amount: Decimal = Field(description="Signed amount converted into the report currency")
+
+
+class AccountLineageResponse(BaseModel):
+    """Contributing journal lines behind a single account's report balance."""
+
+    account_id: UUID = Field(description="Account whose balance is being explained")
+    account_name: str = Field(description="Account display name")
+    account_type: AccountType = Field(description="Account type (ASSET/LIABILITY/EQUITY/INCOME/EXPENSE)")
+    currency: str = Field(min_length=3, max_length=3, description="Report presentation currency")
+    as_of_date: date = Field(description="Report end date filter")
+    start_date: date | None = Field(default=None, description="Optional period start filter")
+    total: Decimal = Field(description="Signed total of contributing lines in the report currency")
+    lines: list[AccountLineageLine] = Field(description="Posted/reconciled lines contributing to the balance")
 
 
 class BalanceSheetResponse(BaseModel):

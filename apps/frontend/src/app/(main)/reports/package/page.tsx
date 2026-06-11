@@ -9,6 +9,12 @@ import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { formatDateInput } from "@/lib/date";
 import {
+  anchorFromIdentifiers,
+  lineageUrl,
+  nodeLabel,
+  type LineageAnchor,
+} from "@/lib/lineage";
+import {
   reportPeriodStart,
   usePersonalReportPackage,
 } from "@/hooks/usePersonalReportPackage";
@@ -64,12 +70,6 @@ function evidenceBundleReferences(
   ).sort();
 }
 
-type LineageAnchor = {
-  entity_type: string;
-  entity_id: string;
-  node_kind?: string;
-};
-
 type LineagePanelState = {
   line: PersonalReportPackageTraceabilityLine;
   response: EvidenceLineageResponse | null;
@@ -77,79 +77,13 @@ type LineagePanelState = {
   error: string | null;
 };
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function parseTypedIdentifier(identifier: string): {
-  type: string;
-  id: string;
-} | null {
-  const separator = identifier.indexOf(":");
-  if (separator <= 0) return null;
-  const type = identifier.slice(0, separator);
-  const id = identifier.slice(separator + 1);
-  if (!UUID_PATTERN.test(id)) return null;
-  return { type, id };
-}
-
 function lineageAnchorForLine(
   line: PersonalReportPackageTraceabilityLine,
 ): LineageAnchor | null {
-  const identifiers = [
+  return anchorFromIdentifiers([
     ...(line.ledger_anchor.identifiers ?? []),
     ...(line.source_anchor.identifiers ?? []),
-  ];
-  for (const identifier of identifiers) {
-    const parsed = parseTypedIdentifier(identifier);
-    if (!parsed) continue;
-    if (parsed.type === "journal_line") {
-      return {
-        entity_type: "journal_line",
-        entity_id: parsed.id,
-        node_kind: "ledger_line",
-      };
-    }
-    if (parsed.type === "uploaded_document") {
-      return {
-        entity_type: "uploaded_document",
-        entity_id: parsed.id,
-        node_kind: "source_document",
-      };
-    }
-    if (parsed.type === "statement_transaction") {
-      return {
-        entity_type: "bank_statement_transaction",
-        entity_id: parsed.id,
-        node_kind: "extracted_record",
-      };
-    }
-    if (parsed.type === "atomic_transaction") {
-      return {
-        entity_type: "atomic_transaction",
-        entity_id: parsed.id,
-        node_kind: "atomic_fact",
-      };
-    }
-  }
-  return null;
-}
-
-function lineageUrl(anchor: LineageAnchor): string {
-  const params = new URLSearchParams({
-    entity_type: anchor.entity_type,
-    entity_id: anchor.entity_id,
-  });
-  if (anchor.node_kind) params.set("node_kind", anchor.node_kind);
-  params.set("direction", "both");
-  params.set("max_depth", "6");
-  return `/api/evidence/lineage?${params.toString()}`;
-}
-
-function nodeLabel(node: {
-  entity_type: string;
-  entity_id: string;
-}): string {
-  return `${node.entity_type}:${node.entity_id}`;
+  ]);
 }
 
 export default function PersonalReportPackagePage() {

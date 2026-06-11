@@ -10,6 +10,7 @@ import { formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
+import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import type { BalanceSheetResponse, ReportLine } from "@/lib/types";
 
 interface AccountNode extends ReportLine { children: AccountNode[]; }
@@ -32,6 +33,7 @@ export default function BalanceSheetPage() {
   const [currency, setCurrency] = useState("SGD");
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
 
   const queryString = useMemo(() => {
@@ -77,7 +79,18 @@ export default function BalanceSheetPage() {
             {hasChildren && <button onClick={() => toggle(node.account_id)} className="w-5 h-5 rounded-md bg-[var(--background-muted)] text-xs flex items-center justify-center">{isExpanded ? "–" : "+"}</button>}
             <span>{node.name}</span>
           </div>
-          <span className="font-medium">{report ? formatCurrencyLocale(node.amount, report.currency) : "—"}</span>
+          {report ? (
+            <button
+              type="button"
+              className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline"
+              onClick={() => setDrillTarget({ accountId: node.account_id, accountName: node.name, asOfDate, currency: report.currency })}
+              aria-label={`View source transactions for ${node.name}`}
+            >
+              {formatCurrencyLocale(node.amount, report.currency)}
+            </button>
+          ) : (
+            <span className="font-medium">—</span>
+          )}
         </div>
         {hasChildren && isExpanded && <div role="group" className="ml-2 border-l border-[var(--border)] pl-2">{node.children.map((c) => renderNode(c, depth + 1))}</div>}
       </div>
@@ -168,6 +181,8 @@ export default function BalanceSheetPage() {
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold">Total: {report ? formatCurrencyLocale(report.total_equity, report.currency) : "—"}</div>
         </div>
       </div>
+
+      <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </div>
   );
 }

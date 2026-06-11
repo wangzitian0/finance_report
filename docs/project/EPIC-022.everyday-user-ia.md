@@ -87,3 +87,18 @@ slices land, so every registered AC has a behavioral test in the same change.
 | AC22.1.7 | Chat and AI Settings navigation entries use distinct icons | `navigation.test.ts` | P1 |
 | AC22.1.8 | `/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload` | `statementsPage.test.tsx`, `nextConfigRedirects.test.ts` | P1 |
 | AC22.1.9 | Desktop and mobile smoke covers the 3-peer navigation, the Advanced toggle, and the notification bell without layout overflow | `epic022-ia-shell.spec.ts` | P1 |
+
+### AC22.3 — Report Cockpit And Source Drill-Down
+
+> PR3 slice. `/reports` leads with the four reports an everyday user reads, and
+> any amount on the Balance Sheet / Income Statement drills down to the exact
+> source transactions, reusing the evidence-lineage graph.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.3.1 | The `/reports` front section renders exactly four report blocks: Balance Sheet, Income Statement, Annualized Income, and Statistics Accuracy (reconciliation coverage / unmatched count) | `reportsCockpit.test.tsx` | P1 |
+| AC22.3.2 | All other reports (Cash Flow, Personal Report Package, and any future reports) live behind a single "More" control, not the front section | `reportsCockpit.test.tsx` | P1 |
+| AC22.3.3 | `GET /api/reports/account-lineage` returns the user-scoped posted/reconciled journal lines that contribute to an account's balance for the period, each carrying a `journal_line` evidence anchor, with Decimal-safe signed amounts | `test_account_lineage.py` | P1 |
+| AC22.3.4 | A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines, and open the full evidence chain (journal line → bank statement transaction → atomic transaction → source document) | `lineagePanel.test.tsx`, `balanceSheetDrilldown.test.tsx` | P1 |
+| AC22.3.5 | Accounts/amounts with no contributing lines or no graph-compatible anchor degrade gracefully with an explicit empty/"no source linked" state and no crash | `balanceSheetDrilldown.test.tsx` | P1 |
+| AC22.3.6 | Desktop and mobile smoke covers the four-block cockpit and a Balance Sheet drill-down open/close without layout overflow | `reports-cockpit.spec.ts` | P1 |

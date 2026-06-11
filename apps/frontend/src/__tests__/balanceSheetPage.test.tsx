@@ -81,6 +81,56 @@ describe("BalanceSheetPage", () => {
     )
   })
 
+  it("AC22.3.4 opens the source drill-down when an amount is clicked", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/reports/account-lineage")) {
+        return Promise.resolve({
+          account_id: "a-root",
+          account_name: "Cash",
+          account_type: "ASSET",
+          currency: "SGD",
+          as_of_date: "2026-02-01",
+          start_date: null,
+          total: "1000.00",
+          lines: [
+            {
+              journal_line_id: "88888888-8888-4888-8888-888888888888",
+              journal_entry_id: "99999999-9999-4999-8999-999999999999",
+              entry_date: "2026-01-15",
+              memo: "Opening deposit",
+              direction: "DEBIT",
+              original_amount: "1000.00",
+              original_currency: "SGD",
+              amount: "1000.00",
+            },
+          ],
+        })
+      }
+      return Promise.resolve({
+        as_of_date: "2026-02-01",
+        currency: "SGD",
+        assets: [{ account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: "1000" }],
+        liabilities: [],
+        equity: [],
+        total_assets: "1000",
+        total_liabilities: "0",
+        total_equity: "1000",
+        equation_delta: "0",
+        is_balanced: true,
+      })
+    })
+
+    render(<BalanceSheetPage />)
+
+    await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "View source transactions for Cash" }))
+    await waitFor(() => expect(screen.getByText("Opening deposit")).toBeInTheDocument())
+
+    // Closing the drawer clears the drill target.
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByText("Opening deposit")).toBeNull())
+  })
+
   it("AC16.14.3 toggles tree expansion controls", async () => {
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",

@@ -125,6 +125,28 @@ export interface ReportLine {
   amount: MoneyValue;
 }
 
+export interface AccountLineageLine {
+  journal_line_id: string;
+  journal_entry_id: string;
+  entry_date: string;
+  memo: string;
+  direction: string;
+  original_amount: MoneyValue;
+  original_currency: string;
+  amount: MoneyValue;
+}
+
+export interface AccountLineageResponse {
+  account_id: string;
+  account_name: string;
+  account_type: string;
+  currency: string;
+  as_of_date: string;
+  start_date: string | null;
+  total: MoneyValue;
+  lines: AccountLineageLine[];
+}
+
 export interface FxWarning {
   type: string;
   message?: string;
