@@ -145,6 +145,10 @@ class Settings(BaseSettings):
     vision_model: str = Field(default="glm-4.6v", validation_alias="VISION_MODEL")
     ocr_model: str = Field(default="glm-4.6v", validation_alias="OCR_MODEL")
     fallback_models_str: str | None = Field(default=None, validation_alias="FALLBACK_MODELS")
+    # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
+    # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
+    # in-process fallback, no Prefect dependency. See services/statement_pipeline.py.
+    prefect_api_url: str | None = Field(default=None, validation_alias="PREFECT_API_URL")
     ai_json_timeout_seconds: float = Field(
         default=360.0,
         validation_alias="AI_JSON_TIMEOUT_SECONDS",
