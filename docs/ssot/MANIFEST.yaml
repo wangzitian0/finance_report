@@ -357,6 +357,16 @@ concepts:
       - .github/workflows/ci.yml
       - tools/check_critical_proof_matrix.py
 
+  ssot_governance_metrics:
+    owner: docs/ssot/tdd.md#ssot-governance-metrics
+    description: Report-only governance metrics for SSOT ownership, shape, proof coverage, and future gate candidates.
+    cross_refs:
+      - docs/project/EPIC-014.ttd-transformation.md
+      - common/ssot/governance_report.py
+      - tools/report_ssot_governance.py
+      - tests/tooling/test_ssot_governance_report.py
+      - .github/workflows/ci.yml
+
   # ── Agent governance ──────────────────────────────────────────────────
   security_red_lines:
     owner: docs/agents/red-lines.md

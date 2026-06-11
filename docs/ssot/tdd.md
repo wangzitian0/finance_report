@@ -119,6 +119,32 @@ Macro and micro proof are intentionally separate:
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
   and AC traceability gates.
 
+## SSOT Governance Metrics
+
+`tools/report_ssot_governance.py` owns report-only SSOT governance metrics for
+the finance_report SSOT manifest and the checked-out infra2 SSOT manifest. It
+reads finance_report `concepts` and infra2 `entries` without requiring a shared
+manifest schema, then publishes advisory metrics in CI.
+
+The report measures:
+
+- total entries and owner count by system
+- duplicate owners and orphan files under `docs/ssot/`
+- explicit `family`, `kind`, `parent`, and `authority` field coverage
+- inferred family distribution for legacy entries without explicit fields
+- machine-owned entries that do not yet have proof links
+- high-risk entries that do not yet have proof links
+- future gate candidates with samples
+
+These metrics are not hard gates. A metric may become a gate only after the HLS
+design defines the target model, the report has established a stable baseline,
+and a gradual-gate issue defines a threshold and rollout scope.
+
+Tracked by
+[#821](https://github.com/wangzitian0/finance_report/issues/821),
+[#822](https://github.com/wangzitian0/finance_report/issues/822), and
+[#823](https://github.com/wangzitian0/finance_report/issues/823).
+
 Manual verification cleanup is tracked in
 [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
 Invalid AC references are reported by
