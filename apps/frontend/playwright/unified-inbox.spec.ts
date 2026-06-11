@@ -97,8 +97,9 @@ test.describe("AC22.2.6 unified inbox smoke", () => {
       await expect(page.getByText("Source review required").first()).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(page.getByText("Reconciliation review required").first()).toBeVisible();
 
-      const reviewLink = page.getByRole("link", { name: /Open Source review required/i }).first();
-      await expect(reviewLink).toHaveAttribute("href", "/statements/stmt-1/review");
+      // Each card deep-links to its specific follow-up surface.
+      await expect(page.locator('a[href="/statements/stmt-1/review"]').first()).toBeVisible();
+      await expect(page.locator('a[href="/reconciliation/review-queue"]').first()).toBeVisible();
 
       await expectNoDocumentHorizontalScroll(page);
     });
