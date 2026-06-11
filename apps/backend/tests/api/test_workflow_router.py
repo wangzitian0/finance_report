@@ -18,8 +18,6 @@ from src.models import (
     AccountType,
     BankStatementStatus,
     ClassificationRule,
-    JournalEntry,
-    JournalEntryStatus,
     ReportSnapshot,
     ReportType,
     RuleType,
@@ -45,6 +43,7 @@ from src.schemas.workflow import (
     WorkflowStatusResponse,
 )
 from src.services.workflow_events import upsert_workflow_event
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 pytestmark = pytest.mark.asyncio
 
@@ -327,15 +326,13 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         action_href="/reports",
         title="Report ready",
     )
-    db.add(
-        JournalEntry(
-            user_id=ready_user.id,
-            entry_date=date(2026, 5, 31),
-            memo="Ready report input",
-            status=JournalEntryStatus.POSTED,
-        )
+    await create_valid_posted_entry(
+        db,
+        ready_user.id,
+        entry_date=date(2026, 5, 31),
+        memo="Ready report input",
+        debit_account_type=AccountType.EXPENSE,
     )
-    await db.commit()
 
     ready = await _get_as_user(public_client, ready_user.id, "/workflow/status")
     assert ready["primary_state"] == "ready"

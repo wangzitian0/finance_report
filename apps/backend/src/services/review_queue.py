@@ -330,8 +330,8 @@ async def create_entry_from_txn(
 
     Uses the owning statement summary's linked account if available. Draft entries
     may still use the legacy default account, but posted entries require an explicit
-    mapping. When auto_post is True, the generated entry is created with POSTED
-    status; otherwise it is created as DRAFT.
+    mapping. When auto_post is True, the generated entry is first persisted as
+    DRAFT with its lines and then promoted to POSTED; otherwise it remains DRAFT.
     preloaded_statement/preloaded_bank_account may be passed by trusted callers
     that already loaded them for the same authenticated user context.
 
@@ -432,7 +432,7 @@ async def create_entry_from_txn(
         memo=txn.description,
         source_type=normalize_source_type(source_type),
         source_id=txn.id,
-        status=JournalEntryStatus.POSTED if auto_post else JournalEntryStatus.DRAFT,
+        status=JournalEntryStatus.DRAFT,
     )
 
     entry.lines.append(
@@ -468,6 +468,9 @@ async def create_entry_from_txn(
 
     db.add(entry)
     await db.flush()
+    if auto_post:
+        entry.status = JournalEntryStatus.POSTED
+        await db.flush()
     await db.refresh(entry, ["lines"])
 
     # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry

@@ -149,6 +149,7 @@ async def test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_w
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -156,6 +157,7 @@ async def test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_w
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )
@@ -278,6 +280,7 @@ async def test_net_income_fx_data_consistency_error(db: AsyncSession, accounts, 
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -285,6 +288,7 @@ async def test_net_income_fx_data_consistency_error(db: AsyncSession, accounts, 
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
         ]
     )
@@ -365,6 +369,7 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -372,6 +377,7 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
         ]
     )
@@ -436,6 +442,7 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -443,6 +450,7 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.35"),
             ),
         ]
     )
@@ -529,7 +537,7 @@ async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, acco
     WHEN PrefetchedFxRates.get_rate returns None
     THEN fallback to Decimal("1") rate succeeds
     """
-    _, _, _, salary, _ = accounts
+    sgd_cash, _, _, salary, _ = accounts
 
     entry = JournalEntry(
         user_id=user_id,
@@ -541,6 +549,13 @@ async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, acco
     await db.flush()
     db.add_all(
         [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=sgd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("300.00"),
+                currency="SGD",
+            ),
             JournalLine(
                 journal_entry_id=entry.id,
                 account_id=salary.id,

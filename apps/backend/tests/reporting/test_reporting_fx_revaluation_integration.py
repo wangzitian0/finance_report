@@ -95,6 +95,7 @@ async def test_income_statement_includes_average_rate_fallback_warning(db: Async
     """AC5.6.7: Report output lists currencies that used average-rate spot fallback."""
     start_date = date(2025, 1, 1)
     end_date = date(2025, 1, 31)
+    cash = await _account(db, test_user.id, "USD Cash", AccountType.ASSET, "USD")
     income = await _account(db, test_user.id, "USD Salary", AccountType.INCOME, "USD")
     db.add(
         FxRate(
@@ -111,15 +112,25 @@ async def test_income_statement_includes_average_rate_fallback_warning(db: Async
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=income.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("100.00"),
-            currency="USD",
-            fx_rate=Decimal("1.50"),
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+                fx_rate=Decimal("1.50"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+                fx_rate=Decimal("1.50"),
+            ),
+        ]
     )
     await db.commit()
 

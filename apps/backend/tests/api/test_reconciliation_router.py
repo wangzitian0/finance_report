@@ -610,7 +610,7 @@ class TestReconciliationEndpoints:
             status=JournalEntryStatus.POSTED,
         )
         db.add(entry)
-        await db.commit()
+        await db.flush()
 
         # GIVEN journal lines
         from src.models import Direction

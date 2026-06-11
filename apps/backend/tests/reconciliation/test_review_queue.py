@@ -45,6 +45,7 @@ from src.services.review_queue import (
     get_pending_items,
     reject_match,
 )
+from tests.accounting._ledger_helpers import create_valid_void_entry
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
@@ -261,9 +262,7 @@ async def test_accept_match_creates_missing_journal_entry(db, test_user):
 async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(
-        db, user_id=test_user.id, amount=Decimal("100.00"), status=JournalEntryStatus.VOID
-    )
+    entry = await create_valid_void_entry(db, test_user.id, memo="Void match candidate")
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,

@@ -44,6 +44,7 @@ async def _entry(db, user_id, entry_date: date, lines: list[tuple[Account, Direc
                 direction=direction,
                 amount=amount,
                 currency=currency,
+                fx_rate=Decimal("1.00") if currency.upper() != "SGD" else None,
             )
         )
     await db.flush()

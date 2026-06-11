@@ -39,7 +39,8 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
     salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
     bonus = Account(user_id=test_user.id, name="Annual Bonus", type=AccountType.INCOME, currency="SGD")
     dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="SGD")
-    db.add_all([salary, bonus, dividend])
+    cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
+    db.add_all([salary, bonus, dividend, cash])
     await db.flush()
 
     income_entry = JournalEntry(
@@ -52,6 +53,13 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
     await db.flush()
     db.add_all(
         [
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("137400.00"),
+                currency="SGD",
+            ),
             JournalLine(
                 journal_entry_id=income_entry.id,
                 account_id=salary.id,
@@ -151,7 +159,9 @@ async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_to
     """AC5.11.3/AC11.11.3: Annualized package totals use one reporting currency."""
     salary = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
     dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="USD")
-    db.add_all([salary, dividend])
+    sgd_cash = Account(user_id=test_user.id, name="SGD Cash", type=AccountType.ASSET, currency="SGD")
+    usd_cash = Account(user_id=test_user.id, name="USD Cash", type=AccountType.ASSET, currency="USD")
+    db.add_all([salary, dividend, sgd_cash, usd_cash])
     await db.flush()
 
     income_entry = JournalEntry(
@@ -166,6 +176,13 @@ async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_to
         [
             JournalLine(
                 journal_entry_id=income_entry.id,
+                account_id=sgd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
                 account_id=salary.id,
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
@@ -173,10 +190,19 @@ async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_to
             ),
             JournalLine(
                 journal_entry_id=income_entry.id,
+                account_id=usd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("10.00"),
+                currency="USD",
+                fx_rate=Decimal("1.500000"),
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
                 account_id=dividend.id,
                 direction=Direction.CREDIT,
                 amount=Decimal("10.00"),
                 currency="USD",
+                fx_rate=Decimal("1.500000"),
             ),
             FxRate(
                 base_currency="USD",

@@ -102,6 +102,7 @@ async def test_aggregate_net_income_uses_average_rate(
                 direction=Direction.DEBIT,
                 amount=Decimal("1000"),
                 currency="USD",
+                fx_rate=Decimal("1.20"),
             ),
             JournalLine(
                 journal_entry_id=entry_early.id,
@@ -109,6 +110,7 @@ async def test_aggregate_net_income_uses_average_rate(
                 direction=Direction.CREDIT,
                 amount=Decimal("1000"),
                 currency="USD",
+                fx_rate=Decimal("1.20"),
             ),
             JournalLine(
                 journal_entry_id=entry_late.id,
@@ -116,6 +118,7 @@ async def test_aggregate_net_income_uses_average_rate(
                 direction=Direction.DEBIT,
                 amount=Decimal("200"),
                 currency="USD",
+                fx_rate=Decimal("1.40"),
             ),
             JournalLine(
                 journal_entry_id=entry_late.id,
@@ -123,6 +126,7 @@ async def test_aggregate_net_income_uses_average_rate(
                 direction=Direction.CREDIT,
                 amount=Decimal("200"),
                 currency="USD",
+                fx_rate=Decimal("1.40"),
             ),
         ]
     )
@@ -162,6 +166,7 @@ async def test_aggregate_net_income_no_start_date_uses_all_time_average(
                 direction=Direction.DEBIT,
                 amount=Decimal("500"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -169,6 +174,7 @@ async def test_aggregate_net_income_no_start_date_uses_all_time_average(
                 direction=Direction.CREDIT,
                 amount=Decimal("500"),
                 currency="USD",
+                fx_rate=Decimal("1.30"),
             ),
         ]
     )
@@ -268,6 +274,7 @@ async def test_aggregate_net_income_raises_on_missing_fx_rate(
                 direction=Direction.DEBIT,
                 amount=Decimal("100"),
                 currency="EUR",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -275,6 +282,7 @@ async def test_aggregate_net_income_raises_on_missing_fx_rate(
                 direction=Direction.CREDIT,
                 amount=Decimal("100"),
                 currency="EUR",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )

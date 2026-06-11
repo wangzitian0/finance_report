@@ -53,6 +53,27 @@ base_amount = line.amount * line.fx_rate
 
 Debit and credit totals are valid only when their converted base amounts differ by no more than `0.01`.
 
+### Posted Ledger Database Floor
+
+Application services validate drafts before posting, but the database is the
+final boundary for posted/reconciled ledger facts. Direct writes that bypass
+services must still be rejected when they would create a posted or reconciled
+entry with fewer than two lines, unbalanced base-currency debit/credit totals,
+or non-base lines without a positive `fx_rate`.
+
+Posted and reconciled entries are immutable ledger facts. They must not be
+updated or deleted directly; the only supported correction is a void transition
+that preserves an immutable reversal relationship. Draft entries remain editable
+and deletable until posting.
+
+Ledger immutability protects accounting facts: entry ownership/date/memo/source
+identity, status correction path, and all journal-line amounts, directions,
+accounts, currencies, and FX rates. The only non-fact metadata update allowed on
+a posted/reconciled entry is the source-type-priority promotion from
+`auto_parsed`, `bank_statement`, or `auto_matched` to `user_confirmed`, with
+`source_id` and every accounting fact unchanged. The same promotion is allowed
+when the entry moves from `posted` to `reconciled`.
+
 ---
 
 ## 3. Design Constraints (Dos & Don'ts)
@@ -68,6 +89,8 @@ Debit and credit totals are valid only when their converted base amounts differ 
 - **Pattern C**: Posted entries can only be voided, not directly modified
 - **Pattern D**: Multi-currency entries validate debit/credit balance after base-currency conversion.
 - **Pattern E**: Journal line account authorization is a domain invariant. Accounting services must validate that every `JournalLine.account_id` belongs to the same `user_id` as the `JournalEntry`; HTTP middleware is not sufficient because service calls and background tasks can write ledger records without a request object.
+- **Pattern F**: Posted/reconciled ledger invariants are enforced at both service and database boundaries.
+- **Pattern G**: Posted/reconciled source-type promotion may only increase trust from auto/statement-derived provenance to `user_confirmed`; it must not change source identity or accounting facts.
 
 ### ⛔ Prohibited Patterns
 
@@ -84,6 +107,8 @@ Debit and credit totals are valid only when their converted base amounts differ 
 - **Anti-pattern C**: **NEVER** skip validation when writing posted status. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_journal_entry_already_posted_fails`
 - **Anti-pattern E**: **NEVER** validate a multi-currency journal entry by comparing raw original-currency nominal amounts.
 - **Anti-pattern F**: **NEVER** create, post, or aggregate journal lines across user boundaries. Balance queries must require both `Account.user_id == user_id` and `JournalEntry.user_id == user_id`.
+- **Anti-pattern G**: **NEVER** directly update or delete posted/reconciled/void ledger facts. Use the void/reversal workflow.
+- **Anti-pattern H**: **NEVER** downgrade `source_type` or change `source_id` after posting/reconciliation. Provenance corrections must use the explicit source-type promotion path only.
 
 <a id="async-tx-boundary"></a>
 
@@ -183,6 +208,7 @@ def void_entry(entry: JournalEntry, reason: str) -> JournalEntry:
 | Multi-currency base balance | Unit test `test_AC2_12_1_multicurrency_entry_balances_in_base_currency` | ✅ Implemented |
 | Accounting equation base conversion | Integration test `test_AC2_12_2_accounting_equation_uses_base_currency_balances` | ✅ Implemented |
 | User-scoped line ownership | Integration tests `test_AC2_13_1_*`, `test_AC2_13_2_*`, `test_AC2_13_3_*` | ✅ Implemented |
+| Database ledger invariant floor | Direct DB-bypass tests `test_AC2_14_*` | ✅ Implemented |
 | Void logic | Unit test `test_void_entry` | ⏳ Pending |
 
 ---

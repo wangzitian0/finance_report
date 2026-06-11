@@ -49,6 +49,7 @@ from src.services.reconciliation import (
     score_pattern,
     weighted_total,
 )
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
 def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> StatementSummary:
@@ -752,35 +753,16 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession):
     )
     db.add(txn)
 
-    account = Account(
-        id=uuid4(),
-        name="Test Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
-
-    entry = JournalEntry(
-        user_id=user_id,
+    await create_valid_posted_entry(
+        db,
+        user_id,
         entry_date=date(2024, 1, 1),
         memo="Unbalanced",
-        status=JournalEntryStatus.POSTED,
+        amount=Decimal("100.00"),
     )
-    db.add(entry)
-    await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            amount=Decimal("100.00"),
-            direction=Direction.DEBIT,
-        )
-    )
-    await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    with patch("src.services.reconciliation.is_entry_balanced", return_value=False):
+        matches = await execute_matching(db, user_id=user_id)
     assert len(matches) == 0
 
 
@@ -2074,7 +2056,8 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
         ]
     )
 
-    # Entry B: UNBALANCED (debit=60, credit=50)
+    # Entry B is persisted balanced; the test mocks the reconciliation balance
+    # predicate to exercise the skip-unbalanced branch without dirty DB state.
     entry_b = JournalEntry(
         user_id=user_id,
         entry_date=date(2024, 1, 1),
@@ -2089,7 +2072,7 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
                 journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("60.00"), direction=Direction.DEBIT
             ),
             JournalLine(
-                journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.CREDIT
+                journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("60.00"), direction=Direction.CREDIT
             ),
         ]
     )
@@ -2108,8 +2091,9 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
     db.add(txn)
     await db.commit()
 
-    # The combinations(candidates, 2) check should skip (entry_a, entry_b) because entry_b is unbalanced
-    matches = await execute_matching(db, user_id=user_id)
+    # The combinations(candidates, 2) check should skip (entry_a, entry_b) because entry_b is marked unbalanced
+    with patch("src.services.reconciliation.is_entry_balanced", side_effect=lambda entry: entry.id != entry_b.id):
+        matches = await execute_matching(db, user_id=user_id)
     # entry_a alone (50) doesn't match txn (100) well; unbalanced pair is skipped
     # Result depends on scoring but the key is the code path is exercised
     assert isinstance(matches, list)

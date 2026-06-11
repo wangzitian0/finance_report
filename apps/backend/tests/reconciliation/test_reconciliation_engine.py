@@ -45,6 +45,7 @@ from src.services.review_queue import (
     get_or_create_account,
     reject_match,
 )
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
 async def _seed_summary(
@@ -452,14 +453,7 @@ async def test_find_candidates(db: AsyncSession):
     user_id = uuid4()
     config = load_reconciliation_config()
 
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Test Entry",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.commit()
+    await create_valid_posted_entry(db, user_id, entry_date=date(2024, 1, 1), memo="Test Entry")
 
     # Within range
     results = await find_candidates(db, date(2024, 1, 1), config, user_id)
@@ -924,34 +918,16 @@ async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> 
 async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSession) -> None:
     """AC4.6.7: Many-to-one skips unbalanced candidates and leaves transactions unmatched."""
     user_id = uuid4()
-    bank = Account(user_id=user_id, name="Bank - M2O", type=AccountType.ASSET, currency="SGD")
-    expense = Account(user_id=user_id, name="Expense - M2O", type=AccountType.EXPENSE, currency="SGD")
-    bad_entry = JournalEntry(
-        user_id=user_id,
+    await create_valid_posted_entry(
+        db,
+        user_id,
         entry_date=date(2024, 7, 1),
         memo="Batch settlement",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        amount=Decimal("100.00"),
     )
-    db.add_all([bank, expense, bad_entry])
-    await db.flush()
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 7, 1))
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=bad_entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=bad_entry.id,
-                account_id=bank.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("90.00"),
-                currency="SGD",
-            ),
             _atomic(
                 owner_id=user_id,
                 summary=summary,
@@ -972,7 +948,10 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
     )
     await db.commit()
 
-    with patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]):
+    with (
+        patch("src.services.reconciliation.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
+        patch("src.services.reconciliation.is_entry_balanced", return_value=False),
+    ):
         matches = await execute_matching(db, user_id=user_id)
 
     assert matches == []
@@ -1039,16 +1018,15 @@ async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncS
         source_documents=[{"doc_id": str(uuid4())}],
     )
     db.add(txn)
+    await db.flush()
 
-    entry = JournalEntry(
-        user_id=user_id,
+    entry = await create_valid_posted_entry(
+        db,
+        user_id,
         entry_date=date(2024, 8, 10),
         memo="candidate",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        amount=Decimal("30.00"),
     )
-    db.add(entry)
-    await db.commit()
 
     candidate = MatchCandidate(journal_entry_ids=[str(entry.id)], score=95, breakdown={"amount": 100.0})
 
@@ -1081,29 +1059,30 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
         amount=Decimal("3.00"),
         direction="OUT",
     )
-    entry_a = JournalEntry(
-        user_id=user_id,
+    db.add(txn)
+    await db.flush()
+
+    entry_a = await create_valid_posted_entry(
+        db,
+        user_id,
         entry_date=date(2024, 9, 12),
         memo="a",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        amount=Decimal("1.00"),
     )
-    entry_b = JournalEntry(
-        user_id=user_id,
+    entry_b = await create_valid_posted_entry(
+        db,
+        user_id,
         entry_date=date(2024, 9, 12),
         memo="b",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        amount=Decimal("1.00"),
     )
-    entry_c = JournalEntry(
-        user_id=user_id,
+    entry_c = await create_valid_posted_entry(
+        db,
+        user_id,
         entry_date=date(2024, 9, 12),
         memo="c",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        amount=Decimal("1.00"),
     )
-    db.add_all([txn, entry_a, entry_b, entry_c])
-    await db.commit()
 
     low_score = MatchCandidate(journal_entry_ids=[str(entry_a.id)], score=0, breakdown={"amount": 0.0})
 

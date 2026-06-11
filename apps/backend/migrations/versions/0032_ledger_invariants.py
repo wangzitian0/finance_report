@@ -1,170 +1,14 @@
-"""Journal entry models for double-entry bookkeeping."""
+"""harden ledger invariants"""
 
-from __future__ import annotations
+from alembic import op
 
-import enum
-from datetime import UTC, date, datetime
-from decimal import Decimal
-from typing import TYPE_CHECKING, Any
-from uuid import UUID
-
-from sqlalchemy import DECIMAL, CheckConstraint, Date, DateTime, Enum, ForeignKey, String, Text, event
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from src.database import Base
-from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-
-if TYPE_CHECKING:
-    from src.models.account import Account
+revision = "0032_ledger_invariants"
+down_revision = "0031_drop_orphan_stage1_enum"
+branch_labels = None
+depends_on = None
 
 
-class JournalEntryStatus(str, enum.Enum):
-    """Status of a journal entry."""
-
-    DRAFT = "draft"
-    POSTED = "posted"
-    RECONCILED = "reconciled"
-    VOID = "void"
-
-
-class JournalEntrySourceType(str, enum.Enum):
-    """Source type of a journal entry."""
-
-    MANUAL = "manual"
-    USER_CONFIRMED = "user_confirmed"
-    AUTO_MATCHED = "auto_matched"
-    AUTO_PARSED = "auto_parsed"
-    # Deprecated legacy value. New statement-derived entries should use
-    # AUTO_PARSED, USER_CONFIRMED, or AUTO_MATCHED.
-    BANK_STATEMENT = "bank_statement"
-    SYSTEM = "system"
-    FX_REVALUATION = "fx_revaluation"
-
-
-class Direction(str, enum.Enum):
-    """Debit or credit direction."""
-
-    DEBIT = "DEBIT"
-    CREDIT = "CREDIT"
-
-
-class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
-    """
-    Journal entry header containing metadata for a bookkeeping transaction.
-
-    Each entry must have at least 2 journal lines with balanced debits and credits.
-    """
-
-    __tablename__ = "journal_entries"
-
-    entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    memo: Mapped[str] = mapped_column(String(500), nullable=False)
-    source_type: Mapped[JournalEntrySourceType] = mapped_column(
-        Enum(
-            JournalEntrySourceType,
-            name="journal_source_type_enum",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=False,
-        default=JournalEntrySourceType.MANUAL,
-    )
-    source_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    status: Mapped[JournalEntryStatus] = mapped_column(
-        Enum(
-            JournalEntryStatus,
-            name="journal_entry_status_enum",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=False,
-        default=JournalEntryStatus.DRAFT,
-        index=True,
-    )
-    void_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    void_reversal_entry_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(
-            "journal_entries.id",
-            name="fk_journal_entries_void_reversal_entry_id",
-            ondelete="RESTRICT",
-        ),
-        nullable=True,
-    )
-
-    lines: Mapped[list[JournalLine]] = relationship(
-        "JournalLine", back_populates="journal_entry", cascade="all, delete-orphan"
-    )
-
-    def __repr__(self) -> str:
-        return f"<JournalEntry {self.entry_date} - {self.memo[:30]}>"
-
-    @property
-    def confidence_tier(self) -> str:
-        """Derived UI confidence tier based on source type."""
-        from src.services.confidence_tier import derive_confidence_tier
-
-        return derive_confidence_tier(self.source_type)
-
-
-class JournalLine(Base, UUIDMixin, TimestampMixin):
-    """
-    Individual debit or credit line in a journal entry.
-
-    Amount must always be positive. Direction (DEBIT/CREDIT) determines
-    the effect on the account based on account type.
-    """
-
-    __tablename__ = "journal_lines"
-    __table_args__ = (
-        CheckConstraint("amount > 0", name="positive_amount"),
-        CheckConstraint("fx_rate IS NULL OR fx_rate > 0", name="ck_journal_lines_fx_rate_positive"),
-    )
-
-    journal_entry_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    account_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False, index=True
-    )
-    direction: Mapped[Direction] = mapped_column(
-        Enum(
-            Direction,
-            name="journal_line_direction_enum",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=False,
-    )
-    amount: Mapped[Decimal] = mapped_column(DECIMAL(18, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="SGD")
-    fx_rate: Mapped[Decimal | None] = mapped_column(DECIMAL(18, 6), nullable=True)
-    event_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-
-    journal_entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
-    account: Mapped[Account] = relationship("Account", back_populates="journal_lines")
-
-    def __repr__(self) -> str:
-        return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"
-
-
-class JournalAuditLog(Base, UUIDMixin):
-    """Audit trail entry for journal transaction changes."""
-
-    __tablename__ = "journal_audit_log"
-
-    entry_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    actor: Mapped[str] = mapped_column(Text, nullable=False)
-    action: Mapped[str] = mapped_column(Text, nullable=False)
-    old_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    new_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
-    )
-
-
-_LEDGER_INVARIANT_SQL = """
+LEDGER_INVARIANT_DDL = """
 CREATE OR REPLACE FUNCTION fr_ledger_base_currency()
 RETURNS text
 LANGUAGE sql
@@ -475,39 +319,141 @@ FOR EACH ROW EXECUTE FUNCTION fr_guard_journal_line_immutability();
 """
 
 
-def _split_postgresql_ddl(sql: str) -> tuple[str, ...]:
-    statements: list[str] = []
-    start = 0
-    in_dollar_quote = False
-    index = 0
-
-    while index < len(sql):
-        if sql.startswith("$$", index):
-            in_dollar_quote = not in_dollar_quote
-            index += 2
-            continue
-
-        if sql[index] == ";" and not in_dollar_quote:
-            statement = sql[start : index + 1].strip()
-            if statement:
-                statements.append(statement)
-            start = index + 1
-
-        index += 1
-
-    trailing = sql[start:].strip()
-    if trailing:
-        statements.append(trailing)
-    return tuple(statements)
+DROP_LEDGER_INVARIANT_DDL = """
+DROP TRIGGER IF EXISTS ck_journal_lines_immutable ON journal_lines;
+DROP TRIGGER IF EXISTS ck_journal_entries_immutable ON journal_entries;
+DROP TRIGGER IF EXISTS ck_journal_lines_ledger_invariants ON journal_lines;
+DROP TRIGGER IF EXISTS ck_journal_entries_ledger_invariants ON journal_entries;
+DROP FUNCTION IF EXISTS fr_guard_journal_line_immutability();
+DROP FUNCTION IF EXISTS fr_guard_journal_entry_immutability();
+DROP FUNCTION IF EXISTS fr_check_journal_line_deferred();
+DROP FUNCTION IF EXISTS fr_check_journal_entry_deferred();
+DROP FUNCTION IF EXISTS fr_validate_journal_void_reversal(uuid);
+DROP FUNCTION IF EXISTS fr_validate_journal_entry_invariants(uuid);
+DROP FUNCTION IF EXISTS fr_ledger_base_currency();
+"""
 
 
-def _install_ledger_invariant_ddl(target: Any, connection: Any, **_: Any) -> None:
-    if connection.dialect.name != "postgresql":
-        return
+def upgrade() -> None:
+    op.execute(
+        """
+CREATE OR REPLACE FUNCTION fr_ledger_base_currency()
+RETURNS text
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(NULLIF(current_setting('finance_report.base_currency', true), ''), 'SGD')
+$$
+"""
+    )
+    op.execute(
+        """
+DO $$
+DECLARE
+    v_base_currency text := upper(fr_ledger_base_currency());
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM journal_lines
+        WHERE fx_rate <= 0
+    ) THEN
+        RAISE EXCEPTION 'preflight failed: journal_lines contains non-positive fx_rate values';
+    END IF;
 
-    # asyncpg rejects multi-command prepared statements during metadata create_all().
-    for statement in _split_postgresql_ddl(_LEDGER_INVARIANT_SQL):
-        connection.exec_driver_sql(statement)
+    IF EXISTS (
+        SELECT 1
+        FROM journal_entries entry
+        LEFT JOIN journal_lines line ON line.journal_entry_id = entry.id
+        WHERE entry.status::text IN ('posted', 'reconciled')
+        GROUP BY entry.id
+        HAVING count(line.id) < 2
+    ) THEN
+        RAISE EXCEPTION 'preflight failed: posted/reconciled journal_entries with fewer than two lines exist';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM journal_entries entry
+        JOIN journal_lines line ON line.journal_entry_id = entry.id
+        WHERE entry.status::text IN ('posted', 'reconciled')
+          AND COALESCE(upper(line.currency), v_base_currency) <> v_base_currency
+          AND (line.fx_rate IS NULL OR line.fx_rate <= 0)
+    ) THEN
+        RAISE EXCEPTION 'preflight failed: posted/reconciled non-base journal lines lack positive fx_rate';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            SELECT
+                entry.id,
+                COALESCE(
+                    sum(
+                        CASE WHEN line.direction::text = 'DEBIT'
+                        THEN line.amount * CASE
+                            WHEN COALESCE(upper(line.currency), v_base_currency) = v_base_currency THEN 1
+                            ELSE line.fx_rate
+                        END
+                        ELSE 0 END
+                    ),
+                    0
+                ) AS total_debit,
+                COALESCE(
+                    sum(
+                        CASE WHEN line.direction::text = 'CREDIT'
+                        THEN line.amount * CASE
+                            WHEN COALESCE(upper(line.currency), v_base_currency) = v_base_currency THEN 1
+                            ELSE line.fx_rate
+                        END
+                        ELSE 0 END
+                    ),
+                    0
+                ) AS total_credit
+            FROM journal_entries entry
+            JOIN journal_lines line ON line.journal_entry_id = entry.id
+            WHERE entry.status::text IN ('posted', 'reconciled')
+            GROUP BY entry.id
+        ) totals
+        WHERE abs(total_debit - total_credit) > 0.01
+    ) THEN
+        RAISE EXCEPTION 'preflight failed: unbalanced posted/reconciled journal_entries exist';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM journal_entries voided
+        LEFT JOIN journal_entries reversal ON reversal.id = voided.void_reversal_entry_id
+        WHERE voided.status::text = 'void'
+          AND (
+            voided.void_reversal_entry_id IS NULL
+            OR reversal.id IS NULL
+            OR reversal.user_id <> voided.user_id
+            OR reversal.status::text NOT IN ('posted', 'reconciled')
+          )
+    ) THEN
+        RAISE EXCEPTION 'preflight failed: void journal_entries have invalid reversal relationships';
+    END IF;
+END
+$$
+"""
+    )
+    op.create_check_constraint(
+        "ck_journal_lines_fx_rate_positive",
+        "journal_lines",
+        "fx_rate IS NULL OR fx_rate > 0",
+    )
+    op.create_foreign_key(
+        "fk_journal_entries_void_reversal_entry_id",
+        "journal_entries",
+        "journal_entries",
+        ["void_reversal_entry_id"],
+        ["id"],
+        ondelete="RESTRICT",
+    )
+    op.execute(LEDGER_INVARIANT_DDL)
 
 
-event.listen(JournalLine.__table__, "after_create", _install_ledger_invariant_ddl)
+def downgrade() -> None:
+    op.execute(DROP_LEDGER_INVARIANT_DDL)
+    op.drop_constraint("fk_journal_entries_void_reversal_entry_id", "journal_entries", type_="foreignkey")
+    op.drop_constraint("ck_journal_lines_fx_rate_positive", "journal_lines", type_="check")

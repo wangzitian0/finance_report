@@ -423,6 +423,7 @@ async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_
                 direction=Direction.DEBIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -430,6 +431,7 @@ async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_
                 direction=Direction.CREDIT,
                 amount=Decimal("100.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )
@@ -474,6 +476,7 @@ async def test_income_statement_fx_error(db: AsyncSession, chart_of_accounts, te
                 direction=Direction.DEBIT,
                 amount=Decimal("50.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
             JournalLine(
                 journal_entry_id=entry.id,
@@ -481,6 +484,7 @@ async def test_income_statement_fx_error(db: AsyncSession, chart_of_accounts, te
                 direction=Direction.CREDIT,
                 amount=Decimal("50.00"),
                 currency="USD",
+                fx_rate=Decimal("1.00"),
             ),
         ]
     )
@@ -524,6 +528,7 @@ async def test_account_trend_invalid_period(db: AsyncSession, chart_of_accounts,
 @pytest.mark.asyncio
 async def test_account_trend_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
+    equity = chart_of_accounts[2]
     entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date.today(),
@@ -533,14 +538,25 @@ async def test_account_trend_fx_error(db: AsyncSession, chart_of_accounts, test_
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("10.00"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("10.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("10.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -580,6 +596,7 @@ async def test_category_breakdown_invalid_period(db: AsyncSession, test_user_id)
 
 @pytest.mark.asyncio
 async def test_category_breakdown_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
+    cash = chart_of_accounts[0]
     expense = chart_of_accounts[-1]
     entry = JournalEntry(
         user_id=test_user_id,
@@ -590,14 +607,25 @@ async def test_category_breakdown_fx_error(db: AsyncSession, chart_of_accounts, 
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=expense.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("15.00"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("15.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("15.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -626,6 +654,7 @@ async def test_cash_flow_invalid_range(db: AsyncSession, test_user_id):
 @pytest.mark.asyncio
 async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
+    equity = chart_of_accounts[2]
     entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date(2025, 1, 1),
@@ -635,14 +664,25 @@ async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, te
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("5.00"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -659,6 +699,7 @@ async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, te
 @pytest.mark.asyncio
 async def test_cash_flow_fx_error_during(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
+    equity = chart_of_accounts[2]
     entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date(2025, 2, 10),
@@ -668,14 +709,25 @@ async def test_cash_flow_fx_error_during(db: AsyncSession, chart_of_accounts, te
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("7.00"),
-            currency="USD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("7.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("7.00"),
+                currency="USD",
+                fx_rate=Decimal("1.00"),
+            ),
+        ]
     )
     await db.commit()
 
@@ -731,6 +783,7 @@ async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
 @pytest.mark.asyncio
 async def test_cash_flow_balances_before_period(db: AsyncSession, chart_of_accounts, test_user_id) -> None:
     account = chart_of_accounts[0]
+    equity = chart_of_accounts[2]
     entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date(2025, 1, 1),
@@ -740,14 +793,23 @@ async def test_cash_flow_balances_before_period(db: AsyncSession, chart_of_accou
     )
     db.add(entry)
     await db.flush()
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("20.00"),
-            currency="SGD",
-        )
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=account.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("20.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("20.00"),
+                currency="SGD",
+            ),
+        ]
     )
     await db.commit()
 
@@ -1161,29 +1223,58 @@ async def test_income_statement_with_account_type_filter(db: AsyncSession, chart
     """Income statement should filter by account type when specified."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
-    entry = JournalEntry(
+    income_entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date(2025, 1, 15),
-        memo="Mixed entry",
+        memo="Income entry",
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
-    db.add(entry)
+    db.add(income_entry)
     await db.flush()
 
     db.add_all(
         [
             JournalLine(
-                journal_entry_id=entry.id,
+                journal_entry_id=income_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
                 account_id=income.id,
                 direction=Direction.CREDIT,
                 amount=Decimal("5000.00"),
                 currency="SGD",
             ),
+        ]
+    )
+
+    expense_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2025, 1, 16),
+        memo="Expense entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(expense_entry)
+    await db.flush()
+
+    db.add_all(
+        [
             JournalLine(
-                journal_entry_id=entry.id,
+                journal_entry_id=expense_entry.id,
                 account_id=expense.id,
                 direction=Direction.DEBIT,
+                amount=Decimal("2000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=expense_entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
                 amount=Decimal("2000.00"),
                 currency="SGD",
             ),
@@ -1336,6 +1427,7 @@ async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_account
             direction=Direction.DEBIT,
             amount=Decimal("100.00"),
             currency="USD",
+            fx_rate=Decimal("1.35"),
         )
     )
     db.add(
@@ -1345,6 +1437,7 @@ async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_account
             direction=Direction.CREDIT,
             amount=Decimal("100.00"),
             currency="USD",
+            fx_rate=Decimal("1.35"),
         )
     )
     await db.commit()

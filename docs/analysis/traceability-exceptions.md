@@ -20,6 +20,7 @@ These files are test infrastructure, not behavior proof.
 |---|---|
 | `apps/backend/tests/__init__.py` | Package marker |
 | `apps/backend/tests/accounting/__init__.py` | Package marker |
+| `apps/backend/tests/accounting/_ledger_helpers.py` | Shared accounting ledger invariant test helper |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/assets/__init__.py` | Package marker |
 | `apps/backend/tests/auth/__init__.py` | Package marker |

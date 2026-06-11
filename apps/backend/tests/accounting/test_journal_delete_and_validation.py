@@ -16,6 +16,7 @@ from src.models.journal import (
     JournalEntrySourceType,
     JournalEntryStatus,
 )
+from tests.accounting._ledger_helpers import create_valid_posted_entry, create_valid_void_entry
 
 
 @pytest.mark.asyncio
@@ -66,16 +67,7 @@ class TestJournalDeleteEndpoint:
         WHEN DELETE /journal-entries/{entry_id}
         THEN it should return 400 because only draft entries can be deleted.
         """
-        entry = JournalEntry(
-            user_id=test_user.id,
-            entry_date=date.today(),
-            memo="Posted - cannot delete",
-            status=JournalEntryStatus.POSTED,
-            source_type=JournalEntrySourceType.MANUAL,
-        )
-        db.add(entry)
-        await db.commit()
-        await db.refresh(entry)
+        entry = await create_valid_posted_entry(db, test_user.id, memo="Posted - cannot delete")
 
         response = await client.delete(f"/journal-entries/{entry.id}")
         assert response.status_code == 400
@@ -87,16 +79,7 @@ class TestJournalDeleteEndpoint:
         WHEN DELETE /journal-entries/{entry_id}
         THEN it should return 400 because only draft entries can be deleted.
         """
-        entry = JournalEntry(
-            user_id=test_user.id,
-            entry_date=date.today(),
-            memo="Voided - cannot delete",
-            status=JournalEntryStatus.VOID,
-            source_type=JournalEntrySourceType.MANUAL,
-        )
-        db.add(entry)
-        await db.commit()
-        await db.refresh(entry)
+        entry = await create_valid_void_entry(db, test_user.id, memo="Voided - cannot delete")
 
         response = await client.delete(f"/journal-entries/{entry.id}")
         assert response.status_code == 400

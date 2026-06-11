@@ -11,13 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import FxRate
 from src.models.account import Account, AccountType
-from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
+from src.models.journal import JournalEntrySourceType
 from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.routers import portfolio as portfolio_router
 from src.schemas.portfolio import HoldingResponse
 from src.services.portfolio import AssetNotFoundError
+from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
 @pytest.fixture
@@ -446,15 +447,13 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
     """AC17.10.1 AC17.10.2 AC17.10.3: schedule exposes metrics, rows, freshness, sources, and notes."""
     position = portfolio_with_data["position"]
     source_id = uuid4()
-    journal_entry = JournalEntry(
-        user_id=test_user.id,
+    journal_entry = await create_valid_posted_entry(
+        db,
+        test_user.id,
         entry_date=date.today() - timedelta(days=5),
         memo="Realized investment sale",
         source_type=JournalEntrySourceType.AUTO_PARSED,
-        status=JournalEntryStatus.POSTED,
     )
-    db.add(journal_entry)
-    await db.flush()
     dividend = DividendIncome(
         user_id=test_user.id,
         position_id=position.id,

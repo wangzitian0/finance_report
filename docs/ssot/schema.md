@@ -296,6 +296,12 @@ Journal entry header table.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
+**Constraints**:
+- `void_reversal_entry_id` is a self-FK to `journal_entries.id` with restricted delete semantics.
+- Posted/reconciled rows are validated by database triggers so direct DB writes cannot persist fewer than two lines or unbalanced base-currency debit/credit totals.
+- Posted/reconciled/void rows are protected by database triggers from direct update/delete. The supported correction path is a void transition with `void_reason` and `void_reversal_entry_id`.
+- The only posted/reconciled metadata update outside the void path is source-type-priority promotion from `auto_parsed`, `bank_statement`, or `auto_matched` to `user_confirmed`; `source_id` and all accounting facts remain unchanged, and the same promotion may accompany the `posted` to `reconciled` status transition.
+
 ### JournalLines
 Journal entry line table.
 
@@ -310,6 +316,12 @@ Journal entry line table.
 | fx_rate | DECIMAL(12,6) | | Exchange rate |
 | event_type | VARCHAR(100) | | Event type |
 | tags | JSONB | | Tags |
+
+**Constraints**:
+- `amount > 0`
+- `fx_rate IS NULL OR fx_rate > 0`
+- Non-base posted/reconciled lines require a positive `fx_rate` at the database boundary.
+- Posted/reconciled/void parent entries protect their lines from direct mutation; draft entry lines remain editable.
 
 ### InvestmentTransactions
 Auditable brokerage transaction table for buy, sell, and dividend accounting.
@@ -460,10 +472,9 @@ Stage 2 blocker table.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
-**Constraints**:
-- Each JournalEntry must have at least 2 JournalLines
-    - `SUM(DEBIT) = SUM(CREDIT)` (debit/credit balance)
-    - `JournalLine.amount > 0` (positive_amount check)
+Journal ledger constraints are specified above under `JournalEntries` and
+`JournalLines`; accounting rationale is owned by
+[`accounting.md`](./accounting.md).
 
 ### ODS: UploadedDocuments (EPIC-011)
 Immutable registry of all raw uploaded files (user-side source landing).
