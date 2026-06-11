@@ -175,9 +175,7 @@ def test_normalize_and_description_scoring(ac_evidence) -> None:
         ac_id="AC4.1.4",
         score=similarity / 100.0,
         metric="description_similarity_pct",
-        comment=(
-            f"score_description('Coffee Shop','coffee shop')={similarity:.1f}/100"
-        ),
+        comment=(f"score_description('Coffee Shop','coffee shop')={similarity:.1f}/100"),
         provenance="deterministic",
     )
 

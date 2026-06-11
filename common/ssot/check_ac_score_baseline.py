@@ -131,7 +131,19 @@ def main(argv: list[str] | None = None) -> int:
         else {"version": 1, "acs": {}}
     )
 
+    findings = evaluate(baseline, current)
+
     if args.update:
+        # Never cement a broken run: a regression / missing evidence / non-pass
+        # code in the current aggregate must block the baseline raise.
+        blocking = findings["regressions"] + findings["missing"] + findings["non_pass"]
+        if blocking:
+            for item in blocking:
+                print(
+                    f"::error title=AC score ratchet::refusing --update: {item}",
+                    file=sys.stderr,
+                )
+            return 1
         updated = ratcheted_baseline(baseline, current)
         args.baseline.parent.mkdir(parents=True, exist_ok=True)
         args.baseline.write_text(
@@ -140,7 +152,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Updated baseline: {args.baseline} ({len(updated['acs'])} AC(s))")
         return 0
 
-    findings = evaluate(baseline, current)
     print(render(findings))
     blocking = findings["regressions"] + findings["missing"] + findings["non_pass"]
     if blocking:

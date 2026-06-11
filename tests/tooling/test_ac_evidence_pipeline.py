@@ -67,6 +67,7 @@ def test_valid_record_round_trips():
         {"metric": "  "},  # honesty anchor: must name the yardstick
         {"comment": ""},  # must explain
         {"provenance": "vibes"},  # not a known provenance
+        {"provenance": "golden_fixture"},  # bare form loses the honesty anchor
         {"provenance": "golden_fixture@"},  # empty ref
     ],
 )
@@ -239,6 +240,22 @@ def test_record_property_emission_flows_to_aggregate(tmp_path):
     result = agg.aggregate([junit])
     assert result["acs"]["AC1.1.1"]["score"] == 0.5
     assert result["acs"]["AC1.1.1"]["code"] == "pass"
+
+
+def test_update_refuses_to_cement_a_broken_run(tmp_path):
+    """`--update` must not raise the baseline when the current run regresses."""
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps({"version": 1, "acs": {"AC4.1.4": {"score": 0.9}}}), encoding="utf-8"
+    )
+    current_path = tmp_path / "current.json"
+    current_path.write_text(json.dumps(_payload("AC4.1.4", 0.5)), encoding="utf-8")
+
+    rc = ratchet.main([str(current_path), "--baseline", str(baseline_path), "--update"])
+    assert rc == 1
+    # Baseline must be untouched.
+    after = json.loads(baseline_path.read_text())
+    assert after["acs"]["AC4.1.4"]["score"] == 0.9
 
 
 def test_committed_baseline_matches_schema():

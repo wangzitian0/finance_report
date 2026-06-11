@@ -35,7 +35,9 @@ def ac_evidence(record_property):
 
     repo_root = str(Path(__file__).resolve().parents[3])
     if repo_root not in sys.path:
-        sys.path.append(repo_root)
+        # Insert at the front so the repo's `common/` wins over any third-party
+        # `common` that may sit in site-packages.
+        sys.path.insert(0, repo_root)
     from common.testing.ac_evidence import record_ac_evidence
 
     def _emit(**kwargs):

@@ -33,8 +33,10 @@ PROPERTY_KEY = "ac_evidence"
 
 AC_ID_PATTERN = re.compile(r"^AC\d+\.\d+\.\d+$")
 VALID_CODES = ("pass", "fail", "skip", "error")
-# Provenance is either one of these literals, or "golden_fixture@<ref>".
-VALID_PROVENANCE = ("deterministic", "golden_fixture", "live_llm")
+# Provenance is either one of these literals, or "golden_fixture@<ref>". The bare
+# "golden_fixture" form is rejected on purpose: a golden-derived score must name
+# *which* golden it was measured against, or the honesty anchor is lost.
+VALID_PROVENANCE = ("deterministic", "live_llm")
 
 
 class ACEvidenceError(ValueError):

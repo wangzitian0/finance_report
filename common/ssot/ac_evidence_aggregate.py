@@ -4,8 +4,9 @@ CI already emits ``--junit-xml`` for every test stage. Each test may attach one
 or more ``ac_evidence`` properties (see :mod:`common.testing.ac_evidence`). This
 module reads those properties back and reduces them to one record per AC:
 
-- ``score`` = the best (max) score observed among *passing* evidence rows;
-- ``code``  = ``pass`` if any row for the AC passed, else the worst code seen;
+- ``code``  = the *worst* code seen across all rows, so a single failure surfaces
+  and cannot be masked by a later passing row (the L2 gate stays honest);
+- ``score`` = the best (max) score observed among *passing* rows;
 - ``metric``/``comment``/``provenance`` taken from the row that owns the max score.
 
 The output JSON is the input to :mod:`common.ssot.check_ac_score_baseline`.
