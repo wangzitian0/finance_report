@@ -52,7 +52,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         vi.clearAllMocks();
     });
 
-    it("AC16.17.1 shows loading feedback while the Stage 2 queue is pending", () => {
+    it("AC16.17.1 AC16.11.32 shows loading feedback while the Stage 2 queue is pending via the shared review harness", () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/stage2/queue") {
                 return new Promise(() => undefined) as Promise<never>;

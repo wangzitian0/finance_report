@@ -235,7 +235,10 @@ def build_review_required_event_payload(statement: StatementSummary, filename: s
         summary=f"{filename} needs source review before report readiness can advance.",
         source_type="bank_statement",
         source_id=statement.id,
-        action_href="/review",
+        # Deep-link straight to this statement's review surface (EPIC-022 PR2):
+        # the standalone Review Queue page is gone; the notification card is the
+        # entry point, so it must point at the specific item to review.
+        action_href=f"/statements/{statement.id}/review",
         report_impact=WorkflowReportImpact.BLOCKED,
         dedupe_key=build_workflow_dedupe_key(
             family=family,
@@ -720,7 +723,7 @@ async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowSta
         next_action = _next_action(
             WorkflowNextActionType.REVIEW_REQUIRED,
             count=action_required_count,
-            href=action_required_event.action_href if action_required_event else "/review",
+            href=action_required_event.action_href if action_required_event else "/notifications",
         )
     elif ready_count or package_readiness_state in {
         WorkflowReportReadinessState.READY,

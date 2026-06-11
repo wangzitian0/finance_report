@@ -528,7 +528,7 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
 
 @pytest.mark.asyncio
 async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
-    """AC19.12.2 AC19.12.6: review events are idempotent, current, and lifecycle-safe."""
+    """AC19.12.2 AC19.12.6 AC22.2.2 AC22.2.5: review events are idempotent, current, lifecycle-safe, and deep-link to the statement review page."""
     statement, _document = await _make_statement(
         db,
         test_user.id,
@@ -561,7 +561,7 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
     assert same_review_event.id == review_event.id
     assert same_review_event.status == WorkflowEventStatus.READ
     assert same_review_event.severity == WorkflowEventSeverity.ACTION_REQUIRED
-    assert same_review_event.action_href == "/review"
+    assert same_review_event.action_href == f"/statements/{same_review_event.source_id}/review"
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
@@ -654,7 +654,7 @@ async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without
     ).scalar_one()
 
     assert pending_review_event.status == WorkflowEventStatus.UNREAD
-    assert pending_review_event.action_href == "/review"
+    assert pending_review_event.action_href == f"/statements/{pending_review_event.source_id}/review"
     assert review_completed_event.status == WorkflowEventStatus.UNREAD
     assert parsing_failed_count == 0
     assert parsing_failed_event.status == WorkflowEventStatus.UNREAD

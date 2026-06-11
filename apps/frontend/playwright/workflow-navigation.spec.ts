@@ -125,7 +125,6 @@ test.describe("AC19.6.7 workflow navigation folding", () => {
 
     await nav.getByRole("button", { name: /Advanced/ }).click();
     await expect(nav.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
-    await expect(nav.getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
     await expect(nav.getByRole("link", { name: "Reconciliation" })).toHaveAttribute("href", "/reconciliation");
     await expect(nav.getByRole("link", { name: "Processing" })).toHaveAttribute("href", "/processing");
     await expect(nav.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
@@ -144,7 +143,6 @@ test.describe("AC19.6.7 workflow navigation folding", () => {
 
     await dialog.getByRole("button", { name: "Advanced" }).click();
     await expect(dialog.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/portfolio");
-    await expect(dialog.getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
     await expect(dialog.getByRole("link", { name: "AI Settings" })).toHaveAttribute("href", "/settings/ai");
     await expectNoDocumentHorizontalScroll(page);
   });
