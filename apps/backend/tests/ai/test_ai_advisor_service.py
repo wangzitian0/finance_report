@@ -21,14 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     ChatMessage,
     ChatMessageRole,
     ChatSession,
     ChatSessionStatus,
-    ConfidenceLevel,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
@@ -37,6 +33,7 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.prompts.ai_advisor import DISCLAIMER_EN, get_ai_advisor_prompt
 from src.schemas.workflow import (
     WorkflowEventCountsResponse,
@@ -798,75 +795,49 @@ async def test_get_financial_context_filters_by_user(db: AsyncSession) -> None:
         ]
     )
 
-    statement = BankStatement(
+    matched_txn = AtomicTransaction(
         user_id=user_id,
-        account_id=None,
-        file_path="statements/test.pdf",
-        file_hash="hash1",
-        original_filename="test.pdf",
-        institution="Test Bank",
-        account_last4="1234",
-        currency="SGD",
-        period_start=today,
-        period_end=today,
-        opening_balance=Decimal("0.00"),
-        closing_balance=Decimal("0.00"),
-    )
-    db.add(statement)
-    await db.flush()
-
-    matched_txn = BankStatementTransaction(
-        statement_id=statement.id,
         txn_date=today,
         description="Salary",
         amount=Decimal("100.00"),
-        direction="IN",
-        status=BankStatementTransactionStatus.MATCHED,
-        confidence=ConfidenceLevel.HIGH,
+        direction=TransactionDirection.IN,
+        currency="SGD",
+        dedup_hash=f"advisor-matched-{uuid4()}",
+        source_documents=[],
     )
-    unmatched_txn = BankStatementTransaction(
-        statement_id=statement.id,
+    unmatched_txn = AtomicTransaction(
+        user_id=user_id,
         txn_date=today,
         description="Misc",
         amount=Decimal("50.00"),
-        direction="OUT",
-        status=BankStatementTransactionStatus.UNMATCHED,
-        confidence=ConfidenceLevel.HIGH,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=f"advisor-unmatched-{uuid4()}",
+        source_documents=[],
     )
     db.add_all([matched_txn, unmatched_txn])
     await db.flush()
 
+    # One accepted match (matched=1) and one pending review match (pending_review=1).
+    accepted_match = ReconciliationMatch(
+        atomic_txn_id=matched_txn.id,
+        status=ReconciliationStatus.ACCEPTED,
+    )
     pending_match = ReconciliationMatch(
-        bank_txn_id=matched_txn.id,
+        atomic_txn_id=unmatched_txn.id,
         status=ReconciliationStatus.PENDING_REVIEW,
     )
-    db.add(pending_match)
+    db.add_all([accepted_match, pending_match])
 
-    other_statement = BankStatement(
+    other_txn = AtomicTransaction(
         user_id=other_user_id,
-        account_id=None,
-        file_path="statements/other.pdf",
-        file_hash="hash2",
-        original_filename="other.pdf",
-        institution="Other Bank",
-        account_last4="9999",
-        currency="SGD",
-        period_start=today,
-        period_end=today,
-        opening_balance=Decimal("0.00"),
-        closing_balance=Decimal("0.00"),
-    )
-    db.add(other_statement)
-    await db.flush()
-
-    other_txn = BankStatementTransaction(
-        statement_id=other_statement.id,
         txn_date=today,
         description="Other",
         amount=Decimal("999.00"),
-        direction="OUT",
-        status=BankStatementTransactionStatus.UNMATCHED,
-        confidence=ConfidenceLevel.HIGH,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=f"advisor-other-{uuid4()}",
+        source_documents=[],
     )
     db.add(other_txn)
 

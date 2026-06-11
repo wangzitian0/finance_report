@@ -5,17 +5,17 @@ from fastapi import HTTPException
 from httpx import AsyncClient
 
 from src.routers import corrections
-from tests.factories import BankStatementFactory, BankStatementTransactionFactory
+from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
 
 async def test_post_create_correction_and_stats(client: AsyncClient, db, test_user):
     """AC4.7.1: POST /corrections persists a correction and /corrections/stats reflects it."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-    txn = await BankStatementTransactionFactory.create_async(
+    document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
+    txn = await AtomicTransactionFactory.create_async(
         db,
-        statement_id=stmt.id,
+        test_user.id,
+        source_doc_id=document.id,
         description="Test purchase",
-        suggested_category="Misc",
     )
     await db.commit()
 

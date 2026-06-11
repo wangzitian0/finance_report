@@ -2,7 +2,7 @@
 
 Posting guards now operate on the ``StatementSummary`` envelope and its Layer-2
 ``AtomicTransaction`` rows (resolved via the linked ODS ``UploadedDocument``),
-instead of the legacy ``BankStatement`` / ``BankStatementTransaction`` pair.
+instead of the legacy statement/transaction pair.
 """
 
 from __future__ import annotations
@@ -85,9 +85,7 @@ async def auto_create_posted_entries_for_statement(
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
 
     for txn in txns_to_post:
-        # TODO(EPIC-011 Stage 3): create_entry_from_txn still consumes the legacy
-        # BankStatementTransaction; its migration onto AtomicTransaction is owned by
-        # the review_queue migration phase.
+        # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.
         await create_entry_from_txn(
             db,
             txn,

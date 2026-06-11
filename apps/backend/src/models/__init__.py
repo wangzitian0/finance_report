@@ -39,12 +39,6 @@ from src.models.portfolio import (
     PriceSource,
 )
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.statement import (
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
-    ConfidenceLevel,
-)
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.models.user import AiFeedback, User
@@ -58,25 +52,13 @@ from src.models.workflow import (
     WorkflowSessionStatus,
 )
 
-# Alias for SSOT compatibility (account_events table / statements table naming)
-AccountEvent = BankStatementTransaction
-AccountEventStatus = BankStatementTransactionStatus
-BankTransactionStatus = BankStatementTransactionStatus
-Statement = BankStatement
-
 __all__ = [
     "Account",
-    "AccountEvent",  # Alias for BankStatementTransaction
-    "AccountEventStatus",  # Alias for BankStatementTransactionStatus
     "AccountType",
     "AiFeedback",
     "AtomicPosition",
     "AtomicTransaction",
-    "BankStatement",
     "BankStatementStatus",
-    "BankStatementTransaction",
-    "BankStatementTransactionStatus",
-    "BankTransactionStatus",  # Alias for BankStatementTransactionStatus
     "ChatMessage",
     "ChatMessageRole",
     "ChatSession",
@@ -86,7 +68,6 @@ __all__ = [
     "ConsistencyCheck",
     "ClassificationRule",
     "ClassificationStatus",
-    "ConfidenceLevel",
     "CorrectionLog",
     "Direction",
     "DocumentStatus",
@@ -117,7 +98,6 @@ __all__ = [
     "ReportSnapshot",
     "ReportType",
     "RuleType",
-    "Statement",  # Alias for BankStatement
     "StatementSummary",
     "Stage1Status",
     "StockPrice",

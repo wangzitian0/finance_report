@@ -20,7 +20,8 @@ from src.models.layer3 import (
 )
 from src.models.market_data import StockPrice
 from src.models.portfolio import DividendIncome, MarketDataOverride, PriceSource
-from src.models.statement import BankStatement, BankStatementStatus, Stage1Status
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 from src.models.user import User
 from src.routers.reports import (
     personal_report_package_contract,
@@ -417,11 +418,9 @@ async def test_AC19_7_1_statement_only_inputs_do_not_require_framework_policy_re
 ) -> None:
     """AC19.7.1: Statement-only package inputs do not require an empty framework policy result."""
     report_date = date(2026, 5, 31)
-    statement = BankStatement(
+    statement = StatementSummary(
         user_id=test_user.id,
-        file_path=f"s3://test/{uuid4()}.csv",
         file_hash=uuid4().hex,
-        original_filename=f"{uuid4()}.csv",
         institution="Framework Bank",
         period_start=date(2026, 5, 1),
         period_end=report_date,

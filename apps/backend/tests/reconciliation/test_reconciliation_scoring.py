@@ -9,10 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
     Account,
-    AccountEvent,
     AccountType,
-    BankTransactionStatus,
-    ConfidenceLevel,
+    AtomicTransaction,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
@@ -20,8 +18,8 @@ from src.models import (
     JournalLine,
     ReconciliationMatch,
     ReconciliationStatus,
-    Statement,
 )
+from src.models.layer2 import TransactionDirection
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
     auto_accept,
@@ -281,14 +279,15 @@ def test_score_date_branches() -> None:
     ],
 )
 def test_score_business_logic_variants(direction: str, types: list[AccountType], expected: float) -> None:
-    txn = AccountEvent(
-        statement_id=uuid4(),
+    txn = AtomicTransaction(
+        user_id=uuid4(),
         txn_date=date.today(),
         description="Test",
         amount=Decimal("10.00"),
         direction=direction,
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
     )
     entry = _make_entry_with_types(types)
     assert score_business_logic(txn, entry) == expected
@@ -376,59 +375,46 @@ def test_prune_candidates_orders_and_limits() -> None:
 
 @pytest.mark.asyncio
 async def test_score_pattern_variants(db: AsyncSession) -> None:
-    txn_empty = AccountEvent(
-        statement_id=uuid4(),
+    txn_empty = AtomicTransaction(
+        user_id=uuid4(),
         txn_date=date.today(),
         description="",
         amount=Decimal("10.00"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.MEDIUM,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
     )
     assert await score_pattern(db, txn_empty, DEFAULT_CONFIG, user_id=uuid4()) == 0.0
 
-    txn_no_history = AccountEvent(
-        statement_id=uuid4(),
+    txn_no_history = AtomicTransaction(
+        user_id=uuid4(),
         txn_date=date.today(),
         description="Coffee Shop",
         amount=Decimal("10.00"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.MEDIUM,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
     )
     assert await score_pattern(db, txn_no_history, DEFAULT_CONFIG, user_id=uuid4()) == 0.0
 
-    statement = Statement(
-        user_id=uuid4(),  # Using a valid UUID for NOT NULL constraint
-        account_id=None,
-        file_path="statements/history.pdf",
-        file_hash="hash_history",
-        original_filename="history.pdf",
-        institution="Test Bank",
-        account_last4="7890",
-        currency="SGD",
-        period_start=date.today(),
-        period_end=date.today(),
-        opening_balance=Decimal("0.00"),
-        closing_balance=Decimal("0.00"),
-    )
-    db.add(statement)
-    await db.flush()
-
-    past_txn = AccountEvent(
-        statement_id=statement.id,
+    user_id = uuid4()
+    past_txn = AtomicTransaction(
+        user_id=user_id,
         txn_date=date.today(),
         description="Coffee Shop",
         amount=Decimal("10.00"),
-        direction="OUT",
-        status=BankTransactionStatus.MATCHED,
-        confidence=ConfidenceLevel.HIGH,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
     )
     db.add(past_txn)
     await db.flush()
 
     match = ReconciliationMatch(
-        bank_txn_id=past_txn.id,
+        atomic_txn_id=past_txn.id,
         journal_entry_ids=[],
         match_score=88,
         score_breakdown={"amount": 100.0},
@@ -437,27 +423,29 @@ async def test_score_pattern_variants(db: AsyncSession) -> None:
     db.add(match)
     await db.commit()
 
-    txn_match = AccountEvent(
-        statement_id=statement.id,
+    txn_match = AtomicTransaction(
+        user_id=user_id,
         txn_date=date.today(),
         description="Coffee Shop",
         amount=Decimal("10.05"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
     )
-    txn_miss = AccountEvent(
-        statement_id=statement.id,
+    txn_miss = AtomicTransaction(
+        user_id=user_id,
         txn_date=date.today(),
         description="Coffee Shop",
         amount=Decimal("10.50"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
     )
 
-    assert await score_pattern(db, txn_match, DEFAULT_CONFIG, user_id=statement.user_id) == 80.0
-    assert await score_pattern(db, txn_miss, DEFAULT_CONFIG, user_id=statement.user_id) == 40.0
+    assert await score_pattern(db, txn_match, DEFAULT_CONFIG, user_id=user_id) == 80.0
+    assert await score_pattern(db, txn_miss, DEFAULT_CONFIG, user_id=user_id) == 40.0
 
 
 @pytest.mark.asyncio
@@ -503,30 +491,15 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
     credit_line.account = bank
     entry.lines.extend([debit_line, credit_line])
 
-    # We need a statement to link the txn to a user_id for the history check query
-    statement = Statement(
+    txn = AtomicTransaction(
         user_id=user_id,
-        file_path="dummy",
-        file_hash="dummy",
-        original_filename="dummy.pdf",
-        institution="Dummy",
-        currency="SGD",
-        period_start=date.today(),
-        period_end=date.today(),
-        opening_balance=Decimal("0"),
-        closing_balance=Decimal("0"),
-    )
-    db.add(statement)
-    await db.flush()
-
-    txn = AccountEvent(
-        statement_id=statement.id,
         txn_date=date.today(),
         description="Batch payment",
         amount=Decimal("100.00"),
-        direction="OUT",
-        status=BankTransactionStatus.PENDING,
-        confidence=ConfidenceLevel.HIGH,
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
     )
     candidate = await calculate_match_score(
         db,

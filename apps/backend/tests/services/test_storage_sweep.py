@@ -12,7 +12,8 @@ import pytest
 from botocore.exceptions import ClientError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import BankStatement, BankStatementStatus
+from src.models import UploadedDocument
+from src.models.layer1 import DocumentType
 from src.services import StorageError
 from src.services.storage_sweep import (
     ORPHAN_MIN_AGE,
@@ -73,16 +74,15 @@ async def test_sweep_skips_known_db_objects(db: AsyncSession, test_user):
     """AC3.8.2: Storage objects with matching DB records are preserved."""
     known_key = "statements/user-1/known-id/statement.pdf"
 
-    # Create a matching DB record
-    statement = BankStatement(
+    # Create a matching DB record (the kept ODS landing table keys storage objects)
+    document = UploadedDocument(
         user_id=test_user.id,
         file_path=known_key,
         file_hash="known_hash_sweep_test",
         original_filename="statement.pdf",
-        institution="TestBank",
-        status=BankStatementStatus.PARSED,
+        document_type=DocumentType.BANK_STATEMENT,
     )
-    db.add(statement)
+    db.add(document)
     await db.commit()
 
     mock_keys = [(known_key, _old_timestamp())]

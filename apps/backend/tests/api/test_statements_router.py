@@ -19,6 +19,7 @@ from decimal import Decimal
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, UploadFile, status
@@ -29,14 +30,11 @@ from src.models import Account, AccountType, User
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalEntryStatus
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.statement import (
-    BankStatement,
-    BankStatementStatus,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
-    Stage1Status,
-)
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
 from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest, Stage1ApprovalRequest
@@ -132,14 +130,17 @@ async def test_build_statement_storage_key_sanitizes_extension():
     )
 
 
-def build_statement(user_id, file_hash: str, confidence_score: int) -> BankStatement:
-    """Build a BankStatement model for tests."""
-    return BankStatement(
+def build_statement(user_id, file_hash: str, confidence_score: int) -> StatementSummary:
+    """Build a StatementSummary (DWD conform) envelope for tests.
+
+    Layer-1 file metadata (``file_path``/``original_filename``) now lives on the
+    ODS ``UploadedDocument``; use :func:`seed_uploaded_document` to attach one when a
+    test needs storage keys, filenames, or transaction resolution.
+    """
+    return StatementSummary(
         user_id=user_id,
         account_id=None,
-        file_path="tmp",
         file_hash=file_hash,
-        original_filename="stub.pdf",
         institution="DBS",
         account_last4="1234",
         currency="SGD",
@@ -151,6 +152,72 @@ def build_statement(user_id, file_hash: str, confidence_score: int) -> BankState
         confidence_score=confidence_score,
         balance_validated=True,
     )
+
+
+async def seed_uploaded_document(
+    db,
+    statement: StatementSummary,
+    *,
+    file_path: str = "tmp",
+    original_filename: str = "stub.pdf",
+) -> UploadedDocument:
+    """Create the ODS ``UploadedDocument`` backing a statement and link it.
+
+    Idempotent: if the statement already has an ``uploaded_document_id`` the existing
+    document is returned. Returns the document so callers can build
+    ``AtomicTransaction`` facts that reference it via ``source_documents``.
+    """
+    if statement.uploaded_document_id is not None:
+        existing = await db.get(UploadedDocument, statement.uploaded_document_id)
+        if existing is not None:
+            return existing
+    document = UploadedDocument(
+        user_id=statement.user_id,
+        file_path=file_path,
+        file_hash=statement.file_hash,
+        original_filename=original_filename,
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(document)
+    await db.flush()
+    statement.uploaded_document_id = document.id
+    db.add(statement)
+    await db.flush()
+    return document
+
+
+async def add_txn(
+    db,
+    statement,
+    *,
+    txn_date: date,
+    description: str,
+    amount: Decimal,
+    direction: str,
+) -> AtomicTransaction:
+    """Build, persist, and return a Layer-2 ``AtomicTransaction`` for a statement.
+
+    ``statement`` may be a :class:`StatementSummary` or its ``id`` (UUID). Lazily
+    seeds the statement's ODS ``UploadedDocument`` so the fact resolves back to its
+    owning envelope via ``source_documents -> UploadedDocument -> StatementSummary``
+    (atomic transactions carry no ``statement_id``).
+    """
+    if not isinstance(statement, StatementSummary):
+        statement = await db.get(StatementSummary, statement)
+    document = await seed_uploaded_document(db, statement)
+    txn = AtomicTransaction(
+        user_id=statement.user_id,
+        txn_date=txn_date,
+        description=description,
+        amount=amount,
+        direction=TransactionDirection(direction),
+        currency=statement.currency or "SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(document.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
+    )
+    db.add(txn)
+    await db.flush()
+    return txn
 
 
 async def test_is_high_confidence_auto_approve_candidate_requires_all_guards(test_user):
@@ -444,7 +511,6 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(db, test_us
     """AC10.8.3: Statement-scoped brokerage import logs replay context and counts."""
     statement = build_statement(test_user.id, "manual_brokerage_audit", 95)
     statement.institution = "Moomoo"
-    statement.parsing_progress = 100
     db.add(statement)
     await db.commit()
     statement_id = statement.id
@@ -481,7 +547,6 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(db, test_us
     assert started["audit_event"] == "statement.brokerage_import.started"
     assert started["statement_id"] == str(statement_id)
     assert started["phase"] == "brokerage_import_started"
-    assert started["progress"] == 100
     assert started["model_to_use"] is None
     assert completed["audit_event"] == "statement.brokerage_import.completed"
     assert completed["statement_id"] == str(statement_id)
@@ -519,6 +584,8 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
     content = b"statement-flow"
 
+    from src.services.deduplication import dual_write_layer2
+
     async def fake_parse_document(
         self,
         file_path,
@@ -534,11 +601,23 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
         db=None,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
-        transaction = BankStatementTransaction(
+        transaction = AtomicTransaction(
+            user_id=test_user.id,
             txn_date=date(2025, 1, 2),
             description="Salary",
             amount=Decimal("5000.00"),
-            direction="IN",
+            direction=TransactionDirection.IN,
+            currency="SGD",
+            dedup_hash=uuid4().hex + uuid4().hex,
+            source_documents=[],
+        )
+        # Persist via the single DWD linker so the statement resolves its Layer-2 facts.
+        await dual_write_layer2(
+            db,
+            test_user.id,
+            statement,
+            [transaction],
+            original_filename=original_filename,
         )
         return statement, [transaction]
 
@@ -592,6 +671,8 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         hashlib.sha256(contents[1]).hexdigest(): scores[1],
     }
 
+    from src.services.deduplication import dual_write_layer2
+
     async def fake_parse_document(
         self,
         file_path,
@@ -609,6 +690,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         score = score_by_hash[file_hash or ""]
         statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
         statement.closing_balance = Decimal("100.00")
+        await dual_write_layer2(db, test_user.id, statement, [], original_filename=original_filename)
         return statement, []
 
     monkeypatch.setattr(
@@ -663,9 +745,15 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
 async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, test_user):
     """AC16.22.2: Stage 1 reject queues a re-parse for the rejected statement."""
     statement = build_statement(test_user.id, "hash_stage1_reject_reparse", 70)
-    statement.file_path = "statements/reject-reparse.pdf"
     statement.status = BankStatementStatus.PARSED
     db.add(statement)
+    await db.flush()
+    document = await seed_uploaded_document(
+        db,
+        statement,
+        file_path="statements/reject-reparse.pdf",
+        original_filename="reject-reparse.pdf",
+    )
     await db.commit()
     await db.refresh(statement)
 
@@ -687,9 +775,9 @@ async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, tes
     assert response.status == BankStatementStatus.REJECTED
     assert response.validation_error == "Needs re-parse"
     assert queued["statement_id"] == statement.id
-    assert queued["filename"] == statement.original_filename
+    assert queued["filename"] == document.original_filename
     assert queued["user_id"] == test_user.id
-    assert queued["storage_key"] == statement.file_path
+    assert queued["storage_key"] == document.file_path
     assert queued["content"] == b"dummy content"
 
 
@@ -852,7 +940,7 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
     await upload_file.close()
     await wait_for_background_tasks()
 
-    statement = await db.get(BankStatement, created.id)
+    statement = await db.get(StatementSummary, created.id)
     assert statement is not None
 
     # Wait for background task to update status to REJECTED
@@ -911,8 +999,9 @@ async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
 
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
-    statement.file_path = "path/to/file.pdf"
     db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="path/to/file.pdf")
     await db.commit()
 
     mock_storage = MagicMock()
@@ -975,7 +1064,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
 
     # To trigger a 400, we need a status NOT in (PARSED, REJECTED, PARSING)
     # UPLOADED status is not allowed for retry.
-    statement = await db.get(BankStatement, created.id)
+    statement = await db.get(StatementSummary, created.id)
     statement.status = BankStatementStatus.UPLOADED
     await db.commit()
 
@@ -998,16 +1087,16 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
     from src.schemas import RetryParsingRequest
 
     sid = uuid4()
-    statement = BankStatement(
+    statement = StatementSummary(
         id=sid,
         user_id=test_user.id,
         status=BankStatementStatus.PARSING,
-        file_path="p",
         file_hash="h_parsing",
-        original_filename="f.pdf",
         institution="DBS",
     )
     db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="p", original_filename="f.pdf")
     await db.commit()
 
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
@@ -1026,6 +1115,7 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC3.5.19: Retry parsing with stronger model succeeds."""
     from src.schemas import RetryParsingRequest
+    from src.services.deduplication import dual_write_layer2
 
     content = b"statement"
 
@@ -1046,6 +1136,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
         statement = build_statement(test_user.id, file_hash or "", confidence_score=95)
         statement.status = BankStatementStatus.REJECTED
         statement.confidence_score = 60
+        await dual_write_layer2(db, test_user.id, statement, [], original_filename=original_filename)
         return statement, []
 
     monkeypatch.setattr(
@@ -1095,6 +1186,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC3.5.20: Retry extraction failure returns 422."""
     from src.schemas import RetryParsingRequest
+    from src.services.deduplication import dual_write_layer2
 
     content = b"statement"
 
@@ -1114,6 +1206,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     ):
         statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
         statement.status = BankStatementStatus.REJECTED
+        await dual_write_layer2(db, test_user.id, statement, [], original_filename=original_filename)
         return statement, []
 
     monkeypatch.setattr(
@@ -1287,7 +1380,7 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
     # Statement should still be in PARSING or move to REJECTED?
     # In current implementation, if background task fails with unexpected error, it might stay in PARSING.
     # But line 300 logs the error.
-    statement = await db.get(BankStatement, created.id)
+    statement = await db.get(StatementSummary, created.id)
     assert statement is not None
 
 
@@ -1295,8 +1388,9 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
     """AC3.5.25: Background retry error should be caught and logged."""
     statement = build_statement(test_user.id, "hash_retry", 80)
     statement.status = BankStatementStatus.REJECTED
-    statement.file_path = "path"
     db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="path")
     await db.commit()
 
     async def fake_parse_document_fail(*args, **kwargs):
@@ -1412,8 +1506,9 @@ async def test_delete_statement_success(db, test_user, monkeypatch):
     Then it deletes from storage and DB (lines 685-698).
     """
     statement = build_statement(test_user.id, "hash_del", 90)
-    statement.file_path = "statements/user/file.pdf"
     db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="statements/user/file.pdf")
     await db.commit()
     statement_id = statement.id
 
@@ -1421,7 +1516,7 @@ async def test_delete_statement_success(db, test_user, monkeypatch):
 
     await statements_router.delete_statement(statement_id=statement_id, db=db, user_id=test_user.id)
 
-    deleted = await db.get(BankStatement, statement_id)
+    deleted = await db.get(StatementSummary, statement_id)
     assert deleted is None
 
 
@@ -1445,8 +1540,9 @@ async def test_delete_statement_storage_error_still_deletes(db, test_user, monke
     Then the DB record is still deleted to avoid zombie records (lines 690-696).
     """
     statement = build_statement(test_user.id, "hash_del_err", 90)
-    statement.file_path = "statements/user/file.pdf"
     db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="statements/user/file.pdf")
     await db.commit()
     statement_id = statement.id
 
@@ -1456,7 +1552,7 @@ async def test_delete_statement_storage_error_still_deletes(db, test_user, monke
 
     await statements_router.delete_statement(statement_id=statement_id, db=db, user_id=test_user.id)
 
-    deleted = await db.get(BankStatement, statement_id)
+    deleted = await db.get(StatementSummary, statement_id)
     assert deleted is None
 
 
@@ -1520,6 +1616,8 @@ async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(db, tes
     """AC16.33.4: Statement review PDFs use a short-lived preview URL."""
     statement = build_statement(test_user.id, "hash_review_short_presign", 75)
     db.add(statement)
+    await db.flush()
+    document = await seed_uploaded_document(db, statement, file_path="statements/review/short-presign.pdf")
     await db.commit()
     await db.refresh(statement)
 
@@ -1531,7 +1629,7 @@ async def test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl(db, tes
 
     assert result.pdf_url == "https://example.com/file"
     mock_storage.generate_presigned_url.assert_called_once_with(
-        key=statement.file_path,
+        key=document.file_path,
         expires_in=statements_router.settings.statement_review_presign_expiry_seconds,
     )
 
@@ -1572,15 +1670,17 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
     await db.flush()
     statement_id = statement.id
 
-    txn_in = BankStatementTransaction(
-        statement_id=statement_id,
+    txn_in = await add_txn(
+        db,
+        statement_id,
         txn_date=date(2025, 1, 2),
         description="Salary",
         amount=Decimal("20.00"),
         direction="IN",
     )
-    txn_out = BankStatementTransaction(
-        statement_id=statement_id,
+    txn_out = await add_txn(
+        db,
+        statement_id,
         txn_date=date(2025, 1, 3),
         description="Lunch",
         amount=Decimal("5.00"),
@@ -1636,8 +1736,9 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     await db.flush()
     statement_id = statement.id
 
-    txn = BankStatementTransaction(
-        statement_id=statement_id,
+    txn = await add_txn(
+        db,
+        statement_id,
         txn_date=date(2025, 2, 5),
         description="Salary",
         amount=Decimal("20.00"),
@@ -1676,8 +1777,9 @@ async def test_auto_approve_high_confidence_statement_creates_posted_entries(db,
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 8),
         description="Salary",
         amount=Decimal("20.00"),
@@ -1724,14 +1826,13 @@ async def test_auto_approve_high_confidence_statement_falls_back_to_pending_revi
     db.add(statement)
     await db.flush()
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement.id,
+    await add_txn(
+        db,
+        statement,
             txn_date=date(2025, 1, 8),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -1753,8 +1854,9 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 8),
         description="Uncommitted Salary",
         amount=Decimal("20.00"),
@@ -1767,17 +1869,15 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
 
     assert created_count == 0
 
-    persisted_statement = await db.get(BankStatement, statement.id)
+    persisted_statement = await db.get(StatementSummary, statement.id)
     assert persisted_statement is not None
     assert persisted_statement.status == BankStatementStatus.PARSED
     assert persisted_statement.stage1_status == Stage1Status.PENDING_REVIEW
     assert "Account mapping required" in (persisted_statement.validation_error or "")
 
-    txn_result = await db.execute(
-        select(BankStatementTransaction).where(BankStatementTransaction.statement_id == statement.id)
-    )
-    persisted_txn = txn_result.scalar_one()
-    assert persisted_txn.description == "Uncommitted Salary"
+    persisted_txns = await statement_validation_mod.resolve_statement_transactions(db, persisted_statement)
+    assert len(persisted_txns) == 1
+    assert persisted_txns[0].description == "Uncommitted Salary"
 
 
 async def test_approve_statement_stage1_promotes_existing_statement_entries_without_reposting(db, test_user):
@@ -1789,8 +1889,9 @@ async def test_approve_statement_stage1_promotes_existing_statement_entries_with
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 8),
         description="Salary",
         amount=Decimal("20.00"),
@@ -1843,14 +1944,13 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
     db.add(statement)
     await db.flush()
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement.id,
+    await add_txn(
+        db,
+        statement,
             txn_date=date(2025, 1, 8),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -1883,14 +1983,13 @@ async def test_approve_statement_stage1_blocks_overlapping_statement_period_befo
     db.add(statement)
     await db.flush()
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement.id,
+    await add_txn(
+        db,
+        statement,
             txn_date=date(2025, 1, 20),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -1921,14 +2020,13 @@ async def test_approve_statement_stage1_blocks_missing_statement_period_before_p
     db.add(statement)
     await db.flush()
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement.id,
+    await add_txn(
+        db,
+        statement,
             txn_date=date(2025, 1, 20),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -1952,14 +2050,13 @@ async def test_approve_statement_stage1_blocks_invalid_statement_period_before_p
     db.add(statement)
     await db.flush()
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement.id,
+    await add_txn(
+        db,
+        statement,
             txn_date=date(2025, 1, 20),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -1982,14 +2079,13 @@ async def test_approve_statement_stage1_blocks_missing_statement_currency_before
     db.add(statement)
     await db.flush()
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement.id,
+    await add_txn(
+        db,
+        statement,
             txn_date=date(2025, 1, 20),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -2011,14 +2107,13 @@ async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback
     await db.flush()
     statement_id = statement.id
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement_id,
+    await add_txn(
+        db,
+        statement_id,
             txn_date=date(2025, 1, 6),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -2053,14 +2148,13 @@ async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test
     await db.flush()
     statement_id = statement.id
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement_id,
+    await add_txn(
+        db,
+        statement_id,
             txn_date=date(2025, 1, 6),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -2093,14 +2187,13 @@ async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(
     await db.flush()
     statement_id = statement.id
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement_id,
+    await add_txn(
+        db,
+        statement_id,
             txn_date=date(2025, 1, 6),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -2148,14 +2241,13 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     await db.flush()
     statement_id = statement.id
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement_id,
+    await add_txn(
+        db,
+        statement_id,
             txn_date=date(2025, 1, 6),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -2178,8 +2270,9 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     await db.flush()
     statement_id = statement.id
 
-    txn = BankStatementTransaction(
-        statement_id=statement_id,
+    txn = await add_txn(
+        db,
+        statement_id,
         txn_date=date(2025, 1, 6),
         description="Salary",
         amount=Decimal("20.00"),
@@ -2258,14 +2351,13 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
     await db.flush()
     statement_id = statement.id
 
-    db.add(
-        BankStatementTransaction(
-            statement_id=statement_id,
+    await add_txn(
+        db,
+        statement_id,
             txn_date=date(2025, 1, 7),
             description="Salary",
             amount=Decimal("20.00"),
             direction="IN",
-        )
     )
     await db.commit()
 
@@ -2283,8 +2375,9 @@ async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, te
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 4),
         description="Transfer out",
         amount=Decimal("10.00"),
@@ -2305,7 +2398,7 @@ async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, te
 
     db.add(
         ReconciliationMatch(
-            bank_txn_id=txn.id,
+            atomic_txn_id=txn.id,
             journal_entry_ids=[str(transfer_entry.id)],
             status=ReconciliationStatus.AUTO_ACCEPTED,
             match_score=100,
@@ -2334,8 +2427,9 @@ async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 4),
         description="Payment",
         amount=Decimal("10.00"),
@@ -2356,7 +2450,7 @@ async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(
 
     db.add(
         ReconciliationMatch(
-            bank_txn_id=txn.id,
+            atomic_txn_id=txn.id,
             journal_entry_ids=[str(stale_entry.id)],
             status=ReconciliationStatus.REJECTED,
             match_score=100,
@@ -2456,10 +2550,10 @@ async def test_reject_statement_stage1_not_found(db, test_user):
     assert exc.value.status_code == 400
 
 
-async def test_edit_and_approve_statement_success(db, test_user):
-    """Given a statement with transactions,
-    When edit_and_approve_statement is called with valid edits,
-    Then it applies edits and approves (lines 803-814).
+async def test_edit_and_approve_statement_is_unsupported(db, test_user):
+    """Editing parsed transactions is unsupported: Layer-2 atomic facts are write-once.
+
+    Reviewers must reject and re-parse instead, so the endpoint now returns 400.
     """
     from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
 
@@ -2468,14 +2562,14 @@ async def test_edit_and_approve_statement_success(db, test_user):
     statement.account_id = account.id
     db.add(statement)
     await db.commit()
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 15),
         description="Test Txn",
         amount=Decimal("10.00"),
         direction="IN",
     )
-    db.add(txn)
     await db.commit()
     await db.refresh(txn)
     txn_id = txn.id
@@ -2491,10 +2585,12 @@ async def test_edit_and_approve_statement_success(db, test_user):
             )
         ]
     )
-    result = await statements_router.edit_and_approve_statement(
-        statement_id=statement_id, request=edit_req, db=db, user_id=test_user.id
-    )
-    assert result.status == BankStatementStatus.APPROVED
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.edit_and_approve_statement(
+            statement_id=statement_id, request=edit_req, db=db, user_id=test_user.id
+        )
+    assert exc.value.status_code == 400
+    assert "unsupported" in exc.value.detail.lower()
 
 
 async def test_edit_and_approve_statement_balance_invalid(db, test_user):
@@ -2507,8 +2603,9 @@ async def test_edit_and_approve_statement_balance_invalid(db, test_user):
     statement = build_statement(test_user.id, "hash_edit_bad", 80)
     db.add(statement)
     await db.commit()
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 15),
         description="Test Txn",
         amount=Decimal("10.00"),
@@ -2600,8 +2697,9 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 15),
         description="Payment",
         amount=Decimal("50.00"),
@@ -2612,7 +2710,7 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     await db.refresh(txn)
 
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         match_score=75,
         status=ReconciliationStatus.PENDING_REVIEW,
         version=1,
@@ -2826,24 +2924,15 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_us
     db.add(statement)
     await db.commit()
 
-    db.add_all(
-        [
-            BankStatementTransaction(
-                statement_id=statement.id,
-                txn_date=date(2025, 1, 15),
-                description="Duplicate deposit",
-                amount=Decimal("20.00"),
-                direction="IN",
-            ),
-            BankStatementTransaction(
-                statement_id=statement.id,
-                txn_date=date(2025, 1, 15),
-                description="Duplicate deposit",
-                amount=Decimal("20.00"),
-                direction="IN",
-            ),
-        ]
-    )
+    for _ in range(2):
+        await add_txn(
+            db,
+            statement,
+            txn_date=date(2025, 1, 15),
+            description="Duplicate deposit",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
     await db.commit()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -2866,23 +2955,21 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, te
     db.add(statement)
     await db.commit()
 
-    db.add_all(
-        [
-            BankStatementTransaction(
-                statement_id=statement.id,
-                txn_date=date(2025, 1, 15),
-                description="Transfer out",
-                amount=Decimal("20.00"),
-                direction="OUT",
-            ),
-            BankStatementTransaction(
-                statement_id=statement.id,
-                txn_date=date(2025, 1, 15),
-                description="Transfer in",
-                amount=Decimal("20.00"),
-                direction="IN",
-            ),
-        ]
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 15),
+        description="Transfer out",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 15),
+        description="Transfer in",
+        amount=Decimal("20.00"),
+        direction="IN",
     )
     await db.commit()
 
@@ -2961,15 +3048,17 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
     db.add(statement)
     await db.commit()
 
-    txn_in_run = BankStatementTransaction(
-        statement_id=statement.id,
+    txn_in_run = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 16),
         description="Run scoped payment",
         amount=Decimal("50.00"),
         direction="OUT",
     )
-    txn_other_run = BankStatementTransaction(
-        statement_id=statement.id,
+    txn_other_run = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 17),
         description="Other run payment",
         amount=Decimal("60.00"),
@@ -2981,14 +3070,14 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
     await db.refresh(txn_other_run)
 
     in_run_match = ReconciliationMatch(
-        bank_txn_id=txn_in_run.id,
+        atomic_txn_id=txn_in_run.id,
         run_id="run-123",
         match_score=95,
         status=ReconciliationStatus.PENDING_REVIEW,
         version=1,
     )
     other_run_match = ReconciliationMatch(
-        bank_txn_id=txn_other_run.id,
+        atomic_txn_id=txn_other_run.id,
         run_id="run-456",
         match_score=95,
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -3044,8 +3133,9 @@ async def test_batch_approve_matches_success(db, test_user):
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 15),
         description="Payment",
         amount=Decimal("50.00"),
@@ -3056,7 +3146,7 @@ async def test_batch_approve_matches_success(db, test_user):
     await db.refresh(txn)
 
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         match_score=75,
         status=ReconciliationStatus.PENDING_REVIEW,
         version=1,
@@ -3085,8 +3175,9 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 16),
         description="Referenced entry payment",
         amount=Decimal("50.00"),
@@ -3098,7 +3189,7 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
 
     entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
         match_score=85,
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -3122,7 +3213,7 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     await db.refresh(txn)
     await db.refresh(entry)
     assert match.status == ReconciliationStatus.ACCEPTED
-    assert txn.status == BankStatementTransactionStatus.MATCHED
+    # AtomicTransaction has no per-txn status; the ReconciliationMatch status is the truth.
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
@@ -3135,8 +3226,9 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 17),
         description="Missing entry payment",
         amount=Decimal("50.00"),
@@ -3147,7 +3239,7 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     await db.refresh(txn)
 
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[],
         match_score=85,
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -3170,7 +3262,7 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     await db.refresh(match)
     await db.refresh(txn)
     assert match.status == ReconciliationStatus.ACCEPTED
-    assert txn.status == BankStatementTransactionStatus.MATCHED
+    # AtomicTransaction has no per-txn status; the ReconciliationMatch status is the truth.
     assert len(match.journal_entry_ids) == 1
 
     entry_result = await db.execute(
@@ -3212,8 +3304,9 @@ async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 18),
         description="Retry-safe payment",
         amount=Decimal("50.00"),
@@ -3224,7 +3317,7 @@ async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
     await db.refresh(txn)
 
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[],
         match_score=85,
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -3263,8 +3356,9 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 18),
         description="Existing source entry payment",
         amount=Decimal("50.00"),
@@ -3276,7 +3370,7 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
 
     entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[],
         match_score=85,
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -3320,8 +3414,9 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 20),
         description="Inactive mapped account payment",
         amount=Decimal("50.00"),
@@ -3355,8 +3450,9 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 21),
         description="Evidence graph salary",
         amount=Decimal("50.00"),
@@ -3377,11 +3473,22 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
     assert entry.source_id == txn.id
 
+    # Statement->ledger lineage is materialized lazily; trigger it for the posted entry.
+    from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
+
+    await EvidenceGraphMaterializationService().materialize_for_entity(
+        db,
+        user_id=test_user.id,
+        entity_type="journal_entry",
+        entity_id=entry.id,
+    )
+    await db.commit()
+
     nodes = {
         (node.node_kind, node.entity_type, node.entity_id): node
         for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()
     }
-    extracted_node = nodes[("extracted_record", "bank_statement_transaction", txn.id)]
+    extracted_node = nodes[("atomic_fact", "atomic_transaction", txn.id)]
     ledger_entry_node = nodes[("ledger_entry", "journal_entry", entry.id)]
     ledger_line_nodes = [nodes[("ledger_line", "journal_line", line.id)] for line in entry.lines]
 
@@ -3402,15 +3509,17 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 19),
         description="Mismatched payment",
         amount=Decimal("50.00"),
         direction="OUT",
     )
-    entry_source_txn = BankStatementTransaction(
-        statement_id=statement.id,
+    entry_source_txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 19),
         description="Different payment",
         amount=Decimal("100.00"),
@@ -3423,7 +3532,7 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
 
     entry = await create_entry_from_txn(db, entry_source_txn, user_id=test_user.id, auto_post=True)
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
         match_score=85,
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -3470,8 +3579,9 @@ async def test_batch_reject_matches_success(db, test_user):
     db.add(statement)
     await db.commit()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = await add_txn(
+        db,
+        statement,
         txn_date=date(2025, 1, 15),
         description="Payment",
         amount=Decimal("50.00"),
@@ -3482,7 +3592,7 @@ async def test_batch_reject_matches_success(db, test_user):
     await db.refresh(txn)
 
     match = ReconciliationMatch(
-        bank_txn_id=txn.id,
+        atomic_txn_id=txn.id,
         match_score=70,
         status=ReconciliationStatus.PENDING_REVIEW,
         version=1,

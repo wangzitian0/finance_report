@@ -31,33 +31,44 @@ from sqlalchemy import select
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     JournalEntry,
     ReconciliationMatch,
     ReconciliationStatus,
     User,
 )
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.schemas.reconciliation import ReconciliationStatusEnum
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 
 
-def create_test_statement(db, user: User, **kwargs):
-    """Helper to create BankStatement with required fields."""
-    from src.models.statement import BankStatementStatus as Status
+async def create_test_statement(db, user: User, **kwargs) -> StatementSummary:
+    """Create an UploadedDocument + StatementSummary conform envelope."""
+    document = UploadedDocument(
+        user_id=user.id,
+        file_path="statements/test.pdf",
+        file_hash=f"hash_{uuid4().hex[:8]}",
+        original_filename="test.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(document)
+    await db.flush()
 
     defaults = {
         "id": uuid4(),
         "user_id": user.id,
-        "file_path": "statements/test.pdf",
-        "file_hash": f"hash_{uuid4().hex[:8]}",
-        "original_filename": "test.pdf",
+        "uploaded_document_id": document.id,
+        "file_hash": document.file_hash,
         "institution": "Test Bank",
-        "status": Status.PARSED,
+        "status": BankStatementStatus.PARSED,
     }
     defaults.update(kwargs)
-    return BankStatement(**defaults)
+    statement = StatementSummary(**defaults)
+    db.add(statement)
+    await db.flush()
+    return statement
 
 
 async def create_test_asset_account(db, user: User) -> Account:
@@ -72,26 +83,35 @@ async def create_test_asset_account(db, user: User) -> Account:
     return account
 
 
-def create_test_transaction(db, statement: BankStatement, **kwargs):
-    """Helper to create BankStatementTransaction with required fields."""
+def create_test_transaction(db, statement: StatementSummary, **kwargs) -> AtomicTransaction:
+    """Build a Layer-2 AtomicTransaction linked to the statement's ODS document.
+
+    Accepts and ignores a legacy ``status`` kwarg; per-transaction status no longer
+    exists on AtomicTransaction (match status is the source of truth).
+    """
+    kwargs.pop("status", None)
     defaults = {
         "id": uuid4(),
-        "statement_id": statement.id,
+        "user_id": statement.user_id,
         "txn_date": date(2024, 1, 15),
         "description": "Test transaction",
         "amount": Decimal("100.00"),
-        "direction": "DR",
-        "status": BankStatementTransactionStatus.UNMATCHED,
+        "direction": TransactionDirection.OUT,
+        "currency": "SGD",
+        "dedup_hash": uuid4().hex + uuid4().hex,
+        "source_documents": [
+            {"doc_id": str(statement.uploaded_document_id), "doc_type": DocumentType.BANK_STATEMENT.value}
+        ],
     }
     defaults.update(kwargs)
-    return BankStatementTransaction(**defaults)
+    return AtomicTransaction(**defaults)
 
 
-def create_test_match(db, transaction: BankStatementTransaction, **kwargs):
-    """Helper to create ReconciliationMatch with required fields."""
+def create_test_match(db, transaction: AtomicTransaction, **kwargs) -> ReconciliationMatch:
+    """Helper to create ReconciliationMatch keyed on atomic_txn_id."""
     defaults = {
         "id": uuid4(),
-        "bank_txn_id": transaction.id,
+        "atomic_txn_id": transaction.id,
         "status": ReconciliationStatus.PENDING_REVIEW,
         "match_score": 85,
         "journal_entry_ids": [],
@@ -106,7 +126,7 @@ class TestReconciliationEndpoints:
     async def test_run_reconciliation_success(self, client: AsyncClient, db, test_user: User):
         """AC4.1.1: Test successful reconciliation run."""
         # GIVEN valid statement with transactions
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
@@ -141,7 +161,7 @@ class TestReconciliationEndpoints:
     async def test_list_matches_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.1: Test listing reconciliation matches."""
         # GIVEN existing matches with proper hierarchy
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
@@ -168,7 +188,7 @@ class TestReconciliationEndpoints:
     async def test_list_matches_with_status_filter(self, client: AsyncClient, db, test_user: User):
         """AC4.3.2: Test listing matches with status filter."""
         # GIVEN matches with different statuses
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
@@ -193,7 +213,7 @@ class TestReconciliationEndpoints:
     async def test_list_pending_review_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.3: Test listing pending review queue."""
         # GIVEN pending review matches
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
@@ -221,7 +241,7 @@ class TestReconciliationEndpoints:
         """AC4.3.4: Test accepting a reconciliation match."""
         # GIVEN existing match
         account = await create_test_asset_account(db, test_user)
-        statement = create_test_statement(db, test_user, account_id=account.id, currency="SGD")
+        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
         await db.commit()
 
@@ -255,7 +275,7 @@ class TestReconciliationEndpoints:
     async def test_reject_match_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.6: Test rejecting a reconciliation match."""
         # GIVEN existing match
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
@@ -290,7 +310,7 @@ class TestReconciliationEndpoints:
         """AC4.2.1: Test batch accepting matches."""
         # GIVEN multiple matches
         account = await create_test_asset_account(db, test_user)
-        statement = create_test_statement(db, test_user, account_id=account.id, currency="SGD")
+        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
         await db.commit()
 
@@ -349,12 +369,12 @@ class TestReconciliationEndpoints:
     async def test_list_unmatched_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.9: Test listing unmatched transactions."""
         # GIVEN unmatched transactions
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
-        txn1 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
-        txn2 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+        txn1 = create_test_transaction(db, statement)
+        txn2 = create_test_transaction(db, statement)
         db.add_all([txn1, txn2])
         await db.commit()
 
@@ -371,15 +391,11 @@ class TestReconciliationEndpoints:
     async def test_create_entry_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.10: Test creating journal entry from unmatched transaction."""
         # GIVEN unmatched transaction
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
-        transaction = create_test_transaction(
-            db,
-            statement,
-            status=BankStatementTransactionStatus.UNMATCHED,
-        )
+        transaction = create_test_transaction(db, statement)
         db.add(transaction)
         await db.commit()
 
@@ -409,15 +425,11 @@ class TestReconciliationEndpoints:
 
     async def test_create_entry_from_unmatched_is_idempotent(self, client: AsyncClient, db, test_user: User):
         """AC4.3.10: Repeating create-entry returns existing BANK_STATEMENT entry."""
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
-        transaction = create_test_transaction(
-            db,
-            statement,
-            status=BankStatementTransactionStatus.UNMATCHED,
-        )
+        transaction = create_test_transaction(db, statement)
         db.add(transaction)
         await db.commit()
 
@@ -439,12 +451,12 @@ class TestReconciliationEndpoints:
 
     async def test_batch_create_entries_for_all_unmatched(self, client: AsyncClient, db, test_user: User):
         """AC4.3.14: Test batch creating entries for all unmatched transactions."""
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
-        txn1 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
-        txn2 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+        txn1 = create_test_transaction(db, statement)
+        txn2 = create_test_transaction(db, statement)
         db.add_all([txn1, txn2])
         await db.commit()
 
@@ -473,12 +485,12 @@ class TestReconciliationEndpoints:
 
         with monkeypatch.context() as local_monkeypatch:
             local_monkeypatch.setattr(reconciliation_router, "MAX_BATCH_CREATE_ALL", 1)
-            statement = create_test_statement(db, test_user)
+            statement = await create_test_statement(db, test_user)
             db.add(statement)
             await db.commit()
 
-            txn1 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
-            txn2 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+            txn1 = create_test_transaction(db, statement)
+            txn2 = create_test_transaction(db, statement)
             db.add_all([txn1, txn2])
             await db.commit()
 
@@ -490,15 +502,11 @@ class TestReconciliationEndpoints:
     async def test_list_anomalies_success(self, client: AsyncClient, db, test_user: User):
         """AC4.5.1: Test listing anomalies for a transaction."""
         # GIVEN transaction
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
-        transaction = create_test_transaction(
-            db,
-            statement,
-            status=BankStatementTransactionStatus.UNMATCHED,
-        )
+        transaction = create_test_transaction(db, statement)
         db.add(transaction)
         await db.commit()
 
@@ -538,15 +546,11 @@ class TestReconciliationEndpoints:
         db.add(other_user)
         await db.commit()
 
-        other_statement = create_test_statement(db, other_user)
+        other_statement = await create_test_statement(db, other_user)
         db.add(other_statement)
         await db.commit()
 
-        other_transaction = create_test_transaction(
-            db,
-            other_statement,
-            status=BankStatementTransactionStatus.UNMATCHED,
-        )
+        other_transaction = create_test_transaction(db, other_statement)
         db.add(other_transaction)
         await db.commit()
 
@@ -563,12 +567,12 @@ class TestReconciliationEndpoints:
     async def test_run_reconciliation_with_statement_filter(self, client: AsyncClient, db, test_user: User):
         """AC4.1.3: Test reconciliation run with statement_id filter."""
         # GIVEN statement with transactions
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
-        txn1 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
-        txn2 = create_test_transaction(db, statement, status=BankStatementTransactionStatus.UNMATCHED)
+        txn1 = create_test_transaction(db, statement)
+        txn2 = create_test_transaction(db, statement)
         db.add_all([txn1, txn2])
         await db.commit()
 
@@ -631,7 +635,7 @@ class TestReconciliationEndpoints:
         await db.commit()
 
         # GIVEN match with journal entry reference
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 
@@ -663,7 +667,7 @@ class TestReconciliationEndpoints:
     async def test_list_matches_with_invalid_entry_id(self, client: AsyncClient, db, test_user: User):
         """AC4.3.15: Test listing matches with invalid journal entry UUID."""
         # GIVEN match with invalid UUID in journal_entry_ids
-        statement = create_test_statement(db, test_user)
+        statement = await create_test_statement(db, test_user)
         db.add(statement)
         await db.commit()
 

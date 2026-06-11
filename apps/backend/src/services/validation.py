@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from src.models.statement import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus
 
 BALANCE_TOLERANCE = Decimal("0.10")
 IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}

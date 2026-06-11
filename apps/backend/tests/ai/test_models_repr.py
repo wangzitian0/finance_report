@@ -86,7 +86,7 @@ def test_openrouter_model_matches_modality():
 
 
 def test_validation_route_by_threshold():
-    from src.models.statement import BankStatementStatus
+    from src.models.statement_enums import BankStatementStatus
     from src.services.validation import route_by_threshold
 
     assert route_by_threshold(85, True) == BankStatementStatus.APPROVED

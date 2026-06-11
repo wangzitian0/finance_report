@@ -11,9 +11,10 @@ import pytest
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
-from src.models import BankStatement, BankStatementStatus, BankStatementTransaction
+from src.models import BankStatementStatus
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition
+from src.models.statement_summary import StatementSummary
 from src.services import statement_parsing
 from src.services.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
 from src.services.extraction import ExtractionService
@@ -23,16 +24,15 @@ from src.services.statement_parsing import (
     import_brokerage_payload_if_present,
     parse_statement_background,
 )
+from tests.factories import StatementSummaryFactory
 
 _BRIDGE_ASSET_IDENTIFIER = "BRIDGE_TEST_STOCK"
 
 
-def _parsed_statement(user_id, file_hash: str) -> BankStatement:
-    return BankStatement(
+def _parsed_statement(user_id, file_hash: str) -> StatementSummary:
+    return StatementSummaryFactory.build(
         user_id=user_id,
-        file_path="moomoo-positions.pdf",
         file_hash=file_hash,
-        original_filename="moomoo-positions.pdf",
         institution="Moomoo",
         account_last4="1234",
         currency="SGD",
@@ -44,6 +44,21 @@ def _parsed_statement(user_id, file_hash: str) -> BankStatement:
         confidence_score=90,
         balance_validated=True,
     )
+
+
+def _apply_parsed_envelope(summary: StatementSummary, *, validation_error: str | None = None) -> None:
+    """Mirror the envelope fields dual_write_layer2 would persist onto the pre-created row."""
+    summary.institution = "Moomoo"
+    summary.account_last4 = "1234"
+    summary.currency = "SGD"
+    summary.period_start = date(2026, 5, 1)
+    summary.period_end = date(2026, 5, 18)
+    summary.opening_balance = Decimal("0.00")
+    summary.closing_balance = Decimal("0.00")
+    summary.status = BankStatementStatus.PARSED
+    summary.confidence_score = 90
+    summary.balance_validated = True
+    summary.validation_error = validation_error
 
 
 def _brokerage_payload() -> dict:
@@ -346,7 +361,7 @@ async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test
     monkeypatch.setattr("src.services.statement_parsing._brokerage_import_service.import_positions", fail_if_called)
 
     await import_brokerage_payload_if_present(
-        statement=statement,
+        summary=statement,
         db=db,
         user_id=test_user.id,
         filename="dbs.pdf",
@@ -361,20 +376,18 @@ async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test
 async def test_import_brokerage_payload_if_present_records_zero_position_payload(db, test_user):
     """AC17.4.7: Recognized brokerage payloads with no positions remain visible."""
     statement_id = uuid4()
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=statement_id,
         user_id=test_user.id,
         status=BankStatementStatus.PARSED,
-        file_path="statements/futu-empty.pdf",
         file_hash="futu-empty-hash",
-        original_filename="futu-empty.pdf",
         institution="Futu",
     )
     db.add(statement)
     await db.commit()
 
     await import_brokerage_payload_if_present(
-        statement=statement,
+        summary=statement,
         db=db,
         user_id=test_user.id,
         filename="futu-empty.pdf",
@@ -383,7 +396,7 @@ async def test_import_brokerage_payload_if_present_records_zero_position_payload
     )
 
     db.expire_all()
-    refreshed = await db.get(BankStatement, statement_id)
+    refreshed = await db.get(StatementSummary, statement_id)
 
     assert refreshed is not None
     assert refreshed.validation_error is not None
@@ -414,7 +427,7 @@ async def test_import_brokerage_payload_if_present_uses_nested_statement_institu
     monkeypatch.setattr(statement_parsing.logger, "info", capture_info)
 
     await import_brokerage_payload_if_present(
-        statement=statement,
+        summary=statement,
         db=db,
         user_id=test_user.id,
         filename="ibkr-statement.pdf",
@@ -437,13 +450,11 @@ async def test_import_brokerage_payload_if_present_uses_nested_statement_institu
 async def test_import_brokerage_payload_if_present_stops_when_failed_statement_is_missing(monkeypatch):
     """AC17.4.7: Brokerage import failure handling tolerates deleted statements."""
     statement_id = uuid4()
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=statement_id,
         user_id=uuid4(),
         status=BankStatementStatus.PARSED,
-        file_path="statements/missing-after-failure.pdf",
         file_hash="missing-after-failure-hash",
-        original_filename="missing-after-failure.pdf",
         institution="Moomoo",
     )
 
@@ -466,7 +477,7 @@ async def test_import_brokerage_payload_if_present_stops_when_failed_statement_i
     monkeypatch.setattr(statement_parsing._brokerage_import_service, "import_positions", fail_import_positions)
 
     await import_brokerage_payload_if_present(
-        statement=statement,
+        summary=statement,
         db=db,
         user_id=statement.user_id,
         filename="moomoo-statement.pdf",
@@ -475,7 +486,7 @@ async def test_import_brokerage_payload_if_present_stops_when_failed_statement_i
     )
 
     assert db.rolled_back is True
-    assert db.lookup == (BankStatement, statement_id)
+    assert db.lookup == (StatementSummary, statement_id)
 
 
 @pytest.mark.asyncio
@@ -484,30 +495,23 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     statement_id = uuid4()
     user_id = test_user.id
     file_hash = "brokerage-success-hash"
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=statement_id,
         user_id=user_id,
         status=BankStatementStatus.PARSING,
-        file_path="statements/moomoo.pdf",
         file_hash=file_hash,
-        original_filename="moomoo-positions.pdf",
         institution="Moomoo",
     )
-    statement.transactions = [
-        BankStatementTransaction(
-            txn_date=date(2026, 5, 17),
-            description="stale transaction",
-            amount=Decimal("1.00"),
-            direction="IN",
-        )
-    ]
     db.add(statement)
     await db.commit()
 
     async def fake_parse_document(*args, **kwargs):
-        parsed = _parsed_statement(user_id, file_hash)
-        parsed._extracted_payload = _brokerage_payload()
-        return parsed, []
+        session = kwargs["db"]
+        summary = await session.get(StatementSummary, statement_id)
+        _apply_parsed_envelope(summary)
+        await session.flush()
+        summary._extracted_payload = _brokerage_payload()
+        return summary, []
 
     monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", fake_parse_document)
     monkeypatch.setattr(
@@ -531,7 +535,7 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     db.expire_all()
     atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
     managed_rows = (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == user_id))).scalars().all()
-    refreshed = await db.get(BankStatement, statement_id)
+    refreshed = await db.get(StatementSummary, statement_id)
 
     assert refreshed is not None
     assert refreshed.status == BankStatementStatus.PARSED
@@ -583,23 +587,23 @@ async def test_parse_statement_background_persists_brokerage_import_failure(db, 
     statement_id = uuid4()
     user_id = test_user.id
     file_hash = "brokerage-failure-hash"
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         id=statement_id,
         user_id=user_id,
         status=BankStatementStatus.PARSING,
-        file_path="statements/moomoo-fail.pdf",
         file_hash=file_hash,
-        original_filename="moomoo-fail.pdf",
         institution="Moomoo",
     )
     db.add(statement)
     await db.commit()
 
     async def fake_parse_document(*args, **kwargs):
-        parsed = _parsed_statement(user_id, file_hash)
-        parsed._extracted_payload = _brokerage_payload()
-        parsed.validation_error = "existing parser note"
-        return parsed, []
+        session = kwargs["db"]
+        summary = await session.get(StatementSummary, statement_id)
+        _apply_parsed_envelope(summary, validation_error="existing parser note")
+        await session.flush()
+        summary._extracted_payload = _brokerage_payload()
+        return summary, []
 
     async def fail_import(*args, **kwargs):
         raise RuntimeError("forced import failure")
@@ -625,7 +629,7 @@ async def test_parse_statement_background_persists_brokerage_import_failure(db, 
     )
 
     db.expire_all()
-    refreshed = await db.get(BankStatement, statement_id)
+    refreshed = await db.get(StatementSummary, statement_id)
 
     assert refreshed is not None
     assert refreshed.status == BankStatementStatus.PARSED

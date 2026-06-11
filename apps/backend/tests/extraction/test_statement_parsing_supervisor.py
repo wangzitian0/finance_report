@@ -6,24 +6,23 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from src.database import create_session_maker_from_db
-from src.models import BankStatement, BankStatementStatus
+from src.models import BankStatementStatus
 from src.services.statement_parsing_supervisor import (
     PARSING_STALE_THRESHOLD,
     reset_stale_parsing_jobs,
     run_parsing_supervisor,
 )
+from tests.factories import StatementSummaryFactory
 
 
 @pytest.mark.asyncio
 async def test_reset_stale_parsing_jobs_marks_rejected(db, test_user):
     """Stale parsing statements should be marked rejected."""
     stale_time = datetime.now(UTC) - PARSING_STALE_THRESHOLD - timedelta(minutes=1)
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         user_id=test_user.id,
         account_id=None,
-        file_path="statements/test.pdf",
         file_hash="hash",
-        original_filename="test.pdf",
         institution="DBS",
         status=BankStatementStatus.PARSING,
         confidence_score=None,
@@ -47,12 +46,10 @@ async def test_reset_stale_parsing_jobs_marks_rejected(db, test_user):
 @pytest.mark.asyncio
 async def test_reset_stale_parsing_jobs_noop_for_recent(db, test_user):
     """Recent parsing statements should remain unchanged."""
-    statement = BankStatement(
+    statement = StatementSummaryFactory.build(
         user_id=test_user.id,
         account_id=None,
-        file_path="statements/recent.pdf",
         file_hash="hash-recent",
-        original_filename="recent.pdf",
         institution="DBS",
         status=BankStatementStatus.PARSING,
         confidence_score=None,

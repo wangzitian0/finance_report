@@ -59,7 +59,6 @@ class ReconciliationMatchResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    bank_txn_id: UUID | None = None
     atomic_txn_id: UUID | None = None
     journal_entry_ids: list[str]
     match_score: int

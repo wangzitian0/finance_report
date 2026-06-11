@@ -4,16 +4,13 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.models.statement import (
-    BankStatementStatus,
-    BankStatementTransactionStatus,
-    ConfidenceLevel,
-)
+from src.models.statement_enums import BankStatementStatus
 from src.schemas.base import ListResponse
 
 if TYPE_CHECKING:
@@ -21,10 +18,29 @@ if TYPE_CHECKING:
     from src.models.layer2 import AtomicTransaction
     from src.models.statement_summary import StatementSummary
 
-# Re-export enums with schema-friendly names for API consumers
+# Re-export the statement lifecycle status enum with a schema-friendly name.
 BankStatementStatusEnum = BankStatementStatus
-BankStatementTransactionStatusEnum = BankStatementTransactionStatus
-ConfidenceLevelEnum = ConfidenceLevel
+
+
+class BankStatementTransactionStatusEnum(str, Enum):
+    """Legacy per-transaction reconciliation status (API backward-compat only).
+
+    Layer-2 ``AtomicTransaction`` carries no per-transaction status; the match
+    status on ``ReconciliationMatch`` is the source of truth. These values are
+    kept solely to preserve the shape of existing API responses.
+    """
+
+    PENDING = "pending"
+    MATCHED = "matched"
+    UNMATCHED = "unmatched"
+
+
+class ConfidenceLevelEnum(str, Enum):
+    """Legacy confidence level (API backward-compat only)."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
 
 
 # --- Request Schemas ---

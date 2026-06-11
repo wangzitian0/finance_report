@@ -27,7 +27,6 @@ from src.models.journal import Direction, JournalEntry, JournalEntryStatus, Jour
 from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.models.statement import BankStatement, BankStatementTransaction
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.models.user import User
@@ -170,43 +169,6 @@ class JournalLineFactory(factory.Factory, AsyncFactoryMixin):
         return {"entry_id": entry_id, "account_id": account_id, **kwargs}
 
 
-class BankStatementFactory(factory.Factory, AsyncFactoryMixin):
-    class Meta:
-        model = BankStatement
-
-    id = factory.LazyFunction(uuid4)
-    institution = factory.Sequence(lambda n: f"Bank {n}")
-    account_last4 = factory.Sequence(lambda n: f"{n:04d}")
-    original_filename = factory.Sequence(lambda n: f"statement_{n}.pdf")
-    file_path = factory.Sequence(lambda n: f"s3://statements/statement_{n}.pdf")
-    file_hash = factory.LazyFunction(lambda: uuid4().hex)
-    currency = "SGD"
-    status = BankStatementStatus.UPLOADED
-    created_at = factory.LazyFunction(lambda: datetime.now(UTC))
-    updated_at = factory.LazyFunction(lambda: datetime.now(UTC))
-
-    @classmethod
-    def _build_kwargs(cls, user_id: UUID, **kwargs) -> dict:
-        return {"user_id": user_id, **kwargs}
-
-
-class BankStatementTransactionFactory(factory.Factory, AsyncFactoryMixin):
-    class Meta:
-        model = BankStatementTransaction
-
-    id = factory.LazyFunction(uuid4)
-    txn_date = factory.LazyFunction(lambda: date.today())
-    description = factory.Sequence(lambda n: f"Transaction {n}")
-    amount = Decimal("50.00")
-    direction = "DR"
-    created_at = factory.LazyFunction(lambda: datetime.now(UTC))
-    updated_at = factory.LazyFunction(lambda: datetime.now(UTC))
-
-    @classmethod
-    def _build_kwargs(cls, statement_id: UUID, **kwargs) -> dict:
-        return {"statement_id": statement_id, **kwargs}
-
-
 class UploadedDocumentFactory(factory.Factory, AsyncFactoryMixin):
     """Layer 1 (ODS) raw-document landing — the durable source kept after Stage 3."""
 
@@ -247,7 +209,7 @@ class StatementSummaryFactory(factory.Factory, AsyncFactoryMixin):
 
 
 class AtomicTransactionFactory(factory.Factory, AsyncFactoryMixin):
-    """Layer 2 deduplicated transaction fact — replaces BankStatementTransaction."""
+    """Layer 2 deduplicated transaction fact."""
 
     class Meta:
         model = AtomicTransaction
@@ -285,5 +247,5 @@ class ReconciliationMatchFactory(factory.Factory, AsyncFactoryMixin):
     updated_at = factory.LazyFunction(lambda: datetime.now(UTC))
 
     @classmethod
-    def _build_kwargs(cls, bank_txn_id: UUID, journal_entry_ids: list[str], **kwargs) -> dict:
-        return {"bank_txn_id": bank_txn_id, "journal_entry_ids": journal_entry_ids, **kwargs}
+    def _build_kwargs(cls, atomic_txn_id: UUID, journal_entry_ids: list[str], **kwargs) -> dict:
+        return {"atomic_txn_id": atomic_txn_id, "journal_entry_ids": journal_entry_ids, **kwargs}

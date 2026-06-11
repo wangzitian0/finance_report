@@ -2,12 +2,16 @@
 
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import BankStatement, BankStatementTransaction, ConfidenceLevel
+from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 
 
 @pytest.mark.asyncio
@@ -17,49 +21,67 @@ async def test_review_conflicts_returns_duplicate_and_transfer_candidates(
     test_user,
 ):
     """AC16.13.13: GET /review/conflicts/{statement_id} returns duplicates and transfer_pairs."""
-    statement = BankStatement(
+    doc = UploadedDocument(
+        id=uuid4(),
         user_id=test_user.id,
         file_path="/tmp/test.pdf",
         file_hash="conflict-hash",
         original_filename="test.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(doc)
+    await db.flush()
+
+    statement = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        uploaded_document_id=doc.id,
+        file_hash="conflict-hash",
         institution="DBS",
         currency="SGD",
+        status=BankStatementStatus.APPROVED,
     )
     db.add(statement)
     await db.flush()
+
+    def _txn(*, txn_date, description, amount, direction):
+        return AtomicTransaction(
+            id=uuid4(),
+            user_id=test_user.id,
+            txn_date=txn_date,
+            description=description,
+            amount=amount,
+            direction=direction,
+            currency="SGD",
+            dedup_hash=uuid4().hex + uuid4().hex,
+            source_documents=[{"doc_id": str(doc.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
+        )
+
     db.add_all(
         [
-            BankStatementTransaction(
-                statement_id=statement.id,
+            _txn(
                 txn_date=date(2026, 5, 1),
                 description="Coffee",
                 amount=Decimal("4.20"),
-                direction="OUT",
-                confidence=ConfidenceLevel.HIGH,
+                direction=TransactionDirection.OUT,
             ),
-            BankStatementTransaction(
-                statement_id=statement.id,
+            _txn(
                 txn_date=date(2026, 5, 1),
                 description="Coffee",
                 amount=Decimal("4.20"),
-                direction="OUT",
-                confidence=ConfidenceLevel.HIGH,
+                direction=TransactionDirection.OUT,
             ),
-            BankStatementTransaction(
-                statement_id=statement.id,
+            _txn(
                 txn_date=date(2026, 5, 2),
                 description="Transfer out",
                 amount=Decimal("100.00"),
-                direction="OUT",
-                confidence=ConfidenceLevel.HIGH,
+                direction=TransactionDirection.OUT,
             ),
-            BankStatementTransaction(
-                statement_id=statement.id,
+            _txn(
                 txn_date=date(2026, 5, 2),
                 description="Transfer in",
                 amount=Decimal("100.00"),
-                direction="IN",
-                confidence=ConfidenceLevel.HIGH,
+                direction=TransactionDirection.IN,
             ),
         ]
     )

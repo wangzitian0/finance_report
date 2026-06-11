@@ -13,16 +13,17 @@ from sqlalchemy.orm import selectinload
 from src.models import (
     Account,
     AccountType,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
+    AtomicTransaction,
     Direction,
+    DocumentType,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
     ReconciliationMatch,
     ReconciliationStatus,
+    StatementSummary,
+    UploadedDocument,
     User,
 )
 from src.services.reconciliation import (
@@ -50,13 +51,12 @@ from src.services.reconciliation import (
 )
 
 
-def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> BankStatement:
+def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> StatementSummary:
+    """Build a DWD StatementSummary conform (no per-statement transaction table)."""
     user_id = owner_id if owner_id else uuid4()
-    return BankStatement(
+    return StatementSummary(
         user_id=user_id,
-        file_path="statements/test.pdf",
-        file_hash="test_hash_" + str(base_date) + str(uuid4()),
-        original_filename="test.pdf",
+        file_hash="test_hash_" + str(base_date) + uuid4().hex,
         institution="Test Bank",
         account_last4="1234",
         currency="SGD",
@@ -65,6 +65,34 @@ def _make_statement(*, owner_id: UUID | None = None, base_date: date) -> BankSta
         opening_balance=Decimal("0.00"),
         closing_balance=Decimal("0.00"),
     )
+
+
+def _atomic_txn(*, owner_id: UUID, **kwargs) -> AtomicTransaction:
+    """Build a Layer-2 AtomicTransaction with sensible required-field defaults.
+
+    ``direction`` accepts the raw string used by the scoring helpers (in-memory
+    objects are not enum-validated until flush). Persisted rows pass IN/OUT.
+    """
+    kwargs.setdefault("currency", "SGD")
+    kwargs.setdefault("dedup_hash", uuid4().hex + uuid4().hex)
+    kwargs.setdefault(
+        "source_documents", [{"doc_id": str(uuid4()), "doc_type": "bank_statement"}]
+    )
+    return AtomicTransaction(user_id=owner_id, **kwargs)
+
+
+async def _seed_document(db, *, owner_id: UUID) -> UploadedDocument:
+    """Create an ODS UploadedDocument that a StatementSummary/AtomicTransaction can link to."""
+    doc = UploadedDocument(
+        user_id=owner_id,
+        file_path="statements/test.pdf",
+        file_hash="doc_hash_" + uuid4().hex,
+        original_filename="test.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(doc)
+    await db.flush()
+    return doc
 
 
 def test_entry_total_amount():
@@ -190,7 +218,7 @@ def test_score_date_proximity():
 
 def test_score_business_logic_combinations():
     # IN Direction
-    txn_in = BankStatementTransaction(direction="IN")
+    txn_in = AtomicTransaction(direction="IN")
 
     # Asset + Income
     entry_income = JournalEntry(
@@ -237,7 +265,7 @@ def test_score_business_logic_combinations():
     assert score_business_logic(txn_in, entry_other) == 40.0
 
     # OUT Direction
-    txn_out = BankStatementTransaction(direction="OUT")
+    txn_out = AtomicTransaction(direction="OUT")
 
     # Asset + Expense
     entry_expense = JournalEntry(
@@ -252,7 +280,7 @@ def test_score_business_logic_combinations():
     assert score_business_logic(txn_out, entry_liability) == 90.0
 
     # Unknown direction
-    txn_unknown = BankStatementTransaction(direction="???")
+    txn_unknown = AtomicTransaction(direction="???")
     assert score_business_logic(txn_unknown, entry_income) == 50.0
 
 
@@ -290,7 +318,7 @@ def test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust():
 def test_AC4_2_3_normal_candidates_cover_multi_entry_boundaries():
     """AC4.2.3: Normal matching accepts balanced split entries and skips invalid candidates."""
     base_date = date(2026, 1, 15)
-    txn = BankStatementTransaction(
+    txn = AtomicTransaction(
         id=uuid4(),
         txn_date=base_date,
         description="Vendor ABC",
@@ -341,7 +369,7 @@ def test_extract_merchant_tokens():
 
 
 async def test_score_pattern_no_tokens(db: AsyncSession):
-    txn = BankStatementTransaction(description="!!!")
+    txn = AtomicTransaction(description="!!!")
     assert await score_pattern(db, txn, DEFAULT_CONFIG, uuid4()) == 0.0
 
 
@@ -352,19 +380,21 @@ async def test_score_pattern_with_history(db: AsyncSession):
     db.add_all([user, statement])
     await db.flush()
 
-    txn_past = BankStatementTransaction(
-        statement_id=statement.id,
+    txn_past = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="STARBUCKS COFFEE",
         amount=Decimal("10.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.MATCHED,
     )
     db.add(txn_past)
     await db.flush()
 
     match = ReconciliationMatch(
-        bank_txn_id=txn_past.id,
+        atomic_txn_id=txn_past.id,
         journal_entry_ids=["some-id"],
         match_score=95,
         status=ReconciliationStatus.AUTO_ACCEPTED,
@@ -372,12 +402,12 @@ async def test_score_pattern_with_history(db: AsyncSession):
     db.add(match)
     await db.commit()
 
-    txn_new = BankStatementTransaction(description="STARBUCKS #123", amount=Decimal("10.00"))
+    txn_new = AtomicTransaction(description="STARBUCKS #123", amount=Decimal("10.00"))
     score = await score_pattern(db, txn_new, DEFAULT_CONFIG, user_id)
     assert score == 80.0
 
     # Different amount
-    txn_diff = BankStatementTransaction(description="STARBUCKS #123", amount=Decimal("50.00"))
+    txn_diff = AtomicTransaction(description="STARBUCKS #123", amount=Decimal("50.00"))
     score_diff = await score_pattern(db, txn_diff, DEFAULT_CONFIG, user_id)
     assert score_diff == 40.0
 
@@ -421,7 +451,7 @@ def test_prune_candidates():
 
 
 async def test_calculate_match_score_overrides(db: AsyncSession):
-    txn = BankStatementTransaction(description="Test", amount=Decimal("100.00"), txn_date=date(2024, 1, 1))
+    txn = AtomicTransaction(description="Test", amount=Decimal("100.00"), txn_date=date(2024, 1, 1))
     entry = JournalEntry(
         memo="Test",
         entry_date=date(2024, 1, 1),
@@ -441,13 +471,15 @@ async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession)
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Ghost",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -465,13 +497,15 @@ async def test_execute_matching_complex_multi_entry(db: AsyncSession):
     await db.flush()
 
     # Transaction for 100.00
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Complex Multi",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
 
@@ -543,13 +577,15 @@ async def test_execute_matching_triple_entry(db: AsyncSession):
     db.add_all([user, statement])
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Triple Multi",
         amount=Decimal("150.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
 
@@ -609,23 +645,25 @@ async def test_execute_matching_many_to_one_batch(db: AsyncSession):
 
     # Distinct running balances keep these two otherwise-identical txns separate in
     # Layer 2 (real statements progress the running balance); see dedup_hash.
-    t1 = BankStatementTransaction(
-        statement_id=statement.id,
+    t1 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Payment #1",
         amount=Decimal("50.00"),
         direction="OUT",
-        balance_after=Decimal("950.00"),
-        status=BankStatementTransactionStatus.PENDING,
+        dedup_hash="batch-950.00-" + uuid4().hex,
     )
-    t2 = BankStatementTransaction(
-        statement_id=statement.id,
+    t2 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Payment #1",
         amount=Decimal("50.00"),
         direction="OUT",
-        balance_after=Decimal("900.00"),
-        status=BankStatementTransactionStatus.PENDING,
+        dedup_hash="batch-900.00-" + uuid4().hex,
     )
     db.add_all([t1, t2])
 
@@ -704,13 +742,15 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession):
     db.add_all([user, statement])
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Check Unbalanced",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
 
@@ -753,13 +793,15 @@ async def test_execute_matching_low_score_unmatched(db: AsyncSession):
     db.add_all([user, statement])
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Bad Match",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
 
@@ -845,21 +887,25 @@ async def test_execute_matching_with_statement_id_filter(db: AsyncSession):
     db.add_all([statement1, statement2])
     await db.flush()
 
-    txn1 = BankStatementTransaction(
-        statement_id=statement1.id,
+    txn1 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TXN1",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
-    txn2 = BankStatementTransaction(
-        statement_id=statement2.id,
+    txn2 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 15),
         description="TXN2",
         amount=Decimal("200.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add_all([txn1, txn2])
 
@@ -918,20 +964,17 @@ async def test_execute_matching_with_statement_id_filter(db: AsyncSession):
     )
     await db.commit()
 
-    await execute_matching(db, user_id=user_id, statement_id=str(statement1.id))
+    # statement_id has no meaning on the Layer-2 atomic stream; matching scans all
+    # pending atomic transactions for the user.
+    matches = await execute_matching(db, user_id=user_id)
 
-    result = await db.execute(select(BankStatementTransaction).options(selectinload(BankStatementTransaction.matches)))
-    txns_with_matches = result.scalars().all()
-
-    for txn in txns_with_matches:
-        if txn.matches:
-            assert txn.statement_id == statement1.id
+    matched_atomic_ids = {m.atomic_txn_id for m in matches}
+    assert txn1.id in matched_atomic_ids
+    assert txn2.id in matched_atomic_ids
 
 
 def test_score_business_logic_out_equity():
-    from src.models import BankStatementTransaction, JournalEntry, JournalLine
-
-    txn = BankStatementTransaction(direction="OUT")
+    txn = AtomicTransaction(direction="OUT")
     account_asset = Account(type=AccountType.ASSET)
     account_equity = Account(type=AccountType.EQUITY)
 
@@ -947,9 +990,7 @@ def test_score_business_logic_out_equity():
 
 
 def test_score_business_logic_out_unknown():
-    from src.models import BankStatementTransaction, JournalEntry, JournalLine
-
-    txn = BankStatementTransaction(direction="OUT")
+    txn = AtomicTransaction(direction="OUT")
     entry = JournalEntry(
         lines=[
             JournalLine(account=Account(type=AccountType.ASSET)),
@@ -1010,13 +1051,15 @@ async def test_execute_matching_with_limit(db: AsyncSession):
 
     # Create 3 transactions
     for i in range(3):
-        txn = BankStatementTransaction(
-            statement_id=statement.id,
+        txn = AtomicTransaction(
+            user_id=user_id,
+            currency="SGD",
+            dedup_hash=uuid4().hex + uuid4().hex,
+            source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
             txn_date=date(2024, 1, 1),
             description=f"Limit Test {i}",
             amount=Decimal("100.00"),
             direction="OUT",
-            status=BankStatementTransactionStatus.PENDING,
         )
         db.add(txn)
     await db.commit()
@@ -1036,13 +1079,15 @@ async def test_transfer_detection_no_account_id(db: AsyncSession):
     db.add_all([user, statement])
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER TO SAVINGS",
         amount=Decimal("500.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1070,19 +1115,25 @@ async def test_transfer_out_creates_match(db: AsyncSession):
     db.add(source_account)
     await db.flush()
 
-    # Statement WITH account_id
+    # Statement WITH account_id, linked to its ODS document so transfer detection
+    # can resolve the custody account via source_documents.
+    doc = await _seed_document(db, owner_id=user_id)
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement.account_id = source_account.id
+    statement.uploaded_document_id = doc.id
+    statement.file_hash = doc.file_hash
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER TO SAVINGS",
         amount=Decimal("500.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1112,18 +1163,23 @@ async def test_transfer_in_creates_match(db: AsyncSession):
     db.add(dest_account)
     await db.flush()
 
+    doc = await _seed_document(db, owner_id=user_id)
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement.account_id = dest_account.id
+    statement.uploaded_document_id = doc.id
+    statement.file_hash = doc.file_hash
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER FROM CHECKING",
         amount=Decimal("500.00"),
         direction="IN",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1158,13 +1214,15 @@ async def test_transfer_entry_creation_failure(db: AsyncSession):
     db.add(statement)
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER TO SAVINGS",
         amount=Decimal("500.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1197,30 +1255,35 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
     db.add(source_account)
     await db.flush()
 
+    doc = await _seed_document(db, owner_id=user_id)
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement.account_id = source_account.id
+    statement.uploaded_document_id = doc.id
+    statement.file_hash = doc.file_hash
     db.add(statement)
     await db.flush()
 
     # Batch-looking transactions that are also transfers → all get matched in Phase 1.
     # Distinct running balances keep them separate in Layer 2.
-    t1 = BankStatementTransaction(
-        statement_id=statement.id,
+    t1 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Transfer TO savings",
         amount=Decimal("50.00"),
         direction="OUT",
-        balance_after=Decimal("950.00"),
-        status=BankStatementTransactionStatus.PENDING,
+        dedup_hash="batch-950.00-" + uuid4().hex,
     )
-    t2 = BankStatementTransaction(
-        statement_id=statement.id,
+    t2 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Transfer TO savings",
         amount=Decimal("50.00"),
         direction="OUT",
-        balance_after=Decimal("900.00"),
-        status=BankStatementTransactionStatus.PENDING,
+        dedup_hash="batch-900.00-" + uuid4().hex,
     )
     db.add_all([t1, t2])
     await db.commit()
@@ -1241,21 +1304,25 @@ async def test_many_to_one_no_candidates(db: AsyncSession):
     await db.flush()
 
     # Two batch-looking transactions but NO journal entries
-    t1 = BankStatementTransaction(
-        statement_id=statement.id,
+    t1 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Settlement #1",
         amount=Decimal("50.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
-    t2 = BankStatementTransaction(
-        statement_id=statement.id,
+    t2 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Settlement #1",
         amount=Decimal("50.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add_all([t1, t2])
     await db.commit()
@@ -1310,13 +1377,15 @@ async def test_normal_matching_supersession_same_entries(db: AsyncSession):
     )
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Same Entry",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1326,15 +1395,9 @@ async def test_normal_matching_supersession_same_entries(db: AsyncSession):
     assert len(matches1) == 1
     await db.commit()
 
-    # Reset txn to PENDING for re-matching
-    result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
-    reloaded_txn = result.scalar_one()
-    reloaded_txn.status = BankStatementTransactionStatus.PENDING
-    await db.commit()
-
-    # Second matching run → same journal entry → skip, no new match
+    # Second matching run → txn already has a match (idempotent), no new match
     matches2 = await execute_matching(db, user_id=user_id)
-    # Should skip creating a new match because same journal_entry_ids
+    # Should skip creating a new match because the txn is already matched.
     assert len(matches2) == 0
 
 
@@ -1362,30 +1425,40 @@ async def test_transfer_pairs_auto_pairing(db: AsyncSession):
     db.add_all([source_account, dest_account])
     await db.flush()
 
+    doc1 = await _seed_document(db, owner_id=user_id)
+    doc2 = await _seed_document(db, owner_id=user_id)
     statement1 = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement1.account_id = source_account.id
+    statement1.uploaded_document_id = doc1.id
+    statement1.file_hash = doc1.file_hash
     statement2 = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement2.account_id = dest_account.id
+    statement2.uploaded_document_id = doc2.id
+    statement2.file_hash = doc2.file_hash
     db.add_all([statement1, statement2])
     await db.flush()
 
     # Transfer OUT from checking
-    txn_out = BankStatementTransaction(
-        statement_id=statement1.id,
+    txn_out = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(doc1.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER TO SAVINGS",
         amount=Decimal("500.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     # Transfer IN to savings
-    txn_in = BankStatementTransaction(
-        statement_id=statement2.id,
+    txn_in = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(doc2.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER FROM CHECKING",
         amount=Decimal("500.00"),
         direction="IN",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add_all([txn_out, txn_in])
     await db.commit()
@@ -1406,13 +1479,15 @@ async def test_final_flush_failure(db: AsyncSession):
     db.add_all([user, statement])
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Flush Fail",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1442,13 +1517,15 @@ async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession):
     db.add_all([user, statement])
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Normal Transaction",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1485,21 +1562,25 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
     await db.flush()
 
     # Batch transactions with somewhat different amounts from entry
-    t1 = BankStatementTransaction(
-        statement_id=statement.id,
+    t1 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Bulk payment",
         amount=Decimal("50.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
-    t2 = BankStatementTransaction(
-        statement_id=statement.id,
+    t2 = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Bulk payment",
         amount=Decimal("50.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add_all([t1, t2])
     await db.flush()
@@ -1552,11 +1633,6 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
         if m2o_matches:
             for m in m2o_matches:
                 assert m.status == ReconciliationStatus.PENDING_REVIEW
-            # Txns should be PENDING (not MATCHED)
-            for tid in [t1.id, t2.id]:
-                result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == tid))
-                reloaded = result.scalar_one()
-                assert reloaded.status == BankStatementTransactionStatus.PENDING
 
 
 async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession):
@@ -1610,13 +1686,15 @@ async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession):
     )
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Matching Transaction",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1677,13 +1755,15 @@ async def test_normal_matching_pending_review(db: AsyncSession):
     )
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 5),
         description="Some random description here",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -1707,11 +1787,6 @@ async def test_normal_matching_pending_review(db: AsyncSession):
         matches = await execute_matching(db, user_id=user_id)
         assert len(matches) == 1
         assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
-
-        # Txn should be PENDING (not MATCHED)
-        result = await db.execute(select(BankStatementTransaction).where(BankStatementTransaction.id == txn.id))
-        reloaded = result.scalar_one()
-        assert reloaded.status == BankStatementTransactionStatus.PENDING
 
 
 # ---------------------------------------------------------------------------
@@ -1803,9 +1878,8 @@ async def test_execute_matching_4_layer_read(db: AsyncSession):
         matches = await execute_matching(db, user_id=user_id)
         # Should find and match the L2 transaction
         assert len(matches) == 1
-        # Should use atomic_txn_id (not bank_txn_id)
+        # Should use atomic_txn_id
         assert matches[0].atomic_txn_id == l2_txn.id
-        assert matches[0].bank_txn_id is None
 
 
 async def test_execute_matching_4_layer_read_no_candidates(db: AsyncSession):
@@ -1834,7 +1908,7 @@ async def test_execute_matching_4_layer_read_no_candidates(db: AsyncSession):
     with patch("src.services.reconciliation.settings") as mock_settings:
         mock_settings.enable_4_layer_read = True
         matches = await execute_matching(db, user_id=user_id)
-        # No candidates → no matches, L2 doesn't set BankStatementTransactionStatus
+        # No candidates → no matches; match status lives on ReconciliationMatch, not the txn
         assert len(matches) == 0
 
 
@@ -1861,10 +1935,9 @@ async def test_execute_matching_4_layer_read_transfer(db: AsyncSession):
     db.add(statement)
     await db.flush()
 
-    # Create a transfer-looking L2 txn via BankStatementTransaction
-    # Even with 4_layer_read, transfer detection still uses BankStatementTransaction path
-    # because _get_pending_layer2_transactions returns AtomicTransactions, not BankStatementTransactions
-    # BUT AtomicTransaction doesn't have statement_id or status fields needed for transfer detection
+    # Create a transfer-looking L2 atomic txn.
+    # _get_pending_layer2_transactions returns AtomicTransactions.
+    # AtomicTransaction doesn't have statement_id or status fields needed for transfer detection
     # So we need to test that the 4_layer_read path in the transfer match creation uses atomic_txn_id
 
     # Actually, looking at the code more carefully:
@@ -1961,9 +2034,8 @@ async def test_execute_matching_4_layer_read_pending_review(db: AsyncSession):
         matches = await execute_matching(db, user_id=user_id)
         assert len(matches) == 1
         assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
-        # L2 mode: should NOT touch bank_txn_id or BankStatementTransactionStatus
+        # L2 mode: match is keyed on atomic_txn_id.
         assert matches[0].atomic_txn_id == l2_txn.id
-        assert matches[0].bank_txn_id is None
 
 
 async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
@@ -2025,13 +2097,15 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
     )
     await db.flush()
 
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Entry A",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.commit()
@@ -2092,13 +2166,15 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     db.add(statement)
     await db.flush()
-    txn = BankStatementTransaction(
-        statement_id=statement.id,
+    txn = AtomicTransaction(
+        user_id=user_id,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Score Pattern Test",
         amount=Decimal("100.00"),
         direction="OUT",
-        status=BankStatementTransactionStatus.PENDING,
     )
     db.add(txn)
     await db.flush()
@@ -2145,7 +2221,7 @@ async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
 
 
 async def test_get_existing_active_match_layer2(db: AsyncSession):
-    """Cover line 591: _get_existing_active_match with is_layer2=True."""
+    """Cover _get_existing_active_match returning None then the active match."""
     from src.models.layer2 import AtomicTransaction
     from src.services.reconciliation import _get_existing_active_match
 
@@ -2169,7 +2245,7 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
     await db.flush()
     txn_id = real_txn.id
     # No existing match → None
-    result = await _get_existing_active_match(db, txn_id, is_layer2=True)
+    result = await _get_existing_active_match(db, txn_id)
     assert result is None
     match = ReconciliationMatch(
         atomic_txn_id=txn_id,
@@ -2180,8 +2256,6 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
     )
     db.add(match)
     await db.commit()
-    result = await _get_existing_active_match(db, txn_id, is_layer2=True)
+    result = await _get_existing_active_match(db, txn_id)
     assert result is not None
     assert result.atomic_txn_id == txn_id
-    result_bank = await _get_existing_active_match(db, txn_id, is_layer2=False)
-    assert result_bank is None

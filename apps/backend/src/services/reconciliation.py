@@ -736,21 +736,13 @@ async def _get_pending_layer2_transactions(
 async def _get_existing_active_match(
     db: AsyncSession,
     txn_id: UUID,
-    is_layer2: bool,
 ) -> ReconciliationMatch | None:
     """Get existing active (non-superseded) match for a transaction."""
-    if is_layer2:
-        query = select(ReconciliationMatch).where(
-            ReconciliationMatch.atomic_txn_id == txn_id,
-            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
-            ReconciliationMatch.superseded_by_id.is_(None),
-        )
-    else:
-        query = select(ReconciliationMatch).where(
-            ReconciliationMatch.bank_txn_id == txn_id,
-            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
-            ReconciliationMatch.superseded_by_id.is_(None),
-        )
+    query = select(ReconciliationMatch).where(
+        ReconciliationMatch.atomic_txn_id == txn_id,
+        ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+        ReconciliationMatch.superseded_by_id.is_(None),
+    )
     result = await db.execute(query)
     return result.scalar_one_or_none()
 
@@ -1036,7 +1028,7 @@ async def execute_matching(
         if detect_transfer_pattern(txn):
             try:
                 # Idempotency check: skip if this transaction already has an active match
-                existing_transfer_match = await _get_existing_active_match(db, txn.id, is_layer2=True)
+                existing_transfer_match = await _get_existing_active_match(db, txn.id)
                 if existing_transfer_match:
                     logger.warning(
                         "Transfer already matched - skipping duplicate match creation",
@@ -1071,7 +1063,6 @@ async def execute_matching(
 
                     # Create reconciliation match for transfer OUT
                     match = ReconciliationMatch(
-                        bank_txn_id=None,
                         atomic_txn_id=txn.id,
                         journal_entry_ids=[str(transfer_entry.id)],
                         match_score=100,  # Transfer detection is exact match
@@ -1103,7 +1094,6 @@ async def execute_matching(
 
                     # Create reconciliation match for transfer IN
                     match = ReconciliationMatch(
-                        bank_txn_id=None,
                         atomic_txn_id=txn.id,
                         journal_entry_ids=[str(transfer_entry.id)],
                         match_score=100,  # Transfer detection is exact match
@@ -1185,7 +1175,7 @@ async def execute_matching(
             for txn in group:
                 if txn.id in matched_txn_ids:
                     continue
-                existing_match = await _get_existing_active_match(db, txn.id, is_layer2=True)
+                existing_match = await _get_existing_active_match(db, txn.id)
                 if existing_match:
                     existing_je_ids = set(existing_match.journal_entry_ids or [])
                     new_je_ids = set(best_candidate.journal_entry_ids or [])
@@ -1291,7 +1281,7 @@ async def execute_matching(
         if not best_match or best_match.score < config.pending_review:
             continue
 
-        existing_match = await _get_existing_active_match(db, txn.id, is_layer2=True)
+        existing_match = await _get_existing_active_match(db, txn.id)
         if existing_match:
             existing_je_ids = set(existing_match.journal_entry_ids or [])
             new_je_ids = set(best_match.journal_entry_ids or [])

@@ -5,7 +5,7 @@ from src.services.correction_service import (
     get_few_shot_examples,
     record_correction,
 )
-from tests.factories import BankStatementFactory, BankStatementTransactionFactory
+from tests.factories import AtomicTransactionFactory
 
 
 @pytest.fixture(autouse=True)
@@ -17,20 +17,17 @@ def _clear():
 
 async def test_get_few_shot_examples_cache_hit_and_limit(db, test_user):
     """AC4.7.2: get_few_shot_examples respects default limit and caches results."""
-    stmt = await BankStatementFactory.create_async(db, user_id=test_user.id)
-
     for i in range(12):
-        txn = await BankStatementTransactionFactory.create_async(
+        txn = await AtomicTransactionFactory.create_async(
             db,
-            statement_id=stmt.id,
+            user_id=test_user.id,
             description=f"Txn {i}",
-            suggested_category=f"Cat{i % 3}",
         )
         await record_correction(
             db,
             user_id=test_user.id,
             transaction_id=txn.id,
-            corrected_category=f"Corrected{i % 5}",
+            corrected_category=f"Corrected{i}",
         )
     await db.commit()
 

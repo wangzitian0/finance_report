@@ -31,10 +31,10 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "reconciliation_matches"
     __table_args__ = (Index("idx_reconciliation_matches_run_id", "run_id"),)
 
-    atomic_txn_id: Mapped[UUID | None] = mapped_column(
+    atomic_txn_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("atomic_transactions.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
     )
     journal_entry_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
     run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)

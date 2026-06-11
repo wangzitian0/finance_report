@@ -17,6 +17,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.models.layer2 import TransactionDirection
 from src.services.account_service import get_or_create_processing_account
 
 
