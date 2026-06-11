@@ -182,6 +182,10 @@ jobs:
       - name: Build and start ephemeral stack
         run: |
           set -euo pipefail
+          # backend/frontend attach to the external `dokploy-network` (a
+          # Dokploy/Traefik artifact that does not exist in the runner). Create a
+          # local stand-in so compose can start; removed again in teardown.
+          docker network create dokploy-network 2>/dev/null || true
           docker compose up --build -d --quiet-pull
           docker compose ps
 
@@ -227,7 +231,11 @@ jobs:
       # is unique per run; -v removes named volumes, --remove-orphans the rest.
       - name: Tear down ephemeral stack
         if: always()
-        run: docker compose down --volumes --remove-orphans --timeout 30 || true
+        run: |
+          docker compose down --volumes --remove-orphans --timeout 30 || true
+          # Remove the local stand-in network (external networks are not removed
+          # by `compose down`); no-op if other containers still reference it.
+          docker network rm dokploy-network 2>/dev/null || true
 
   gate-cheap-ci:
     name: Gate on Cheap CI
