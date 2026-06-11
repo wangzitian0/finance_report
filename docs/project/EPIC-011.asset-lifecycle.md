@@ -166,7 +166,6 @@ alongside legacy Layer 0, with an env opt-out preserved for rollback.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC11.13.1 | Parsing populates Layer 1/2 by default, without any feature-flag override | `test_dual_write_enabled_by_default()` | `extraction/test_dual_write_layer2.py` | P0 |
-| AC11.13.2 | `ENABLE_4_LAYER_WRITE=false` preserves the legacy Layer-0-only opt-out for rollback | `test_dual_write_can_be_disabled_via_flag()` | `extraction/test_dual_write_layer2.py` | P0 |
 
 ### AC11.14: 4-Layer Migration — Stage 2a Layer 0→2 Backfill
 

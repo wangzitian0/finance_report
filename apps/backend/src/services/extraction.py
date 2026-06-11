@@ -503,7 +503,7 @@ class ExtractionService:
                 tx_count=len(transactions),
             )
 
-            if settings.enable_4_layer_write and db:
+            if db:
                 await dual_write_layer2(
                     db=db,
                     user_id=user_id,

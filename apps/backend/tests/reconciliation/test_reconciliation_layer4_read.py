@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 import pytest
 
-from src.config import settings
 from src.models import (
     Account,
     AccountType,
@@ -102,8 +101,6 @@ class TestReconciliationLayer4Read:
         await self._create_candidate_entry(db, test_user.id)
 
         # 1. Enable Dual Write AND Layer 4 Read
-        monkeypatch.setattr(settings, "enable_4_layer_write", True)
-        monkeypatch.setattr(settings, "enable_4_layer_read", True)
 
         service = ExtractionService()
         content = b"PDF-CONTENT-L4"
@@ -155,9 +152,6 @@ class TestReconciliationLayer4Read:
     async def test_reconciliation_idempotency_layer2(self, db, test_user, mock_ai_response, monkeypatch):
         """Test that already matched Layer 2 transactions are skipped."""
         await self._create_candidate_entry(db, test_user.id)
-
-        monkeypatch.setattr(settings, "enable_4_layer_write", True)
-        monkeypatch.setattr(settings, "enable_4_layer_read", True)
 
         # ... setup data ...
         service = ExtractionService()
