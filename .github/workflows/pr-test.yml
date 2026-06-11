@@ -194,8 +194,12 @@ jobs:
         with:
           context: ./apps/backend
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max,ignore-error=true
+          # B2: persistent registry-backed layer cache (survives runner churn /
+          # GHA cache eviction); gha kept as a fast same-runner second source.
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:buildcache
+            type=gha
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:buildcache,mode=max,ignore-error=true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ env.PREVIEW_IMAGE_TAG }}
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
@@ -231,8 +235,12 @@ jobs:
         with:
           context: ./apps/frontend
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max,ignore-error=true
+          # B2: persistent registry-backed layer cache (survives runner churn /
+          # GHA cache eviction); gha kept as a fast same-runner second source.
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:buildcache
+            type=gha
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:buildcache,mode=max,ignore-error=true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ env.PREVIEW_IMAGE_TAG }}
           build-args: |
             GIT_COMMIT_SHA=${{ github.sha }}
