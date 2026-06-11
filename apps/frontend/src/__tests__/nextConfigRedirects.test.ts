@@ -39,9 +39,4 @@ describe("next.config redirects (EPIC-022 route alignment)", () => {
     const map = await redirectMap();
     expect(map.get("/review")).toBe("/notifications");
   });
-
-  it("AC22.4.2 redirects the duplicate /review/run to the reconciliation review queue", async () => {
-    const map = await redirectMap();
-    expect(map.get("/review/run/:runId*")).toBe("/reconciliation/review-queue");
-  });
 });

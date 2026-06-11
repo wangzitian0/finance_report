@@ -126,8 +126,7 @@ slices land, so every registered AC has a behavioral test in the same change.
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.4.1 | A user with pending Stage 2 reconciliation matches gets a reconciliation-review attention event in the workflow inbox that deep-links to `/reconciliation/review-queue` (proven from match state through to event) | `test_workflow_events.py` | P1 |
-| AC22.4.2 | The duplicate `/review/run/{runId}` route is removed and redirects to `/reconciliation/review-queue` | `nextConfigRedirects.test.ts` | P1 |
-| AC22.4.3 | `/review/ai-suggestions` is reachable from AI Settings, so no orphan routes remain under `/review` | `aiSettingsPage.test.tsx` | P1 |
+| AC22.4.3 | `/review/ai-suggestions` is reachable from AI Settings, so the AI-suggestion review surface is not orphaned | `aiSettingsPage.test.tsx` | P1 |
 | AC22.4.4 | The Home (`/`) defaults to a lean view (action-required summary, financial key numbers, quick upload) with heavy analytics/charts behind an opt-in toggle | `dashboardPage.test.tsx` | P1 |
 | AC22.4.5 | E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface | `epic022-attention-journey.spec.ts` | P1 |
 | AC22.4.6 | E2E: an amount on the Balance Sheet drills down to its contributing journal lines and on to the source document | `epic022-drilldown-journey.spec.ts` | P1 |

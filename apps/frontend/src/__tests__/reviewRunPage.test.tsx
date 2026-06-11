@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-// /review/run was a duplicate of the reconciliation review queue (both render
-// Stage2ReviewQueue); EPIC-022 PR4 removed it, so this covers the same run-level
-// review ACs through the surviving /reconciliation/review-queue page.
-import RunReviewPage from "@/app/(main)/reconciliation/review-queue/page";
+import RunReviewPage from "@/app/(main)/review/run/[runId]/page";
 import { apiFetch } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
