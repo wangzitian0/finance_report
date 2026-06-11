@@ -12,15 +12,13 @@ from sqlalchemy.orm import selectinload
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import (
-    Account,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     Direction,
     JournalEntry,
     ReconciliationMatch,
     ReconciliationStatus,
+    StatementSummary,
 )
+from src.models.layer2 import AtomicTransaction
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BatchAcceptRequest,
@@ -65,6 +63,31 @@ def _safe_error_message(message: str | None) -> str | None:
     return message[:500] if message else message
 
 
+def _unmatched_atomic_txn_query():
+    """Select Layer-2 atomic transactions that have no active reconciliation match.
+
+    "Unmatched" mirrors the matching engine: an atomic transaction is unmatched
+    when it is absent from ``reconciliation_matches`` (via ``atomic_txn_id``).
+    """
+    matched_subquery = select(ReconciliationMatch.atomic_txn_id).where(
+        ReconciliationMatch.atomic_txn_id.is_not(None)
+    )
+    return select(AtomicTransaction).where(AtomicTransaction.id.notin_(matched_subquery))
+
+
+async def _statement_atomic_txn_ids(db: AsyncSession, statement: StatementSummary) -> list[UUID]:
+    """Resolve the atomic transaction ids for a statement via its ODS document link."""
+    if statement.uploaded_document_id is None:
+        return []
+    doc_marker = [{"doc_id": str(statement.uploaded_document_id)}]
+    result = await db.execute(
+        select(AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == statement.user_id)
+        .where(AtomicTransaction.source_documents.contains(doc_marker))
+    )
+    return list(result.scalars().all())
+
+
 def _entry_total_amount(entry: JournalEntry) -> Decimal:
     return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
 
@@ -82,7 +105,7 @@ def _build_entry_summary(entry: JournalEntry) -> JournalEntrySummary:
 def _build_match_response(
     match: ReconciliationMatch,
     *,
-    transaction: BankStatementTransaction | None,
+    transaction: AtomicTransaction | None,
     entry_summaries: dict[str, JournalEntrySummary],
 ) -> ReconciliationMatchResponse:
     entries: list[JournalEntrySummary] = []
@@ -92,7 +115,7 @@ def _build_match_response(
             entries.append(summary)
     return ReconciliationMatchResponse(
         id=match.id,
-        bank_txn_id=match.bank_txn_id,
+        atomic_txn_id=match.atomic_txn_id,
         journal_entry_ids=match.journal_entry_ids,
         match_score=match.match_score,
         score_breakdown=match.score_breakdown,
@@ -142,13 +165,15 @@ async def run_reconciliation(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> ReconciliationRunResponse:
+    statement: StatementSummary | None = None
     if payload.statement_id:
         stmt_result = await db.execute(
-            select(BankStatement.id)
-            .where(BankStatement.id == payload.statement_id)
-            .where(BankStatement.user_id == user_id)
+            select(StatementSummary)
+            .where(StatementSummary.id == payload.statement_id)
+            .where(StatementSummary.user_id == user_id)
         )
-        if not stmt_result.scalar_one_or_none():
+        statement = stmt_result.scalar_one_or_none()
+        if statement is None:
             raise_not_found("Statement")
 
     request_id = _current_request_id()
@@ -191,17 +216,20 @@ async def run_reconciliation(
     auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
     pending_review = sum(1 for match in matches if match.status.value == "pending_review")
 
-    unmatched_query = (
-        select(func.count(BankStatementTransaction.id))
-        .join(BankStatement)
-        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-        .where(BankStatement.user_id == user_id)
-    )
-
-    if payload.statement_id:
-        unmatched_query = unmatched_query.where(BankStatementTransaction.statement_id == payload.statement_id)
-    unmatched_result = await db.execute(unmatched_query)
-    unmatched_count = unmatched_result.scalar_one()
+    unmatched_query = _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id)
+    if statement is not None:
+        statement_txn_ids = await _statement_atomic_txn_ids(db, statement)
+        if not statement_txn_ids:
+            unmatched_count = 0
+        else:
+            unmatched_query = unmatched_query.where(AtomicTransaction.id.in_(statement_txn_ids))
+            unmatched_result = await db.execute(
+                select(func.count()).select_from(unmatched_query.subquery())
+            )
+            unmatched_count = unmatched_result.scalar_one()
+    else:
+        unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
+        unmatched_count = unmatched_result.scalar_one()
 
     logger.info(
         "reconciliation.run.completed",
@@ -236,10 +264,9 @@ async def list_matches(
 ) -> ReconciliationMatchListResponse:
     query = (
         select(ReconciliationMatch)
-        .join(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
-        .options(selectinload(ReconciliationMatch.transaction).selectinload(BankStatementTransaction.statement))
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
+        .options(selectinload(ReconciliationMatch.atomic_transaction))
     )
     if status_filter:
         query = query.where(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
@@ -251,7 +278,7 @@ async def list_matches(
     items = [
         _build_match_response(
             match,
-            transaction=match.transaction,
+            transaction=match.atomic_transaction,
             entry_summaries=entry_summaries,
         )
         for match in matches
@@ -259,9 +286,8 @@ async def list_matches(
 
     total_query = (
         select(func.count(ReconciliationMatch.id))
-        .join(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
     )
     if status_filter:
         total_query = total_query.where(ReconciliationMatch.status == ReconciliationStatus(status_filter.value))
@@ -283,7 +309,7 @@ async def pending_review_queue(
     items = [
         _build_match_response(
             match,
-            transaction=match.transaction,
+            transaction=match.atomic_transaction,
             entry_summaries=entry_summaries,
         )
         for match in matches
@@ -291,9 +317,8 @@ async def pending_review_queue(
 
     total_query = (
         select(func.count(ReconciliationMatch.id))
-        .join(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatement.user_id == user_id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
     )
     total_result = await db.execute(total_query)
@@ -316,11 +341,11 @@ async def accept_match(
         if "not found" in str(exc).lower():
             raise_not_found("Match", cause=exc)
         raise_bad_request(str(exc), cause=exc)
-    await db.refresh(match, ["transaction"])
+    await db.refresh(match, ["atomic_transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(
         match,
-        transaction=match.transaction,
+        transaction=match.atomic_transaction,
         entry_summaries=entry_summaries,
     )
 
@@ -339,11 +364,11 @@ async def reject_match(
         if "not found" in str(exc).lower():
             raise_not_found("Match", cause=exc)
         raise_bad_request(str(exc), cause=exc)
-    await db.refresh(match, ["transaction"])
+    await db.refresh(match, ["atomic_transaction"])
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(
         match,
-        transaction=match.transaction,
+        transaction=match.atomic_transaction,
         entry_summaries=entry_summaries,
     )
 
@@ -364,14 +389,14 @@ async def batch_accept(
     result = await db.execute(
         select(ReconciliationMatch)
         .where(ReconciliationMatch.id.in_(match_ids))
-        .options(selectinload(ReconciliationMatch.transaction))
+        .options(selectinload(ReconciliationMatch.atomic_transaction))
     )
     loaded_matches = result.scalars().all()
     entry_summaries = await _load_entry_summaries(db, loaded_matches, user_id)
     items = [
         _build_match_response(
             match,
-            transaction=match.transaction,
+            transaction=match.atomic_transaction,
             entry_summaries=entry_summaries,
         )
         for match in loaded_matches
@@ -406,21 +431,18 @@ async def list_unmatched(
     user_id: CurrentUserId,
 ) -> UnmatchedTransactionsResponse:
     result = await db.execute(
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-        .where(BankStatement.user_id == user_id)
-        .order_by(BankStatementTransaction.txn_date.desc())
+        _unmatched_atomic_txn_query()
+        .where(AtomicTransaction.user_id == user_id)
+        .order_by(AtomicTransaction.txn_date.desc())
         .limit(limit)
         .offset(offset)
     )
     items = result.scalars().all()
 
     total_result = await db.execute(
-        select(func.count(BankStatementTransaction.id))
-        .join(BankStatement)
-        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-        .where(BankStatement.user_id == user_id)
+        select(func.count()).select_from(
+            _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id).subquery()
+        )
     )
     total = total_result.scalar_one()
 
@@ -436,11 +458,10 @@ async def create_entry(
 ) -> JournalEntrySummary:
     # Lock txn row first to serialize create-entry requests for the same source txn.
     result = await db.execute(
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatementTransaction.id == txn_id)
-        .where(BankStatement.user_id == user_id)
-        .with_for_update(of=BankStatementTransaction)
+        select(AtomicTransaction)
+        .where(AtomicTransaction.id == txn_id)
+        .where(AtomicTransaction.user_id == user_id)
+        .with_for_update(of=AtomicTransaction)
     )
     txn = result.scalar_one_or_none()
     if not txn:
@@ -475,10 +496,9 @@ async def batch_create_entries(
 
     if payload.all:
         total_unmatched_result = await db.execute(
-            select(func.count(BankStatementTransaction.id))
-            .join(BankStatement)
-            .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-            .where(BankStatement.user_id == user_id)
+            select(func.count()).select_from(
+                _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id).subquery()
+            )
         )
         total_unmatched = total_unmatched_result.scalar_one()
         if total_unmatched > MAX_BATCH_CREATE_ALL:
@@ -487,19 +507,13 @@ async def batch_create_entries(
                 f"(max {MAX_BATCH_CREATE_ALL}). Use txn_ids for smaller batches."
             )
 
-    query = (
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .options(selectinload(BankStatementTransaction.statement))
-        .where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-        .where(BankStatement.user_id == user_id)
-    )
+    query = _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id)
     if not payload.all:
-        query = query.where(BankStatementTransaction.id.in_(payload.txn_ids))
+        query = query.where(AtomicTransaction.id.in_(payload.txn_ids))
 
     result = await db.execute(
-        query.order_by(BankStatementTransaction.txn_date.desc()).with_for_update(
-            of=BankStatementTransaction, skip_locked=True
+        query.order_by(AtomicTransaction.txn_date.desc()).with_for_update(
+            of=AtomicTransaction, skip_locked=True
         )
     )
     txns = result.scalars().all()
@@ -516,41 +530,11 @@ async def batch_create_entries(
     )
     existing_source_ids = set(existing_entries_result.scalars().all())
 
-    account_ids: set[UUID] = set()
-    for txn in txns:
-        statement = txn.statement
-        if statement and statement.account_id:
-            account_ids.add(statement.account_id)
-    bank_account_by_id: dict[UUID, Account] = {}
-    if account_ids:
-        account_result = await db.execute(
-            select(Account).where(Account.id.in_(account_ids)).where(Account.user_id == user_id)
-        )
-        accounts = account_result.scalars().all()
-        bank_account_by_id = {account.id: account for account in accounts}
-
     created_count = 0
     for txn in txns:
         if txn.id in existing_source_ids:
             continue
-        statement = txn.statement
-        if statement is None:
-            logger.warning(
-                "unmatched_batch_create_missing_statement",
-                txn_id=str(txn.id),
-                user_id=str(user_id),
-            )
-            await create_entry_from_txn(db, txn, user_id=user_id)
-            created_count += 1
-            continue
-        preloaded_bank_account = bank_account_by_id.get(statement.account_id) if statement.account_id else None
-        await create_entry_from_txn(
-            db,
-            txn,
-            user_id=user_id,
-            preloaded_statement=statement,
-            preloaded_bank_account=preloaded_bank_account,
-        )
+        await create_entry_from_txn(db, txn, user_id=user_id)
         created_count += 1
 
     await db.commit()
@@ -565,10 +549,9 @@ async def list_anomalies(
     user_id: CurrentUserId,
 ) -> list[AnomalyResponse]:
     result = await db.execute(
-        select(BankStatementTransaction)
-        .join(BankStatement)
-        .where(BankStatementTransaction.id == txn_id)
-        .where(BankStatement.user_id == user_id)
+        select(AtomicTransaction)
+        .where(AtomicTransaction.id == txn_id)
+        .where(AtomicTransaction.user_id == user_id)
     )
     txn = result.scalar_one_or_none()
     if not txn:

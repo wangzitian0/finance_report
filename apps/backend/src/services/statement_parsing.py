@@ -9,29 +9,19 @@ from uuid import UUID, uuid4
 import structlog
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy.orm import selectinload
 
 from src.logger import get_logger
-from src.models import BankStatement, BankStatementStatus
+from src.models import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
 from src.services.statement_posting import try_auto_approve_high_confidence_statement
-from src.services.statement_summary import sync_statement_summary
 
 if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
 _brokerage_import_service = BrokeragePositionImportService()
-PARSE_PROGRESS_PHASES = {
-    5: "parse_started",
-    10: "storage_url_resolved",
-    20: "extraction_started",
-    70: "extraction_completed",
-    80: "statement_metadata_persisted",
-    90: "transactions_persisted",
-    100: "statement_persisted",
-}
 
 
 def _safe_error_message(message: str | None) -> str | None:
@@ -62,7 +52,7 @@ def _append_validation_note(existing: str | None, note: str) -> str:
 
 async def import_brokerage_payload_if_present(
     *,
-    statement: BankStatement,
+    summary: StatementSummary,
     db: AsyncSession,
     user_id: UUID,
     filename: str,
@@ -72,7 +62,7 @@ async def import_brokerage_payload_if_present(
     model_to_use: str | None = None,
 ) -> None:
     """Import parsed brokerage positions after statement parsing succeeds."""
-    if not looks_like_brokerage_payload(payload, filename=filename, institution=institution or statement.institution):
+    if not looks_like_brokerage_payload(payload, filename=filename, institution=institution or summary.institution):
         return
 
     request_id = request_id or str(uuid4())
@@ -81,15 +71,15 @@ async def import_brokerage_payload_if_present(
         broker = payload.get("institution")
         if not broker and isinstance(payload.get("statement"), dict):
             broker = payload["statement"].get("institution")
-    broker = broker or institution or statement.institution
+    broker = broker or institution or summary.institution
     parsed_positions = _count_brokerage_positions(payload)
+    source_document_id = str(summary.uploaded_document_id or summary.id)
     logger.info(
         "statement.brokerage_import.started",
         audit_event="statement.brokerage_import.started",
         request_id=request_id,
-        statement_id=str(statement.id),
+        statement_id=str(summary.id),
         phase="brokerage_import_started",
-        progress=statement.parsing_progress,
         model_to_use=model_to_use,
         broker=broker,
         parsed_positions=parsed_positions,
@@ -101,11 +91,11 @@ async def import_brokerage_payload_if_present(
             user_id=user_id,
             payload=payload or {},
             filename=filename,
-            source_document_id=str(statement.id),
+            source_document_id=source_document_id,
         )
         if result.parsed_positions == 0:
-            statement.validation_error = _append_validation_note(
-                statement.validation_error,
+            summary.validation_error = _append_validation_note(
+                summary.validation_error,
                 "Brokerage import skipped: no positions detected in parsed brokerage payload",
             )
         await db.commit()
@@ -113,9 +103,8 @@ async def import_brokerage_payload_if_present(
             "statement.brokerage_import.completed",
             audit_event="statement.brokerage_import.completed",
             request_id=request_id,
-            statement_id=str(statement.id),
+            statement_id=str(summary.id),
             phase="brokerage_import_completed",
-            progress=statement.parsing_progress,
             model_to_use=model_to_use,
             broker=result.broker,
             parsed_positions=result.parsed_positions,
@@ -130,15 +119,14 @@ async def import_brokerage_payload_if_present(
             "statement.brokerage_import.failed",
             audit_event="statement.brokerage_import.failed",
             request_id=request_id,
-            statement_id=str(statement.id),
+            statement_id=str(summary.id),
             phase="brokerage_import_failed",
-            progress=statement.parsing_progress,
             model_to_use=model_to_use,
             error_type=type(exc).__name__,
             safe_error_message=_safe_error_message(str(exc)),
         )
         await db.rollback()
-        refreshed = await db.get(BankStatement, statement.id)
+        refreshed = await db.get(StatementSummary, summary.id)
         if refreshed is None:
             return
         refreshed.validation_error = _append_validation_note(
@@ -149,7 +137,7 @@ async def import_brokerage_payload_if_present(
 
 
 async def handle_parse_failure(
-    statement: BankStatement,
+    statement: StatementSummary,
     db: AsyncSession,
     *,
     message: str | None,
@@ -167,7 +155,7 @@ async def handle_parse_failure(
     3. Marks statement as REJECTED with error message
 
     Args:
-        statement: The BankStatement object (may have expired session)
+        statement: The StatementSummary envelope (may have expired session)
         db: AsyncSession for database operations
         message: Error message to store in validation_error
     """
@@ -182,7 +170,7 @@ async def handle_parse_failure(
             rollback_error=str(rollback_exc),
         )
     try:
-        refreshed = await db.get(BankStatement, statement_id)
+        refreshed = await db.get(StatementSummary, statement_id)
         if refreshed is None:
             logger.error(
                 "Statement not found after rollback",
@@ -201,7 +189,7 @@ async def handle_parse_failure(
             request_id=request_id,
             statement_id=str(refreshed.id),
             phase=phase,
-            progress=progress if progress is not None else refreshed.parsing_progress,
+            progress=progress,
             model_to_use=model_to_use,
             error_type=error_type,
             safe_error_message=_safe_error_message(message),
@@ -226,7 +214,7 @@ def _filter_failure_handler_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _handle_parse_failure(
-    statement: BankStatement,
+    statement: StatementSummary,
     db: AsyncSession,
     *,
     message: str | None,
@@ -275,7 +263,7 @@ async def parse_statement_background(
     4. Handle errors and mark statement appropriately
 
     Args:
-        statement_id: UUID of the BankStatement to parse
+        statement_id: UUID of the StatementSummary envelope to parse
         filename: Original filename of uploaded file
         institution: Bank institution name (or None for auto-detect)
         user_id: User ID who uploaded the statement
@@ -306,11 +294,7 @@ async def parse_statement_background(
     start_time = time.perf_counter()
 
     async with session_maker() as session:
-        statement = await session.get(
-            BankStatement,
-            statement_id,
-            options=[selectinload(BankStatement.transactions)],
-        )
+        statement = await session.get(StatementSummary, statement_id)
         if not statement:
             logger.error(
                 "Statement not found in DB for background parsing",
@@ -320,26 +304,21 @@ async def parse_statement_background(
             return
 
         current_phase = "parse_started"
-        current_progress = 0
 
-        async def update_progress(progress: int) -> None:
-            nonlocal current_phase, current_progress
-            current_phase = PARSE_PROGRESS_PHASES[progress]
-            current_progress = progress
-            statement.parsing_progress = progress
-            await session.commit()
+        def checkpoint(phase: str) -> None:
+            nonlocal current_phase
+            current_phase = phase
             logger.info(
                 "statement.parse.checkpoint",
                 audit_event="statement.parse.checkpoint",
                 request_id=request_id,
                 statement_id=str(statement_id),
                 phase=current_phase,
-                progress=current_progress,
                 model_to_use=model_to_use,
                 file_type=file_type,
             )
 
-        await update_progress(5)
+        checkpoint("parse_started")
 
         storage = StorageService()
         file_url = None
@@ -352,7 +331,7 @@ async def parse_statement_background(
                 statement_id=str(statement_id),
             )
 
-        await update_progress(10)
+        checkpoint("storage_url_resolved")
 
         if file_type == "pdf" and not file_url:
             logger.info(
@@ -362,7 +341,7 @@ async def parse_statement_background(
 
         service = ExtractionService()
         try:
-            await update_progress(20)
+            checkpoint("extraction_started")
             parsed_statement, transactions = await service.parse_document(
                 file_path=Path(filename),
                 institution=institution,
@@ -385,14 +364,14 @@ async def parse_statement_background(
                 will_use_force_model=bool(model_to_use),
                 file_type=file_type,
             )
-            await update_progress(70)
+            checkpoint("extraction_completed")
         except ExtractionError as exc:
             await _handle_parse_failure(
                 statement,
                 session,
                 message=str(exc),
                 phase=current_phase,
-                progress=current_progress,
+                progress=None,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
@@ -404,7 +383,6 @@ async def parse_statement_background(
                 statement_id=str(statement_id),
                 request_id=request_id,
                 phase=current_phase,
-                progress=current_progress,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
             )
@@ -413,7 +391,7 @@ async def parse_statement_background(
                 session,
                 message=f"Parsing failed: {exc}",
                 phase=current_phase,
-                progress=current_progress,
+                progress=None,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
@@ -421,58 +399,19 @@ async def parse_statement_background(
             return
 
         try:
-            statement.institution = parsed_statement.institution
-            statement.account_last4 = parsed_statement.account_last4
-            statement.currency = parsed_statement.currency
-            statement.period_start = parsed_statement.period_start
-            statement.period_end = parsed_statement.period_end
-            statement.opening_balance = parsed_statement.opening_balance
-            statement.closing_balance = parsed_statement.closing_balance
-            statement.extraction_metadata = parsed_statement.extraction_metadata
+            # `parse_document(db=session)` already persisted the DWD result via
+            # `dual_write_layer2`: the ODS UploadedDocument, the Layer-2 AtomicTransaction
+            # facts, and the confirmed envelope/status updated onto this pre-created
+            # StatementSummary row (reused by `(user_id, file_hash)`), including
+            # `uploaded_document_id`. Refresh so the in-memory row reflects that write.
             await session.commit()
+            await session.refresh(statement)
 
-            await update_progress(80)
-
-            for existing_tx in list(statement.transactions):
-                await session.delete(existing_tx)
-            await session.flush()
-
-            # Persist Layer 0 transactions (still the dual-write source until Stage 3
-            # drops the bank_statement* tables).
-            for txn in transactions:
-                txn.statement = statement
-            statement.transactions = list(transactions)
-
-            await update_progress(90)
-
-            from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
-
-            evidence_graph = EvidenceGraphIntegrationService()
-            await evidence_graph.record_statement_parse(
-                session,
-                user_id=user_id,
-                statement=statement,
-                transactions=list(statement.transactions),
-            )
-            await evidence_graph.record_statement_layer2_lineage(
-                session,
-                user_id=user_id,
-                statement=statement,
-                transactions=list(statement.transactions),
-            )
-
-            statement.confidence_score = parsed_statement.confidence_score
-            statement.balance_validated = parsed_statement.balance_validated
-            statement.validation_error = parsed_statement.validation_error
-            statement.status = parsed_statement.status
-
-            await sync_statement_summary(session, statement)
-
-            await update_progress(100)
+            checkpoint("statement_persisted")
             auto_posted_count = await try_auto_approve_high_confidence_statement(session, statement.id, user_id)
             await session.commit()
             await import_brokerage_payload_if_present(
-                statement=statement,
+                summary=statement,
                 db=session,
                 user_id=user_id,
                 filename=filename,
@@ -488,7 +427,6 @@ async def parse_statement_background(
                 request_id=request_id,
                 statement_id=str(statement_id),
                 phase="parse_completed",
-                progress=100,
                 duration_ms=round(duration * 1000, 2),
                 transactions_count=len(transactions),
                 auto_posted_count=auto_posted_count,
@@ -499,7 +437,6 @@ async def parse_statement_background(
                 statement_id=str(statement_id),
                 request_id=request_id,
                 phase=current_phase,
-                progress=current_progress,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
             )
@@ -508,7 +445,7 @@ async def parse_statement_background(
                 session,
                 message=f"Finalize failed: {exc}",
                 phase=current_phase,
-                progress=current_progress,
+                progress=None,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,

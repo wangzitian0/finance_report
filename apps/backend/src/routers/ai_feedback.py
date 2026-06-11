@@ -6,8 +6,6 @@ from sqlalchemy import func, select
 from src.deps import CurrentUserId, DbSession
 from src.models import (
     AiFeedback,
-    BankStatement,
-    BankStatementTransaction,
     ClassificationStatus,
     ReconciliationMatch,
     ReconciliationStatus,
@@ -74,9 +72,8 @@ async def list_ai_suggestions(
 
     reconciliation_count_result = await db.execute(
         select(func.count(ReconciliationMatch.id))
-        .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatement.user_id == user_id)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
         .where(*reconciliation_filters)
     )
     reconciliation_total = int(reconciliation_count_result.scalar_one() or 0)
@@ -120,10 +117,9 @@ async def list_ai_suggestions(
     remaining = max(limit - len(items), 0)
     if remaining and classification_consumed >= classification_total:
         match_result = await db.execute(
-            select(ReconciliationMatch, BankStatementTransaction)
-            .join(BankStatementTransaction, ReconciliationMatch.bank_txn_id == BankStatementTransaction.id)
-            .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-            .where(BankStatement.user_id == user_id)
+            select(ReconciliationMatch, AtomicTransaction)
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(AtomicTransaction.user_id == user_id)
             .where(*reconciliation_filters)
             .order_by(ReconciliationMatch.created_at.desc())
             .limit(remaining)

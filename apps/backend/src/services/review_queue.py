@@ -359,25 +359,6 @@ async def create_entry_from_txn(
             account_result = await db.execute(select(Account).where(Account.id == classification.account_id))
             classified_account = account_result.scalar_one_or_none()
 
-    if not classified_account and txn.suggested_category and txn.suggested_category != "Other":
-        category_name = txn.suggested_category
-        if txn.direction == "IN":
-            classified_account = await get_or_create_account(
-                db,
-                name=f"Income - {category_name}",
-                account_type=AccountType.INCOME,
-                currency=currency,
-                user_id=user_id,
-            )
-        else:
-            classified_account = await get_or_create_account(
-                db,
-                name=f"Expense - {category_name}",
-                account_type=AccountType.EXPENSE,
-                currency=currency,
-                user_id=user_id,
-            )
-
     if txn.direction == "IN":
         if classified_account and classified_account.type == AccountType.INCOME:
             counter_account = classified_account

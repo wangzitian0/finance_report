@@ -9,9 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.models.consistency_check import CheckStatus, CheckType
 from src.models.statement import Stage1Status
 from src.schemas.extraction import (
+    AtomicTransactionResponse,
     BankStatementResponse,
     BankStatementStatusEnum,
-    BankStatementTransactionResponse,
 )
 
 Stage1StatusEnum = Stage1Status
@@ -43,7 +43,6 @@ class StatementReviewResponse(BaseModel):
     closing_balance: Decimal | None
     status: BankStatementStatusEnum
     confidence_score: int | None
-    parsing_progress: int | None = 0
     balance_validated: bool | None
     validation_error: str | None
     stage1_status: Stage1StatusEnum | None = None
@@ -52,7 +51,7 @@ class StatementReviewResponse(BaseModel):
     manual_opening_balance: Decimal | None = None
     created_at: datetime
     updated_at: datetime
-    transactions: list[BankStatementTransactionResponse] = Field(default_factory=list)
+    transactions: list[AtomicTransactionResponse] = Field(default_factory=list)
     pdf_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

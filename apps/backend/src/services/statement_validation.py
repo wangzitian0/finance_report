@@ -1,15 +1,21 @@
+"""Stage 1 statement review on the DWD conform (EPIC-011 Stage 3).
+
+Review state now lives on ``StatementSummary`` (the DWD conform), and the
+transactions it validates are Layer-2 ``AtomicTransaction`` rows resolved via the
+linked ODS ``UploadedDocument`` (``StatementSummary.uploaded_document_id`` ->
+``AtomicTransaction.source_documents[*].doc_id``).
+"""
+
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from src.models import BankStatement, BankStatementStatus
-from src.models.statement import Stage1Status
-from src.services.statement_summary import sync_statement_summary
+from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 
 BALANCE_TOLERANCE = Decimal("0.001")
 
@@ -17,28 +23,55 @@ BALANCE_TOLERANCE = Decimal("0.001")
 def pending_stage1_review_filter():
     """Return the shared Stage 1 pending-review predicate for PARSED statements."""
     return or_(
-        BankStatement.stage1_status == Stage1Status.PENDING_REVIEW,
-        BankStatement.stage1_status.is_(None),
+        StatementSummary.stage1_status == Stage1Status.PENDING_REVIEW,
+        StatementSummary.stage1_status.is_(None),
     )
+
+
+async def resolve_statement_transactions(
+    db: AsyncSession,
+    statement: StatementSummary,
+) -> list[AtomicTransaction]:
+    """Resolve the Layer-2 atomic transactions for a statement envelope.
+
+    Joins ``StatementSummary.uploaded_document_id`` to ``AtomicTransaction`` rows
+    whose ``source_documents`` reference that ODS document. Returns transactions
+    ordered by ``txn_date`` then ``created_at`` for stable balance chaining.
+    """
+    if statement.uploaded_document_id is None:
+        return []
+
+    doc_marker = [{"doc_id": str(statement.uploaded_document_id)}]
+    result = await db.execute(
+        select(AtomicTransaction)
+        .where(AtomicTransaction.user_id == statement.user_id)
+        .where(AtomicTransaction.source_documents.contains(doc_marker))
+        .order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at)
+    )
+    return list(result.scalars().all())
+
+
+def _direction_is_in(direction: object) -> bool:
+    value = direction.value if hasattr(direction, "value") else direction
+    return value == TransactionDirection.IN.value
 
 
 async def validate_balance_chain(
     db: AsyncSession,
     statement_id: UUID,
 ) -> dict:
-    result = await db.execute(
-        select(BankStatement).where(BankStatement.id == statement_id).options(selectinload(BankStatement.transactions))
-    )
-    statement = result.scalar_one_or_none()
+    statement = await db.get(StatementSummary, statement_id)
     if not statement:
         raise ValueError("Statement not found")
+
+    transactions = await resolve_statement_transactions(db, statement)
 
     opening_balance = await _get_opening_balance(db, statement)
     opening_delta = abs((statement.opening_balance or Decimal("0")) - opening_balance)
 
     txn_sum = Decimal("0")
-    for txn in statement.transactions:
-        if txn.direction == "IN":
+    for txn in transactions:
+        if _direction_is_in(txn.direction):
             txn_sum += txn.amount
         else:
             txn_sum -= txn.amount
@@ -59,24 +92,24 @@ async def validate_balance_chain(
     }
 
 
-async def _get_opening_balance(db: AsyncSession, statement: BankStatement) -> Decimal:
+async def _get_opening_balance(db: AsyncSession, statement: StatementSummary) -> Decimal:
     if statement.manual_opening_balance is not None:
         return statement.manual_opening_balance
 
     filters = [
-        BankStatement.user_id == statement.user_id,
-        BankStatement.status == BankStatementStatus.APPROVED,
+        StatementSummary.user_id == statement.user_id,
+        StatementSummary.status == BankStatementStatus.APPROVED,
     ]
     if statement.account_id is not None:
-        filters.append(BankStatement.account_id == statement.account_id)
+        filters.append(StatementSummary.account_id == statement.account_id)
     else:
-        filters.append(BankStatement.account_id.is_(None))
+        filters.append(StatementSummary.account_id.is_(None))
 
     if statement.period_start:
-        filters.append(BankStatement.period_end < statement.period_start)
+        filters.append(StatementSummary.period_end < statement.period_start)
 
     prev_result = await db.execute(
-        select(BankStatement).where(and_(*filters)).order_by(desc(BankStatement.period_end)).limit(1)
+        select(StatementSummary).where(and_(*filters)).order_by(desc(StatementSummary.period_end)).limit(1)
     )
     prev_statement = prev_result.scalar_one_or_none()
 
@@ -90,12 +123,11 @@ async def _get_statement_for_update(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
-) -> BankStatement:
+) -> StatementSummary:
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.id == statement_id)
-        .where(BankStatement.user_id == user_id)
-        .options(selectinload(BankStatement.transactions))
+        select(StatementSummary)
+        .where(StatementSummary.id == statement_id)
+        .where(StatementSummary.user_id == user_id)
         .with_for_update()
     )
     statement = result.scalar_one_or_none()
@@ -120,27 +152,33 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
         )
 
 
-def _has_unresolved_statement_conflicts(statement: BankStatement) -> bool:
-    seen: dict[tuple, Any] = {}
-    by_abs_amount: dict[tuple, Any] = {}
+def _has_unresolved_statement_conflicts(transactions: list[AtomicTransaction]) -> bool:
+    seen: dict[tuple, AtomicTransaction] = {}
+    by_abs_amount: dict[tuple, AtomicTransaction] = {}
 
-    for txn in statement.transactions:
-        duplicate_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction)
+    for txn in transactions:
+        direction = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
+        duplicate_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), direction)
         if duplicate_key in seen:
             return True
         seen[duplicate_key] = txn
 
         transfer_key = (txn.txn_date, txn.amount.copy_abs())
         paired = by_abs_amount.get(transfer_key)
-        if paired is not None and paired.direction != txn.direction:
+        paired_direction = (
+            (paired.direction.value if hasattr(paired.direction, "value") else paired.direction)
+            if paired is not None
+            else None
+        )
+        if paired is not None and paired_direction != direction:
             return True
         by_abs_amount[transfer_key] = txn
 
     return False
 
 
-def _raise_if_statement_conflicts_unresolved(statement: BankStatement) -> None:
-    if _has_unresolved_statement_conflicts(statement):
+def _raise_if_statement_conflicts_unresolved(transactions: list[AtomicTransaction]) -> None:
+    if _has_unresolved_statement_conflicts(transactions):
         raise ValueError("Cannot approve statement while unresolved duplicate or transfer-pair candidates remain")
 
 
@@ -148,12 +186,13 @@ async def approve_statement(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
-) -> BankStatement:
+) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     validation_result = await validate_balance_chain(db, statement_id)
+    transactions = await resolve_statement_transactions(db, statement)
 
     _raise_if_balance_chain_invalid(validation_result)
-    _raise_if_statement_conflicts_unresolved(statement)
+    _raise_if_statement_conflicts_unresolved(transactions)
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
@@ -161,7 +200,6 @@ async def approve_statement(
     statement.status = BankStatementStatus.APPROVED
 
     await db.flush()
-    await sync_statement_summary(db, statement)
     return statement
 
 
@@ -170,7 +208,7 @@ async def reject_statement(
     statement_id: UUID,
     user_id: UUID,
     reason: str | None = None,
-) -> BankStatement:
+) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.stage1_status = Stage1Status.REJECTED
     statement.stage1_reviewed_at = datetime.now(UTC)
@@ -179,7 +217,6 @@ async def reject_statement(
         statement.validation_error = reason
 
     await db.flush()
-    await sync_statement_summary(db, statement)
     return statement
 
 
@@ -188,36 +225,18 @@ async def edit_and_approve(
     statement_id: UUID,
     user_id: UUID,
     edits: list[dict],
-) -> BankStatement:
-    statement = await _get_statement_for_update(db, statement_id, user_id)
+) -> StatementSummary:
+    """Editing parsed transactions is unsupported.
 
-    for edit in edits:
-        txn = next((t for t in statement.transactions if str(t.id) == edit.get("txn_id")), None)
-        if txn:
-            if "amount" in edit:
-                txn.amount = Decimal(str(edit["amount"]))
-            if "description" in edit:
-                txn.description = edit["description"]
-            if "txn_date" in edit:
-                txn.txn_date = edit["txn_date"]
-            if "direction" in edit:
-                txn.direction = edit["direction"]
-            if "reference" in edit:
-                txn.reference = edit["reference"]
+    Layer-2 ``AtomicTransaction`` rows are immutable / write-once: their identity
+    (and dedup hash) is fixed at ingestion, so per-transaction corrections cannot
+    be applied in place without corrupting deduplication and lineage. Reviewers
+    must reject the statement and re-parse the corrected source instead.
 
-    validation_result = await validate_balance_chain(db, statement_id)
-
-    _raise_if_balance_chain_invalid(validation_result, after_edits=True)
-    _raise_if_statement_conflicts_unresolved(statement)
-
-    statement.stage1_status = Stage1Status.EDITED
-    statement.stage1_reviewed_at = datetime.now(UTC)
-    statement.balance_validation_result = validation_result
-    statement.status = BankStatementStatus.APPROVED
-
-    await db.flush()
-    await sync_statement_summary(db, statement)
-    return statement
+    TODO(EPIC-012): introduce an explicit correction / re-parse flow that supersedes
+    the original atomic rows rather than mutating them.
+    """
+    raise ValueError("Editing parsed transactions is unsupported; reject and re-parse the statement instead.")
 
 
 async def set_opening_balance(
@@ -225,7 +244,7 @@ async def set_opening_balance(
     statement_id: UUID,
     user_id: UUID,
     opening_balance: Decimal,
-) -> BankStatement:
+) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     statement.manual_opening_balance = opening_balance
 
@@ -238,15 +257,14 @@ async def get_pending_stage1_review(
     user_id: UUID,
     limit: int = 50,
     offset: int = 0,
-) -> list[BankStatement]:
+) -> list[StatementSummary]:
     result = await db.execute(
-        select(BankStatement)
-        .where(BankStatement.user_id == user_id)
-        .where(BankStatement.status == BankStatementStatus.PARSED)
+        select(StatementSummary)
+        .where(StatementSummary.user_id == user_id)
+        .where(StatementSummary.status == BankStatementStatus.PARSED)
         .where(pending_stage1_review_filter())
-        .order_by(BankStatement.created_at.desc())
+        .order_by(StatementSummary.created_at.desc())
         .limit(limit)
         .offset(offset)
-        .options(selectinload(BankStatement.transactions))
     )
     return list(result.scalars().all())

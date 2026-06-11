@@ -127,6 +127,7 @@ from src.schemas.workflow import (
 )
 
 from .extraction import (
+    AtomicTransactionResponse,
     BankStatementListResponse,
     BankStatementResponse,
     BankStatementStatusEnum,
@@ -140,6 +141,7 @@ from .extraction import (
     RetryStatementRequest,
     StatementDecisionRequest,
     TransactionUpdateRequest,
+    compose_statement_response,
 )
 
 __all__ = [
@@ -158,6 +160,7 @@ __all__ = [
     "AnnualizedIncomeScheduleNetWorthTreatment",
     "AnnualizedIncomeScheduleResponse",
     "AnomalyResponse",
+    "AtomicTransactionResponse",
     "AuthResponse",
     "BalanceSheetResponse",
     "BankStatementListResponse",
@@ -185,6 +188,7 @@ __all__ = [
     "ConfidenceLevelEnum",
     "ConsistencyCheckResponse",
     "ConsistencyCheckListResponse",
+    "compose_statement_response",
     "FrameworkPolicyDecision",
     "FrameworkPolicyEvidenceAnchor",
     "FrameworkPolicyFact",

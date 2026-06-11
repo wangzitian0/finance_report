@@ -499,88 +499,76 @@ class TestTransferDetection:
     @pytest.mark.asyncio
     async def test_detect_transfer_keywords(self, db: AsyncSession, test_user):
         """AC15.4.1 · detect_transfer_pattern identifies transfer keywords in descriptions."""
-        from src.models import BankStatement, BankStatementTransaction
         from src.services.processing_account import detect_transfer_pattern
+        from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
         user_id = test_user.id
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="abc123",
-            original_filename="test.pdf",
-            institution="TestBank",
-        )
-        db.add(statement)
-        await db.flush()
+        document = await UploadedDocumentFactory.create_async(db, user_id=user_id)
 
         transfer_txns = [
-            BankStatementTransaction(
-                statement_id=statement.id,
+            await AtomicTransactionFactory.create_async(
+                db,
+                user_id=user_id,
+                source_doc_id=document.id,
                 txn_date=date.today(),
                 description="TRANSFER TO JOHN DOE",
                 amount=Decimal("100.00"),
-                direction="OUT",
+                direction=TransactionDirection.OUT,
             ),
-            BankStatementTransaction(
-                statement_id=statement.id,
+            await AtomicTransactionFactory.create_async(
+                db,
+                user_id=user_id,
+                source_doc_id=document.id,
                 txn_date=date.today(),
                 description="Fast Payment to Bank B",
                 amount=Decimal("50.00"),
-                direction="OUT",
+                direction=TransactionDirection.OUT,
             ),
-            BankStatementTransaction(
-                statement_id=statement.id,
+            await AtomicTransactionFactory.create_async(
+                db,
+                user_id=user_id,
+                source_doc_id=document.id,
                 txn_date=date.today(),
                 description="PAYNOW TRANSFER",
                 amount=Decimal("25.00"),
-                direction="IN",
+                direction=TransactionDirection.IN,
             ),
         ]
-        db.add_all(transfer_txns)
-        await db.flush()
 
         for txn in transfer_txns:
             assert detect_transfer_pattern(txn) is True
 
-        non_transfer = BankStatementTransaction(
-            statement_id=statement.id,
+        non_transfer = await AtomicTransactionFactory.create_async(
+            db,
+            user_id=user_id,
+            source_doc_id=document.id,
             txn_date=date.today(),
             description="STARBUCKS COFFEE #1234",
             amount=Decimal("5.50"),
-            direction="OUT",
+            direction=TransactionDirection.OUT,
         )
-        db.add(non_transfer)
-        await db.flush()
 
         assert detect_transfer_pattern(non_transfer) is False
 
     @pytest.mark.asyncio
     async def test_detect_transfer_no_description(self, db: AsyncSession, test_user):
         """AC15.4.2 · detect_transfer_pattern returns False for None/empty description."""
-        from src.models import BankStatement, BankStatementTransaction
         from src.services.processing_account import detect_transfer_pattern
+        from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
         user_id = test_user.id
-        statement = BankStatement(
-            user_id=user_id,
-            file_path="/tmp/test.pdf",
-            file_hash="abc123",
-            original_filename="test.pdf",
-            institution="TestBank",
-        )
-        db.add(statement)
-        await db.flush()
+        document = await UploadedDocumentFactory.create_async(db, user_id=user_id)
 
         # Test empty description
-        txn_empty = BankStatementTransaction(
-            statement_id=statement.id,
+        txn_empty = await AtomicTransactionFactory.create_async(
+            db,
+            user_id=user_id,
+            source_doc_id=document.id,
             txn_date=date.today(),
             description="",  # Empty string instead of None
             amount=Decimal("100.00"),
-            direction="OUT",
+            direction=TransactionDirection.OUT,
         )
-        db.add(txn_empty)
-        await db.flush()
 
         assert detect_transfer_pattern(txn_empty) is False
 

@@ -22,9 +22,6 @@ from src.logger import get_logger
 from src.models import (
     AccountType,
     AtomicTransaction,
-    BankStatement,
-    BankStatementTransaction,
-    BankStatementTransactionStatus,
     Direction,
     JournalEntry,
     JournalEntrySourceType,
@@ -67,61 +64,53 @@ async def get_reconciliation_stats(
 ) -> ReconciliationStats:
     """Get reconciliation statistics for a user.
 
-    Queries bank transactions and matches to compute statistics.
+    Counts Layer-2 atomic transactions and their reconciliation matches.
+    A transaction is "matched" when it has an active (non-superseded)
+    accepted/auto-accepted match; "unmatched" otherwise.
     """
-    # Base query for transactions
-    txn_base = (
-        select(func.count(BankStatementTransaction.id))
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatement.user_id == user_id)
+    # Total atomic transactions for the user
+    total_result = await db.execute(
+        select(func.count(AtomicTransaction.id)).where(AtomicTransaction.user_id == user_id)
     )
-
-    # Transaction status counts
-    total_result = await db.execute(txn_base)
-    matched_result = await db.execute(
-        txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.MATCHED)
-    )
-    unmatched_result = await db.execute(
-        txn_base.where(BankStatementTransaction.status == BankStatementTransactionStatus.UNMATCHED)
-    )
-
     total = total_result.scalar_one()
-    matched = matched_result.scalar_one()
-    unmatched = unmatched_result.scalar_one()
 
-    # Match status counts
-    pending_result = await db.execute(
+    # Match status counts via ReconciliationMatch joined on atomic_txn_id
+    match_base = (
         select(func.count(ReconciliationMatch.id))
-        .join(
-            BankStatementTransaction,
-            ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(AtomicTransaction.user_id == user_id)
+        .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
+    )
+
+    matched_result = await db.execute(
+        match_base.where(
+            ReconciliationMatch.status.in_(
+                [
+                    ReconciliationStatus.ACCEPTED,
+                    ReconciliationStatus.AUTO_ACCEPTED,
+                ]
+            )
         )
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatement.user_id == user_id)
-        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+    )
+    pending_result = await db.execute(
+        match_base.where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
     )
     auto_result = await db.execute(
-        select(func.count(ReconciliationMatch.id))
-        .join(
-            BankStatementTransaction,
-            ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
-        )
-        .join(BankStatement, BankStatementTransaction.statement_id == BankStatement.id)
-        .where(BankStatement.user_id == user_id)
-        .where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED)
+        match_base.where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED)
     )
 
+    matched = matched_result.scalar_one()
     pending = pending_result.scalar_one()
     auto = auto_result.scalar_one()
+    unmatched = max(total - matched, 0)
 
     # Score distribution (optional)
     score_distribution: dict[str, int] | None = None
     if include_distribution:
         score_result = await db.execute(
             select(ReconciliationMatch.match_score)
-            .join(BankStatementTransaction)
-            .join(BankStatement)
-            .where(BankStatement.user_id == user_id)
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(AtomicTransaction.user_id == user_id)
         )
         scores = score_result.scalars().all()
         buckets = {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": 0}
@@ -391,7 +380,7 @@ def score_date(txn_date: date, entry_date: date, config: ReconciliationConfig) -
     return float(max(0, 100 - diff_days * 10))
 
 
-def score_business_logic(transaction: BankStatementTransaction, entry: JournalEntry) -> float:
+def score_business_logic(transaction: AtomicTransaction, entry: JournalEntry) -> float:
     """Score business logic fit based on account types."""
     account_types = {line.account.type for line in entry.lines if line.account}
     has_asset = AccountType.ASSET in account_types
@@ -464,7 +453,7 @@ def extract_merchant_tokens(description: str) -> list[str]:
 
 async def score_pattern(
     db: AsyncSession,
-    transaction: BankStatementTransaction,
+    transaction: AtomicTransaction,
     config: ReconciliationConfig,
     user_id: UUID,
 ) -> float:
@@ -482,16 +471,15 @@ async def score_pattern(
     pattern = f"%{safe_token}%"
 
     result = await db.execute(
-        select(BankStatementTransaction)
-        .join(BankStatement)
+        select(AtomicTransaction)
         .join(
             ReconciliationMatch,
-            ReconciliationMatch.bank_txn_id == BankStatementTransaction.id,
+            ReconciliationMatch.atomic_txn_id == AtomicTransaction.id,
         )
-        .where(BankStatement.user_id == user_id)
+        .where(AtomicTransaction.user_id == user_id)
         .where(ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]))
-        .where(BankStatementTransaction.description.ilike(pattern, escape="\\"))
-        .order_by(BankStatementTransaction.txn_date.desc())
+        .where(AtomicTransaction.description.ilike(pattern, escape="\\"))
+        .order_by(AtomicTransaction.txn_date.desc())
         .limit(10)
     )
     history = result.scalars().all()
@@ -620,7 +608,7 @@ def prune_candidates(
 
 async def calculate_match_score(
     db: AsyncSession,
-    transaction: BankStatementTransaction,
+    transaction: AtomicTransaction,
     entries: list[JournalEntry],
     config: ReconciliationConfig,
     user_id: UUID,
@@ -685,10 +673,10 @@ async def calculate_match_score(
 
 
 def build_many_to_one_groups(
-    transactions: Iterable[BankStatementTransaction],
-) -> list[list[BankStatementTransaction]]:
+    transactions: Iterable[AtomicTransaction],
+) -> list[list[AtomicTransaction]]:
     """Group transactions that look like batch payments."""
-    groups: dict[str, list[BankStatementTransaction]] = {}
+    groups: dict[str, list[AtomicTransaction]] = {}
     keywords = {"batch", "bulk", "settlement", "aggregate"}
     for txn in transactions:
         key = normalize_text(txn.description)
@@ -768,11 +756,11 @@ async def _get_existing_active_match(
 
 
 def _find_transfer_candidates(
-    pending_txns: list[BankStatementTransaction],
+    pending_txns: list[AtomicTransaction],
     atomic_txns: list[JournalEntry],
     pattern_scores: dict[str, float],
     config: ReconciliationConfig,
-) -> list[tuple[BankStatementTransaction, MatchCandidate, BankStatementTransaction | None]]:
+) -> list[tuple[AtomicTransaction, MatchCandidate, AtomicTransaction | None]]:
     """Identify transfer-pattern transactions and return scored candidates.
 
     Pure scoring function: no DB access. Each result is
@@ -780,7 +768,7 @@ def _find_transfer_candidates(
     The paired_txn is always None here because actual pairing (find_transfer_pairs)
     happens after all phases in execute_matching.
     """
-    results: list[tuple[BankStatementTransaction, MatchCandidate, BankStatementTransaction | None]] = []
+    results: list[tuple[AtomicTransaction, MatchCandidate, AtomicTransaction | None]] = []
     for txn in pending_txns:
         if not detect_transfer_pattern(txn):
             continue
@@ -795,11 +783,11 @@ def _find_transfer_candidates(
 
 
 def _find_many_to_one_candidates(
-    pending_txns: list[BankStatementTransaction],
+    pending_txns: list[AtomicTransaction],
     atomic_txns: list[JournalEntry],
     pattern_scores: dict[str, float],
     config: ReconciliationConfig,
-) -> list[tuple[BankStatementTransaction, MatchCandidate]]:
+) -> list[tuple[AtomicTransaction, MatchCandidate]]:
     """Find many-to-one match candidates by grouping batch transactions.
 
     Pure scoring function: no DB access. Uses pre-computed pattern_scores
@@ -816,7 +804,7 @@ def _find_many_to_one_candidates(
         d_end = txn_date + timedelta(days=config.date_days)
         return [c for c in atomic_txns if d_start <= c.entry_date <= d_end]
 
-    results: list[tuple[BankStatementTransaction, MatchCandidate]] = []
+    results: list[tuple[AtomicTransaction, MatchCandidate]] = []
     groups = build_many_to_one_groups(pending_txns)
     for group in groups:
         group_total = sum((txn.amount for txn in group), Decimal("0.00"))
@@ -874,11 +862,11 @@ def _find_many_to_one_candidates(
 
 
 def _find_normal_candidates(
-    pending_txns: list[BankStatementTransaction],
+    pending_txns: list[AtomicTransaction],
     atomic_txns: list[JournalEntry],
     pattern_scores: dict[str, float],
     config: ReconciliationConfig,
-) -> list[tuple[BankStatementTransaction, MatchCandidate]]:
+) -> list[tuple[AtomicTransaction, MatchCandidate]]:
     """Find normal 1:1 and 1:N match candidates.
 
     Pure scoring function: no DB access. Uses pre-computed pattern_scores.
@@ -897,7 +885,7 @@ def _find_normal_candidates(
         return [c for c in atomic_txns if d_start <= c.entry_date <= d_end]
 
     def _score_entries(
-        txn: BankStatementTransaction,
+        txn: AtomicTransaction,
         entries: list[JournalEntry],
         history_score: float,
         is_multi: bool = False,
@@ -926,7 +914,7 @@ def _find_normal_candidates(
             breakdown=scores,
         )
 
-    results: list[tuple[BankStatementTransaction, MatchCandidate]] = []
+    results: list[tuple[AtomicTransaction, MatchCandidate]] = []
     for txn in pending_txns:
         candidates = get_candidates_for_date(txn.txn_date)
         if not candidates:
@@ -1027,7 +1015,7 @@ async def execute_matching(
     # Optimization: Cache pattern scores to avoid repeated DB hits for similar merchants
     pattern_score_cache: dict[str, float] = {}
 
-    async def get_cached_pattern_score(txn: BankStatementTransaction) -> float:
+    async def get_cached_pattern_score(txn: AtomicTransaction) -> float:
         tokens = extract_merchant_tokens(txn.description)
         if not tokens:
             return 0.0
