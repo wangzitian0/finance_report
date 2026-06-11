@@ -72,6 +72,36 @@ Historical details remain available in git history and removed-archive issue
 must add or update ACs, tests, and SSOT links instead of adding standalone
 checklists.
 
+## SSOT HLS Governance Loop
+
+This high-level structure (HLS) roadmap is a design roadmap, not a proof source.
+GitHub issues, generated reports, and CI gates own live status.
+
+As-is:
+
+- SSOT documents and `docs/ssot/MANIFEST.yaml` define ownership, but the
+  family/concept/clause design model is still implicit.
+- Some child parameters, machine tables, and baselines can be reviewed as if
+  they were independent SSOT concepts instead of bound clauses or artifacts.
+- FR application semantics and infra2 platform semantics are related, but the
+  cross-system authority boundary is not measured.
+
+To-be:
+
+- [ ] Define the FR SSOT HLS model with 6-8 families, concept boundaries, and
+  child binding rules in
+  [#821](https://github.com/wangzitian0/finance_report/issues/821).
+- [ ] Add report-only design metrics for family coverage, orphan files,
+  duplicate owners, clause binding, proof/checker coverage, and high-risk
+  owner coverage in
+  [#822](https://github.com/wangzitian0/finance_report/issues/822).
+- [ ] Promote only incremental and high-risk findings into CI gates once the
+  metrics baseline is visible in
+  [#823](https://github.com/wangzitian0/finance_report/issues/823).
+- [ ] Run threshold-based SSOT cleanup only after the metrics show enough
+  evidence for targeted consolidation in
+  [#824](https://github.com/wangzitian0/finance_report/issues/824).
+
 ## 📄 Owned Documentation Surfaces
 
 These non-EPIC docs are part of this EPIC's maintained surface:
