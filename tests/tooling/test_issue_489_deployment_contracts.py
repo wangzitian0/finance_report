@@ -209,8 +209,12 @@ def test_app_iac_wires_vault_secrets_health_and_traefik_routes() -> None:
     assert "loadbalancer.server.port=3000" in labels
     assert "finance-report-web${ENV_DOMAIN_SUFFIX}.priority=1" in labels
 
-    assert "VAULT_APP_TOKEN is required" in shell_text(vault_agent["entrypoint"])
-    assert "vault token lookup" in shell_text(vault_agent["healthcheck"]["test"])
+    # The app is the AppRole pilot (infra2 #257): its vault-agent authenticates
+    # via VAULT_ROLE_ID/VAULT_SECRET_ID, not a VAULT_APP_TOKEN (postgres/redis
+    # still use the token path — see test_infra2_submodule_and_finance_report_iac_tree).
+    vault_agent_entrypoint = shell_text(vault_agent["entrypoint"])
+    assert "VAULT_ROLE_ID and VAULT_SECRET_ID are required" in vault_agent_entrypoint
+    assert "auth/token/lookup-self" in shell_text(vault_agent["healthcheck"]["test"])
     assert "IAC_CONFIG_HASH" in vault_agent["environment"]
 
     app_template = read(app_dir / "secrets.ctmpl")
