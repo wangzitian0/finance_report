@@ -131,6 +131,11 @@ jobs:
         run: |
           cd apps/backend
           uv run python ../../tools/generate_api_reference.py --check
+      - name: Generated DB Schema Reference Check
+        run: |
+          cd apps/backend
+          uv run python ../../tools/generate_db_schema_reference.py
+          uv run python ../../tools/generate_db_schema_reference.py --check
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose

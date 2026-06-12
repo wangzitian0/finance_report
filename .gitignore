@@ -5,6 +5,9 @@ tmp/
 # MkDocs build output
 site/
 
+# Build-time generated MkDocs reference pages
+docs/reference/db-schema.md
+
 # E2E test artifacts
 tests/e2e/.auth/
 

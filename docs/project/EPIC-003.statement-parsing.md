@@ -259,7 +259,8 @@ workflow, or parser rules after separate EPIC -> AC registration.
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - BankStatement/BankStatementTransaction tables
+- [schema.md](../ssot/schema.md) - data-layer and migration guardrails
+- [Generated DB Schema Reference](../reference/db-schema.md) - current uploaded document, statement summary, and atomic fact tables
 - [extraction.md](../ssot/extraction.md) - Parsing rules and Prompt design
 
 ---

@@ -1,0 +1,332 @@
+"""Generate the static database schema reference from SQLAlchemy metadata.
+
+SQLAlchemy model metadata is the table/column/index/constraint contract.
+This module emits a compact MkDocs page so SSOT prose can link to generated
+inventory instead of hand-copying mutable database facts.
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+
+from sqlalchemy import (
+    CheckConstraint,
+    Enum as SAEnum,
+    ForeignKeyConstraint,
+    MetaData,
+    PrimaryKeyConstraint,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects import postgresql
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = REPO_ROOT / "apps" / "backend"
+OUTPUT_PATH = REPO_ROOT / "docs" / "reference" / "db-schema.md"
+
+
+def _load_metadata() -> MetaData:
+    if str(BACKEND_ROOT) not in sys.path:
+        sys.path.insert(0, str(BACKEND_ROOT))
+
+    import src.models  # noqa: F401, PLC0415
+    from src.database import Base  # noqa: PLC0415
+
+    return Base.metadata
+
+
+def _escape_table(value: str) -> str:
+    return value.replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _column_type(column: Any) -> str:
+    try:
+        return column.type.compile(dialect=postgresql.dialect())
+    except Exception:  # pragma: no cover - SQLAlchemy type fallback
+        return str(column.type)
+
+
+def _column_names(columns: Any) -> str:
+    names = [f"`{column.name}`" for column in columns]
+    return ", ".join(names) if names else "-"
+
+
+def _fk_targets(column: Any) -> str:
+    targets = sorted(str(fk.column) for fk in column.foreign_keys)
+    return ", ".join(f"`{target}`" for target in targets) if targets else "-"
+
+
+def _default_label(column: Any) -> str:
+    labels: list[str] = []
+    default = column.default
+    if default is not None:
+        if getattr(default, "is_scalar", False):
+            labels.append(f"`{default.arg}`")
+        elif getattr(default, "is_callable", False):
+            labels.append("python callable")
+        else:
+            labels.append("python expression")
+
+    server_default = column.server_default
+    if server_default is not None:
+        labels.append(f"server `{server_default.arg}`")
+
+    return ", ".join(labels) if labels else "-"
+
+
+def _constraint_kind(constraint: Any) -> str:
+    if isinstance(constraint, PrimaryKeyConstraint):
+        return "primary key"
+    if isinstance(constraint, ForeignKeyConstraint):
+        return "foreign key"
+    if isinstance(constraint, UniqueConstraint):
+        return "unique"
+    if isinstance(constraint, CheckConstraint):
+        return "check"
+    return constraint.__class__.__name__
+
+
+def _constraint_details(constraint: Any) -> str:
+    if isinstance(constraint, ForeignKeyConstraint):
+        pairs = [
+            f"`{element.parent.name}` -> `{element.column.table.name}.{element.column.name}`"
+            for element in constraint.elements
+        ]
+        return ", ".join(pairs) if pairs else "-"
+    if isinstance(constraint, CheckConstraint):
+        return f"`{constraint.sqltext}`"
+    return "-"
+
+
+def _sorted_constraints(table: Any) -> list[Any]:
+    return sorted(
+        table.constraints,
+        key=lambda constraint: (
+            _constraint_kind(constraint),
+            constraint.name or "",
+            ",".join(column.name for column in constraint.columns),
+        ),
+    )
+
+
+def _enum_inventory(metadata: MetaData) -> dict[str, dict[str, Any]]:
+    enums: dict[str, dict[str, Any]] = {}
+    columns_by_enum: dict[str, list[str]] = defaultdict(list)
+    for table in sorted(metadata.tables.values(), key=lambda item: item.name):
+        for column in table.columns:
+            if not isinstance(column.type, SAEnum):
+                continue
+            enum_name = column.type.name or "(implicit)"
+            enums.setdefault(
+                enum_name,
+                {
+                    "values": tuple(str(value) for value in column.type.enums),
+                    "native": bool(column.type.native_enum),
+                },
+            )
+            columns_by_enum[enum_name].append(f"{table.name}.{column.name}")
+
+    for enum_name, columns in columns_by_enum.items():
+        enums[enum_name]["columns"] = tuple(sorted(columns))
+    return enums
+
+
+def render_db_schema_reference(metadata: MetaData) -> str:
+    """Render a compact Markdown inventory from SQLAlchemy metadata."""
+
+    tables = sorted(metadata.tables.values(), key=lambda item: item.name)
+    enums = _enum_inventory(metadata)
+    column_count = sum(len(table.columns) for table in tables)
+    foreign_key_count = sum(
+        len(column.foreign_keys) for table in tables for column in table.columns
+    )
+    index_count = sum(len(table.indexes) for table in tables)
+
+    lines = [
+        "# Generated DB Schema Reference",
+        "",
+        "> Generated by `python tools/generate_db_schema_reference.py`. Do not edit by hand.",
+        "> SQLAlchemy model metadata is the table/column/index/constraint contract; Alembic migrations remain the deployable schema chain.",
+        "",
+        f"- Table count: `{len(tables)}`",
+        f"- Column count: `{column_count}`",
+        f"- Enum type count: `{len(enums)}`",
+        f"- Foreign key count: `{foreign_key_count}`",
+        f"- Index count: `{index_count}`",
+        "",
+        "Use [Database Schema SSOT](../ssot/schema.md) for model rationale, data-layer rules, enum naming rules, and migration guardrails.",
+        "",
+        "## Table Summary",
+        "",
+        "| Table | Columns | Primary key | Foreign keys | Indexes |",
+        "|---|---:|---|---:|---:|",
+    ]
+
+    for table in tables:
+        primary_key = _column_names(table.primary_key.columns)
+        fk_count = sum(len(column.foreign_keys) for column in table.columns)
+        lines.append(
+            f"| `{table.name}` | {len(table.columns)} | {primary_key} | {fk_count} | {len(table.indexes)} |"
+        )
+
+    lines.extend(["", "## Tables", ""])
+    for table in tables:
+        lines.extend(
+            [
+                f"### {table.name}",
+                "",
+                "#### Columns",
+                "",
+                "| Column | Type | Nullable | PK | FK target | Default |",
+                "|---|---|---|---|---|---|",
+            ]
+        )
+        for column in table.columns:
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        f"`{column.name}`",
+                        f"`{_escape_table(_column_type(column))}`",
+                        "yes" if column.nullable else "no",
+                        "yes" if column.primary_key else "no",
+                        _escape_table(_fk_targets(column)),
+                        _escape_table(_default_label(column)),
+                    ]
+                )
+                + " |"
+            )
+
+        lines.extend(
+            [
+                "",
+                "#### Constraints",
+                "",
+                "| Name | Type | Columns | Details |",
+                "|---|---|---|---|",
+            ]
+        )
+        for constraint in _sorted_constraints(table):
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        f"`{constraint.name}`" if constraint.name else "-",
+                        _constraint_kind(constraint),
+                        _column_names(constraint.columns),
+                        _escape_table(_constraint_details(constraint)),
+                    ]
+                )
+                + " |"
+            )
+
+        lines.extend(
+            [
+                "",
+                "#### Indexes",
+                "",
+                "| Name | Columns | Unique |",
+                "|---|---|---|",
+            ]
+        )
+        if table.indexes:
+            for index in sorted(table.indexes, key=lambda item: item.name or ""):
+                lines.append(
+                    f"| `{index.name}` | {_column_names(index.columns)} | {'yes' if index.unique else 'no'} |"
+                )
+        else:
+            lines.append("| - | - | - |")
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Enum Types",
+            "",
+            "| Enum type | Native | Values | Columns |",
+            "|---|---|---|---|",
+        ]
+    )
+    for enum_name in sorted(enums):
+        enum = enums[enum_name]
+        values = ", ".join(f"`{value}`" for value in enum["values"])
+        columns = ", ".join(f"`{column}`" for column in enum["columns"])
+        lines.append(
+            f"| `{enum_name}` | {'yes' if enum['native'] else 'no'} | {values} | {columns} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Foreign Keys",
+            "",
+            "| Source | Target |",
+            "|---|---|",
+        ]
+    )
+    for table in tables:
+        for column in table.columns:
+            for foreign_key in sorted(
+                column.foreign_keys,
+                key=lambda item: str(item.column),
+            ):
+                lines.append(
+                    f"| `{table.name}.{column.name}` | `{foreign_key.column.table.name}.{foreign_key.column.name}` |"
+                )
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def generate() -> str:
+    return render_db_schema_reference(_load_metadata())
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=OUTPUT_PATH,
+        help="Markdown output path.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail if the generated output differs from the checked-in file.",
+    )
+    args = parser.parse_args(argv)
+
+    rendered = generate()
+    output = args.output
+    if args.check:
+        try:
+            current = output.read_text(encoding="utf-8")
+        except OSError:
+            print(
+                f"ERROR: generated DB schema reference is missing: {output}",
+                file=sys.stderr,
+            )
+            return 1
+        if current != rendered:
+            diff = difflib.unified_diff(
+                current.splitlines(),
+                rendered.splitlines(),
+                fromfile=str(output),
+                tofile="generated",
+                lineterm="",
+            )
+            print("ERROR: generated DB schema reference is stale.", file=sys.stderr)
+            print("\n".join(diff), file=sys.stderr)
+            return 1
+        return 0
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(rendered, encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

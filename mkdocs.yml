@@ -43,6 +43,9 @@ plugins:
   - search
   - tags
 
+hooks:
+  - docs/hooks.py
+
 markdown_extensions:
   - admonition
   - pymdownx.details
@@ -73,9 +76,10 @@ nav:
       - Bank Reconciliation: user-guide/reconciliation.md
       - Reports & Dashboards: user-guide/reports.md
       - AI Advisor: user-guide/ai-advisor.md
-  - API Reference:
+  - Generated References:
       - Overview: reference/api-overview.md
       - Generated API Reference: reference/api.md
+      - Generated DB Schema Reference: reference/db-schema.md
   - Technical Docs:
       - Architecture: ssot/README.md
       - Development Guide: ssot/development.md

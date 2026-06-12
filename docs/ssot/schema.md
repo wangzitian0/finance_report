@@ -1,670 +1,137 @@
 # Database Schema SSOT
 
 > **SSOT Key**: `schema`
-> **Core Definition**: PostgreSQL core table structures and relationships.
+> **Core Definition**: PostgreSQL model rationale, data-layer rules, enum naming, and migration guardrails.
 
----
+This file owns the schema language and guardrails. It does **not** own the
+mutable table, column, enum, index, or endpoint inventory.
 
-## 1. Source of Truth
+| Contract | Owner |
+|---|---|
+| Table/column/enum/index/FK inventory | [Generated DB Schema Reference](../reference/db-schema.md) |
+| Deployable schema chain | `apps/backend/migrations/` Alembic revisions |
+| Model metadata | `apps/backend/src/models/` SQLAlchemy models |
+| Request/response and endpoint inventory | [Generated API Reference](../reference/api.md) |
+| Schema validation payloads | `apps/backend/src/schemas/` Pydantic schemas |
 
-| Dimension | Physical Location (SSOT) | Description |
-|-----------|--------------------------|-------------|
-| **Model Definition** | `apps/backend/src/models/` | SQLAlchemy ORM |
-| **Migrations** | `apps/backend/migrations/` | Alembic |
-| **Schema Validation** | `apps/backend/src/schemas/` | Pydantic |
-
-> **Note**: Local dev currently calls `init_db()` to create tables; production should apply Alembic migrations.
+> Local dev no longer treats `Base.metadata.create_all()` as the schema
+> authority. Alembic `upgrade head` plus `alembic check` is the deterministic
+> schema contract for PR CI and local escalation.
 
 ---
 
 <a id="data-layering"></a>
 
-## 1A. Data Layering Model (ODS / DWD / DWM / DWS / ADS / DIM)
+## 1. Data Layering Model
 
-The data tables are classified with a data-warehouse layering vocabulary. This
-replaces the earlier ad-hoc "Layer 0/1/2/3/4" numbering. Every data table below
-belongs to exactly one layer; cross-cutting application/audit tables are listed
-separately. **Code must conform to this classification** — if a table or value
-sits in the wrong layer, that is drift to be fixed, not worked around.
+The data tables use a data-warehouse layering vocabulary instead of the earlier
+ad-hoc "Layer 0/1/2/3/4" numbering. A table belongs to exactly one data layer
+unless it is an application-plane or audit-plane table. If code, model metadata,
+or migrations place a value in the wrong layer, fix the drift instead of adding
+a prose exception.
 
-### Layer definitions
+| Layer | Meaning | Typical source | Account boundary | Mutability |
+|---|---|---|---|---|
+| **DIM** | Conformed reference data owned by the application | App / curated reference data | Defines or references accounts | Slowly changing |
+| **ODS** | User-side source data landed 1:1 as received | User upload or manual entry | Must not be downstream account authority | Append-mostly |
+| **DWD** | Cleaned, deduplicated detail facts | Derived from ODS plus DIM | Carries conformed DIM keys where needed | Immutable / posted |
+| **DWM** | Thin cross-fact process layer | Derived from DWD plus DIM | Resolves process state through DWD/DIM | Process state |
+| **DWS** | Subject-oriented summaries and maintained derived state | Derived from DWD/DWM | Uses conformed facts | Recomputed |
+| **ADS** | Application/report outputs consumed by UI | Derived from DWS/DWD | Report-facing snapshot | Snapshot |
 
-| Layer | Meaning | Sourced from | Carries `account_id`? | Mutability |
-|-------|---------|--------------|-----------------------|------------|
-| **DIM** | Conformed reference data the **application** owns, referenced across layers. Non-user data that influences ADS belongs here **as data, not hard-coded in code**. | App / curated | n/a (defines accounts) | Slowly changing |
-| **ODS** | **User-side** source data, landed 1:1 as received. No cleaning, no dedup, no account conform. | User uploads / manual entry | No | Append-mostly |
-| **DWD** | Cleaned, deduplicated **detail facts**. May carry conformed DIM keys (e.g. `account_id`). The grain is one financial event / one ledger line. | Derived from ODS | Yes (conformed from DIM) | Immutable / posted |
-| **DWM** | **Thin** middle layer — only for genuinely complex cross-fact domains. Most domains skip it. | Derived from DWD + DIM | Via DWD | Process state |
-| **DWS** | Subject-oriented **summaries** and maintained derived state. | Derived from DWD/DWM | Via DWD | Recomputed |
-| **ADS** | **Application/report** outputs consumed by the UI. | Derived from DWS/DWD | n/a | Snapshot |
+Examples:
 
-### Table-to-layer map
+| Layer | Examples |
+|---|---|
+| DIM | `accounts`, `classification_rules`, market/security/institution reference data |
+| ODS | `uploaded_documents`, `manual_valuation_snapshots` |
+| DWD | `atomic_transactions`, `atomic_positions`, `statement_summaries`, `journal_entries`, `journal_lines` |
+| DWM | `reconciliation_matches`, `consistency_checks` |
+| DWS | `managed_positions`, `investment_lots`, derived balances and period aggregates |
+| ADS | `report_snapshots` |
+| Application / audit plane | `users`, chat/workflow tables, evidence graph tables, feedback/correction tables |
 
-| Layer | Tables |
-|-------|--------|
-| **DIM** | `accounts` (chart of accounts, including the account-type enum column); `classification_rules`; `fx_rates`, `stock_prices`, `market_data_sync_state`, `market_data_overrides`; security / institution master data |
-| **ODS** | `uploaded_documents`; `manual_valuation_snapshots` |
-| **DWD** | `atomic_transactions`, `atomic_positions`; `transaction_classification` (posting-account conform); `statement_summaries` (statement envelope + custody-account conform); `journal_entries`, `journal_lines` (double-entry ledger); `investment_transactions`; `dividend_income` |
-| **DWM** | `reconciliation_matches`, `consistency_checks` (matching + transfer-pair / Processing-account resolution) |
-| **DWS** | `managed_positions`; `investment_lots`; derived account balances / period aggregates |
-| **ADS** | `report_snapshots` (balance sheet, income statement, cash flow) |
-| **Cross-cutting** (not a data layer) | `evidence_nodes`, `evidence_edges` (lineage/audit); `users`, `chat_sessions`, `chat_messages`, `workflow_sessions`, `workflow_events`, `ai_feedback`, `corrections`, `ping_state` (application plane) |
+The generated DB reference owns the current table inventory. Keep the layer list
+above as domain vocabulary and examples, not as a second column-by-column schema
+catalog.
 
-### Cross-layer rules
+### Cross-Layer Rules
 
-1. **Account is a DIM, conformed at DWD.** `account_id` is assigned when a DWD fact
-   is built (`transaction_classification.account_id`, `journal_lines.account_id`),
-   conformed from the `accounts` DIM. ODS must not be the source of account
-   identity for downstream logic.
-2. **DWM/DWS/ADS must resolve dimensions from DWD/DIM, never from ODS.** Account
-   context for matching/transfer logic is resolved from DWD
-   (`statement_summaries.account_id`), never from an ODS source-file row.
-3. **No reference-data-in-code.** Non-user reference that affects ADS (default
-   accounts, category/classification mappings, framework policy) belongs in DIM
-   tables, not in Python constants.
-4. **DWM stays thin.** Add a DWM table only for a genuinely complex cross-fact
-   domain (today: reconciliation/transfer matching). Default new work to DWD or DWS.
+1. **Account is DIM, conformed at DWD.** `account_id` is assigned when a DWD fact
+   is built, such as `transaction_classification.account_id`,
+   `journal_lines.account_id`, or `statement_summaries.account_id`.
+2. **DWM/DWS/ADS resolve dimensions from DWD/DIM, never from ODS.** Matching,
+   transfer logic, summaries, and reports must not reach back to a source-file
+   row for account authority.
+3. **No reference data in code.** Non-user reference data that affects ADS
+   belongs in DIM tables or generated/config-owned contracts, not hard-coded
+   Python constants.
+4. **DWM stays thin.** Add DWM only for genuinely complex cross-fact process
+   state. Default new work to DWD or DWS.
 
-> **Drift closed (EPIC-011 Stage 3, COMPLETED):** reconciliation transfer
-> detection resolves the custody account from DWD (`statement_summaries` via
-> `resolve_custody_account_id`). The legacy `bank_statement*` ODS tables and the
-> Layer-0 read path have been removed; there is no flag and no ODS account
-> reach-back. See `docs/project/EPIC-011.asset-lifecycle.md`.
+> **Drift closed (EPIC-011 Stage 3, completed):** reconciliation transfer
+> detection resolves custody account from DWD (`statement_summaries` through
+> `resolve_custody_account_id`). The legacy `bank_statement*` ODS tables and
+> Layer-0 read path were removed. See
+> [EPIC-011](../project/EPIC-011.asset-lifecycle.md).
 
 ---
 
 <a id="er-model"></a>
 
-## 2. ER Model
+## 2. Generated Schema Reference
 
-```mermaid
-erDiagram
-    User ||--o{ Account : owns
-    User ||--o{ JournalEntry : creates
-    User ||--o{ ChatSession : owns
+The generated DB schema reference is the public schema inventory:
 
-    Account ||--o{ JournalLine : contains
-    Account }o--|| AccountType : has
+- [Generated DB Schema Reference](../reference/db-schema.md)
+- Command: `python tools/generate_db_schema_reference.py`
+- Build hook: `docs/hooks.py`
+- Drift gate: generate, then run `python tools/generate_db_schema_reference.py --check`
+- CI step: `Generated DB Schema Reference Check`
+- Git policy: the generated `docs/reference/db-schema.md` page is intentionally
+  ignored; it is present in MkDocs output, not maintained in source control.
 
-    JournalEntry ||--|{ JournalLine : has
-    JournalEntry ||--o{ ReconciliationMatch : matched_by
-    ChatSession ||--o{ ChatMessage : contains
+The generated page lists:
 
-    AtomicTransaction ||--o{ ReconciliationMatch : matched_to
+- tables and primary keys;
+- columns, PostgreSQL types, nullability, defaults, and FK targets;
+- constraints and indexes;
+- native enum type names, enum values, and enum-using columns;
+- foreign-key edges.
 
-    UploadedDocument ||--o{ AtomicTransaction : sources
-    UploadedDocument ||--o{ AtomicPosition : sources
-    UploadedDocument ||--o{ StatementSummary : summarizes
-    
-    AtomicTransaction {
-        uuid id PK
-        uuid user_id FK
-        date txn_date
-        decimal amount
-        enum direction "IN|OUT"
-        string description
-        string reference
-        string currency
-        string dedup_hash UK
-        jsonb source_documents
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    AtomicPosition {
-        uuid id PK
-        uuid user_id FK
-        date snapshot_date
-        string asset_identifier
-        string broker
-        decimal quantity
-        decimal market_value
-        string currency
-        string dedup_hash UK
-        jsonb source_documents
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    UploadedDocument {
-        uuid id PK
-        uuid user_id FK
-        string file_path
-        string file_hash UK
-        string original_filename
-        enum document_type "bank_statement|brokerage|esop|appraisal"
-        enum status "uploaded|processing|completed|failed"
-        jsonb extraction_metadata
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    User {
-        uuid id PK
-        string email UK
-        string hashed_password
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    Account {
-        uuid id PK
-        uuid user_id FK
-        string name
-        enum type "ASSET|LIABILITY|EQUITY|INCOME|EXPENSE"
-        string currency
-        string code
-        uuid parent_id FK
-        boolean is_active
-        string description
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    JournalEntry {
-        uuid id PK
-        uuid user_id FK
-        date entry_date
-        string memo
-        enum source_type "manual|user_confirmed|auto_matched|auto_parsed|bank_statement|system|fx_revaluation"
-        uuid source_id
-        enum status "draft|posted|reconciled|void"
-        text void_reason
-        uuid void_reversal_entry_id
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    JournalLine {
-        uuid id PK
-        uuid journal_entry_id FK
-        uuid account_id FK
-        enum direction "DEBIT|CREDIT"
-        decimal amount
-        string currency
-        decimal fx_rate
-        string event_type
-        jsonb tags
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    StatementSummary {
-        uuid id PK
-        uuid user_id FK
-        uuid account_id FK
-        uuid uploaded_document_id FK
-        string file_hash
-        string institution
-        string account_last4
-        string currency
-        date period_start
-        date period_end
-        decimal opening_balance
-        decimal closing_balance
-        decimal manual_opening_balance
-        enum status "uploaded|parsing|parsed|approved|rejected"
-        enum stage1_status "pending_review|approved|rejected"
-        jsonb balance_validation_result
-        timestamp stage1_reviewed_at
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    ReconciliationMatch {
-        uuid id PK
-        uuid atomic_txn_id FK
-        jsonb journal_entry_ids
-        string run_id
-        int match_score
-        jsonb score_breakdown
-        enum status "auto_accepted|pending_review|accepted|rejected|superseded"
-        int version
-        uuid superseded_by_id
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    ChatSession {
-        uuid id PK
-        uuid user_id FK
-        string title
-        enum status "active|deleted"
-        timestamp created_at
-        timestamp updated_at
-        timestamp last_active_at
-    }
-
-    ChatMessage {
-        uuid id PK
-        uuid session_id FK
-        enum role "user|assistant|system"
-        text content
-        int tokens_in
-        int tokens_out
-        string model_name
-        timestamp created_at
-    }
-```
+Do not add hand-maintained table, column, enum, index, endpoint, or response
+tables to this SSOT. If a reader needs mutable inventory, link to generated
+references. If a concept needs rationale, keep it in this SSOT and link to the
+code owner and proof test.
 
 ---
 
-## 3. Core Table Specifications
-
-### Users
-User table, supports single-user scenario.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| email | VARCHAR(255) | UNIQUE, NOT NULL | Login email |
-| hashed_password | VARCHAR(255) | NOT NULL | Password hash |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-### Accounts
-Chart of accounts table, five types.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| name | VARCHAR(255) | NOT NULL | Account name |
-| type | ENUM | NOT NULL | ASSET/LIABILITY/EQUITY/INCOME/EXPENSE |
-| currency | VARCHAR(3) | NOT NULL | Currency code |
-| code | VARCHAR(50) | | Account code (e.g., 1110) |
-| parent_id | UUID | FK -> Accounts | Parent account |
-| is_active | BOOLEAN | DEFAULT true | Is active |
-| description | VARCHAR(500) | | Optional account description |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-### JournalEntries
-Journal entry header table.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| entry_date | DATE | NOT NULL | Entry date |
-| memo | VARCHAR(500) | NOT NULL | Description |
-| source_type | ENUM | NOT NULL | manual/user_confirmed/auto_matched/auto_parsed/bank_statement/system/fx_revaluation; `bank_statement` is legacy-normalized to `auto_parsed` |
-| source_id | UUID | | Related source record; polymorphic legacy hint that must be resolved with `source_type` and a user-owned typed source record before report traceability treats it as source proof |
-| status | ENUM | NOT NULL | draft/posted/reconciled/void |
-| void_reason | TEXT | | Void reason |
-| void_reversal_entry_id | UUID | | Reversal entry ID |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `void_reversal_entry_id` is a self-FK to `journal_entries.id` with restricted delete semantics.
-- Posted/reconciled rows are validated by database triggers so direct DB writes cannot persist fewer than two lines or unbalanced base-currency debit/credit totals.
-- Posted/reconciled/void rows are protected by database triggers from direct update/delete. The supported correction path is a void transition with `void_reason` and `void_reversal_entry_id`.
-- The only posted/reconciled metadata update outside the void path is source-type-priority promotion from `auto_parsed`, `bank_statement`, or `auto_matched` to `user_confirmed`; `source_id` and all accounting facts remain unchanged, and the same promotion may accompany the `posted` to `reconciled` status transition.
-
-### JournalLines
-Journal entry line table.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| journal_entry_id | UUID | FK -> JournalEntries | Parent entry |
-| account_id | UUID | FK -> Accounts | Account |
-| direction | ENUM | NOT NULL | DEBIT/CREDIT |
-| amount | DECIMAL(18,2) | NOT NULL | Amount |
-| currency | VARCHAR(3) | NOT NULL | Currency |
-| fx_rate | DECIMAL(12,6) | | Exchange rate |
-| event_type | VARCHAR(100) | | Event type |
-| tags | JSONB | | Tags |
-
-**Constraints**:
-- `amount > 0`
-- `fx_rate IS NULL OR fx_rate > 0`
-- Non-base posted/reconciled lines require a positive `fx_rate` at the database boundary.
-- Posted/reconciled/void parent entries protect their lines from direct mutation; draft entry lines remain editable.
-
-### InvestmentTransactions
-Auditable brokerage transaction table for buy, sell, and dividend accounting.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| position_id | UUID | FK -> ManagedPositions | Linked position |
-| journal_entry_id | UUID | FK -> JournalEntries | Posted ledger entry |
-| source_id | UUID | | Upstream statement/parser source |
-| transaction_date | DATE | NOT NULL | Trade or payment date |
-| transaction_type | ENUM | NOT NULL | buy/sell/dividend |
-| asset_identifier | VARCHAR(100) | NOT NULL | Symbol or broker identifier |
-| quantity | DECIMAL(18,6) | | Units for buy/sell |
-| unit_price | DECIMAL(18,6) | | Per-unit trade price |
-| gross_amount | DECIMAL(18,2) | NOT NULL | Posted cash or trade amount |
-| fees | DECIMAL(18,2) | NOT NULL | Brokerage fees included in accounting |
-| currency | VARCHAR(3) | NOT NULL | Transaction currency |
-| cost_basis | DECIMAL(18,2) | | Consumed or created cost basis |
-| realized_pnl | DECIMAL(18,2) | | Realized gain/loss for sells |
-| cost_basis_method | ENUM | | FIFO/LIFO/AvgCost used for the transaction |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `gross_amount > 0`
-- `fees >= 0`
-- Buy and sell rows require `quantity > 0`, `unit_price >= 0`, and
-  `cost_basis >= 0`; dividend rows carry positive `gross_amount` without trade
-  quantity requirements.
-
-### InvestmentLots
-Open lot table used for FIFO, LIFO, and average-cost realized P&L.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| position_id | UUID | FK -> ManagedPositions, NOT NULL | Linked position |
-| opening_transaction_id | UUID | FK -> InvestmentTransactions, NOT NULL | Buy transaction that opened the lot |
-| asset_identifier | VARCHAR(100) | NOT NULL | Symbol or broker identifier |
-| acquisition_date | DATE | NOT NULL | Lot acquisition date |
-| original_quantity | DECIMAL(18,6) | NOT NULL | Original units |
-| remaining_quantity | DECIMAL(18,6) | NOT NULL | Unsold units |
-| unit_cost | DECIMAL(18,6) | NOT NULL | Cost per unit |
-| currency | VARCHAR(3) | NOT NULL | Lot currency |
-| disposed_date | DATE | | Date the lot was fully consumed |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `original_quantity > 0`
-- `remaining_quantity >= 0`
-- `remaining_quantity <= original_quantity`
-- `unit_cost >= 0`
-- `disposed_date` cannot precede `acquisition_date`
-
-### ChatSessions
-Chat session header table.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| title | VARCHAR(200) | | Optional session title |
-| status | ENUM | NOT NULL | active/deleted |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-| last_active_at | TIMESTAMP | | Last message activity |
-
-### ChatMessages
-Individual chat messages.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| session_id | UUID | FK -> ChatSessions, NOT NULL | Parent session |
-| role | ENUM | NOT NULL | user/assistant/system |
-| content | TEXT | NOT NULL | Message content |
-| tokens_in | INTEGER | | Estimated prompt tokens |
-| tokens_out | INTEGER | | Estimated completion tokens |
-| model_name | VARCHAR(100) | | Model identifier |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-
-### DWD: StatementSummaries (EPIC-011)
-Statement envelope (DWD) for imported statements. Replaces the legacy
-`BankStatements` header. Carries the conformed custody `account_id` and the
-Stage 1 review/workflow state; per-transaction detail lives in
-`atomic_transactions`. Enums `BankStatementStatus` and `Stage1Status` live in
-`src/models/statement_enums.py`.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| account_id | UUID | FK -> Accounts | Conformed custody account (nullable until confirmed) |
-| uploaded_document_id | UUID | FK -> UploadedDocuments | Source ODS document |
-| file_hash | VARCHAR(64) | NOT NULL | SHA256 for dedup |
-| institution | VARCHAR(100) | NOT NULL | Bank/broker name |
-| account_last4 | VARCHAR(4) | | Last 4 digits |
-| currency | VARCHAR(3) |  | Currency (nullable while parsing) |
-| period_start | DATE |  | Statement start (nullable while parsing) |
-| period_end | DATE |  | Statement end (nullable while parsing) |
-| opening_balance | DECIMAL(18,2) |  | Opening balance (nullable while parsing) |
-| closing_balance | DECIMAL(18,2) |  | Closing balance (nullable while parsing) |
-| manual_opening_balance | DECIMAL(18,2) | | Manual opening-balance override for first statement |
-| status | ENUM | NOT NULL | uploaded/parsing/parsed/approved/rejected (name="bank_statement_status") |
-| stage1_status | ENUM | | Stage 1 review state (nullable at upload): pending_review/approved/rejected (name="stage1_status") |
-| balance_validation_result | JSONB | | Stage 1 balance-chain validation details (opening/closing deltas, mismatch note) |
-| stage1_reviewed_at | TIMESTAMP | | Stage 1 review timestamp |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `(user_id, file_hash)` unique to prevent duplicate imports
-- `period_start <= period_end` when both dates are present
-- `status=approved` requires `account_id`, non-blank `currency`, `period_start`,
-  `period_end`, `opening_balance`, and `closing_balance`
-
-**Derived API Surface**:
-- `GET /api/accounts/coverage` derives account-level statement coverage from
-  approved `StatementSummaries` only. It reports the latest confirmed
-  `period_end` and `closing_balance` per active account/currency pair, stale
-  status based on the caller's `as_of` date and `stale_after_days`, and
-  continuity issues for gaps, overlaps, duplicate periods, and adjacent
-  opening/closing mismatches.
-- One-day brokerage snapshots (`period_start == period_end`) can update the
-  latest confirmed source date and balance without forcing daily continuity;
-  monthly statements remain the baseline for gap and overlap detection.
-
-### ReconciliationMatches
-Reconciliation match table.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| atomic_txn_id | UUID | FK -> AtomicTransactions | Atomic transaction (DWD reconciliation input) |
-| journal_entry_ids | JSONB | | Journal entry IDs |
-| run_id | VARCHAR(128) | nullable, indexed | Optional workflow/session scope for run-scoped Stage 2 review queues and approval |
-| match_score | INT | NOT NULL | Composite score |
-| score_breakdown | JSONB | | Score breakdown |
-| status | ENUM | NOT NULL | auto_accepted/pending_review/accepted/rejected/superseded |
-| version | INT | NOT NULL | Version number |
-| superseded_by_id | UUID | | Next version ID |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-`journal_entry_ids` is preserved as a compatibility field. Trusted
-reconciliation anchors are normalized in
-`reconciliation_match_journal_entries`; unresolved or malformed legacy UUIDs
-must not be promoted to trusted report/source anchors.
-
-### ConsistencyChecks
-
-Stage 2 blocker table.
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> User | Owner |
-| check_type | ENUM | NOT NULL | duplicate/transfer_pair/anomaly |
-| status | ENUM | NOT NULL | pending/approved/rejected/flagged |
-| run_id | VARCHAR(128) | nullable, indexed | Optional workflow/session scope for run-scoped Stage 2 blockers |
-| related_txn_ids | JSONB | NOT NULL | Related transaction IDs |
-| details | JSONB | NOT NULL | Check details and display message |
-| severity | VARCHAR(20) | NOT NULL | high/medium/low style severity |
-| resolved_at | TIMESTAMP | nullable | Resolution timestamp |
-| resolution_note | TEXT | nullable | Reviewer note |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-Journal ledger constraints are specified above under `JournalEntries` and
-`JournalLines`; accounting rationale is owned by
-[`accounting.md`](./accounting.md).
-
-### ODS: UploadedDocuments (EPIC-011)
-Immutable registry of all raw uploaded files (user-side source landing).
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| file_path | VARCHAR(500) | NOT NULL | MinIO/S3 object key |
-| file_hash | VARCHAR(64) | NOT NULL | SHA256 (User + Hash unique) |
-| original_filename | VARCHAR(255) | NOT NULL | Uploaded filename |
-| document_type | ENUM | NOT NULL | bank_statement/brokerage_statement/esop_grant/property_appraisal |
-| status | ENUM | NOT NULL | uploaded/processing/completed/failed |
-| extraction_metadata | JSONB | | AI logs, confidence scores |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `(user_id, file_hash)` unique to prevent duplicate uploads
-
-### DWD: AtomicTransactions (EPIC-011)
-Deduplicated, immutable financial events from any source. Source-pure detail
-fact; account is **not** stored here (conformed downstream via
-`transaction_classification`).
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| txn_date | DATE | NOT NULL | Transaction date |
-| amount | DECIMAL(18,2) | NOT NULL | Absolute amount |
-| direction | ENUM | NOT NULL | IN/OUT |
-| description | TEXT | NOT NULL | Description |
-| reference | VARCHAR(100) | | Reference ID |
-| currency | VARCHAR(3) | NOT NULL | Currency code |
-| dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
-| source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `(user_id, dedup_hash)` unique
-- `amount > 0`
-- Append-only `source_documents` array is a legacy compatibility hint.
-- Trusted source-document anchors live in `atomic_transaction_source_documents`
-  and must reference existing uploaded documents owned by the same user.
-
-### DWD: AtomicPositions (EPIC-011)
-Deduplicated, immutable asset snapshots (source-pure detail fact).
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| snapshot_date | DATE | NOT NULL | Snapshot date |
-| asset_identifier | VARCHAR(255) | NOT NULL | Ticker/ISIN/Address |
-| broker | VARCHAR(100) | | Broker/Custodian name |
-| quantity | DECIMAL(18,6) | NOT NULL | Units held |
-| market_value | DECIMAL(18,2) | NOT NULL | Total value in currency |
-| currency | VARCHAR(3) | NOT NULL | Currency code |
-| dedup_hash | VARCHAR(64) | NOT NULL | SHA256 of core fields |
-| source_documents | JSONB | NOT NULL | List of `{doc_id, doc_type}` |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `(user_id, dedup_hash)` unique
-- `market_value >= 0`; `quantity` may be negative for short positions
-- Append-only `source_documents` array is a legacy compatibility hint.
-- Trusted source-document anchors live in `atomic_position_source_documents`
-  and must reference existing uploaded documents owned by the same user.
-
-### Audit Anchor Link Tables
-
-Normalized audit-anchor link tables are the trusted database representation for
-source-to-fact and reconciliation-to-ledger proof. Legacy JSONB/naked UUID
-fields remain preserved for backward compatibility and blocker reporting, but
-report traceability must not treat unresolved legacy values as trusted anchors.
-
-| Table | Purpose | Constraints |
-|-------|---------|-------------|
-| `atomic_transaction_source_documents` | Atomic transaction to uploaded document anchors | `(atomic_txn_id, uploaded_document_id)` PK; uploaded document must exist and share the atomic transaction user |
-| `atomic_position_source_documents` | Atomic position snapshot to uploaded document anchors | `(atomic_position_id, uploaded_document_id)` PK; uploaded document must exist and share the atomic position user |
-| `reconciliation_match_journal_entries` | Reconciliation match to journal entry anchors | `(match_id, journal_entry_id)` PK; journal entry must exist and share the reconciliation match atomic transaction user |
-
-### DIM + DWD: ClassificationRules (DIM) and TransactionClassification (DWD) (EPIC-011)
-`classification_rules` are **DIM** reference data (versioned mapping rules,
-app/user-owned). `transaction_classification` is the **DWD** account conform:
-it maps an immutable DWD atomic transaction to an `account_id` (from the
-`accounts` DIM) via a rule version. This is where account identity enters the
-DWD fact stream.
-
-| Table | Key Columns | Constraints | Operational Contract |
-|-------|-------------|-------------|----------------------|
-| classification_rules | user_id, rule_name, version_number, rule_type, rule_config, default_account_id | `(user_id, rule_name, version_number)` unique | Active rules are evaluated by deterministic priority, then descending version number. |
-| transaction_classification | atomic_txn_id, rule_version_id, account_id, tags, confidence_score, status | `(atomic_txn_id, rule_version_id)` unique | Re-running the same rule version for the same transaction is idempotent: return the existing classification without inserting a duplicate or surfacing a database uniqueness error. |
-
-**Constraints**:
-- Rule priority is deterministic: keyword rules outrank regex rules, regex rules outrank ML rules, and newer versions win within the same rule type.
-- One transaction can have multiple classifications only across different rule versions; one transaction plus one rule version has exactly one classification row.
-
-### ODS: ManualValuationSnapshots (EPIC-011)
-User-entered valuation snapshots for net worth components that do not arrive
-from bank or broker statements (user-side source data; `liquidity_class`
-drives presentation downstream).
-
-| Column | Type | Constraint | Description |
-|--------|------|------------|-------------|
-| id | UUID | PK | Primary key |
-| user_id | UUID | FK -> Users, NOT NULL | Owner user |
-| component_type | ENUM | NOT NULL | `property_value|mortgage_balance|cpf_balance|long_term_savings|tax_payable|tax_refund|insurance_cash_value|esop|rsu|stock_options|other_asset|other_liability` (name="manual_valuation_component_type_enum") |
-| liquidity_class | ENUM | NOT NULL | `liquid|restricted|illiquid|liability` (name="manual_valuation_liquidity_class_enum") |
-| as_of_date | DATE | NOT NULL | Snapshot effective date |
-| value | DECIMAL(18,2) | NOT NULL | Positive component value in original currency |
-| currency | VARCHAR(3) | NOT NULL | ISO currency code |
-| source | VARCHAR(120) | NOT NULL | Portal, appraisal, statement, or manual source |
-| notes | TEXT | | User notes |
-| recurrence_days | INTEGER | | Optional reminder cadence |
-| reminder_date | DATE | | Optional next reminder date |
-| created_at | TIMESTAMP | NOT NULL | Creation time |
-| updated_at | TIMESTAMP | NOT NULL | Update time |
-
-**Constraints**:
-- `(user_id, component_type, source, as_of_date)` unique
-- Values remain positive; `liquidity_class=liability` controls liability presentation.
-- `recurrence_days` is either null or positive.
-
-### ADS: ReportSnapshots (EPIC-011/EPIC-005)
-Report snapshot rows are immutable generated report payloads. Historical
-non-latest rows may repeat the same report date when a report is regenerated,
-but published latest rows must be deterministic.
-
-**Constraints**:
-- `start_date <= as_of_date` when `start_date` is present.
-- Only one latest point-in-time snapshot can exist per
-  `(user_id, report_type, as_of_date)`.
-- Only one latest range snapshot can exist per
-  `(user_id, report_type, start_date, as_of_date)`.
-
-### Market Data Fact Constraints
-Market data facts are source-bearing valuation inputs.
-
-**Constraints**:
-- `fx_rates.rate > 0`
-- `stock_prices.price > 0`
-- `stock_prices` are unique by `(symbol, currency, source, price_date)`, while
-  `idx_stock_prices_lookup(symbol, price_date)` remains the report lookup index.
-
----
-
-## 4. Design Constraints (Dos & Don'ts)
+## 3. Migration and Naming Guardrails
 
 ### Naming Conventions
 
-- **Explicit Enums**: **ALWAYS** provide a `name` parameter to SQLAlchemy `Enum` types (e.g., `Enum(MyEnum, name="my_enum_type")`). This prevents SQLAlchemy from generating inconsistent default names (like `myenum`) which conflict with Alembic migrations and cause `UndefinedFunctionError` in Postgres.
-- **Migration Length**: Keep Alembic migration descriptions concise. File names exceeding 100 characters may fail on certain file systems or Docker volumes.
-- **Migration Revision ID**: Must be manually set to a short string (max 12 chars) if auto-generated IDs are too long or collide.
+<a id="enum-naming"></a>
 
-### Migration Guardrails (Automated Checks)
+**Explicit enum names are mandatory.** Every SQLAlchemy `Enum` must declare an
+explicit `name="..."` parameter. This prevents SQLAlchemy from deriving
+inconsistent PostgreSQL type names that can drift from Alembic migrations.
 
-CI pipelines enforce the following rules via `tests/test_schema_guardrails.py`:
+```python
+# Bad: implicit PostgreSQL type name
+sa.Column(sa.Enum(Status))
 
-1.  <a id="enum-naming"></a>**Strict Enum Naming**: All `sa.Enum` fields in models must have `name="..."` explicitly defined.
-    See: `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
-    -   ❌ Bad: `sa.Column(sa.Enum(Status))` -> Postgres type: `status` (implicit)
-    -   ✅ Good: `sa.Column(sa.Enum(Status, name="journal_entry_status"))` -> Postgres type: `journal_entry_status`
-    -   **SSOT**: This is the single authoritative definition for `sa.Enum` naming. Other files should reference: `See: docs/ssot/schema.md#enum-naming`
-2.  **Revision ID Length**: Alembic revision file names must not have insanely long prefixes.
+# Good: explicit PostgreSQL type name
+sa.Column(sa.Enum(Status, name="journal_entry_status"))
+```
+
+Automated proof:
+
+- `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
+- [Generated DB Schema Reference](../reference/db-schema.md#enum-types)
+
+Migration file names and revision IDs must stay short enough for common
+filesystems and Docker volumes. Use concise Alembic descriptions and manually
+set short revision IDs when autogeneration would produce long or colliding IDs.
 
 ### Migration Contract
 
@@ -679,7 +146,7 @@ uv run alembic check
 ```
 
 Preview and staging validate deployed runtime health after merge or during PR
-preview deployment. They must not be the first environment that discovers a
+preview deployment. They must not be the first environments that discover a
 broken migration chain or model/migration drift.
 
 ### Migration Risk Classification
@@ -689,9 +156,8 @@ Production data can contain historical rows, old enum values, production-only
 volume, and edge cases that CI and staging will never reproduce perfectly.
 
 The machine-readable owner for migration risk is
-[`migration-risk.yaml`](./migration-risk.yaml), validated by
-`tools/check_migration_risk.py`. Every Alembic revision must appear in that
-manifest with one of four risk levels:
+[migration-risk.yaml](./migration-risk.yaml), validated by
+`tools/check_migration_risk.py`.
 
 | Risk | Meaning | Default proof |
 |---|---|---|
@@ -701,214 +167,55 @@ manifest with one of four risk levels:
 | critical | Destructive or irreversible production change, such as dropping legacy tables or columns | High-risk proof plus explicit destructive-change confirmation |
 
 This contract is a risk-classification gate, not a production guarantee.
-Staging should catch most migration mistakes, but production residual risk is
-managed through backups, expand/contract sequencing, feature flags, idempotent
-backfills, preflight queries, and post-deploy detectors.
+Production residual risk is managed through backups, expand/contract sequencing,
+feature flags, idempotent backfills, preflight queries, rollback notes, and
+post-deploy detectors.
 
 ### Async Session Management
 
-To prevent connection leaks and data race conditions:
+To prevent connection leaks and transaction-boundary drift:
 
-1.  **Dependency Injection**: Use the `get_db` FastAPI dependency for routers.
-2.  **Transaction Boundary**:
-    *   Routers should handle the high-level transaction (commit/rollback).
-    *   Services should use `flush()` if they need to generate IDs, but avoid `commit()` unless they are designed as a "Closed Loop" transaction.
-3.  **No Leaks**: Ensure every session is closed (handled by `get_db` generator).
+1. Routers use the `get_db` FastAPI dependency and own high-level
+   `commit()`/rollback.
+2. Services use `flush()` when they need generated IDs and avoid `commit()`
+   unless deliberately implemented as a closed-loop transaction.
+3. Sessions are closed by the dependency generator or explicit test/session
+   lifecycle helpers.
 
 ### Recommended Patterns
 
-- **Pattern A**: Use `DECIMAL(18,2)` for amounts, avoid float precision issues
-- **Pattern B**: Use `created_at`/`updated_at` audit fields on mutable records
-- **Pattern C**: Use UUID primary keys for distributed compatibility
+- Use `Decimal` / SQL `DECIMAL` for monetary amounts; never `float`.
+- Use `created_at` and `updated_at` audit fields on mutable records.
+- Use UUID primary keys for distributed compatibility unless a table is
+  deliberately local/sentinel state.
+- Keep ledger correction paths explicit: posted/reconciled facts are corrected
+  through void/reversal or approved promotion paths, not direct mutation.
 
 ### Prohibited Patterns
 
-- **Anti-pattern A**: **NEVER** use FLOAT to store monetary amounts. See: `apps/backend/tests/accounting/test_decimal_safety.py`
-- **Anti-pattern B**: **NEVER** directly delete posted entries, only void
+- **Never** store monetary amounts as floating-point values.
+- **Never** create `sa.Enum` without `name="..."`.
+- **Never** treat unit-test `create_all()` fixtures as migration proof.
+- **Never** document endpoint or table inventories by hand when generated
+  references can own the mutable facts.
 
 ---
 
-## 5. Index Strategy
+## 4. Ownership Boundaries
 
-```sql
--- User query optimization
-CREATE INDEX idx_accounts_user_id ON accounts(user_id);
-CREATE INDEX idx_journal_entries_user_id ON journal_entries(user_id);
-CREATE INDEX idx_journal_entries_status ON journal_entries(status);
+| Question | Go to |
+|---|---|
+| What tables, columns, indexes, enums, constraints, and FKs exist now? | [Generated DB Schema Reference](../reference/db-schema.md) |
+| What endpoints and request/response schemas exist now? | [Generated API Reference](../reference/api.md) |
+| Why does the schema use DIM/ODS/DWD/DWM/DWS/ADS? | This file, [Data Layering Model](#data-layering) |
+| What is the enum naming rule? | This file, [enum naming](#enum-naming) |
+| What migration proof is required? | This file plus [CI/CD SSOT](./ci-cd.md) and [migration-risk.yaml](./migration-risk.yaml) |
+| What are accounting invariants? | [Accounting SSOT](./accounting.md) |
 
--- Date range queries
-CREATE INDEX idx_journal_entries_date ON journal_entries(entry_date);
-
--- Status queries
-CREATE INDEX idx_recon_match_status ON reconciliation_matches(status);
-
--- ODS/DWD Indexes (EPIC-011)
-CREATE UNIQUE INDEX idx_uploaded_documents_dedup ON uploaded_documents(user_id, file_hash);
-CREATE INDEX idx_uploaded_documents_status ON uploaded_documents(status);
-
-CREATE UNIQUE INDEX idx_atomic_transactions_dedup ON atomic_transactions(user_id, dedup_hash);
-CREATE INDEX idx_atomic_transactions_date ON atomic_transactions(txn_date);
-
-CREATE UNIQUE INDEX idx_atomic_positions_dedup ON atomic_positions(user_id, dedup_hash);
-CREATE INDEX idx_atomic_positions_date ON atomic_positions(snapshot_date);
-
-CREATE UNIQUE INDEX idx_statement_summaries_user_file_hash ON statement_summaries(user_id, file_hash);
-CREATE INDEX idx_statement_summaries_status ON statement_summaries(status);
-```
-
----
-
-## Used by
+## Used By
 
 - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
-- [accounting.md](./accounting.md)
-
----
-
-## 7. API Layer (Assets)
-
-Asset management endpoints for tracking managed positions reconciled from atomic snapshots.
-
-### Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/assets/positions` | List managed positions with optional status filter |
-| GET | `/api/assets/positions/{position_id}` | Get single position by ID |
-| POST | `/api/assets/reconcile` | Trigger position reconciliation from atomic snapshots |
-
-### Query Parameters
-
-**List Positions Filter**
-| Parameter | Type | Default | Values | Description |
-|-----------|------|---------|--------|-------------|
-| status | string | (all) | `active`, `disposed` | Filter by position status |
-
-### Request/Response Schemas
-
-**ManagedPositionResponse**
-```json
-{
-  "id": "uuid",
-  "user_id": "uuid",
-  "account_id": "uuid",
-  "asset_identifier": "AAPL",
-  "quantity": "100.000000",
-  "cost_basis": "15000.00",
-  "acquisition_date": "2024-01-15",
-  "disposal_date": null,
-  "status": "active",
-  "currency": "USD",
-  "position_metadata": {"broker": "Moomoo"},
-  "created_at": "2026-01-12T00:00:00Z",
-  "updated_at": "2026-01-12T00:00:00Z",
-  "account_name": "Moomoo Brokerage"
-}
-```
-
-**ManagedPositionListResponse (paginated)**
-```json
-{
-  "items": [...],
-  "total": 10
-}
-```
-
-**ReconcilePositionsResponse**
-```json
-{
-  "message": "Reconciled 5 positions from atomic snapshots",
-  "reconciled_count": 5
-}
-```
-
-### Reconciliation Logic
-
-The `POST /api/assets/reconcile` endpoint:
-
-1. **Fetches latest atomic snapshots** - Uses window function to get most recent `AtomicPosition` per `(asset_identifier, broker)` pair
-2. **Upserts managed positions** - Creates new `ManagedPosition` or updates existing based on `(user_id, account_id, asset_identifier)`
-3. **Handles disposals** - If an existing position has no matching atomic snapshot, marks it as `disposed`
-4. **Reactivates disposed positions** - If a disposed position has a matching atomic snapshot, reactivates it
-
-**Key Design Decision**: `cost_basis` uses `market_value` from `AtomicPosition` as a proxy. True cost basis calculation requires lot tracking (FIFO/LIFO) which is out of scope for P0.
-
-### Implementation
-
-| Dimension | Location |
-|-----------|----------|
-| Router | `apps/backend/src/routers/assets.py` |
-| Schemas | `apps/backend/src/schemas/assets.py` |
-| Service | `apps/backend/src/services/assets.py` |
-| Model | `apps/backend/src/models/layer3.py` (ManagedPosition class) |
-
-### Related Tables
-
-- `atomic_positions` (DWD) - Source of truth for position snapshots
-- `managed_positions` (DWS) - Calculated positions from reconciliation
-- `accounts` - Optional link to brokerage account
-
----
-
-## 6. API Layer (Users)
-
-Users API endpoints for user management.
-
-### Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/users` | Create new user |
-| GET | `/api/users?limit=50&offset=0` | List users with pagination |
-| GET | `/api/users/{user_id}` | Get user by ID |
-| PUT | `/api/users/{user_id}` | Update user |
-
-### Query Parameters
-
-**List Users Pagination**
-| Parameter | Type | Default | Range | Description |
-|-----------|------|---------|-------|-------------|
-| limit | int | 50 | 1-100 | Max items to return |
-| offset | int | 0 | >=0 | Number of items to skip |
-
-### Request/Response Schemas
-
-**UserCreate**
-```json
-{
-  "email": "user@example.com",
-  "password": "securepassword123"
-}
-```
-
-**UserResponse**
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "created_at": "2026-01-12T00:00:00Z",
-  "updated_at": "2026-01-12T00:00:00Z"
-}
-```
-
-**UserListResponse (paginated)**
-```json
-{
-  "items": [...],
-  "total": 100
-}
-```
-
-### Security Considerations
-
-- **User Enumeration Prevention**: Error messages are generic ("Invalid registration data") to prevent email enumeration
-- **Email Validation**: Uses `EmailStr` for format validation
-- **Password Storage**: Passwords are hashed with bcrypt before storage
-
-### Implementation
-
-| Dimension | Location |
-|-----------|----------|
-| Router | `apps/backend/src/routers/users.py` |
-| Schemas | `apps/backend/src/schemas/user.py` |
-| Model | `apps/backend/src/models/user.py` |
+- [Accounting SSOT](./accounting.md)
+- [Reconciliation SSOT](./reconciliation.md)
+- [CI/CD SSOT](./ci-cd.md)
+- [Generated DB Schema Reference](../reference/db-schema.md)

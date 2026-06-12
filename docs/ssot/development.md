@@ -182,9 +182,15 @@ The project uses [MkDocs](https://www.mkdocs.org/) with Material theme.
 
 ```bash
 pip install -r docs/requirements.txt  # Install dependencies
+uv --version                           # Required by MkDocs hooks
 mkdocs serve                          # Serve locally → http://127.0.0.1:8000
 mkdocs build                          # Build static site → site/
 ```
+
+MkDocs generates build-time reference pages through [docs/hooks.py](../hooks.py).
+`docs/reference/db-schema.md` is intentionally gitignored; it is generated from
+SQLAlchemy metadata during `mkdocs serve` / `mkdocs build` and in the GitHub
+Pages workflow.
 
 Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/finance_report/)
 
