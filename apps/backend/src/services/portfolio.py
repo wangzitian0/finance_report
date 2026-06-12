@@ -796,7 +796,13 @@ class PortfolioService:
             select(StockPrice)
             .where(StockPrice.symbol == asset_identifier.strip().upper())
             .where(StockPrice.price_date <= eval_date)
-            .order_by(StockPrice.price_date.desc())
+            .order_by(
+                StockPrice.price_date.desc(),
+                StockPrice.created_at.desc(),
+                StockPrice.source.asc(),
+                StockPrice.currency.asc(),
+                StockPrice.id.asc(),
+            )
             .limit(1)
         )
 
