@@ -94,9 +94,7 @@ def test_test_database_persistence(
     # branch name containing "down" (e.g. ".../cashflow-drilldown") would leak
     # into the string and create a false positive (#884).
     down_calls = [
-        c
-        for c in mock_run.call_args_list
-        if c.args and isinstance(c.args[0], (list, tuple)) and "down" in c.args[0]
+        c for c in mock_run.call_args_list if c.args and isinstance(c.args[0], (list, tuple)) and "down" in c.args[0]
     ]
     assert len(down_calls) == 0
 
@@ -181,8 +179,13 @@ def test_test_database_ephemeral(
     with test_lifecycle.test_database(ephemeral=True) as (url, ns):
         assert ns == "ephemeral_run"
 
-    # Verify resources released
-    down_calls = [c for c in mock_run.call_args_list if "down" in str(c) and "-v" in str(c)]
+    # Verify resources released. Inspect the command list (not str(call)) so an
+    # env-leaked branch name containing "down" cannot create false matches (#884).
+    down_calls = [
+        c
+        for c in mock_run.call_args_list
+        if c.args and isinstance(c.args[0], (list, tuple)) and "down" in c.args[0] and "-v" in c.args[0]
+    ]
     assert len(down_calls) == 1
     mock_unregister.assert_called_once()
 
