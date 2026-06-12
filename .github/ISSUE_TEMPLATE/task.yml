@@ -1,0 +1,73 @@
+name: "Task — planned work"
+description: "A scoped, committed unit of work with acceptance criteria."
+title: "[task] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for **committed, scoped work**. Follows the mandatory order
+        **EPIC → AC → Test → Code → Doc**. Frame it **MECE**: mutually exclusive
+        slices, collectively exhaustive coverage, with explicit out-of-scope.
+  - type: textarea
+    id: goal
+    attributes:
+      label: "Goal — what & why"
+      placeholder: |
+        What:
+        Why (the outcome / value it delivers):
+    validations:
+      required: true
+  - type: input
+    id: anchor
+    attributes:
+      label: "Parent EPIC / tracking issue"
+      description: "Every task anchors to an EPIC (or a parent issue)."
+      placeholder: "EPIC-0xx · or #<issue>"
+    validations:
+      required: true
+  - type: textarea
+    id: ac
+    attributes:
+      label: "Acceptance criteria (testable)"
+      description: "Concrete pass/fail checks. Register AC IDs in docs/ac_registry.yaml (feature) or docs/infra_registry.yaml (infra) where applicable."
+      placeholder: |
+        - [ ] AC...: ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: breakdown
+    attributes:
+      label: "MECE breakdown · out-of-scope · dependencies"
+      placeholder: |
+        Slices (mutually exclusive, collectively exhaustive):
+        - ...
+        Out of scope:
+        - ...
+        Depends on:
+        - ...
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Priority"
+      options:
+        - "critical — blocks main / release / data-correctness / security"
+        - "high — blocks a core proof path or near-term milestone"
+        - "medium — important but not blocking immediate delivery"
+        - "low — cleanup / polish / opportunistic"
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: "Definition of done"
+      value: |
+        - [ ] Failing tests reference the AC IDs (red), then pass (green)
+        - [ ] Minimal code to pass; no scope creep
+        - [ ] SSOT docs updated
+        - [ ] CI-passing PR is the deliverable; user reviews and merges
+    validations:
+      required: false

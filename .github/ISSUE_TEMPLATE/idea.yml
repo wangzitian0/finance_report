@@ -1,0 +1,47 @@
+name: "Idea — proposal"
+description: "A proposal or suggestion to consider. Not yet committed work."
+title: "[idea] "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A **low-bar** place to capture a proposal. No acceptance criteria required —
+        the point is to decide whether it's worth turning into a **Task**. Be honest
+        about value vs cost; call it out if it might be over-engineering.
+  - type: textarea
+    id: idea
+    attributes:
+      label: "The idea, in one or two lines"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: "What problem / pain does it address?"
+      placeholder: "Today ... which costs us ..."
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: "Rough approach (optional)"
+      description: "A sketch — not a design. Leave blank if it's just a seed."
+    validations:
+      required: false
+  - type: textarea
+    id: roi
+    attributes:
+      label: "Value vs cost (rough ROI)"
+      description: "Why it might be worth it, and an honest guess at the cost / risk. Note if it overlaps or replaces an existing mechanism."
+      placeholder: |
+        Value:
+        Cost / risk:
+    validations:
+      required: false
+  - type: textarea
+    id: questions
+    attributes:
+      label: "Open questions / what a decision needs"
+    validations:
+      required: false
