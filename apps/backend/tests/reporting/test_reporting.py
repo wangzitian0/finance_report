@@ -369,12 +369,14 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "subcategory": "Salary",
             "amount": Decimal("500.00"),
             "description": "Inflow - Salary",
+            "account_id": income.id,
         },
         {
             "category": "Operating",
             "subcategory": "Dining",
             "amount": Decimal("-200.00"),
             "description": "Outflow - Dining",
+            "account_id": expense.id,
         },
     ]
     assert cash_flow["investing"] == []
@@ -384,14 +386,20 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "subcategory": "Owner Equity",
             "amount": Decimal("1000.00"),
             "description": "Inflow - Owner Equity",
+            "account_id": equity.id,
         },
         {
             "category": "Financing",
             "subcategory": "Credit Card",
             "amount": Decimal("300.00"),
             "description": "Inflow - Credit Card",
+            "account_id": liability.id,
         },
     ]
+    # EPIC-022 AC22.7.1 (#887): every cash-flow line carries the account anchor
+    # used for report drill-down.
+    for line in cash_flow["operating"] + cash_flow["investing"] + cash_flow["financing"]:
+        assert line["account_id"] is not None
     assert cash_flow["summary"] == {
         "operating_activities": Decimal("300.00"),
         "investing_activities": Decimal("0.00"),

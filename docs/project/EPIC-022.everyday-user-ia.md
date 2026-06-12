@@ -209,14 +209,14 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 > PR7 slice (#866). Balance Sheet and Income Statement already drill amounts down
 > to source; this slice ties the Cash Flow statement together so the period's
-> change in cash is explainable. The beginning→ending cash reconciliation
-> (AC22.7.3) ships here. Per-line cash-flow drill-down requires the backend to
-> expose an account anchor on each cash-flow line — out of scope for this
-> frontend-only slice and tracked on #866; a readable evidence-chain path view
-> follows separately. Those ACs register when they land.
+> change in cash is explainable, and closes the traceability loop by giving each
+> cash-flow line an account anchor (#887) so its amount drills down like the
+> other statements. A desktop/mobile smoke and the readable evidence-chain path
+> view follow separately.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
+| AC22.7.1 | Each cash-flow line carries its account anchor (`account_id`), and clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines | `test_reporting.py`, `cashFlowPage.test.tsx` | P1 |
 | AC22.7.3 | The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile | `cashFlowPage.test.tsx` | P1 |
 
 ### AC22.9 — Everyday/Advanced Boundary And Naming Unification

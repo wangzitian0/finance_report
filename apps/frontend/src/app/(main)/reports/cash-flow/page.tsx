@@ -7,6 +7,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
+import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { formatDateInput } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -17,6 +18,7 @@ export default function CashFlowPage() {
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return formatDateInput(d); });
   const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
+  const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
 
   const queryString = useMemo(() => {
@@ -45,7 +47,24 @@ export default function CashFlowPage() {
                 <p className="font-medium truncate">{item.subcategory}</p>
                 {item.description && <p className="text-xs text-muted truncate">{item.description}</p>}
               </div>
-              <span className="font-medium ml-2">{report ? formatCurrencyLocale(item.amount, report.currency) : "—"}</span>
+              {item.account_id ? (
+                <button
+                  type="button"
+                  onClick={() => setDrillTarget({
+                    accountId: item.account_id!,
+                    accountName: item.subcategory,
+                    asOfDate: endDate,
+                    startDate,
+                    currency: report?.currency || currency,
+                  })}
+                  className="font-medium ml-2 underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                  aria-label={`View source transactions for ${item.subcategory}`}
+                >
+                  {report ? formatCurrencyLocale(item.amount, report.currency) : "—"}
+                </button>
+              ) : (
+                <span className="font-medium ml-2">{report ? formatCurrencyLocale(item.amount, report.currency) : "—"}</span>
+              )}
             </div>
           ))}
         </div>
@@ -182,6 +201,8 @@ export default function CashFlowPage() {
           </div>
         </div>
       )}
+
+      <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </div>
   );
 }

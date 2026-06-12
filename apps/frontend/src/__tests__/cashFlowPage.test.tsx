@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -117,6 +117,51 @@ describe("CashFlowPage", () => {
     const reconciliation = await screen.findByLabelText("Cash reconciliation")
     expect(reconciliation).toHaveTextContent("⚠ Does not tie")
     expect(screen.getByText(/differs from the reported ending/i)).toBeInTheDocument()
+  })
+
+  it("AC22.7.1 drills a cash-flow amount down to its account lineage", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/reports/cash-flow")) {
+        return Promise.resolve({
+          start_date: "2026-01-01",
+          end_date: "2026-02-01",
+          currency: "SGD",
+          operating: [
+            { category: "operating", subcategory: "Salary", amount: "500", description: "Inflow - Salary", account_id: "acc-salary" },
+          ],
+          investing: [],
+          financing: [],
+          summary: {
+            operating_activities: "500", investing_activities: "0", financing_activities: "0",
+            net_cash_flow: "500", beginning_cash: "1000", ending_cash: "1500",
+          },
+        })
+      }
+      if (path.startsWith("/api/reports/account-lineage")) {
+        return Promise.resolve({
+          account_id: "acc-salary", account_name: "Salary", account_type: "INCOME",
+          currency: "SGD", as_of_date: "2026-02-01", start_date: "2026-01-01",
+          total: "500.00", lines: [],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<CashFlowPage />)
+
+    const amount = await screen.findByRole("button", { name: /View source transactions for Salary/i })
+    fireEvent.click(amount)
+
+    const dialog = await screen.findByRole("dialog")
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/reports/account-lineage?account_id=acc-salary"),
+      ),
+    )
+
+    // Closing the drawer clears the drill target.
+    fireEvent.click(within(dialog).getByRole("button", { name: /close/i }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   })
 
   it("AC16.14.9 renders sankey chart when summary exists", async () => {
