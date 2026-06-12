@@ -3,9 +3,9 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, ForeignKeyConstraint, Index, String, UniqueConstraint, event
+from sqlalchemy import ForeignKey, ForeignKeyConstraint, Index, String, UniqueConstraint, and_, event
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
@@ -34,13 +34,22 @@ class EvidenceNode(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     outgoing_edges: Mapped[list["EvidenceEdge"]] = relationship(
         back_populates="from_node",
-        foreign_keys="EvidenceEdge.from_node_id",
+        primaryjoin=lambda: and_(
+            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
+            EvidenceNode.id == foreign(EvidenceEdge.from_node_id),
+        ),
+        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.from_node_id],
         cascade="all, delete-orphan",
     )
     incoming_edges: Mapped[list["EvidenceEdge"]] = relationship(
         back_populates="to_node",
-        foreign_keys="EvidenceEdge.to_node_id",
+        primaryjoin=lambda: and_(
+            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
+            EvidenceNode.id == foreign(EvidenceEdge.to_node_id),
+        ),
+        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.to_node_id],
         cascade="all, delete-orphan",
+        overlaps="from_node,outgoing_edges",
     )
 
 
@@ -86,11 +95,20 @@ class EvidenceEdge(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     from_node: Mapped[EvidenceNode] = relationship(
         back_populates="outgoing_edges",
-        foreign_keys=[from_node_id],
+        primaryjoin=lambda: and_(
+            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
+            EvidenceNode.id == foreign(EvidenceEdge.from_node_id),
+        ),
+        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.from_node_id],
     )
     to_node: Mapped[EvidenceNode] = relationship(
         back_populates="incoming_edges",
-        foreign_keys=[to_node_id],
+        primaryjoin=lambda: and_(
+            EvidenceNode.user_id == foreign(EvidenceEdge.user_id),
+            EvidenceNode.id == foreign(EvidenceEdge.to_node_id),
+        ),
+        foreign_keys=lambda: [EvidenceEdge.user_id, EvidenceEdge.to_node_id],
+        overlaps="from_node,outgoing_edges",
     )
 
 

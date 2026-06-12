@@ -211,17 +211,19 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
     db.add_all([orphan, source, target])
     await db.flush()
     await db.execute(text("SET LOCAL session_replication_role = replica"))
-    db.add(
-        EvidenceEdge(
-            user_id=test_user.id,
-            from_node_id=source.id,
-            to_node_id=target.id,
-            relation="deduped_into",
-            properties={},
+    try:
+        db.add(
+            EvidenceEdge(
+                user_id=test_user.id,
+                from_node_id=source.id,
+                to_node_id=target.id,
+                relation="deduped_into",
+                properties={},
+            )
         )
-    )
-    await db.flush()
-    await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
+        await db.flush()
+    finally:
+        await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
     before = await _graph_counts(db)
 
     report = await service.detect_consistency_drift(db, user_id=test_user.id)

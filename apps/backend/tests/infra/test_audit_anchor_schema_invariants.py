@@ -8,9 +8,10 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.models.account import Account, AccountType
 from src.models.evidence import EvidenceEdge, EvidenceNode
@@ -309,6 +310,61 @@ async def test_AC18_11_3_evidence_edges_reject_cross_user_endpoints(
             properties={},
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_AC18_11_3_evidence_edge_relationships_preserve_tenant_scope(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC18.11.3: ORM evidence edge relationships honor tenant-scoped composite FKs."""
+    other_user = await _make_user(db, email_prefix="anchor-edge-relationship-other")
+    source = EvidenceNode(
+        user_id=test_user.id,
+        node_kind="source_document",
+        entity_type="uploaded_document",
+        entity_id=uuid4(),
+        properties={},
+    )
+    other_target = EvidenceNode(
+        user_id=other_user.id,
+        node_kind="atomic_fact",
+        entity_type="atomic_transaction",
+        entity_id=uuid4(),
+        properties={},
+    )
+    db.add_all([source, other_target])
+    await db.flush()
+
+    edge = EvidenceEdge(
+        user_id=test_user.id,
+        from_node_id=source.id,
+        to_node_id=other_target.id,
+        relation="deduped_into",
+        properties={},
+    )
+    await db.execute(text("SET LOCAL session_replication_role = replica"))
+    try:
+        db.add(edge)
+        await db.flush()
+    finally:
+        await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
+
+    edge_id = edge.id
+    source_id = source.id
+    db.expunge_all()
+
+    reloaded = (
+        await db.execute(
+            select(EvidenceEdge)
+            .options(selectinload(EvidenceEdge.from_node), selectinload(EvidenceEdge.to_node))
+            .where(EvidenceEdge.id == edge_id)
+        )
+    ).scalar_one()
+
+    assert reloaded.from_node is not None
+    assert reloaded.from_node.id == source_id
+    assert reloaded.to_node is None
 
 
 @pytest.mark.asyncio
