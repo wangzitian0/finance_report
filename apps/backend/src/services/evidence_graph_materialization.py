@@ -12,7 +12,7 @@ from sqlalchemy.orm import aliased, selectinload
 from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import JournalEntry, JournalEntrySourceType, JournalLine
 from src.models.layer1 import UploadedDocument
-from src.models.layer2 import AtomicTransaction
+from src.models.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.models.statement_summary import StatementSummary
 from src.services.evidence_graph_integration import _ordered_source_doc_ids
 from src.services.evidence_lineage import EvidenceLineageService
@@ -376,6 +376,46 @@ class EvidenceGraphMaterializationService:
         (``source_documents``) and links each one straight to the atomic fact. The
         legacy extracted-record middle node is dropped.
         """
+        linked_documents = (
+            (
+                await db.execute(
+                    select(UploadedDocument)
+                    .join(
+                        AtomicTransactionSourceDocument,
+                        AtomicTransactionSourceDocument.uploaded_document_id == UploadedDocument.id,
+                    )
+                    .where(AtomicTransactionSourceDocument.atomic_txn_id == atomic.id)
+                    .where(UploadedDocument.user_id == user_id)
+                    .order_by(
+                        AtomicTransactionSourceDocument.ordinal.asc(),
+                        AtomicTransactionSourceDocument.uploaded_document_id.asc(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if linked_documents:
+            for document in linked_documents:
+                source = await self._materialize_uploaded_document(
+                    db, user_id=user_id, document=document, result=result, cap=cap
+                )
+                if source is None:
+                    return
+                edge = await self._upsert_edge(
+                    db,
+                    user_id=user_id,
+                    from_node_id=source.id,
+                    to_node_id=atomic_node.id,
+                    relation="deduped_into",
+                    properties={"dedup_hash": atomic.dedup_hash, "adapter": "lazy_materialization"},
+                    result=result,
+                    cap=cap,
+                )
+                if edge is None:
+                    return
+            return
+
         doc_ids = _ordered_source_doc_ids(atomic.source_documents)
         if not doc_ids:
             return
@@ -394,6 +434,11 @@ class EvidenceGraphMaterializationService:
         for doc_id in doc_ids:
             document = by_id.get(doc_id)
             if document is None:
+                self._add_blocker(
+                    result,
+                    "entity_missing",
+                    "Legacy atomic source document does not resolve to an owned uploaded document.",
+                )
                 continue
             source = await self._materialize_uploaded_document(
                 db, user_id=user_id, document=document, result=result, cap=cap

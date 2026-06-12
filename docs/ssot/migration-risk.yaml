@@ -175,6 +175,14 @@ migrations:
     risk: medium
     issue: "#845"
     proof: Adds preflight checks plus database CHECK/UNIQUE/partial-index guards for financial facts, statement envelopes, market prices, managed positions, and latest report snapshots; covered by AC11.18 direct DB invariant tests and the PR Alembic contract.
+  0034_audit_anchor_ri:
+    file: 0034_audit_anchor_referential_integrity.py
+    risk: high
+    issue: "#846"
+    proof: Adds normalized audit-anchor link tables, backfills resolvable legacy JSONB anchors, preserves unresolved legacy hints for blocker reporting, and enforces tenant-scoped anchor/account references; covered by AC18.11 direct DB invariant tests and the PR Alembic contract.
+    staging_validation: Deploy to staging and exercise upload -> parse -> evidence materialization -> reconciliation accept against normalized anchor links; confirm unresolved legacy anchors produce blockers instead of trusted source nodes.
+    production_preflight: Count legacy JSONB audit anchors and cross-tenant/account references before upgrade; abort if any preflight query in revision 0034_audit_anchor_ri returns rows.
+    rollback_strategy: Restore from pre-migration snapshot if the tenant-scope constraints reject existing data unexpectedly; normalized links are derived from legacy anchors and can be rebuilt after correcting source data.
   51aa128d8189:
     file: 51aa128d8189_remove_report_snapshot_constraint.py
     risk: medium

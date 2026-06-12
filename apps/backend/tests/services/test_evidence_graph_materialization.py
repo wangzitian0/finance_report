@@ -7,7 +7,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User
@@ -210,6 +210,7 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
     )
     db.add_all([orphan, source, target])
     await db.flush()
+    await db.execute(text("SET LOCAL session_replication_role = replica"))
     db.add(
         EvidenceEdge(
             user_id=test_user.id,
@@ -220,6 +221,7 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
         )
     )
     await db.flush()
+    await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
     before = await _graph_counts(db)
 
     report = await service.detect_consistency_drift(db, user_id=test_user.id)

@@ -320,6 +320,21 @@ The `/review/run/[runId]` frontend page currently uses the shared global
 Until a backend run-scoped queue contract is introduced, the UI must not imply
 that the queue payload is isolated to a persisted batch/run.
 
+## Audit Anchors
+
+`reconciliation_matches.journal_entry_ids` remains a compatibility JSONB field
+for existing API responses and historical payloads. The trusted audit anchor is
+the normalized `reconciliation_match_journal_entries` table.
+
+Rules:
+
+- A normalized reconciliation link must reference an existing
+  `journal_entries.id`.
+- The referenced journal entry must belong to the same user as the match's
+  `atomic_txn_id`.
+- Invalid, missing, or cross-user legacy UUIDs in `journal_entry_ids` must not
+  be treated as trusted report/source anchors.
+
 **State Machine**:
 ```
 [*] --> pending: Check detected

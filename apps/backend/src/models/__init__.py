@@ -14,7 +14,13 @@ from src.models.journal import (
     JournalLine,
 )
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
-from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.models.layer2 import (
+    AtomicPosition,
+    AtomicPositionSourceDocument,
+    AtomicTransaction,
+    AtomicTransactionSourceDocument,
+    TransactionDirection,
+)
 from src.models.layer3 import (
     ClassificationRule,
     ClassificationStatus,
@@ -38,7 +44,7 @@ from src.models.portfolio import (
     MarketDataOverride,
     PriceSource,
 )
-from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.models.reconciliation import ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.models.user import AiFeedback, User
@@ -57,7 +63,9 @@ __all__ = [
     "AccountType",
     "AiFeedback",
     "AtomicPosition",
+    "AtomicPositionSourceDocument",
     "AtomicTransaction",
+    "AtomicTransactionSourceDocument",
     "BankStatementStatus",
     "ChatMessage",
     "ChatMessageRole",
@@ -94,6 +102,7 @@ __all__ = [
     "ManualValuationLiquidityClass",
     "ManualValuationSnapshot",
     "ReconciliationMatch",
+    "ReconciliationMatchJournalEntry",
     "ReconciliationStatus",
     "ReportSnapshot",
     "ReportType",

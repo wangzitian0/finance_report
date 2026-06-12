@@ -59,3 +59,24 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
         "AtomicTransaction",
         foreign_keys=[atomic_txn_id],
     )
+
+
+class ReconciliationMatchJournalEntry(Base, TimestampMixin):
+    """Trusted normalized journal-entry anchor for a reconciliation match."""
+
+    __tablename__ = "reconciliation_match_journal_entries"
+    __table_args__ = (Index("idx_reconciliation_match_journal_entries_entry", "journal_entry_id"),)
+
+    match_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("reconciliation_matches.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    journal_entry_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("journal_entries.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+
+    reconciliation_match: Mapped[ReconciliationMatch] = relationship("ReconciliationMatch")
+    journal_entry = relationship("JournalEntry")

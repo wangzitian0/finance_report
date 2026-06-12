@@ -27,7 +27,7 @@ from src.models.layer3 import ClassificationStatus, TransactionClassification
 from src.models.statement_summary import StatementSummary
 from src.services.accounting import ValidationError, validate_journal_balance, validate_journal_posting_invariants
 from src.services.fx import FxRateError, get_exchange_rate
-from src.services.reconciliation import entry_total_amount
+from src.services.reconciliation import entry_total_amount, sync_reconciliation_match_journal_entry_links
 from src.services.source_type_priority import (
     STATEMENT_SOURCE_TYPES,
     normalize_source_type,
@@ -210,6 +210,7 @@ async def accept_match(
                 promote_entry_source_type(entry, JournalEntrySourceType.USER_CONFIRMED)
 
     await db.flush()
+    await sync_reconciliation_match_journal_entry_links(db, match)
     return match
 
 

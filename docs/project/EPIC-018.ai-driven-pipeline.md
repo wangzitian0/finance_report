@@ -347,6 +347,27 @@ Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integrat
 | AC18.10.6 | Evidence consistency safety | Detector and lazy repair never mutate accounting facts, report amounts, ledger balances, or legacy `JournalEntry.source_type/source_id` values |
 | AC18.10.7 | Evidence consistency proof | Tests cover request-time lazy repair, repeated-read idempotency, dry-run no-write behavior, cross-user blocking, unknown provenance blockers, dangling/orphan detection, and request-level write caps |
 
+### AC18.11: Audit Anchor Referential Integrity
+
+MECE task frame:
+
+- Normalized trusted anchors: reconciliation-to-ledger and atomic-to-source-document proof uses relational link tables with database-enforced existence checks.
+- Tenant-scoped graph edges: Evidence Graph edges cannot cross user ownership boundaries even through direct database writes.
+- Tenant-scoped account references: account-bearing DWD/ledger facts cannot point at accounts owned by another user at the database boundary.
+- Legacy compatibility: existing JSONB/naked UUID anchor fields remain preserved as compatibility hints, but unresolved values are explicit blockers and are not trusted source anchors.
+- Migration safety: existing resolvable JSONB anchors are backfilled into normalized link tables, while unresolved legacy hints remain preserved for blocker reporting.
+
+Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integration, AC18.10 consistency/blocker semantics, and the ledger invariants from AC2.14. Out of scope: deleting legacy JSONB/naked UUID fields, graph database adoption, fuzzy/probabilistic anchor inference, and mutating ledger/report facts.
+
+| AC ID | Phase | Description | Test | File | Priority |
+|-------|-------|-------------|------|------|----------|
+| AC18.11.1 | Audit anchors | Reconciliation match journal-entry anchors are represented by a normalized link table that rejects missing or cross-user journal entries | `test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
+| AC18.11.2 | Audit anchors | Atomic transaction and position source-document anchors are represented by normalized link tables that reject missing or cross-user uploaded documents | `test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
+| AC18.11.3 | Evidence lineage | Evidence Graph edges are tenant-scoped at the database boundary and cannot connect nodes owned by different users | `test_AC18_11_3_evidence_edges_reject_cross_user_endpoints()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
+| AC18.11.4 | Tenant scope | Journal lines, approved statement summaries, and transaction classifications reject cross-user account references at the database boundary | `test_AC18_11_4_account_references_reject_cross_user_accounts()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
+| AC18.11.5 | Blocker semantics | Unresolved legacy source UUIDs remain explicit blockers and are never promoted to trusted source anchors | `test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
+| AC18.11.6 | Migration safety | The audit-anchor migration declares preflights, backfills resolvable legacy anchors, preserves unresolved hints, and is registered in migration-risk metadata | `test_AC18_11_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
+
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 
 | AC ID | Phase | Description |
