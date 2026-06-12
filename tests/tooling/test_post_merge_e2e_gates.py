@@ -1125,6 +1125,31 @@ def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
     assert "FastAPI OpenAPI" in ci_cd
 
 
+def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
+    """AC14.1.17: DB schema reference docs are generated contract output in CI."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "Generated DB Schema Reference Check" in workflow
+    assert (
+        "uv run python ../../tools/generate_db_schema_reference.py --check"
+        in workflow
+    )
+    generate_line = (
+        "uv run python ../../tools/generate_db_schema_reference.py\n"
+    )
+    assert generate_line in workflow
+    assert workflow.index(generate_line) < workflow.index(
+        "uv run python ../../tools/generate_db_schema_reference.py --check"
+    )
+    assert workflow.index("tools/generate_api_reference.py --check") < workflow.index(
+        "tools/generate_db_schema_reference.py --check"
+    )
+    assert "Generated DB schema reference" in ci_cd
+    assert "SQLAlchemy model metadata" in ci_cd
+    assert "docs/hooks.py" in ci_cd
+
+
 def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     """AC8.13.53: PR CI avoids Moon bootstrap when direct commands suffice."""
     workflow = read(".github/workflows/ci.yml")

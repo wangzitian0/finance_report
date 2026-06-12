@@ -197,6 +197,9 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
         "tools.check_manifest": "common.ssot.check_manifest",
         "tools.check_ssot_ownership": "common.ssot.check_ssot_ownership",
         "tools.generate_ac_registry": "common.ssot.generate_ac_registry",
+        "tools.generate_db_schema_reference": (
+            "common.ssot.generate_db_schema_reference"
+        ),
         "tools.lint_doc_consistency": "common.ssot.lint_doc_consistency",
     }
 
@@ -286,6 +289,7 @@ def test_AC8_13_56_python_tool_wrappers_bootstrap_repo_root_when_run_directly():
     optional_dependency_wrappers = {
         "analyze_pdf_fixture.py": "pdfplumber",
         "generate_fixtures.py": "dotenv",
+        "generate_db_schema_reference.py": "sqlalchemy",
         "generate_pdf_fixtures.py": "reportlab",
         "generate_test_pdfs.py": "reportlab",
         "seed_fx_rates.py": "sqlalchemy",

@@ -23,13 +23,13 @@ This documentation is organized into four main sections to help you find what yo
 
     [:octicons-arrow-right-24: Start here](user-guide/getting-started.md)
 
--   :material-api:{ .lg .middle } __API Reference__
+-   :material-api:{ .lg .middle } __Generated References__
 
     ---
 
-    Complete REST API documentation for developers
+    Generated API and database contract inventories
 
-    [:octicons-arrow-right-24: View APIs](reference/api-overview.md)
+    [:octicons-arrow-right-24: View references](reference/api-overview.md)
 
 -   :material-file-document-multiple:{ .lg .middle } __Technical Documentation__
 
@@ -117,11 +117,12 @@ Step-by-step guides for end users:
 - [Reports & Dashboards](user-guide/reports.md) — Financial reporting
 - [AI Advisor](user-guide/ai-advisor.md) — Using the AI financial advisor
 
-### API Reference
-Complete REST API documentation:
+### Generated References
+Generated implementation inventories:
 
-- [API Overview](reference/api-overview.md) — Authentication and API contract ownership
+- [Generated Contract References](reference/api-overview.md) — API and DB contract ownership
 - [Generated API Reference](reference/api.md) — OpenAPI-derived endpoint inventory
+- [Generated DB Schema Reference](reference/db-schema.md) — SQLAlchemy-derived table, enum, index, constraint, and FK inventory
 - [Runtime Swagger UI](https://report.zitian.party/api/docs) — Full field-level contract
 
 ### Technical Documentation (SSOT)
@@ -133,7 +134,7 @@ Rationale docs with links to code owners, generated contracts, and proof tests:
 - [Statement Extraction](ssot/extraction.md) — AI parsing pipeline
 - [Reporting](ssot/reporting.md) — Report generation logic
 - [AI Advisor](ssot/ai.md) — AI advisor implementation
-- [Database Schema](ssot/schema.md) — Database design and migrations
+- [Database Schema](ssot/schema.md) — Data-layer rules and migration guardrails
 - [Development Guide](ssot/development.md) — Development environment setup
 
 ### Development & Project Management

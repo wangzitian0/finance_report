@@ -86,20 +86,15 @@ Portfolio summary YTD realized P&L and dividend income are presentation-currency
 
 ## 3. API Endpoints
 
-> Full API layer details documented in [schema.md Section 7](./schema.md#7-api-layer-assets).
+The mutable endpoint inventory is generated from FastAPI OpenAPI:
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/assets/positions` | List all managed positions (with optional filters) |
-| `GET` | `/assets/positions/{id}` | Get single position by ID |
-| `POST` | `/assets/reconcile` | Trigger position reconciliation from atomic data |
-| `GET` | `/assets/positions/{id}/depreciation` | Calculate depreciation schedule |
-| `POST` | `/assets/valuation-snapshots` | Create manual valuation snapshot |
-| `GET` | `/assets/valuation-snapshots` | List manual valuation snapshots |
-| `GET` | `/assets/valuation-snapshots/{id}` | Get one manual valuation snapshot |
-| `PATCH` | `/assets/valuation-snapshots/{id}` | Update manual valuation snapshot |
-| `DELETE` | `/assets/valuation-snapshots/{id}` | Delete manual valuation snapshot |
-| `GET` | `/assets/valuation-components` | List latest manual valuation components as of a date |
+- [Generated API Reference](../reference/api.md)
+- Runtime Swagger UI: `/api/docs`
+- Runtime ReDoc: `/api/redoc`
+
+This SSOT owns asset-domain semantics. Do not hand-copy asset endpoint tables
+here; add or update router/schema code and let the generated API reference carry
+the path, parameter, request, and response inventory.
 
 ---
 
@@ -167,112 +162,26 @@ class DepreciationResult:
 
 ## 6. Data Model
 
-### ManagedPosition (Layer 3)
+Mutable table, column, enum, index, constraint, and foreign-key inventory is
+generated from SQLAlchemy metadata:
 
-```sql
-CREATE TABLE managed_positions (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    account_id UUID NOT NULL REFERENCES accounts(id),
-    asset_identifier VARCHAR(100) NOT NULL,
-    quantity NUMERIC(18,6) NOT NULL,
-    cost_basis NUMERIC(18,2) NOT NULL,
-    acquisition_date TIMESTAMP,
-    disposal_date TIMESTAMP,
-    status position_status_enum NOT NULL DEFAULT 'ACTIVE',
-    currency VARCHAR(3),
-    position_metadata JSONB,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
-);
-```
+- [Generated DB Schema Reference](../reference/db-schema.md)
+- Models: `apps/backend/src/models/layer3.py`, `apps/backend/src/models/portfolio.py`
+- Migrations: `apps/backend/migrations/`
 
-Constraints: `(user_id, account_id, asset_identifier)` is unique,
-`cost_basis >= 0`, and `disposal_date` cannot precede `acquisition_date`.
-`quantity` may be negative for short positions; short positions still require
-non-negative market value and cost facts.
+| Model | Table | Domain role |
+|---|---|---|
+| `ManagedPosition` | `managed_positions` | DWS maintained position state derived from source snapshots and investment transactions |
+| `InvestmentTransaction` | `investment_transactions` | Auditable brokerage buy/sell/dividend event used for ledger posting and realized P&L |
+| `InvestmentLot` | `investment_lots` | Lot-level cost-basis state for FIFO/LIFO/average-cost realized P&L |
+| `ManualValuationSnapshot` | `manual_valuation_snapshots` | User-entered valuation fact for non-ledger net-worth components |
 
-### InvestmentTransaction
-
-```sql
-CREATE TABLE investment_transactions (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    position_id UUID REFERENCES managed_positions(id) ON DELETE SET NULL,
-    journal_entry_id UUID REFERENCES journal_entries(id) ON DELETE SET NULL,
-    source_id UUID,
-    transaction_date DATE NOT NULL,
-    transaction_type investment_transaction_type_enum NOT NULL,
-    asset_identifier VARCHAR(100) NOT NULL,
-    quantity NUMERIC(18,6),
-    unit_price NUMERIC(18,6),
-    gross_amount NUMERIC(18,2) NOT NULL,
-    fees NUMERIC(18,2) NOT NULL,
-    currency VARCHAR(3) NOT NULL,
-    cost_basis NUMERIC(18,2),
-    realized_pnl NUMERIC(18,2),
-    cost_basis_method cost_basis_method_enum,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
-);
-```
-
-Constraints: `gross_amount > 0`, `fees >= 0`, and buy/sell rows require
-positive quantity plus non-negative unit price and cost basis.
-
-### InvestmentLot
-
-```sql
-CREATE TABLE investment_lots (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    position_id UUID NOT NULL REFERENCES managed_positions(id) ON DELETE CASCADE,
-    opening_transaction_id UUID NOT NULL REFERENCES investment_transactions(id) ON DELETE CASCADE,
-    asset_identifier VARCHAR(100) NOT NULL,
-    acquisition_date DATE NOT NULL,
-    original_quantity NUMERIC(18,6) NOT NULL,
-    remaining_quantity NUMERIC(18,6) NOT NULL,
-    unit_cost NUMERIC(18,6) NOT NULL,
-    currency VARCHAR(3) NOT NULL,
-    disposed_date DATE,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
-);
-```
-
-Constraints: original quantity is positive, remaining quantity is non-negative
-and cannot exceed original quantity, unit cost is non-negative, and disposed
-date cannot precede acquisition date.
-
-### PositionStatus Enum
-
-| Value | Meaning |
-|-------|---------|
-| `ACTIVE` | Currently held position |
-| `DISPOSED` | Position closed or quantity went to zero |
+Keep field definitions, enum values, constraints, and foreign keys in model and
+migration code; link to the generated DB reference from docs.
 
 <a id="manual-valuation-snapshots"></a>
 
-### ManualValuationSnapshot (Layer 3)
-
-```sql
-CREATE TABLE manual_valuation_snapshots (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    component_type manual_valuation_component_type_enum NOT NULL,
-    liquidity_class manual_valuation_liquidity_class_enum NOT NULL,
-    as_of_date DATE NOT NULL,
-    value NUMERIC(18,2) NOT NULL,
-    currency VARCHAR(3) NOT NULL,
-    source VARCHAR(120) NOT NULL,
-    notes TEXT,
-    recurrence_days INTEGER,
-    reminder_date DATE,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-    UNIQUE (user_id, component_type, source, as_of_date)
-);
-```
+### Manual Valuation Snapshots
 
 Manual snapshots cover property value, mortgage or loan balance, CPF or long-term savings, tax payable/refund, insurance cash value, ESOP, RSU, stock options, and generic assets/liabilities. The value is always stored as a positive `Decimal`; the liquidity class determines whether it contributes to assets, liabilities, restricted, or illiquid net worth presentation.
 Reminder cadence is optional; when present, `recurrence_days` is positive.
@@ -314,4 +223,6 @@ Reminder cadence is optional; when present, `recurrence_days` is positive.
 ## Used by
 
 - [reporting.md](./reporting.md)
-- [schema.md](./schema.md) (Section 7)
+- [schema.md](./schema.md)
+- [Generated DB Schema Reference](../reference/db-schema.md)
+- [Generated API Reference](../reference/api.md)

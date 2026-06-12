@@ -54,7 +54,7 @@ contracts is tracked in
 | [coverage.md](./coverage.md) | `coverage` | Coverage metric semantics; code owner is `common/coverage/policy.py` |
 | [auth.md](./auth.md) | `auth` | Auth architecture rationale and code references |
 | [frontend-patterns.md](./frontend-patterns.md) | `frontend-patterns` | Frontend integration rules and proof references |
-| [schema.md](./schema.md) | `schema` | Database model rationale; code owner is models/migrations |
+| [schema.md](./schema.md) | `schema` | Data-layer rationale and migration guardrails; mutable inventory is generated |
 | [migration-risk.yaml](./migration-risk.yaml) | `migration_risk_classification` | Alembic migration risk levels and required release proof notes |
 | [accounting.md](./accounting.md) | `accounting` | Double-entry rationale and invariant references |
 | [MANIFEST.yaml](./MANIFEST.yaml) | `manifest` | Machine-readable concept owner registry |
@@ -82,6 +82,8 @@ contracts is tracked in
 
 | Report | Purpose |
 |---|---|
+| [Generated API Reference](../reference/api.md) | OpenAPI-derived endpoint inventory |
+| [Generated DB Schema Reference](../reference/db-schema.md) | SQLAlchemy-derived table, column, enum, index, constraint, and FK inventory |
 | [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Bidirectional README -> EPIC -> E2E macro outcome contract |
 | `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract for [`source_coverage_matrix`](./source-coverage-matrix.yaml) |
 | `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
