@@ -100,6 +100,34 @@ async def test_get_holdings_happy_path(db, test_user, svc, active_position, atom
     assert h.geography == "US"
     assert h.asset_type == "stock"
     assert h.account_name == "Test Investment"
+    # EPIC-022 #868/#888: snapshot has no source-document evidence, so provenance
+    # is not claimed (never inferred as manual or imported without proof).
+    assert h.provenance is None
+
+
+@pytest.mark.asyncio
+async def test_get_holdings_provenance_imported_with_source_document(db, test_user, svc, active_position):
+    """AC22.10.1: a holding backed by a source document is labelled imported."""
+    atom = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date.today(),
+        asset_identifier="AAPL",
+        broker="Test Broker",
+        quantity=Decimal("100"),
+        market_value=Decimal("12000.00"),
+        currency="SGD",
+        asset_type="stock",
+        dedup_hash="aapl_provenance_test",
+        source_documents={
+            "documents": [{"doc_id": "11111111-1111-4111-8111-111111111111", "doc_type": "brokerage_statement"}]
+        },
+    )
+    db.add(atom)
+    await db.flush()
+
+    holdings = await svc.get_holdings(db, test_user.id)
+    assert len(holdings) == 1
+    assert holdings[0].provenance == "imported"
 
 
 @pytest.mark.asyncio
