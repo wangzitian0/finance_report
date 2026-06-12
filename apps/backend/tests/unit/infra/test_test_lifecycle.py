@@ -89,8 +89,15 @@ def test_test_database_persistence(
         assert "localhost:5432" in url
 
     mock_register.assert_called_once()
-    # Ensure down -v NOT called
-    down_calls = [c for c in mock_run.call_args_list if "down" in str(c)]
+    # Ensure compose `down -v` was NOT called. Inspect the command list itself,
+    # not str(call): the call repr includes env=os.environ.copy(), so on CI a
+    # branch name containing "down" (e.g. ".../cashflow-drilldown") would leak
+    # into the string and create a false positive (#884).
+    down_calls = [
+        c
+        for c in mock_run.call_args_list
+        if c.args and isinstance(c.args[0], (list, tuple)) and "down" in c.args[0]
+    ]
     assert len(down_calls) == 0
 
 
