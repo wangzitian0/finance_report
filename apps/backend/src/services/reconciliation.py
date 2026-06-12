@@ -13,7 +13,7 @@ from itertools import combinations
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import distinct, func, select
+from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +28,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
     ReconciliationMatch,
+    ReconciliationMatchJournalEntry,
     ReconciliationStatus,
 )
 from src.services.accounting import ValidationError, validate_journal_balance
@@ -753,6 +754,13 @@ async def _get_existing_active_match(
     return result.scalar_one_or_none()
 
 
+def _mark_auto_accepted_entry_reconciled(entry: JournalEntry) -> None:
+    was_immutable = entry.status in (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
+    entry.status = JournalEntryStatus.RECONCILED
+    if not was_immutable:
+        promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
+
+
 def _find_transfer_candidates(
     pending_txns: list[AtomicTransaction],
     atomic_txns: list[JournalEntry],
@@ -1209,8 +1217,7 @@ async def execute_matching(
                 matched_txn_ids.add(txn.id)
                 if status == ReconciliationStatus.AUTO_ACCEPTED:
                     if best_entry.status != JournalEntryStatus.VOID:
-                        best_entry.status = JournalEntryStatus.RECONCILED
-                        promote_entry_source_type(best_entry, JournalEntrySourceType.AUTO_MATCHED)
+                        _mark_auto_accepted_entry_reconciled(best_entry)
 
     # Phase 2: Normal Matching (existing logic)
     # Skip transactions already matched in Phase 1 (transfer detection)
@@ -1324,8 +1331,7 @@ async def execute_matching(
             )
             for entry in result.scalars():
                 if entry.status != JournalEntryStatus.VOID:
-                    entry.status = JournalEntryStatus.RECONCILED
-                    promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
+                    _mark_auto_accepted_entry_reconciled(entry)
 
     # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
     # Find and pair transfers automatically per processing_account.md
@@ -1347,6 +1353,8 @@ async def execute_matching(
 
     try:
         await db.flush()
+        for match in matches:
+            await sync_reconciliation_match_journal_entry_links(db, match)
     except Exception as e:
         logger.error(
             "Reconciliation flush failed",
@@ -1359,6 +1367,72 @@ async def execute_matching(
         raise
 
     return matches
+
+
+async def sync_reconciliation_match_journal_entry_links(db: AsyncSession, match: ReconciliationMatch) -> None:
+    """Synchronize trusted reconciliation anchor links from the compatibility JSONB list."""
+    if match.id is None:
+        await db.flush()
+
+    target_ids: list[UUID] = []
+    seen: set[UUID] = set()
+    for raw_entry_id in match.journal_entry_ids or []:
+        try:
+            entry_id = UUID(str(raw_entry_id))
+        except (TypeError, ValueError):
+            continue
+        if entry_id not in seen:
+            seen.add(entry_id)
+            target_ids.append(entry_id)
+
+    if target_ids:
+        match_user_id = (
+            await db.execute(select(AtomicTransaction.user_id).where(AtomicTransaction.id == match.atomic_txn_id))
+        ).scalar_one_or_none()
+        if match_user_id is None:
+            target_ids = []
+        else:
+            valid_entry_ids = set(
+                (
+                    await db.execute(
+                        select(JournalEntry.id)
+                        .where(JournalEntry.id.in_(target_ids))
+                        .where(JournalEntry.user_id == match_user_id)
+                    )
+                ).scalars()
+            )
+            target_ids = [entry_id for entry_id in target_ids if entry_id in valid_entry_ids]
+
+    existing_ids = set(
+        (
+            await db.execute(
+                select(ReconciliationMatchJournalEntry.journal_entry_id).where(
+                    ReconciliationMatchJournalEntry.match_id == match.id
+                )
+            )
+        ).scalars()
+    )
+    target_set = set(target_ids)
+
+    stale_ids = existing_ids - target_set
+    if stale_ids:
+        await db.execute(
+            delete(ReconciliationMatchJournalEntry).where(
+                ReconciliationMatchJournalEntry.match_id == match.id,
+                ReconciliationMatchJournalEntry.journal_entry_id.in_(stale_ids),
+            )
+        )
+
+    for ordinal_entry_id in target_ids:
+        if ordinal_entry_id in existing_ids:
+            continue
+        db.add(
+            ReconciliationMatchJournalEntry(
+                match_id=match.id,
+                journal_entry_id=ordinal_entry_id,
+            )
+        )
+    await db.flush()
 
 
 def auto_accept(match_score: int, config: ReconciliationConfig) -> bool:

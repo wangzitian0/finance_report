@@ -20,6 +20,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -615,7 +616,7 @@ async def test_create_entry_from_txn_uses_statement_linked_account(db, test_user
 
 
 @pytest.mark.asyncio
-async def test_create_entry_from_txn_falls_back_when_linked_account_not_owned(db, test_user):
+async def test_statement_summary_rejects_linked_account_not_owned(db, test_user):
     other_user_id = uuid4()
     other_users_account = await AccountFactory.create_async(
         db,
@@ -624,31 +625,9 @@ async def test_create_entry_from_txn_falls_back_when_linked_account_not_owned(db
         type=AccountType.ASSET,
         currency="SGD",
     )
-    stmt = await _make_statement(db, test_user.id, account_id=other_users_account.id)
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
-        direction=TransactionDirection.IN,
-        amount=Decimal("120.00"),
-        txn_date=date(2025, 2, 5),
-        description="Unowned linked account fallback",
-    )
-    await db.commit()
-
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
-
-    bank_account_ids = {line.account_id for line in entry.lines}
-    assert other_users_account.id not in bank_account_ids
-
-    default_bank = await get_or_create_account(
-        db,
-        name="Bank - Main",
-        account_type=AccountType.ASSET,
-        currency="SGD",
-        user_id=test_user.id,
-    )
-    assert default_bank.id in bank_account_ids
+    with pytest.raises(IntegrityError):
+        await _make_statement(db, test_user.id, account_id=other_users_account.id)
+    await db.rollback()
 
 
 @pytest.mark.asyncio

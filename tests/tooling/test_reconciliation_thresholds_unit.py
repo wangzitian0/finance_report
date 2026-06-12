@@ -87,7 +87,9 @@ def _load_reconciliation_module():
         if previous_source_type_priority is None:
             sys.modules.pop("src.services.source_type_priority", None)
         else:
-            sys.modules["src.services.source_type_priority"] = previous_source_type_priority
+            sys.modules["src.services.source_type_priority"] = (
+                previous_source_type_priority
+            )
         if previous_statement_summary is None:
             sys.modules.pop("src.services.statement_summary", None)
         else:
@@ -106,8 +108,16 @@ class _ScalarResult:
     def scalars(self) -> _ScalarResult:
         return self
 
+    def __iter__(self):
+        return iter(self._items)
+
     def all(self) -> list[object]:
         return self._items
+
+    def scalar_one_or_none(self) -> object | None:
+        if not self._items:
+            return None
+        return self._items[0]
 
 
 def _make_pending_txn() -> SimpleNamespace:
@@ -136,6 +146,7 @@ def _make_db(*, txn: object, entry: object) -> AsyncMock:
         side_effect=[
             _ScalarResult([txn]),
             _ScalarResult([entry]),
+            _ScalarResult([]),
         ]
     )
     db.flush = AsyncMock()

@@ -10,7 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
 from src.models.layer1 import DocumentType, UploadedDocument
-from src.models.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.models.layer2 import (
+    AtomicPosition,
+    AtomicPositionSourceDocument,
+    AtomicTransaction,
+    AtomicTransactionSourceDocument,
+    TransactionDirection,
+)
 from src.models.statement_summary import StatementSummary
 
 logger = get_logger(__name__)
@@ -139,6 +145,14 @@ class DeduplicationService:
                 source_docs.append(source_doc)
                 existing.source_documents = source_docs
                 await db.flush()
+            await self._upsert_transaction_source_link(
+                db,
+                user_id=user_id,
+                atomic_txn_id=existing.id,
+                source_doc_id=source_doc_id,
+                source_doc_type=source_doc_type,
+                ordinal=source_docs.index(source_doc) if source_doc in source_docs else 0,
+            )
 
             logger.info(
                 f"Appended source document to existing atomic transaction {existing.id}",
@@ -163,6 +177,14 @@ class DeduplicationService:
         )
         db.add(new_txn)
         await db.flush()
+        await self._upsert_transaction_source_link(
+            db,
+            user_id=user_id,
+            atomic_txn_id=new_txn.id,
+            source_doc_id=source_doc_id,
+            source_doc_type=source_doc_type,
+            ordinal=0,
+        )
 
         logger.info(
             f"Created new atomic transaction {new_txn.id}",
@@ -216,6 +238,14 @@ class DeduplicationService:
                 source_docs.append(source_doc)
                 existing.source_documents = source_docs
                 await db.flush()
+            await self._upsert_position_source_link(
+                db,
+                user_id=user_id,
+                atomic_position_id=existing.id,
+                source_doc_id=source_doc_id,
+                source_doc_type=source_doc_type,
+                ordinal=source_docs.index(source_doc) if source_doc in source_docs else 0,
+            )
 
             logger.info(
                 f"Appended source document to existing atomic position {existing.id}",
@@ -240,6 +270,14 @@ class DeduplicationService:
         )
         db.add(new_pos)
         await db.flush()
+        await self._upsert_position_source_link(
+            db,
+            user_id=user_id,
+            atomic_position_id=new_pos.id,
+            source_doc_id=source_doc_id,
+            source_doc_type=source_doc_type,
+            ordinal=0,
+        )
 
         logger.info(
             f"Created new atomic position {new_pos.id}",
@@ -251,6 +289,64 @@ class DeduplicationService:
             },
         )
         return new_pos
+
+    async def _upsert_transaction_source_link(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        atomic_txn_id: UUID,
+        source_doc_id: UUID,
+        source_doc_type: DocumentType,
+        ordinal: int,
+    ) -> None:
+        document = await db.get(UploadedDocument, source_doc_id)
+        if document is None or document.user_id != user_id:
+            return
+
+        existing = await db.get(AtomicTransactionSourceDocument, (atomic_txn_id, source_doc_id))
+        if existing is None:
+            db.add(
+                AtomicTransactionSourceDocument(
+                    atomic_txn_id=atomic_txn_id,
+                    uploaded_document_id=source_doc_id,
+                    doc_type=source_doc_type.value,
+                    ordinal=ordinal,
+                )
+            )
+        else:
+            existing.doc_type = source_doc_type.value
+            existing.ordinal = ordinal
+        await db.flush()
+
+    async def _upsert_position_source_link(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        atomic_position_id: UUID,
+        source_doc_id: UUID,
+        source_doc_type: DocumentType,
+        ordinal: int,
+    ) -> None:
+        document = await db.get(UploadedDocument, source_doc_id)
+        if document is None or document.user_id != user_id:
+            return
+
+        existing = await db.get(AtomicPositionSourceDocument, (atomic_position_id, source_doc_id))
+        if existing is None:
+            db.add(
+                AtomicPositionSourceDocument(
+                    atomic_position_id=atomic_position_id,
+                    uploaded_document_id=source_doc_id,
+                    doc_type=source_doc_type.value,
+                    ordinal=ordinal,
+                )
+            )
+        else:
+            existing.doc_type = source_doc_type.value
+            existing.ordinal = ordinal
+        await db.flush()
 
     async def create_uploaded_document(
         self,
@@ -315,6 +411,12 @@ async def _detach_document_from_atomic_transactions(db: Any, user_id: UUID, doc_
             db.add(txn)
         else:
             await db.delete(txn)
+        await db.execute(
+            AtomicTransactionSourceDocument.__table__.delete().where(
+                AtomicTransactionSourceDocument.atomic_txn_id == txn.id,
+                AtomicTransactionSourceDocument.uploaded_document_id == doc_id,
+            )
+        )
     if rows:
         await db.flush()
 

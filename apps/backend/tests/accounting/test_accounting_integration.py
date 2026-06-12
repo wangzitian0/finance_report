@@ -12,6 +12,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
@@ -257,13 +259,13 @@ async def test_AC2_13_1_line_account_ownership_rejects_missing_account(
 
 
 @pytest.mark.asyncio
-async def test_AC2_13_2_post_journal_entry_rejects_cross_user_account(
+async def test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary(
     db: AsyncSession,
     bank_account,
     salary_account,
     test_user_id,
 ):
-    """AC2.13.2: Posting validates that every line account belongs to the entry owner."""
+    """AC2.13.2: Database invariants reject line accounts outside the entry owner."""
     other_user_id = uuid4()
     other_account = Account(
         user_id=other_user_id,
@@ -301,10 +303,10 @@ async def test_AC2_13_2_post_journal_entry_rejects_cross_user_account(
             ),
         ]
     )
-    await db.commit()
 
-    with pytest.raises(ValidationError, match="Account does not belong to user"):
-        await post_journal_entry(db, entry.id, test_user_id)
+    with pytest.raises(IntegrityError, match="cannot reference cross-user account"):
+        await db.flush()
+    await db.rollback()
 
 
 @pytest.mark.asyncio
@@ -368,24 +370,29 @@ async def test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers(
     )
     db.add(polluted_entry)
     await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=polluted_entry.id,
-                account_id=other_account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("99.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=polluted_entry.id,
-                account_id=salary_account.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("99.00"),
-                currency="SGD",
-            ),
-        ]
-    )
+    try:
+        await db.execute(text("SET LOCAL session_replication_role = replica"))
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=polluted_entry.id,
+                    account_id=other_account.id,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("99.00"),
+                    currency="SGD",
+                ),
+                JournalLine(
+                    journal_entry_id=polluted_entry.id,
+                    account_id=salary_account.id,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("99.00"),
+                    currency="SGD",
+                ),
+            ]
+        )
+        await db.flush()
+    finally:
+        await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
     await db.commit()
 
     balances = await calculate_account_balances(db, [other_account], other_user_id)

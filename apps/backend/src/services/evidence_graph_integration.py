@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.evidence import EvidenceNode
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer1 import DocumentType, UploadedDocument
-from src.models.layer2 import AtomicTransaction
+from src.models.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.models.statement_summary import StatementSummary
 from src.services.evidence_lineage import EvidenceLineageService
 
@@ -71,6 +71,17 @@ class EvidenceGraphIntegrationService:
         if uploaded_document.id is None or atomic_transaction.id is None:
             return
         doc_type = document_type or uploaded_document.document_type
+        existing_link = await db.get(AtomicTransactionSourceDocument, (atomic_transaction.id, uploaded_document.id))
+        if existing_link is None:
+            db.add(
+                AtomicTransactionSourceDocument(
+                    atomic_txn_id=atomic_transaction.id,
+                    uploaded_document_id=uploaded_document.id,
+                    doc_type=doc_type.value if doc_type is not None else uploaded_document.document_type.value,
+                    ordinal=0,
+                )
+            )
+            await db.flush()
         source_node = await self.lineage.upsert_node(
             db,
             user_id=user_id,

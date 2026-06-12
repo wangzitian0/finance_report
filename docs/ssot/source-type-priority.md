@@ -28,7 +28,7 @@ Defined in [Project Vision](../target.md), under "Manual Data Is Explicitly Trus
 |----------|-------------|-------------|-------------|
 | 1 (Highest) | `manual` | TRUSTED | User typed the entry directly — highest confidence |
 | 2 | `user_confirmed` | HIGH | Auto-extracted, but user explicitly confirmed it |
-| 3 | `auto_matched` | MEDIUM | Reconciliation engine matched at score ≥ 85 |
+| 3 | `auto_matched` | MEDIUM | Reconciliation engine matched at score ≥ 85 before the entry became immutable |
 | 4 (Lowest) | `auto_parsed` | LOW | AI extracted from document, unconfirmed |
 
 ### Conflict Resolution Rule
@@ -52,7 +52,7 @@ stateDiagram-v2
     [*] --> auto_parsed: AI extraction
     auto_parsed --> user_confirmed: User confirms in Stage-1 review
     auto_parsed --> manual: User edits and saves
-    auto_parsed --> auto_matched: Reconciliation score ≥ 85
+    auto_parsed --> auto_matched: Reconciliation score ≥ 85 before posting
     auto_matched --> user_confirmed: User confirms in review queue
     user_confirmed --> manual: User re-edits
     manual --> [*]: Highest trust, no further promotion
@@ -65,7 +65,7 @@ stateDiagram-v2
 ### Recommended Patterns
 
 - **Pattern A**: Always stamp `source_type` at entry creation time — never leave it null.
-- **Pattern B**: Reconciliation engine sets `auto_matched` on the journal entry when it auto-accepts; keeps `auto_parsed` if deferred to review queue.
+- **Pattern B**: Reconciliation auto-accept records trusted match provenance on `ReconciliationMatch` and its normalized journal-entry anchor. It may set `source_type=auto_matched` only before the journal entry becomes posted/reconciled; immutable posted entries keep their original `source_type`.
 - **Pattern C**: When resolving a conflict, log both the winning and losing source_type in the audit trail (`ReconciliationMatch.score_breakdown`).
 - **Pattern D**: UI must surface `source_type` with a trust badge (TRUSTED / HIGH / MEDIUM / LOW) so users know data confidence at a glance.
 
@@ -88,7 +88,7 @@ stateDiagram-v2
 ```
 
 Allowed user-data values: `manual`, `user_confirmed`, `auto_matched`, `auto_parsed`.
-The field is immutable after creation except via explicit promotion endpoints (Stage-1 approve, review queue confirm).
+The field is immutable after creation except via explicit promotion endpoints (Stage-1 approve, review queue confirm). Auto-match provenance for already posted entries is represented by `ReconciliationMatch` and normalized anchor links, not by mutating the immutable journal row.
 
 ---
 
@@ -97,7 +97,7 @@ The field is immutable after creation except via explicit promotion endpoints (S
 | Behavior | Test Function | File | Status |
 |----------|---------------|------|--------|
 | Source type stamped on manual entry creation | `test_source_type_stamped_on_create` | `reconciliation/test_source_type.py` | ✅ Implemented |
-| Auto-matched sets source_type=auto_matched | `test_auto_match_sets_source_type` | `reconciliation/test_source_type.py` | ✅ Implemented |
+| Auto-matched records a trusted anchor without mutating posted source_type | `test_auto_match_records_anchor_without_mutating_posted_source_type` | `reconciliation/test_source_type.py` | ✅ Implemented |
 | Stage-1 approve promotes to user_confirmed | `test_stage1_approve_promotes_source_type` | `extraction/test_source_type_promotion.py` | ✅ Implemented |
 | Manual entry wins over auto_parsed in conflict | `test_manual_wins_conflict_resolution` | `reconciliation/test_source_type.py` | ✅ Implemented |
 | source_type cannot be downgraded | `test_source_type_no_downgrade` | `reconciliation/test_source_type.py` | ✅ Implemented |

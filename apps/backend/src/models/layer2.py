@@ -3,10 +3,22 @@
 from datetime import date
 from decimal import Decimal
 from enum import Enum
+from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Date, Enum as SQLEnum, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    Enum as SQLEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
@@ -81,6 +93,29 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         return f"<AtomicTransaction {self.txn_date} {self.direction.value} {self.amount} {self.currency}>"
 
 
+class AtomicTransactionSourceDocument(Base, TimestampMixin):
+    """Trusted normalized source-document anchor for an atomic transaction."""
+
+    __tablename__ = "atomic_transaction_source_documents"
+    __table_args__ = (Index("idx_atomic_txn_source_docs_document", "uploaded_document_id"),)
+
+    atomic_txn_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("atomic_transactions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    uploaded_document_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("uploaded_documents.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    doc_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    atomic_transaction: Mapped[AtomicTransaction] = relationship("AtomicTransaction")
+    uploaded_document = relationship("UploadedDocument")
+
+
 class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
     Layer 2: Deduplicated position snapshots.
@@ -138,3 +173,26 @@ class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
             f"<AtomicPosition {self.snapshot_date} {self.asset_identifier} "
             f"{self.quantity} @ {self.market_value} {self.currency}>"
         )
+
+
+class AtomicPositionSourceDocument(Base, TimestampMixin):
+    """Trusted normalized source-document anchor for an atomic position snapshot."""
+
+    __tablename__ = "atomic_position_source_documents"
+    __table_args__ = (Index("idx_atomic_position_source_docs_document", "uploaded_document_id"),)
+
+    atomic_position_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("atomic_positions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    uploaded_document_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("uploaded_documents.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    doc_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    atomic_position: Mapped[AtomicPosition] = relationship("AtomicPosition")
+    uploaded_document = relationship("UploadedDocument")

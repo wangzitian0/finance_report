@@ -104,6 +104,11 @@ An edge is idempotent by:
 user_id + from_node_id + to_node_id + relation
 ```
 
+At the database boundary, `evidence_edges.user_id` must match both endpoint
+nodes. The composite edge FKs are tenant-scoped so direct writes cannot connect
+nodes owned by different users. Service-level checks remain the first line of
+defense, but the database is the final proof boundary.
+
 Business tables keep their own primary keys. Evidence lineage references them
 through `entity_type` and `entity_id` so future tables can join the graph
 without schema changes to the graph foundation.
@@ -167,6 +172,18 @@ Report traceability may still use legacy `JournalEntry.source_type/source_id`
 as a compatibility fallback. When a legacy source ID cannot be resolved to an
 owned source, extracted, atomic, or graph node, the caller must return an
 explicit blocker state rather than fabricating a source anchor.
+
+Trusted source-document and reconciliation anchors use normalized relational
+link tables:
+
+- `atomic_transaction_source_documents`
+- `atomic_position_source_documents`
+- `reconciliation_match_journal_entries`
+
+Legacy JSONB arrays and naked UUID fields are compatibility hints only. They
+may be preserved for historical context, but unresolved or cross-user values
+must surface as blocker states such as `entity_missing`,
+`unknown_source_anchor`, or `cross_user_lineage_blocked`.
 
 ## Navigation API and UI
 

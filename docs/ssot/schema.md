@@ -470,6 +470,11 @@ Reconciliation match table.
 | created_at | TIMESTAMP | NOT NULL | Creation time |
 | updated_at | TIMESTAMP | NOT NULL | Update time |
 
+`journal_entry_ids` is preserved as a compatibility field. Trusted
+reconciliation anchors are normalized in
+`reconciliation_match_journal_entries`; unresolved or malformed legacy UUIDs
+must not be promoted to trusted report/source anchors.
+
 ### ConsistencyChecks
 
 Stage 2 blocker table.
@@ -535,7 +540,9 @@ fact; account is **not** stored here (conformed downstream via
 **Constraints**:
 - `(user_id, dedup_hash)` unique
 - `amount > 0`
-- Append-only `source_documents` array
+- Append-only `source_documents` array is a legacy compatibility hint.
+- Trusted source-document anchors live in `atomic_transaction_source_documents`
+  and must reference existing uploaded documents owned by the same user.
 
 ### DWD: AtomicPositions (EPIC-011)
 Deduplicated, immutable asset snapshots (source-pure detail fact).
@@ -558,6 +565,22 @@ Deduplicated, immutable asset snapshots (source-pure detail fact).
 **Constraints**:
 - `(user_id, dedup_hash)` unique
 - `market_value >= 0`; `quantity` may be negative for short positions
+- Append-only `source_documents` array is a legacy compatibility hint.
+- Trusted source-document anchors live in `atomic_position_source_documents`
+  and must reference existing uploaded documents owned by the same user.
+
+### Audit Anchor Link Tables
+
+Normalized audit-anchor link tables are the trusted database representation for
+source-to-fact and reconciliation-to-ledger proof. Legacy JSONB/naked UUID
+fields remain preserved for backward compatibility and blocker reporting, but
+report traceability must not treat unresolved legacy values as trusted anchors.
+
+| Table | Purpose | Constraints |
+|-------|---------|-------------|
+| `atomic_transaction_source_documents` | Atomic transaction to uploaded document anchors | `(atomic_txn_id, uploaded_document_id)` PK; uploaded document must exist and share the atomic transaction user |
+| `atomic_position_source_documents` | Atomic position snapshot to uploaded document anchors | `(atomic_position_id, uploaded_document_id)` PK; uploaded document must exist and share the atomic position user |
+| `reconciliation_match_journal_entries` | Reconciliation match to journal entry anchors | `(match_id, journal_entry_id)` PK; journal entry must exist and share the reconciliation match atomic transaction user |
 
 ### DIM + DWD: ClassificationRules (DIM) and TransactionClassification (DWD) (EPIC-011)
 `classification_rules` are **DIM** reference data (versioned mapping rules,
