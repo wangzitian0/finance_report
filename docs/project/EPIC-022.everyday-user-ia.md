@@ -1,7 +1,11 @@
 # EPIC-022: Everyday-User Information Architecture
 
-> **Status**: In Progress — PR1 (IA skeleton) slice landing; unified inbox and
-> report drill-down slices tracked separately.
+> **Status**: In Progress — PR1–PR5 landed (IA skeleton, unified inbox, report
+> cockpit + Balance-Sheet/Income-Statement drill-down, hardening, flow guidance),
+> plus the lean-Home & review-mainline fix (#860). Remaining everyday-user slices
+> PR6–PR10 (confidence surface, cash-flow drill-down, readable report package,
+> boundary/naming cleanup, manual provenance) are tracked as sub-issues of the
+> root (#836).
 > **Vision Anchor**: `decision-2-event-middle-layer`, `decision-4-two-stage-review`.
 > Builds on EPIC-019: it introduced workflow events but kept internal accounting
 > modules as first-class navigation; EPIC-022 restructures the shell so an
@@ -68,10 +72,44 @@ EPIC-022 finishes EPIC-019's intent at the navigation and report layers.
 | PR1 — IA skeleton | #834 | 3-peer nav, smart Home, route/name/icon alignment, Upload consolidation |
 | PR2 — unified inbox | #835 | merge Stage 1/2 Review Queue into the notification center |
 | PR3 — report cockpit | #836 (root) | 4-block Reports hub + `/api/evidence/lineage` drill-down |
+| PR4 — hardening | #853 | Stage 2 inbox event, orphan-route fixes, lean Home, E2E journeys |
 | PR5 — flow guidance & plain language | — | core-flow step banner, in-place unblock on review, deep-page back-links, jargon hints, single primary next-action |
+| PR6 — confidence & attention surface | #864 | confidence-ranked `/attention` queue + Home trust meter (Axiom B / north-star) |
+| PR7 — close traceability loop | #866 | cash-flow drill-down + linear evidence-chain view + beginning→ending cash reconciliation |
+| PR8 — readable report package + export | #867 | human-readable package view + pinned-version export MVP (terminal goal); pairs with #705 |
+| PR9 — boundary & naming cleanup | #865 | stop the Reports cockpit leaking into Advanced; unify the reconciliation-coverage term; fix mislabels |
+| PR10 — manual provenance labeling | #868 | Imported/Manual/Derived provenance badges + controlled asset source; pairs with #706 |
 
-Acceptance criteria for PR2/PR3 slices are added to this document when those
-slices land, so every registered AC has a behavioral test in the same change.
+Acceptance criteria for a slice are added to this document when that slice
+lands, so every registered AC has a behavioral test in the same change. PR1–PR5
+ACs are registered below; the planned PR6–PR10 ACs live in their sub-issues
+(#864–#868) until each lands.
+
+### Planned slices (PR6–PR10)
+
+The first five slices delivered the everyday-user *information architecture and
+core flow*. The remaining slices close the gap between that flow and the two
+vision pillars it must serve — **Axiom B** (automation by default, attention only
+on the low-confidence tail) and **source→ledger→report traceability** — plus the
+**terminal goal** (a readable, exportable report package).
+
+- **PR6 — confidence & attention surface** (#864): make confidence a first-class,
+  navigable concept — one confidence-ranked attention queue plus a Home trust
+  meter — instead of the same signal scattered across statement score, txn
+  high/medium/low, match score, and balance validation. Registers AC22.6.x on
+  landing.
+- **PR7 — close the traceability loop** (#866): wire cash-flow amounts to the
+  lineage drawer (only Balance Sheet / Income Statement have it today) and turn
+  the evidence chain into a readable ordered path. Registers AC22.7.x on landing.
+- **PR8 — readable report package + export** (#867): turn `reports/package` from a
+  developer-facing dump into a readable, exportable package — the product's
+  terminal deliverable. Pairs with #705. Registers AC22.8.x on landing.
+- **PR9 — boundary & naming cleanup** (#865): stop the Reports cockpit from
+  linking everyday users back into Advanced, and unify the reconciliation-coverage
+  term and other mislabels. Registers AC22.9.x on landing.
+- **PR10 — manual provenance labeling** (#868): give every value an honest
+  Imported/Manual/Derived badge so manual data never masquerades as imported
+  proof. Pairs with #706. Registers AC22.10.x on landing.
 
 ## Acceptance Criteria
 
