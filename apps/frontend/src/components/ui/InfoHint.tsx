@@ -18,6 +18,8 @@ export const GLOSSARY = {
     consistency_check:
         "An automatic check for duplicates, transfers, and anomalies before matches are approved.",
     match_score: "How confident we are that a bank transaction and a ledger entry are the same thing (0–100).",
+    reconciliation_coverage:
+        "The share of your bank transactions we've matched to a ledger entry. Higher means more of your data is reconciled and trustworthy.",
 } as const;
 
 export type GlossaryTerm = keyof typeof GLOSSARY;

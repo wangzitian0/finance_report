@@ -151,7 +151,7 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.3.1 | The `/reports` front section renders exactly four report blocks: Balance Sheet, Income Statement, Annualized Income, and Statistics Accuracy (reconciliation coverage / unmatched count) | `reportsCockpit.test.tsx` | P1 |
+| AC22.3.1 | The `/reports` front section renders exactly four report blocks: Balance Sheet, Income Statement, Annualized Income, and Reconciliation coverage (reconciliation match rate / unmatched count) | `reportsCockpit.test.tsx` | P1 |
 | AC22.3.2 | All other reports (Cash Flow, Personal Report Package, and any future reports) live behind a single "More" control, not the front section | `reportsCockpit.test.tsx` | P1 |
 | AC22.3.3 | `GET /api/reports/account-lineage` returns the user-scoped posted/reconciled journal lines that contribute to an account's balance for the period, each carrying a `journal_line` evidence anchor, with Decimal-safe signed amounts | `test_account_lineage.py` | P1 |
 | AC22.3.4 | A reusable lineage drill-down component lets a user click any amount on the Balance Sheet or Income Statement, list the contributing journal lines, and open the full evidence chain (journal line → bank statement transaction → atomic transaction → source document) | `lineagePanel.test.tsx`, `balanceSheetDrilldown.test.tsx` | P1 |
@@ -187,3 +187,19 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.5.4 | User-facing review-surface headings use plain language and do not expose internal "Stage 2" or raw score-band wording in their titles | `reviewBackLinks.test.tsx` | P1 |
 | AC22.5.5 | Core jargon terms (balance "drift"/"balanced", "needs review", transfer pair, anomaly, duplicate, consistency check, match score) expose a plain-language explanation through an accessible `InfoHint` affordance | `infoHint.test.tsx` | P1 |
 | AC22.5.6 | The Home surfaces a single primary next-action with overlapping reconciliation links de-duplicated, and the Chat page heading reads "AI Advisor" | `dashboardPage.test.tsx`, `ChatPageClient.test.tsx` | P1 |
+
+### AC22.9 — Everyday/Advanced Boundary And Naming Unification
+
+> PR9 slice (#865). The IA folds accounting modules into Advanced, but the
+> Reports cockpit still linked an everyday user into the Advanced reconciliation
+> page, and the same reconciliation match-rate was shown under three different
+> names ("Data health" on Home, "Statistics Accuracy" on Reports). This slice
+> keeps the cockpit in the reports context and unifies the term. (The `/assets`
+> and `/events` mislabels noted in review are already handled by permanent
+> redirects, so they are out of scope here.)
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.9.1 | The Reports cockpit's reconciliation-coverage block stays in the reports context and does not link into the Advanced `/reconciliation` surface | `reportsCockpit.test.tsx` | P1 |
+| AC22.9.2 | The reconciliation match-rate is shown under a single term ("Reconciliation coverage") on both Home and Reports, backed by one shared `InfoHint` glossary entry | `dashboardPage.test.tsx`, `reportsCockpit.test.tsx`, `infoHint.test.tsx` | P1 |
+| AC22.9.3 | The "Annualized Income" cockpit card's destination matches its label (it opens the report package and the caption says so), with no silent label/destination mismatch | `reportsCockpit.test.tsx` | P1 |

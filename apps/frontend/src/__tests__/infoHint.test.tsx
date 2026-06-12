@@ -24,4 +24,13 @@ describe("InfoHint (EPIC-022 AC22.5.5)", () => {
             expect(GLOSSARY[term]).toBeTruthy();
         }
     });
+
+    it("AC22.9.2 exposes a single reconciliation-coverage term for the unified label", () => {
+        // Home and Reports both render "Reconciliation coverage" backed by this
+        // one glossary entry, replacing the old divergent "Data health" /
+        // "Statistics Accuracy" wording.
+        expect(GLOSSARY.reconciliation_coverage).toBeTruthy();
+        render(<InfoHint term="reconciliation_coverage" label="Reconciliation coverage" />);
+        expect(screen.getByRole("tooltip")).toHaveTextContent(GLOSSARY.reconciliation_coverage);
+    });
 });
