@@ -78,10 +78,13 @@ test.describe("AC22.6.4 attention surface smoke", () => {
       await expect(page.getByRole("heading", { name: "Needs your attention" })).toBeVisible({
         timeout: COLD_ROUTE_TIMEOUT_MS,
       });
-      // Unmatched (confidence 0) sorts above the parsed statement.
-      const firstRow = page.getByRole("link").first();
-      await expect(firstRow).toContainText("unmatched");
+      // Both the reconciliation and statement-review sources render as rows
+      // (confidence-ordering itself is covered by attention.test.ts unit tests).
+      await expect(page.getByText(/unmatched transaction/i)).toBeVisible();
       await expect(page.getByText("march-statement.pdf")).toBeVisible();
+      // Each row deep-links to its action surface.
+      await expect(page.locator('a[href="/statements/stmt-1/review"]')).toBeVisible();
+      await expect(page.locator('a[href="/reconciliation/unmatched"]')).toBeVisible();
 
       await expectNoDocumentHorizontalScroll(page);
     });
