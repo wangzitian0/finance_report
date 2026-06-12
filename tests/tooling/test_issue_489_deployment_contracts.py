@@ -138,12 +138,17 @@ def test_postgres_and_redis_iac_services_have_vault_gated_runtime_contracts() ->
         assert ". /secrets/.env" in startup
 
         assert vault_agent["image"] == "hashicorp/vault:1.15"
-        assert "VAULT_APP_TOKEN is required" in shell_text(vault_agent["entrypoint"])
+        # AppRole auth (the token_file/VAULT_APP_TOKEN model was retired in the
+        # vault-agent AppRole migration): the agent requires role_id + secret_id.
+        assert "VAULT_ROLE_ID and VAULT_SECRET_ID are required" in shell_text(
+            vault_agent["entrypoint"]
+        )
         assert "exec vault agent -config=/etc/vault/vault-agent.hcl" in shell_text(
             vault_agent["entrypoint"]
         )
         assert "VAULT_ADDR" in vault_agent["environment"]
-        assert "VAULT_APP_TOKEN" in vault_agent["environment"]
+        assert "VAULT_ROLE_ID" in vault_agent["environment"]
+        assert "VAULT_SECRET_ID" in vault_agent["environment"]
         assert "test -s /vault/secrets/.env" in shell_text(
             vault_agent["healthcheck"]["test"]
         )
