@@ -140,10 +140,10 @@ function StatCard({ title, icon: Icon, href, value, caption, infoTerm }: StatCar
             <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)] mb-3">
                 <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
             </div>
-            <h3 className="font-semibold text-[var(--accent)] mb-1 inline-flex items-center">
-                {title}
+            <div className="mb-1 flex items-center">
+                <h3 className="font-semibold text-[var(--accent)]">{title}</h3>
                 {infoTerm && <InfoHint term={infoTerm} label={title} />}
-            </h3>
+            </div>
             <p className="text-xl font-semibold">{value}</p>
             <p className="text-xs text-muted mt-1">{caption}</p>
         </div>
