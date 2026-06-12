@@ -23,7 +23,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -2175,34 +2175,27 @@ async def test_approve_statement_stage1_blocks_missing_account_metadata(db, test
 
 async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(db, test_user):
     """AC3.6.2: Stage 1 posting blocks stale statement account references."""
-    from uuid import uuid4
-
     user_id = test_user.id
-    other_user_account = Account(
-        user_id=uuid4(),
-        name="Other User Bank",
-        type=AccountType.ASSET,
-        currency="SGD",
-    )
-    db.add(other_user_account)
-    await db.flush()
 
     statement = build_statement(user_id, "hash_s1_invalid_account_mapping", 90)
     statement.status = BankStatementStatus.PARSED
-    statement.account_id = other_user_account.id
+    statement.account_id = uuid4()
     statement.closing_balance = Decimal("120.00")
     db.add(statement)
-    await db.flush()
-    statement_id = statement.id
-
-    await add_txn(
-        db,
-        statement_id,
-        txn_date=date(2025, 1, 6),
-        description="Salary",
-        amount=Decimal("20.00"),
-        direction="IN",
-    )
+    try:
+        await db.execute(text("SET LOCAL session_replication_role = replica"))
+        await db.flush()
+        statement_id = statement.id
+        await add_txn(
+            db,
+            statement_id,
+            txn_date=date(2025, 1, 6),
+            description="Salary",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    finally:
+        await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
     await db.commit()
 
     with pytest.raises(HTTPException) as exc:

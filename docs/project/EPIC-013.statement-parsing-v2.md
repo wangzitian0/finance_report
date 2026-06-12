@@ -198,7 +198,7 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC13.10.1 | Source type stamped on manual entry creation | `test_source_type_stamped_on_create` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
-| AC13.10.2 | Auto-match sets source_type=auto_matched | `test_auto_match_sets_source_type` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
+| AC13.10.2 | Auto-match records trusted anchor without mutating posted source_type | `test_auto_match_records_anchor_without_mutating_posted_source_type` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
 | AC13.10.3 | Stage-1 approve promotes to user_confirmed | `test_stage1_approve_promotes_source_type` | `apps/backend/tests/extraction/test_source_type_promotion.py` | P0 |
 | AC13.10.4 | Manual entry wins over auto_parsed in conflict | `test_manual_wins_conflict_resolution` | `apps/backend/tests/reconciliation/test_source_type.py` | P0 |
 | AC13.10.5 | source_type cannot be downgraded | `test_source_type_no_downgrade` | `apps/backend/tests/reconciliation/test_source_type.py` | P1 |

@@ -754,6 +754,13 @@ async def _get_existing_active_match(
     return result.scalar_one_or_none()
 
 
+def _mark_auto_accepted_entry_reconciled(entry: JournalEntry) -> None:
+    was_immutable = entry.status in (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
+    entry.status = JournalEntryStatus.RECONCILED
+    if not was_immutable:
+        promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
+
+
 def _find_transfer_candidates(
     pending_txns: list[AtomicTransaction],
     atomic_txns: list[JournalEntry],
@@ -1210,8 +1217,7 @@ async def execute_matching(
                 matched_txn_ids.add(txn.id)
                 if status == ReconciliationStatus.AUTO_ACCEPTED:
                     if best_entry.status != JournalEntryStatus.VOID:
-                        best_entry.status = JournalEntryStatus.RECONCILED
-                        promote_entry_source_type(best_entry, JournalEntrySourceType.AUTO_MATCHED)
+                        _mark_auto_accepted_entry_reconciled(best_entry)
 
     # Phase 2: Normal Matching (existing logic)
     # Skip transactions already matched in Phase 1 (transfer detection)
@@ -1325,8 +1331,7 @@ async def execute_matching(
             )
             for entry in result.scalars():
                 if entry.status != JournalEntryStatus.VOID:
-                    entry.status = JournalEntryStatus.RECONCILED
-                    promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
+                    _mark_auto_accepted_entry_reconciled(entry)
 
     # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
     # Find and pair transfers automatically per processing_account.md

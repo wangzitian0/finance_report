@@ -19,6 +19,7 @@ from src.models import (
     JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
+    ReconciliationMatchJournalEntry,
     StatementSummary,
     TransactionDirection,
     UploadedDocument,
@@ -211,8 +212,8 @@ async def test_all_four_source_type_values_accepted_by_api(
     assert response.json()["source_type"] == source_type
 
 
-async def test_auto_match_sets_source_type(db: AsyncSession) -> None:
-    """AC13.10.2: Auto-accepted reconciliation promotes source_type=auto_matched."""
+async def test_auto_match_records_anchor_without_mutating_posted_source_type(db: AsyncSession) -> None:
+    """AC13.10.2 AC18.11.1: Auto-accepted reconciliation records a trusted match anchor."""
     user = User(email=f"auto-match-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
     await db.flush()
@@ -238,7 +239,9 @@ async def test_auto_match_sets_source_type(db: AsyncSession) -> None:
 
     assert len(matches) == 1
     assert entry.status == JournalEntryStatus.RECONCILED
-    assert entry.source_type == JournalEntrySourceType.AUTO_MATCHED
+    assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
+    link = await db.get(ReconciliationMatchJournalEntry, (matches[0].id, entry.id))
+    assert link is not None
 
 
 async def test_manual_wins_conflict_resolution(db: AsyncSession) -> None:
