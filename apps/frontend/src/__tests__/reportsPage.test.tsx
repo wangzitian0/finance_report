@@ -22,7 +22,8 @@ beforeEach(() => {
       return Promise.resolve({ annualized_total: "120000.00", currency: "SGD" })
     }
     if (path === "/api/reconciliation/stats") {
-      return Promise.resolve({ match_rate: 0.92, unmatched_transactions: 3 })
+      // match_rate is a 0–100 percentage from the backend, not a fraction.
+      return Promise.resolve({ match_rate: 92, unmatched_transactions: 3 })
     }
     return Promise.resolve({})
   })

@@ -34,7 +34,9 @@ export default function ReportsPage() {
         };
     }, []);
 
-    const matchRate = stats ? Math.round((stats.match_rate ?? 0) * 100) : null;
+    // `match_rate` is already a 0–100 percentage from the backend
+    // (matched / total * 100), so it must not be multiplied by 100 again.
+    const matchRate = stats ? Math.round(stats.match_rate ?? 0) : null;
 
     return (
         <div className="p-6">
