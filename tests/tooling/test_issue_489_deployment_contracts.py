@@ -278,7 +278,11 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     assert "name: In-runner Preview E2E" in workflow
     assert "python tools/pr_preview_lifecycle.py" in workflow
     assert "--action cleanup" in workflow
-    assert "Deploy preview lifecycle" not in workflow
+    # Persistent preview deploys (non-blocking) after the in-runner E2E gate,
+    # building from source on the Dokploy host; the gate itself never polls the
+    # deployed URL for readiness.
+    assert "Deploy preview lifecycle" in workflow
+    assert "--action deploy" in workflow
     assert "Wait for API readiness" not in workflow
     assert 'echo "S3_BUCKET=statements"' in workflow or "S3_BUCKET:-statements" in read(
         "docker-compose.yml"
@@ -296,7 +300,7 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
         'pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "(smoke or e2e) and not llm"'
         in workflow
     )
-    assert "No persistent Dokploy URL or PR preview image is created." in workflow
+    assert "no PR preview image is pushed" in workflow
 
     assert 'wait_for_endpoint "API Health" "$BASE_URL/api/health"' in smoke
     assert 'wait_for_endpoint "Frontend Ready" "$BASE_URL/"' in smoke

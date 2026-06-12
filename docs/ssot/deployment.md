@@ -14,7 +14,7 @@ Finance Report uses **two git repositories** for configuration:
 | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
 | **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
-| **PR preview** | `/docker-compose.yml` + `/docker-compose.ci-e2e.yml` | GitHub-runner preview after successful PR CI; no registry push and no persistent Dokploy URL |
+| **PR preview** | in-runner: `/docker-compose.yml` + `/docker-compose.ci-e2e.yml`; persistent: `/docker-compose.pr-preview.yml` | After successful PR CI: in-runner smoke/E2E (merge authority), then a non-blocking persistent Dokploy preview built from source on the host (no registry push) at `report-pr-<N>.<domain>` |
 | **Staging/Production** | `/repo/finance_report/.../compose.yaml` | Production with Vault secrets |
 
 The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2).
@@ -25,9 +25,11 @@ The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.
 - Env vars for staging/prod stored in HashiCorp Vault
 - Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`.
 - Container names include env suffix (e.g., `-staging`)
-- Historical Dokploy PR previews used `/docker-compose.pr-preview.yml`; the
-  current default preview path only uses it for cleanup/reconciliation
-  compatibility and does not create new Dokploy preview deployments.
+- Persistent Dokploy PR previews use `/docker-compose.pr-preview.yml`, deployed
+  non-blocking after the in-runner E2E gate passes. Dokploy clones the PR branch
+  and builds backend/frontend from source on the host (`up -d --build`); no GHCR
+  image is pulled or pushed. The preview persists until PR close, then is removed
+  by native `compose.delete`.
 
 ---
 
@@ -168,24 +170,21 @@ effective runtime state against the requested allowlist; do not log full API
 responses or full environment templates.
 
 VPS disk hygiene is not a GitHub Actions SSH responsibility. Dokploy owns the
-operational schedule through a `server` Schedule Job managed by
-`tools/vps_host_hygiene.py --ensure-dokploy-schedule`. The job prunes generic
-Docker and journal garbage, prunes all unused Docker networks, and removes PR
-preview Docker resources whose PR number is absent from the open-PR allowlist
-fetched from the public GitHub pulls API. If GitHub open-PR discovery is
-unavailable, the job falls back to keeping PR preview Docker resources created
-within the last 3 days or belonging to the most recent 3 PR numbers. Unused
-Docker networks are not age-gated because
-commit-scoped PR preview retries can leave orphan networks that exhaust Docker's
-predefined address pools before disk retention thresholds are reached; Docker
-does not remove networks attached to running containers. PR preview
-commit-scoped container names such as `finance-report-backend-pr-738-<sha12>`
-are recognized as preview resources. Preview containers in `restarting`,
-`exited`, `dead`, `created`, or Docker `unhealthy` state are deleted even inside
-the normal age/recent retention window because those orphaned runtimes already
-fail the infra watchdog and cannot be treated as healthy rollback targets. PR
-preview workflows only create, update, deploy, delete, and reconcile Dokploy
-compose resources.
+operational schedule through a `dokploy-server` Schedule Job managed by
+`tools/vps_host_hygiene.py --ensure-dokploy-schedule`. The `dokploy-server` type
+is mandatory: the legacy `server` type with a null `serverId` is accepted by
+`schedule.create` but never executes the command — a silent no-op that
+previously let orphaned resources accumulate. The job is **generic-only**: it
+prunes aged stopped non-preview containers, build cache, unused images, all
+unused Docker networks, oversized Docker json logs, and vacuums the systemd
+journal. Unused Docker networks are not age-gated because Docker's predefined
+address pools can be exhausted by orphan networks before disk retention
+thresholds are reached; Docker does not remove networks attached to running
+containers. PR preview environments are reaped natively by Dokploy
+`compose.delete` (reliable since Dokploy v0.29.x), not by host hygiene; the
+preview container-name pattern is retained only to *exclude* Dokploy-owned
+preview containers from generic stopped-container pruning. PR preview workflows
+only create, update, deploy, delete, and reconcile Dokploy compose resources.
 
 PR preview no longer creates PR-scoped GHCR images. Immediate PR-close cleanup
 therefore does not delete image tags. The scheduled cleanup still prunes legacy
@@ -199,14 +198,13 @@ python tools/vps_host_hygiene.py \
   --ensure-dokploy-schedule \
   --api-url https://cloud.zitian.party/api \
   --api-key "$DOKPLOY_API_KEY" \
-  --server-id "$DOKPLOY_SERVER_ID"
+  --server-id null
 ```
 
-Use `--print-dokploy-schedule-payload --server-id "$DOKPLOY_SERVER_ID"` to
-inspect the exact payload without mutating Dokploy. The default retention policy
-uses `--github-repository wangzitian0/finance_report` for open-PR discovery and
-falls back to `--pr-preview-max-age-days 3 --pr-preview-keep-recent 3` only when
-GitHub discovery is unavailable.
+For the local Dokploy host the schedule is `dokploy-server`-scoped and needs no
+real server id; pass `--server-id null` (it normalizes to a null `serverId`).
+Use `--print-dokploy-schedule-payload --server-id null` to inspect the exact
+payload without mutating Dokploy.
 
 **Hotfix flow**:
 ```bash

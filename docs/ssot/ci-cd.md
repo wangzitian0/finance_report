@@ -362,31 +362,41 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
   timed-out, non-PR, forked, or already-closed CI runs do not create a preview.
 - PR preview does not inject `ZAI_API_KEY`; it validates app wiring without
   real GLM/OCR provider calls.
-- PR preview does not build, push, preflight, or delete PR preview images. The
-  `build-preview-backend-image`, `build-preview-frontend-image`,
-  `gate-cheap-ci`, GHCR preflight, and immediate GHCR delete jobs are removed.
-  The post-merge staging ladder remains the first place deployed images are
-  born and validated.
+- PR preview does not push, preflight, pull, or delete PR preview images, and it
+  does not build images in CI. The `build-preview-backend-image`,
+  `build-preview-frontend-image`, `gate-cheap-ci`, and GHCR preflight/delete
+  jobs are removed. The post-merge staging ladder remains the first place
+  registry images are born, pushed, and validated.
 - The runner stack uses `docker-compose.yml:docker-compose.ci-e2e.yml`,
   `COMPOSE_PROFILES=infra,app`, `APP_URL=http://localhost:8080`, and
   `GIT_COMMIT_SHA=<PR head SHA>`. The runner stack waits for `/api/health` before smoke/E2E, caps readiness at 300 seconds, emits compose logs on
   failure, and then always runs `docker compose down --volumes
   --remove-orphans`.
-- `tools/pr_preview_lifecycle.py` remains the single owner for legacy Dokploy
-  cleanup and scheduled reconciliation. The workflow does not hand-roll
-  separate Dokploy cleanup shell blocks because cleanup and reconciliation must
+- After the in-runner E2E gate passes, a non-blocking `deploy-preview` job
+  deploys a persistent per-PR Dokploy preview. It is GitHub-source: Dokploy
+  clones the PR branch and runs `docker compose ... up -d --build` so the
+  backend/frontend are **built from the PR source on the Dokploy host** — no
+  GHCR image is pulled or pushed. The job is `continue-on-error` and is not a
+  required check, so a preview failure never blocks the PR; the in-runner E2E is
+  the merge authority. The persistent URL is `https://report-pr-<N>.<domain>`.
+- `tools/pr_preview_lifecycle.py` is the single owner for preview deploy,
+  cleanup, and scheduled reconciliation. The workflow does not hand-roll
+  separate Dokploy shell blocks because deploy, cleanup, and reconciliation must
   share the same naming, metadata, logging, and redaction contract.
 - PR preview Dokploy API responses are parsed for required fields only.
   Workflows must not print raw Dokploy response JSON because compose responses
   can include environment data and refresh tokens.
-- PR preview result comments and context artifacts state that no persistent
-  Dokploy URL or PR preview image was created. The artifact records
-  `preview_runtime=github-runner-compose`, `persistent_preview_url=none`,
-  `registry_image_push=false`, and `dokploy_deploy=false`.
-- Legacy Dokploy preview cleanup runs on PR close/merge, failed CI, cancelled
-  CI, timed-out CI, and before a new successful runner preview. Cleanup is
-  idempotent and uses `tools/pr_preview_lifecycle.py --action cleanup` by PR
-  number/compose name rather than broad volume pruning.
+- The in-runner E2E result comment and context artifact record
+  `preview_runtime=github-runner-compose`,
+  `persistent_preview_url=https://report-pr-<N>.<domain>`,
+  `registry_image_push=false`, and
+  `dokploy_deploy=after-e2e-non-blocking-build-from-source`. The persistent
+  preview URL is posted as a separate non-blocking comment.
+- Persistent preview cleanup runs on PR close/merge, failed CI, cancelled CI,
+  and timed-out CI via `tools/pr_preview_lifecycle.py --action cleanup` (native
+  Dokploy `compose.delete`) by PR number/compose name rather than broad volume
+  pruning. The deploy path is get-or-create + redeploy, so it updates the
+  preview in place across commits without a pre-deploy delete.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
 - PR preview non-LLM E2E is a strict preview-relevant subset: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, `-n 4` parallelism, and explicit paths limited to `tests/e2e/test_core_journeys.py` plus `tests/e2e/test_e2e_flows.py::test_full_navigation`. Broader business regression paths, provider-sensitive paths, and state-sensitive registration or statement workflows remain staging/post-merge responsibilities.
 - The shared `.github/actions/setup-e2e-tests` action owns E2E Python import setup. It must export the repository root through `PYTHONPATH` via `$GITHUB_ENV` before preview, staging, AI/OCR, or production E2E pytest commands run, because `tests/e2e/conftest.py` imports shared helpers through the `tests.e2e.*` package path while pytest may choose `tests/e2e` as its root directory.
@@ -399,9 +409,9 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
   cleanup. Scheduled reconciliation must not own generic host hygiene, global
   Docker volume pruning, `docker system prune --volumes`, build-cache pruning,
   image pruning, or journal vacuuming.
-- `tools/cleanup_pr_preview_resources.py` is a deprecated compatibility entry point and must not perform SSH cleanup or host-wide Docker/journal pruning. Closed-PR leftovers use `tools/pr_preview_lifecycle.py --action reconcile`; host hygiene uses the Dokploy server schedule managed by `tools/vps_host_hygiene.py --ensure-dokploy-schedule`.
+- `tools/cleanup_pr_preview_resources.py` is a deprecated compatibility entry point and must not perform SSH cleanup or host-wide Docker/journal pruning. Closed-PR leftovers use `tools/pr_preview_lifecycle.py --action reconcile`; host hygiene uses the Dokploy `dokploy-server` schedule managed by `tools/vps_host_hygiene.py --ensure-dokploy-schedule`.
 - PR preview containers created from `docker-compose.yml` use the `json-file` logging driver with bounded `max-size` and `max-file` options so Docker container logs cannot grow without limit between scheduled cleanup runs.
-- Generic VPS host hygiene runs as a Dokploy `server` Schedule Job. It prunes old stopped non-preview containers, old build cache, old unused images, all unused Docker networks, oversized Docker json logs, and systemd journal retention. Unused Docker networks are not age-gated because commit-scoped PR preview retries can leave orphan networks that exhaust Docker's predefined address pools before disk age thresholds are reached; Docker will not remove networks attached to running containers. It also removes PR preview Docker containers and compose volumes whose PR number is not in the open-PR allowlist fetched from the public GitHub pulls API. If GitHub open-PR discovery is unavailable, it falls back to the retention window and keeps PR preview resources created within the last 3 days or among the most recent 3 PRs. Commit-scoped PR preview container names such as `finance-report-backend-pr-738-<sha12>` must be recognized as preview resources, and preview containers in `restarting`, `exited`, `dead`, `created`, or Docker `unhealthy` state are removed even inside the fallback retention window so orphaned closed-PR runtimes cannot keep the infra watchdog red. This keeps host disk policy independent from GitHub Actions SSH access while still using Dokploy as the operational scheduler.
+- Generic VPS host hygiene runs as a Dokploy `dokploy-server` Schedule Job. The `dokploy-server` type is mandatory: the legacy `server` type with a null `serverId` is accepted by `schedule.create` but never executes the command — a silent no-op that previously let orphaned resources accumulate. It prunes old stopped non-preview containers, old build cache, old unused images, all unused Docker networks, oversized Docker json logs, and systemd journal retention. Unused Docker networks are not age-gated because Docker's predefined address pools can be exhausted by orphan networks before disk age thresholds are reached; Docker will not remove networks attached to running containers. Host hygiene is **generic-only**: it does not fetch open PRs or remove PR preview containers/volumes. PR preview environments are reaped natively by Dokploy `compose.delete` (reliable since Dokploy v0.29.x); the `PR_PREVIEW_CONTAINER_PATTERN` is retained solely to *exclude* Dokploy-owned preview containers from generic stopped-container pruning. This keeps host disk policy independent from GitHub Actions SSH access while using Dokploy as the operational scheduler.
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 **Production release dry-run** (`.github/workflows/production-release.yml`):

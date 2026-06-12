@@ -40,6 +40,11 @@ env:
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   TEST_ENV_ID: -fzh5EGJN74I1AjNEpVUr
   INTERNAL_DOMAIN: zitian.party
+  # Local build tags for the source-built preview (never pulled/pushed) + the
+  # Dokploy GitHub integration that clones the PR branch for the host build.
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
+  GITHUB_INTEGRATION_ID: 126refcRlCoWj6pmPXElU
 
 jobs:
   setup:
@@ -224,28 +229,110 @@ jobs:
           print(f"pr_preview_reason={reasons['pr-preview']}")
           PY
 
-  legacy-cleanup:
-    name: Remove Legacy Dokploy Preview
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: setup
+  deploy-preview:
+    name: Deploy Persistent Preview
+    # Non-blocking persistent preview. Runs only after the in-runner E2E gate
+    # passes, then builds the PR's source on the Dokploy host (GitHub-source
+    # deploy, no image pull/push) and persists until the PR is closed. It never
+    # blocks the PR: the in-runner E2E is the merge authority; this job reports
+    # the preview URL via PR comment. Image building + staging/prod promotion
+    # happen only post-merge (staging-deploy / production-release).
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.e2e.result == 'success'
+    needs: [setup, e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Cleanup legacy preview lifecycle
+      - name: Deploy preview lifecycle (build from source on Dokploy host)
+        id: deploy
         continue-on-error: true
+        timeout-minutes: 25
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          BRANCH_NAME: ${{ needs.setup.outputs.head_branch }}
+          PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json
+          PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "600"
         run: |
           python tools/pr_preview_lifecycle.py \
-            --action cleanup \
+            --action deploy \
             --pr-number "${{ needs.setup.outputs.pr_number }}" \
             --compose-name "${{ needs.setup.outputs.compose_name }}" \
             --environment-id="${{ env.TEST_ENV_ID }}" \
             --api-url "${{ env.DOKPLOY_API_URL }}" \
-            --api-key "$DOKPLOY_API_KEY"
+            --api-key "$DOKPLOY_API_KEY" \
+            --github-integration-id "${{ env.GITHUB_INTEGRATION_ID }}" \
+            --branch "$BRANCH_NAME" \
+            --commit-sha "${{ needs.setup.outputs.head_sha }}" \
+            --registry "${{ env.REGISTRY }}" \
+            --image-prefix "${{ env.IMAGE_PREFIX }}" \
+            --internal-domain "${{ needs.setup.outputs.internal_domain }}"
+
+      - name: Upload preview deploy context
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-preview-deploy-context
+          path: ci-context/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Comment persistent preview URL
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+          PREVIEW_URL: ${{ needs.setup.outputs.preview_app_url }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          HEAD_SHA: ${{ needs.setup.outputs.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const marker = '<!-- pr-preview-deploy -->';
+            const ok = process.env.DEPLOY_OUTCOME === 'success';
+            const url = process.env.PREVIEW_URL;
+            const title = ok
+              ? 'Persistent Preview Deployed'
+              : 'Persistent Preview Deploy Failed (non-blocking)';
+            const line = ok
+              ? `Preview URL: ${url}`
+              : `Deploy outcome: \`${process.env.DEPLOY_OUTCOME || 'skipped'}\` — see [logs](${process.env.RUN_URL}). This is non-blocking; the in-runner E2E gate is the merge authority.`;
+            const body = `${marker}
+            ## ${title}
+
+            ${line}
+
+            Built from this PR's source on the Dokploy host (no image pull/push). Persists until the PR is closed, then released via \`compose.delete\`.
+
+            - Head SHA: \`${process.env.HEAD_SHA}\`
+            - Logs: [workflow run](${process.env.RUN_URL})`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+            });
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes(marker)
+            );
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: Number(process.env.PR_NUMBER),
+                body,
+              });
+            }
 
   e2e:
     name: In-runner Preview E2E
@@ -369,9 +456,9 @@ jobs:
             echo "pr_preview_required=${{ needs.setup.outputs.pr_preview_required }}"
             echo "pr_preview_reason=${{ needs.setup.outputs.pr_preview_reason }}"
             echo "preview_runtime=github-runner-compose"
-            echo "persistent_preview_url=none"
+            echo "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}"
             echo "registry_image_push=false"
-            echo "dokploy_deploy=false"
+            echo "dokploy_deploy=after-e2e-non-blocking-build-from-source"
             echo "cleanup=compose-down-volumes-remove-orphans"
             echo "app_url=http://localhost:8080"
             echo "api_health_url=http://localhost:8080/api/health"
@@ -415,9 +502,9 @@ jobs:
             |------|--------|
             | In-runner full-stack preview | \`${result}\` |
 
-            This preview runs after the matching PR CI workflow succeeds. It starts the full stack inside the GitHub runner, runs provider-free smoke/E2E, and destroys the stack in the same job.
+            This in-runner check runs after the matching PR CI workflow succeeds. It starts the full stack inside the GitHub runner, runs provider-free smoke/E2E, and destroys the stack in the same job. It is the merge authority.
 
-            No persistent Dokploy URL or PR preview image is created.
+            When it passes, a non-blocking persistent preview is then built from this PR's source on the Dokploy host (no PR preview image is pushed) and its URL is posted separately.
 
             **Details:**
             - Branch: \`${process.env.BRANCH_NAME}\`
@@ -491,7 +578,7 @@ jobs:
             echo "compose_name=${{ needs.setup.outputs.compose_name }}"
             echo "action_reason=${{ needs.setup.outputs.action_reason }}"
             echo "triggering_ci_conclusion=${{ needs.setup.outputs.triggering_ci_conclusion }}"
-            echo "cleanup_action=legacy-dokploy-preview-cleanup"
+            echo "cleanup_action=dokploy-preview-compose-delete"
             echo "pr_preview_images=not-created"
           } > ci-context/pr-preview-cleanup-context.txt
 
@@ -516,8 +603,8 @@ jobs:
 
             Temporary resources for this PR have been released or reconciled:
 
-            - Legacy Dokploy stack: \`${{ needs.setup.outputs.compose_name }}\` (${process.env.CLEANUP_OUTCOME || 'skipped'})
-            - PR preview images: not created by the current preview workflow
+            - Persistent Dokploy preview: \`${{ needs.setup.outputs.compose_name }}\` removed via \`compose.delete\` (${process.env.CLEANUP_OUTCOME || 'skipped'})
+            - PR preview images: not created by the preview workflow (built from source on the host, never pushed)
             - Trigger: \`${process.env.ACTION_REASON}\`
             - Host Docker leftovers: managed by the Dokploy host hygiene schedule
 
