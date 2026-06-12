@@ -1,6 +1,6 @@
 "use client";
 
-import { Network, X } from "lucide-react";
+import { Network, Printer, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -283,13 +283,25 @@ export default function PersonalReportPackagePage() {
 
       {frameworkSelection}
 
-      <section className="card p-5 mb-6">
+      <section className="card p-5 mb-6 print:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-mono text-muted">package_export</p>
-            <h2 className="font-semibold mt-1">Package CSV</h2>
+            <h2 className="font-semibold">Export</h2>
+            <p className="mt-1 text-sm text-muted">
+              Save a readable copy of this package — pinned to the selected framework and report date.
+            </p>
           </div>
-          <ExportCsvButton path={exportPath} />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="btn-secondary inline-flex items-center gap-2 text-sm"
+            >
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              Print / Save as PDF
+            </button>
+            <ExportCsvButton path={exportPath} />
+          </div>
         </div>
       </section>
 
