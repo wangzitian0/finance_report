@@ -588,7 +588,7 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
-    await waitFor(() => expect(screen.getByText("Data health")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Reconciliation coverage")).toBeInTheDocument())
     expect(screen.getByText("80%")).toBeInTheDocument()
     expect(screen.queryByText("20%")).not.toBeInTheDocument()
     expect(screen.getByText("16 matched")).toBeInTheDocument()

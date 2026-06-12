@@ -94,7 +94,7 @@ test.describe("AC22.3.6 report cockpit + drill-down smoke", () => {
       await page.setViewportSize({ width, height });
 
       await page.goto("/reports", { waitUntil: "networkidle" });
-      for (const title of ["Balance Sheet", "Income Statement", "Annualized Income", "Statistics Accuracy"]) {
+      for (const title of ["Balance Sheet", "Income Statement", "Annualized Income", "Reconciliation coverage"]) {
         await expect(page.getByText(title, { exact: true })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       }
       await expect(page.getByRole("button", { name: /More reports/i })).toBeVisible();

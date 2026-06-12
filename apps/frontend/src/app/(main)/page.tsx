@@ -369,7 +369,7 @@ export default function HomePage() {
               return (
                 <div className="min-w-[180px]">
                   <div className="flex justify-between text-xs text-muted mb-1">
-                    <span>Data health</span>
+                    <span className="inline-flex items-center">Reconciliation coverage<InfoHint term="reconciliation_coverage" label="Reconciliation coverage" /></span>
                     <span className="font-medium" style={{ color: barColor }}>{pct}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">

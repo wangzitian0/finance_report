@@ -32,14 +32,36 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
   it("AC22.3.1 leads with exactly the four everyday report blocks and their live figures", async () => {
     render(<ReportsPage />)
 
-    for (const title of ["Balance Sheet", "Income Statement", "Annualized Income", "Statistics Accuracy"]) {
+    for (const title of ["Balance Sheet", "Income Statement", "Annualized Income", "Reconciliation coverage"]) {
       expect(screen.getByText(title)).toBeInTheDocument()
     }
 
-    // Annualized Income and Statistics Accuracy surface live numbers.
+    // Annualized Income and Reconciliation coverage surface live numbers.
     await waitFor(() => expect(screen.getByText("92% matched")).toBeInTheDocument())
     expect(screen.getByText("3 unmatched")).toBeInTheDocument()
     expect(screen.getByText(/120,000/)).toBeInTheDocument()
+  })
+
+  it("AC22.9.1 keeps the reconciliation-coverage block in the reports context, not linked into Advanced", async () => {
+    render(<ReportsPage />)
+
+    await waitFor(() => expect(screen.getByText("Reconciliation coverage")).toBeInTheDocument())
+    // The 4th cockpit block must not pull an everyday user into the Advanced
+    // reconciliation surface.
+    expect(screen.queryByRole("link", { name: /Reconciliation coverage/i })).toBeNull()
+    for (const link of screen.queryAllByRole("link")) {
+      expect(link.getAttribute("href")).not.toBe("/reconciliation")
+    }
+  })
+
+  it("AC22.9.3 makes the Annualized Income card's destination match its label", async () => {
+    render(<ReportsPage />)
+
+    const card = screen.getByText("Annualized Income").closest("a")
+    expect(card).not.toBeNull()
+    // It opens the report package, and the caption says so — no silent mismatch.
+    expect(card).toHaveAttribute("href", "/reports/package")
+    expect(screen.getByText(/report package/i)).toBeInTheDocument()
   })
 
   it("AC22.3.2 keeps Cash Flow and the Personal Report Package behind the More control", async () => {

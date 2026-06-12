@@ -61,7 +61,7 @@ describe("ReportsPage", () => {
 
     // The cockpit still renders all four blocks; stat values degrade to "—".
     await waitFor(() => expect(screen.getByText("Annualized Income")).toBeInTheDocument())
-    expect(screen.getByText("Statistics Accuracy")).toBeInTheDocument()
+    expect(screen.getByText("Reconciliation coverage")).toBeInTheDocument()
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1)
   })
 

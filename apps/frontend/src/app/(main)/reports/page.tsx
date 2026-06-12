@@ -6,6 +6,7 @@ import { BarChart2, TrendingUp, DollarSign, FileText, CalendarClock, ShieldCheck
 
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
+import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import type { AnnualizedIncomeResponse, ReconciliationStatsResponse } from "@/lib/types";
 
 // The four reports an everyday user reads (EPIC-022 AC22.3.1). Everything else
@@ -51,14 +52,14 @@ export default function ReportsPage() {
                     icon={CalendarClock}
                     href="/reports/package"
                     value={annualized ? formatCurrencyLocale(annualized.annualized_total, annualized.currency) : "—"}
-                    caption="Projected annual total — opens the full report package"
+                    caption="Projected annual total — see the full breakdown in the report package →"
                 />
                 <StatCard
-                    title="Statistics Accuracy"
+                    title="Reconciliation coverage"
                     icon={ShieldCheck}
-                    href="/reconciliation"
+                    infoTerm="reconciliation_coverage"
                     value={matchRate === null ? "—" : `${matchRate}% matched`}
-                    caption={stats ? `${stats.unmatched_transactions} unmatched` : "Reconciliation coverage"}
+                    caption={stats ? `${stats.unmatched_transactions} unmatched` : "Share of transactions reconciled"}
                 />
             </div>
 
@@ -124,22 +125,28 @@ function ReportNavCard({ title, description, icon: Icon, href }: ReportNavCardPr
 interface StatCardProps {
     title: string;
     icon: React.ComponentType<{ className?: string }>;
-    href: string;
+    /** Optional destination. Omit for a display-only stat that must not pull an
+        everyday user into an Advanced surface (EPIC-022 AC22.9.1). */
+    href?: string;
     value: string;
     caption: string;
+    /** Optional glossary term rendered as an InfoHint next to the title. */
+    infoTerm?: GlossaryTerm;
 }
 
-function StatCard({ title, icon: Icon, href, value, caption }: StatCardProps) {
-    return (
-        <Link href={href}>
-            <div className="card p-5 transition-colors hover:border-[var(--accent)] cursor-pointer h-full">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)] mb-3">
-                    <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
-                </div>
-                <h3 className="font-semibold text-[var(--accent)] mb-1">{title}</h3>
-                <p className="text-xl font-semibold">{value}</p>
-                <p className="text-xs text-muted mt-1">{caption}</p>
+function StatCard({ title, icon: Icon, href, value, caption, infoTerm }: StatCardProps) {
+    const body = (
+        <div className={`card p-5 transition-colors h-full ${href ? "hover:border-[var(--accent)] cursor-pointer" : ""}`}>
+            <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)] mb-3">
+                <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
             </div>
-        </Link>
+            <div className="mb-1 flex items-center">
+                <h3 className="font-semibold text-[var(--accent)]">{title}</h3>
+                {infoTerm && <InfoHint term={infoTerm} label={title} />}
+            </div>
+            <p className="text-xl font-semibold">{value}</p>
+            <p className="text-xs text-muted mt-1">{caption}</p>
+        </div>
     );
+    return href ? <Link href={href}>{body}</Link> : body;
 }
