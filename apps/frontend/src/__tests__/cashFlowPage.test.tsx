@@ -88,6 +88,35 @@ describe("CashFlowPage", () => {
     expect(netCashFlowCard).toHaveTextContent("900.00")
     expect(beginningCashCard).toHaveTextContent("5,000.00")
     expect(endingCashCard).toHaveTextContent("5,900.00")
+
+    // AC22.7.3: beginning + net = ending ties, so it shows a reconciled state.
+    const reconciliation = screen.getByLabelText("Cash reconciliation")
+    expect(reconciliation).toHaveTextContent("✓ Reconciles")
+  })
+
+  it("AC22.7.3 flags cash that does not tie (beginning + net != ending)", async () => {
+    mockedApiFetch.mockResolvedValue({
+      start_date: "2026-01-01",
+      end_date: "2026-02-01",
+      currency: "SGD",
+      operating: [],
+      investing: [],
+      financing: [],
+      summary: {
+        operating_activities: "0",
+        investing_activities: "0",
+        financing_activities: "0",
+        net_cash_flow: "900",
+        beginning_cash: "5000",
+        ending_cash: "6500", // expected 5900, so it drifts by 600
+      },
+    })
+
+    render(<CashFlowPage />)
+
+    const reconciliation = await screen.findByLabelText("Cash reconciliation")
+    expect(reconciliation).toHaveTextContent("⚠ Does not tie")
+    expect(screen.getByText(/differs from the reported ending/i)).toBeInTheDocument()
   })
 
   it("AC16.14.9 renders sankey chart when summary exists", async () => {
