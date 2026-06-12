@@ -53,7 +53,7 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         CheckConstraint(
             "status::text != 'approved' OR ("
             "account_id IS NOT NULL AND "
-            "currency IS NOT NULL AND "
+            "NULLIF(BTRIM(currency), '') IS NOT NULL AND "
             "period_start IS NOT NULL AND "
             "period_end IS NOT NULL AND "
             "opening_balance IS NOT NULL AND "

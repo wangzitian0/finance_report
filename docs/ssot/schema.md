@@ -439,7 +439,7 @@ Stage 1 review/workflow state; per-transaction detail lives in
 **Constraints**:
 - `(user_id, file_hash)` unique to prevent duplicate imports
 - `period_start <= period_end` when both dates are present
-- `status=approved` requires `account_id`, `currency`, `period_start`,
+- `status=approved` requires `account_id`, non-blank `currency`, `period_start`,
   `period_end`, `opening_balance`, and `closing_balance`
 
 **Derived API Surface**:

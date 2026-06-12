@@ -55,7 +55,7 @@ BEGIN
         WHERE status::text = 'approved'
           AND (
             account_id IS NULL
-            OR currency IS NULL
+            OR NULLIF(BTRIM(currency), '') IS NULL
             OR period_start IS NULL
             OR period_end IS NULL
             OR opening_balance IS NULL
@@ -217,7 +217,7 @@ $$
         "statement_summaries",
         "status::text != 'approved' OR ("
         "account_id IS NOT NULL AND "
-        "currency IS NOT NULL AND "
+        "NULLIF(BTRIM(currency), '') IS NOT NULL AND "
         "period_start IS NOT NULL AND "
         "period_end IS NOT NULL AND "
         "opening_balance IS NOT NULL AND "

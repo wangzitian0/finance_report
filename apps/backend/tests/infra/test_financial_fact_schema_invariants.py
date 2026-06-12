@@ -212,6 +212,22 @@ async def test_AC11_18_2_statement_summary_approved_completeness_and_period_orde
         ),
     )
 
+    await _expect_integrity_error(
+        db,
+        StatementSummary(
+            user_id=user_id,
+            file_hash=uuid4().hex,
+            institution="Schema Bank",
+            account_id=account_id,
+            currency="   ",
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            opening_balance=Decimal("100.00"),
+            closing_balance=Decimal("110.00"),
+            status=BankStatementStatus.APPROVED,
+        ),
+    )
+
     approved = StatementSummary(
         user_id=user_id,
         file_hash=uuid4().hex,
@@ -527,6 +543,7 @@ def test_AC11_18_6_migration_preflights_and_risk_contract_are_declared() -> None
     ):
         assert expected in migration_source
 
+    assert "NULLIF(BTRIM(currency), '') IS NULL" in migration_source
     assert "0033_financial_fact_constraints" in risk_source
     assert 'issue: "#845"' in risk_source
     assert "preflight" in risk_source
