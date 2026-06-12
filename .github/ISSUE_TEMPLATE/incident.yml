@@ -1,7 +1,7 @@
 name: "Incident — operational failure"
 description: "A failure in a running environment: outage, breakage, or data-correctness event."
 title: "[incident] "
-labels: ["incident", "priority: critical"]
+labels: ["incident"]
 body:
   - type: markdown
     attributes:
