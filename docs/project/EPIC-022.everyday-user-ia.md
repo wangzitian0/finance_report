@@ -1,8 +1,8 @@
 # EPIC-022: Everyday-User Information Architecture
 
 > **Status**: In Progress — PR1–PR5 landed (IA skeleton, unified inbox, report
-> cockpit + Balance-Sheet/Income-Statement drill-down, hardening, flow guidance),
-> plus the lean-Home & review-mainline fix (#860). Remaining everyday-user slices
+> cockpit + Balance Sheet / Income Statement drill-down, hardening, flow
+> guidance), plus the lean Home and review-flow fix (#860). Remaining everyday-user slices
 > PR6–PR10 (confidence surface, cash-flow drill-down, readable report package,
 > boundary/naming cleanup, manual provenance) are tracked as sub-issues of the
 > root (#836).
