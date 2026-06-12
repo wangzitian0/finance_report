@@ -214,6 +214,20 @@ describe("workflow notification surfaces", () => {
     await waitFor(() => expect(screen.getAllByRole("button", { name: /Workflow events/i })[1]).not.toHaveTextContent("0"))
   })
 
+  it("AC22.6.3 links the notification center to the full confidence-ranked attention queue", async () => {
+    renderWithQuery(<WorkflowNotificationCenter />)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
+    const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
+
+    const link = within(dialog).getByRole("link", { name: /attention queue/i })
+    expect(link).toHaveAttribute("href", "/attention")
+
+    // Following the link closes the notification sheet.
+    fireEvent.click(link)
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Workflow events" })).not.toBeInTheDocument())
+  })
+
   it("AC19.3.5 AC19.8.4 groups inbox events by workflow session timeline and supports lifecycle actions", async () => {
     renderWithQuery(<WorkflowNotificationCenter />)
 

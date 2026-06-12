@@ -398,6 +398,16 @@ export function WorkflowNotificationCenter() {
               }}
             />
           )}
+          {/* EPIC-022 AC22.6.3: the bell connects to the full, confidence-ranked
+              attention queue so the two surfaces stay consistent. */}
+          <Link
+            href="/attention"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-content transition-colors hover:bg-surface-muted"
+          >
+            Open the full attention queue
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
         </div>
       </Sheet>
     </div>

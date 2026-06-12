@@ -195,13 +195,15 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > transactions, and stalled processing transfers — each with its own page and
 > vocabulary. This slice folds those existing read-API signals into one
 > confidence-ranked queue and a Home trust meter, making the low-confidence tail
-> (Axiom B) navigable. The header bell consistency and smoke coverage land in a
-> follow-up.
+> (Axiom B) navigable. AC22.6.1–.2 shipped the queue and meter; AC22.6.3–.4 add
+> the bell connection and smoke coverage.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.6.1 | The `/attention` page folds the open attention sources (Stage 1 statement review, reconciliation review, unmatched transactions, stalled processing transfers) into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state when nothing needs attention | `attention.test.ts`, `attentionQueue.test.tsx` | P1 |
 | AC22.6.2 | The Home renders a trust meter (trusted / needs-confirmation / low-confidence counts) derived from the same attention model and linking to `/attention`, and stays silent when nothing needs attention | `attention.test.ts`, `dashboardTrustMeter.test.tsx` | P1 |
+| AC22.6.3 | The header notification center links to the full `/attention` queue, and the bell stays quiet (no badge) when nothing needs attention | `workflowSurfaces.test.tsx` | P1 |
+| AC22.6.4 | Desktop and mobile smoke covers the `/attention` queue and the Home trust meter without layout overflow | `attention-surface.spec.ts` | P1 |
 
 ### AC22.9 — Everyday/Advanced Boundary And Naming Unification
 
