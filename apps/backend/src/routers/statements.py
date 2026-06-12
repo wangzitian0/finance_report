@@ -47,7 +47,7 @@ from src.services import StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.statement_pipeline import submit_parse_pipeline
-from src.services.statement_posting import auto_create_posted_entries_for_statement
+from src.services.statement_posting import auto_create_posted_entries_for_statement, resolve_statement_posting_account
 from src.services.statement_validation import (
     approve_statement as approve_statement_svc,
     edit_and_approve,
@@ -856,9 +856,13 @@ async def approve_statement_stage1(
 ) -> Stage1ApprovalResponse:
     """Stage 1: Approve statement with balance validation."""
     try:
-        statement = await approve_statement_svc(db, statement_id, user_id)
+        statement = await _get_statement_or_404(db, statement_id, user_id)
         if request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)
+        elif not statement.account_id:
+            await resolve_statement_posting_account(db, statement, user_id)
+
+        statement = await approve_statement_svc(db, statement_id, user_id)
         created_count = await auto_create_posted_entries_for_statement(db, statement, user_id)
         await db.commit()
     except ValueError as e:

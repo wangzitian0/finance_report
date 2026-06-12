@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     Enum as SQLEnum,
     ForeignKey,
@@ -168,6 +169,14 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "managed_positions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "account_id", "asset_identifier", name="uq_managed_positions_user_account_asset"),
+        CheckConstraint("cost_basis >= 0", name="ck_managed_positions_cost_basis_non_negative"),
+        CheckConstraint(
+            "disposal_date IS NULL OR disposal_date >= acquisition_date",
+            name="ck_managed_positions_disposal_after_acquisition",
+        ),
+    )
 
     account_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -253,6 +262,11 @@ class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     __tablename__ = "manual_valuation_snapshots"
     __table_args__ = (
+        CheckConstraint("value > 0", name="ck_manual_valuation_snapshots_value_positive"),
+        CheckConstraint(
+            "recurrence_days IS NULL OR recurrence_days > 0",
+            name="ck_manual_valuation_snapshots_recurrence_days_positive",
+        ),
         UniqueConstraint(
             "user_id",
             "component_type",

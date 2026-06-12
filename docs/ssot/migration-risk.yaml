@@ -170,6 +170,11 @@ migrations:
     risk: medium
     issue: "#844"
     proof: Adds preflight checks, PostgreSQL ledger invariant triggers, an FX-rate check, and void reversal FK; covered by AC2.14 direct DB-bypass tests and the PR Alembic contract.
+  0033_financial_fact_constraints:
+    file: 0033_financial_fact_constraints.py
+    risk: medium
+    issue: "#845"
+    proof: Adds preflight checks plus database CHECK/UNIQUE/partial-index guards for financial facts, statement envelopes, market prices, managed positions, and latest report snapshots; covered by AC11.18 direct DB invariant tests and the PR Alembic contract.
   51aa128d8189:
     file: 51aa128d8189_remove_report_snapshot_constraint.py
     risk: medium

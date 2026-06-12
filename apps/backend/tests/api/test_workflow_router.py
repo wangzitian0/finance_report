@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -152,6 +153,11 @@ def _approved_statement(user_id: UUID, *, account_id: UUID | None = None, update
         account_id=account_id,
         file_hash=uuid4().hex,
         institution="Workflow Readiness Bank",
+        currency="SGD",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("0.00"),
         status=BankStatementStatus.APPROVED,
         stage1_status=Stage1Status.APPROVED,
         balance_validated=True,

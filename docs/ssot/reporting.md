@@ -30,6 +30,18 @@ blockers, notes, and source links. If an input is missing, stale, ambiguous, or
 outside the implemented contract, the report must disclose the limitation or
 block readiness instead of silently filling the gap.
 
+### 1.2 Report Snapshot Determinism
+
+`report_snapshots` stores generated ADS report payloads. Regeneration may keep
+historical non-latest rows for the same report date, but the database prevents
+conflicting published state:
+
+- point-in-time reports have at most one `is_latest=true` row per
+  `(user_id, report_type, as_of_date)`;
+- range reports have at most one `is_latest=true` row per
+  `(user_id, report_type, start_date, as_of_date)`;
+- range snapshots require `start_date <= as_of_date`.
+
 ---
 
 ## 2. Report Types

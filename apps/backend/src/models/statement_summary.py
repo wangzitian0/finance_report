@@ -20,6 +20,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import (
+    CheckConstraint,
     Date,
     DateTime,
     Enum as SQLEnum,
@@ -45,6 +46,21 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     __tablename__ = "statement_summaries"
     __table_args__ = (
         UniqueConstraint("user_id", "file_hash", name="uq_statement_summaries_user_file_hash"),
+        CheckConstraint(
+            "period_start IS NULL OR period_end IS NULL OR period_start <= period_end",
+            name="ck_statement_summaries_period_order",
+        ),
+        CheckConstraint(
+            "status::text != 'approved' OR ("
+            "account_id IS NOT NULL AND "
+            "NULLIF(BTRIM(currency), '') IS NOT NULL AND "
+            "period_start IS NOT NULL AND "
+            "period_end IS NOT NULL AND "
+            "opening_balance IS NOT NULL AND "
+            "closing_balance IS NOT NULL"
+            ")",
+            name="ck_statement_summaries_approved_complete",
+        ),
         Index("idx_statement_summaries_user_account", "user_id", "account_id"),
     )
 

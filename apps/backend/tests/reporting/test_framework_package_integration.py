@@ -418,12 +418,24 @@ async def test_AC19_7_1_statement_only_inputs_do_not_require_framework_policy_re
 ) -> None:
     """AC19.7.1: Statement-only package inputs do not require an empty framework policy result."""
     report_date = date(2026, 5, 31)
+    account = Account(
+        user_id=test_user.id,
+        name="Framework Bank Checking",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
     statement = StatementSummary(
         user_id=test_user.id,
         file_hash=uuid4().hex,
+        account_id=account.id,
         institution="Framework Bank",
+        currency="SGD",
         period_start=date(2026, 5, 1),
         period_end=report_date,
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1200.00"),
         status=BankStatementStatus.APPROVED,
         balance_validated=True,
         validation_error=None,

@@ -514,7 +514,13 @@ async def _load_stored_stock_price(
         select(StockPrice.price, StockPrice.currency, StockPrice.price_date, StockPrice.source)
         .where(StockPrice.symbol == normalized)
         .where(StockPrice.price_date <= requested_date)
-        .order_by(StockPrice.price_date.desc())
+        .order_by(
+            StockPrice.price_date.desc(),
+            StockPrice.created_at.desc(),
+            StockPrice.source.asc(),
+            StockPrice.currency.asc(),
+            StockPrice.id.asc(),
+        )
         .limit(1)
     )
     result = await db.execute(stmt)
