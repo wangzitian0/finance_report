@@ -188,6 +188,21 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.5.5 | Core jargon terms (balance "drift"/"balanced", "needs review", transfer pair, anomaly, duplicate, consistency check, match score) expose a plain-language explanation through an accessible `InfoHint` affordance | `infoHint.test.tsx` | P1 |
 | AC22.5.6 | The Home surfaces a single primary next-action with overlapping reconciliation links de-duplicated, and the Chat page heading reads "AI Advisor" | `dashboardPage.test.tsx`, `ChatPageClient.test.tsx` | P1 |
 
+### AC22.6 — Confidence & Attention As A First-Class Surface
+
+> PR6 slice (#864). "What needs my attention" was scattered across statement
+> confidence scores, balance validation, reconciliation review, unmatched
+> transactions, and stalled processing transfers — each with its own page and
+> vocabulary. This slice folds those existing read-API signals into one
+> confidence-ranked queue and a Home trust meter, making the low-confidence tail
+> (Axiom B) navigable. The header bell consistency and smoke coverage land in a
+> follow-up.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.6.1 | The `/attention` page folds the open attention sources (Stage 1 statement review, reconciliation review, unmatched transactions, stalled processing transfers) into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state when nothing needs attention | `attention.test.ts`, `attentionQueue.test.tsx` | P1 |
+| AC22.6.2 | The Home renders a trust meter (trusted / needs-confirmation / low-confidence counts) derived from the same attention model and linking to `/attention`, and stays silent when nothing needs attention | `attention.test.ts`, `dashboardTrustMeter.test.tsx` | P1 |
+
 ### AC22.9 — Everyday/Advanced Boundary And Naming Unification
 
 > PR9 slice (#865). The IA folds accounting modules into Advanced, but the

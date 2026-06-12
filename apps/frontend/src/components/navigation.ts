@@ -8,6 +8,7 @@ import {
     Landmark,
     Link2,
     MessageSquare,
+    ShieldCheck,
     SlidersHorizontal,
     UploadCloud,
     Wallet,
@@ -48,6 +49,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/": { label: "Home", Icon: Home },
     "/upload": { label: "Upload", Icon: UploadCloud },
     "/notifications": { label: "Notifications", Icon: Bell },
+    "/attention": { label: "Needs attention", Icon: ShieldCheck },
     // Legacy routes redirect to the new IA; keep label/icon mappings so any
     // persisted workspace tabs or breadcrumbs render with the new names.
     "/dashboard": { label: "Home", Icon: Home },
