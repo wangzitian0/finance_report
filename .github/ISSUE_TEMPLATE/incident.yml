@@ -1,0 +1,97 @@
+name: "Incident — operational failure"
+description: "A failure in a running environment: outage, breakage, or data-correctness event."
+title: "[incident] "
+labels: ["incident", "priority: critical"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for **a failure that already happened in a running environment**.
+        Capture it while it's fresh. The two highest-value fields are the **root
+        cause (not the symptom)** and the **follow-ups that stop it recurring**.
+  - type: input
+    id: summary
+    attributes:
+      label: "One-line summary — what broke, when"
+      placeholder: "prod /api served 404 from <time> to <time>"
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      options:
+        - "P0 — outage / data loss / security"
+        - "P1 — major degradation"
+        - "P2 — partial / single-service"
+        - "P3 — minor"
+    validations:
+      required: true
+  - type: dropdown
+    id: status
+    attributes:
+      label: "Status"
+      options:
+        - "investigating"
+        - "mitigated"
+        - "resolved"
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: "Impact — what/who was affected, and for how long"
+      placeholder: |
+        Affected: env / services / users
+        Window: <start> → <end> (duration)
+        Data impact: none / ... — and is the source-of-truth (ODS / MinIO) intact?
+    validations:
+      required: true
+  - type: textarea
+    id: timeline
+    attributes:
+      label: "Timeline — detection → diagnosis → mitigation → resolution"
+      placeholder: |
+        - <t> detected via ...
+        - <t> diagnosed: ...
+        - <t> mitigated by ...
+        - <t> resolved
+    validations:
+      required: true
+  - type: textarea
+    id: root_cause
+    attributes:
+      label: "Root cause — the actual cause, not the symptom"
+      description: "Trace it to the real trigger (e.g. a config/policy change), not the visible effect."
+    validations:
+      required: true
+  - type: textarea
+    id: ruled_out
+    attributes:
+      label: "What it was NOT — rule-outs"
+      description: "What you confirmed was not the cause. Saves the next person the dead ends."
+    validations:
+      required: false
+  - type: textarea
+    id: remediation
+    attributes:
+      label: "Immediate remediation — how it was fixed / mitigated"
+    validations:
+      required: true
+  - type: textarea
+    id: detection_gap
+    attributes:
+      label: "Detection gap — how could we have caught it sooner?"
+      description: "What signal was missing or late? This usually becomes a follow-up."
+    validations:
+      required: false
+  - type: textarea
+    id: followups
+    attributes:
+      label: "Follow-ups / prevention (link the issues)"
+      description: "The durable fixes + detection improvements. Link or open the tracking issues."
+      placeholder: |
+        - [ ] #... durable fix
+        - [ ] #... detection / alerting
+    validations:
+      required: true

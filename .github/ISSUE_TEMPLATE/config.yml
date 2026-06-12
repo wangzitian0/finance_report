@@ -1,0 +1,6 @@
+# Four issue types, each with different requirements:
+#   Issue    — a defect / problem that needs fixing
+#   Task     — committed, scoped work (EPIC → AC → Test → Code → Doc)
+#   Idea     — a proposal to consider (low bar, decision-pending)
+#   Incident — a failure in a running environment (root cause + follow-ups)
+blank_issues_enabled: false

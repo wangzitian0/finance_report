@@ -1,0 +1,61 @@
+name: "Issue — defect / problem"
+description: "Something is wrong, broken, or not behaving as expected and needs fixing."
+title: "[issue] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for **a problem that needs fixing**. For planned work use **Task**,
+        for a proposal use **Idea**, for a failure in a running environment use **Incident**.
+        Check the relevant [SSOT](../../docs/ssot/) and [red lines](../../docs/agents/red-lines.md) first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: "What's wrong — observed vs expected"
+      placeholder: |
+        Observed:
+        Expected:
+        Evidence (logs / screenshot / run URL):
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: "How to reproduce"
+      description: "Deterministic steps / commands / inputs so someone else can see it."
+      placeholder: |
+        1. ...
+        2. ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: scope
+    attributes:
+      label: "Where — environment + EPIC/area"
+      placeholder: "env: local / staging / prod · EPIC or area: ... · branch/tag: ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      options:
+        - "blocks work / data-correctness / security"
+        - "degraded but workable"
+        - "minor / cosmetic"
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: "Minimal fix + acceptance criteria (if known)"
+      description: "Smallest scoped change likely to fix it, what stays out of scope, and concrete pass/fail checks."
+      placeholder: |
+        Minimal path:
+        Out of scope:
+        Acceptance:
+        - [ ] ...
+    validations:
+      required: false
