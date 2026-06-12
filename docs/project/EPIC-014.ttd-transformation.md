@@ -12,6 +12,13 @@
 > those sources instead of duplicating mutable values. This EPIC owns the TTD
 > transformation scope; code/test migration follow-ups are tracked by issues
 > #452, #453, #454, #455, and #456.
+>
+> **2026-06-12 simplification alignment**: The next TTD simplification target is
+> macro domain documentation plus generated MkDocs references plus code/CI
+> gates. Domain docs explain scope, concepts, invariants, and ownership; mutable
+> API, DB, config, status, and proof inventories should be generated or
+> mechanically validated. The umbrella issue is
+> [#453](https://github.com/wangzitian0/finance_report/issues/453).
 
 ## 📌 Executive Summary
 
@@ -91,16 +98,73 @@ To-be:
 - [ ] Define the FR SSOT HLS model with 6-8 families, concept boundaries, and
   child binding rules in
   [#821](https://github.com/wangzitian0/finance_report/issues/821).
-- [ ] Add report-only design metrics for family coverage, orphan files,
+- [x] Add report-only design metrics for family coverage, orphan files,
   duplicate owners, clause binding, proof/checker coverage, and high-risk
   owner coverage in
   [#822](https://github.com/wangzitian0/finance_report/issues/822).
-- [ ] Promote only incremental and high-risk findings into CI gates once the
+- [x] Promote only incremental and high-risk findings into CI gates once the
   metrics baseline is visible in
   [#823](https://github.com/wangzitian0/finance_report/issues/823).
 - [ ] Run threshold-based SSOT cleanup only after the metrics show enough
   evidence for targeted consolidation in
   [#824](https://github.com/wangzitian0/finance_report/issues/824).
+
+## Simplification Acceleration Track
+
+This track narrows the next documentation pass to reducing reader load and
+maintenance surface. It does not replace the EPIC -> AC -> test workflow; each
+implementation PR still adds or updates ACs and focused checks for the behavior
+it changes.
+
+The target documentation shape is:
+
+```text
+macro domain doc -> generated MkDocs reference -> code/tool/CI gate
+```
+
+### Reader-load goals
+
+- A domain reader should start from one family entry point, not a flat list of
+  dozens of SSOT concepts.
+- Domain docs should explain scope, core concepts, invariants, lifecycle/state
+  machine, ownership boundary, generated references, and proof links.
+- Endpoint lists, field definitions, DB table/enum inventories, environment key
+  lists, status metrics, and CI/proof matrices should not be hand-maintained in
+  prose when code, config, registries, or workflows can generate or validate
+  them.
+- The heaviest SSOT docs should shrink by replacing copied fact inventories with
+  generated-reference links. The first pass targets `schema.md`, `ci-cd.md`,
+  `development.md`, `observability.md`, and `deployment.md`.
+
+### Workstreams
+
+| Workstream | Tracking | Next action |
+|---|---|---|
+| HLS domain map | [#821](https://github.com/wangzitian0/finance_report/issues/821) | Define 6-8 families and backfill `family` / `kind` for manifest entries that still inherit `unknown` shape. |
+| Generated contracts | [#453](https://github.com/wangzitian0/finance_report/issues/453) | Add generated DB schema and configuration references beside the existing generated API reference. |
+| Project/status generation | [#455](https://github.com/wangzitian0/finance_report/issues/455) | Keep README/project status and proof metrics generated or validated instead of copied into prose. |
+| Threshold cleanup | [#824](https://github.com/wangzitian0/finance_report/issues/824) | Use governance metrics and document-size hotspots to select narrow cleanup PRs. |
+| Gates | [#823](https://github.com/wangzitian0/finance_report/issues/823) | Extend existing incremental gates when a new generated reference or code-owned contract is introduced. |
+
+### First generated-reference candidates
+
+| Reference | Source owner | Primary consumers |
+|---|---|---|
+| Existing generated API reference | FastAPI OpenAPI and backend schemas | Auth, extraction, reconciliation, reporting, workflow, asset, market-data docs |
+| DB schema reference | SQLAlchemy metadata, Alembic metadata, and only non-derived layer/governance metadata | `schema.md` and domain docs that currently copy table or enum details |
+| Configuration reference | Backend settings, frontend env usage, `.env.example`, Vault templates, and scope classification | `development.md`, `deployment.md`, `observability.md`, `ci-cd.md`, environment smoke docs |
+
+### Completion signal
+
+The simplification pass is effective when:
+
+- `docs/ssot/README.md` routes readers by family before individual concept.
+- Generated references are visible in MkDocs navigation and checked by CI or a
+  build-time generator.
+- The highest-load SSOT docs no longer copy mutable endpoint, env, DB, enum, or
+  status inventories.
+- Governance metrics show improved family/kind coverage and no new high-risk
+  owner without proof.
 
 ## 📄 Owned Documentation Surfaces
 
