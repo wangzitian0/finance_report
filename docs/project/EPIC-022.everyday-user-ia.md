@@ -209,11 +209,11 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 
 > PR7 slice (#866). Balance Sheet and Income Statement already drill amounts down
 > to source; this slice ties the Cash Flow statement together so the period's
-> change in cash is explainable. AC22.7.3 (the beginning→ending cash
-> reconciliation) ships here. AC22.7.1/.4 (per-line cash-flow drill-down) require
-> the backend to expose an account anchor on each cash-flow line — out of scope
-> for this frontend-only slice and tracked on #866; AC22.7.2 (readable
-> evidence-chain path view) follows separately.
+> change in cash is explainable. The beginning→ending cash reconciliation
+> (AC22.7.3) ships here. Per-line cash-flow drill-down requires the backend to
+> expose an account anchor on each cash-flow line — out of scope for this
+> frontend-only slice and tracked on #866; a readable evidence-chain path view
+> follows separately. Those ACs register when they land.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
