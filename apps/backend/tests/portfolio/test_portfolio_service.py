@@ -884,7 +884,21 @@ async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atom
         status=PositionStatus.DISPOSED,
         cost_basis_method=CostBasisMethod.FIFO,
     )
-    db.add(disposed)
+    msft_snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=date.today(),
+        asset_identifier="MSFT",
+        broker="Test Broker",
+        quantity=Decimal("50"),
+        market_value=Decimal("5500.00"),
+        currency="SGD",
+        sector="Technology",
+        geography="US",
+        asset_type="stock",
+        dedup_hash="msft_disposed_summary_test",
+        source_documents={},
+    )
+    db.add_all([disposed, msft_snapshot])
     await db.flush()
     summary = await svc.get_portfolio_summary(db, test_user.id)
     assert summary.active_positions_count == 1
