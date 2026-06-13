@@ -248,6 +248,59 @@ async def test_chat_with_model_name_header() -> None:
         assert "X-Model-Name" in response.headers.get("Access-Control-Expose-Headers", "")
 
 
+@pytest.mark.no_db
+async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> None:
+    """AC22.14.1: Chat stream response exposes application-owned grounding metadata."""
+    from src.routers.chat import chat_message
+
+    mock_db = MagicMock()
+    mock_db.commit = AsyncMock()
+    mock_user_id = uuid4()
+
+    async def mock_stream():
+        yield "Net worth is grounded."
+
+    metadata = {
+        "grounded": True,
+        "citations": [
+            {
+                "label": "Balance Sheet",
+                "source_ref": "balance_sheet.total_equity",
+                "confidence_tier": "TRUSTED",
+                "href": "/reports/balance-sheet",
+            }
+        ],
+        "actions": [
+            {
+                "kind": "reconciliation_review",
+                "label": "Review 2",
+                "href": "/reconciliation/review-queue",
+                "count": 2,
+            }
+        ],
+    }
+
+    with patch("src.routers.chat.AIAdvisorService") as MockService:
+        mock_stream_obj = MagicMock()
+        mock_stream_obj.session_id = uuid4()
+        mock_stream_obj.stream = mock_stream()
+        mock_stream_obj.model_name = None
+        mock_stream_obj.metadata = metadata
+        mock_service = MagicMock()
+        mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj)
+        MockService.return_value = mock_service
+
+        payload = MagicMock()
+        payload.message = "What is my net worth?"
+        payload.session_id = None
+        payload.model = None
+
+        response = await chat_message(payload, mock_db, mock_user_id)
+
+    assert response.headers.get("X-Advisor-Metadata") is not None
+    assert "X-Advisor-Metadata" in response.headers.get("Access-Control-Expose-Headers", "")
+
+
 async def test_chat_without_model_name_header() -> None:
     """AC6.5.7: Chat response omits X-Model-Name when model is None."""
     from src.routers.chat import chat_message

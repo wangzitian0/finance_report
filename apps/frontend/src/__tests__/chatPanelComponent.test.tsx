@@ -20,7 +20,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => <a href={href} {...props}>{children}</a>,
 }))
 
-function streamingResponse(text: string): Response {
+function streamingResponse(text: string, headers?: HeadersInit): Response {
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     start(controller) {
@@ -28,7 +28,7 @@ function streamingResponse(text: string): Response {
       controller.close()
     },
   })
-  return new Response(stream)
+  return new Response(stream, { headers })
 }
 
 describe("ChatPanel", () => {
@@ -55,9 +55,9 @@ describe("ChatPanel", () => {
     })
 
     mockedFetchAiModels.mockResolvedValue({
-      models: [{ 
-        id: "model-1", 
-        name: "Model 1", 
+      models: [{
+        id: "model-1",
+        name: "Model 1",
         is_free: true,
         input_modalities: ["text"],
         pricing: { prompt: "0", completion: "0" }
@@ -124,6 +124,48 @@ describe("ChatPanel", () => {
 
     fireEvent.click(screen.getByText("How is cash flow?"))
     await waitFor(() => expect(mockedApiStream).toHaveBeenCalled())
+  })
+
+  it("AC22.14.2 AC22.14.3 renders grounded answer citations and pending action chips", async () => {
+    mockedApiStream.mockResolvedValue({
+      response: streamingResponse("Your net worth is SGD 900.00", {
+        "X-Advisor-Metadata": JSON.stringify({
+          grounded: true,
+          citations: [
+            {
+              label: "Balance Sheet",
+              source_ref: "balance_sheet.total_equity",
+              confidence_tier: "TRUSTED",
+              href: "/reports/balance-sheet",
+            },
+          ],
+          actions: [
+            {
+              kind: "reconciliation_review",
+              label: "Review 2",
+              href: "/reconciliation/review-queue",
+              count: 2,
+            },
+          ],
+        }),
+      }) as Response,
+      sessionId: "sess-2",
+    })
+
+    render(<ChatPanel variant="page" />)
+
+    await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
+    fireEvent.click(screen.getByText("How is cash flow?"))
+
+    expect(await screen.findByText("Your net worth is SGD 900.00")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Balance Sheet TRUSTED" })).toHaveAttribute(
+      "href",
+      "/reports/balance-sheet",
+    )
+    expect(screen.getByRole("link", { name: "Review 2" })).toHaveAttribute(
+      "href",
+      "/reconciliation/review-queue",
+    )
   })
 
   it("AC16.20.5 starts a new conversation from the active session", async () => {

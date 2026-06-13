@@ -83,6 +83,32 @@ class AdvisorSuggestion(BaseModel):
     next_action_href: str = Field(min_length=1, max_length=500)
 
 
+class ChatCitation(BaseModel):
+    """Application-owned citation metadata for one streamed chat answer."""
+
+    label: str = Field(min_length=1, max_length=120)
+    source_ref: str = Field(min_length=1, max_length=160)
+    confidence_tier: str = Field(min_length=1, max_length=40)
+    href: str = Field(min_length=1, max_length=500)
+
+
+class ChatActionChip(BaseModel):
+    """Safe next action rendered with one streamed chat answer."""
+
+    kind: str = Field(min_length=1, max_length=80)
+    label: str = Field(min_length=1, max_length=80)
+    href: str = Field(min_length=1, max_length=500)
+    count: int | None = Field(default=None, ge=0)
+
+
+class ChatResponseMetadata(BaseModel):
+    """Grounding metadata sent in the chat streaming response header."""
+
+    grounded: bool = False
+    citations: list[ChatCitation] = Field(default_factory=list)
+    actions: list[ChatActionChip] = Field(default_factory=list)
+
+
 class ChatSuggestionsResponse(BaseModel):
     """Suggested questions for the chat UI."""
 

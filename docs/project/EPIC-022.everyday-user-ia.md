@@ -333,3 +333,17 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.13.1 | Portfolio holdings, explicit as-of holdings, manual valuation snapshots, and report amount lines expose a normalized provenance enum (`imported`, `manual`, `derived`) when the source basis is known, while ambiguous holdings remain unlabeled instead of guessed | `test_portfolio_service.py`, `test_reporting.py`, `test_manual_valuation_snapshots.py` | P1 |
 | AC22.13.2 | Portfolio and report surfaces render a shared Imported / Manual / Derived provenance badge; Manual is visually distinct from Imported and unlabeled values remain silent | `provenanceBadge.test.tsx`, `holdingsTable.test.tsx`, `balanceSheetPage.test.tsx`, `incomeStatementPage.test.tsx` | P1 |
 | AC22.13.3 | Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name | `designTokens.test.tsx`, `personalReportPackagePage.test.tsx` | P1 |
+
+### AC22.14 — Grounded Chat Answers
+
+> #912 follow-up slice. EPIC-021 gave the assistant deterministic Advisor Brief
+> facts, but streamed chat answers still reached the UI as plain text. This
+> slice keeps the model read-only while attaching application-owned grounding
+> metadata to each personal-data answer: citations with confidence tiers and
+> safe next-action chips for pending review work.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.14.1 | `POST /api/chat` exposes structured grounding metadata for personal-data answers, including source citations with confidence tiers, without sending or returning raw account numbers or transaction-level PII | `test_chat_router.py`, `test_ai_advisor_service.py` | P1 |
+| AC22.14.2 | `ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose | `chatPanelComponent.test.tsx` | P1 |
+| AC22.14.3 | A grounded chat answer that has pending reconciliation review context exposes a `Review N` action deep-link to the review queue while preserving the assistant's read-only/no-write boundary | `test_ai_advisor_service.py`, `chatPanelComponent.test.tsx` | P1 |

@@ -6,8 +6,14 @@ import { MessageSquareText, PanelLeft } from "lucide-react";
 
 import { apiFetch, apiStream, apiDelete } from "@/lib/api";
 import { fetchAiModels } from "@/lib/aiModels";
-import type { AdvisorSuggestion, ChatSuggestionsResponse } from "@/lib/types";
-import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
+import type {
+  AdvisorSuggestion,
+  ChatActionChip,
+  ChatCitation,
+  ChatResponseMetadata,
+  ChatSuggestionsResponse,
+} from "@/lib/types";
+import { AdvisorBrief, safeAdvisorHref } from "@/components/advisor/AdvisorBrief";
 import Sheet from "@/components/ui/Sheet";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";
@@ -16,7 +22,14 @@ const SESSION_KEY = "ai_chat_session_id";
 const MODEL_KEY = "ai_chat_model_v1";
 
 type ChatRole = "user" | "assistant";
-interface ChatMessage { id: string; role: ChatRole; content: string; streaming?: boolean; }
+interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string;
+  streaming?: boolean;
+  citations?: ChatCitation[];
+  actions?: ChatActionChip[];
+}
 interface ChatMessageResponse { id: string; role: ChatRole; content: string; }
 interface ChatSessionResponse {
   id: string;
@@ -37,6 +50,34 @@ const splitDisclaimer = (content: string) => {
   return { body: content, disclaimer: "" };
 };
 const formatErrorMessage = (error: unknown) => error instanceof Error ? error.message : "Unable to send the message.";
+const parseChatMetadata = (response: Response): Pick<ChatMessage, "citations" | "actions"> | undefined => {
+  const headers = response.headers as Headers | undefined;
+  const raw = typeof headers?.get === "function" ? headers.get("X-Advisor-Metadata") : null;
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as Partial<ChatResponseMetadata>;
+    const citations = Array.isArray(parsed.citations)
+      ? parsed.citations.filter(
+          (citation): citation is ChatCitation =>
+            typeof citation?.label === "string" &&
+            typeof citation?.source_ref === "string" &&
+            typeof citation?.confidence_tier === "string" &&
+            typeof citation?.href === "string",
+        )
+      : [];
+    const actions = Array.isArray(parsed.actions)
+      ? parsed.actions.filter(
+          (action): action is ChatActionChip =>
+            typeof action?.kind === "string" &&
+            typeof action?.label === "string" &&
+            typeof action?.href === "string",
+        )
+      : [];
+    return citations.length || actions.length ? { citations, actions } : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export default function ChatPanel({ variant = "page", initialPrompt, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -59,14 +100,14 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   const scrollToBottom = useCallback(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, []);
 
   const fetchSuggestions = useCallback(async () => {
-    try { 
+    try {
       const data = await apiFetch<ChatSuggestionsResponse>(
         `/api/chat/suggestions?language=${language}&include_structured=true`,
       );
-      setSuggestions(data.suggestions || []); 
+      setSuggestions(data.suggestions || []);
       setAdvisorSuggestions(data.structured_suggestions || []);
-    } catch { 
-      setSuggestions([]); 
+    } catch {
+      setSuggestions([]);
       setAdvisorSuggestions([]);
     }
   }, [language]);
@@ -87,12 +128,12 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
         setMessages(session.messages.map((m) => ({ id: m.id, role: m.role, content: m.content })));
         localStorage.setItem(SESSION_KEY, session.id);
       }
-    } catch { 
-      localStorage.removeItem(SESSION_KEY); 
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
       setSessionId(null);
       setMessages([]);
-    } finally { 
-      setLoadingHistory(false); 
+    } finally {
+      setLoadingHistory(false);
     }
   }, []);
 
@@ -146,14 +187,25 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
     };
   }, []);
 
-  const updateMessage = useCallback((id: string, content: string, streaming?: boolean) => {
-    setMessages((prev) => prev.map((i) => (i.id === id ? { ...i, content, streaming } : i)));
+  const updateMessage = useCallback((
+    id: string,
+    content: string,
+    streaming?: boolean,
+    metadata?: Pick<ChatMessage, "citations" | "actions">,
+  ) => {
+    setMessages((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, content, streaming, ...(metadata ?? {}) } : i)),
+    );
   }, []);
 
-  const handleStream = useCallback(async (response: Response, assistantId: string) => {
+  const handleStream = useCallback(async (
+    response: Response,
+    assistantId: string,
+    metadata?: Pick<ChatMessage, "citations" | "actions">,
+  ) => {
     const reader = response.body?.getReader();
     if (!reader) {
-      updateMessage(assistantId, "No response stream available.");
+      updateMessage(assistantId, "No response stream available.", false, metadata);
       return;
     }
     const decoder = new TextDecoder();
@@ -166,11 +218,11 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
       if (value) {
         const decodedChunk = decoder.decode(value, { stream: true });
         aggregated += decodedChunk;
-        updateMessage(assistantId, aggregated, true);
+        updateMessage(assistantId, aggregated, true, metadata);
       }
     }
     aggregated += decoder.decode();
-    updateMessage(assistantId, aggregated, false);
+    updateMessage(assistantId, aggregated, false, metadata);
   }, [updateMessage]);
 
   const sendMessage = useCallback(async (text?: string) => {
@@ -196,7 +248,9 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
         setSessionId(newSessionId);
         localStorage.setItem(SESSION_KEY, newSessionId);
       }
-      await handleStream(res, assistantId);
+      const metadata = parseChatMetadata(res);
+      if (metadata) updateMessage(assistantId, "", true, metadata);
+      await handleStream(res, assistantId, metadata);
       void refreshSessionList();
       setIsStreaming(false);
     } catch (err) {
@@ -214,9 +268,9 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
   }, [initialPrompt, initialPromptHandled, loadingHistory, messages.length, sendMessage]);
 
   const clearSession = async () => {
-    if (sessionId) { 
-      try { 
-await apiDelete(`/api/chat/session/${sessionId}`);
+    if (sessionId) {
+      try {
+        await apiDelete(`/api/chat/session/${sessionId}`);
       } catch {
         // Session deletion is best-effort; ignore network errors
       }
@@ -326,11 +380,48 @@ await apiDelete(`/api/chat/session/${sessionId}`);
         {messages.map((m) => {
           const { body, disclaimer } = splitDisclaimer(m.content);
           const isAssistant = m.role === "assistant";
+          const citations = isAssistant
+            ? (m.citations ?? [])
+                .map((citation) => ({ ...citation, href: safeAdvisorHref(citation.href) }))
+                .filter((citation) => citation.href !== "/")
+            : [];
+          const actions = isAssistant
+            ? (m.actions ?? [])
+                .map((action) => ({ ...action, href: safeAdvisorHref(action.href) }))
+                .filter((action) => action.href !== "/")
+            : [];
           return (
             <div key={m.id} className={isAssistant ? "p-4 rounded-md bg-[var(--background-muted)]" : "p-4 rounded-md bg-[var(--accent)] text-white"}>
               <p className="text-sm">{body}</p>
               {m.streaming && <span className="mt-2 inline-block text-xs text-[var(--accent)]">Streaming...</span>}
               {isAssistant && disclaimer && <p className="mt-2 text-[10px] text-muted uppercase tracking-wide">{disclaimer}</p>}
+              {isAssistant && (citations.length > 0 || actions.length > 0) && (
+                <div className="mt-3 flex flex-col gap-2">
+                  {citations.length > 0 && (
+                    <div className="flex flex-wrap gap-2" aria-label="Answer citations">
+                      {citations.map((citation) => (
+                        <a
+                          key={`${citation.source_ref}-${citation.href}`}
+                          href={citation.href}
+                          className="badge badge-info"
+                        >
+                          <span>{citation.label}</span>
+                          <span className="ml-1 font-mono">{citation.confidence_tier}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {actions.length > 0 && (
+                    <div className="flex flex-wrap gap-2" aria-label="Answer actions">
+                      {actions.map((action) => (
+                        <a key={`${action.kind}-${action.href}`} href={action.href} className="btn-secondary text-xs">
+                          {action.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

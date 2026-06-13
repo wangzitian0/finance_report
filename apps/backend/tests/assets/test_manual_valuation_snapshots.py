@@ -2,13 +2,16 @@
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
 from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
-from src.services.assets import AssetService
+from src.schemas.provenance import DataProvenance
+from src.services.assets import AssetService, ValuationComponentItem
 
 
 async def test_create_manual_valuation_snapshot_crud_api(client):
@@ -163,6 +166,34 @@ async def test_manual_valuation_components_api_returns_latest_as_of_values(clien
     assert data["net_worth_delta"] == "699999.99"
     assert {item["component_type"] for item in data["items"]} == {"property_value", "mortgage_balance"}
     assert {item["provenance"] for item in data["items"]} == {"manual"}
+
+
+@pytest.mark.no_db
+def test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type() -> None:
+    """AC22.13.1: Component provenance stays constrained to the shared vocabulary."""
+    assert ValuationComponentItem.__dataclass_fields__["provenance"].type == DataProvenance
+
+
+@pytest.mark.no_db
+async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
+    """AC11.19.1: Correction hand-off locks the current head before superseding it."""
+    service = AssetService()
+    db = MagicMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    db.execute = AsyncMock(return_value=result)
+
+    await service._current_valuation_head(
+        db,
+        uuid4(),
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        source="manual appraisal",
+        as_of_date=date(2026, 5, 18),
+    )
+
+    statement = db.execute.await_args.args[0]
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+    assert "FOR UPDATE" in compiled
 
 
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):

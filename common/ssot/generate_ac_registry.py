@@ -27,7 +27,7 @@ OVERRIDES = "docs/ac_registry_overrides.yaml"
 OUTPUT = OUTPUT_FEATURE
 
 # EPIC classification: which EPICs are feature vs infra
-FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19, 20, 21}
+FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19, 20, 21, 22}
 INFRA_EPICS = {7, 9, 10, 12, 14}
 
 # EPIC-016 sub-classification: these AC16.XX.x groups route to infra
@@ -55,6 +55,7 @@ EPIC_NAMES: dict[int, str] = {
     19: "event-driven-upload-to-report-ux",
     20: "framework-aware-personal-reporting",
     21: "application-ai-advisor",
+    22: "everyday-user-ia",
 }
 
 
@@ -364,7 +365,9 @@ def main(argv: list[str] | None = None) -> int:
     all_acs = build_registry_entries()
     extracted_acs = extract_acs(existing_acs=load_overrides())
     missing_acs = {
-        ac_id: entry for ac_id, entry in extracted_acs.items() if ac_id not in existing_acs
+        ac_id: entry
+        for ac_id, entry in extracted_acs.items()
+        if ac_id not in existing_acs
     }
     registry_errors = {
         str(path): errors

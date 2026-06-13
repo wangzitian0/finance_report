@@ -8,7 +8,7 @@ import json
 import re
 import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
@@ -28,7 +28,7 @@ from src.models import (
     ChatSessionStatus,
 )
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
-from src.schemas.chat import AdvisorSuggestion
+from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 from src.services.market_data import MarketDataScopeStatus, get_market_data_status
 from src.services.openrouter_streaming import stream_openrouter_chat
 from src.services.portfolio import PortfolioNotFoundError, PortfolioService
@@ -85,6 +85,27 @@ NON_FINANCIAL_PATTERNS = (
     r"code",
     r"programming",
 )
+
+CHAT_METADATA_SAFE_HREFS = (
+    "/reports/balance-sheet",
+    "/reports/income-statement",
+    "/reports/package",
+    "/reports",
+    "/reconciliation/review-queue",
+    "/review",
+    "/portfolio/prices",
+    "/portfolio",
+    "/assets",
+    "/statements/upload",
+)
+
+CONFIDENCE_WORST_ORDER = {
+    "LOW": 0,
+    "MEDIUM": 1,
+    "HIGH": 2,
+    "TRUSTED": 3,
+    "DETERMINISTIC": 3,
+}
 
 # SECURITY: Match long number sequences but avoid common date/time patterns
 # (YYYY-MM-DD, DD/MM/YYYY, etc.)
@@ -144,6 +165,7 @@ class ChatStream:
     stream: AsyncIterator[str]
     model_name: str | None
     cached: bool
+    metadata: ChatResponseMetadata = field(default_factory=ChatResponseMetadata)
 
 
 class ResponseCache:
@@ -322,6 +344,7 @@ class AIAdvisorService:
             return self._cached_stream(session.id, refusal, model_name=None)
 
         context = await self.get_financial_context(db, user_id)
+        metadata = self.build_chat_grounding_metadata(context, raw_message)
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
         model_key = model or self.primary_model
         cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}:{model_key}"
@@ -330,7 +353,7 @@ class AIAdvisorService:
         if cached:
             cached = ensure_disclaimer(cached, language)
             await self._record_message(db, session, ChatMessageRole.ASSISTANT, cached, model_name="cache")
-            return self._cached_stream(session.id, cached, model_name="cache")
+            return self._cached_stream(session.id, cached, model_name="cache", metadata=metadata)
 
         prompt = get_ai_advisor_prompt(context, language)
         history = await self._load_history(db, session.id)
@@ -352,6 +375,7 @@ class AIAdvisorService:
             ),
             model_name=None,
             cached=False,
+            metadata=metadata,
         )
 
     async def get_financial_context(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
@@ -378,11 +402,13 @@ class AIAdvisorService:
             total_liabilities = Decimal(str(balance["total_liabilities"]))
             total_equity = Decimal(str(balance["total_equity"]))
             currency = balance.get("currency", settings.base_currency)
+            balance_sheet_confidence_tier = str(balance.get("confidence_tier") or "DETERMINISTIC")
         except ReportError:
             total_assets = Decimal("0")
             total_liabilities = Decimal("0")
             total_equity = Decimal("0")
             currency = settings.base_currency
+            balance_sheet_confidence_tier = "UNAVAILABLE"
 
         try:
             income_statement = await generate_income_statement(
@@ -390,9 +416,20 @@ class AIAdvisorService:
             )
             monthly_income = Decimal(str(income_statement["total_income"]))
             monthly_expenses = Decimal(str(income_statement["total_expenses"]))
+            income_statement_confidence_tier = self._worst_confidence_tier(
+                [
+                    line.get("confidence_tier")
+                    for line in [
+                        *(income_statement.get("income") or []),
+                        *(income_statement.get("expenses") or []),
+                    ]
+                    if isinstance(line, dict)
+                ]
+            )
         except ReportError:
             monthly_income = Decimal("0")
             monthly_expenses = Decimal("0")
+            income_statement_confidence_tier = "UNAVAILABLE"
 
         try:
             breakdown = await get_category_breakdown(
@@ -420,6 +457,8 @@ class AIAdvisorService:
                 "unmatched_count": str(stats.unmatched_transactions),
                 "match_rate": f"{stats.match_rate}%",
                 "pending_review": str(stats.pending_review),
+                "balance_sheet_confidence_tier": balance_sheet_confidence_tier,
+                "income_statement_confidence_tier": income_statement_confidence_tier,
             }
         )
 
@@ -630,6 +669,135 @@ class AIAdvisorService:
             )
         return suggestions
 
+    def build_chat_grounding_metadata(self, context: dict[str, str], message: str) -> ChatResponseMetadata:
+        """Build compact UI grounding metadata for one streamed chat answer."""
+        citations: list[ChatCitation] = []
+        actions: list[ChatActionChip] = []
+        seen_citations: set[str] = set()
+        seen_actions: set[tuple[str, str]] = set()
+
+        def add_citation(label: str, source_ref: str, confidence_tier: str | None, href: str) -> None:
+            safe_href = self._safe_chat_href(href)
+            if source_ref in seen_citations or safe_href == "/":
+                return
+            seen_citations.add(source_ref)
+            citations.append(
+                ChatCitation(
+                    label=label,
+                    source_ref=source_ref,
+                    confidence_tier=self._display_confidence_tier(confidence_tier),
+                    href=safe_href,
+                )
+            )
+
+        def add_action(kind: str, label: str, href: str, count: int | None = None) -> None:
+            safe_href = self._safe_chat_href(href)
+            key = (kind, safe_href)
+            if safe_href == "/" or key in seen_actions:
+                return
+            seen_actions.add(key)
+            actions.append(ChatActionChip(kind=kind, label=label, href=safe_href, count=count))
+
+        lower_message = message.lower()
+        pending_review = self._parse_positive_int(context.get("pending_review"))
+        asks_balance = any(
+            token in lower_message
+            for token in ("net worth", "assets", "asset", "liabilities", "liability", "balance", "equity", "worth")
+        )
+        asks_cash_flow = any(
+            token in lower_message
+            for token in ("expense", "expenses", "spending", "income", "cash flow", "cash-flow", "cashflow", "month")
+        )
+
+        if asks_balance:
+            add_citation(
+                "Balance Sheet",
+                "balance_sheet.total_equity",
+                context.get("balance_sheet_confidence_tier"),
+                "/reports/balance-sheet",
+            )
+
+        if asks_cash_flow or pending_review:
+            add_citation(
+                "Income Statement",
+                "income_statement.current_month",
+                context.get("income_statement_confidence_tier"),
+                "/reports/income-statement",
+            )
+
+        if pending_review:
+            add_action(
+                "reconciliation_review",
+                f"Review {pending_review}",
+                "/reconciliation/review-queue",
+                pending_review,
+            )
+
+        advisor_context = self._parse_advisor_context(context.get("advisor_context"))
+        suggestions = advisor_context.get("suggestions") if isinstance(advisor_context, dict) else []
+        if isinstance(suggestions, list):
+            for suggestion in suggestions:
+                if not isinstance(suggestion, dict):
+                    continue
+                source_refs = suggestion.get("source_refs")
+                confidence_tier = str(suggestion.get("confidence_tier") or "DETERMINISTIC")
+                href = str(suggestion.get("next_action_href") or "/reports")
+                if isinstance(source_refs, list):
+                    for source_ref in source_refs[:2]:
+                        if not isinstance(source_ref, str) or not source_ref:
+                            continue
+                        add_citation(self._label_for_source_ref(source_ref), source_ref, confidence_tier, href)
+                        if len(citations) >= 4:
+                            break
+                if len(citations) >= 4:
+                    break
+
+        if not citations:
+            add_citation("Financial Summary", "financial_summary", "DETERMINISTIC", "/reports")
+
+        return ChatResponseMetadata(
+            grounded=bool(citations or actions),
+            citations=citations[:4],
+            actions=actions[:3],
+        )
+
+    def _worst_confidence_tier(self, values: list[str | None]) -> str:
+        tiers = [str(value).upper() for value in values if value]
+        if not tiers:
+            return "DETERMINISTIC"
+        return min(tiers, key=lambda tier: CONFIDENCE_WORST_ORDER.get(tier, -1))
+
+    def _display_confidence_tier(self, value: str | None) -> str:
+        if not value:
+            return "DETERMINISTIC"
+        return str(value).upper()
+
+    def _parse_positive_int(self, value: str | None) -> int:
+        try:
+            parsed = int(str(value))
+        except (TypeError, ValueError):
+            return 0
+        return max(parsed, 0)
+
+    def _parse_advisor_context(self, raw: str | None) -> dict[str, Any]:
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _safe_chat_href(self, href: str) -> str:
+        trimmed = href.strip()
+        for route in CHAT_METADATA_SAFE_HREFS:
+            if trimmed == route or trimmed.startswith(f"{route}?") or trimmed.startswith(f"{route}#"):
+                return route
+        return "/"
+
+    def _label_for_source_ref(self, source_ref: str) -> str:
+        return re.sub(r"[_\\.]+", " ", source_ref).strip().title() or "Application Fact"
+
     def _jsonable(self, value: Any) -> Any:
         if hasattr(value, "model_dump"):
             return value.model_dump(mode="json")
@@ -781,7 +949,13 @@ class AIAdvisorService:
         # exception to the "routers own commit()" rule.
         await db.commit()
 
-    def _cached_stream(self, session_id: UUID, response: str, model_name: str | None) -> ChatStream:
+    def _cached_stream(
+        self,
+        session_id: UUID,
+        response: str,
+        model_name: str | None,
+        metadata: ChatResponseMetadata | None = None,
+    ) -> ChatStream:
         async def generator() -> AsyncIterator[str]:
             for chunk in self._chunk_text(response):
                 yield chunk
@@ -792,6 +966,7 @@ class AIAdvisorService:
             stream=generator(),
             model_name=model_name,
             cached=True,
+            metadata=metadata or ChatResponseMetadata(),
         )
 
     async def _stream_openrouter(

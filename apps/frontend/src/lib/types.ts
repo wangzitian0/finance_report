@@ -294,6 +294,26 @@ export interface AdvisorSuggestion {
   next_action_href: string;
 }
 
+export interface ChatCitation {
+  label: string;
+  source_ref: string;
+  confidence_tier: string;
+  href: string;
+}
+
+export interface ChatActionChip {
+  kind: string;
+  label: string;
+  href: string;
+  count?: number | null;
+}
+
+export interface ChatResponseMetadata {
+  grounded: boolean;
+  citations: ChatCitation[];
+  actions: ChatActionChip[];
+}
+
 export interface ChatSuggestionsResponse {
   suggestions: string[];
   structured_suggestions?: AdvisorSuggestion[];
