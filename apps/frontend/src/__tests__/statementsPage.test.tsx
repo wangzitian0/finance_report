@@ -228,7 +228,7 @@ describe("StatementsPage", () => {
     // AC22.11.1: the parsing state is honest — a time expectation, and NO
     // fabricated fixed-percentage progress bar.
     const status = screen.getByRole("status")
-    expect(status).toHaveTextContent(/usually takes ~2.3 minutes/i)
+    expect(status).toHaveTextContent(/usually takes ~2–3 minutes/i)
     expect(status.querySelector('[style*="width: 60%"]')).toBeNull()
   })
 
