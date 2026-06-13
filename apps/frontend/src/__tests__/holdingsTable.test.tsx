@@ -125,12 +125,17 @@ describe("HoldingsTable", () => {
     expect(screen.getByText("Unknown")).toBeInTheDocument()
   })
 
-  it("AC22.10.1 shows an Imported badge only for document-backed holdings", () => {
+  it("AC22.10.1 AC22.13.2 shows provenance badges only when provenance is known", () => {
     const imported: PortfolioHolding = { ...fractional, id: "imp", asset_identifier: "IMP", provenance: "imported" }
+    const manual: PortfolioHolding = { ...fractional, id: "man", asset_identifier: "MAN", provenance: "manual" }
+    const derived: PortfolioHolding = { ...fractional, id: "drv", asset_identifier: "DRV", provenance: "derived" }
     const unknown: PortfolioHolding = { ...fractional, id: "unk", asset_identifier: "UNK", provenance: null }
-    render(<HoldingsTable holdings={[imported, unknown]} />)
-    // Exactly one Imported badge — for the document-backed holding; the
-    // unprovable one is never labelled (manual must not masquerade as imported).
+    render(<HoldingsTable holdings={[imported, manual, derived, unknown]} />)
+    // Exactly one Imported badge — for the document-backed holding; the unknown
+    // one is never labelled, while explicit Manual/Derived labels remain distinct.
     expect(screen.getAllByText("Imported")).toHaveLength(1)
+    expect(screen.getByText("Manual")).toHaveClass("badge-warning")
+    expect(screen.getByText("Derived")).toHaveClass("badge-muted")
+    expect(screen.queryByText("Unknown")).not.toBeInTheDocument()
   })
 })

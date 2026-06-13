@@ -550,7 +550,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
-  it("AC20.6.1 AC22.8.3 requires explicit framework selection before loading framework-scoped package output", async () => {
+  it("AC20.6.1 AC22.8.3 AC22.13.3 requires explicit framework selection before loading framework-scoped package output", async () => {
     mockPackageApi();
 
     renderPackagePage();
@@ -577,7 +577,7 @@ describe("PersonalReportPackagePage", () => {
       within(setupToc).getByRole("link", { name: "Reporting Framework" }),
     ).toHaveAttribute("href", "#package-framework-selection");
     expect(
-      within(setupToc).getByRole("link", { name: "Balance Sheet" }),
+      within(setupToc).getByRole("link", { name: "Balance Sheet ready" }),
     ).toHaveAttribute("href", "#package-section-balance_sheet");
     expect(mockedApiFetch).not.toHaveBeenCalledWith(
       "/api/reports/package/readiness",
@@ -1024,7 +1024,7 @@ describe("PersonalReportPackagePage", () => {
     }
   });
 
-  it("AC22.8.2 renders a readable package cover and linked table of contents", async () => {
+  it("AC22.8.2 AC22.13.3 renders a readable package cover and linked table of contents", async () => {
     mockPackageApi();
 
     renderPackagePage();
@@ -1051,8 +1051,8 @@ describe("PersonalReportPackagePage", () => {
       ["Report Readiness", "#package-readiness"],
       ["Source Trust", "#package-source-trust"],
       ["Framework Policy", "#package-framework-policy"],
-      ["Balance Sheet", "#package-section-balance_sheet"],
-      ["Traceability Appendix", "#package-section-traceability_appendix"],
+      ["Balance Sheet ready", "#package-section-balance_sheet"],
+      ["Traceability Appendix ready", "#package-section-traceability_appendix"],
     ] as const) {
       expect(within(toc).getByRole("link", { name: label })).toHaveAttribute(
         "href",

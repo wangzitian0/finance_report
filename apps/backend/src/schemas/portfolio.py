@@ -2,13 +2,14 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from src.models.layer3 import CostBasisMethod, PositionStatus
 from src.schemas.base import BaseResponse, ListResponse
+from src.schemas.provenance import DataProvenance
 
 
 class HoldingResponse(BaseResponse):
@@ -38,9 +39,9 @@ class HoldingResponse(BaseResponse):
     # holding's latest snapshot is backed by a concrete source document; None
     # when we cannot prove import (we never infer "manual", to honour the rule
     # that manual data must not masquerade as imported — and vice versa).
-    provenance: Literal["imported"] | None = Field(
+    provenance: DataProvenance | None = Field(
         default=None,
-        description='"imported" when backed by a source document; null otherwise.',
+        description="Normalized source provenance when known; null when not safely derivable.",
     )
 
 

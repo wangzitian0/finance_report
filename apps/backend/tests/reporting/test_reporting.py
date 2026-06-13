@@ -17,6 +17,11 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.models.layer3 import (
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+)
 from src.services import reporting as reporting_service
 from src.services.reporting import (
     ReportError,
@@ -122,6 +127,117 @@ async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_
     assert report["total_equity"] == Decimal("1000.00")
     assert report["equation_delta"] == Decimal("0.00")
     assert report["is_balanced"] is True
+
+
+async def test_AC22_13_1_report_amount_lines_expose_normalized_provenance(
+    db: AsyncSession, chart_of_accounts, test_user_id
+):
+    """AC22.13.1: report amount lines expose Imported/Manual/Derived provenance when known."""
+    cash, _liability, equity, income, expense = chart_of_accounts
+
+    manual_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2026, 1, 1),
+        memo="Owner contribution",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    imported_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2026, 1, 15),
+        memo="Imported salary",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        status=JournalEntryStatus.POSTED,
+    )
+    derived_entry = JournalEntry(
+        user_id=test_user_id,
+        entry_date=date(2026, 1, 20),
+        memo="System fee adjustment",
+        source_type=JournalEntrySourceType.SYSTEM,
+        status=JournalEntryStatus.POSTED,
+    )
+    manual_valuation = ManualValuationSnapshot(
+        user_id=test_user_id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        as_of_date=date(2026, 1, 31),
+        value=Decimal("900000.00"),
+        currency="SGD",
+        source="manual appraisal",
+    )
+    db.add_all([manual_entry, imported_entry, derived_entry, manual_valuation])
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=manual_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=manual_entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=imported_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=imported_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=derived_entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("120.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=derived_entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("120.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    balance_sheet = await generate_balance_sheet(
+        db,
+        test_user_id,
+        as_of_date=date(2026, 1, 31),
+        currency="SGD",
+    )
+    income_statement = await generate_income_statement(
+        db,
+        test_user_id,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+        currency="SGD",
+    )
+
+    asset_by_name = {line["name"]: line for line in balance_sheet["assets"]}
+    income_by_name = {line["name"]: line for line in income_statement["income"]}
+    expense_by_name = {line["name"]: line for line in income_statement["expenses"]}
+
+    assert asset_by_name["Cash"]["provenance"] == "derived"
+    assert asset_by_name["Valuation: manual appraisal (property value)"]["provenance"] == "manual"
+    assert income_by_name["Salary"]["provenance"] == "imported"
+    assert expense_by_name["Dining"]["provenance"] == "derived"
 
 
 async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts, test_user_id):
@@ -334,6 +450,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "parent_id": None,
             "amount": Decimal("1600.00"),
             "confidence_tier": "TRUSTED",
+            "provenance": "manual",
         }
     ]
     assert balance_sheet["liabilities"] == [
@@ -344,6 +461,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "parent_id": None,
             "amount": Decimal("300.00"),
             "confidence_tier": "TRUSTED",
+            "provenance": "manual",
         }
     ]
     # AC5.18.2: Net Worth aggregate rolls up to the worst-input tier across lines.

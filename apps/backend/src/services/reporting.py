@@ -21,10 +21,12 @@ from src.models import (
     AccountType,
     Direction,
     JournalEntry,
+    JournalEntrySourceType,
     JournalEntryStatus,
     JournalLine,
 )
 from src.models.layer3 import ManagedPosition, ManualValuationLiquidityClass, PositionStatus
+from src.schemas.provenance import DataProvenance
 from src.services import fx
 from src.services.assets import AssetService
 from src.services.confidence_tier import derive_confidence_tier
@@ -43,6 +45,14 @@ from src.utils.money import to_money
 logger = get_logger(__name__)
 
 _REPORT_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
+_IMPORTED_SOURCE_TYPES = {
+    JournalEntrySourceType.AUTO_PARSED,
+    JournalEntrySourceType.AUTO_MATCHED,
+    JournalEntrySourceType.USER_CONFIRMED,
+    JournalEntrySourceType.BANK_STATEMENT,
+}
+_MANUAL_SOURCE_TYPES = {JournalEntrySourceType.MANUAL}
+_DERIVED_SOURCE_TYPES = {JournalEntrySourceType.SYSTEM, JournalEntrySourceType.FX_REVALUATION}
 
 
 class ReportError(Exception):
@@ -84,6 +94,33 @@ def _quantize_money(amount: Decimal | int) -> Decimal:
     if isinstance(amount, int):
         amount = Decimal(amount)
     return to_money(amount)
+
+
+def _provenance_from_source_type(source_type: JournalEntrySourceType | str | None) -> DataProvenance | None:
+    if source_type is None:
+        return None
+    try:
+        normalized = (
+            source_type if isinstance(source_type, JournalEntrySourceType) else JournalEntrySourceType(source_type)
+        )
+    except ValueError:
+        return None
+    if normalized in _MANUAL_SOURCE_TYPES:
+        return "manual"
+    if normalized in _IMPORTED_SOURCE_TYPES:
+        return "imported"
+    if normalized in _DERIVED_SOURCE_TYPES:
+        return "derived"
+    return None
+
+
+def _combine_provenance(values: Sequence[DataProvenance | None]) -> DataProvenance | None:
+    known = {value for value in values if value is not None}
+    if not known:
+        return None
+    if len(known) == 1:
+        return next(iter(known))
+    return "derived"
 
 
 def _month_start(value: date) -> date:
@@ -159,6 +196,7 @@ def _build_account_lines(
     balances: dict[UUID, Decimal],
     filter_type: AccountType,
     tiers: dict[UUID, str] | None = None,
+    provenance_by_account: dict[UUID, DataProvenance | None] | None = None,
 ) -> list[dict[str, Any]]:
     tiers = tiers or {}
     items = [account for account in accounts if account.type == filter_type]
@@ -171,6 +209,7 @@ def _build_account_lines(
             "parent_id": account.parent_id,
             "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
             "confidence_tier": tiers.get(account.id),
+            "provenance": provenance_by_account.get(account.id) if provenance_by_account is not None else None,
         }
         for account in items
     ]
@@ -183,8 +222,12 @@ async def _aggregate_account_confidence_tiers(
     as_of_date: date,
     *,
     start_date: date | None = None,
+    included_currencies: set[str] | None = None,
 ) -> dict[UUID, str]:
     """Per-account worst-input confidence tier, derived from contributing entries' source_type."""
+    if included_currencies is not None and not included_currencies:
+        return {}
+
     stmt = (
         select(Account.id, JournalEntry.source_type)
         .distinct()
@@ -198,6 +241,8 @@ async def _aggregate_account_confidence_tiers(
     )
     if start_date:
         stmt = stmt.where(JournalEntry.entry_date >= start_date)
+    if included_currencies is not None:
+        stmt = stmt.where(JournalLine.currency.in_(list(included_currencies)))
 
     result = await db.execute(stmt)
     tiers: dict[UUID, str] = {}
@@ -276,6 +321,7 @@ async def _aggregate_balances_sql(
     *,
     start_date: date | None = None,
     fx_warnings: list[FxWarning] | None = None,
+    included_currencies: set[str] | None = None,
 ) -> dict[UUID, Decimal]:
     """Aggregate account balances using SQL SUM/GROUP BY with FX conversion."""
     currency_stmt = (
@@ -300,6 +346,8 @@ async def _aggregate_balances_sql(
     fx_rates = await _get_fx_rates_map(db, currencies, target_currency, as_of_date, fx_warnings=fx_warnings)
     if not fx_rates:
         return {}
+    if included_currencies is not None:
+        included_currencies.update(fx_rates.keys())
 
     fx_case_parts = []
     for currency, rate in fx_rates.items():
@@ -349,6 +397,43 @@ async def _aggregate_balances_sql(
 
     result = await db.execute(agg_stmt)
     return {row.account_id: Decimal(str(row.balance)) if row.balance else Decimal("0") for row in result.all()}
+
+
+async def _aggregate_account_provenance(
+    db: AsyncSession,
+    user_id: UUID,
+    account_types: tuple[AccountType, ...],
+    as_of_date: date,
+    *,
+    start_date: date | None = None,
+    included_currencies: set[str] | None = None,
+) -> dict[UUID, DataProvenance | None]:
+    """Aggregate normalized provenance per account for report line read models."""
+    if included_currencies is not None and not included_currencies:
+        return {}
+
+    stmt = (
+        select(Account.id.label("account_id"), JournalEntry.source_type)
+        .join(JournalLine, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type.in_(account_types))
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date <= as_of_date)
+    )
+    if start_date:
+        stmt = stmt.where(JournalEntry.entry_date >= start_date)
+    if included_currencies is not None:
+        stmt = stmt.where(JournalLine.currency.in_(list(included_currencies)))
+
+    result = await db.execute(stmt)
+    provenance_inputs: dict[UUID, list[DataProvenance | None]] = {}
+    for row in result.all():
+        provenance_inputs.setdefault(row.account_id, []).append(_provenance_from_source_type(row.source_type))
+    return {
+        account_id: _combine_provenance(provenance_values)
+        for account_id, provenance_values in provenance_inputs.items()
+    }
 
 
 async def get_account_lineage(
@@ -626,6 +711,7 @@ async def _build_portfolio_market_adjustment_lines(
                 "type": AccountType.ASSET,
                 "parent_id": account.parent_id,
                 "amount": adjustment,
+                "provenance": "derived",
             }
         )
 
@@ -677,6 +763,7 @@ async def _build_manual_valuation_lines(
             # Manual valuations are user-supplied, explicitly trusted data (vision:
             # "manual data is explicitly trusted"), mirroring source_type=manual.
             "confidence_tier": "TRUSTED",
+            "provenance": "manual",
         }
         if is_liability:
             liability_lines.append(line)
@@ -701,6 +788,7 @@ async def generate_balance_sheet(
     fx_warnings: list[FxWarning] = []
     account_types = (AccountType.ASSET, AccountType.LIABILITY, AccountType.EQUITY)
     accounts = await _load_accounts(db, user_id, account_types)
+    included_ledger_currencies: set[str] = set()
 
     try:
         balances = await _aggregate_balances_sql(
@@ -710,6 +798,7 @@ async def generate_balance_sheet(
             target_currency,
             as_of_date,
             fx_warnings=fx_warnings,
+            included_currencies=included_ledger_currencies,
         )
     except ReportError:
         raise
@@ -725,10 +814,42 @@ async def generate_balance_sheet(
         if account.id not in balances:
             balances[account.id] = Decimal("0")
 
-    tiers = await _aggregate_account_confidence_tiers(db, user_id, account_types, as_of_date)
-    assets = _build_account_lines(accounts, balances, AccountType.ASSET, tiers)
-    liabilities = _build_account_lines(accounts, balances, AccountType.LIABILITY, tiers)
-    equity = _build_account_lines(accounts, balances, AccountType.EQUITY, tiers)
+    tiers = await _aggregate_account_confidence_tiers(
+        db,
+        user_id,
+        account_types,
+        as_of_date,
+        included_currencies=included_ledger_currencies,
+    )
+    provenance_by_account = await _aggregate_account_provenance(
+        db,
+        user_id,
+        account_types,
+        as_of_date,
+        included_currencies=included_ledger_currencies,
+    )
+
+    assets = _build_account_lines(
+        accounts,
+        balances,
+        AccountType.ASSET,
+        tiers=tiers,
+        provenance_by_account=provenance_by_account,
+    )
+    liabilities = _build_account_lines(
+        accounts,
+        balances,
+        AccountType.LIABILITY,
+        tiers=tiers,
+        provenance_by_account=provenance_by_account,
+    )
+    equity = _build_account_lines(
+        accounts,
+        balances,
+        AccountType.EQUITY,
+        tiers=tiers,
+        provenance_by_account=provenance_by_account,
+    )
     portfolio_adjustments = await _build_portfolio_market_adjustment_lines(
         db,
         user_id,
@@ -840,6 +961,7 @@ async def generate_income_statement(
     target_currency = _normalize_currency(currency)
     fx_warnings: list[FxWarning] = []
 
+    account_types: tuple[AccountType, ...]
     if account_type:
         account_types = (account_type,)
     else:
@@ -904,11 +1026,15 @@ async def generate_income_statement(
     else:
         entries_to_include = set(entries_by_id.keys())
 
+    provenance_inputs_by_account: dict[UUID, list[DataProvenance | None]] = {}
     for entry_id, lines_and_accounts in entries_by_id.items():
         if entry_id not in entries_to_include:
             continue
 
         for line, account, entry in lines_and_accounts:
+            provenance_inputs_by_account.setdefault(account.id, []).append(
+                _provenance_from_source_type(entry.source_type)
+            )
             # Use pre-fetched rates
             rate_total = fx_rates.get_rate(line.currency, target_currency, end_date, start_date, end_date)
             if rate_total is None:
@@ -982,8 +1108,22 @@ async def generate_income_statement(
             else:
                 bucket["expense"] += signed_monthly
 
-    income_lines = _build_account_lines(accounts, balances, AccountType.INCOME)
-    expense_lines = _build_account_lines(accounts, balances, AccountType.EXPENSE)
+    provenance_by_account = {
+        account_id: _combine_provenance(provenance_values)
+        for account_id, provenance_values in provenance_inputs_by_account.items()
+    }
+    income_lines = _build_account_lines(
+        accounts,
+        balances,
+        AccountType.INCOME,
+        provenance_by_account=provenance_by_account,
+    )
+    expense_lines = _build_account_lines(
+        accounts,
+        balances,
+        AccountType.EXPENSE,
+        provenance_by_account=provenance_by_account,
+    )
 
     total_income = _quantize_money(sum((Decimal(str(line["amount"])) for line in income_lines), Decimal("0")))
     total_expenses = _quantize_money(sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0")))
@@ -1305,7 +1445,7 @@ async def get_category_breakdown(
         for account in accounts
     ]
     items = [item for item in items if item["total"] != Decimal("0.00")]
-    items.sort(key=lambda item: item["total"], reverse=True)
+    items.sort(key=lambda item: Decimal(str(item["total"])), reverse=True)
 
     return {
         "type": breakdown_type,

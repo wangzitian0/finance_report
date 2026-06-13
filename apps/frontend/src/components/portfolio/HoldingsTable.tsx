@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PortfolioHolding } from "@/lib/types";
 import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
+import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 
 interface HoldingsTableProps {
     holdings: PortfolioHolding[];
@@ -80,14 +81,7 @@ export function HoldingsTable({ holdings, showDisposed = false }: HoldingsTableP
                                                 >
                                                     {h.asset_identifier}
                                                 </Link>
-                                                {h.provenance === "imported" && (
-                                                    <span
-                                                        className="rounded-full bg-[var(--success-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--success)]"
-                                                        title="Backed by an imported source document"
-                                                    >
-                                                        Imported
-                                                    </span>
-                                                )}
+                                                <ProvenanceBadge provenance={h.provenance} />
                                             </span>
                                             <div className="text-xs text-muted mt-0.5">
                                                 {formatDateDisplay(h.acquisition_date)}

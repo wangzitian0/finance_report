@@ -12,6 +12,7 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { ReportPageSkeleton } from "@/components/reports/ReportPageSkeleton";
+import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
 import type { BalanceSheetResponse, ReportLine } from "@/lib/types";
 
@@ -80,6 +81,7 @@ export default function BalanceSheetPage() {
           <div className="flex items-center gap-2">
             {hasChildren && <button onClick={() => toggle(node.account_id)} className="w-5 h-5 rounded-md bg-[var(--background-muted)] text-xs flex items-center justify-center">{isExpanded ? "–" : "+"}</button>}
             <span>{node.name}</span>
+            <ProvenanceBadge provenance={node.provenance} />
           </div>
           {report ? (
             <button
