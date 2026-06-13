@@ -24,7 +24,6 @@ from src.services.account_service import get_or_create_processing_account
 class TestProcessingAccountCreation:
     """Test Processing account creation and properties."""
 
-    @pytest.mark.asyncio
     async def test_processing_account_created_on_first_call(self, db: AsyncSession, test_user):
         """AC15.1.1 · Processing account is auto-created on first get_or_create call."""
         user_id = test_user.id
@@ -37,7 +36,6 @@ class TestProcessingAccountCreation:
         assert processing.currency == "SGD"
         assert processing.user_id == user_id
 
-    @pytest.mark.asyncio
     async def test_processing_account_idempotent(self, db: AsyncSession, test_user):
         """AC15.1.2 · Multiple calls return the same Processing account."""
         user_id = test_user.id
@@ -46,7 +44,6 @@ class TestProcessingAccountCreation:
 
         assert processing1.id == processing2.id
 
-    @pytest.mark.asyncio
     async def test_processing_account_hidden_from_list(self, db: AsyncSession, test_user):
         """AC15.1.3 · Processing account is hidden from list_accounts."""
         user_id = test_user.id
@@ -73,7 +70,6 @@ class TestProcessingAccountCreation:
         assert accounts[0].name == "Cash"
         assert all(not acc.is_system for acc in accounts)
 
-    @pytest.mark.asyncio
     async def test_processing_account_per_user(self, db: AsyncSession):
         """AC15.1.4 · Each user gets their own Processing account."""
         user1 = uuid4()
@@ -90,7 +86,6 @@ class TestProcessingAccountCreation:
 class TestProcessingAccountTransfers:
     """Test transfer IN/OUT entries to Processing account."""
 
-    @pytest.mark.asyncio
     async def test_transfer_out_to_processing(self, db: AsyncSession, test_user):
         """AC15.2.1 · Transfer OUT: Debit Processing, Credit source account."""
         user_id = test_user.id
@@ -133,7 +128,6 @@ class TestProcessingAccountTransfers:
         balance = sum(ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in processing_lines)
         assert balance == Decimal("100.00")
 
-    @pytest.mark.asyncio
     async def test_transfer_in_from_processing(self, db: AsyncSession, test_user):
         """AC15.2.2 · Transfer IN: Debit destination account, Credit Processing."""
         user_id = test_user.id
@@ -179,7 +173,6 @@ class TestProcessingAccountTransfers:
         balance = sum(ln.amount if ln.direction == Direction.DEBIT else -ln.amount for ln in processing_lines)
         assert balance == Decimal("-100.00")
 
-    @pytest.mark.asyncio
     async def test_paired_transfers_zero_balance(self, db: AsyncSession, test_user):
         """AC15.2.3 · Paired transfer OUT + IN results in Processing balance = 0."""
         user_id = test_user.id
@@ -266,7 +259,6 @@ class TestProcessingAccountTransfers:
 class TestProcessingAccountIntegrity:
     """Test accounting integrity with Processing account."""
 
-    @pytest.mark.asyncio
     async def test_unpaired_transfer_visible_in_processing_balance(self, db: AsyncSession, test_user):
         """AC15.3.1 · Unpaired transfer OUT shows as non-zero Processing balance."""
         user_id = test_user.id
@@ -306,7 +298,6 @@ class TestProcessingAccountIntegrity:
         assert balance == Decimal("200.00")
         assert balance != Decimal("0.00")  # Non-zero indicates unpaired transfer
 
-    @pytest.mark.asyncio
     async def test_accounting_equation_holds_with_processing(self, db: AsyncSession, test_user):
         """AC15.3.2 · Accounting equation holds after transfers involving Processing account."""
         user_id = test_user.id
@@ -417,7 +408,6 @@ class TestProcessingAccountIntegrity:
 class TestProcessingAccountValidation:
     """Test validation rules for Processing account (Anti-pattern A)."""
 
-    @pytest.mark.asyncio
     async def test_reject_manual_processing_entry(self, db: AsyncSession, test_user):
         """AC15.4.A · Manual journal entries cannot use Processing account (SSOT Anti-pattern A)."""
         user_id = test_user.id
@@ -455,7 +445,6 @@ class TestProcessingAccountValidation:
         with pytest.raises(ValidationError, match="System accounts.*system-generated"):
             await post_journal_entry(db, entry.id, user_id)
 
-    @pytest.mark.asyncio
     async def test_system_entry_can_use_processing(self, db: AsyncSession, test_user):
         """AC15.4.A · System-generated entries (source_type=SYSTEM) CAN use Processing account."""
         user_id = test_user.id
@@ -497,7 +486,6 @@ class TestProcessingAccountValidation:
 class TestTransferDetection:
     """Test transfer pattern detection and auto-pairing."""
 
-    @pytest.mark.asyncio
     async def test_detect_transfer_keywords(self, db: AsyncSession, test_user):
         """AC15.4.1 · detect_transfer_pattern identifies transfer keywords in descriptions."""
         from src.services.processing_account import detect_transfer_pattern
@@ -551,7 +539,6 @@ class TestTransferDetection:
 
         assert detect_transfer_pattern(non_transfer) is False
 
-    @pytest.mark.asyncio
     async def test_detect_transfer_no_description(self, db: AsyncSession, test_user):
         """AC15.4.2 · detect_transfer_pattern returns False for None/empty description."""
         from src.services.processing_account import detect_transfer_pattern
@@ -573,7 +560,6 @@ class TestTransferDetection:
 
         assert detect_transfer_pattern(txn_empty) is False
 
-    @pytest.mark.asyncio
     async def test_auto_pair_transfers_above_threshold(self, db: AsyncSession, test_user):
         """AC15.4.3 · find_transfer_pairs auto-pairs transfers with confidence >= 85."""
         from src.services.processing_account import (
@@ -754,7 +740,6 @@ class TestTransferScoringFunctions:
 class TestUnpairedTransferDetection:
     """Test detection of unpaired transfers."""
 
-    @pytest.mark.asyncio
     async def test_get_unpaired_transfers_empty(self, db: AsyncSession, test_user):
         """AC15.3.1 · No unpaired transfers when Processing balance is zero."""
         from src.services.processing_account import get_unpaired_transfers
@@ -764,7 +749,6 @@ class TestUnpairedTransferDetection:
 
         assert unpaired == []
 
-    @pytest.mark.asyncio
     async def test_get_unpaired_transfers_with_balance(self, db: AsyncSession, test_user):
         """AC15.3.1 · Unpaired transfers detected when Processing balance ≠ 0."""
         from src.services.processing_account import (
@@ -797,7 +781,6 @@ class TestUnpairedTransferDetection:
 class TestProcessingBalanceQuery:
     """Test Processing account balance query."""
 
-    @pytest.mark.asyncio
     async def test_get_processing_balance_zero(self, db: AsyncSession, test_user):
         """AC15.3.2 · Processing balance is zero when no transfers exist."""
         from src.services.processing_account import get_processing_balance
@@ -807,7 +790,6 @@ class TestProcessingBalanceQuery:
 
         assert balance == Decimal("0")
 
-    @pytest.mark.asyncio
     async def test_get_processing_balance_with_transfers(self, db: AsyncSession, test_user):
         """AC15.3.2 · Processing balance reflects unpaired transfers."""
         from src.services.processing_account import (
@@ -838,7 +820,6 @@ class TestProcessingBalanceQuery:
 class TestTransferEntryValidation:
     """Test input validation for create_transfer_out_entry and create_transfer_in_entry."""
 
-    @pytest.mark.asyncio
     async def test_transfer_out_rejects_zero_amount(self, db: AsyncSession, test_user):
         """AC15.2.1 · create_transfer_out_entry rejects amount <= 0."""
         from src.services.processing_account import create_transfer_out_entry
@@ -858,7 +839,6 @@ class TestTransferEntryValidation:
                 description="Test",
             )
 
-    @pytest.mark.asyncio
     async def test_transfer_out_rejects_negative_amount(self, db: AsyncSession, test_user):
         """AC15.2.1 · create_transfer_out_entry rejects negative amount."""
         from src.services.processing_account import create_transfer_out_entry
@@ -878,7 +858,6 @@ class TestTransferEntryValidation:
                 description="Test",
             )
 
-    @pytest.mark.asyncio
     async def test_transfer_out_rejects_empty_description(self, db: AsyncSession, test_user):
         """AC15.2.1 · create_transfer_out_entry rejects empty description."""
         from src.services.processing_account import create_transfer_out_entry
@@ -898,7 +877,6 @@ class TestTransferEntryValidation:
                 description="",
             )
 
-    @pytest.mark.asyncio
     async def test_transfer_out_rejects_whitespace_description(self, db: AsyncSession, test_user):
         """AC15.2.1 · create_transfer_out_entry rejects whitespace-only description."""
         from src.services.processing_account import create_transfer_out_entry
@@ -918,7 +896,6 @@ class TestTransferEntryValidation:
                 description="   ",
             )
 
-    @pytest.mark.asyncio
     async def test_transfer_in_rejects_zero_amount(self, db: AsyncSession, test_user):
         """AC15.2.2 · create_transfer_in_entry rejects amount <= 0."""
         from src.services.processing_account import create_transfer_in_entry
@@ -938,7 +915,6 @@ class TestTransferEntryValidation:
                 description="Test",
             )
 
-    @pytest.mark.asyncio
     async def test_transfer_in_rejects_empty_description(self, db: AsyncSession, test_user):
         """AC15.2.2 · create_transfer_in_entry rejects empty description."""
         from src.services.processing_account import create_transfer_in_entry

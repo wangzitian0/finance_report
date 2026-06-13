@@ -51,7 +51,6 @@ def mock_ai_response():
     }
 
 
-@pytest.mark.asyncio
 class TestReconciliationLayer4Read:
     """Tests for Phase 4 Layer 2 Read in reconciliation."""
 

@@ -157,7 +157,6 @@ async def _create_valuation(
     return snapshot
 
 
-@pytest.mark.asyncio
 async def test_portfolio_market_value_updates_balance_sheet_without_double_counting(db: AsyncSession, test_user):
     """AC17.5.4: Broker market valuation adjusts ledger cost basis without double counting."""
     report_date = date(2025, 3, 31)
@@ -192,7 +191,6 @@ async def test_portfolio_market_value_updates_balance_sheet_without_double_count
     assert any(line["amount"] == Decimal("500.00") for line in report["assets"])
 
 
-@pytest.mark.asyncio
 async def test_portfolio_market_value_counts_when_ledger_has_no_cost_basis(db: AsyncSession, test_user):
     """AC17.5.4: Broker positions with no journal cost basis still appear in net worth."""
     report_date = date(2025, 3, 31)
@@ -215,7 +213,6 @@ async def test_portfolio_market_value_counts_when_ledger_has_no_cost_basis(db: A
     assert any(line["name"] == "Moomoo market valuation adjustment" for line in report["assets"])
 
 
-@pytest.mark.asyncio
 async def test_current_balance_sheet_uses_latest_future_brokerage_snapshot(db: AsyncSession, test_user):
     """AC8.13.10: Current balance sheet includes latest imported brokerage snapshots."""
     report_date = date.today()
@@ -248,7 +245,6 @@ async def test_current_balance_sheet_uses_latest_future_brokerage_snapshot(db: A
     assert any(line["name"] == "Moomoo market valuation adjustment" for line in report["assets"])
 
 
-@pytest.mark.asyncio
 async def test_portfolio_market_adjustment_survives_unrelated_negative_asset_lines(db: AsyncSession, test_user):
     """AC8.13.18: Portfolio valuation lines remain correct when total assets are lower."""
     report_date = date(2025, 3, 31)
@@ -285,7 +281,6 @@ async def test_portfolio_market_adjustment_survives_unrelated_negative_asset_lin
     assert valuation_total > report["total_assets"]
 
 
-@pytest.mark.asyncio
 async def test_portfolio_market_adjustment_preserves_broker_cash_balance(db: AsyncSession, test_user):
     """AC17.5.4: Broker cash remains in net worth when positions are adjusted to market value."""
     report_date = date(2025, 3, 31)
@@ -320,7 +315,6 @@ async def test_portfolio_market_adjustment_preserves_broker_cash_balance(db: Asy
     assert any(line["amount"] == Decimal("500.00") for line in report["assets"])
 
 
-@pytest.mark.asyncio
 async def test_portfolio_without_market_price_is_skipped(db: AsyncSession, test_user):
     """AC17.5.4: Positions without market prices do not block balance sheet generation."""
     report_date = date(2025, 3, 31)
@@ -346,7 +340,6 @@ async def test_portfolio_without_market_price_is_skipped(db: AsyncSession, test_
     assert not any("market valuation adjustment" in line["name"] for line in report["assets"])
 
 
-@pytest.mark.asyncio
 async def test_portfolio_market_adjustment_skips_zero_delta(db: AsyncSession, test_user):
     """AC17.5.4: A position already carried at market value does not add a zero adjustment line."""
     report_date = date(2025, 3, 31)
@@ -378,7 +371,6 @@ async def test_portfolio_market_adjustment_skips_zero_delta(db: AsyncSession, te
     assert not any("market valuation adjustment" in line["name"] for line in report["assets"])
 
 
-@pytest.mark.asyncio
 async def test_portfolio_market_adjustment_converts_position_currency(db: AsyncSession, test_user):
     """AC17.5.4: Foreign-currency broker positions are converted into report currency."""
     acquisition_date = date(2025, 1, 15)
@@ -421,7 +413,6 @@ async def test_portfolio_market_adjustment_converts_position_currency(db: AsyncS
     assert any(line["amount"] == Decimal("2025.00") for line in report["assets"])
 
 
-@pytest.mark.asyncio
 async def test_foreign_currency_portfolio_missing_fx_rate_raises_report_error(db: AsyncSession, test_user):
     """AC17.5.4: Missing FX for foreign-currency positions fails explicitly."""
     report_date = date(2025, 3, 31)
@@ -443,7 +434,6 @@ async def test_foreign_currency_portfolio_missing_fx_rate_raises_report_error(db
         await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
 
 
-@pytest.mark.asyncio
 async def test_manual_property_and_mortgage_valuations_change_net_worth(db: AsyncSession, test_user):
     """AC5.7.3: Manual asset and liability valuation snapshots are included in balance sheet totals."""
     report_date = date(2025, 3, 31)
@@ -476,7 +466,6 @@ async def test_manual_property_and_mortgage_valuations_change_net_worth(db: Asyn
     assert report["total_assets"] - report["total_liabilities"] == Decimal("600000.00")
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_assets(
     db: AsyncSession,
     test_user,
@@ -546,7 +535,6 @@ async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_asset
     assert full_report["total_liabilities"] == Decimal("600000.00")
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_uses_as_of_historical_fx_rate(db: AsyncSession, test_user):
     """AC5.7.3: Non-base valuation snapshots use historical FX for the requested as-of date."""
     report_date = date(2025, 3, 31)
@@ -577,7 +565,6 @@ async def test_manual_valuation_uses_as_of_historical_fx_rate(db: AsyncSession, 
     assert report["assets"][0]["amount"] == Decimal("1350.00")
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_missing_fx_rate_raises_report_error(db: AsyncSession, test_user):
     """AC5.7.3: Missing FX for a manual valuation fails report generation explicitly."""
     report_date = date(2025, 3, 31)
@@ -597,7 +584,6 @@ async def test_manual_valuation_missing_fx_rate_raises_report_error(db: AsyncSes
         await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
 
 
-@pytest.mark.asyncio
 async def test_income_statement_includes_applied_classification_breakdown(db: AsyncSession, test_user):
     """AC18.4.4: Income statements include applied Layer 3 classification coverage."""
     report_date = date(2025, 3, 31)

@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +28,6 @@ def test_AC11_11_1_income_bucket_maps_report_package_income_accounts():
     assert income_bucket("Consulting Income") is None
 
 
-@pytest.mark.asyncio
 async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment(
     client: AsyncClient,
     db: AsyncSession,
@@ -150,7 +148,6 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
     }
 
 
-@pytest.mark.asyncio
 async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals(
     client: AsyncClient,
     db: AsyncSession,

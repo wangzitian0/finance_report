@@ -14,7 +14,6 @@ from src.models.layer3 import ManagedPosition, PositionStatus
 from src.services.assets import AssetService, AssetServiceError
 
 
-@pytest.mark.asyncio
 class TestAssetDepreciation:
     """Tests for depreciation calculation methods."""
 

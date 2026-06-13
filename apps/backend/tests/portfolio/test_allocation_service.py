@@ -100,7 +100,6 @@ async def finance_stock_position(db: AsyncSession, test_user, investment_account
     return position
 
 
-@pytest.mark.asyncio
 async def test_sector_allocation_empty_portfolio(db: AsyncSession, test_user):
     """AC17.4.1: Empty portfolio returns empty sector allocation.
 
@@ -110,7 +109,6 @@ async def test_sector_allocation_empty_portfolio(db: AsyncSession, test_user):
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_geography_allocation_empty_portfolio(db: AsyncSession, test_user):
     """AC17.4.2: Empty portfolio returns empty geography allocation.
 
@@ -120,7 +118,6 @@ async def test_geography_allocation_empty_portfolio(db: AsyncSession, test_user)
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_asset_class_allocation_empty_portfolio(db: AsyncSession, test_user):
     """AC17.4.3: Empty portfolio returns empty asset class allocation.
 
@@ -130,7 +127,6 @@ async def test_asset_class_allocation_empty_portfolio(db: AsyncSession, test_use
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_sector_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
@@ -147,7 +143,6 @@ async def test_sector_allocation_with_positions(
     assert all(hasattr(item, "count") for item in result)
 
 
-@pytest.mark.asyncio
 async def test_geography_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):
@@ -161,7 +156,6 @@ async def test_geography_allocation_with_positions(
     assert all(hasattr(item, "category") for item in result)
 
 
-@pytest.mark.asyncio
 async def test_asset_class_allocation_with_positions(
     db: AsyncSession, test_user, tech_stock_position, finance_stock_position
 ):

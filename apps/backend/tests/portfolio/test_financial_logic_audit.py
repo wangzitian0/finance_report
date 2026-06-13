@@ -3,7 +3,6 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +39,6 @@ def test_AC17_11_4_source_document_links_ignore_non_structured_payloads():
     assert _source_document_links("legacy-import") == []
 
 
-@pytest.mark.asyncio
 async def test_AC17_11_1_xirr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user):
     """AC17.11.1: XIRR/MWR use investment transactions, not unrelated bank atomic transactions."""
     position = await _investment_position(db, test_user, asset_identifier="XIRRAUDIT")
@@ -94,7 +92,6 @@ async def test_AC17_11_1_xirr_excludes_unrelated_bank_transactions(db: AsyncSess
     assert mwr == xirr
 
 
-@pytest.mark.asyncio
 async def test_AC17_11_3_twr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user):
     """AC17.11.3: TWR excludes unrelated bank transactions from cash-flow adjustment."""
     position = await _investment_position(db, test_user, asset_identifier="TWRAUDIT")
@@ -143,7 +140,6 @@ async def test_AC17_11_3_twr_excludes_unrelated_bank_transactions(db: AsyncSessi
     assert twr == Decimal("10.0")
 
 
-@pytest.mark.asyncio
 async def test_AC17_11_2_summary_ytd_amounts_convert_to_presentation_currency(
     client: AsyncClient,
     db: AsyncSession,

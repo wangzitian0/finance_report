@@ -33,7 +33,6 @@ class TestBaseAppException:
         assert exc_info.value.message == "raised!"
         assert str(exc_info.value) == "raised!"
 
-    @pytest.mark.asyncio
     async def test_base_app_exception_handler_returns_structured_json(self):
         """AC12.21.5: BaseAppException handler serializes error_id and status_code into JSON response."""
         import json

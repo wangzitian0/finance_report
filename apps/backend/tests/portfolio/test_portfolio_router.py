@@ -88,7 +88,6 @@ async def portfolio_with_data(db: AsyncSession, test_user, investment_account):
     return {"position": position, "account": investment_account}
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_empty_portfolio(client: AsyncClient):
     """AC17.6.1: GET /portfolio/holdings on empty portfolio returns 200 with empty list.
 
@@ -99,7 +98,6 @@ async def test_get_holdings_empty_portfolio(client: AsyncClient):
     assert response.json() == []
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_with_data(client: AsyncClient, portfolio_with_data):
     """AC17.6.2: GET /portfolio/holdings with data returns non-empty list.
 
@@ -112,7 +110,6 @@ async def test_get_holdings_with_data(client: AsyncClient, portfolio_with_data):
     assert len(data) > 0
 
 
-@pytest.mark.asyncio
 async def test_holding_detail_dividends_realized_and_cost_basis_endpoints(
     client: AsyncClient,
     db: AsyncSession,
@@ -172,7 +169,6 @@ async def test_holding_detail_dividends_realized_and_cost_basis_endpoints(
     assert position.cost_basis_method == CostBasisMethod.LIFO
 
 
-@pytest.mark.asyncio
 async def test_portfolio_summary_returns_realized_and_dividend_ytd(
     client: AsyncClient,
     db: AsyncSession,
@@ -217,7 +213,6 @@ async def test_portfolio_summary_returns_realized_and_dividend_ytd(
     assert data["dividend_income_ytd"] == "42.50"
 
 
-@pytest.mark.asyncio
 async def test_portfolio_summary_returns_zeroes_when_service_has_no_holdings(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -239,7 +234,6 @@ async def test_portfolio_summary_returns_zeroes_when_service_has_no_holdings(
     assert data["holdings_count"] == 0
 
 
-@pytest.mark.asyncio
 async def test_update_holding_cost_basis_method_returns_404_for_missing_holding(client: AsyncClient):
     """AC17.7.3: Missing holding cost-basis updates return a stable 404."""
     response = await client.patch("/portfolio/MISSING", json={"cost_basis_method": "FIFO"})
@@ -248,7 +242,6 @@ async def test_update_holding_cost_basis_method_returns_404_for_missing_holding(
     assert response.json()["detail"] == "Holding not found"
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_with_date_filter(client: AsyncClient, portfolio_with_data):
     """AC17.6.3: GET /portfolio/holdings with as_of_date filter returns 200.
 
@@ -259,7 +252,6 @@ async def test_get_holdings_with_date_filter(client: AsyncClient, portfolio_with
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_defaults_to_future_imported_snapshot(
     client: AsyncClient,
     db: AsyncSession,
@@ -302,7 +294,6 @@ async def test_get_holdings_defaults_to_future_imported_snapshot(
     assert Decimal(data[0]["market_value"]) == Decimal("1234.00")
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_date_does_not_use_future_snapshot(
     client: AsyncClient,
     db: AsyncSession,
@@ -342,7 +333,6 @@ async def test_get_holdings_explicit_date_does_not_use_future_snapshot(
     assert response.json() == []
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
     client: AsyncClient,
     db: AsyncSession,
@@ -398,7 +388,6 @@ async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
     assert Decimal(data[0]["market_value"]) == Decimal("1200.00")
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_include_disposed(client: AsyncClient, portfolio_with_data):
     """AC17.6.4: GET /portfolio/holdings with include_disposed=true returns 200.
 
@@ -408,7 +397,6 @@ async def test_get_holdings_include_disposed(client: AsyncClient, portfolio_with
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_get_performance_without_period(client: AsyncClient, portfolio_with_data):
     """AC17.6.5: GET /portfolio/performance without period returns metrics.
 
@@ -422,7 +410,6 @@ async def test_get_performance_without_period(client: AsyncClient, portfolio_wit
     assert "money_weighted_return" in data
 
 
-@pytest.mark.asyncio
 async def test_get_performance_with_period(client: AsyncClient, portfolio_with_data):
     """AC17.6.6: GET /portfolio/performance with period params returns metrics.
 
@@ -437,7 +424,6 @@ async def test_get_performance_with_period(client: AsyncClient, portfolio_with_d
     assert "time_weighted_return" in data
 
 
-@pytest.mark.asyncio
 async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
     client: AsyncClient,
     db: AsyncSession,
@@ -517,7 +503,6 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
         assert any("TWR unavailable" in note for note in data["notes"])
 
 
-@pytest.mark.asyncio
 async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency_amounts(
     client: AsyncClient,
     db: AsyncSession,
@@ -620,7 +605,6 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
     assert holding["realized_pnl"] == "150.00"
 
 
-@pytest.mark.asyncio
 async def test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency(
     client: AsyncClient,
     db: AsyncSession,
@@ -674,7 +658,6 @@ async def test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts
     assert holding["unrealized_pnl"] == "300.00"
 
 
-@pytest.mark.asyncio
 async def test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_stale(
     client: AsyncClient,
     db: AsyncSession,
@@ -725,7 +708,6 @@ async def test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_s
     assert freshness["stale_holdings"] == ["MSFT"]
 
 
-@pytest.mark.asyncio
 async def test_AC17_10_1_report_schedule_uses_manual_override_after_period_end(
     client: AsyncClient,
     db: AsyncSession,
@@ -797,7 +779,6 @@ async def test_AC17_10_1_report_schedule_uses_manual_override_after_period_end(
     assert any(link.startswith("price_source:market_data_override:FULLERTON_SGD_MMF:") for link in data["source_links"])
 
 
-@pytest.mark.asyncio
 async def test_get_sector_allocation_empty(client: AsyncClient):
     """AC17.6.7: GET /portfolio/allocation/sector on empty portfolio returns [].
 
@@ -808,7 +789,6 @@ async def test_get_sector_allocation_empty(client: AsyncClient):
     assert response.json() == []
 
 
-@pytest.mark.asyncio
 async def test_get_sector_allocation_with_data(client: AsyncClient, portfolio_with_data):
     """AC17.6.8: GET /portfolio/allocation/sector with data returns breakdown.
 
@@ -825,7 +805,6 @@ async def test_get_sector_allocation_with_data(client: AsyncClient, portfolio_wi
         assert "count" in data[0]
 
 
-@pytest.mark.asyncio
 async def test_get_geography_allocation_empty(client: AsyncClient):
     """AC17.6.9: GET /portfolio/allocation/geography on empty portfolio returns [].
 
@@ -836,7 +815,6 @@ async def test_get_geography_allocation_empty(client: AsyncClient):
     assert response.json() == []
 
 
-@pytest.mark.asyncio
 async def test_get_geography_allocation_with_data(client: AsyncClient, portfolio_with_data):
     """AC17.6.10: GET /portfolio/allocation/geography with data returns breakdown.
 
@@ -848,7 +826,6 @@ async def test_get_geography_allocation_with_data(client: AsyncClient, portfolio
     assert isinstance(data, list)
 
 
-@pytest.mark.asyncio
 async def test_get_asset_class_allocation_empty(client: AsyncClient):
     """AC17.6.11: GET /portfolio/allocation/asset-class on empty portfolio returns [].
 
@@ -859,7 +836,6 @@ async def test_get_asset_class_allocation_empty(client: AsyncClient):
     assert response.json() == []
 
 
-@pytest.mark.asyncio
 async def test_get_asset_class_allocation_with_data(client: AsyncClient, portfolio_with_data):
     """AC17.6.12: GET /portfolio/allocation/asset-class with data returns breakdown.
 
@@ -871,7 +847,6 @@ async def test_get_asset_class_allocation_with_data(client: AsyncClient, portfol
     assert isinstance(data, list)
 
 
-@pytest.mark.asyncio
 async def test_update_prices_single(client: AsyncClient, portfolio_with_data):
     """AC17.6.13: POST /portfolio/prices/update with single asset returns success.
 
@@ -894,7 +869,6 @@ async def test_update_prices_single(client: AsyncClient, portfolio_with_data):
     assert data["updated_count"] >= 0
 
 
-@pytest.mark.asyncio
 async def test_update_prices_batch(client: AsyncClient, portfolio_with_data):
     """AC17.6.14: POST /portfolio/prices/update with batch returns success.
 
@@ -920,7 +894,6 @@ async def test_update_prices_batch(client: AsyncClient, portfolio_with_data):
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_update_prices_invalid_payload(client: AsyncClient):
     """AC17.6.15: POST /portfolio/prices/update with invalid payload returns 422.
 
@@ -931,7 +904,6 @@ async def test_update_prices_invalid_payload(client: AsyncClient):
     assert response.status_code == 422
 
 
-@pytest.mark.asyncio
 async def test_portfolio_endpoints_require_auth(public_client: AsyncClient):
     """AC17.6.16: All portfolio endpoints require authentication.
 
@@ -949,7 +921,6 @@ async def test_portfolio_endpoints_require_auth(public_client: AsyncClient):
         assert response.status_code == 401
 
 
-@pytest.mark.asyncio
 async def test_allocation_with_as_of_date(client: AsyncClient, portfolio_with_data):
     """AC17.6.17: GET /portfolio/allocation/sector with as_of_date returns 200.
 
@@ -960,7 +931,6 @@ async def test_allocation_with_as_of_date(client: AsyncClient, portfolio_with_da
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_performance_metrics_response_format(client: AsyncClient, portfolio_with_data):
     """AC17.6.18: GET /portfolio/performance returns string-formatted metrics.
 
@@ -975,7 +945,6 @@ async def test_performance_metrics_response_format(client: AsyncClient, portfoli
         assert isinstance(data[key], str)
 
 
-@pytest.mark.asyncio
 async def test_get_performance_insufficient_data(client: AsyncClient):
     """AC17.6.19: InsufficientDataError on empty portfolio -> xirr/mwr default to 0."""
     response = await client.get("/portfolio/performance")
@@ -986,7 +955,6 @@ async def test_get_performance_insufficient_data(client: AsyncClient):
     assert data["time_weighted_return"] == "0.00"
 
 
-@pytest.mark.asyncio
 async def test_get_performance_xirr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
     """AC17.6.20: PerformanceError (non-InsufficientData) on XIRR -> 422."""
     from src.services.performance import XIRRCalculationError
@@ -1001,7 +969,6 @@ async def test_get_performance_xirr_calculation_error(client: AsyncClient, portf
     assert "Newton+bisection failed" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_get_performance_mwr_calculation_error(client: AsyncClient, portfolio_with_data, monkeypatch):
     """AC17.6.21: PerformanceError (non-InsufficientData) on MWR -> 422."""
     from src.services.performance import XIRRCalculationError

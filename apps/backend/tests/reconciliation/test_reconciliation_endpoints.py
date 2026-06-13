@@ -15,7 +15,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,7 +46,6 @@ def _atomic(user_id, *, description, amount, direction=TransactionDirection.OUT)
     )
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, test_user) -> None:
     session = db
     bank_account = Account(
@@ -273,7 +271,6 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
     assert anomalies_resp.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_error_paths(client: AsyncClient) -> None:
     missing_accept = await client.post(f"/reconciliation/matches/{uuid4()}/accept")
     assert missing_accept.status_code == 404
@@ -288,7 +285,6 @@ async def test_reconciliation_error_paths(client: AsyncClient) -> None:
     assert missing_anomalies.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_stats_empty(client: AsyncClient) -> None:
     resp = await client.get("/reconciliation/stats")
     assert resp.status_code == 200
@@ -297,7 +293,6 @@ async def test_reconciliation_stats_empty(client: AsyncClient) -> None:
     assert data["match_rate"] == 0.0
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_run_defaults(client: AsyncClient) -> None:
     resp = await client.post("/reconciliation/run", json={})
     assert resp.status_code == 200

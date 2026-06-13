@@ -16,7 +16,6 @@ from fastapi import HTTPException
 from src.routers.ai_models import list_models
 
 
-@pytest.mark.asyncio
 async def test_list_models_success():
     """AC6.11.1: List models endpoint returns models with default parameters."""
     mock_models = [
@@ -44,7 +43,6 @@ async def test_list_models_success():
     assert len(result.models) == 2
 
 
-@pytest.mark.asyncio
 async def test_list_models_filter_by_modality():
     """AC6.11.1: List models filters by modality."""
     mock_models = [
@@ -71,7 +69,6 @@ async def test_list_models_filter_by_modality():
     assert result.models[0].id == "vision/model"
 
 
-@pytest.mark.asyncio
 async def test_list_models_free_only():
     """AC6.11.1: List models filters to free-only models."""
     mock_models = [
@@ -98,7 +95,6 @@ async def test_list_models_free_only():
     assert result.models[0].id == "free/model"
 
 
-@pytest.mark.asyncio
 async def test_list_models_catalog_unavailable():
     """AC6.11.1: List models returns 503 when catalog unavailable."""
     with patch("src.routers.ai_models.fetch_model_catalog", new_callable=AsyncMock) as mock_fetch:
@@ -111,7 +107,6 @@ async def test_list_models_catalog_unavailable():
     assert "unavailable" in exc_info.value.detail.lower()
 
 
-@pytest.mark.asyncio
 async def test_list_models_sorted_free_first():
     """AC6.11.1: List models sorts free models first."""
     mock_models = [

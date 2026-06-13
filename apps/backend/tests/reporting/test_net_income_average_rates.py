@@ -68,7 +68,6 @@ async def fx_rates_varying(db: AsyncSession):
     return rates
 
 
-@pytest.mark.asyncio
 async def test_aggregate_net_income_uses_average_rate(
     db: AsyncSession,
     income_expense_accounts,
@@ -144,7 +143,6 @@ async def test_aggregate_net_income_uses_average_rate(
     )
 
 
-@pytest.mark.asyncio
 async def test_aggregate_net_income_no_start_date_uses_all_time_average(
     db: AsyncSession,
     income_expense_accounts,
@@ -187,7 +185,6 @@ async def test_aggregate_net_income_no_start_date_uses_all_time_average(
     assert net_income > Decimal("0"), f"Net income should be positive, got {net_income}"
 
 
-@pytest.mark.asyncio
 async def test_aggregate_net_income_same_currency_no_conversion(
     db: AsyncSession,
     user_id,
@@ -246,7 +243,6 @@ async def test_aggregate_net_income_same_currency_no_conversion(
     assert net_income == Decimal("1800.00")
 
 
-@pytest.mark.asyncio
 async def test_aggregate_net_income_raises_on_missing_fx_rate(
     db: AsyncSession,
     user_id,

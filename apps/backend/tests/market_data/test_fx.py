@@ -27,7 +27,6 @@ def clear_fx_cache() -> None:
     fx_service._cache._store.clear()
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_exact(db: AsyncSession):
     """Exact FX rate lookup should return stored rate."""
     rate = FxRate(
@@ -45,7 +44,6 @@ async def test_get_exchange_rate_exact(db: AsyncSession):
     assert result == Decimal("1.350000")
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_fallback(db: AsyncSession):
     """FX rate lookup should fall back to most recent prior rate."""
     rate = FxRate(
@@ -63,7 +61,6 @@ async def test_get_exchange_rate_fallback(db: AsyncSession):
     assert result == Decimal("1.320000")
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_lazy_derives_inverse(db: AsyncSession):
     """[AC5.4.3] Lazy FX lookup should derive and persist inverse rates."""
     db.add(
@@ -92,7 +89,6 @@ async def test_get_exchange_rate_lazy_derives_inverse(db: AsyncSession):
     assert derived.source == "derived:inverse:SGD/HKD"
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_lazy_fetches_provider_when_enabled(db: AsyncSession, monkeypatch):
     """[AC5.4.3] Lazy FX lookup should persist provider rates when DB derivation is unavailable."""
 
@@ -124,7 +120,6 @@ async def test_get_exchange_rate_lazy_fetches_provider_when_enabled(db: AsyncSes
     assert provider_rate.source == "yahoo_finance"
 
 
-@pytest.mark.asyncio
 async def test_resolve_missing_fx_rate_same_currency_returns_identity(db: AsyncSession):
     """[AC5.4.3] Lazy FX resolution should return identity for same-currency pairs."""
     result = await market_data.resolve_missing_fx_rate(db, "sgd", "SGD", date(2025, 6, 30))
@@ -132,7 +127,6 @@ async def test_resolve_missing_fx_rate_same_currency_returns_identity(db: AsyncS
     assert result == Decimal("1")
 
 
-@pytest.mark.asyncio
 async def test_resolve_missing_fx_rate_returns_stored_direct_rate(db: AsyncSession):
     """[AC5.4.3] Lazy FX resolution should use an existing direct DB rate without persisting."""
     db.add(
@@ -151,7 +145,6 @@ async def test_resolve_missing_fx_rate_returns_stored_direct_rate(db: AsyncSessi
     assert result == Decimal("0.173000")
 
 
-@pytest.mark.asyncio
 async def test_resolve_missing_fx_rate_returns_none_when_provider_misses(db: AsyncSession, monkeypatch):
     """[AC5.4.3] Lazy FX resolution should return None when derivation and provider fetch miss."""
 
@@ -166,7 +159,6 @@ async def test_resolve_missing_fx_rate_returns_none_when_provider_misses(db: Asy
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_persist_fx_rate_keeps_existing_same_day_rate(db: AsyncSession):
     """[AC5.4.3] Lazy FX persistence should not overwrite an existing same-day rate."""
     db.add(
@@ -198,7 +190,6 @@ async def test_persist_fx_rate_keeps_existing_same_day_rate(db: AsyncSession):
     assert rate.source == "manual"
 
 
-@pytest.mark.asyncio
 async def test_persist_fx_rate_handles_concurrent_insert():
     """[AC5.4.3] Lazy FX persistence should return the concurrent same-day insert after IntegrityError."""
 
@@ -261,7 +252,6 @@ async def test_persist_fx_rate_handles_concurrent_insert():
     assert session.added is not None
 
 
-@pytest.mark.asyncio
 async def test_persist_fx_rate_reraises_integrity_error_without_concurrent_rate():
     """[AC5.4.3] Lazy FX persistence should re-raise an unexpected IntegrityError."""
 
@@ -305,7 +295,6 @@ async def test_persist_fx_rate_reraises_integrity_error_without_concurrent_rate(
         )
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse(monkeypatch):
     """[AC5.4.3] Yahoo lazy fetch should derive inverse provider rates."""
 
@@ -333,7 +322,6 @@ async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse(monkeypatch):
     )
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_or_derived_fx_rate_uses_bridge(monkeypatch):
     """[AC5.4.3] Yahoo lazy fetch should derive bridge-provider rates."""
 
@@ -371,7 +359,6 @@ async def test_fetch_yahoo_or_derived_fx_rate_uses_bridge(monkeypatch):
     )
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_or_derived_fx_rate_skips_bridge_when_bridge_is_pair_currency(monkeypatch):
     """[AC5.4.3] Yahoo lazy fetch should not bridge through the requested pair currencies."""
 
@@ -386,7 +373,6 @@ async def test_fetch_yahoo_or_derived_fx_rate_skips_bridge_when_bridge_is_pair_c
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_or_derived_fx_rate_returns_none_when_bridge_leg_missing(monkeypatch):
     """[AC5.4.3] Yahoo lazy fetch should return None when a bridge leg is unavailable."""
 
@@ -409,7 +395,6 @@ async def test_fetch_yahoo_or_derived_fx_rate_returns_none_when_bridge_leg_missi
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_fx_rate_success(monkeypatch):
     """[AC5.4.3] Yahoo FX fetch should request a bounded daily chart window and parse a rate."""
     calls = []
@@ -457,7 +442,6 @@ async def test_fetch_yahoo_fx_rate_success(monkeypatch):
     assert params["interval"] == "1d"
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_fx_rate_returns_none_on_http_error(monkeypatch):
     """[AC5.4.3] Yahoo FX fetch should convert HTTP errors into cache misses."""
 
@@ -535,7 +519,6 @@ def test_parse_yahoo_fx_response_returns_none_for_empty_or_unusable_payloads():
     )
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate(db: AsyncSession):
     """Average rate should be computed for the period."""
     db.add_all(
@@ -563,7 +546,6 @@ async def test_get_average_rate(db: AsyncSession):
     assert result == Decimal("1.400000")
 
 
-@pytest.mark.asyncio
 async def test_convert_amount(db: AsyncSession):
     """Convert amount should apply FX rate without rounding prematurely."""
     rate = FxRate(
@@ -584,25 +566,21 @@ async def test_convert_amount(db: AsyncSession):
     assert result == expected
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_same_currency(db: AsyncSession):
     result = await get_exchange_rate(db, "usd", "USD", date(2025, 1, 1))
     assert result == Decimal("1")
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_missing_raises(db: AsyncSession):
     with pytest.raises(FxRateError, match="No FX rate available"):
         await get_exchange_rate(db, "USD", "SGD", date(2025, 1, 1))
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_invalid_range(db: AsyncSession):
     with pytest.raises(FxRateError, match="start_date must be before end_date"):
         await get_average_rate(db, "USD", "SGD", date(2025, 1, 2), date(2025, 1, 1))
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_falls_back_to_exchange_rate(db: AsyncSession):
     db.add(
         FxRate(
@@ -620,7 +598,6 @@ async def test_get_average_rate_falls_back_to_exchange_rate(db: AsyncSession):
     assert result == Decimal("1.250000")
 
 
-@pytest.mark.asyncio
 async def test_convert_amount_uses_average_rate(db: AsyncSession):
     db.add_all(
         [
@@ -655,7 +632,6 @@ async def test_convert_amount_uses_average_rate(db: AsyncSession):
     assert result == Decimal("13.00")
 
 
-@pytest.mark.asyncio
 async def test_convert_amount_same_currency(db: AsyncSession):
     result = await convert_amount(
         db,
@@ -668,7 +644,6 @@ async def test_convert_amount_same_currency(db: AsyncSession):
     assert result == Decimal("10.00")
 
 
-@pytest.mark.asyncio
 async def test_convert_to_base(db: AsyncSession):
     db.add(
         FxRate(
@@ -704,7 +679,6 @@ def test_fx_cache_hit() -> None:
     assert fx_service._cache.get("hit") == Decimal("1.10")
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_uses_cache(db: AsyncSession):
     key = "fx:USD:SGD:2025-01-01"
     fx_service._cache._store[key] = fx_service._CacheEntry(
@@ -715,7 +689,6 @@ async def test_get_exchange_rate_uses_cache(db: AsyncSession):
     assert result == Decimal("1.11")
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_uses_cache(db: AsyncSession):
     key = "fx:USD:SGD:2025-01-01:2025-01-02"
     fx_service._cache._store[key] = fx_service._CacheEntry(
@@ -726,13 +699,11 @@ async def test_get_average_rate_uses_cache(db: AsyncSession):
     assert result == Decimal("1.22")
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_same_currency(db: AsyncSession):
     result = await get_average_rate(db, "SGD", "SGD", date(2025, 1, 1), date(2025, 1, 2))
     assert result == Decimal("1")
 
 
-@pytest.mark.asyncio
 async def test_get_exchange_rate_casts_non_decimal():
     class DummyResult:
         def scalar_one_or_none(self):
@@ -746,7 +717,6 @@ async def test_get_exchange_rate_casts_non_decimal():
     assert result == Decimal("1.2345")
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_casts_non_decimal():
     class DummyResult:
         def scalar_one_or_none(self):
@@ -782,7 +752,6 @@ def test_fx_cache_eviction() -> None:
     assert "key5" in small_cache._store
 
 
-@pytest.mark.asyncio
 async def test_prefetched_fx_rates() -> None:
     """Test the PrefetchedFxRates helper class."""
     from src.services.fx import PrefetchedFxRates
@@ -804,7 +773,6 @@ async def test_prefetched_fx_rates() -> None:
     assert prefetched.get_rate("GBP", "USD", date(2025, 1, 1)) is None
 
 
-@pytest.mark.asyncio
 async def test_prefetch_parallel(db: AsyncSession):
     """Test batch prefetching from database."""
     from src.services.fx import PrefetchedFxRates
@@ -839,7 +807,6 @@ async def test_prefetch_parallel(db: AsyncSession):
     assert prefetched.get_rate("EUR", "SGD", date(2025, 1, 1)) == Decimal("1.40")
 
 
-@pytest.mark.asyncio
 async def test_convert_amount_average_fallback_error(db: AsyncSession):
     """Test that convert_amount fails if fallback exchange rate lookup fails."""
     # No rates in DB

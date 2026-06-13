@@ -25,7 +25,6 @@ from src.routers.accounts import (
 from src.schemas.account import AccountCreate, AccountUpdate
 
 
-@pytest.mark.asyncio
 async def test_account_router_direct(db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     created = await create_account(

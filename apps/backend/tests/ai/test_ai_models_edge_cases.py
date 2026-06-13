@@ -4,10 +4,7 @@ These tests cover edge cases and error paths for the AI models router
 that are not covered in the main test files.
 """
 
-import pytest
 
-
-@pytest.mark.asyncio
 class TestAIModelsRouterCoverage:
     """Additional tests for AI models router coverage."""
 

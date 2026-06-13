@@ -103,7 +103,6 @@ async def fx_rate_usd_sgd(db: AsyncSession):
 
 
 class TestGetForeignCurrencyAccounts:
-    @pytest.mark.asyncio
     async def test_returns_only_foreign_currency_asset_liability(
         self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
     ):
@@ -113,7 +112,6 @@ class TestGetForeignCurrencyAccounts:
         assert "USD" in account_currencies
         assert "SGD" not in account_currencies
 
-    @pytest.mark.asyncio
     async def test_excludes_income_expense_accounts(self, db: AsyncSession, test_user_id, income_account):
         usd_income = Account(
             user_id=test_user_id,
@@ -131,7 +129,6 @@ class TestGetForeignCurrencyAccounts:
 
 
 class TestGetOrCreateFxGainLossAccount:
-    @pytest.mark.asyncio
     async def test_creates_account_if_not_exists(self, db: AsyncSession, test_user_id):
         account = await get_or_create_fx_gain_loss_account(db, test_user_id)
 
@@ -140,7 +137,6 @@ class TestGetOrCreateFxGainLossAccount:
         assert account.code == "SYS-FX-REVAL"
         assert account.currency == "SGD"
 
-    @pytest.mark.asyncio
     async def test_returns_existing_account(self, db: AsyncSession, test_user_id):
         account1 = await get_or_create_fx_gain_loss_account(db, test_user_id)
         account2 = await get_or_create_fx_gain_loss_account(db, test_user_id)
@@ -149,14 +145,12 @@ class TestGetOrCreateFxGainLossAccount:
 
 
 class TestCalculateUnrealizedFxGains:
-    @pytest.mark.asyncio
     async def test_returns_empty_for_no_foreign_accounts(self, db: AsyncSession, test_user_id, sgd_asset_account):
         result = await calculate_unrealized_fx_gains(db, test_user_id, date(2025, 1, 31))
 
         assert result.accounts_revalued == []
         assert result.total_unrealized_gain_loss == Decimal("0")
 
-    @pytest.mark.asyncio
     async def test_calculates_gains_for_foreign_accounts_with_balance(
         self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account, fx_rate_usd_sgd
     ):
@@ -224,7 +218,6 @@ class TestIsRevaluationEntry:
 
 
 class TestCreateRevaluationEntry:
-    @pytest.mark.asyncio
     async def test_creates_balanced_entry(self, db: AsyncSession, test_user_id, usd_asset_account):
         fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
 
@@ -258,7 +251,6 @@ class TestCreateRevaluationEntry:
         total_credit = sum(line.amount for line in entry.lines if line.direction == Direction.CREDIT)
         assert total_debit == total_credit
 
-    @pytest.mark.asyncio
     async def test_returns_none_for_zero_adjustment(self, db: AsyncSession, test_user_id, usd_asset_account):
         fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
 
@@ -285,7 +277,6 @@ class TestCreateRevaluationEntry:
 
         assert entry is None
 
-    @pytest.mark.asyncio
     async def test_creates_entry_for_loss(self, db: AsyncSession, test_user_id, usd_asset_account):
         """Test creating revaluation entry for a loss (negative adjustment)."""
         fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
@@ -319,7 +310,6 @@ class TestCreateRevaluationEntry:
         assert fx_line.direction == Direction.DEBIT
         assert fx_line.amount == Decimal("50")
 
-    @pytest.mark.asyncio
     async def test_creates_posted_entry_with_auto_post(self, db: AsyncSession, test_user_id, usd_asset_account):
         """Test that auto_post=True creates a POSTED entry."""
         fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
@@ -349,7 +339,6 @@ class TestCreateRevaluationEntry:
         assert entry is not None
         assert entry.status == JournalEntryStatus.POSTED
 
-    @pytest.mark.asyncio
     async def test_skips_small_adjustments_in_multi_account(self, db: AsyncSession, test_user_id, usd_asset_account):
         """Test that small adjustments per account are skipped."""
         fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
@@ -404,13 +393,11 @@ class TestCreateRevaluationEntry:
 
 
 class TestCalculateUnrealizedFxForAccount:
-    @pytest.mark.asyncio
     async def test_returns_none_for_zero_balance(self, db: AsyncSession, test_user_id, usd_asset_account):
         """Account with no transactions should return None."""
         result = await calculate_unrealized_fx_for_account(db, usd_asset_account, date(2025, 1, 31), "SGD")
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_raises_error_when_fx_rate_not_found(self, db: AsyncSession, test_user_id):
         """Account with balance but no FX rate should raise RevaluationError."""
         # Create EUR account (no FX rate will exist for EUR)
@@ -473,7 +460,6 @@ class TestCalculateUnrealizedFxForAccount:
         with pytest.raises(RevaluationError, match="Missing FX rate for EUR/SGD"):
             await calculate_unrealized_fx_for_account(db, eur_account, date(2025, 1, 31), "SGD")
 
-    @pytest.mark.asyncio
     @patch("src.services.fx_revaluation.get_exchange_rate")
     async def test_handles_fx_rate_error_exception(
         self, mock_get_rate, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
@@ -516,7 +502,6 @@ class TestCalculateUnrealizedFxForAccount:
             await calculate_unrealized_fx_for_account(db, usd_asset_account, date(2025, 1, 31), "SGD")
         mock_get_rate.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_calculates_revaluation_with_fx_rate(
         self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account, fx_rate_usd_sgd
     ):
@@ -570,7 +555,6 @@ class TestCalculateUnrealizedFxForAccount:
         assert result.revalued_balance_base == Decimal("1350")
         assert result.unrealized_gain_loss == Decimal("50")
 
-    @pytest.mark.asyncio
     async def test_revaluation_entries_do_not_change_native_balance_or_historical_cost(
         self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account, fx_rate_usd_sgd
     ):
@@ -646,7 +630,6 @@ class TestCalculateUnrealizedFxForAccount:
 
 
 class TestRunPeriodEndRevaluation:
-    @pytest.mark.asyncio
     async def test_returns_empty_result_for_no_foreign_accounts(
         self, db: AsyncSession, test_user_id, sgd_asset_account
     ):
@@ -656,7 +639,6 @@ class TestRunPeriodEndRevaluation:
         assert result.accounts_revalued == []
         assert result.journal_entry_id is None
 
-    @pytest.mark.asyncio
     async def test_creates_entry_for_foreign_accounts_with_balance(
         self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account, fx_rate_usd_sgd
     ):
@@ -701,7 +683,6 @@ class TestRunPeriodEndRevaluation:
         assert len(result.accounts_revalued) == 1
         # Journal entry may or may not be created depending on whether there's a material adjustment
 
-    @pytest.mark.asyncio
     async def test_runs_with_auto_post(self, db: AsyncSession, test_user_id, sgd_asset_account):
         """Test run_period_end_revaluation with auto_post flag."""
         result = await run_period_end_revaluation(db, test_user_id, date(2025, 1, 31), auto_post=True)
@@ -711,7 +692,6 @@ class TestRunPeriodEndRevaluation:
 
 
 class TestGetRevaluationEntriesFilter:
-    @pytest.mark.asyncio
     async def test_filter_returns_only_revaluation_entries(self, db: AsyncSession, test_user_id):
         """Filter should select only FX_REVALUATION entries."""
         # Create a manual entry
@@ -747,7 +727,6 @@ class TestGetRevaluationEntriesFilter:
 
 
 class TestCalculateAccountBalanceInCurrency:
-    @pytest.mark.asyncio
     async def test_returns_balance_for_account_with_entries(
         self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
     ):
@@ -787,7 +766,6 @@ class TestCalculateAccountBalanceInCurrency:
         balance = await calculate_account_balance_in_currency(db, usd_asset_account)
         assert balance == Decimal("500")
 
-    @pytest.mark.asyncio
     async def test_returns_zero_for_account_without_entries(self, db: AsyncSession, test_user_id, usd_asset_account):
         """Test balance is zero for account with no entries."""
         balance = await calculate_account_balance_in_currency(db, usd_asset_account)
@@ -802,7 +780,6 @@ class TestCalculateAccountBalanceInCurrency:
 class TestCalculateAccountBalanceInCurrencyLiability:
     """Test liability/equity accounts return negated balance (line 141 else branch)."""
 
-    @pytest.mark.asyncio
     async def test_returns_negated_balance_for_liability_account(self, db: AsyncSession, test_user_id):
         """AC8.12.1 – Liability accounts return -net_balance so coverage hits else branch."""
         liability_account = Account(
@@ -869,7 +846,6 @@ class TestCalculateAccountBalanceInCurrencyLiability:
 class TestGetOrCreateFxGainLossAccountFlushError:
     """Test SQLAlchemyError during flush raises RevaluationError (lines 261-262)."""
 
-    @pytest.mark.asyncio
     async def test_flush_error_raises_revaluation_error(self, db: AsyncSession, test_user_id):
         """AC8.12.2 – SQLAlchemyError on flush is wrapped in RevaluationError."""
         from unittest.mock import AsyncMock, patch
@@ -885,7 +861,6 @@ class TestGetOrCreateFxGainLossAccountFlushError:
 class TestCalculateUnrealizedFxGainsNoneFiltering:
     """Test that accounts where reval is None are filtered out (line 209 branch)."""
 
-    @pytest.mark.asyncio
     async def test_none_revaluation_skipped(self, db: AsyncSession, test_user_id, usd_asset_account):
         """AC8.12.3 – Accounts that return None from calculate_unrealized_fx_for_account are skipped."""
         from unittest.mock import AsyncMock, patch

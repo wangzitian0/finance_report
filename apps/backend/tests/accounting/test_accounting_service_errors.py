@@ -42,7 +42,6 @@ async def test_user_id():
     return uuid4()
 
 
-@pytest.mark.asyncio
 async def test_calculate_account_balance_errors(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="not found"):
         await calculate_account_balance(db, uuid4(), test_user_id)
@@ -62,7 +61,6 @@ async def test_calculate_account_balance_errors(db: AsyncSession, test_user_id):
         await calculate_account_balance(db, account.id, test_user_id)
 
 
-@pytest.mark.asyncio
 async def test_post_journal_entry_errors(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="not found"):
         await post_journal_entry(db, uuid4(), test_user_id)
@@ -130,7 +128,6 @@ async def test_post_journal_entry_errors(db: AsyncSession, test_user_id):
         await post_journal_entry(db, entry_inactive.id, test_user_id)
 
 
-@pytest.mark.asyncio
 async def test_void_journal_entry_errors(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="not found"):
         await void_journal_entry(db, uuid4(), "reason", test_user_id)
@@ -156,7 +153,6 @@ async def test_void_journal_entry_errors(db: AsyncSession, test_user_id):
         await void_journal_entry(db, draft_entry.id, "reason", test_user_id)
 
 
-@pytest.mark.asyncio
 async def test_calculate_account_balances_other_types(db: AsyncSession, test_user_id):
     liability = Account(
         user_id=test_user_id,
@@ -210,7 +206,6 @@ async def test_calculate_account_balances_other_types(db: AsyncSession, test_use
     assert balances[equity.id] == Decimal("-1000.00")
 
 
-@pytest.mark.asyncio
 async def test_post_journal_entry_success(db: AsyncSession, test_user_id):
     asset = Account(
         user_id=test_user_id,
@@ -260,7 +255,6 @@ async def test_post_journal_entry_success(db: AsyncSession, test_user_id):
     assert posted_entry.status == JournalEntryStatus.POSTED
 
 
-@pytest.mark.asyncio
 async def test_void_journal_entry_success(db: AsyncSession, test_user_id):
     asset = Account(
         user_id=test_user_id,
@@ -317,7 +311,6 @@ async def test_void_journal_entry_success(db: AsyncSession, test_user_id):
     assert original.void_reason == "Changed mind"
 
 
-@pytest.mark.asyncio
 async def test_verify_accounting_equation_success(db: AsyncSession, test_user_id):
     asset = Account(user_id=test_user_id, name="A", type=AccountType.ASSET, currency="SGD")
     liability = Account(user_id=test_user_id, name="L", type=AccountType.LIABILITY, currency="SGD")
@@ -381,7 +374,6 @@ async def test_verify_accounting_equation_success(db: AsyncSession, test_user_id
     assert await verify_accounting_equation(db, test_user_id) is True
 
 
-@pytest.mark.asyncio
 async def test_accounting_utils_coverage(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="fx_rate required"):
         from src.services.accounting import validate_fx_rates
@@ -394,7 +386,6 @@ async def test_accounting_utils_coverage(db: AsyncSession, test_user_id):
     assert await calculate_account_balances(db, [], test_user_id) == {}
 
 
-@pytest.mark.asyncio
 async def test_accounting_more_errors(db: AsyncSession, test_user_id):
     from src.services.accounting import validate_journal_balance
 
@@ -420,7 +411,6 @@ async def test_accounting_more_errors(db: AsyncSession, test_user_id):
     assert balance == Decimal("0")
 
 
-@pytest.mark.asyncio
 async def test_calculate_account_balance_expense(db: AsyncSession, test_user_id):
     expense = Account(user_id=test_user_id, name="Food", type=AccountType.EXPENSE, currency="SGD")
     db.add(expense)

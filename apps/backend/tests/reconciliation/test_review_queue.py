@@ -99,7 +99,6 @@ async def _make_txn(
     )
 
 
-@pytest.mark.asyncio
 async def test_get_pending_items_returns_pending_matches(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt)
@@ -117,7 +116,6 @@ async def test_get_pending_items_returns_pending_matches(db, test_user):
     assert results[0].status == ReconciliationStatus.PENDING_REVIEW
 
 
-@pytest.mark.asyncio
 async def test_get_pending_items_excludes_accepted(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt)
@@ -134,7 +132,6 @@ async def test_get_pending_items_excludes_accepted(db, test_user):
     assert len(results) == 0
 
 
-@pytest.mark.asyncio
 async def test_accept_match_updates_status(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
@@ -152,13 +149,11 @@ async def test_accept_match_updates_status(db, test_user):
     assert result.version == 2
 
 
-@pytest.mark.asyncio
 async def test_accept_match_not_found_raises(db, test_user):
     with pytest.raises(ValueError, match="Match not found"):
         await accept_match(db, str(uuid4()), user_id=test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_accept_match_already_accepted_returns_unchanged(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt)
@@ -176,7 +171,6 @@ async def test_accept_match_already_accepted_returns_unchanged(db, test_user):
     assert result.version == 1
 
 
-@pytest.mark.asyncio
 async def test_accept_match_amount_mismatch_raises(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("500.00"))
@@ -193,7 +187,6 @@ async def test_accept_match_amount_mismatch_raises(db, test_user):
         await accept_match(db, str(match.id), user_id=test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_accept_match_skip_amount_validation(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("500.00"))
@@ -210,7 +203,6 @@ async def test_accept_match_skip_amount_validation(db, test_user):
     assert result.status == ReconciliationStatus.ACCEPTED
 
 
-@pytest.mark.asyncio
 async def test_accept_match_reconciles_journal_entries(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
@@ -228,7 +220,6 @@ async def test_accept_match_reconciles_journal_entries(db, test_user):
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
-@pytest.mark.asyncio
 async def test_accept_match_creates_missing_journal_entry(db, test_user):
     """AC16.24.4: Accepting a Stage 2 match without entries creates and reconciles one journal entry."""
     account = await AccountFactory.create_async(
@@ -259,7 +250,6 @@ async def test_accept_match_creates_missing_journal_entry(db, test_user):
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
-@pytest.mark.asyncio
 async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
@@ -278,7 +268,6 @@ async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
     assert entry.status == JournalEntryStatus.VOID
 
 
-@pytest.mark.asyncio
 async def test_reject_match_updates_status(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt)
@@ -296,13 +285,11 @@ async def test_reject_match_updates_status(db, test_user):
     assert result.version == 2
 
 
-@pytest.mark.asyncio
 async def test_reject_match_not_found_raises(db, test_user):
     with pytest.raises(ValueError, match="Match not found"):
         await reject_match(db, str(uuid4()), user_id=test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_reject_match_already_rejected_returns_unchanged(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt)
@@ -320,13 +307,11 @@ async def test_reject_match_already_rejected_returns_unchanged(db, test_user):
     assert result.version == 1
 
 
-@pytest.mark.asyncio
 async def test_batch_accept_empty_list(db, test_user):
     result = await batch_accept(db, [], user_id=test_user.id)
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_batch_accept_accepts_high_score_matches(db, test_user):
     stmt = await _make_statement(db, test_user.id)
 
@@ -357,7 +342,6 @@ async def test_batch_accept_accepts_high_score_matches(db, test_user):
         assert m.status == ReconciliationStatus.ACCEPTED
 
 
-@pytest.mark.asyncio
 async def test_batch_accept_skips_low_score(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt)
@@ -375,7 +359,6 @@ async def test_batch_accept_skips_low_score(db, test_user):
     assert len(accepted) == 0
 
 
-@pytest.mark.asyncio
 async def test_batch_accept_reconciles_journal_entries(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
@@ -394,7 +377,6 @@ async def test_batch_accept_reconciles_journal_entries(db, test_user):
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
-@pytest.mark.asyncio
 async def test_get_or_create_account_creates_new(db, test_user):
     account = await get_or_create_account(
         db,
@@ -408,7 +390,6 @@ async def test_get_or_create_account_creates_new(db, test_user):
     assert account.currency == "SGD"
 
 
-@pytest.mark.asyncio
 async def test_get_or_create_account_returns_existing(db, test_user):
     a1 = await get_or_create_account(
         db,
@@ -427,7 +408,6 @@ async def test_get_or_create_account_returns_existing(db, test_user):
     assert a1.id == a2.id
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_in_direction(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(
@@ -451,7 +431,6 @@ async def test_create_entry_from_txn_in_direction(db, test_user):
     assert credit_line.amount == Decimal("200.00")
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_out_direction(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(
@@ -470,7 +449,6 @@ async def test_create_entry_from_txn_out_direction(db, test_user):
     assert len(entry.lines) == 2
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_user):
     linked_account = await AccountFactory.create_async(
         db,
@@ -493,7 +471,6 @@ async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_use
     assert entry.status == JournalEntryStatus.POSTED
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_auto_post_requires_account_mapping(db, test_user):
     """AC3.6.2: Posted entries cannot silently use the Bank - Main fallback."""
     stmt = await _make_statement(db, test_user.id)
@@ -510,7 +487,6 @@ async def test_create_entry_from_txn_auto_post_requires_account_mapping(db, test
         await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_rejects_mismatched_preloaded_statement(db, test_user):
     user_id = test_user.id
     stmt = await _make_statement(db, user_id)
@@ -524,7 +500,6 @@ async def test_create_entry_from_txn_rejects_mismatched_preloaded_statement(db, 
         await create_entry_from_txn(db, txn, user_id=user_id, preloaded_statement=other_stmt)
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_rejects_unowned_preloaded_bank_account(db, test_user):
     user_id = test_user.id
     stmt = await _make_statement(db, user_id)
@@ -548,7 +523,6 @@ async def test_create_entry_from_txn_rejects_unowned_preloaded_bank_account(db, 
         )
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_rejects_mismatched_preloaded_bank_account(db, test_user):
     user_id = test_user.id
     statement_account = await AccountFactory.create_async(
@@ -579,7 +553,6 @@ async def test_create_entry_from_txn_rejects_mismatched_preloaded_bank_account(d
         )
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_wrong_user_raises(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt)
@@ -589,7 +562,6 @@ async def test_create_entry_from_txn_wrong_user_raises(db, test_user):
         await create_entry_from_txn(db, txn, user_id=uuid4())
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_uses_statement_linked_account(db, test_user):
     linked_account = await AccountFactory.create_async(
         db,
@@ -615,7 +587,6 @@ async def test_create_entry_from_txn_uses_statement_linked_account(db, test_user
     assert linked_account.id in account_ids
 
 
-@pytest.mark.asyncio
 async def test_statement_summary_rejects_linked_account_not_owned(db, test_user):
     other_user_id = uuid4()
     other_users_account = await AccountFactory.create_async(
@@ -630,7 +601,6 @@ async def test_statement_summary_rejects_linked_account_not_owned(db, test_user)
     await db.rollback()
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(
@@ -647,7 +617,6 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
             await create_entry_from_txn(db, txn, user_id=test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_uses_layer3_classification_account(db, test_user):
     classified_account = await AccountFactory.create_async(
         db,
@@ -702,7 +671,6 @@ async def test_create_entry_from_txn_uses_layer3_classification_account(db, test
     assert debit_line.account_id == classified_account.id
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense(db, test_user):
     """Without a Layer-3 classification, an outflow debits Expense - Uncategorized."""
     stmt = await _make_statement(db, test_user.id, currency="SGD")
@@ -727,7 +695,6 @@ async def test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense(d
     assert account.user_id == test_user.id
 
 
-@pytest.mark.asyncio
 async def test_create_entry_from_txn_inflow_defaults_to_uncategorized_income(db, test_user):
     """Without a Layer-3 classification, an inflow credits Income - Uncategorized."""
     stmt = await _make_statement(db, test_user.id, currency="SGD")

@@ -14,7 +14,6 @@ from src.routers import market_data as market_data_router, reports as reports_ro
 from src.services import market_data
 
 
-@pytest.mark.asyncio
 async def test_market_data_sync_endpoints_return_counts(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -80,7 +79,6 @@ async def test_market_data_sync_endpoints_return_counts(
     assert fx_response.json()["disagreements"][0]["asset"] == "USD/SGD"
 
 
-@pytest.mark.asyncio
 async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncClient) -> None:
     """AC11.10.5: FX sync endpoint returns 422 for malformed pair requests."""
     response = await client.post(
@@ -96,7 +94,6 @@ async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncCl
     assert "expected BASE/QUOTE" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
     client: AsyncClient,
     db_engine,
@@ -138,7 +135,6 @@ async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
     assert persisted is None
 
 
-@pytest.mark.asyncio
 async def test_market_data_status_endpoint_returns_authenticated_scope_freshness(
     client: AsyncClient,
     db,
@@ -197,7 +193,6 @@ async def test_market_data_status_endpoint_returns_authenticated_scope_freshness
     assert all(item["last_success_date"] == "2026-01-05" for item in payload)
 
 
-@pytest.mark.asyncio
 async def test_report_endpoint_runs_market_data_freshness_check(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,

@@ -75,7 +75,6 @@ async def fx_rates(db: AsyncSession):
     return rates
 
 
-@pytest.mark.asyncio
 async def test_fx_unrealized_gain_calculation(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """[AC5.1.2] Test that unrealized FX gain is correctly calculated in the balance sheet."""
     sgd_cash, usd_savings, capital, *_ = multi_currency_accounts
@@ -122,7 +121,6 @@ async def test_fx_unrealized_gain_calculation(db: AsyncSession, multi_currency_a
     assert report["is_balanced"] is True
 
 
-@pytest.mark.asyncio
 async def test_income_statement_comprehensive_income(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """[AC5.2.2] Test that income statement includes both net income and unrealized FX change."""
     sgd_cash, usd_savings, capital, salary, _ = multi_currency_accounts
@@ -198,7 +196,6 @@ async def test_income_statement_comprehensive_income(db: AsyncSession, multi_cur
     assert report["comprehensive_income"] == Decimal("1010.00")
 
 
-@pytest.mark.asyncio
 async def test_fx_liability_inversion(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """Test that USD strengthening results in a LOSS for USD-denominated liabilities."""
     # Create a USD Liability account
@@ -253,7 +250,6 @@ async def test_fx_liability_inversion(db: AsyncSession, multi_currency_accounts,
     assert report["unrealized_fx_gain_loss"] == Decimal("-10.00")
 
 
-@pytest.mark.asyncio
 async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accounts, test_user_id):
     """[AC5.1.3] Test aggregation of multiple foreign currencies (USD and EUR)."""
     sgd_cash, usd_savings, capital, *_ = multi_currency_accounts
@@ -328,7 +324,6 @@ async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accou
     assert report["unrealized_fx_gain_loss"] == Decimal("0.00")
 
 
-@pytest.mark.asyncio
 async def test_historical_vs_average_discrepancy_bridge(db: AsyncSession, multi_currency_accounts, test_user_id):
     """
     Test that the system maintains A=L+E even when:
@@ -425,7 +420,6 @@ async def test_historical_vs_average_discrepancy_bridge(db: AsyncSession, multi_
     assert is_report["comprehensive_income"] == Decimal("150.00")
 
 
-@pytest.mark.asyncio
 async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts, test_user_id):
     """[AC5.4.1] Test FX fallbacks when rates are missing for BS and IS."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
@@ -489,7 +483,6 @@ async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts,
     assert is_report["total_income"] == Decimal("150.00")
 
 
-@pytest.mark.asyncio
 async def test_reporting_error_cases(db: AsyncSession, test_user_id):
     """Test error handling and edge cases in reporting."""
     # Start > End
@@ -505,7 +498,6 @@ async def test_reporting_error_cases(db: AsyncSession, test_user_id):
         await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="invalid")
 
 
-@pytest.mark.asyncio
 async def test_additional_reports_basic_coverage(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test trend, breakdown and cash flow reports for basic coverage."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
@@ -603,7 +595,6 @@ async def test_additional_reports_basic_coverage(db: AsyncSession, multi_currenc
     assert cf["summary"]["ending_cash"] == Decimal("1000.00")
 
 
-@pytest.mark.asyncio
 async def test_reporting_tags_filtering(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test filtering income statement by tags."""
     sgd_cash, _, _, salary, _ = multi_currency_accounts
@@ -662,7 +653,6 @@ async def test_reporting_tags_filtering(db: AsyncSession, multi_currency_account
     assert is_missing_tag["total_income"] == Decimal("0.00")
 
 
-@pytest.mark.asyncio
 async def test_reporting_fx_extreme_fallbacks(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test when ALL FX fallbacks fail for BS and IS."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
@@ -714,7 +704,6 @@ async def test_reporting_fx_extreme_fallbacks(db: AsyncSession, multi_currency_a
         )
 
 
-@pytest.mark.asyncio
 async def test_reporting_trend_edge_cases(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test trend reporting edge cases (unsupported periods, daily/weekly)."""
     sgd_cash, *_ = multi_currency_accounts
@@ -734,14 +723,12 @@ async def test_reporting_trend_edge_cases(db: AsyncSession, multi_currency_accou
     assert len(trend_weekly["points"]) > 0
 
 
-@pytest.mark.asyncio
 async def test_reporting_breakdown_income_expense_validation(db: AsyncSession, test_user_id):
     """Test that breakdown type must be income or expense."""
     with pytest.raises(ReportError, match="Breakdown type must be income or expense"):
         await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.ASSET, period="monthly")
 
 
-@pytest.mark.asyncio
 async def test_reporting_cash_flow_edge_cases(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow with investing/financing activities and FX errors."""
     sgd_bank, usd_savings, capital, salary, dining = multi_currency_accounts
@@ -804,7 +791,6 @@ async def test_reporting_cash_flow_edge_cases(db: AsyncSession, multi_currency_a
     assert summary["net_cash_flow"] == Decimal("3000.00")
 
 
-@pytest.mark.asyncio
 async def test_reporting_remaining_branches(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Cover remaining small branches in reporting.py."""
     sgd_cash, _, _, salary, _ = multi_currency_accounts
@@ -845,7 +831,6 @@ async def test_reporting_remaining_branches(db: AsyncSession, multi_currency_acc
         _iter_periods(date(2025, 1, 1), date(2025, 1, 2), "invalid")
 
 
-@pytest.mark.asyncio
 async def test_reporting_cash_flow_before_fx_error(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow error when FX fails for 'before' period balances."""
     _, usd_savings, capital, *_ = multi_currency_accounts
@@ -886,7 +871,6 @@ async def test_reporting_cash_flow_before_fx_error(db: AsyncSession, multi_curre
         await generate_cash_flow(db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31))
 
 
-@pytest.mark.asyncio
 async def test_reporting_cash_flow_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test cash flow error handling for FX conversion."""
     sgd_bank, usd_savings, capital, *_ = multi_currency_accounts
@@ -927,7 +911,6 @@ async def test_reporting_cash_flow_fx_error_handling(db: AsyncSession, multi_cur
         await generate_cash_flow(db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31))
 
 
-@pytest.mark.asyncio
 async def test_reporting_breakdown_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test breakdown error handling for FX conversion."""
     sgd_cash, _, _, salary, _ = multi_currency_accounts
@@ -967,7 +950,6 @@ async def test_reporting_breakdown_fx_error_handling(db: AsyncSession, multi_cur
         await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="monthly")
 
 
-@pytest.mark.asyncio
 async def test_reporting_trend_fx_error_handling(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test trend error handling for FX conversion."""
     _, usd_savings, capital, *_ = multi_currency_accounts
@@ -1007,7 +989,6 @@ async def test_reporting_trend_fx_error_handling(db: AsyncSession, multi_currenc
         await get_account_trend(db, test_user_id, account_id=usd_savings.id, period="daily")
 
 
-@pytest.mark.asyncio
 async def test_reporting_income_statement_period_fx_fallback_to_spot(
     db: AsyncSession, multi_currency_accounts, test_user_id
 ):
@@ -1063,7 +1044,6 @@ async def test_reporting_income_statement_period_fx_fallback_to_spot(
     assert report["total_income"] == Decimal("150.00")
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_currency_accounts, test_user_id):
     """[AC5.4.2] Test balance sheet uses FX fallback (Rate Caching logic).
 
@@ -1122,7 +1102,6 @@ async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_curr
     assert report["net_income"] == Decimal("135.00")
 
 
-@pytest.mark.asyncio
 async def test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates(db: AsyncSession, test_user_id):
     """[AC5.4.3] Reports derive and persist a missing HKD/SGD rate from bridge rates."""
     hkd_cash = Account(user_id=test_user_id, name="HKD Cash", type=AccountType.ASSET, currency="HKD")
@@ -1205,7 +1184,6 @@ async def test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates(db: AsyncS
     assert derived_rate.source == "derived:bridge:USD"
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_net_income_no_fx_rate_error(db: AsyncSession, multi_currency_accounts, test_user_id):
     """Test balance sheet raises error when no FX rate available for income/expense.
 

@@ -3,8 +3,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
 from src.database import create_session_maker_from_db
 from src.models import BankStatementStatus
 from src.services.statement_parsing_supervisor import (
@@ -15,7 +13,6 @@ from src.services.statement_parsing_supervisor import (
 from tests.factories import StatementSummaryFactory
 
 
-@pytest.mark.asyncio
 async def test_reset_stale_parsing_jobs_marks_rejected(db, test_user):
     """Stale parsing statements should be marked rejected."""
     stale_time = datetime.now(UTC) - PARSING_STALE_THRESHOLD - timedelta(minutes=1)
@@ -43,7 +40,6 @@ async def test_reset_stale_parsing_jobs_marks_rejected(db, test_user):
     assert statement.balance_validated is False
 
 
-@pytest.mark.asyncio
 async def test_reset_stale_parsing_jobs_noop_for_recent(db, test_user):
     """Recent parsing statements should remain unchanged."""
     statement = StatementSummaryFactory.build(
@@ -66,7 +62,6 @@ async def test_reset_stale_parsing_jobs_noop_for_recent(db, test_user):
     assert statement.status == BankStatementStatus.PARSING
 
 
-@pytest.mark.asyncio
 async def test_run_parsing_supervisor_stops(monkeypatch):
     """Supervisor exits when stop event is set."""
     stop_event = asyncio.Event()

@@ -2,11 +2,9 @@
 
 from unittest.mock import AsyncMock
 
-import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
 async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch) -> None:
     """AC7.7.1: Health endpoint returns 200 when all services healthy."""
     from src.boot import Bootloader, ServiceStatus
@@ -25,7 +23,6 @@ async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch
     assert "checks" in data
 
 
-@pytest.mark.asyncio
 async def test_health_endpoint_structure(client: AsyncClient) -> None:
     """AC7.7.1: Health endpoint returns proper structure with checks."""
     response = await client.get("/health")
@@ -44,7 +41,6 @@ async def test_health_endpoint_structure(client: AsyncClient) -> None:
     assert isinstance(checks["s3"], bool)
 
 
-@pytest.mark.asyncio
 async def test_health_returns_503_on_database_failure(public_client: AsyncClient, monkeypatch) -> None:
     """AC7.7.2: Health returns 503 when database check fails."""
     # The health check uses the db dependency directly.
@@ -73,7 +69,6 @@ async def test_health_returns_503_on_database_failure(public_client: AsyncClient
         app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
 async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monkeypatch) -> None:
     """AC7.7.2: Health returns 503 when S3 check fails."""
     from src.boot import Bootloader, ServiceStatus
@@ -92,7 +87,6 @@ async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monk
     assert data["checks"]["s3"] is False
 
 
-@pytest.mark.asyncio
 async def test_ping_initial_state(client: AsyncClient) -> None:
     response = await client.get("/ping")
     assert response.status_code == 200
@@ -102,7 +96,6 @@ async def test_ping_initial_state(client: AsyncClient) -> None:
     assert data["updated_at"] is None
 
 
-@pytest.mark.asyncio
 async def test_ping_toggle(client: AsyncClient) -> None:
     """Test toggle endpoint."""
     # First toggle - should go from ping to pong
@@ -121,7 +114,6 @@ async def test_ping_toggle(client: AsyncClient) -> None:
     assert data["toggle_count"] == 2
 
 
-@pytest.mark.asyncio
 async def test_get_statement_not_found(client: AsyncClient) -> None:
     """Test getting a non-existent statement."""
     response = await client.get("/statements/00000000-0000-0000-0000-000000000000")
@@ -129,7 +121,6 @@ async def test_get_statement_not_found(client: AsyncClient) -> None:
     assert "not found" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_get_pending_review_empty(client: AsyncClient) -> None:
     """Test getting pending review list when empty."""
     response = await client.get("/statements/pending-review")
@@ -139,14 +130,12 @@ async def test_get_pending_review_empty(client: AsyncClient) -> None:
     assert data["total"] == 0
 
 
-@pytest.mark.asyncio
 async def test_approve_statement_not_found(client: AsyncClient) -> None:
     """Test approving a non-existent statement."""
     response = await client.post("/statements/00000000-0000-0000-0000-000000000000/approve", json={"notes": "ok"})
     assert response.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_upload_no_file(client: AsyncClient) -> None:
     """Test upload endpoint without file."""
     response = await client.post("/statements/upload", data={"institution": "DBS"})
@@ -154,7 +143,6 @@ async def test_upload_no_file(client: AsyncClient) -> None:
     assert response.status_code == 422
 
 
-@pytest.mark.asyncio
 async def test_ping_multiple_toggles(client: AsyncClient) -> None:
     """Test multiple ping toggles."""
     # Toggle 3 times

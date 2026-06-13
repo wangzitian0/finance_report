@@ -12,13 +12,10 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
-
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 
-@pytest.mark.asyncio
 class TestJournalRouterAdditionalCoverage:
     """Test additional journal router paths for coverage."""
 

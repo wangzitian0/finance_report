@@ -8,8 +8,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-import pytest
-
 from src.database import create_session_maker_from_db
 from src.models import BankStatementStatus
 from src.models.statement_summary import StatementSummary
@@ -49,7 +47,6 @@ async def _create_statement(db, user_id, *, statement_id=None, file_hash="audit-
     return statement
 
 
-@pytest.mark.asyncio
 async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, test_user, monkeypatch):
     """AC10.8.2: Async parsing emits replay checkpoints and safe failure context."""
     user_id = test_user.id
@@ -139,7 +136,6 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     assert "secret source bytes" not in failed["safe_error_message"]
 
 
-@pytest.mark.asyncio
 async def test_AC10_8_3_brokerage_import_audit_checkpoints(db, test_user, monkeypatch):
     """AC10.8.3: Brokerage import logs start/completion/failure replay context."""
     statement = await _create_statement(db, test_user.id, file_hash="brokerage-audit-hash")

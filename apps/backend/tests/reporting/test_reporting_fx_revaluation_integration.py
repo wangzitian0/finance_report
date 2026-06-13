@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -28,7 +27,6 @@ async def _account(db: AsyncSession, user_id, name: str, account_type: AccountTy
     return account
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_fx_revaluation_is_calculated_not_plugged(db: AsyncSession, test_user):
     """AC5.1.2: FX gain/loss is historical-cost revaluation, not the balance sheet plug."""
     report_date = date(2025, 1, 31)
@@ -90,7 +88,6 @@ async def test_balance_sheet_fx_revaluation_is_calculated_not_plugged(db: AsyncS
     assert report["is_balanced"] is True
 
 
-@pytest.mark.asyncio
 async def test_income_statement_includes_average_rate_fallback_warning(db: AsyncSession, test_user):
     """AC5.6.7: Report output lists currencies that used average-rate spot fallback."""
     start_date = date(2025, 1, 1)

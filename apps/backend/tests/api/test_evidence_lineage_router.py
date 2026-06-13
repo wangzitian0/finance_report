@@ -4,7 +4,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +19,6 @@ from src.services.deduplication import DeduplicationService
 from src.services.evidence_lineage import EvidenceLineageService
 
 
-@pytest.mark.asyncio
 async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_directions(
     client: AsyncClient,
     db: AsyncSession,
@@ -136,7 +134,6 @@ async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_dire
     }
 
 
-@pytest.mark.asyncio
 async def test_AC18_9_3_lineage_api_returns_blocker_for_missing_or_cross_user_anchor(
     client: AsyncClient,
     db: AsyncSession,
@@ -177,7 +174,6 @@ async def test_AC18_9_3_lineage_api_returns_blocker_for_missing_or_cross_user_an
     ]
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_journal_line(
     client: AsyncClient,
     db: AsyncSession,

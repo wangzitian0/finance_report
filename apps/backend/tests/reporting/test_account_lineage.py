@@ -31,7 +31,6 @@ async def cash_account(db: AsyncSession, user_id):
     return account
 
 
-@pytest.mark.asyncio
 async def test_AC22_3_3_account_lineage_returns_posted_contributing_lines(db: AsyncSession, user_id, cash_account):
     """AC22.3.3: account-lineage returns posted journal lines with journal_line anchors and signed totals."""
     posted = JournalEntry(
@@ -119,7 +118,6 @@ async def test_AC22_3_3_account_lineage_returns_posted_contributing_lines(db: As
     assert result["total"] == Decimal("750.00")
 
 
-@pytest.mark.asyncio
 async def test_AC22_3_3_account_lineage_unknown_account_raises(db: AsyncSession, user_id, cash_account):
     """AC22.3.3: account-lineage rejects accounts the user does not own."""
     from uuid import uuid4

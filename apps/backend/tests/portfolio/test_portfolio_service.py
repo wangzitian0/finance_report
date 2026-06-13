@@ -83,7 +83,6 @@ async def atomic_snapshot(db: AsyncSession, test_user):
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_happy_path(db, test_user, svc, active_position, atomic_snapshot):
     """AC17.1.1: Holdings happy path returns correct market value, cost basis, and classification.
 
@@ -105,7 +104,6 @@ async def test_get_holdings_happy_path(db, test_user, svc, active_position, atom
     assert h.provenance is None
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_provenance_imported_with_source_document(db, test_user, svc, active_position):
     """AC22.10.1: a holding backed by a source document is labelled imported."""
     atom = AtomicPosition(
@@ -130,7 +128,6 @@ async def test_get_holdings_provenance_imported_with_source_document(db, test_us
     assert holdings[0].provenance == "imported"
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_defaults_to_latest_future_brokerage_snapshot(db, test_user, svc, account):
     """AC8.13.10/Issue #424: Latest holdings include current-month brokerage snapshots."""
     future_snapshot_date = date.today() + timedelta(days=12)
@@ -166,7 +163,6 @@ async def test_get_holdings_defaults_to_latest_future_brokerage_snapshot(db, tes
     assert holdings[0].market_value == Decimal("1234.00")
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_as_of_date_does_not_use_future_snapshot(db, test_user, svc, account):
     """AC8.13.10/Issue #424: Explicit historical holdings remain date bounded."""
     position = ManagedPosition(
@@ -198,7 +194,6 @@ async def test_get_holdings_explicit_as_of_date_does_not_use_future_snapshot(db,
         await svc.get_holdings(db, test_user.id, as_of_date=date.today())
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_as_of_uses_historical_atomic_snapshot(db, test_user, svc, account):
     """AC17.9.1: Explicit as-of holdings derive quantity and value from the selected snapshot."""
     historical_date = date(2025, 1, 31)
@@ -256,7 +251,6 @@ async def test_get_holdings_explicit_as_of_uses_historical_atomic_snapshot(db, t
     assert holdings[0].asset_type == "etf"
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_as_of_converts_snapshot_currency(db, test_user, svc, account):
     """AC17.9.1: Explicit as-of holdings convert snapshot market value to base currency."""
     as_of_date = date(2025, 1, 31)
@@ -301,7 +295,6 @@ async def test_get_holdings_explicit_as_of_converts_snapshot_currency(db, test_u
     assert holdings[0].currency == "SGD"
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_as_of_filters_zero_quantity_snapshot(db, test_user, svc, account):
     """AC17.9.1: Explicit as-of holdings treat zero-quantity snapshots as disposed."""
     as_of_date = date(2025, 1, 31)
@@ -342,7 +335,6 @@ async def test_get_holdings_explicit_as_of_filters_zero_quantity_snapshot(db, te
     assert holdings[0].unrealized_pnl_percent == Decimal("0.00")
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_as_of_skips_unreconciled_snapshot(db, test_user, svc):
     """AC17.9.1: Explicit as-of holdings skip snapshots without a managed position."""
     as_of_date = date(2025, 1, 31)
@@ -364,7 +356,6 @@ async def test_get_holdings_explicit_as_of_skips_unreconciled_snapshot(db, test_
         await svc.get_holdings(db, test_user.id, as_of_date=as_of_date)
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_explicit_as_of_falls_back_when_snapshot_broker_unmatched(db, test_user, svc, account):
     """AC17.9.1: Explicit as-of holdings fall back when snapshot broker metadata is unavailable."""
     as_of_date = date(2025, 1, 31)
@@ -400,7 +391,6 @@ async def test_get_holdings_explicit_as_of_falls_back_when_snapshot_broker_unmat
     assert holdings[0].market_value == Decimal("30.00")
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_no_positions_raises(db, test_user, svc):
     """AC17.1.2: Holdings on empty portfolio raises PortfolioNotFoundError.
 
@@ -410,7 +400,6 @@ async def test_get_holdings_no_positions_raises(db, test_user, svc):
         await svc.get_holdings(db, test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_include_disposed(db, test_user, svc, account, atomic_snapshot):
     """AC17.1.3: Disposed positions included only when include_disposed=True."""
     disposed = ManagedPosition(
@@ -438,7 +427,6 @@ async def test_get_holdings_include_disposed(db, test_user, svc, account, atomic
     assert holdings[0].status == PositionStatus.DISPOSED
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_fx_conversion(db, test_user, svc, account):
     """AC17.1.4: FX conversion applied when position currency != base currency (SGD)."""
     pos = ManagedPosition(
@@ -496,7 +484,6 @@ async def test_get_holdings_fx_conversion(db, test_user, svc, account):
     assert h.currency == "SGD"
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_zero_cost_basis(db, test_user, svc, account):
     """AC17.1.5: Zero cost basis -> unrealized_pnl_percent = 0."""
     pos = ManagedPosition(
@@ -531,7 +518,6 @@ async def test_get_holdings_zero_cost_basis(db, test_user, svc, account):
     assert holdings[0].unrealized_pnl_percent == Decimal("0.00")
 
 
-@pytest.mark.asyncio
 async def test_get_holdings_no_atomic_for_classification(db, test_user, svc, account):
     """AC17.1.6: No atomic position for user -> classification fields stay None."""
     pos = ManagedPosition(
@@ -619,7 +605,6 @@ async def disposed_position(db, test_user, account):
     return pos
 
 
-@pytest.mark.asyncio
 async def test_realized_pnl_happy_path(db, test_user, svc, disposed_position):
     """AC17.2.1: Realized PnL happy path returns correct total and details.
 
@@ -635,7 +620,6 @@ async def test_realized_pnl_happy_path(db, test_user, svc, disposed_position):
     assert result.details[0]["asset_identifier"] == "GOOG"
 
 
-@pytest.mark.asyncio
 async def test_realized_pnl_invalid_date_range(db, test_user, svc):
     """AC17.2.2: Invalid date range raises InvalidDateRangeError.
 
@@ -645,7 +629,6 @@ async def test_realized_pnl_invalid_date_range(db, test_user, svc):
         await svc.calculate_realized_pnl(db, test_user.id, date.today(), date.today() - timedelta(days=1))
 
 
-@pytest.mark.asyncio
 async def test_realized_pnl_no_disposed(db, test_user, svc):
     """AC17.2.3: No disposed positions -> returns zero response."""
     result = await svc.calculate_realized_pnl(db, test_user.id, date.today() - timedelta(days=30), date.today())
@@ -654,7 +637,6 @@ async def test_realized_pnl_no_disposed(db, test_user, svc):
     assert result.details == []
 
 
-@pytest.mark.asyncio
 async def test_realized_pnl_zero_cost(db, test_user, svc, account):
     """AC17.2.4: Zero cost -> realized_pnl_percent = 0."""
     pos = ManagedPosition(
@@ -690,7 +672,6 @@ async def test_realized_pnl_zero_cost(db, test_user, svc, account):
     assert result.total_realized_pnl_percent == Decimal("0.00")
 
 
-@pytest.mark.asyncio
 async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
     """AC17.2.5: Disposed position in non-base currency triggers FX conversion."""
     pos = ManagedPosition(
@@ -750,7 +731,6 @@ async def test_realized_pnl_fx_conversion(db, test_user, svc, account):
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
 async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, atomic_snapshot):
     """AC17.2.6: Unrealized PnL happy path returns correct totals.
 
@@ -764,7 +744,6 @@ async def test_unrealized_pnl_happy_path(db, test_user, svc, active_position, at
     assert len(result.details) == 1
 
 
-@pytest.mark.asyncio
 async def test_unrealized_pnl_no_positions(db, test_user, svc):
     """AC17.2.7: Unrealized PnL on empty portfolio raises PortfolioNotFoundError.
 
@@ -774,7 +753,6 @@ async def test_unrealized_pnl_no_positions(db, test_user, svc):
         await svc.calculate_unrealized_pnl(db, test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_unrealized_pnl_zero_cost(db, test_user, svc, account):
     """AC17.2.8: Zero cost -> unrealized_pnl_percent in details = 0."""
     pos = ManagedPosition(
@@ -809,7 +787,6 @@ async def test_unrealized_pnl_zero_cost(db, test_user, svc, account):
     assert result.details[0]["unrealized_pnl_percent"] == Decimal("0.00")
 
 
-@pytest.mark.asyncio
 async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
     """AC17.2.9: FX conversion for unrealized PnL."""
     pos = ManagedPosition(
@@ -869,7 +846,6 @@ async def test_unrealized_pnl_fx_conversion(db, test_user, svc, account):
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
 async def test_portfolio_summary_happy(db, test_user, svc, active_position, atomic_snapshot):
     """AC17.1.7: Portfolio summary happy path returns correct counts and totals.
 
@@ -885,7 +861,6 @@ async def test_portfolio_summary_happy(db, test_user, svc, active_position, atom
     assert summary.currency == "SGD"
 
 
-@pytest.mark.asyncio
 async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atomic_snapshot):
     """AC17.1.8: Summary includes both active and disposed positions."""
     active = ManagedPosition(
@@ -934,7 +909,6 @@ async def test_portfolio_summary_with_disposed(db, test_user, svc, account, atom
     assert summary.holdings_count == 2
 
 
-@pytest.mark.asyncio
 async def test_portfolio_summary_zero_cost(db, test_user, svc, account):
     """AC17.1.9: Zero total cost -> net_pnl_percent = 0."""
     pos = ManagedPosition(
@@ -973,7 +947,6 @@ async def test_portfolio_summary_zero_cost(db, test_user, svc, account):
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
 async def test_update_prices_happy(db, test_user, svc, active_position):
     """AC17.5.1: Update market prices happy path creates override.
 
@@ -993,7 +966,6 @@ async def test_update_prices_happy(db, test_user, svc, active_position):
     assert results[0].created_at is not None
 
 
-@pytest.mark.asyncio
 async def test_update_prices_asset_not_found(db, test_user, svc):
     """AC17.5.2: Update prices for non-existent asset returns failure.
 
@@ -1018,7 +990,6 @@ async def test_update_prices_asset_not_found(db, test_user, svc):
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
 async def test_get_latest_price_override(db, test_user, svc, active_position):
     """AC17.5.3: Override price takes precedence over atomic position price."""
     override = MarketDataOverride(
@@ -1036,7 +1007,6 @@ async def test_get_latest_price_override(db, test_user, svc, active_position):
     assert price == Decimal("200.00")
 
 
-@pytest.mark.asyncio
 async def test_get_latest_price_from_atomic(db, test_user, svc, active_position, atomic_snapshot):
     """AC17.5.4: Per-unit price = market_value / quantity from atomic position."""
     price = await svc._get_latest_price(db, active_position, date.today(), test_user.id)
@@ -1044,7 +1014,6 @@ async def test_get_latest_price_from_atomic(db, test_user, svc, active_position,
     assert price == Decimal("120")
 
 
-@pytest.mark.asyncio
 async def test_get_latest_price_zero_quantity(db, test_user, svc, active_position):
     """AC17.5.5: Quantity == 0 -> return market_value directly."""
     atom = AtomicPosition(
@@ -1065,7 +1034,6 @@ async def test_get_latest_price_zero_quantity(db, test_user, svc, active_positio
     assert price == Decimal("999.00")
 
 
-@pytest.mark.asyncio
 async def test_get_latest_price_no_data(db, test_user, svc, active_position):
     """AC17.5.6: No price data -> AssetNotFoundError."""
     with pytest.raises(AssetNotFoundError):
@@ -1077,7 +1045,6 @@ async def test_get_latest_price_no_data(db, test_user, svc, active_position):
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
 async def test_get_latest_atomic_returns_latest(db, test_user, svc):
     """AC17.5.7: _get_latest_atomic returns the most recent snapshot.
 
@@ -1115,7 +1082,6 @@ async def test_get_latest_atomic_returns_latest(db, test_user, svc):
     assert result.sector == "New"
 
 
-@pytest.mark.asyncio
 async def test_get_latest_atomic_none(db, test_user, svc):
     """AC17.5.8: _get_latest_atomic returns None when no snapshots exist.
 

@@ -318,7 +318,6 @@ async def _report_snapshot(db: AsyncSession, user_id, *, updated_at: datetime) -
     return snapshot
 
 
-@pytest.mark.asyncio
 async def test_AC19_5_1_package_readiness_returns_draft_for_empty_user(
     db: AsyncSession,
     test_user: User,
@@ -393,7 +392,6 @@ def _json_datetime(value: datetime) -> str:
     return value.isoformat().replace("+00:00", "Z")
 
 
-@pytest.mark.asyncio
 async def test_AC19_5_2_package_readiness_lists_actionable_blockers(
     db: AsyncSession,
     test_user: User,
@@ -497,7 +495,6 @@ async def test_AC19_5_2_package_readiness_lists_actionable_blockers(
     assert payload["blocking_count"] == sum(blocker["count"] for blocker in payload["blockers"])
 
 
-@pytest.mark.asyncio
 async def test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts(
     db: AsyncSession,
     test_user: User,
@@ -529,7 +526,6 @@ async def test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts(
         await personal_report_package_readiness(db=db, user_id=test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_AC19_5_7_package_readiness_converts_processing_balance_before_zero_check(
     db: AsyncSession,
     test_user: User,
@@ -595,7 +591,6 @@ async def test_AC19_5_7_package_readiness_converts_processing_balance_before_zer
     assert "SGD" in blockers["processing_account_unresolved"]["reason"]
 
 
-@pytest.mark.asyncio
 async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails(
     db: AsyncSession,
     test_user: User,
@@ -663,7 +658,6 @@ async def test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_f
     assert "USD/SGD" in blockers["processing_account_unresolved"]["reason"]
 
 
-@pytest.mark.asyncio
 async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
     db: AsyncSession,
     test_user: User,
@@ -723,7 +717,6 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
     assert response.model_dump(mode="json")["stale_since"] == _json_datetime(datetime(2026, 5, 3, tzinfo=UTC))
 
 
-@pytest.mark.asyncio
 async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
     db: AsyncSession,
     test_user: User,
@@ -826,7 +819,6 @@ async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
     assert "manual_record" in trust["gap_source_classes"]
 
 
-@pytest.mark.asyncio
 async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
     """AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
     response = await personal_report_package_traceability()
@@ -855,7 +847,6 @@ async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_ancho
     assert total_assets["anchor_count"] == 0
 
 
-@pytest.mark.asyncio
 async def test_AC5_13_2_package_traceability_declares_completeness_warnings():
     """AC5.13.2: Traceability appendix exposes explicit completeness states where anchors are unavailable."""
     response = await personal_report_package_traceability()
@@ -885,7 +876,6 @@ async def test_AC5_13_2_package_traceability_declares_completeness_warnings():
         assert isinstance(line["blocker_codes"], list)
 
 
-@pytest.mark.asyncio
 async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers(
     db: AsyncSession,
     test_user: User,
@@ -1288,7 +1278,6 @@ def test_AC19_10_1_anchor_detail_helpers_keep_auditable_deduped_payloads():
     assert lines_by_id["line"]["blocker_codes"] == ["existing", "unknown_source_anchor"]
 
 
-@pytest.mark.asyncio
 async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document(
     db: AsyncSession,
     test_user: User,
@@ -1385,7 +1374,6 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
     assert any(detail["journal_entry_id"] == str(entry.id) for detail in total_income["ledger_anchor"]["details"])
 
 
-@pytest.mark.asyncio
 async def test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statement_transactions(
     db: AsyncSession,
     test_user: User,

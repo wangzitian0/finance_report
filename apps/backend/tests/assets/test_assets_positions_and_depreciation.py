@@ -5,15 +5,12 @@ from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
 
-import pytest
-
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.services.assets import AssetServiceError
 
 
-@pytest.mark.asyncio
 class TestAssetsListCoverageBoost:
     async def test_list_positions_with_account(self, client, db, test_user):
         """
@@ -50,7 +47,6 @@ class TestAssetsListCoverageBoost:
         assert data["items"][0]["account_name"] == "Boost Broker"
 
 
-@pytest.mark.asyncio
 class TestAssetsGetCoverageBoost:
     async def test_get_position_with_account(self, client, db, test_user):
         """
@@ -96,7 +92,6 @@ class TestAssetsGetCoverageBoost:
         assert response.status_code == 404
 
 
-@pytest.mark.asyncio
 class TestAssetsReconcileCoverageBoost:
     async def test_reconcile_creates_positions(self, client, db, test_user):
         """
@@ -148,7 +143,6 @@ class TestAssetsReconcileCoverageBoost:
             assert "unexpectedly" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 class TestAssetsDepreciationCoverageBoost:
     async def test_depreciation_straight_line(self, client, db, test_user):
         """

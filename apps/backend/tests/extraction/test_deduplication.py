@@ -9,7 +9,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 
 from src.models.layer1 import DocumentType
@@ -177,7 +176,6 @@ class TestDeduplicationService:
         hash_empty_broker = service.calculate_position_hash(user_id, snapshot_date, asset_identifier, broker="")
         assert hash_result == hash_empty_broker
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_transaction_new_creates_record(self, db, test_user):
         """GIVEN: No existing atomic transaction with hash
         WHEN: Upserting atomic transaction
@@ -213,7 +211,6 @@ class TestDeduplicationService:
         assert txn.source_documents[0]["doc_id"] == str(doc_id)
         assert txn.source_documents[0]["doc_type"] == DocumentType.BANK_STATEMENT.value
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_transaction_duplicate_appends_source(self, db, test_user):
         """GIVEN: Existing atomic transaction with same hash
         WHEN: Upserting duplicate transaction with different source
@@ -260,7 +257,6 @@ class TestDeduplicationService:
         assert str(doc1_id) in doc_ids
         assert str(doc2_id) in doc_ids
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_transaction_duplicate_same_source_no_duplicate(self, db, test_user):
         """GIVEN: Existing atomic transaction with same hash and source
         WHEN: Upserting duplicate with same source document
@@ -303,7 +299,6 @@ class TestDeduplicationService:
         assert len(txn2.source_documents) == 1
         assert txn2.source_documents[0]["doc_id"] == str(doc_id)
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_position_new_creates_record(self, db, test_user):
         """GIVEN: No existing atomic position with hash
         WHEN: Upserting atomic position
@@ -340,7 +335,6 @@ class TestDeduplicationService:
         assert pos.source_documents[0]["doc_id"] == str(doc_id)
         assert pos.source_documents[0]["doc_type"] == DocumentType.BROKERAGE_STATEMENT.value
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_position_duplicate_appends_source(self, db, test_user):
         """GIVEN: Existing atomic position with same hash
         WHEN: Upserting duplicate position with different source
@@ -387,7 +381,6 @@ class TestDeduplicationService:
         assert str(doc1_id) in doc_ids
         assert str(doc2_id) in doc_ids
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_position_duplicate_same_source_no_duplicate(self, db, test_user):
         """GIVEN: Existing atomic position with same hash and source
         WHEN: Upserting duplicate with same source document
@@ -430,7 +423,6 @@ class TestDeduplicationService:
         assert len(pos2.source_documents) == 1
         assert pos2.source_documents[0]["doc_id"] == str(doc_id)
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_position_without_broker(self, db, test_user):
         """GIVEN: Position details without broker
         WHEN: Upserting atomic position
@@ -456,7 +448,6 @@ class TestDeduplicationService:
         assert pos.broker is None
         assert len(pos.dedup_hash) == 64
 
-    @pytest.mark.asyncio
     async def test_different_users_have_different_hashes(self, db, test_user):
         """GIVEN: Two users with identical transaction details
         WHEN: Upserting transactions
@@ -498,7 +489,6 @@ class TestDeduplicationService:
         assert txn1.id != txn2.id
         assert txn1.dedup_hash != txn2.dedup_hash
 
-    @pytest.mark.asyncio
     async def test_concurrent_upsert_same_hash_no_duplicates(self, db_engine, test_user):
         """GIVEN: Two concurrent upserts with identical transaction data in separate sessions
         WHEN: Both execute simultaneously
@@ -580,7 +570,6 @@ class TestDeduplicationService:
                 all_records = result.scalars().all()
                 assert len(all_records) == 1, f"Race condition: {len(all_records)} duplicate records in database"
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
         """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (transaction)."""
         service = DeduplicationService()
@@ -615,7 +604,6 @@ class TestDeduplicationService:
         assert isinstance(txn2.source_documents, list)
         assert len(txn2.source_documents) == 1
 
-    @pytest.mark.asyncio
     async def test_upsert_atomic_position_handles_non_list_source_documents(self, db, test_user):
         """AC13.11.2: Dedup upsert sanitizes malformed source_documents payloads (position)."""
         service = DeduplicationService()

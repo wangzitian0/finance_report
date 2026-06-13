@@ -15,7 +15,6 @@ def db_engine():
     return MagicMock()
 
 
-@pytest.mark.asyncio
 async def test_detect_large_amount_anomaly():
     """Test detection of amounts >10x average."""
     db = AsyncMock()
@@ -55,7 +54,6 @@ async def test_detect_large_amount_anomaly():
     assert not any(a.anomaly_type == "NEW_MERCHANT" for a in anomalies)
 
 
-@pytest.mark.asyncio
 async def test_detect_new_merchant_anomaly():
     """Test detection of new merchant (low history)."""
     db = AsyncMock()
@@ -92,7 +90,6 @@ async def test_detect_new_merchant_anomaly():
     assert any(a.anomaly_type == "NEW_MERCHANT" for a in anomalies)
 
 
-@pytest.mark.asyncio
 async def test_detect_frequency_spike():
     """Test detection of frequency spike (>5 per day)."""
     db = AsyncMock()

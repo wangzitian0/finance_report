@@ -4,7 +4,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.account import Account, AccountType
@@ -44,7 +43,6 @@ async def _make_summary(db: AsyncSession, user_id, *, file_hash: str, account_id
     )
 
 
-@pytest.mark.asyncio
 class TestStatementSummaryConform:
     async def test_resolve_custody_account_from_atomic_txn(self, db, test_user):
         """AC11.15.3: custody account resolves from an atomic txn via the conform (DWD-native)."""

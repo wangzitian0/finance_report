@@ -50,7 +50,6 @@ async def _entry(db, user_id, entry_date: date, lines: list[tuple[Account, Direc
     await db.flush()
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_daily_points(db):
     """AC5.7.1: Daily net worth time-series returns assets, liabilities, and net worth."""
     user_id = uuid4()
@@ -89,7 +88,6 @@ async def test_net_worth_timeseries_daily_points(db):
     ]
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_uses_historical_fx_per_point(db):
     """AC5.7.3: Each point uses the historical FX rate at that point's date."""
     user_id = uuid4()
@@ -136,7 +134,6 @@ async def test_net_worth_timeseries_uses_historical_fx_per_point(db):
     assert [point["net_worth"] for point in report["points"]] == [Decimal("130.00"), Decimal("140.00")]
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_daily_cap(db):
     """AC5.7.1: Daily net worth time-series is capped to prevent expensive scans."""
     with pytest.raises(ReportError, match="Daily net worth time-series is capped"):
@@ -150,7 +147,6 @@ async def test_net_worth_timeseries_daily_cap(db):
         )
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_rejects_reversed_dates(db):
     """AC5.7.1: Invalid date windows are rejected before scanning balances."""
     with pytest.raises(ReportError, match="from date must be before to date"):
@@ -164,7 +160,6 @@ async def test_net_worth_timeseries_rejects_reversed_dates(db):
         )
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_rejects_unknown_granularity(db):
     """AC5.7.1: Only daily and monthly net worth buckets are supported."""
     with pytest.raises(ReportError, match="Unsupported net worth granularity"):
@@ -178,7 +173,6 @@ async def test_net_worth_timeseries_rejects_unknown_granularity(db):
         )
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_currency(db, monkeypatch):
     """AC5.7.1: Monthly net worth points use month-end dates and normalized currency."""
     user_id = uuid4()
@@ -212,7 +206,6 @@ async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_curre
     assert [point["net_worth"] for point in report["points"]] == [Decimal("750.00"), Decimal("750.00")]
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_router(client):
     """AC5.7.1: Router exposes the net worth time-series contract."""
     response = await client.get(
@@ -225,7 +218,6 @@ async def test_net_worth_timeseries_router(client):
     assert response.json()["points"]
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_router_returns_bad_request_for_invalid_window(client):
     """AC5.7.1: Router maps net worth time-series validation errors to 400 responses."""
     response = await client.get(

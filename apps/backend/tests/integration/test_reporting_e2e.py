@@ -4,7 +4,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Account, AccountType, FxRate
@@ -52,7 +51,6 @@ async def _posted_entry(
     await post_journal_entry(db, entry.id, user_id)
 
 
-@pytest.mark.asyncio
 async def test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf(
     db: AsyncSession,
     test_user,

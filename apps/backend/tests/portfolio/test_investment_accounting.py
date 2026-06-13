@@ -72,7 +72,6 @@ class _ScalarStub:
         return self.value
 
 
-@pytest.mark.asyncio
 async def test_buy_transaction_creates_balanced_journal_entry_and_lot(
     db: AsyncSession,
     test_user,
@@ -107,7 +106,6 @@ async def test_buy_transaction_creates_balanced_journal_entry_and_lot(
     assert lots[0].unit_cost == Decimal("100.500000")
 
 
-@pytest.mark.asyncio
 async def test_sell_transaction_uses_fifo_and_records_realized_gain(
     db: AsyncSession,
     test_user,
@@ -175,7 +173,6 @@ async def test_sell_transaction_uses_fifo_and_records_realized_gain(
     assert [lot.remaining_quantity for lot in remaining] == [Decimal("0"), Decimal("3")]
 
 
-@pytest.mark.asyncio
 async def test_sell_transaction_uses_average_cost_for_realized_pnl(
     db: AsyncSession,
     test_user,
@@ -226,7 +223,6 @@ async def test_sell_transaction_uses_average_cost_for_realized_pnl(
     assert result.position.cost_basis == Decimal("1800.00")
 
 
-@pytest.mark.asyncio
 async def test_sell_transaction_uses_lifo_loss_and_disposes_position(
     db: AsyncSession,
     test_user,
@@ -294,7 +290,6 @@ async def test_sell_transaction_uses_lifo_loss_and_disposes_position(
     assert closed.position.disposal_date == date(2026, 4, 5)
 
 
-@pytest.mark.asyncio
 async def test_dividend_transaction_posts_income_and_dividend_record(
     db: AsyncSession,
     test_user,
@@ -349,7 +344,6 @@ async def test_dividend_transaction_posts_income_and_dividend_record(
     assert [txn.transaction_type.value for txn in transactions] == ["buy", "dividend"]
 
 
-@pytest.mark.asyncio
 async def test_dividend_transaction_posts_withholding_tax(
     db: AsyncSession,
     test_user,
@@ -388,7 +382,6 @@ async def test_dividend_transaction_posts_withholding_tax(
     assert _line_amount(result.journal_entry, chart["dividend_income"].id, Direction.CREDIT) == Decimal("25.00")
 
 
-@pytest.mark.asyncio
 async def test_investment_accounting_rejects_invalid_transactions(
     db: AsyncSession,
     test_user,
@@ -491,7 +484,6 @@ async def test_investment_accounting_rejects_invalid_transactions(
         )
 
 
-@pytest.mark.asyncio
 async def test_investment_accounting_rejects_invalid_account_and_position_helpers(
     svc: InvestmentAccountingService,
 ):

@@ -64,7 +64,6 @@ async def _valid_posted_entry(
     return entry, debit, credit
 
 
-@pytest.mark.asyncio
 async def test_AC2_14_1_posted_entry_requires_two_lines_at_database_boundary(db: AsyncSession, test_user):
     """AC2.14.1: Posted/reconciled entries need at least two lines at the database boundary."""
     cash = await _account(db, test_user.id, "cash", AccountType.ASSET)
@@ -91,7 +90,6 @@ async def test_AC2_14_1_posted_entry_requires_two_lines_at_database_boundary(db:
         await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_AC2_14_2_posted_entry_must_balance_in_base_currency(db: AsyncSession, test_user):
     """AC2.14.2: Posted/reconciled entries balance debit and credit totals in base currency."""
     cash = await _account(db, test_user.id, "cash", AccountType.ASSET)
@@ -128,7 +126,6 @@ async def test_AC2_14_2_posted_entry_must_balance_in_base_currency(db: AsyncSess
         await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_AC2_14_3_non_base_posted_lines_require_positive_fx_rate(db: AsyncSession, test_user):
     """AC2.14.3: Non-base posted/reconciled lines require positive FX rates."""
     cash = await _account(db, test_user.id, "hkd cash", AccountType.ASSET)
@@ -166,7 +163,6 @@ async def test_AC2_14_3_non_base_posted_lines_require_positive_fx_rate(db: Async
         await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_AC2_14_4_posted_entries_and_lines_are_immutable_but_drafts_are_editable(db: AsyncSession, test_user):
     """AC2.14.4: Posted/reconciled ledger facts block direct mutation; drafts remain editable."""
     user_id = test_user.id
@@ -252,7 +248,6 @@ async def test_AC2_14_4_posted_entries_and_lines_are_immutable_but_drafts_are_ed
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_AC2_14_5_void_transition_requires_reversal_relationship(db: AsyncSession, test_user):
     """AC2.14.5: Voiding preserves a non-null immutable reversal relationship."""
     user_id = test_user.id

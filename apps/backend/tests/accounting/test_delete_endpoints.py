@@ -11,7 +11,6 @@ These tests cover API endpoint checklist from EPIC-002:
 from datetime import date
 from decimal import Decimal
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +27,6 @@ from src.models.statement_summary import StatementSummary
 from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
-@pytest.mark.asyncio
 async def test_delete_account(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create account
     acc = Account(user_id=test_user.id, name="Del", type=AccountType.ASSET, currency="SGD")
@@ -45,7 +43,6 @@ async def test_delete_account(client: AsyncClient, db: AsyncSession, test_user):
     assert resp.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_delete_account_with_transactions_fails(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create account and entry
     acc = Account(user_id=test_user.id, name="DelConstraint", type=AccountType.ASSET, currency="SGD")
@@ -79,7 +76,6 @@ async def test_delete_account_with_transactions_fails(client: AsyncClient, db: A
     assert "transactions" in resp.text
 
 
-@pytest.mark.asyncio
 async def test_delete_draft_journal_entry(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create draft
     entry = JournalEntry(
@@ -102,7 +98,6 @@ async def test_delete_draft_journal_entry(client: AsyncClient, db: AsyncSession,
     assert resp.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_delete_posted_journal_entry_fails(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create posted
     entry = await create_valid_posted_entry(db, test_user.id, memo="Posted")
@@ -113,7 +108,6 @@ async def test_delete_posted_journal_entry_fails(client: AsyncClient, db: AsyncS
     assert "draft" in resp.text.lower()
 
 
-@pytest.mark.asyncio
 async def test_delete_statement(client: AsyncClient, db: AsyncSession, test_user):
     # 1. Create statement
     stmt = StatementSummary(

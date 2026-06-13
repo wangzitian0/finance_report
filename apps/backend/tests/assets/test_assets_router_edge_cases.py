@@ -9,13 +9,10 @@ from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
 
-import pytest
-
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.services.assets import AssetServiceError
 
 
-@pytest.mark.asyncio
 class TestAssetsRouterCoverage:
     """Test assets router edge cases and error paths."""
 

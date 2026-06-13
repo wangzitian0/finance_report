@@ -347,7 +347,6 @@ class TestInstitutionDetection:
 
         self.service = ExtractionService()
 
-    @pytest.mark.asyncio
     async def test_csv_requires_institution(self):
         """AC13.6.1: Test that CSV parsing raises error when institution is None."""
         from src.services.extraction import ExtractionError
@@ -365,7 +364,6 @@ class TestInstitutionDetection:
                 original_filename="test.csv",
             )
 
-    @pytest.mark.asyncio
     async def test_parse_document_accepts_none_institution_for_pdf(self):
         """AC13.6.2: Test that parse_document accepts institution=None for PDFs (AI auto-detect)."""
         with pytest.raises(Exception) as exc_info:
@@ -450,7 +448,6 @@ class TestExtractionServiceHelpers:
         score = compute_confidence_score(extracted, validation)
         assert 0 <= score <= 100
 
-    @pytest.mark.asyncio
     async def test_parse_document_accepts_force_model(self):
         """AC13.6.3: Test that parse_document accepts force_model parameter."""
         service = ExtractionService()

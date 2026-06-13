@@ -48,7 +48,6 @@ async def cash_flow_accounts(db: AsyncSession):
     return user_id, cash, equity, rent
 
 
-@pytest.mark.asyncio
 async def test_AC5_10_1_cash_flow_uses_cumulative_cash_balances(db: AsyncSession, cash_flow_accounts):
     """AC5.10.1: Cash-flow beginning/ending cash are cumulative balances."""
     user_id, cash, equity, rent = cash_flow_accounts
@@ -74,7 +73,6 @@ async def test_AC5_10_1_cash_flow_uses_cumulative_cash_balances(db: AsyncSession
     assert report["summary"]["net_cash_flow"] == Decimal("-100.00")
 
 
-@pytest.mark.asyncio
 async def test_AC5_10_2_cash_flow_activity_totals_preserve_signs(db: AsyncSession, cash_flow_accounts):
     """AC5.10.2: Cash-flow activities preserve outflow signs."""
     user_id, cash, equity, rent = cash_flow_accounts

@@ -147,7 +147,6 @@ async def portfolio_with_transactions(db: AsyncSession, test_user, investment_ac
     }
 
 
-@pytest.mark.asyncio
 async def test_xirr_insufficient_data(db: AsyncSession, test_user):
     """AC17.3.1: XIRR raises InsufficientDataError on empty portfolio.
 
@@ -157,7 +156,6 @@ async def test_xirr_insufficient_data(db: AsyncSession, test_user):
         await calculate_xirr(db, test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_with_transactions):
     """AC17.3.2: XIRR calculates annualized return for realistic portfolio.
 
@@ -171,7 +169,6 @@ async def test_xirr_with_realistic_data(db: AsyncSession, test_user, portfolio_w
     assert xirr < Decimal("0")  # Loss scenario
 
 
-@pytest.mark.asyncio
 async def test_AC5_6_1_xirr_matches_single_year_excel_case(db: AsyncSession, test_user, investment_account):
     """AC5.6.1: XIRR is within 0.01 percentage points of a one-year Excel case."""
     from src.models.layer2 import AtomicPosition
@@ -219,7 +216,6 @@ async def test_AC5_6_1_xirr_matches_single_year_excel_case(db: AsyncSession, tes
     assert abs(xirr - Decimal("10.00")) <= Decimal("0.01")
 
 
-@pytest.mark.asyncio
 async def test_time_weighted_return_empty_portfolio(db: AsyncSession, test_user):
     """AC17.3.3: TWR returns zero for empty portfolio.
 
@@ -232,7 +228,6 @@ async def test_time_weighted_return_empty_portfolio(db: AsyncSession, test_user)
     assert twr == Decimal("0")
 
 
-@pytest.mark.asyncio
 async def test_time_weighted_return_with_period(db: AsyncSession, test_user, portfolio_with_transactions):
     """AC17.3.4: TWR calculates period return within reasonable bounds.
 
@@ -250,7 +245,6 @@ async def test_time_weighted_return_with_period(db: AsyncSession, test_user, por
     assert twr <= Decimal("1000")  # Not more than 1000%
 
 
-@pytest.mark.asyncio
 async def test_AC5_6_2_time_weighted_return_matches_snapshot_period(
     db: AsyncSession,
     test_user,
@@ -307,7 +301,6 @@ async def test_AC5_6_2_time_weighted_return_matches_snapshot_period(
     assert twr == Decimal("12.500")
 
 
-@pytest.mark.asyncio
 async def test_money_weighted_return_insufficient_data(db: AsyncSession, test_user):
     """AC17.3.5: MWR raises InsufficientDataError on empty portfolio.
 
@@ -317,7 +310,6 @@ async def test_money_weighted_return_insufficient_data(db: AsyncSession, test_us
         await calculate_money_weighted_return(db, test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_money_weighted_return_with_data(db: AsyncSession, test_user, portfolio_with_transactions):
     """AC17.3.6: MWR calculates money-weighted return for loss scenario.
 
@@ -331,7 +323,6 @@ async def test_money_weighted_return_with_data(db: AsyncSession, test_user, port
     assert mwr < Decimal("0")
 
 
-@pytest.mark.asyncio
 async def test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value(
     db: AsyncSession,
     test_user,
@@ -383,7 +374,6 @@ async def test_AC5_6_3_dividend_yield_uses_trailing_dividends_over_current_value
     assert dividend_yield == Decimal("2.00")
 
 
-@pytest.mark.asyncio
 async def test_AC5_6_3_dividend_yield_empty_portfolio_returns_zero(db: AsyncSession, test_user):
     """AC5.6.3: Dividend yield returns zero when no dividends or holdings exist."""
     dividend_yield = await calculate_dividend_yield(db, test_user.id)
@@ -391,7 +381,6 @@ async def test_AC5_6_3_dividend_yield_empty_portfolio_returns_zero(db: AsyncSess
     assert dividend_yield == Decimal("0")
 
 
-@pytest.mark.asyncio
 async def test_AC5_6_3_dividend_yield_with_income_requires_current_value(
     db: AsyncSession,
     test_user,
@@ -427,7 +416,6 @@ async def test_AC5_6_3_dividend_yield_with_income_requires_current_value(
         await calculate_dividend_yield(db, test_user.id, today)
 
 
-@pytest.mark.asyncio
 async def test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow(
     db: AsyncSession,
     test_user,
@@ -480,7 +468,6 @@ async def test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow(
     assert mwr == xirr
 
 
-@pytest.mark.asyncio
 async def test_xirr_with_as_of_date(db: AsyncSession, test_user, portfolio_with_transactions):
     """AC17.3.7: XIRR respects as_of_date parameter.
 
@@ -494,7 +481,6 @@ async def test_xirr_with_as_of_date(db: AsyncSession, test_user, portfolio_with_
     assert isinstance(xirr, Decimal)
 
 
-@pytest.mark.asyncio
 async def test_time_weighted_return_same_day(db: AsyncSession, test_user):
     """AC17.3.8: TWR returns zero for same-day period.
 
@@ -508,7 +494,6 @@ async def test_time_weighted_return_same_day(db: AsyncSession, test_user):
     assert twr == Decimal("0")
 
 
-@pytest.mark.asyncio
 async def test_performance_metrics_with_zero_positions(db: AsyncSession, test_user):
     """AC17.3.9: Performance metrics handle cash-only portfolios.
 
@@ -535,7 +520,6 @@ async def test_performance_metrics_with_zero_positions(db: AsyncSession, test_us
         await calculate_xirr(db, test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_xirr_convergence_edge_case(db: AsyncSession, test_user, investment_account):
     """AC17.3.10: XIRR handles extreme convergence edge cases.
 
@@ -650,7 +634,6 @@ def test_xirr_newton_fallthrough_to_bisection():
     assert isinstance(result, Decimal)
 
 
-@pytest.mark.asyncio
 async def test_xirr_calculation_error_raised(db: AsyncSession, test_user, investment_account, monkeypatch):
     """AC17.3.14: XIRRCalculationError raised when Newton and bisection both fail.
 

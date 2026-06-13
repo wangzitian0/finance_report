@@ -43,7 +43,6 @@ async def mock_stream_generator(chunks: list[str]):
 class TestStreamApiKeyFallback:
     """Tests for API key fallback to settings."""
 
-    @pytest.mark.asyncio
     async def test_stream_uses_settings_api_key_when_not_provided(self):
         """AC6.7.3: Stream uses settings API key when not provided."""
         events = [
@@ -75,7 +74,6 @@ class TestStreamApiKeyFallback:
 
                     assert chunks == ["Hello"]
 
-    @pytest.mark.asyncio
     async def test_stream_raises_when_no_api_key_available(self):
         """AC6.7.3: Stream raises error when no API key available."""
         with patch("src.services.openrouter_streaming.settings") as mock_settings:
@@ -95,7 +93,6 @@ class TestStreamApiKeyFallback:
 class TestStreamOpenRouterChat:
     """Tests for stream_openrouter_chat function."""
 
-    @pytest.mark.asyncio
     async def test_stream_openrouter_chat_success(self):
         """AC6.7.1: Successful streaming chat completion."""
         # Mock SSE events
@@ -126,7 +123,6 @@ class TestStreamOpenRouterChat:
 
                 assert chunks == ["Hello", " world"]
 
-    @pytest.mark.asyncio
     async def test_stream_adds_openrouter_headers_for_legacy_provider(self):
         """OpenRouter provider keeps required attribution headers."""
         events = [
@@ -164,7 +160,6 @@ class TestStreamOpenRouterChat:
             assert headers["HTTP-Referer"] == "https://finance-report.local"
             assert headers["X-Title"] == "Finance Report Backend"
 
-    @pytest.mark.asyncio
     async def test_stream_omits_openrouter_headers_for_zai_provider(self):
         """Provider-neutral GLM access does not send OpenRouter-only headers."""
         events = [
@@ -202,7 +197,6 @@ class TestStreamOpenRouterChat:
             assert "HTTP-Referer" not in headers
             assert "X-Title" not in headers
 
-    @pytest.mark.asyncio
     async def test_stream_openrouter_chat_handles_http_error(self):
         """AC6.7.2: Stream handles HTTP errors."""
         mock_response = MagicMock(spec=httpx.Response)
@@ -231,7 +225,6 @@ class TestStreamOpenRouterChat:
                 assert "HTTP 500" in str(exc_info.value)
                 assert "Internal Server Error" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_stream_openrouter_chat_handles_done_signal(self):
         """AC6.7.1: Stream stops on [DONE] signal."""
         events = [
@@ -261,7 +254,6 @@ class TestStreamOpenRouterChat:
                 assert chunks == ["Hello"]
                 assert "Should not appear" not in "".join(chunks)
 
-    @pytest.mark.asyncio
     async def test_stream_openrouter_chat_handles_malformed_json(self):
         """AC6.7.1: Stream skips malformed JSON and continues."""
         events = [
@@ -297,7 +289,6 @@ class TestStreamOpenRouterChat:
 class TestStreamOpenRouterJson:
     """Tests for stream_openrouter_json function."""
 
-    @pytest.mark.asyncio
     async def test_stream_openrouter_json_success(self):
         """AC6.7.1: Successful JSON mode streaming."""
         events = [
@@ -341,7 +332,6 @@ class TestStreamOpenRouterJson:
 class TestStreamErrorHandling:
     """Tests for OpenRouter stream error handling."""
 
-    @pytest.mark.asyncio
     async def test_stream_handles_mid_stream_error(self):
         """AC6.7.2: Stream handles mid-stream error in response body."""
         events = [
@@ -372,7 +362,6 @@ class TestStreamErrorHandling:
                 assert "Mid-stream error" in str(exc_info.value)
                 assert exc_info.value.retryable is True  # server_error is retryable
 
-    @pytest.mark.asyncio
     async def test_stream_handles_mid_stream_error_not_retryable(self):
         """AC6.7.2: Mid-stream error with non-retryable code."""
         events = [
@@ -400,7 +389,6 @@ class TestStreamErrorHandling:
 
                 assert exc_info.value.retryable is False  # invalid_request is not retryable
 
-    @pytest.mark.asyncio
     async def test_stream_handles_finish_reason_error(self):
         """AC6.7.2: Stream handles finish_reason error."""
         events = [
@@ -429,7 +417,6 @@ class TestStreamErrorHandling:
                 assert "terminated with error" in str(exc_info.value)
                 assert exc_info.value.retryable is True
 
-    @pytest.mark.asyncio
     async def test_stream_ignores_sse_comments(self):
         """AC6.7.1: SSE comments are ignored during streaming."""
         events = [
@@ -462,7 +449,6 @@ class TestStreamErrorHandling:
                 # Should only get actual content, not comments
                 assert chunks == ["Hello", " world"]
 
-    @pytest.mark.asyncio
     async def test_stream_logs_warning_chunks_but_no_content(self):
         """AC6.7.2: Warning logged when chunks received but no content."""
         # Chunks with empty choices (no content extracted)
@@ -498,7 +484,6 @@ class TestStreamErrorHandling:
                     warning_calls = [call for call in mock_logger.warning.call_args_list]
                     assert any("no content" in str(call).lower() for call in warning_calls)
 
-    @pytest.mark.asyncio
     async def test_stream_logs_warning_no_chunks(self):
         """AC6.7.2: Warning logged when no chunks received."""
         events = [
@@ -531,7 +516,6 @@ class TestStreamErrorHandling:
                     warning_calls = [call for call in mock_logger.warning.call_args_list]
                     assert any("no chunks" in str(call).lower() for call in warning_calls)
 
-    @pytest.mark.asyncio
     async def test_stream_skips_empty_choices(self):
         """AC6.7.1: Events with empty choices are skipped."""
         events = [
@@ -566,14 +550,12 @@ class TestStreamErrorHandling:
 class TestAccumulateStream:
     """Tests for accumulate_stream helper."""
 
-    @pytest.mark.asyncio
     async def test_accumulate_stream(self):
         """AC6.7.1: Accumulate chunks into single string."""
         stream = mock_stream_generator(["Hello", " ", "world"])
         result = await accumulate_stream(stream)
         assert result == "Hello world"
 
-    @pytest.mark.asyncio
     async def test_accumulate_stream_empty(self):
         """AC6.7.1: Accumulate empty stream returns empty string."""
         stream = mock_stream_generator([])
@@ -581,7 +563,6 @@ class TestAccumulateStream:
         assert result == ""
 
 
-@pytest.mark.asyncio
 async def test_stream_base_includes_response_format_payload() -> None:
     events = [ServerSentEvent(data='{"choices":[{"delta":{"content":"{}"}}]}'), ServerSentEvent(data="[DONE]")]
     mock_event_source = MagicMock()

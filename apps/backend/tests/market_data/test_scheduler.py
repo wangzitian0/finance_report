@@ -20,7 +20,6 @@ def test_next_market_data_sync_at_uses_nightly_sgt_schedule() -> None:
     assert next_market_data_sync_at(after) == datetime(2026, 1, 7, 22, 0, tzinfo=MARKET_DATA_SYNC_TZ)
 
 
-@pytest.mark.asyncio
 async def test_run_daily_market_data_sync_uses_sessionmaker(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.10: Daily sync opens a DB session and runs FX then stock sync."""
 
@@ -60,7 +59,6 @@ async def test_run_daily_market_data_sync_uses_sessionmaker(monkeypatch: pytest.
     assert session.committed is True
 
 
-@pytest.mark.asyncio
 async def test_run_market_data_scheduler_runs_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.10: Scheduler runs daily sync when the wait reaches the nightly window."""
     stop_event = asyncio.Event()
@@ -87,7 +85,6 @@ async def test_run_market_data_scheduler_runs_after_timeout(monkeypatch: pytest.
     assert calls == 1
 
 
-@pytest.mark.asyncio
 async def test_run_market_data_scheduler_exits_if_stopped_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.10: Scheduler exits cleanly if stopped before the sync starts."""
     stop_event = asyncio.Event()
@@ -108,7 +105,6 @@ async def test_run_market_data_scheduler_exits_if_stopped_after_timeout(monkeypa
     daily_sync.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_run_market_data_scheduler_logs_and_continues_after_sync_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

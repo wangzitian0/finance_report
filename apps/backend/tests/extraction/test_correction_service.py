@@ -26,7 +26,6 @@ def _clear_cache():
     clear_all_correction_cache()
 
 
-@pytest.mark.asyncio
 async def test_record_correction_stores_corrected_category(db, test_user):
     """AC18.2.1: CorrectionLog records the corrected category and txn description.
 
@@ -54,7 +53,6 @@ async def test_record_correction_stores_corrected_category(db, test_user):
     assert correction.user_id == test_user.id
 
 
-@pytest.mark.asyncio
 async def test_record_correction_handles_null_original(db, test_user):
     """Original category is None because extraction no longer suggests categories."""
     txn = await AtomicTransactionFactory.create_async(
@@ -76,7 +74,6 @@ async def test_record_correction_handles_null_original(db, test_user):
     assert correction.corrected_category == "Entertainment"
 
 
-@pytest.mark.asyncio
 async def test_record_correction_not_found_raises(db, test_user):
     """Recording correction for non-existent transaction raises ValueError."""
     with pytest.raises(ValueError, match="not found"):
@@ -88,7 +85,6 @@ async def test_record_correction_not_found_raises(db, test_user):
         )
 
 
-@pytest.mark.asyncio
 async def test_AC18_2_2_record_correction_rejects_cross_user_corrected_account(db, test_user):
     """AC18.2.2: Correction feedback must not bind another user's account."""
     txn = await AtomicTransactionFactory.create_async(
@@ -110,7 +106,6 @@ async def test_AC18_2_2_record_correction_rejects_cross_user_corrected_account(d
         )
 
 
-@pytest.mark.asyncio
 async def test_get_correction_stats_empty(db, test_user):
     """Stats return zero totals when no corrections exist."""
     stats = await get_correction_stats(db, user_id=test_user.id)
@@ -119,7 +114,6 @@ async def test_get_correction_stats_empty(db, test_user):
     assert stats["correction_rate_by_category"] == {}
 
 
-@pytest.mark.asyncio
 async def test_get_correction_stats_aggregates(db, test_user):
     """AC18.2.2: Stats aggregates corrections correctly."""
     for i in range(3):
@@ -145,7 +139,6 @@ async def test_get_correction_stats_aggregates(db, test_user):
     assert stats["top_corrections"][0]["corrected_category"] == "Transport"
 
 
-@pytest.mark.asyncio
 async def test_few_shot_examples_returns_corrections(db, test_user):
     """AC18.2.3: Few-shot examples are generated from corrections."""
     txn = await AtomicTransactionFactory.create_async(
@@ -169,14 +162,12 @@ async def test_few_shot_examples_returns_corrections(db, test_user):
     assert examples[0]["corrected_category"] == "Food & Dining"
 
 
-@pytest.mark.asyncio
 async def test_few_shot_examples_empty_returns_empty(db, test_user):
     """Empty correction log produces empty few-shot examples list."""
     examples = await get_few_shot_examples(db, user_id=test_user.id)
     assert examples == []
 
 
-@pytest.mark.asyncio
 async def test_few_shot_cache_invalidates(db, test_user):
     """AC18.2.4: Cache invalidates after recording a correction."""
     # Prime the cache (empty)

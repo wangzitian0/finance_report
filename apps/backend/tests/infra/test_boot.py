@@ -65,13 +65,11 @@ def mock_openrouter_check():
 
 
 class TestBootloader:
-    @pytest.mark.asyncio
     async def test_dry_run_passes(self, mock_settings):
         """Dry run should only check config."""
         await Bootloader.validate(BootMode.DRY_RUN)
         # Should not raise exception
 
-    @pytest.mark.asyncio
     async def test_critical_check_database_failure(self, mock_db_check, mock_settings):
         """Critical check must exit if DB fails."""
         mock_db_check.return_value = ServiceStatus(service="database", status="error", message="Conn refused")
@@ -79,7 +77,6 @@ class TestBootloader:
         with pytest.raises(SystemExit):
             await Bootloader.validate(BootMode.CRITICAL)
 
-    @pytest.mark.asyncio
     async def test_critical_check_success(self, mock_db_check, mock_settings):
         """Critical check passes if DB is OK."""
         mock_db_check.return_value = ServiceStatus(service="database", status="ok", message="Connected", duration_ms=10)
@@ -87,7 +84,6 @@ class TestBootloader:
         await Bootloader.validate(BootMode.CRITICAL)
         mock_db_check.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_full_check_runs_all(self, mock_db_check, mock_minio_check, mock_settings):
         """Full check must verify all services."""
         mock_db_check.return_value = ServiceStatus(service="database", status="ok", message="OK")
@@ -98,7 +94,6 @@ class TestBootloader:
         mock_db_check.assert_called_once()
         mock_minio_check.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_full_check_warns_but_proceeds(self, mock_db_check, mock_minio_check):
         """Full check warns on optional service failure but doesn't exit."""
         mock_db_check.return_value = ServiceStatus(service="database", status="ok", message="OK")
@@ -107,7 +102,6 @@ class TestBootloader:
         # Should not raise SystemExit
         await Bootloader.validate(BootMode.FULL)
 
-    @pytest.mark.asyncio
     async def test_check_s3_handles_client_error(self):
         """S3 check handles client errors gracefully."""
         with patch("aioboto3.Session") as mock_session:
@@ -199,7 +193,6 @@ class TestBootloaderStaticConfig:
             result = Bootloader._check_static_config()
             assert result is False
 
-    @pytest.mark.asyncio
     async def test_static_config_fail_critical_exits(self):
         with (
             patch.object(Bootloader, "_check_static_config", return_value=False),
@@ -208,7 +201,6 @@ class TestBootloaderStaticConfig:
             await Bootloader.validate(BootMode.CRITICAL)
         assert exc_info.value.code == 1
 
-    @pytest.mark.asyncio
     async def test_static_config_fail_noncritical_returns_false(self):
         with patch.object(Bootloader, "_check_static_config", return_value=False):
             result = await Bootloader.validate(BootMode.FULL)
@@ -375,7 +367,6 @@ class TestBootloaderDatabase:
             BootloaderClass._check_database = _ORIGINAL_CHECK_DATABASE
         yield
 
-    @pytest.mark.asyncio
     async def test_check_database_success(self, mock_settings):
         with patch("src.boot.create_async_engine") as mock_engine:
             mock_conn = AsyncMock()
@@ -391,7 +382,6 @@ class TestBootloaderDatabase:
             assert status.service == "database"
             mock_conn.execute.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_check_database_failure(self, mock_settings):
         with patch("src.boot.create_async_engine") as mock_engine:
             mock_engine.side_effect = Exception("Connection refused")
@@ -403,7 +393,6 @@ class TestBootloaderDatabase:
 
 
 class TestBootloaderS3:
-    @pytest.mark.asyncio
     async def test_check_s3_success(self, mock_settings):
         with patch("aioboto3.Session") as mock_session:
             mock_client_ctx = AsyncMock()
@@ -419,7 +408,6 @@ class TestBootloaderS3:
 
 
 class TestBootloaderOpenrouter:
-    @pytest.mark.asyncio
     async def test_check_openrouter_skipped(self, mock_settings):
         mock_settings.openrouter_api_key = None
         mock_settings.ai_api_key = None
@@ -429,7 +417,6 @@ class TestBootloaderOpenrouter:
         assert status.status == "skipped"
         assert status.service == "ai_provider"
 
-    @pytest.mark.asyncio
     async def test_check_openrouter_success(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
@@ -447,7 +434,6 @@ class TestBootloaderOpenrouter:
             assert status.status == "ok"
             assert status.service == "ai_provider"
 
-    @pytest.mark.asyncio
     async def test_check_openrouter_configured_catalog_skips_network_probe(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
@@ -458,7 +444,6 @@ class TestBootloaderOpenrouter:
         assert status.status == "ok"
         assert "Configured provider=" in status.message
 
-    @pytest.mark.asyncio
     async def test_check_openrouter_remote_catalog_requires_base_url(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
@@ -470,7 +455,6 @@ class TestBootloaderOpenrouter:
         assert status.status == "error"
         assert status.message == "Base URL not configured"
 
-    @pytest.mark.asyncio
     async def test_check_openrouter_auth_failure(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
@@ -488,7 +472,6 @@ class TestBootloaderOpenrouter:
             assert status.status == "error"
             assert "401" in status.message
 
-    @pytest.mark.asyncio
     async def test_check_openrouter_exception(self, mock_settings):
         mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
@@ -504,7 +487,6 @@ class TestBootloaderOpenrouter:
 
 
 class TestBootloaderFullMode:
-    @pytest.mark.asyncio
     async def test_full_mode_includes_openrouter(
         self, mock_settings, mock_db_check, mock_minio_check, mock_openrouter_check
     ):
@@ -519,7 +501,6 @@ class TestBootloaderFullMode:
         assert result is True
         mock_openrouter_check.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_full_mode_warning_status_logged(self, mock_settings, mock_db_check, mock_logger):
         mock_db_check.return_value = ServiceStatus("database", "warning", "Slow connection", 500.0)
 
@@ -537,7 +518,6 @@ class TestBootloaderFullMode:
             assert result is True
             mock_logger.warning.assert_called()
 
-    @pytest.mark.asyncio
     async def test_full_mode_service_error_returns_false(self, mock_settings, mock_db_check, mock_logger):
         """Full mode returns False (not sys.exit) when a service check has error status."""
         mock_db_check.return_value = ServiceStatus("database", "error", "Connection refused")

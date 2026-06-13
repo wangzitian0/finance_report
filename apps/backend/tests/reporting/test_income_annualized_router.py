@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +10,6 @@ from src.models import Account, AccountType, Direction, FxRate, JournalEntry, Jo
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
 
 
-@pytest.mark.asyncio
 async def test_annualized_income_endpoint_groups_last_12_month_income(
     client: AsyncClient,
     db: AsyncSession,
@@ -110,7 +108,6 @@ async def test_annualized_income_endpoint_groups_last_12_month_income(
     }
 
 
-@pytest.mark.asyncio
 async def test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_totals(
     client: AsyncClient,
     db: AsyncSession,
@@ -188,7 +185,6 @@ async def test_AC11_8_7_annualized_income_endpoint_converts_mixed_currency_total
     }
 
 
-@pytest.mark.asyncio
 async def test_restricted_assets_endpoint_returns_latest_locked_holdings(
     client: AsyncClient,
     db: AsyncSession,

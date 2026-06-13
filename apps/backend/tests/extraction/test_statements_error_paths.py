@@ -10,7 +10,6 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
-import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.models import BankStatementStatus
@@ -36,7 +35,6 @@ async def _create_parsing_statement(db, user_id):
     )
 
 
-@pytest.mark.asyncio
 async def test_handle_parse_failure_rollback_fails(db, test_user):
     """AC3.5.5 - Handle parse failure: Rollback exception is caught and logged
 
@@ -55,7 +53,6 @@ async def test_handle_parse_failure_rollback_fails(db, test_user):
     assert statement.validation_error == "Test error"
 
 
-@pytest.mark.asyncio
 async def test_handle_parse_failure_statement_not_found(db, test_user):
     """AC3.5.5 - Handle parse failure: Statement not found after rollback is logged
 
@@ -75,7 +72,6 @@ async def test_handle_parse_failure_statement_not_found(db, test_user):
     await handle_parse_failure(db=db, statement=fake_statement, message="Test error")
 
 
-@pytest.mark.asyncio
 async def test_handle_parse_failure_commit_fails(db, test_user):
     """AC3.5.5 - Handle parse failure: Commit failure during error handling is logged
 

@@ -191,7 +191,6 @@ def test_stream_redactor_flush_empty() -> None:
     assert redactor.flush() == ""
 
 
-@pytest.mark.asyncio
 async def test_chat_stream_refusal_branches(db: AsyncSession, test_user) -> None:
     """AC6.7.7: Chat stream returns refusal for all safety-filtered messages."""
     service = AIAdvisorService()
@@ -208,7 +207,6 @@ async def test_chat_stream_refusal_branches(db: AsyncSession, test_user) -> None
     assert response.endswith(DISCLAIMER_EN)
 
 
-@pytest.mark.asyncio
 async def test_chat_stream_uses_cached_response(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     """AC6.6.3: Chat stream returns cached response when available."""
     service = AIAdvisorService()
@@ -233,7 +231,6 @@ async def test_chat_stream_uses_cached_response(db: AsyncSession, test_user, mon
     assert response.endswith(DISCLAIMER_EN)
 
 
-@pytest.mark.asyncio
 async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC6.7.1: Stream falls back to fallback model on primary failure."""
     service = AIAdvisorService()
@@ -257,7 +254,6 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     assert results == [("hello", "fallback")]
 
 
-@pytest.mark.asyncio
 async def test_stream_openrouter_raises_when_all_fail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -277,7 +273,6 @@ async def test_stream_openrouter_raises_when_all_fail(
             pass
 
 
-@pytest.mark.asyncio
 async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     """AC6.7.3: Chat stream raises error when API key not configured."""
     service = AIAdvisorService()
@@ -293,7 +288,6 @@ async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeyp
         await service.chat_stream(db, test_user.id, "How much did I save this month?")
 
 
-@pytest.mark.asyncio
 async def test_get_financial_context_handles_report_errors(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -315,7 +309,6 @@ async def test_get_financial_context_handles_report_errors(
     assert context["match_rate"] == "0.0%"
 
 
-@pytest.mark.asyncio
 async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions(
     db: AsyncSession,
     test_user,
@@ -462,7 +455,6 @@ def test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_bloc
     assert "Report readiness is blocked [blocked]" in prompt
 
 
-@pytest.mark.asyncio
 async def test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence(
     db: AsyncSession,
     test_user,
@@ -504,7 +496,6 @@ async def test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_an
     assert "[REDACTED]" in provider_content
 
 
-@pytest.mark.asyncio
 async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sources_fail(
     db: AsyncSession,
     test_user,
@@ -569,7 +560,6 @@ def test_AC21_2_1_jsonable_normalizes_nested_context_values() -> None:
     }
 
 
-@pytest.mark.asyncio
 async def test_get_or_create_session_with_existing_session(db: AsyncSession, test_user) -> None:
     """AC6.4.1: Get or create returns existing session."""
     service = AIAdvisorService()
@@ -584,7 +574,6 @@ async def test_get_or_create_session_with_existing_session(db: AsyncSession, tes
     assert refreshed.last_active_at is not None
 
 
-@pytest.mark.asyncio
 async def test_get_or_create_session_missing_raises(db: AsyncSession, test_user) -> None:
     """AC6.4.2: Get or create raises error for non-existent session."""
     service = AIAdvisorService()
@@ -592,7 +581,6 @@ async def test_get_or_create_session_missing_raises(db: AsyncSession, test_user)
         await service._get_or_create_session(db, test_user.id, uuid4(), "Check balances")
 
 
-@pytest.mark.asyncio
 async def test_load_history_skips_system_messages(db: AsyncSession, test_user) -> None:
     """AC6.4.3: Load history skips system messages."""
     service = AIAdvisorService()
@@ -621,7 +609,6 @@ async def test_load_history_skips_system_messages(db: AsyncSession, test_user) -
     assert history[0]["role"] == ChatMessageRole.USER.value
 
 
-@pytest.mark.asyncio
 async def test_stream_and_store_records_response(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     """AC6.8.4: Stream and store records response and caches it."""
     service = AIAdvisorService()
@@ -648,7 +635,6 @@ async def test_stream_and_store_records_response(db: AsyncSession, test_user, mo
     assert ai_advisor_service._CACHE.get("cache-key") is not None
 
 
-@pytest.mark.asyncio
 async def test_record_message_sets_title(db: AsyncSession, test_user) -> None:
     """AC6.4.4: Record message sets session title on first message."""
     service = AIAdvisorService()
@@ -663,7 +649,6 @@ async def test_record_message_sets_title(db: AsyncSession, test_user) -> None:
     assert session.title == "Set title from message"
 
 
-@pytest.mark.asyncio
 async def test_chat_stream_success_path_uses_stream(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -688,7 +673,6 @@ async def test_chat_stream_success_path_uses_stream(
     assert response == "chunk"
 
 
-@pytest.mark.asyncio
 async def test_stream_and_store_raises_on_stream_error(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -707,7 +691,6 @@ async def test_stream_and_store_raises_on_stream_error(
         await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key", None))
 
 
-@pytest.mark.asyncio
 async def test_get_financial_context_filters_by_user(db: AsyncSession) -> None:
     """AC6.8.2: Financial context filters data by user ID."""
     service = AIAdvisorService()
@@ -852,7 +835,6 @@ async def test_get_financial_context_filters_by_user(db: AsyncSession) -> None:
     assert context["match_rate"] == "50.0%"
 
 
-@pytest.mark.asyncio
 async def test_record_message_refresh_exception_logs_warning(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -873,7 +855,6 @@ async def test_record_message_refresh_exception_logs_warning(
     assert message is not None
 
 
-@pytest.mark.asyncio
 async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC6.13.2: preferred_model is prepended to the model list."""
     service = AIAdvisorService()
@@ -896,7 +877,6 @@ async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.Monkey
     assert results == [("ok", "preferred")]
 
 
-@pytest.mark.asyncio
 async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC6.13.3: ValueError/TypeError in _stream_model raises AIAdvisorError."""
     service = AIAdvisorService()
@@ -914,7 +894,6 @@ async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest
             pass
 
 
-@pytest.mark.asyncio
 async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC6.13.4: _stream_model proxies chunks from stream_openrouter_chat."""
     service = AIAdvisorService()

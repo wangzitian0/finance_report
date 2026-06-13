@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,19 +26,16 @@ async def _seed_account(db: AsyncSession, user_id, name: str, code: str) -> Acco
     return account
 
 
-@pytest.mark.asyncio
 async def test_processing_summary_requires_auth(public_client: AsyncClient) -> None:
     resp = await public_client.get("/accounts/processing/summary")
     assert resp.status_code == 401
 
 
-@pytest.mark.asyncio
 async def test_processing_pending_requires_auth(public_client: AsyncClient) -> None:
     resp = await public_client.get("/accounts/processing/pending")
     assert resp.status_code == 401
 
 
-@pytest.mark.asyncio
 async def test_processing_summary_empty(client: AsyncClient) -> None:
     resp = await client.get("/accounts/processing/summary")
     assert resp.status_code == 200, resp.text
@@ -53,7 +49,6 @@ async def test_processing_summary_empty(client: AsyncClient) -> None:
     assert data["oldest_pending_date"] is None
 
 
-@pytest.mark.asyncio
 async def test_processing_pending_empty(client: AsyncClient) -> None:
     resp = await client.get("/accounts/processing/pending")
     assert resp.status_code == 200, resp.text
@@ -62,7 +57,6 @@ async def test_processing_pending_empty(client: AsyncClient) -> None:
     assert data["items"] == []
 
 
-@pytest.mark.asyncio
 async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     cash = await _seed_account(db, user_id, "Cash", "1001")
@@ -100,7 +94,6 @@ async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: A
     assert data["oldest_pending_date"] == older.isoformat()
 
 
-@pytest.mark.asyncio
 async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClient, db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     cash = await _seed_account(db, user_id, "Cash", "1001")
@@ -136,7 +129,6 @@ async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClien
     assert Decimal(data["current_balance"]) == Decimal("20.00")
 
 
-@pytest.mark.asyncio
 async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     cash = await _seed_account(db, user_id, "Cash", "1001")
@@ -183,7 +175,6 @@ async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: As
     assert Decimal(data["items"][0]["amount"]) == Decimal("50.00")
 
 
-@pytest.mark.asyncio
 async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     cash = await _seed_account(db, user_id, "Cash", "1001")
@@ -223,7 +214,6 @@ async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncS
     assert Decimal(data["items"][0]["amount"]) == Decimal("50.00")
 
 
-@pytest.mark.asyncio
 async def test_processing_pending_lists_pairs_with_days_outstanding(
     client: AsyncClient, db: AsyncSession, test_user
 ) -> None:
@@ -274,7 +264,6 @@ async def test_processing_pending_lists_pairs_with_days_outstanding(
     assert in_item["days_outstanding"] == 3
 
 
-@pytest.mark.asyncio
 async def test_processing_pending_flags_over_seven_days(client: AsyncClient, db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     cash = await _seed_account(db, user_id, "Cash", "1001")

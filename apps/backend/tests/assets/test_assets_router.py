@@ -8,14 +8,11 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
-
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 
 
-@pytest.mark.asyncio
 class TestAssetsRouter:
     """Tests for /api/assets endpoints."""
 

@@ -37,7 +37,6 @@ def make_upload_file(name: str, content: bytes) -> UploadFile:
     return UploadFile(filename=name, file=BytesIO(content))
 
 
-@pytest.mark.asyncio
 async def test_create_session_maker_variants():
     """Test create_session_maker_from_db with various bind types."""
     mock_db = MagicMock(spec=AsyncSession)
@@ -77,7 +76,6 @@ async def test_create_session_maker_variants():
         database.set_test_session_maker(original_test_maker)
 
 
-@pytest.mark.asyncio
 async def test_storage_service_errors():
     """Test StorageService error paths."""
     mock_s3 = MagicMock()
@@ -112,7 +110,6 @@ async def test_storage_service_errors():
             service.delete_object("k")
 
 
-@pytest.mark.asyncio
 async def test_parsing_supervisor_error_path(monkeypatch):
     """Test supervisor generic exception handling."""
     stop_event = asyncio.Event()
@@ -137,7 +134,6 @@ async def test_parsing_supervisor_error_path(monkeypatch):
     assert call_count >= 2
 
 
-@pytest.mark.asyncio
 async def test_statement_router_error_cases(db, test_user, monkeypatch):
     """Test 404s and error handlers in statements router."""
     sid = uuid4()
@@ -214,7 +210,6 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
         assert result is None
 
 
-@pytest.mark.asyncio
 async def test_upload_statement_db_commit_failure(db, test_user, monkeypatch):
     """Test upload_statement cleanup logic when DB commit fails."""
     # Mock commit to fail
@@ -238,7 +233,6 @@ async def test_upload_statement_db_commit_failure(db, test_user, monkeypatch):
         assert exc.value.status_code == 500
 
 
-@pytest.mark.asyncio
 async def test_parse_statement_background_error_paths(db, test_user, monkeypatch):
     """Test background parsing error handlers."""
     sid = uuid4()
@@ -337,7 +331,6 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         assert "Unknown" in statement.validation_error
 
 
-@pytest.mark.asyncio
 async def test_retry_statement_parsing_error_paths(db, test_user):
     """Test retry endpoint error handlers."""
     sid = uuid4()
@@ -383,7 +376,6 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
         assert resp.status == BankStatementStatus.PARSING
 
 
-@pytest.mark.asyncio
 async def test_report_router_error_handlers(db, test_user, monkeypatch):
     """Test HTTPException wrappers for ReportError in reports router."""
     from src.routers.reports import (

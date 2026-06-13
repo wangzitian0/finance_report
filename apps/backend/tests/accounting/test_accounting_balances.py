@@ -7,8 +7,6 @@ with proper handling of journal entries and ledger aggregation.
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from src.models import (
     Account,
     AccountType,
@@ -20,7 +18,6 @@ from src.models import (
 from src.services.accounting import calculate_account_balances
 
 
-@pytest.mark.asyncio
 async def test_calculate_account_balances_by_type(db, test_user) -> None:
     """Balances should aggregate by account with type-specific sign handling."""
     asset = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
@@ -87,7 +84,6 @@ async def test_calculate_account_balances_by_type(db, test_user) -> None:
     assert balances[expense.id] == Decimal("50.00")
 
 
-@pytest.mark.asyncio
 async def test_calculate_account_balances_empty_list(db, test_user) -> None:
     """Empty input should return an empty mapping."""
     balances = await calculate_account_balances(db, [], test_user.id)

@@ -4,12 +4,9 @@ These tests cover edge cases and error paths for service layer
 that are not covered in the main test files.
 """
 
-import pytest
-
 from src.services.pii_redaction import detect_pii, mask_account_number, redact_text
 
 
-@pytest.mark.asyncio
 class TestServiceLayerCoverage:
     """Additional tests for service layer coverage."""
 

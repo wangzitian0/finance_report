@@ -14,7 +14,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,7 +85,6 @@ class TestTransferDetectionIdempotency:
         await db.flush()
         return summary, txn
 
-    @pytest.mark.asyncio
     async def test_transfer_out_duplicate_detection_skipped(self, db: AsyncSession, test_user):
         """AC15.6.7 · Running matching twice for transfer-OUT should not create a second match."""
         user_id = test_user.id
@@ -116,7 +114,6 @@ class TestTransferDetectionIdempotency:
             f"Expected exactly 1 active match in DB after two runs, found {len(active_matches)}"
         )
 
-    @pytest.mark.asyncio
     async def test_transfer_in_duplicate_detection_skipped(self, db: AsyncSession, test_user):
         """AC15.6.7 · Running matching twice for transfer-IN should not create a second match."""
         user_id = test_user.id

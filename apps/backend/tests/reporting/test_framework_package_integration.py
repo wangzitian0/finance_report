@@ -58,7 +58,6 @@ def test_AC5_14_1_package_contract_accepts_selected_framework_policy_endpoint() 
     assert payload["period_semantics"]["framework_id"] == "selected supported personal reporting framework"
 
 
-@pytest.mark.asyncio
 async def test_AC20_5_1_package_policy_api_derives_framework_result_from_facts(
     db: AsyncSession,
     test_user: User,
@@ -117,7 +116,6 @@ async def test_AC20_5_1_package_policy_api_derives_framework_result_from_facts(
     assert "market_price" in {anchor.anchor_type for anchor in hk_response.decisions[0].evidence_anchors}
 
 
-@pytest.mark.asyncio
 async def test_AC20_5_1_package_policy_uses_synced_stock_prices_when_no_manual_override(
     db: AsyncSession,
     test_user: User,
@@ -161,7 +159,6 @@ async def test_AC20_5_1_package_policy_uses_synced_stock_prices_when_no_manual_o
     assert market_anchor.source_id == str(synced_price.id)
 
 
-@pytest.mark.asyncio
 async def test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers(
     db: AsyncSession,
     test_user: User,
@@ -236,7 +233,6 @@ async def test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers(
     assert blockers["stale_market_data"]["count"] == 1
 
 
-@pytest.mark.asyncio
 async def test_AC19_7_1_readiness_uses_freshest_stock_price_or_manual_override(
     db: AsyncSession,
     test_user: User,
@@ -285,7 +281,6 @@ async def test_AC19_7_1_readiness_uses_freshest_stock_price_or_manual_override(
     assert "stale_market_data" not in blockers
 
 
-@pytest.mark.asyncio
 async def test_AC19_7_1_readiness_deduplicates_normalized_market_data_symbols(
     db: AsyncSession,
     test_user: User,
@@ -411,7 +406,6 @@ def test_AC19_7_1_selected_framework_requires_non_empty_policy_result() -> None:
     assert {blocker["code"] for blocker in blockers} == {"missing_framework_policy_result"}
 
 
-@pytest.mark.asyncio
 async def test_AC19_7_1_statement_only_inputs_do_not_require_framework_policy_result(
     db: AsyncSession,
     test_user: User,
@@ -515,7 +509,6 @@ def test_AC20_5_1_ledger_account_types_map_to_policy_domains() -> None:
         assert _account_domain_and_instrument(account) == expected
 
 
-@pytest.mark.asyncio
 async def test_AC20_5_1_framework_facts_include_ledger_manual_position_and_dividend_sources(
     db: AsyncSession,
     test_user: User,

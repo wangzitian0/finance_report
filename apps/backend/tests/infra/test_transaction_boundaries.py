@@ -78,7 +78,6 @@ def test_service_commit_calls_are_documented_boundary_exceptions() -> None:
     assert unexpected == []
 
 
-@pytest.mark.asyncio
 async def test_market_data_fx_persistence_is_rollbackable_until_boundary_commit(db: AsyncSession) -> None:
     """AC12.26.2: market-data persistence helpers flush but do not finalize transactions."""
     rate = await market_data._persist_fx_rate(
@@ -104,7 +103,6 @@ async def test_market_data_fx_persistence_is_rollbackable_until_boundary_commit(
     assert persisted is None
 
 
-@pytest.mark.asyncio
 async def test_market_data_sync_endpoint_commits_service_writes_at_router_boundary(
     client: AsyncClient,
     db: AsyncSession,

@@ -6,8 +6,6 @@ AC18.3.2 AC18.3.3: Hybrid and feature-flagged AI scoring behavior.
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from src.services.reconciliation import (
     ReconciliationConfig,
     ai_semantic_score,
@@ -31,7 +29,6 @@ def _default_config() -> ReconciliationConfig:
     )
 
 
-@pytest.mark.asyncio
 async def test_ai_semantic_score_returns_score():
     """AC18.3.1: ai_semantic_score returns similarity score for matching descriptions."""
     mock_response = '{"similarity_score": 92, "reasoning": "Both refer to salary"}'
@@ -63,7 +60,6 @@ async def test_ai_semantic_score_returns_score():
         assert score == 92
 
 
-@pytest.mark.asyncio
 async def test_ai_semantic_score_returns_low_for_unrelated():
     """ai_semantic_score returns low score for unrelated descriptions."""
     mock_response = '{"similarity_score": 15, "reasoning": "Completely different"}'
@@ -95,7 +91,6 @@ async def test_ai_semantic_score_returns_low_for_unrelated():
         assert score == 15
 
 
-@pytest.mark.asyncio
 async def test_ai_semantic_score_fallback_on_error():
     """ai_semantic_score falls back to 50 on any error."""
     from src.services.openrouter_streaming import OpenRouterStreamError
@@ -122,7 +117,6 @@ async def test_ai_semantic_score_fallback_on_error():
         assert score == 50
 
 
-@pytest.mark.asyncio
 async def test_ai_semantic_score_no_api_key_returns_50():
     """When no API key is configured, fall back to neutral score."""
     with patch("src.services.reconciliation.settings") as mock_settings:
@@ -137,7 +131,6 @@ async def test_ai_semantic_score_no_api_key_returns_50():
         assert score == 50
 
 
-@pytest.mark.asyncio
 async def test_ai_semantic_score_empty_response_returns_50():
     """Empty AI responses fall back to neutral score."""
     mock_accumulate = AsyncMock(return_value="  ")
@@ -167,7 +160,6 @@ async def test_ai_semantic_score_empty_response_returns_50():
         assert score == 50
 
 
-@pytest.mark.asyncio
 async def test_ai_semantic_score_clamps_to_range():
     """Score is clamped to 0-100 range."""
     mock_response = '{"similarity_score": 150, "reasoning": "Over 100"}'

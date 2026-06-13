@@ -8,8 +8,6 @@ These tests target specific uncovered lines from EPIC-002:
 from datetime import date
 from uuid import uuid4
 
-import pytest
-
 from src.models.account import Account, AccountType
 from src.models.journal import (
     JournalEntry,
@@ -19,7 +17,6 @@ from src.models.journal import (
 from tests.accounting._ledger_helpers import create_valid_posted_entry, create_valid_void_entry
 
 
-@pytest.mark.asyncio
 class TestJournalDeleteEndpoint:
     """Tests for DELETE /journal-entries/{entry_id}."""
 
@@ -88,7 +85,6 @@ class TestJournalDeleteEndpoint:
 class TestJournalCreateValidationError:
     """Tests for create_entry ValidationError path (journal.py lines 47-48)."""
 
-    @pytest.mark.asyncio
     async def test_create_unbalanced_entry_returns_error(self, client, db, test_user):
         """
         GIVEN unbalanced debit/credit amounts
@@ -114,7 +110,6 @@ class TestJournalCreateValidationError:
         response = await client.post("/journal-entries", json=payload)
         assert response.status_code in (400, 422)
 
-    @pytest.mark.asyncio
     async def test_create_single_line_entry_returns_error(self, client, db, test_user):
         """
         GIVEN a journal entry with only one line (must have >= 2)

@@ -33,7 +33,6 @@ from src.schemas.journal import (
 )
 
 
-@pytest.mark.asyncio
 async def test_journal_router_direct(db: AsyncSession, test_user) -> None:
     user_id = test_user.id
     bank = Account(

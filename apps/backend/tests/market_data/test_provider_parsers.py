@@ -266,7 +266,6 @@ def test_stooq_csv_series_parsers_skip_invalid_and_out_of_range_rows() -> None:
     assert stock_rows[0].price == Decimal("1.350000")
 
 
-@pytest.mark.asyncio
 async def test_persist_stock_price_returns_concurrent_row_after_integrity_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -327,7 +326,6 @@ async def test_persist_stock_price_returns_concurrent_row_after_integrity_error(
     assert calls == 2
 
 
-@pytest.mark.asyncio
 async def test_fetch_validated_provider_functions_cross_validate(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.4: Validated fetches combine primary and secondary providers."""
     observed_date = date(2026, 1, 5)
@@ -359,7 +357,6 @@ async def test_fetch_validated_provider_functions_cross_validate(monkeypatch: py
     assert stock.observation.source == "yahoo_finance:validated:stooq"
 
 
-@pytest.mark.asyncio
 async def test_fetch_validated_provider_series_functions_cross_validate(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.8: Validated range fetches cross-validate rows by observation date."""
     observed_date = date(2026, 1, 5)
@@ -410,7 +407,6 @@ async def test_fetch_validated_provider_series_functions_cross_validate(monkeypa
     assert stock.observations[0].source == "yahoo_finance:validated:stooq"
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse_and_bridge(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.2: Yahoo FX fetch derives inverse and bridge pairs when direct data is absent."""
     observed_date = date(2026, 1, 5)
@@ -446,7 +442,6 @@ async def test_fetch_yahoo_or_derived_fx_rate_uses_inverse_and_bridge(monkeypatc
     assert missing is None
 
 
-@pytest.mark.asyncio
 async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -549,7 +544,6 @@ async def test_fetch_yahoo_or_derived_fx_rate_series_uses_inverse_bridge_and_fai
     assert await market_data._fetch_yahoo_or_derived_fx_rate_series("EUR", "SGD", observed_date, observed_date) == []
 
 
-@pytest.mark.asyncio
 async def test_provider_http_wrappers_parse_success_and_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.4: HTTP wrappers hand responses to parsers and convert provider errors to misses."""
 
@@ -613,7 +607,6 @@ async def test_provider_http_wrappers_parse_success_and_http_errors(monkeypatch:
     assert await market_data._fetch_stooq_stock_price("AAPL", date(2026, 1, 5)) is None
 
 
-@pytest.mark.asyncio
 async def test_provider_http_range_wrappers_parse_success_and_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.8: HTTP range wrappers parse bulk provider responses and report request failures."""
 

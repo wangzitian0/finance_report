@@ -18,7 +18,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -101,7 +100,6 @@ async def _seed_txn(
 class TestTransferDetectionDuringReconciliation:
     """Test Phase 1: Transfer detection with Processing account during reconciliation."""
 
-    @pytest.mark.asyncio
     async def test_transfer_detected_creates_processing_entry(self, db: AsyncSession, test_user):
         """AC15.6.1 · Transfer detection creates Processing account entry with linked account."""
         user_id = test_user.id
@@ -156,7 +154,6 @@ class TestTransferDetectionDuringReconciliation:
 
         await db.refresh(txn)
 
-    @pytest.mark.asyncio
     async def test_transfer_detection_skips_when_no_account_linked(self, db: AsyncSession, test_user):
         """AC15.6.2 · Transfer detection logs warning and skips when statement has no linked account."""
         user_id = test_user.id
@@ -181,7 +178,6 @@ class TestTransferDetectionDuringReconciliation:
         lines = list(lines_result.scalars().all())
         assert len(lines) == 0
 
-    @pytest.mark.asyncio
     async def test_transfer_in_creates_correct_processing_entry(self, db: AsyncSession, test_user):
         """AC15.6.3 · Transfer IN creates: DEBIT destination account, CREDIT Processing."""
         user_id = test_user.id
@@ -234,7 +230,6 @@ class TestTransferDetectionDuringReconciliation:
 class TestTransferAutoPairingPhase:
     """Test Phase 3: Auto-pairing of transfers after all matching completes."""
 
-    @pytest.mark.asyncio
     async def test_auto_pair_transfers_same_amount_same_date(self, db: AsyncSession, test_user):
         """AC15.6.4 · Paired transfers (same amount, same date) are auto-paired, Processing balance = 0."""
         user_id = test_user.id
@@ -273,7 +268,6 @@ class TestTransferAutoPairingPhase:
         balance = await get_processing_balance(db, user_id)
         assert balance == Decimal("0.00")
 
-    @pytest.mark.asyncio
     async def test_unpaired_transfer_leaves_processing_nonzero(self, db: AsyncSession, test_user):
         """AC15.6.5 · Unpaired transfer leaves Processing balance ≠ 0."""
         user_id = test_user.id
@@ -305,7 +299,6 @@ class TestTransferAutoPairingPhase:
 class TestNormalMatchingPhaseIntegration:
     """Test Phase 2: Normal matching still works when transfers are present."""
 
-    @pytest.mark.asyncio
     async def test_non_transfer_transaction_proceeds_to_normal_matching(self, db: AsyncSession, test_user):
         """AC15.6.6 · Non-transfer transactions skip Phase 1 and proceed to Phase 2 (normal matching)."""
         user_id = test_user.id
@@ -365,7 +358,6 @@ class TestNormalMatchingPhaseIntegration:
         lines = list(lines_result.scalars().all())
         assert len(lines) == 0
 
-    @pytest.mark.asyncio
     async def test_mixed_transactions_both_phases_execute(self, db: AsyncSession, test_user):
         """AC15.6.6 · AC11.17.2 · Mix of transfer and non-transfer transactions: Phase 1 and Phase 2 both execute."""
         user_id = test_user.id

@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.services.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService
 
 
-@pytest.mark.asyncio
 async def test_AC18_7_4_node_and_edge_upserts_are_idempotent(db: AsyncSession):
     """AC18.7.4: Evidence lineage service supports idempotent node and edge upsert."""
     service = EvidenceLineageService()
@@ -63,7 +62,6 @@ async def test_AC18_7_4_node_and_edge_upserts_are_idempotent(db: AsyncSession):
     assert edge_again.properties == {"parser": "fixture-v2"}
 
 
-@pytest.mark.asyncio
 async def test_AC18_7_5_traversal_resolves_upstream_and_downstream_by_entity(db: AsyncSession):
     """AC18.7.5: Evidence lineage traverses upstream and downstream within user scope."""
     service = EvidenceLineageService()
@@ -127,7 +125,6 @@ async def test_AC18_7_5_traversal_resolves_upstream_and_downstream_by_entity(db:
     ]
 
 
-@pytest.mark.asyncio
 async def test_AC18_7_6_traversal_enforces_depth_limit(db: AsyncSession):
     """AC18.7.6: Evidence lineage traversal never walks unbounded graphs."""
     service = EvidenceLineageService()
@@ -169,7 +166,6 @@ async def test_AC18_7_6_traversal_enforces_depth_limit(db: AsyncSession):
     assert [(step.depth, step.node.entity_type) for step in one_hop] == [(1, "middle")]
 
 
-@pytest.mark.asyncio
 async def test_AC18_7_5_cross_user_edges_and_traversal_are_blocked(db: AsyncSession):
     """AC18.7.5 AC18.7.7: Evidence lineage enforces user-scoped graph isolation."""
     service = EvidenceLineageService()
