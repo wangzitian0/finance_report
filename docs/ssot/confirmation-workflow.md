@@ -166,7 +166,8 @@ statement with either balance-chain check outside the 0.001 USD tolerance.
 
 ## 8. Related SSOT Documents
 
-- [reconciliation.md §7](./reconciliation.md) — Stage 1 and Stage 2 detailed state machines with DB column definitions
-- [schema.md](./schema.md) — `StatementSummary`, `ReconciliationMatch`, `ConsistencyCheck` table definitions
+- [reconciliation.md §7](./reconciliation.md) — Stage 1 and Stage 2 detailed state machines
+- [schema.md](./schema.md) — data-layer and migration guardrails
+- [Generated DB Schema Reference](../reference/db-schema.md) — current `StatementSummary`, `ReconciliationMatch`, and `ConsistencyCheck` table inventory
 - [extraction.md](./extraction.md) — How parsed statements enter `pending_review` (Stage 1 entry point)
 - [source-type-priority.md](./source-type-priority.md) — How `source_type` is promoted through the confirmation lifecycle

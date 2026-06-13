@@ -124,4 +124,13 @@ describe("HoldingsTable", () => {
     render(<HoldingsTable holdings={[noAccount]} />)
     expect(screen.getByText("Unknown")).toBeInTheDocument()
   })
+
+  it("AC22.10.1 shows an Imported badge only for document-backed holdings", () => {
+    const imported: PortfolioHolding = { ...fractional, id: "imp", asset_identifier: "IMP", provenance: "imported" }
+    const unknown: PortfolioHolding = { ...fractional, id: "unk", asset_identifier: "UNK", provenance: null }
+    render(<HoldingsTable holdings={[imported, unknown]} />)
+    // Exactly one Imported badge — for the document-backed holding; the
+    // unprovable one is never labelled (manual must not masquerade as imported).
+    expect(screen.getAllByText("Imported")).toHaveLength(1)
+  })
 })

@@ -28,6 +28,25 @@ from src.services import fx
 logger = get_logger(__name__)
 
 
+def _derive_provenance(source_documents: object) -> str | None:
+    """Conservatively derive a holding's provenance from its snapshot's source
+    documents (EPIC-022 #868/#888).
+
+    Returns "imported" only when there is concrete document evidence (a
+    ``source_documents`` entry carrying a ``doc_id``). Returns None otherwise:
+    we never infer "manual", so manual data can never be mislabelled as imported
+    and import-without-evidence is never overclaimed.
+    """
+    # source_documents is stored either as {"documents": [...]} (brokerage
+    # import) or as a bare [...] list; tolerate both.
+    docs = source_documents
+    if isinstance(docs, dict):
+        docs = docs.get("documents", [])
+    if isinstance(docs, list) and any(isinstance(doc, dict) and doc.get("doc_id") for doc in docs):
+        return "imported"
+    return None
+
+
 class PortfolioError(Exception):
     """Base exception for portfolio service errors."""
 
@@ -154,11 +173,13 @@ class PortfolioService:
             sector = None
             geography = None
 
+            provenance = None
             latest_atomic = await self._get_latest_atomic(db, position.asset_identifier, user_id)
             if latest_atomic:
                 asset_type = latest_atomic.asset_type
                 sector = latest_atomic.sector
                 geography = latest_atomic.geography
+                provenance = _derive_provenance(latest_atomic.source_documents)
 
             holding = HoldingResponse(
                 id=position.id,
@@ -179,6 +200,7 @@ class PortfolioService:
                 asset_type=asset_type,
                 sector=sector,
                 geography=geography,
+                provenance=provenance,
             )
             holdings.append(holding)
 

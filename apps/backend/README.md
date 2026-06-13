@@ -18,5 +18,5 @@ moon run :test
 | API endpoints and schemas | [Generated API reference](../../docs/reference/api.md), `/api/docs` |
 | Development workflow | [development.md](../../docs/ssot/development.md) |
 | Environment contract | [environments.md](../../docs/ssot/environments.md), [.env.example](../../.env.example) |
-| Database model | [schema.md](../../docs/ssot/schema.md) |
+| Database model | [schema.md](../../docs/ssot/schema.md), [Generated DB schema reference](../../docs/reference/db-schema.md) |
 | Test policy | [tdd.md](../../docs/ssot/tdd.md), [coverage.md](../../docs/ssot/coverage.md) |

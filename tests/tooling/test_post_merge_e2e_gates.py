@@ -500,11 +500,13 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
 
 
 def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
-    """AC8.13.13 AC8.13.105: Staging deploy preserves every post-merge train run."""
+    """AC8.13.13 AC8.13.105: Staging deploy is a singleton post-merge train."""
     workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "concurrency:" not in workflow
+    assert "concurrency:" in workflow
+    assert "group: staging-deploy" in workflow
+    assert "cancel-in-progress: false" in workflow
     assert "post-merge-train-turn:" not in workflow
     assert "classify-staging:" not in workflow
     assert "name: Wait for FIFO post-merge train turn" in workflow
@@ -525,9 +527,9 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "duration=%ss" in workflow
     assert 'run_timed_phase "Phase 1: Smoke Check (Shell)"' in workflow
     assert 'run_timed_phase "Phase 2: Core Flow Validation (Python)"' in workflow
-    assert "FIFO post-merge train" in ci_cd
-    assert "instead of workflow-level concurrency" in ci_cd
-    assert "Every successful main CI `workflow_run` is preserved" in ci_cd
+    assert "in-job FIFO guard" in ci_cd
+    assert "workflow-level singleton concurrency" in ci_cd
+    assert "No two `Deploy Staging` workflow runs mutate staging concurrently" in ci_cd
     assert "75-minute deploy-health job timeout" in ci_cd
     assert "22-minute E2E step timeout" in ci_cd
 
@@ -553,9 +555,9 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "ai-ocr-gate:" in deploy_workflow
-    assert "needs: [build-and-deploy]" in deploy_workflow
+    assert "needs: [build-and-deploy, provider-gate]" in deploy_workflow
     assert (
-        "if: ${{ needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' }}"
+        "if: ${{ always() && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}"
         in deploy_workflow
     )
     assert "name: Staging AI/OCR Gate" in deploy_workflow
@@ -818,6 +820,7 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     )
     assert '[ "$ai_ocr_required" = "true" ]' in workflow
     assert "needs.build-and-deploy.result" in workflow
+    assert "needs.provider-gate.result" in workflow
     assert "needs.ai-ocr-gate.result" in workflow
     assert "gh issue list" in workflow
     assert "gh issue create" in workflow
@@ -832,6 +835,11 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert "Run URL: ${run_url}" in workflow
     assert "Target SHA: ${TARGET_SHA}" in workflow
     assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
+    assert 'provider_result="${{ needs.provider-gate.result }}"' in workflow
+    assert (
+        'provider_status="${{ needs.provider-gate.outputs.provider_status }}"'
+        in workflow
+    )
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
     assert (
         'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"'
@@ -846,6 +854,8 @@ def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> Non
     assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
     assert "Build/deploy failed step: ${failed_step:-unknown}" in workflow
     assert "Build/deploy failure summary: ${failure_summary:-unknown}" in workflow
+    assert "Provider connectivity result: ${provider_result}" in workflow
+    assert "Provider connectivity status: ${provider_status:-not-run}" in workflow
     assert "AI/OCR result: ${ai_ocr_result}" in workflow
     assert "AI/OCR required: ${ai_ocr_required:-unknown}" in workflow
     assert "STAGING_APP_URL: https://report-staging.zitian.party" in workflow
@@ -871,7 +881,9 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
 
     assert "post-merge-delivery:" in workflow
     assert "name: Post-merge Delivery" in workflow
-    assert ("needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert]") in workflow
+    assert (
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, staging-deploy-alert]"
+    ) in workflow
     assert "Aggregate post-merge delivery result" in workflow
     assert (
         'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"'
@@ -882,6 +894,11 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         in workflow
     )
     assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
+    assert 'provider_result="${{ needs.provider-gate.result }}"' in workflow
+    assert (
+        'provider_status="${{ needs.provider-gate.outputs.provider_status }}"'
+        in workflow
+    )
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
     assert 'alert_result="${{ needs.staging-deploy-alert.result }}"' in workflow
     assert (
@@ -899,8 +916,10 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         in workflow
     )
     assert 'failure_reason="build/deploy gate failed"' in workflow
+    assert 'failure_reason="provider connectivity gate failed"' in workflow
     assert 'failure_reason="staging AI/OCR gate failed"' in workflow
     assert 'failure_reason="staging alert job failed"' in workflow
+    assert 'delivery_status="degraded-provider"' in workflow
     assert "## Post-merge Delivery" in workflow
     assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
     assert "Build/deploy failed step: ${failed_step:-unknown}" in workflow
@@ -913,8 +932,8 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         ]
     )
     assert (
-        "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert, "
-        "post-merge-delivery]"
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, "
+        "staging-deploy-alert, post-merge-delivery]"
     ) in workflow
     assert "dedicated `Post-merge Delivery` check" in ci_cd
     assert "A green `CI` workflow alone is not sufficient evidence" in ci_cd
@@ -1126,6 +1145,31 @@ def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
     )
     assert "Generated API reference" in ci_cd
     assert "FastAPI OpenAPI" in ci_cd
+
+
+def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
+    """AC14.1.17: DB schema reference docs are generated contract output in CI."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert "Generated DB Schema Reference Check" in workflow
+    assert (
+        "uv run python ../../tools/generate_db_schema_reference.py --check"
+        in workflow
+    )
+    generate_line = (
+        "uv run python ../../tools/generate_db_schema_reference.py\n"
+    )
+    assert generate_line in workflow
+    assert workflow.index(generate_line) < workflow.index(
+        "uv run python ../../tools/generate_db_schema_reference.py --check"
+    )
+    assert workflow.index("tools/generate_api_reference.py --check") < workflow.index(
+        "tools/generate_db_schema_reference.py --check"
+    )
+    assert "Generated DB schema reference" in ci_cd
+    assert "SQLAlchemy model metadata" in ci_cd
+    assert "docs/hooks.py" in ci_cd
 
 
 def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
@@ -1373,11 +1417,30 @@ def test_AC8_13_21_post_merge_ai_ocr_requires_successful_ci_workflow_run() -> No
 
 
 def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> None:
-    """AC8.13.120: staging always proves a minimal real provider round trip."""
+    """AC8.13.120: provider-risk staging changes prove a provider round trip."""
     workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     provider_test = read("tests/e2e/test_ai_provider_connectivity.py")
 
+    assert "provider-gate:" in workflow
+    assert "name: Staging Provider Gate" in workflow
+    assert "needs: [build-and-deploy]" in workflow
+    assert (
+        "if: ${{ needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}"
+        in workflow
+    )
+    assert (
+        "provider_gate_required: ${{ steps.gates.outputs.provider_gate_required }}"
+        in workflow
+    )
+    assert (
+        "provider_gate_reason: ${{ steps.gates.outputs.provider_gate_reason }}"
+        in workflow
+    )
+    assert (
+        "provider_status: ${{ steps.ai_provider_connectivity.outputs.provider_status }}"
+        in workflow
+    )
     assert "name: AI Provider Connectivity Smoke" in workflow
     assert "id: ai_provider_connectivity" in workflow
     assert "timeout-minutes: 10" in workflow
@@ -1385,26 +1448,42 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert '-v -m "llm"' in workflow
     assert "test-results/staging-provider-connectivity.xml" in workflow
     assert "provider-connectivity" in workflow
-    assert "ai_provider_connectivity_outcome=" in workflow
-    assert workflow.index("id: staging_e2e_tests") < workflow.index(
-        "id: ai_provider_connectivity"
+    assert "provider_connectivity_outcome=" in workflow
+    build_job = workflow.split("  build-and-deploy:", 1)[1].split(
+        "\n  provider-gate:", 1
+    )[0]
+    provider_job = workflow.split("  provider-gate:", 1)[1].split("\n  ai-ocr-gate:", 1)
+    assert "id: ai_provider_connectivity" not in build_job
+    assert "id: ai_provider_connectivity" in provider_job[0]
+    assert (
+        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in provider_job[0]
     )
     # The smoke is resilient to transient provider failure: it retries with
-    # backoff under continue-on-error, hard-fails only on a client/config 4xx
+    # backoff, hard-fails only on a client/config 4xx
     # (config-failure), and reports a transient 5xx/timeout as a non-blocking
     # degraded status so a provider blip cannot red main.
-    assert "continue-on-error: true" in workflow
     assert "PROVIDER_CONNECTIVITY_RETRIES" in workflow
-    assert "name: Enforce provider connectivity gate" in workflow
     assert "provider_status=config-failure" in workflow
     assert "provider_status=degraded" in workflow
-    assert "passed-degraded-provider" in workflow
-    assert workflow.index("id: ai_provider_connectivity") < workflow.index(
-        "name: Enforce provider connectivity gate"
+    assert "degraded-provider" in workflow
+    provider_smoke = (
+        provider_job[0]
+        .split("name: AI Provider Connectivity Smoke", 1)[1]
+        .split("name: Write provider gate context", 1)[0]
     )
+    config_branch = provider_smoke.split("provider_status=config-failure", 1)[1].split(
+        "provider_status=degraded", 1
+    )[0]
+    degraded_branch = provider_smoke.split("provider_status=degraded", 1)[1]
+    assert "connectivity failed: [0-9]{3}" in provider_smoke
+    assert '[ "$status_code" -ge 400 ]' in provider_smoke
+    assert '[ "$status_code" -lt 500 ]' in provider_smoke
+    assert "exit 1" in config_branch
+    assert "exit 0" in degraded_branch
     assert "provider connectivity smoke" in ci_cd
+    assert "runs only when `provider_gate_required.staging` is true" in ci_cd
     assert "full OCR/LLM replay remains gated" in ci_cd
-    assert "passed-degraded-provider" in ci_cd
+    assert "degraded-provider" in ci_cd
     assert "transient provider blips do not" in ci_cd
     assert "@pytest.mark.llm" in provider_test
     assert "authenticated_page_unique" in provider_test
@@ -1634,6 +1713,14 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
         "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
         in deploy_workflow
     )
+    assert (
+        "STAGING_AI_OCR_REQUIRED: ${{ steps.classify.outputs.staging_ai_ocr_required }}"
+        in deploy_workflow
+    )
+    assert (
+        "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}"
+        in deploy_workflow
+    )
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
@@ -1644,14 +1731,11 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     )
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
     assert "same serialized post-merge workflow unit" in ci_cd
-    assert "FIFO post-merge train" in ci_cd
+    assert "in-job FIFO guard" in ci_cd
     assert (
         "test code, audit context, and deployed image under validation aligned" in ci_cd
     )
-    assert (
-        "newer deploy cannot overwrite staging while an older automatic AI/OCR gate is running"
-        in ci_cd
-    )
+    assert "No two `Deploy Staging` workflow runs mutate staging concurrently" in ci_cd
 
 
 def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate() -> (
@@ -2464,10 +2548,19 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
         "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
         in staging_workflow
     )
+    assert (
+        "STAGING_AI_OCR_REQUIRED: ${{ steps.classify.outputs.staging_ai_ocr_required }}"
+        in staging_workflow
+    )
+    assert (
+        "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}"
+        in staging_workflow
+    )
+    assert "staging_ai_ocr_required_raw" in staging_workflow
+    assert "staging_ai_ocr_reason = os.environ.get" in staging_workflow
     assert "env_required['staging']" in staging_workflow
     assert "provider_required['staging']" in staging_workflow
     assert "steps.classify.outputs.staging_required" not in staging_workflow
-    assert "steps.classify.outputs.staging_ai_ocr_required" not in staging_workflow
 
 
 def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded() -> (
@@ -2772,8 +2865,8 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
     assert "post-merge-summary:" in deploy_workflow
     assert (
-        "needs: [build-and-deploy, ai-ocr-gate, staging-deploy-alert, "
-        "post-merge-delivery]" in deploy_workflow
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, "
+        "staging-deploy-alert, post-merge-delivery]" in deploy_workflow
     )
     assert "Write post-merge timing summary" in deploy_workflow
     assert '--title "Post-merge Timing Summary"' in deploy_workflow

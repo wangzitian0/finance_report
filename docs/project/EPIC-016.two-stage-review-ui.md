@@ -115,7 +115,8 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 ## 📚 SSOT References
 
 - [reconciliation.md](../ssot/reconciliation.md) — Reconciliation workflow, confidence thresholds
-- [schema.md](../ssot/schema.md) — BankStatement, ReconciliationMatch, atomic_transactions models
+- [schema.md](../ssot/schema.md) — data-layer and migration guardrails
+- [Generated DB Schema Reference](../reference/db-schema.md) — current statement, match, consistency-check, and atomic fact inventory
 - [accounting.md](../ssot/accounting.md) — Journal entry creation from approved matches
 - [extraction.md](../ssot/extraction.md) — Statement parsing logic (Stage 1 input)
 

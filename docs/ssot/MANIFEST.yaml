@@ -55,8 +55,18 @@ concepts:
   # ── Schema / Database domain ───────────────────────────────────────────
   database_schema:
     owner: docs/ssot/schema.md#er-model
-    description: PostgreSQL table structures, ER diagram, and migration rules.
+    description: PostgreSQL schema rationale, generated inventory reference, and migration rules.
+    family: schema
+    kind: concept
+    authority: documented_contract
+    proofs:
+      - tests/tooling/test_generate_db_schema_reference.py
+      - apps/backend/tests/infra/test_schema_guardrails.py
     cross_refs:
+      - docs/reference/api-overview.md
+      - docs/hooks.py
+      - tools/generate_db_schema_reference.py
+      - common/ssot/generate_db_schema_reference.py
       - docs/ssot/accounting.md
       - docs/ssot/reconciliation.md
 

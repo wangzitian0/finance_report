@@ -459,7 +459,8 @@ ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)
 - **Vision**: [Project Vision](../target.md) decision 5
 - **Accounting**: [accounting.md](./accounting.md) - Double-entry rules
 - **Reconciliation**: [reconciliation.md](./reconciliation.md) - Matching algorithm
-- **Schema**: [schema.md](./schema.md) - Account table structure
+- **Schema rationale**: [schema.md](./schema.md) - data-layer and migration guardrails
+- **Generated schema inventory**: [Generated DB Schema Reference](../reference/db-schema.md) - current account and ledger table structure
 
 ---
 

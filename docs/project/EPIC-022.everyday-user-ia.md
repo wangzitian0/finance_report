@@ -205,6 +205,20 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.6.3 | The header notification center links to the full `/attention` queue, and the bell stays quiet (no badge) when nothing needs attention | `workflowSurfaces.test.tsx` | P1 |
 | AC22.6.4 | Desktop and mobile smoke covers the `/attention` queue and the Home trust meter without layout overflow | `attention-surface.spec.ts` | P1 |
 
+### AC22.7 — Close The Traceability Loop
+
+> PR7 slice (#866). Balance Sheet and Income Statement already drill amounts down
+> to source; this slice ties the Cash Flow statement together so the period's
+> change in cash is explainable, and closes the traceability loop by giving each
+> cash-flow line an account anchor (#887) so its amount drills down like the
+> other statements. A desktop/mobile smoke and the readable evidence-chain path
+> view follow separately.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.7.1 | Each cash-flow line carries its account anchor (`account_id`), and clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines | `test_reporting.py`, `cashFlowPage.test.tsx` | P1 |
+| AC22.7.3 | The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile | `cashFlowPage.test.tsx` | P1 |
+
 ### AC22.8 — Readable Report Package
 
 > PR8 slice (#867). The report package — the product's terminal deliverable —
@@ -234,3 +248,16 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.9.1 | The Reports cockpit's reconciliation-coverage block stays in the reports context and does not link into the Advanced `/reconciliation` surface | `reportsCockpit.test.tsx` | P1 |
 | AC22.9.2 | The reconciliation match-rate is shown under a single term ("Reconciliation coverage") on both Home and Reports, backed by one shared `InfoHint` glossary entry | `dashboardPage.test.tsx`, `reportsCockpit.test.tsx`, `infoHint.test.tsx` | P1 |
 | AC22.9.3 | The "Annualized Income" cockpit card's destination matches its label (it opens the report package and the caption says so), with no silent label/destination mismatch | `reportsCockpit.test.tsx` | P1 |
+
+### AC22.10 — Provenance Labeling (Conservative Subset)
+
+> PR10 slice (#868). The vision requires manual data to never masquerade as
+> imported proof. A full Imported/Manual/Derived taxonomy needs a persisted
+> provenance field across the holding creation paths (tracked in #888, where the
+> ambiguity of empty `source_documents` is documented). This slice ships the
+> safe subset: label a holding **Imported only when it has concrete document
+> evidence**, and never infer Manual — so neither direction can be mislabeled.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.10.1 | A holding whose latest snapshot is backed by a source document is labeled "Imported"; holdings without document evidence carry no provenance label (manual data is never shown as imported, and import is never claimed without proof) | `test_portfolio_service.py`, `holdingsTable.test.tsx` | P1 |

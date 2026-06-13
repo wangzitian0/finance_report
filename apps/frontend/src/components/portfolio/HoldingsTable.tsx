@@ -73,12 +73,22 @@ export function HoldingsTable({ holdings, showDisposed = false }: HoldingsTableP
                                 {brokerHoldings.map((h) => (
                                     <tr key={h.id} className="hover:bg-[var(--background-muted)]/50 transition-colors">
                                         <td className="px-4 py-2">
-                                            <Link
-                                                href={`/portfolio/${encodeURIComponent(h.asset_identifier)}`}
-                                                className="font-medium font-mono text-[var(--accent)] hover:underline"
-                                            >
-                                                {h.asset_identifier}
-                                            </Link>
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <Link
+                                                    href={`/portfolio/${encodeURIComponent(h.asset_identifier)}`}
+                                                    className="font-medium font-mono text-[var(--accent)] hover:underline"
+                                                >
+                                                    {h.asset_identifier}
+                                                </Link>
+                                                {h.provenance === "imported" && (
+                                                    <span
+                                                        className="rounded-full bg-[var(--success-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--success)]"
+                                                        title="Backed by an imported source document"
+                                                    >
+                                                        Imported
+                                                    </span>
+                                                )}
+                                            </span>
                                             <div className="text-xs text-muted mt-0.5">
                                                 {formatDateDisplay(h.acquisition_date)}
                                                 {h.sector && ` · ${h.sector}`}
