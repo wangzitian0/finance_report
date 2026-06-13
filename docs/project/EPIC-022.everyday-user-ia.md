@@ -1,11 +1,22 @@
 # EPIC-022: Everyday-User Information Architecture
 
-> **Status**: In Progress — PR1–PR5 landed (IA skeleton, unified inbox, report
-> cockpit + Balance Sheet / Income Statement drill-down, hardening, flow
-> guidance), plus the lean Home and review-flow fix (#860). Remaining everyday-user slices
-> PR6–PR10 (confidence surface, cash-flow drill-down, readable report package,
-> boundary/naming cleanup, manual provenance) are tracked as sub-issues of the
-> root (#836).
+> **Status**: Complete (2026-06-14) — the everyday-user IA redesign shipped
+> across PR1–PR11: 3-peer nav + smart Home + route/name alignment (PR1), unified
+> notification inbox (PR2), report cockpit + Balance Sheet / Income Statement /
+> cash-flow drill-down (PR3 / PR7), hardening + flow guidance (PR4 / PR5), lean
+> Home and review-flow fix (#860), confidence & attention surface (PR6), readable
+> + printable report package (PR8 / PR8b), everyday↔Advanced boundary + naming
+> unification (PR9), conservative provenance labeling (PR10), and UX-trust
+> hardening (PR11). Every registered AC (AC22.1–AC22.11) is green with a CI-run
+> test (traceability 100%).
+>
+> **Remaining depth is out of this EPIC's core IA scope** and continues as
+> independent follow-ups: backend enablers — #887 (per-line cash-flow account
+> anchors), #705 (snapshot/versioned-export engine), #888 (unified
+> Imported/Manual/Derived provenance) plus the #894 as-of provenance bug; and
+> FE depth-polish — lineage hop-badges, report-package cover + table-of-contents,
+> a controlled `assets` source enum, and drill-down smokes — tracked in
+> #866 / #867 / #868, which no longer gate this now-complete root.
 > **Vision Anchor**: `decision-2-event-middle-layer`, `decision-4-two-stage-review`.
 > Builds on EPIC-019: it introduced workflow events but kept internal accounting
 > modules as first-class navigation; EPIC-022 restructures the shell so an
@@ -81,14 +92,14 @@ EPIC-022 finishes EPIC-019's intent at the navigation and report layers.
 | PR10 — manual provenance labeling | #868 | Imported/Manual/Derived provenance badges + controlled asset source; pairs with #706 |
 
 Acceptance criteria for a slice are added to this document when that slice
-lands, so every registered AC has a behavioral test in the same change. PR1–PR5
-ACs are registered below; the planned PR6–PR10 ACs live in their sub-issues
-(#864–#868) until each lands.
+lands, so every registered AC has a behavioral test in the same change. All
+slices (PR1–PR11) have landed and their ACs (AC22.1–AC22.11) are registered
+below.
 
-### Planned slices (PR6–PR10)
+### Slices PR6–PR11 (delivered)
 
 The first five slices delivered the everyday-user *information architecture and
-core flow*. The remaining slices close the gap between that flow and the two
+core flow*. The later slices closed the gap between that flow and the two
 vision pillars it must serve — **Axiom B** (automation by default, attention only
 on the low-confidence tail) and **source→ledger→report traceability** — plus the
 **terminal goal** (a readable, exportable report package).
