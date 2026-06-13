@@ -62,6 +62,25 @@ The authoritative component/file policy lives in `common/coverage/policy.py`. Co
 
 `tools/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
 
+### Registration guard (no unregistered source trees)
+
+The per-component audit above is recursive *inside* each source root, so a new
+file under `apps/backend/src/...` is measured automatically. The remaining
+bypass is code placed **outside every component root** — a new top-level
+package, a new `apps/<app>/`, or a loose module next to `src/`. Such a tree is
+invisible to the per-component audit and could ship at 0% while the gate stays
+green.
+
+`tools/check_coverage_policy.py` therefore also runs a **registration guard**
+(`audit_unregistered_sources`): every tracked `.py`/`.ts`/`.tsx` file must be
+either under a component source root **or** matched by an explicit exempt
+pattern in `common/coverage/policy.py::COVERAGE_EXEMPT_PATTERNS` (tests, config,
+migrations, agent skills, docs, the vendored submodule). Adding an unlisted code
+directory fails the audit until the author either moves it under a covered root
+or registers it in that list via a reviewable diff. You cannot skip coverage by
+"just not registering" a folder. Exempting genuinely one-off tooling is allowed,
+but it must be an explicit, justified entry — never a silent omission.
+
 `tools/build_unified_lcov.py` rewrites component-relative LCOV paths into repository-root-relative paths before uploading the main-branch unified report to Coveralls. For example, backend `SF:src/services/example.py` becomes `SF:apps/backend/src/services/example.py`, and frontend `SF:src/app/page.tsx` becomes `SF:apps/frontend/src/app/page.tsx`.
 
 Coveralls upload LCOV files are line-only. CI strips `BRDA:`, `BRF:`, and

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from common.coverage.policy import (
     COMPONENTS,
     ROOT_DIR,
     CoverageComponent,
+    find_unregistered_sources,
     parse_lcov_sources,
 )
 
@@ -69,13 +71,49 @@ def run_audit(
     return 0
 
 
+def tracked_source_files(repo_root: Path = ROOT_DIR) -> list[str]:
+    """Repo-relative tracked Python/TypeScript source paths (git is the truth)."""
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "ls-files", "*.py", "*.ts", "*.tsx"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def audit_unregistered_sources(repo_root: Path = ROOT_DIR) -> int:
+    """Fail when a tracked source tree is neither covered nor explicitly exempt."""
+    orphans = find_unregistered_sources(tracked_source_files(repo_root), repo_root)
+    if orphans:
+        print(
+            f"::error title=Unregistered source tree::{len(orphans)} tracked source "
+            "file(s) live outside every coverage component and are not exempt; "
+            "move them under a covered root or register them in "
+            "common/coverage/policy.py::COVERAGE_EXEMPT_PATTERNS"
+        )
+        for path in orphans[:50]:
+            print(f"  unregistered: {path}")
+        if len(orphans) > 50:
+            print(f"  ... {len(orphans) - 50} more unregistered files")
+        return 1
+    print(
+        "Coverage registration audit passed: all tracked source is covered or exempt."
+    )
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Check source tree vs LCOV coverage policy."
     )
     parser.add_argument("--repo-root", type=Path, default=ROOT_DIR)
     args = parser.parse_args()
-    sys.exit(run_audit(args.repo_root.resolve()))
+    repo_root = args.repo_root.resolve()
+    result = run_audit(repo_root)
+    if result == 0:
+        result = audit_unregistered_sources(repo_root)
+    sys.exit(result)
 
 
 if __name__ == "__main__":

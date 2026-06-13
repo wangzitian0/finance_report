@@ -399,6 +399,9 @@ concepts:
     cross_refs:
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
+    proofs:
+      - tests/tooling/test_coverage_policy.py
+      - tests/tooling/test_calculate_unified_coverage.py
 
   # ── TDD ───────────────────────────────────────────────────────────────
   tdd_workflow:
