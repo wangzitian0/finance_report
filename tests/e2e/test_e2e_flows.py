@@ -8,6 +8,7 @@ Covers:
 """
 
 import os
+import re
 import uuid
 import pytest
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError, expect
@@ -16,6 +17,7 @@ from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError, e
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
 AUTH_REDIRECT_TIMEOUT = 10000
+AUTH_LANDING_URL_PATTERN = re.compile(r"/(?:dashboard)?(?:[?#].*)?$")
 
 
 def get_url(path: str) -> str:
@@ -136,6 +138,9 @@ async def test_registration_flow(page: Page):
     assert "id" in response_data, "Response should contain user id"
     assert "access_token" in response_data, "Response should contain access token"
 
-    # Verify we were redirected to dashboard
-    await page.wait_for_url("**/dashboard", timeout=5000)
-    assert "/dashboard" in page.url, "Should redirect to dashboard after registration"
+    # Verify we land in the authenticated app shell. `/dashboard` is a legacy route
+    # that currently redirects to `/`, so the auth shell is the stable contract.
+    await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN, timeout=10_000)
+    await expect(page.get_by_role("button", name="Logout")).to_be_visible(
+        timeout=10_000
+    )
