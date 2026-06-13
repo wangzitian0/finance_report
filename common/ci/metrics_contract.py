@@ -186,7 +186,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "container-images:",
             "Build Backend SHA image",
             "Build Frontend SHA image",
-            "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}",
+            "push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}",
             "Container image validation failed",
         )
         for token in required_workflow_tokens:
@@ -242,7 +242,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "CI observability artifacts",
             "strip branch records before upload",
             "PR CI dry-runs staging image builds before merge",
-            "Main push CI is the only path that pushes SHA-tagged images",
+            "Main and release-branch push CI, plus on-demand",
             "New `apps/*/src`, `packages/*/src`, or root shared source roots fail CI",
         ):
             if token not in ci_cd_text:

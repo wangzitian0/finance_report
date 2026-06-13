@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -267,12 +268,18 @@ class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
             "recurrence_days IS NULL OR recurrence_days > 0",
             name="ck_manual_valuation_snapshots_recurrence_days_positive",
         ),
-        UniqueConstraint(
+        # Append-only versioning (Axiom A): a correction for an existing
+        # (component_type, source, as_of_date) appends a new version and supersedes
+        # the prior one. Uniqueness therefore applies only to the *current* head
+        # (superseded_by_id IS NULL); superseded history rows accumulate freely.
+        Index(
+            "uq_manual_valuation_user_component_source_date",
             "user_id",
             "component_type",
             "source",
             "as_of_date",
-            name="uq_manual_valuation_user_component_source_date",
+            unique=True,
+            postgresql_where=text("superseded_by_id IS NULL"),
         ),
         Index("ix_manual_valuation_snapshots_user_as_of", "user_id", "as_of_date"),
     )
@@ -300,3 +307,13 @@ class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     recurrence_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reminder_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    # Append-only version chain (Axiom A). version is a monotonic per-key counter;
+    # superseded_by_id points forward from a corrected fact to the version that
+    # replaced it. The current value is the head of the chain (superseded_by_id IS NULL).
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    superseded_by_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("manual_valuation_snapshots.id", ondelete="SET NULL"),
+        nullable=True,
+    )

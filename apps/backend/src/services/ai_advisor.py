@@ -41,6 +41,7 @@ from src.services.reporting import (
     get_category_breakdown,
 )
 from src.services.workflow_events import get_workflow_status
+from src.utils.money import to_money
 
 logger = get_logger(__name__)
 
@@ -850,7 +851,7 @@ class AIAdvisorService:
             yield chunk
 
     def _format_money(self, amount: Decimal, currency: str) -> str:
-        quantized = amount.quantize(Decimal("0.01"))
+        quantized = to_money(amount)
         return f"{currency} {quantized}"
 
     def _chunk_text(self, text: str, size: int = 48) -> list[str]:

@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer2 import AssetType, AtomicPosition
 from src.services.assets import AssetService
+from src.utils.money import to_money
 
 
 @dataclass(frozen=True)
@@ -196,7 +197,7 @@ def _parse_structured_positions(
                 asset_identifier=str(identifier).strip(),
                 broker=str(item.get("broker") or broker),
                 quantity=quantity,
-                market_value=market_value.quantize(Decimal("0.01")),
+                market_value=to_money(market_value),
                 currency=str(item.get("currency") or default_currency).upper(),
                 asset_type=_asset_type(item.get("asset_type") or item.get("asset_class")),
                 sector=str(item["sector"]).strip() if item.get("sector") else None,
@@ -226,7 +227,7 @@ def _parse_moomoo_subscription_positions(
                     asset_identifier=description.strip(),
                     broker=broker,
                     quantity=Decimal("1"),
-                    market_value=amount.quantize(Decimal("0.01")),
+                    market_value=to_money(amount),
                     currency=_payload_currency(payload),
                     asset_type=AssetType.MUTUAL_FUND,
                 )
@@ -243,7 +244,7 @@ def _parse_moomoo_subscription_positions(
                 asset_identifier=match.group("name").strip(),
                 broker=broker,
                 quantity=quantity,
-                market_value=market_value.quantize(Decimal("0.01")),
+                market_value=to_money(market_value),
                 currency=match.group("currency").upper(),
                 asset_type=AssetType.MUTUAL_FUND,
             )
@@ -298,7 +299,7 @@ def _parse_moomoo_margin_history_positions(
             asset_identifier=asset_identifier,
             broker=broker,
             quantity=aggregate["quantity"],
-            market_value=aggregate["market_value"].quantize(Decimal("0.01")),
+            market_value=to_money(aggregate["market_value"]),
             currency=aggregate["currency"],
             asset_type=AssetType.STOCK,
             sector=aggregate["sector"],
@@ -331,7 +332,7 @@ def _parse_futu_aggregate_position(
             asset_identifier="FUTU_STOCK_AND_OPTIONS",
             broker=broker,
             quantity=Decimal("1"),
-            market_value=best_value.quantize(Decimal("0.01")),
+            market_value=to_money(best_value),
             currency=_payload_currency(payload, "HKD"),
             asset_type=AssetType.OTHER,
         )

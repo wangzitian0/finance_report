@@ -59,6 +59,14 @@ HISTORY_WEIGHT = Decimal("0.10")
 MAX_DATE_DIFF_DAYS = 7
 
 
+def _validate_transfer_params(amount: Decimal, description: str) -> None:
+    """Validate shared inputs for Transfer IN/OUT journal entries."""
+    if amount <= Decimal("0"):
+        raise ValueError("Transfer amount must be positive")
+    if not description or not description.strip():
+        raise ValueError("Transfer description must not be empty")
+
+
 @dataclass
 class TransferPair:
     """Represents a matched pair of transfer transactions."""
@@ -348,10 +356,7 @@ async def create_transfer_out_entry(
     Returns:
         Created JournalEntry (not yet committed)
     """
-    if amount <= Decimal("0"):
-        raise ValueError("Transfer amount must be positive")
-    if not description or not description.strip():
-        raise ValueError("Transfer description must not be empty")
+    _validate_transfer_params(amount, description)
 
     processing_account = await get_or_create_processing_account(db, user_id)
 
@@ -409,10 +414,7 @@ async def create_transfer_in_entry(
     Returns:
         Created JournalEntry (not yet committed)
     """
-    if amount <= Decimal("0"):
-        raise ValueError("Transfer amount must be positive")
-    if not description or not description.strip():
-        raise ValueError("Transfer description must not be empty")
+    _validate_transfer_params(amount, description)
 
     processing_account = await get_or_create_processing_account(db, user_id)
 

@@ -75,6 +75,7 @@ from src.services.reporting import (
     income_bucket,
 )
 from src.utils import raise_bad_request, raise_not_found
+from src.utils.money import to_money
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
@@ -972,6 +973,7 @@ async def _personal_report_package_traceability_payload(
         select(ManualValuationSnapshot)
         .where(ManualValuationSnapshot.user_id == user_id)
         .where(ManualValuationSnapshot.as_of_date <= report_as_of)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
     )
     manual_snapshots = list(manual_result.scalars().all())
@@ -1336,6 +1338,7 @@ async def annualized_income_schedule(
         .where(ManualValuationSnapshot.as_of_date <= report_date)
         .where(ManualValuationSnapshot.component_type.in_(restricted_types))
         .where(ManualValuationSnapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
     )
 
@@ -1351,7 +1354,7 @@ async def annualized_income_schedule(
             AnnualizedIncomeScheduleHolding(
                 ticker=snapshot.source,
                 compensation_type=snapshot.component_type.value,
-                fair_value=snapshot.value.quantize(Decimal("0.01")),
+                fair_value=to_money(snapshot.value),
                 currency=snapshot.currency,
                 valuation_basis="manual_valuation_snapshot",
                 vesting_schedule=snapshot.notes,
@@ -1371,7 +1374,7 @@ async def annualized_income_schedule(
             )
         except FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
-    restricted_total = restricted_total.quantize(Decimal("0.01"))
+    restricted_total = to_money(restricted_total)
 
     return AnnualizedIncomeScheduleResponse(
         section_id="annualized_income_long_term",
@@ -1381,10 +1384,10 @@ async def annualized_income_schedule(
         trailing_period_end=report_date,
         trailing_period_days=365,
         income=AnnualizedIncomeScheduleIncome(
-            annualized_salary=totals["salary"].quantize(Decimal("0.01")),
-            annualized_bonus=totals["bonus"].quantize(Decimal("0.01")),
-            annualized_dividend=totals["dividend"].quantize(Decimal("0.01")),
-            annualized_total=totals["total"].quantize(Decimal("0.01")),
+            annualized_salary=to_money(totals["salary"]),
+            annualized_bonus=to_money(totals["bonus"]),
+            annualized_dividend=to_money(totals["dividend"]),
+            annualized_total=to_money(totals["total"]),
             currency=currency,
             calculation_basis="posted_or_reconciled_income_journal_lines_trailing_12_months",
         ),

@@ -31,6 +31,7 @@ from src.schemas.assets import (
 )
 from src.services.assets import AssetService, AssetServiceError
 from src.utils import raise_bad_request, raise_internal_error, raise_not_found
+from src.utils.money import to_money
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 logger = get_logger(__name__)
@@ -245,7 +246,7 @@ async def list_restricted_holdings(
             quantity=Decimal("1.000000"),
             vesting_schedule=snapshot.notes,
             unlock_date=snapshot.reminder_date,
-            fair_value=snapshot.value.quantize(Decimal("0.01")),
+            fair_value=to_money(snapshot.value),
             currency=snapshot.currency,
         )
         for snapshot in holdings.values()

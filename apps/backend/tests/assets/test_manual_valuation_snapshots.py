@@ -244,6 +244,75 @@ async def test_manual_valuation_snapshot_service_updates_optional_fields_and_mis
     assert await service.delete_valuation_snapshot(db, test_user.id, missing_id) is False
 
 
+@pytest.mark.asyncio
+async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history(db, test_user):
+    """AC11.19.1: Correcting a manual valuation appends a new version and never edits the prior fact in place.
+
+    Vision Axiom A: a recorded fact is never changed in place; a later correction
+    accumulates as a new version, and one version maps to exactly one value.
+    """
+    service = AssetService()
+    # The version-chain identity matches the partial unique index exactly
+    # (component_type, source, as_of_date) — currency is not part of it.
+    identity = dict(
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=date(2026, 5, 18),
+        source="manual appraisal",
+    )
+
+    first = await service.create_valuation_snapshot(
+        db, user_id=test_user.id, value=Decimal("1000000.00"), currency="SGD", **identity
+    )
+    # A correction that also re-denominates the currency is still the same fact:
+    # it must supersede, not collide on the (currency-less) unique index.
+    corrected = await service.create_valuation_snapshot(
+        db, user_id=test_user.id, value=Decimal("1100000.00"), currency="USD", **identity
+    )
+    await db.commit()
+
+    # The prior fact is preserved unedited and points forward to its successor (append-only chain).
+    await db.refresh(first)
+    assert first.value == Decimal("1000000.00"), "prior fact must not be edited in place"
+    assert first.version == 1
+    assert first.superseded_by_id == corrected.id
+
+    # The correction is the new current head: one version -> one value.
+    assert corrected.value == Decimal("1100000.00")
+    assert corrected.currency == "USD"
+    assert corrected.version == 2
+    assert corrected.superseded_by_id is None
+
+    # Full history is retrievable, newest first, keyed by the currency-less identity.
+    history = await service.list_valuation_versions(db, test_user.id, **identity)
+    assert [(h.version, h.value) for h in history] == [
+        (2, Decimal("1100000.00")),
+        (1, Decimal("1000000.00")),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user):
+    """AC11.19.2: Heads-only reads use the current version, so a correction never double-counts."""
+    service = AssetService()
+    key = dict(
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=date(2026, 5, 18),
+        currency="SGD",
+        source="manual appraisal",
+    )
+
+    await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1000000.00"), **key)
+    await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1100000.00"), **key)
+    await db.commit()
+
+    components = await service.get_latest_valuation_components(db, test_user.id, as_of_date=date(2026, 5, 18))
+    assert components.total_assets == Decimal("1100000.00"), "superseded version must be excluded"
+
+    snapshots, total = await service.list_valuation_snapshots(db, test_user.id)
+    assert total == 1, "list returns only current heads"
+    assert snapshots[0].value == Decimal("1100000.00")
+
+
 def test_manual_valuation_snapshot_schema_normalizes_currency():
     """AC11.9.1: Manual valuation schemas normalize currency codes before service use."""
     create_payload = ManualValuationSnapshotCreate(

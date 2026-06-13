@@ -289,7 +289,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - CI calls `tools/check_toolchain_contract.py` in lint before dependency installation and `tools/check_ci_metrics_contract.py` in lint before coverage jobs finish. Runtime versions and base images are owned by `toolchain.toml`, mirrored to local tool-manager files, and used by GitHub Actions, Dockerfiles, and `docker-compose.yml`.
 - PR CI avoids Moon bootstrap in heavy runner jobs that execute direct `pytest` and `npm` commands. Backend shards, backend integration, Tier-1 API E2E, and the frontend build/test job use task-native commands directly so GitHub release CDN failures for optional Moon installation cannot mask deterministic code failures. Moon CLI availability and project graph coverage are static contracts over `.moon/toolchain.yml`, `moon.yml`, and app-level `moon.yml` files; runtime execution of Moon remains a local contributor responsibility and is not a PR merge gate unless a future workflow explicitly needs Moon semantics.
 - PR CI dry-runs staging image builds before merge. The `container-images` job uses `docker/build-push-action` for both backend and frontend images with `push: false` on pull requests, then `finish` fails if that validation job fails.
-- Main push CI is the only path that pushes SHA-tagged images. Registry login and image push are guarded by `github.event_name == 'push' && github.ref == 'refs/heads/main'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
+- Main and release-branch push CI, plus on-demand `workflow_dispatch`, publish SHA-tagged images (P1a, #879). Registry login and image push are guarded by `(github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'`; registry availability and authorization remain post-merge external-service risks, but Dockerfile, build-context, and build-argument errors are caught before merge.
 - Frontend dependency installation uses `actions/setup-node@v4` with npm cache and deterministic `npm ci`. PR CI also runs `npm run audit:prod` after install so production frontend dependency advisories fail before merge; dev-only advisories remain outside this production gate.
 - GitHub JavaScript action runtime is explicitly validated on Node 24 by setting `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"` at the workflow level. This does not change the application toolchain `NODE_VERSION`; it only opts GitHub-hosted JavaScript actions into the runtime that GitHub will make the default.
 - Production release tag builds and dry-runs verify that the target SHA already
@@ -373,13 +373,17 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
   `GIT_COMMIT_SHA=<PR head SHA>`. The runner stack waits for `/api/health` before smoke/E2E, caps readiness at 300 seconds, emits compose logs on
   failure, and then always runs `docker compose down --volumes
   --remove-orphans`.
-- After the in-runner E2E gate passes, a non-blocking `deploy-preview` job
-  deploys a persistent per-PR Dokploy preview. It is GitHub-source: Dokploy
-  clones the PR branch and runs `docker compose ... up -d --build` so the
-  backend/frontend are **built from the PR source on the Dokploy host** — no
-  GHCR image is pulled or pushed. The job is `continue-on-error` and is not a
-  required check, so a preview failure never blocks the PR; the in-runner E2E is
-  the merge authority. The persistent URL is `https://report-pr-<N>.<domain>`.
+- A persistent Dokploy preview is **on-demand only** (P1a-2, #879): the
+  `deploy-preview` job runs solely via manual `workflow_dispatch` (Run workflow →
+  PR number), never automatically per PR. When triggered, after the in-runner E2E
+  gate passes it is GitHub-source: Dokploy clones the PR branch and runs
+  `docker compose ... up -d --build` so the backend/frontend are
+  **built from the PR source on the Dokploy host** — no GHCR image is pulled or
+  pushed. (That
+  host-build is the remaining D1; it becomes a pull of the published `:<sha>` image
+  when the deploy primitive lands in P2/#883.) The job is `continue-on-error` and
+  is not a required check, so a preview failure never blocks the PR; the in-runner
+  E2E is the merge authority. The persistent URL is `https://report-pr-<N>.<domain>`.
 - `tools/pr_preview_lifecycle.py` is the single owner for preview deploy,
   cleanup, and scheduled reconciliation. The workflow does not hand-roll
   separate Dokploy shell blocks because deploy, cleanup, and reconciliation must

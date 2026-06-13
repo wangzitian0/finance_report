@@ -231,13 +231,14 @@ jobs:
 
   deploy-preview:
     name: Deploy Persistent Preview
-    # Non-blocking persistent preview. Runs only after the in-runner E2E gate
-    # passes, then builds the PR's source on the Dokploy host (GitHub-source
-    # deploy, no image pull/push) and persists until the PR is closed. It never
-    # blocks the PR: the in-runner E2E is the merge authority; this job reports
-    # the preview URL via PR comment. Image building + staging/prod promotion
-    # happen only post-merge (staging-deploy / production-release).
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.e2e.result == 'success'
+    # On-demand only (P1a-2, #879): a persistent Dokploy preview is NOT created
+    # automatically per PR. It runs solely via manual `workflow_dispatch` (one click:
+    # Run workflow -> PR number), after the in-runner E2E gate passes, then builds the
+    # PR's source on the Dokploy host and persists until the PR is closed. It never
+    # blocks the PR: the in-runner E2E is the merge authority; this job reports the
+    # preview URL via PR comment. (The host-build is the remaining D1; it becomes a
+    # pull of the published :<sha> image when the deploy primitive lands in P2/#883.)
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.e2e.result == 'success' && github.event_name == 'workflow_dispatch'
     needs: [setup, e2e]
     runs-on: ubuntu-latest
     permissions:

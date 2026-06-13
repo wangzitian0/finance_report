@@ -75,6 +75,31 @@ catalog.
 > Layer-0 read path were removed. See
 > [EPIC-011](../project/EPIC-011.asset-lifecycle.md).
 
+### Append-Only Fact Versioning (Axiom A)
+
+A stored *fact* — the recorded value of a financial quantity — is never edited in
+place. When a fact is corrected, a new version is appended and the prior one is
+superseded; the live value is the head of the chain, history stays retrievable,
+and one version maps to exactly one value (vision Axiom A).
+
+- **Version-bearing unit.** The fact row itself carries the version. The native
+  idiom is a `version` integer plus a self-referential `superseded_by_id` (as on
+  `reconciliation_matches`; `transaction_classification` uses the
+  `superseded_by_id` supersede chain alone), not bitemporal `valid_from`/`valid_to`
+  columns and not a separate version table.
+- **Current head.** The head of a chain has `superseded_by_id IS NULL`. Where a
+  key must stay unique, enforce it with a **partial unique index over the head**
+  (`WHERE superseded_by_id IS NULL`) so superseded history rows accumulate
+  freely. Default read and aggregation paths filter to the head.
+- **Fact vs. review-state.** Append-only applies to *facts* (recorded values).
+  Working review-state and annotations (status transitions, notes, reminders)
+  may stay mutable in place. Draw this line per table; do not make review
+  workflow append-only just because it shares a row with a fact.
+
+Owner of the first applied instance: `manual_valuation_snapshots` (ODS), where a
+re-submitted `(component_type, source, as_of_date)` appends a new version. See
+[EPIC-011 AC11.19](../project/EPIC-011.asset-lifecycle.md) and issue #918.
+
 ---
 
 <a id="er-model"></a>
@@ -148,6 +173,23 @@ uv run alembic check
 Preview and staging validate deployed runtime health after merge or during PR
 preview deployment. They must not be the first environments that discover a
 broken migration chain or model/migration drift.
+
+### Backend Test Schema Fidelity
+
+Backend tests use three deliberately separate schema proof modes:
+
+| Mode | Builder | Purpose | Authority |
+|---|---|---|---|
+| Fast fixture schema | `Base.metadata.create_all()` inside `apps/backend/tests/conftest.py` | Keep broad backend feedback fast by creating the model schema once per worker and truncating data per test. This lane is intentionally non-authoritative while legacy detached-owner tests are burned down. | Fast regression only |
+| PR Alembic schema proof | `uv run alembic upgrade head` plus `uv run alembic check` in CI | Prove the deployable migration chain can build the production schema and that SQLAlchemy metadata does not drift from migrations. | Schema merge authority |
+| production-faithful backend business persistence | A focused backend integration lane that creates an isolated database from Alembic and exercises representative business writes without weakening user foreign keys. | Prove Tier-1 persistence semantics do not rely on the fast fixture schema. | Business persistence proof |
+
+The fast fixture schema currently strips `users.id` foreign keys after
+`create_all()` because legacy tests still create detached-owner rows with direct
+`user_id=uuid4()` shortcuts instead of real `User` rows. New tests should create
+real users through fixtures or factories. `tools/check_detached_owner_shortcuts.py`
+counts direct detached-owner shortcuts and fails on count growth until the
+legacy surface can be burned down.
 
 ### Migration Risk Classification
 

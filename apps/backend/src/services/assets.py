@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.utils.money import to_money
 
 logger = get_logger(__name__)
 
@@ -113,23 +114,103 @@ class AssetService:
         recurrence_days: int | None = None,
         reminder_date: date | None = None,
     ) -> ManualValuationSnapshot:
-        """Create a manual valuation snapshot."""
+        """Record a manual valuation as an append-only versioned fact.
+
+        Vision Axiom A: a recorded fact is never edited in place. If a current
+        version already exists for the same (component_type, source, as_of_date),
+        this appends a new version and supersedes the prior one instead of
+        overwriting it, so the full correction history stays retrievable.
+        """
+        normalized_currency = currency.upper()
+        head = await self._current_valuation_head(
+            db,
+            user_id,
+            component_type=component_type,
+            source=source,
+            as_of_date=as_of_date,
+        )
+
         snapshot = ManualValuationSnapshot(
+            id=uuid4(),
             user_id=user_id,
             component_type=component_type,
             liquidity_class=liquidity_class or _DEFAULT_LIQUIDITY_CLASS[component_type],
             as_of_date=as_of_date,
-            value=value.quantize(Decimal("0.01")),
-            currency=currency.upper(),
+            value=to_money(value),
+            currency=normalized_currency,
             source=source,
             notes=notes,
             recurrence_days=recurrence_days,
             reminder_date=reminder_date,
+            version=(head.version + 1) if head is not None else 1,
+            # Park the new row under the prior head so there is never a moment with
+            # two current heads for the same key (the partial unique index is
+            # checked per statement). Promoted to head below once the prior head
+            # has been demoted to point at it.
+            superseded_by_id=head.id if head is not None else None,
         )
         db.add(snapshot)
         await db.flush()
+        if head is not None:
+            # Ordered hand-off, each flush valid under both the self-FK and the
+            # partial unique index: demote the old head (0 heads), then promote
+            # the new row (1 head).
+            head.superseded_by_id = snapshot.id
+            await db.flush()
+            snapshot.superseded_by_id = None
+            await db.flush()
         await db.refresh(snapshot)
         return snapshot
+
+    async def _current_valuation_head(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        component_type: ManualValuationComponentType,
+        source: str,
+        as_of_date: date,
+    ) -> ManualValuationSnapshot | None:
+        """Return the current (non-superseded) version for a valuation key, if any.
+
+        The key matches the partial unique index exactly
+        (user_id, component_type, source, as_of_date) — currency is a corrigible
+        attribute of the fact, not part of its version-chain identity.
+        """
+        result = await db.execute(
+            select(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.component_type == component_type)
+            .where(ManualValuationSnapshot.source == source)
+            .where(ManualValuationSnapshot.as_of_date == as_of_date)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+        )
+        return result.scalar_one_or_none()
+
+    async def list_valuation_versions(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        component_type: ManualValuationComponentType,
+        source: str,
+        as_of_date: date,
+    ) -> Sequence[ManualValuationSnapshot]:
+        """Return the full append-only version history for a valuation key, newest first.
+
+        Keyed by the same identity as the head index
+        (user_id, component_type, source, as_of_date), so a correction that also
+        changes currency is still part of one history chain.
+        """
+        result = await db.execute(
+            select(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.component_type == component_type)
+            .where(ManualValuationSnapshot.source == source)
+            .where(ManualValuationSnapshot.as_of_date == as_of_date)
+            .order_by(ManualValuationSnapshot.version.desc())
+        )
+        return result.scalars().all()
 
     async def list_valuation_snapshots(
         self,
@@ -142,9 +223,18 @@ class AssetService:
         offset: int = 0,
     ) -> tuple[Sequence[ManualValuationSnapshot], int]:
         """List manual valuation snapshots for a user."""
-        query = select(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)
+        # Only current heads (superseded_by_id IS NULL); superseded history rows
+        # are reachable via list_valuation_versions, not the default listing.
+        query = (
+            select(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+        )
         count_query = (
-            select(func.count()).select_from(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)
+            select(func.count())
+            .select_from(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         )
         if as_of_date is not None:
             query = query.where(ManualValuationSnapshot.as_of_date <= as_of_date)
@@ -199,7 +289,7 @@ class AssetService:
         if "as_of_date" in values and values["as_of_date"] is not None:
             snapshot.as_of_date = values["as_of_date"]
         if "value" in values and values["value"] is not None:
-            snapshot.value = values["value"].quantize(Decimal("0.01"))
+            snapshot.value = to_money(values["value"])
         if "currency" in values and values["currency"] is not None:
             snapshot.currency = values["currency"].upper()
         if "source" in values and values["source"] is not None:
@@ -252,6 +342,7 @@ class AssetService:
             )
             .where(ManualValuationSnapshot.user_id == user_id)
             .where(ManualValuationSnapshot.as_of_date <= as_of_date)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
             .subquery()
         )
 
@@ -274,7 +365,7 @@ class AssetService:
             ):
                 continue
 
-            value = snapshot.value.quantize(Decimal("0.01"))
+            value = to_money(snapshot.value)
             if snapshot.liquidity_class == ManualValuationLiquidityClass.LIABILITY:
                 total_liabilities += value
             else:
@@ -292,13 +383,13 @@ class AssetService:
                 )
             )
 
-        total_assets = total_assets.quantize(Decimal("0.01"))
-        total_liabilities = total_liabilities.quantize(Decimal("0.01"))
+        total_assets = to_money(total_assets)
+        total_liabilities = to_money(total_liabilities)
         return ValuationComponentsResult(
             items=items,
             total_assets=total_assets,
             total_liabilities=total_liabilities,
-            net_worth_delta=(total_assets - total_liabilities).quantize(Decimal("0.01")),
+            net_worth_delta=to_money(total_assets - total_liabilities),
         )
 
     async def get_position(
@@ -566,9 +657,9 @@ class AssetService:
         return DepreciationResult(
             position_id=position.id,
             asset_identifier=position.asset_identifier,
-            period_depreciation=period_depreciation.quantize(Decimal("0.01")),
-            accumulated_depreciation=accumulated.quantize(Decimal("0.01")),
-            book_value=book_value.quantize(Decimal("0.01")),
+            period_depreciation=to_money(period_depreciation),
+            accumulated_depreciation=to_money(accumulated),
+            book_value=to_money(book_value),
             method=method,
             useful_life_years=useful_life_years,
             salvage_value=salvage_value,

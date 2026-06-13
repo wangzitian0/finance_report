@@ -35,6 +35,7 @@ from src.services.processing_account import (
     list_processing_transfer_legs,
 )
 from src.utils import raise_bad_request, raise_not_found
+from src.utils.money import to_money
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 logger = get_logger(__name__)
@@ -99,8 +100,8 @@ async def get_processing_summary(
     pending_count = len(unpaired)
     debits = sum((item["amount"] for item in unpaired if item["direction"] == "OUT"), start=Decimal("0"))
     credits = sum((item["amount"] for item in unpaired if item["direction"] == "IN"), start=Decimal("0"))
-    pending_total = abs(debits - credits).quantize(Decimal("0.01"))
-    current_balance = (await get_processing_balance(db, user_id)).quantize(Decimal("0.01"))
+    pending_total = to_money(abs(debits - credits))
+    current_balance = to_money(await get_processing_balance(db, user_id))
     oldest_pending_date = min((item["date"] for item in unpaired), default=None)
     return ProcessingSummaryResponse(
         pending_count=pending_count,
