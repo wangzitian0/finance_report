@@ -31,4 +31,4 @@ class ConfidenceMetricSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     # Proportion in [0, 1]; Decimal (never float) so the metric is exact.
     low_confidence_proportion: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
     # Full tier histogram, e.g. {"TRUSTED": 1, "HIGH": 1, "MEDIUM": 1, "LOW": 3}.
-    tier_breakdown: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    tier_breakdown: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False, default=dict)

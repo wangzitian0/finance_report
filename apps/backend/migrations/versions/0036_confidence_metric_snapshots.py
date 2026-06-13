@@ -24,7 +24,12 @@ def upgrade() -> None:
         sa.Column("total_count", sa.Integer(), nullable=False),
         sa.Column("low_confidence_count", sa.Integer(), nullable=False),
         sa.Column("low_confidence_proportion", sa.Numeric(precision=6, scale=5), nullable=False),
-        sa.Column("tier_breakdown", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "tier_breakdown",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
