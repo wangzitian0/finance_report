@@ -18,6 +18,7 @@ class ReportingSnapshotService:
         user_id: UUID,
         report_type: ReportType,
         as_of_date: date,
+        start_date: date | None = None,
         rule_version_id: UUID | None = None,
     ) -> ReportSnapshot | None:
         """Get an existing snapshot.
@@ -31,8 +32,12 @@ class ReportingSnapshotService:
             .where(ReportSnapshot.report_type == report_type)
             .where(ReportSnapshot.as_of_date == as_of_date)
         )
+        if start_date is None:
+            query = query.where(ReportSnapshot.start_date.is_(None))
+        else:
+            query = query.where(ReportSnapshot.start_date == start_date)
 
-        if rule_version_id:
+        if rule_version_id is not None:
             query = query.where(ReportSnapshot.rule_version_id == rule_version_id)
         else:
             query = query.where(ReportSnapshot.is_latest == True)  # noqa: E712
@@ -46,8 +51,9 @@ class ReportingSnapshotService:
         user_id: UUID,
         report_type: ReportType,
         as_of_date: date,
-        rule_version_id: UUID,
+        rule_version_id: UUID | None,
         report_data: dict,
+        start_date: date | None = None,
         ttl_seconds: int = 3600,
     ) -> ReportSnapshot:
         """Create a new report snapshot and mark it as latest."""
@@ -59,6 +65,10 @@ class ReportingSnapshotService:
                 .where(ReportSnapshot.as_of_date == as_of_date)
                 .where(ReportSnapshot.is_latest == True)  # noqa: E712
             )
+            if start_date is None:
+                existing_query = existing_query.where(ReportSnapshot.start_date.is_(None))
+            else:
+                existing_query = existing_query.where(ReportSnapshot.start_date == start_date)
             existing = (await db.execute(existing_query)).scalars().all()
             for snap in existing:
                 snap.is_latest = False
@@ -68,6 +78,7 @@ class ReportingSnapshotService:
                 user_id=user_id,
                 report_type=report_type,
                 as_of_date=as_of_date,
+                start_date=start_date,
                 rule_version_id=rule_version_id,
                 report_data=report_data,
                 is_latest=True,

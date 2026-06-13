@@ -380,6 +380,39 @@ const traceabilityAppendix = {
   ],
 };
 
+const packageSnapshot = {
+  id: "snap-001",
+  package_id: "personal-financial-report-package",
+  status: "trusted",
+  framework_id: "personal_us_gaap_like",
+  start_date: "2025-05-20",
+  end_date: "2026-05-20",
+  as_of_date: "2026-05-20",
+  currency: "SGD",
+  readiness_state: "ready",
+  is_latest: true,
+  created_at: "2026-05-20T12:00:00Z",
+  payload: {
+    package_id: "personal-financial-report-package",
+    version: "1.0",
+    status: "trusted",
+    framework_id: "personal_us_gaap_like",
+    start_date: "2025-05-20",
+    end_date: "2026-05-20",
+    as_of_date: "2026-05-20",
+    currency: "SGD",
+    readiness,
+    source_trust_summary: readiness.source_trust_summary,
+    section_payloads: {
+      traceability_appendix: traceabilityAppendix,
+    },
+  },
+};
+const packageSnapshotJsonDownloadName =
+  "Download JSON snapshot snap-001 for US-like 2025-05-20 to 2026-05-20";
+const packageSnapshotCsvDownloadName =
+  "Download CSV snapshot snap-001 for US-like 2025-05-20 to 2026-05-20";
+
 const lineageResponse = {
   anchor: {
     id: "node-ledger-line",
@@ -488,10 +521,19 @@ function mockPackageApi(
   policyPayload = frameworkPolicy,
   traceabilityPayload: unknown = traceabilityAppendix,
   lineagePayload: unknown = lineageResponse,
+  snapshotPayloads: unknown[] = [packageSnapshot],
+  snapshotGenerateResult: unknown = packageSnapshot,
 ) {
-  mockedApiFetch.mockImplementation((path: string) => {
+  mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
     if (path === "/api/reports/package/contract")
       return Promise.resolve(contract);
+    if (path === "/api/reports/package/snapshots")
+      return Promise.resolve(snapshotPayloads);
+    if (path === "/api/reports/package/generate" && options?.method === "POST") {
+      if (snapshotGenerateResult instanceof Error)
+        return Promise.reject(snapshotGenerateResult);
+      return Promise.resolve(snapshotGenerateResult);
+    }
     if (path.startsWith("/api/reports/package/contract?framework_id=")) {
       const frameworkId = new URL(path, "http://localhost").searchParams.get(
         "framework_id",
@@ -830,20 +872,118 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    const exportButton = await screen.findByRole("button", { name: "Export CSV" });
+    const exportButton = await screen.findByRole("button", {
+      name: packageSnapshotCsvDownloadName,
+    });
     fireEvent.click(exportButton);
 
     await waitFor(() => {
       expect(mockedApiDownload).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "/api/reports/export?report_type=package&format=csv&framework_id=personal_us_gaap_like",
-        ),
+        "/api/reports/package/snapshots/snap-001/export?format=csv",
       );
     });
-    expectPinnedPackageDates(String(mockedApiDownload.mock.calls[0][0]));
 
     createObjectUrl.mockRestore();
     revokeObjectUrl.mockRestore();
+  });
+
+  it("AC5.19.4 generates and downloads package snapshots", async () => {
+    const createObjectUrl = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:package-snapshot");
+    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    mockedApiDownload.mockResolvedValue({
+      blob: new Blob(["package snapshot"], { type: "text/csv" }),
+      filename: "personal-report-package-snap-001.csv",
+    });
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    const generateButton = await screen.findByRole("button", { name: /Generate Snapshot/i });
+    fireEvent.click(generateButton);
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/reports/package/generate",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"framework_id\":\"personal_us_gaap_like\""),
+        }),
+      ),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Recent Snapshots" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Trusted").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: packageSnapshotJsonDownloadName }));
+    await waitFor(() =>
+      expect(mockedApiDownload).toHaveBeenCalledWith(
+        "/api/reports/package/snapshots/snap-001/export?format=json",
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: packageSnapshotCsvDownloadName }));
+    await waitFor(() =>
+      expect(mockedApiDownload).toHaveBeenCalledWith(
+        "/api/reports/package/snapshots/snap-001/export?format=csv",
+      ),
+    );
+
+    createObjectUrl.mockRestore();
+    revokeObjectUrl.mockRestore();
+  });
+
+  it("AC5.19.4 surfaces package snapshot generation failures", async () => {
+    mockPackageApi(
+      readiness,
+      frameworkPolicy,
+      traceabilityAppendix,
+      lineageResponse,
+      [packageSnapshot],
+      new Error("Snapshot generation failed"),
+    );
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Generate Snapshot/i }));
+
+    expect(await screen.findByText("Snapshot generation failed")).toBeInTheDocument();
+  });
+
+  it("AC5.19.4 surfaces package snapshot download failures", async () => {
+    mockedApiDownload.mockRejectedValue(new Error("Snapshot download failed"));
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: packageSnapshotCsvDownloadName }));
+
+    expect(await screen.findByText("Snapshot download failed")).toBeInTheDocument();
+  });
+
+  it("AC5.19.4 renders snapshot timestamps with missing and invalid fallbacks", async () => {
+    mockPackageApi(
+      readiness,
+      frameworkPolicy,
+      traceabilityAppendix,
+      lineageResponse,
+      [
+        { ...packageSnapshot, id: "snap-missing-created-at", created_at: null },
+        { ...packageSnapshot, id: "snap-invalid-created-at", created_at: "bad-date" },
+      ],
+    );
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    expect(await screen.findByText("Not recorded")).toBeInTheDocument();
+    expect(screen.getByText("bad-date")).toBeInTheDocument();
   });
 
   it("AC20.6.1 loads HK-like package output and renders empty evidence bundle metadata", async () => {
@@ -901,6 +1041,8 @@ describe("PersonalReportPackagePage", () => {
       (path: string, options?: RequestInit) => {
         if (path === "/api/reports/package/contract")
           return Promise.resolve(contract);
+        if (path === "/api/reports/package/snapshots")
+          return Promise.resolve([packageSnapshot]);
         if (path.includes("framework_id=personal_us_gaap_like")) {
           if (options?.signal) usSignals.push(options.signal);
           return new Promise((resolve) => {

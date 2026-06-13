@@ -22,6 +22,7 @@ class ReportType(str, Enum):
     BALANCE_SHEET = "balance_sheet"
     INCOME_STATEMENT = "income_statement"
     CASH_FLOW = "cash_flow"
+    PACKAGE = "package"
 
 
 class ReportSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
@@ -69,10 +70,10 @@ class ReportSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     as_of_date: Mapped[date] = mapped_column(Date, nullable=False, comment="Report end date")
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="Report start date (for ranges)")
 
-    rule_version_id: Mapped[UUID] = mapped_column(
+    rule_version_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("classification_rules.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
 
     report_data: Mapped[dict] = mapped_column(JSONB, nullable=False, comment="Full report JSON structure")

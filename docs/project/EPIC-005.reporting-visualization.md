@@ -301,6 +301,21 @@ and the monthly cards are a follow-up; provenance (#888) is the co-equal sibling
 | AC5.18.1 | Each balance-sheet line carries the worst-input confidence tier of its contributing journal entries | `test_AC5_18_1_lines_carry_worst_input_confidence_tier()` | `reporting/test_balance_sheet_confidence.py` | P1 |
 | AC5.18.2 | The Net Worth aggregate rolls up to the worst-input tier across rated lines, and is null when nothing is rated | `test_AC5_18_2_net_worth_rolls_up_to_worst_input_tier()` | `reporting/test_balance_sheet_confidence.py` | P1 |
 
+### AC5.19: Report Package Snapshot Artifact
+
+The personal financial-report package must be a durable artifact, not only a
+live page assembled from current endpoints. Snapshot generation freezes the
+period, currency, selected framework, readiness state, source anchors,
+traceability lines, and section payloads so the user can reopen and export the
+same package after later ledger or market-data changes.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.19.1 | `POST /api/reports/package/generate` creates an immutable package snapshot that records period, currency, framework, readiness, source trust, traceability, and section payloads; blocked readiness may generate only a draft, while ready readiness generates trusted output | `test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.19.2 | `GET /api/reports/package/snapshots` and `GET /api/reports/package/snapshots/{snapshot_id}` list and reopen only the current user's saved package snapshots, and reopening returns the original payload after live report inputs change | `test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.19.3 | Package JSON and CSV downloads are derived from a saved snapshot rather than recalculating live data | `test_AC5_19_3_package_snapshot_exports_are_snapshot_derived` | `api/test_personal_report_package_contract.py` | P0 |
+| AC5.19.4 | The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact | `AC5.19.4 generates and downloads package snapshots` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
