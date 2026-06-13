@@ -149,6 +149,23 @@ Preview and staging validate deployed runtime health after merge or during PR
 preview deployment. They must not be the first environments that discover a
 broken migration chain or model/migration drift.
 
+### Backend Test Schema Fidelity
+
+Backend tests use three deliberately separate schema proof modes:
+
+| Mode | Builder | Purpose | Authority |
+|---|---|---|---|
+| Fast fixture schema | `Base.metadata.create_all()` inside `apps/backend/tests/conftest.py` | Keep broad backend feedback fast by creating the model schema once per worker and truncating data per test. This lane is intentionally non-authoritative while legacy detached-owner tests are burned down. | Fast regression only |
+| PR Alembic schema proof | `uv run alembic upgrade head` plus `uv run alembic check` in CI | Prove the deployable migration chain can build the production schema and that SQLAlchemy metadata does not drift from migrations. | Schema merge authority |
+| production-faithful backend business persistence | A focused backend integration lane that creates an isolated database from Alembic and exercises representative business writes without weakening user foreign keys. | Prove Tier-1 persistence semantics do not rely on the fast fixture schema. | Business persistence proof |
+
+The fast fixture schema currently strips `users.id` foreign keys after
+`create_all()` because legacy tests still create detached-owner rows with direct
+`user_id=uuid4()` shortcuts instead of real `User` rows. New tests should create
+real users through fixtures or factories. `tools/check_detached_owner_shortcuts.py`
+counts direct detached-owner shortcuts and fails on count growth until the
+legacy surface can be burned down.
+
 ### Migration Risk Classification
 
 Clean-schema Alembic proof does not guarantee production data migration safety.

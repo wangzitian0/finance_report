@@ -115,6 +115,9 @@ jobs:
           cd apps/backend
           uv run ruff check src tests
           uv run ruff format src tests --check
+      - name: Detached Owner Shortcut Guard
+        run: |
+          uv run python tools/check_detached_owner_shortcuts.py
       - name: Install frontend dependencies
         run: npm ci
         working-directory: apps/frontend
