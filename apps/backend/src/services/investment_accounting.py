@@ -19,8 +19,8 @@ from src.models.portfolio import (
     InvestmentTransactionType,
 )
 from src.services.accounting import create_journal_entry, post_journal_entry
+from src.utils.money import to_money
 
-MONEY = Decimal("0.01")
 QUANTITY = Decimal("0.000001")
 
 
@@ -42,7 +42,8 @@ class InvestmentAccountingResult:
 
 
 def _money(value: Decimal) -> Decimal:
-    return value.quantize(MONEY, rounding=ROUND_HALF_UP)
+    # Canonical money rounding (banker's / HALF_EVEN). See docs/ssot/accounting.md#decimal-rule.
+    return to_money(value)
 
 
 def _quantity(value: Decimal) -> Decimal:
