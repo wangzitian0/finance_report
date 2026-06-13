@@ -359,7 +359,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.86 | CI fast feedback jobs start after change classification without waiting for behavior-only backend gates | `test_AC8_13_86_*` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.87 | Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures | `test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.88 | Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs | `test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
-| AC8.13.89 | PR preview follows the matching successful PR `CI` `workflow_run`, runs the runner-local full-stack smoke/E2E preview (the merge authority) with the PR head SHA, then deploys a non-blocking persistent Dokploy preview built from the PR source on the host without pushing, preflighting, pulling, or deleting PR preview images | `test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.89 | The runner-local full-stack smoke/E2E gate runs synchronously on `pull_request` (the merge authority, a real required check, not async via `workflow_run`); the on-demand persistent Dokploy preview is built from the PR source on the host without pushing, preflighting, pulling, or deleting PR preview images | `test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.90 | Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks | `AC8.13.90 returns deployed frontend version metadata for PR preview readiness` | `frontendVersionRoute.test.ts` | P0 |
 | AC8.13.91 | Main post-merge staging deploy failures open or update a persistent GitHub Issue alert, and the next successful staging run closes it | `test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.92 | Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered | `AC8.13.92*` | `apps/frontend/src/__tests__/coverageBaseline.test.ts`, `apps/frontend/src/__tests__/personalReportPackagePage.test.tsx`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx`, `apps/frontend/src/__tests__/journalPage.test.tsx`, `apps/frontend/src/__tests__/sankeyChartComponent.test.tsx`, `apps/frontend/src/__tests__/toastProviderComponent.test.tsx`, `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
@@ -384,7 +384,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.111 | CI change classification structured Env x Stage outputs cover the complete environment axis (`local`, `pr`, `pr-preview`, `staging`, `prd`) while keeping PR heavy gating and deployed-environment gates represented as matrix cells | `test_AC8_13_111_*` | `tests/tooling/test_ci_change_classifier.py` | P0 |
 | AC8.13.112 | Delivery-engine recommendations, SSOT, workflow gates, and contract tests stay aligned around structured Env x Stage consumers while legacy scalar outputs remain compatibility-only shims | `test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path`, `test_AC8_13_112_workflows_consume_structured_env_stage_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.113 | Sparse Env x Stage reviews record the three newest successful and three newest failed evidence samples for active delivery lanes, then summarize delivery-speed balance, end-to-end consistency, quality fallback, resource leak candidates, and the safe simplification boundary | `test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
-| AC8.13.114 | PR preview starts only from a successful matching PR `CI` `workflow_run`; failed/cancelled/timed-out CI runs trigger cleanup instead of deploy | `test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
+| AC8.13.114 | The in-runner E2E gate runs synchronously on `pull_request` as a real required check a fast/auto merge cannot bypass (not async via `workflow_run`, which a merge could outrun); PR close triggers cleanup, not a gate | `test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.115 | Runner preview readiness is bounded before smoke/E2E starts, with stack logs emitted on failure | `test_AC8_13_115_readiness_fail_fast` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.116 | Post-merge → staging start latency is reduced by removing redundant heavy re-run on push to main | `test_AC8_13_116_skip_heavy_ci_on_main_push` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.117 | Staging FIFO worst-case wait is bounded/parameterized and documented; a path to parallel staging is proposed | `test_AC8_13_117_parameterized_staging_fifo_timeout` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
@@ -588,9 +588,12 @@ The simplification priority remains:
 6. If stale resources were not captured, next run latency would accumulate;
    current controls cover PR previews, GHCR tag pruning, host hygiene, and stale
    version visibility in deployment context.
-7. If PR preview ran from PR events instead of the successful `CI`
-   `workflow_run`, preview could race before the merge-authority gate; the
-   workflow_run trigger keeps preview behind completed CI.
+7. The in-runner E2E gate runs synchronously on `pull_request`, not asynchronously
+   via `workflow_run`: a `workflow_run` gate fires only after CI, so a fast or auto
+   merge could land before it ran — and GitHub counts a skipped required check as
+   passed, which made the "merge authority" bypassable. A synchronous `pull_request`
+   check must pass before merge. (The heavier persistent preview stays on-demand via
+   `workflow_dispatch`; the gate is image-free so it needs no CI artifact.)
 8. If staging consumed PR-head SHAs instead of successful `main` merge SHAs, deploy
    reproducibility and release provenance would weaken; staging tracks workflow_run
    SHA and uses successful main SHA gates.

@@ -16,7 +16,7 @@
 | **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
-| **4** | **PR Preview** | `http://localhost:8080` inside GitHub runner<br>**No persistent Dokploy URL** | Successful PR `CI` `workflow_run`<br>`pr-test.yml` | Runner compose stack<br>(local build, no registry push) | GitHub runner containers<br>(Per run) | Ephemeral Postgres/MinIO | `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>` |
+| **4** | **PR Preview** | `http://localhost:8080` inside GitHub runner<br>**No persistent Dokploy URL** | PR push — synchronous `pull_request`<br>`pr-test.yml` (not async `workflow_run`) | Runner compose stack<br>(local build, no registry push) | GitHub runner containers<br>(Per run) | Ephemeral Postgres/MinIO | `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>` |
 | **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
 | **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 

@@ -1627,7 +1627,8 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
 
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
-    """AC8.13.89: PR preview follows successful CI and does not build/push PR images."""
+    """AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
+    of CI) and does not build/push PR images."""
     workflow = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     compose = read("docker-compose.yml")
@@ -1642,12 +1643,15 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     pr_preview_compose = read("docker-compose.pr-preview.yml")
     frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
-    assert "workflow_run:" in workflow
-    assert 'workflows: ["CI"]' in workflow
-    assert "types: [completed]" in workflow
-    assert 'triggering_ci_conclusion == "success"' in workflow
+    # The in-runner e2e gate runs SYNCHRONOUSLY on pull_request (not async via
+    # workflow_run, which a fast/auto merge could outrun) so it is a real required
+    # check before merge. Preview stays on-demand (deploy-preview = workflow_dispatch).
+    assert "workflow_run:" not in workflow
+    assert "types: [opened, synchronize, reopened, closed]" in workflow
+    assert 'action = "deploy"' in workflow
+    assert 'action_reason = "pull-request-sync"' in workflow
     assert 'action = "cleanup"' in workflow
-    assert "github.event.workflow_run.pull_requests[0].number" in workflow
+    assert "github.event.pull_request.number" in workflow
     assert "gate-cheap-ci:" not in workflow
     assert "tools/wait_for_cheap_ci.py" not in workflow
     # No PR preview IMAGES are built/pushed/preflighted in CI: the persistent
@@ -1698,7 +1702,7 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     assert "no PR preview image is pushed" in e2e_block
     assert "Delete GHCR images" not in cleanup_block
     assert "pr_preview_images=not-created" in cleanup_block
-    assert "PR preview follows the matching successful PR `CI` `workflow_run`" in ci_cd
+    assert "synchronously on `pull_request`" in ci_cd
     assert "does not push, preflight, pull, or delete PR preview images" in ci_cd
     assert "built from the PR source on the Dokploy host" in ci_cd
     assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
@@ -2932,15 +2936,18 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
 
 
 def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
-    """AC8.13.114: PR preview starts only from a successful matching CI workflow_run."""
+    """AC8.13.114: the in-runner e2e gate runs synchronously on pull_request, so it is a
+    real required check a fast/auto merge cannot bypass. It no longer follows CI async
+    via workflow_run — that fired after CI and a quick merge could land before it ran as
+    a gate (skipped required checks count as passed). It is image-free, so it needs no
+    CI artifact and runs independently."""
     workflow = read(".github/workflows/pr-test.yml")
-    assert "workflow_run:" in workflow
-    assert 'workflows: ["CI"]' in workflow
-    assert "types: [completed]" in workflow
-    assert 'triggering_ci_event != "pull_request"' in workflow
-    assert 'triggering_ci_conclusion == "success"' in workflow
+    assert "workflow_run:" not in workflow
+    assert "types: [opened, synchronize, reopened, closed]" in workflow
+    assert 'action_reason = "pull-request-sync"' in workflow
     assert 'action = "deploy"' in workflow
-    assert 'action = "cleanup"' in workflow
+    assert 'action = "cleanup"' in workflow  # pull_request closed -> cleanup
+    assert "pr_preview_required == 'true'" in workflow
     assert "tools/wait_for_cheap_ci.py" not in workflow
     assert "gate-cheap-ci:" not in workflow
     assert "build-preview-backend-image:" not in workflow

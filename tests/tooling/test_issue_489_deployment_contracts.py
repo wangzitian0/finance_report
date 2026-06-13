@@ -272,9 +272,9 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     smoke = read("tools/_lib/shell/smoke_test.sh")
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
-    assert "workflow_run:" in workflow
-    assert 'workflows: ["CI"]' in workflow
-    assert 'triggering_ci_conclusion == "success"' in workflow
+    assert "workflow_run:" not in workflow
+    assert "types: [opened, synchronize, reopened, closed]" in workflow
+    assert 'action_reason = "pull-request-sync"' in workflow
     assert "name: In-runner Preview E2E" in workflow
     assert "python tools/pr_preview_lifecycle.py" in workflow
     assert "--action cleanup" in workflow
@@ -320,9 +320,9 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     jobs = workflow["jobs"]
 
     assert "preview_opt_in" not in yaml.safe_dump(workflow)
-    assert "workflow_run:" in workflow_text
-    assert 'workflows: ["CI"]' in workflow_text
-    assert 'triggering_ci_conclusion == "success"' in workflow_text
+    assert "workflow_run:" not in workflow_text
+    assert "types: [opened, synchronize, reopened, closed]" in workflow_text
+    assert 'action_reason = "pull-request-sync"' in workflow_text
     assert 'action = "cleanup"' in workflow_text
     assert "build-preview-backend-image" not in jobs
     assert "build-preview-frontend-image" not in jobs
@@ -341,7 +341,7 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     assert "--action cleanup" in cleanup_blob
 
     env_doc = read("docs/ssot/environments.md")
-    assert "workflow_run" in env_doc
+    assert "pull_request" in env_doc
     assert "No persistent Dokploy URL" in env_doc
 
 
