@@ -94,12 +94,15 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     assert component.ci_lcov_path == "coverage/tools.lcov"
     assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
     assert "tools/strip_lcov_branches.py" in component.expected_sources(ROOT)
-    assert (
-        "common/coverage/calculate_unified_coverage.py"
-        in component.expected_sources(ROOT)
-    )
-    assert "common/coverage/strip_lcov_branches.py" in component.expected_sources(ROOT)
     assert "tools/_lib/dev/test_lifecycle.py" in component.expected_sources(ROOT)
+
+    # Coverage/CI library implementations now live under common (consolidated
+    # from tools/_lib): they are measured by the common component.
+    common = coverage_policy.get_component("common")
+    assert "common/coverage/calculate_unified_coverage.py" in common.expected_sources(
+        ROOT
+    )
+    assert "common/coverage/strip_lcov_branches.py" in common.expected_sources(ROOT)
 
 
 def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
