@@ -260,15 +260,22 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
     accumulates as a new version, and one version maps to exactly one value.
     """
     service = AssetService()
-    key = dict(
+    # The version-chain identity matches the partial unique index exactly
+    # (component_type, source, as_of_date) — currency is not part of it.
+    identity = dict(
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
         as_of_date=date(2026, 5, 18),
-        currency="SGD",
         source="manual appraisal",
     )
 
-    first = await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1000000.00"), **key)
-    corrected = await service.create_valuation_snapshot(db, user_id=test_user.id, value=Decimal("1100000.00"), **key)
+    first = await service.create_valuation_snapshot(
+        db, user_id=test_user.id, value=Decimal("1000000.00"), currency="SGD", **identity
+    )
+    # A correction that also re-denominates the currency is still the same fact:
+    # it must supersede, not collide on the (currency-less) unique index.
+    corrected = await service.create_valuation_snapshot(
+        db, user_id=test_user.id, value=Decimal("1100000.00"), currency="USD", **identity
+    )
     await db.commit()
 
     # The prior fact is preserved unedited and points forward to its successor (append-only chain).
@@ -279,11 +286,12 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
 
     # The correction is the new current head: one version -> one value.
     assert corrected.value == Decimal("1100000.00")
+    assert corrected.currency == "USD"
     assert corrected.version == 2
     assert corrected.superseded_by_id is None
 
-    # Full history is retrievable, newest first.
-    history = await service.list_valuation_versions(db, test_user.id, **key)
+    # Full history is retrievable, newest first, keyed by the currency-less identity.
+    history = await service.list_valuation_versions(db, test_user.id, **identity)
     assert [(h.version, h.value) for h in history] == [
         (2, Decimal("1100000.00")),
         (1, Decimal("1000000.00")),

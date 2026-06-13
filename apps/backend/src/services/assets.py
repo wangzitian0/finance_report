@@ -128,7 +128,6 @@ class AssetService:
             component_type=component_type,
             source=source,
             as_of_date=as_of_date,
-            currency=normalized_currency,
         )
 
         snapshot = ManualValuationSnapshot(
@@ -171,16 +170,19 @@ class AssetService:
         component_type: ManualValuationComponentType,
         source: str,
         as_of_date: date,
-        currency: str,
     ) -> ManualValuationSnapshot | None:
-        """Return the current (non-superseded) version for a valuation key, if any."""
+        """Return the current (non-superseded) version for a valuation key, if any.
+
+        The key matches the partial unique index exactly
+        (user_id, component_type, source, as_of_date) — currency is a corrigible
+        attribute of the fact, not part of its version-chain identity.
+        """
         result = await db.execute(
             select(ManualValuationSnapshot)
             .where(ManualValuationSnapshot.user_id == user_id)
             .where(ManualValuationSnapshot.component_type == component_type)
             .where(ManualValuationSnapshot.source == source)
             .where(ManualValuationSnapshot.as_of_date == as_of_date)
-            .where(ManualValuationSnapshot.currency == currency)
             .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         )
         return result.scalar_one_or_none()
@@ -193,16 +195,19 @@ class AssetService:
         component_type: ManualValuationComponentType,
         source: str,
         as_of_date: date,
-        currency: str,
     ) -> Sequence[ManualValuationSnapshot]:
-        """Return the full append-only version history for a valuation key, newest first."""
+        """Return the full append-only version history for a valuation key, newest first.
+
+        Keyed by the same identity as the head index
+        (user_id, component_type, source, as_of_date), so a correction that also
+        changes currency is still part of one history chain.
+        """
         result = await db.execute(
             select(ManualValuationSnapshot)
             .where(ManualValuationSnapshot.user_id == user_id)
             .where(ManualValuationSnapshot.component_type == component_type)
             .where(ManualValuationSnapshot.source == source)
             .where(ManualValuationSnapshot.as_of_date == as_of_date)
-            .where(ManualValuationSnapshot.currency == currency.upper())
             .order_by(ManualValuationSnapshot.version.desc())
         )
         return result.scalars().all()

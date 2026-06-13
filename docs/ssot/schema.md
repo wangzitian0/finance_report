@@ -83,9 +83,10 @@ superseded; the live value is the head of the chain, history stays retrievable,
 and one version maps to exactly one value (vision Axiom A).
 
 - **Version-bearing unit.** The fact row itself carries the version. The native
-  idiom is a `version` integer plus a self-referential `superseded_by_id`
-  (as on `reconciliation_matches` and `transaction_classification`), not
-  bitemporal `valid_from`/`valid_to` columns and not a separate version table.
+  idiom is a `version` integer plus a self-referential `superseded_by_id` (as on
+  `reconciliation_matches`; `transaction_classification` uses the
+  `superseded_by_id` supersede chain alone), not bitemporal `valid_from`/`valid_to`
+  columns and not a separate version table.
 - **Current head.** The head of a chain has `superseded_by_id IS NULL`. Where a
   key must stay unique, enforce it with a **partial unique index over the head**
   (`WHERE superseded_by_id IS NULL`) so superseded history rows accumulate
