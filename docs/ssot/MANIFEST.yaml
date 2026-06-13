@@ -371,6 +371,8 @@ concepts:
 
   delivery_gate_triggers:
     owner: docs/ssot/delivery-gates.yaml
+    family: delivery
+    kind: matrix
     description: How each delivery CI gate triggers and whether it blocks merge — the single source for trigger/blocking contracts (so a trigger change is one edit, not a fact restated across docs/tests).
     cross_refs:
       - docs/ssot/ci-cd.md
