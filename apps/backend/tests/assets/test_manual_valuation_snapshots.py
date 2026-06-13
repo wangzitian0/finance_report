@@ -4,6 +4,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
 from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.services.assets import AssetService
