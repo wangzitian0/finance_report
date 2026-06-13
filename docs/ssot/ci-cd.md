@@ -373,13 +373,17 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
   `GIT_COMMIT_SHA=<PR head SHA>`. The runner stack waits for `/api/health` before smoke/E2E, caps readiness at 300 seconds, emits compose logs on
   failure, and then always runs `docker compose down --volumes
   --remove-orphans`.
-- After the in-runner E2E gate passes, a non-blocking `deploy-preview` job
-  deploys a persistent per-PR Dokploy preview. It is GitHub-source: Dokploy
-  clones the PR branch and runs `docker compose ... up -d --build` so the
-  backend/frontend are **built from the PR source on the Dokploy host** — no
-  GHCR image is pulled or pushed. The job is `continue-on-error` and is not a
-  required check, so a preview failure never blocks the PR; the in-runner E2E is
-  the merge authority. The persistent URL is `https://report-pr-<N>.<domain>`.
+- A persistent Dokploy preview is **on-demand only** (P1a-2, #879): the
+  `deploy-preview` job runs solely via manual `workflow_dispatch` (Run workflow →
+  PR number), never automatically per PR. When triggered, after the in-runner E2E
+  gate passes it is GitHub-source: Dokploy clones the PR branch and runs
+  `docker compose ... up -d --build` so the backend/frontend are
+  **built from the PR source on the Dokploy host** — no GHCR image is pulled or
+  pushed. (That
+  host-build is the remaining D1; it becomes a pull of the published `:<sha>` image
+  when the deploy primitive lands in P2/#883.) The job is `continue-on-error` and
+  is not a required check, so a preview failure never blocks the PR; the in-runner
+  E2E is the merge authority. The persistent URL is `https://report-pr-<N>.<domain>`.
 - `tools/pr_preview_lifecycle.py` is the single owner for preview deploy,
   cleanup, and scheduled reconciliation. The workflow does not hand-roll
   separate Dokploy shell blocks because deploy, cleanup, and reconciliation must
