@@ -520,7 +520,7 @@ export default function PersonalReportPackagePage() {
           <section key={section.section_id} className="card p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-semibold mt-1">{section.label}</h2>
+                <h2 className="font-semibold">{section.label}</h2>
               </div>
               <span className="badge badge-muted">{section.status}</span>
             </div>

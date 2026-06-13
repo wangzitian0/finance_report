@@ -117,6 +117,10 @@ describe("CashFlowPage", () => {
     const reconciliation = await screen.findByLabelText("Cash reconciliation")
     expect(reconciliation).toHaveTextContent("⚠ Does not tie")
     expect(screen.getByText(/differs from the reported ending/i)).toBeInTheDocument()
+    // The drift is shown as a positive amount with an explicit direction, never
+    // a confusing negative (reported 6500 > expected 5900).
+    expect(reconciliation).toHaveTextContent("the reported ending is higher than expected")
+    expect(reconciliation).not.toHaveTextContent("-")
   })
 
   it("AC22.7.1 drills a cash-flow amount down to its account lineage", async () => {
