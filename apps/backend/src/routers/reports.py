@@ -973,6 +973,7 @@ async def _personal_report_package_traceability_payload(
         select(ManualValuationSnapshot)
         .where(ManualValuationSnapshot.user_id == user_id)
         .where(ManualValuationSnapshot.as_of_date <= report_as_of)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
     )
     manual_snapshots = list(manual_result.scalars().all())
@@ -1337,6 +1338,7 @@ async def annualized_income_schedule(
         .where(ManualValuationSnapshot.as_of_date <= report_date)
         .where(ManualValuationSnapshot.component_type.in_(restricted_types))
         .where(ManualValuationSnapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
     )
 

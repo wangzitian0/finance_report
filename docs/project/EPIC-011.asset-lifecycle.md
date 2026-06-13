@@ -238,6 +238,22 @@ quantity is allowed, while market value and cost facts stay non-negative.
 | AC11.18.5 | Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date | `test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
 | AC11.18.6 | The constraint migration declares preflight checks and migration-risk classification for existing data compatibility | `test_AC11_18_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_financial_fact_schema_invariants.py` | P0 |
 
+### AC11.19: Append-Only Manual Valuation Facts (Axiom A)
+
+Manual valuation snapshots are user-supplied source facts. Per vision Axiom A a
+recorded fact is never edited in place: correcting a valuation for an existing
+`(component_type, source, as_of_date)` appends a new version and supersedes the
+prior one, so the correction history stays retrievable and one version maps to
+exactly one value. Uniqueness applies to the current head only (a partial unique
+index over `superseded_by_id IS NULL`); read paths and net-worth aggregation use
+the current head so a correction never double-counts. (In-place value editing via
+the PATCH endpoint is the documented next slice; see #918.)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.19.1 | Correcting a manual valuation appends a new version and preserves the prior fact unedited as a retrievable superseded version | `test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history()` | `assets/test_manual_valuation_snapshots.py` | P1 |
+| AC11.19.2 | Heads-only reads use the current version so a corrected valuation is never double-counted in net worth or listings | `test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth()` | `assets/test_manual_valuation_snapshots.py` | P1 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

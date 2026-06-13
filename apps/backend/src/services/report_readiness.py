@@ -267,6 +267,7 @@ async def _missing_valuation_basis_count(db: AsyncSession, user_id: UUID, *, as_
         select(ManualValuationSnapshot.notes)
         .where(ManualValuationSnapshot.user_id == user_id)
         .where(ManualValuationSnapshot.as_of_date <= as_of_date)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
     )
     return sum(1 for notes in rows.scalars().all() if notes is None or not notes.strip())
 
@@ -394,7 +395,9 @@ async def get_personal_report_package_readiness(
     )
     manual_valuation_count = await _count(
         db,
-        select(func.count(ManualValuationSnapshot.id)).where(ManualValuationSnapshot.user_id == user_id),
+        select(func.count(ManualValuationSnapshot.id))
+        .where(ManualValuationSnapshot.user_id == user_id)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None)),
     )
     dividend_count = await _count(
         db,

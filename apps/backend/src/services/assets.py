@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -114,23 +114,98 @@ class AssetService:
         recurrence_days: int | None = None,
         reminder_date: date | None = None,
     ) -> ManualValuationSnapshot:
-        """Create a manual valuation snapshot."""
+        """Record a manual valuation as an append-only versioned fact.
+
+        Vision Axiom A: a recorded fact is never edited in place. If a current
+        version already exists for the same (component_type, source, as_of_date),
+        this appends a new version and supersedes the prior one instead of
+        overwriting it, so the full correction history stays retrievable.
+        """
+        normalized_currency = currency.upper()
+        head = await self._current_valuation_head(
+            db,
+            user_id,
+            component_type=component_type,
+            source=source,
+            as_of_date=as_of_date,
+            currency=normalized_currency,
+        )
+
         snapshot = ManualValuationSnapshot(
+            id=uuid4(),
             user_id=user_id,
             component_type=component_type,
             liquidity_class=liquidity_class or _DEFAULT_LIQUIDITY_CLASS[component_type],
             as_of_date=as_of_date,
             value=to_money(value),
-            currency=currency.upper(),
+            currency=normalized_currency,
             source=source,
             notes=notes,
             recurrence_days=recurrence_days,
             reminder_date=reminder_date,
+            version=(head.version + 1) if head is not None else 1,
+            # Park the new row under the prior head so there is never a moment with
+            # two current heads for the same key (the partial unique index is
+            # checked per statement). Promoted to head below once the prior head
+            # has been demoted to point at it.
+            superseded_by_id=head.id if head is not None else None,
         )
         db.add(snapshot)
         await db.flush()
+        if head is not None:
+            # Ordered hand-off, each flush valid under both the self-FK and the
+            # partial unique index: demote the old head (0 heads), then promote
+            # the new row (1 head).
+            head.superseded_by_id = snapshot.id
+            await db.flush()
+            snapshot.superseded_by_id = None
+            await db.flush()
         await db.refresh(snapshot)
         return snapshot
+
+    async def _current_valuation_head(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        component_type: ManualValuationComponentType,
+        source: str,
+        as_of_date: date,
+        currency: str,
+    ) -> ManualValuationSnapshot | None:
+        """Return the current (non-superseded) version for a valuation key, if any."""
+        result = await db.execute(
+            select(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.component_type == component_type)
+            .where(ManualValuationSnapshot.source == source)
+            .where(ManualValuationSnapshot.as_of_date == as_of_date)
+            .where(ManualValuationSnapshot.currency == currency)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+        )
+        return result.scalar_one_or_none()
+
+    async def list_valuation_versions(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        component_type: ManualValuationComponentType,
+        source: str,
+        as_of_date: date,
+        currency: str,
+    ) -> Sequence[ManualValuationSnapshot]:
+        """Return the full append-only version history for a valuation key, newest first."""
+        result = await db.execute(
+            select(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.component_type == component_type)
+            .where(ManualValuationSnapshot.source == source)
+            .where(ManualValuationSnapshot.as_of_date == as_of_date)
+            .where(ManualValuationSnapshot.currency == currency.upper())
+            .order_by(ManualValuationSnapshot.version.desc())
+        )
+        return result.scalars().all()
 
     async def list_valuation_snapshots(
         self,
@@ -143,9 +218,18 @@ class AssetService:
         offset: int = 0,
     ) -> tuple[Sequence[ManualValuationSnapshot], int]:
         """List manual valuation snapshots for a user."""
-        query = select(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)
+        # Only current heads (superseded_by_id IS NULL); superseded history rows
+        # are reachable via list_valuation_versions, not the default listing.
+        query = (
+            select(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+        )
         count_query = (
-            select(func.count()).select_from(ManualValuationSnapshot).where(ManualValuationSnapshot.user_id == user_id)
+            select(func.count())
+            .select_from(ManualValuationSnapshot)
+            .where(ManualValuationSnapshot.user_id == user_id)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         )
         if as_of_date is not None:
             query = query.where(ManualValuationSnapshot.as_of_date <= as_of_date)
@@ -253,6 +337,7 @@ class AssetService:
             )
             .where(ManualValuationSnapshot.user_id == user_id)
             .where(ManualValuationSnapshot.as_of_date <= as_of_date)
+            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
             .subquery()
         )
 

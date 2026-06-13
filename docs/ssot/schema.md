@@ -75,6 +75,30 @@ catalog.
 > Layer-0 read path were removed. See
 > [EPIC-011](../project/EPIC-011.asset-lifecycle.md).
 
+### Append-Only Fact Versioning (Axiom A)
+
+A stored *fact* — the recorded value of a financial quantity — is never edited in
+place. When a fact is corrected, a new version is appended and the prior one is
+superseded; the live value is the head of the chain, history stays retrievable,
+and one version maps to exactly one value (vision Axiom A).
+
+- **Version-bearing unit.** The fact row itself carries the version. The native
+  idiom is a `version` integer plus a self-referential `superseded_by_id`
+  (as on `reconciliation_matches` and `transaction_classification`), not
+  bitemporal `valid_from`/`valid_to` columns and not a separate version table.
+- **Current head.** The head of a chain has `superseded_by_id IS NULL`. Where a
+  key must stay unique, enforce it with a **partial unique index over the head**
+  (`WHERE superseded_by_id IS NULL`) so superseded history rows accumulate
+  freely. Default read and aggregation paths filter to the head.
+- **Fact vs. review-state.** Append-only applies to *facts* (recorded values).
+  Working review-state and annotations (status transitions, notes, reminders)
+  may stay mutable in place. Draw this line per table; do not make review
+  workflow append-only just because it shares a row with a fact.
+
+Owner of the first applied instance: `manual_valuation_snapshots` (ODS), where a
+re-submitted `(component_type, source, as_of_date)` appends a new version. See
+[EPIC-011 AC11.19](../project/EPIC-011.asset-lifecycle.md) and issue #918.
+
 ---
 
 <a id="er-model"></a>

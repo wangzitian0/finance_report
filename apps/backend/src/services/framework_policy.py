@@ -560,6 +560,7 @@ async def framework_policy_facts_for_user(
         select(ManualValuationSnapshot)
         .where(ManualValuationSnapshot.user_id == user_id)
         .where(ManualValuationSnapshot.as_of_date <= as_of_date)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
     )
     seen_manual: set[tuple[ManualValuationComponentType, str]] = set()
