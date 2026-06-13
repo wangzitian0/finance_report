@@ -16,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.services.promotion_gate import STATEMENT_BALANCE_TOLERANCE
 
-BALANCE_TOLERANCE = Decimal("0.001")
+# Single-owned by the promotion gate (#930); kept as a local alias for readability.
+BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
 
 def pending_stage1_review_filter():
