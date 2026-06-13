@@ -185,11 +185,15 @@ Backend tests use three deliberately separate schema proof modes:
 | production-faithful backend business persistence | A focused backend integration lane that creates an isolated database from Alembic and exercises representative business writes without weakening user foreign keys. | Prove Tier-1 persistence semantics do not rely on the fast fixture schema. | Business persistence proof |
 
 The fast fixture schema currently strips `users.id` foreign keys after
-`create_all()` because legacy tests still create detached-owner rows with direct
+`create_all()` because some tests create detached-owner rows with direct
 `user_id=uuid4()` shortcuts instead of real `User` rows. New tests should create
 real users through fixtures or factories. `tools/check_detached_owner_shortcuts.py`
-counts direct detached-owner shortcuts and fails on count growth until the
-legacy surface can be burned down.
+counts the real foreign-key risk — only **persisted** detached owners (a
+`user_id=uuid4()` construction added via `db.add` / `db.add_all`) — and fails on
+count growth. Transient in-memory constructions and bare service arguments carry
+no production foreign key and are not counted, which is why the count reflects a
+handful of rows (intentional cross-user isolation tests) rather than every inline
+`uuid4()`.
 
 ### Migration Risk Classification
 

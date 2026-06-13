@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_TEST_ROOTS = (Path("apps/backend/tests"),)
-DEFAULT_MAX_DETACHED_OWNER_SHORTCUTS = 59
+# Counts only persisted (db.add'd) detached owners — the real foreign-key risk.
+# The two remaining are intentional cross-user isolation tests that must own a
+# different user's row; transient in-memory / service-argument uses do not count.
+DEFAULT_MAX_DETACHED_OWNER_SHORTCUTS = 2
 OWNER_KEYWORD = "user_id"
 PATTERN = "user_id=uuid4()"
 
@@ -62,37 +65,101 @@ def _relative_path(path: Path, repo_root: Path) -> str:
         return path.as_posix()
 
 
-class _DetachedOwnerVisitor(ast.NodeVisitor):
-    def __init__(self, *, source_text: str, relative_path: str) -> None:
-        self._source_text = source_text
-        self._relative_path = relative_path
-        self.findings: list[DetachedOwnerFinding] = []
+def _persisted_construction_ids(scope: ast.AST) -> set[int]:
+    """Return ids of model-construction Call nodes persisted via db.add / db.add_all.
 
-    def visit_Call(self, node: ast.Call) -> None:
-        for keyword in node.keywords:
-            if keyword.arg == OWNER_KEYWORD and _is_uuid4_call(keyword.value):
-                source = ast.get_source_segment(self._source_text, node) or PATTERN
-                self.findings.append(
-                    DetachedOwnerFinding(
-                        relative_path=self._relative_path,
-                        line=keyword.value.lineno,
-                        pattern=PATTERN,
-                        source=" ".join(source.split()),
-                    )
-                )
-        self.generic_visit(node)
+    Only persisted rows carry the production foreign key, so only they can hide the
+    ownership / cascade / cross-user bugs this guard exists to catch. A
+    ``user_id=uuid4()`` on a transient in-memory object or a bare service argument
+    is not a detached-owner shortcut — it never reaches the database.
+    """
+    added_var_names: set[str] = set()
+    construction_ids: set[int] = set()
+
+    def _collect_added(node: ast.expr) -> None:
+        """From an add/add_all argument: record variable names and mark constructions."""
+        if isinstance(node, ast.Name):
+            added_var_names.add(node.id)
+        elif isinstance(node, ast.Call):
+            construction_ids.add(id(node))
+        elif isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            for element in node.elts:
+                _collect_added(element)
+
+    def _mark_constructions(node: ast.expr) -> None:
+        """Mark a construction, or every construction inside a literal collection."""
+        if isinstance(node, ast.Call):
+            construction_ids.add(id(node))
+        elif isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            for element in node.elts:
+                _mark_constructions(element)
+
+    # db.add(x) / db.add_all([...] | var). A Name argument (or Name list element)
+    # records the variable so rows collected into a list and bulk-added later are
+    # still treated as persisted.
+    for node in ast.walk(scope):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("add", "add_all"):
+            for arg in node.args:
+                _collect_added(arg)
+
+    # Constructions reaching an added variable: var = Model(...) / var = [Model(...), ...]
+    # and var.append(Model(...)) / var.extend([Model(...), ...]).
+    for node in ast.walk(scope):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id in added_var_names
+        ):
+            _mark_constructions(node.value)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in ("append", "extend")
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in added_var_names
+        ):
+            for arg in node.args:
+                _mark_constructions(arg)
+    return construction_ids
 
 
 def scan_file(path: Path, *, repo_root: Path) -> list[DetachedOwnerFinding]:
-    """Return direct detached-owner shortcuts found in one Python file."""
+    """Return persisted detached-owner shortcuts found in one Python file.
+
+    A finding is counted only when its enclosing model construction is added to a
+    session (``db.add`` / ``db.add_all``) — the real foreign-key risk. Transient
+    in-memory constructions and bare service arguments are not counted.
+    """
     source_text = path.read_text(encoding="utf-8")
     tree = ast.parse(source_text, filename=str(path))
-    visitor = _DetachedOwnerVisitor(
-        source_text=source_text,
-        relative_path=_relative_path(path, repo_root),
-    )
-    visitor.visit(tree)
-    return visitor.findings
+    relative_path = _relative_path(path, repo_root)
+    # Judge persistence within each function so a var name added in one test
+    # cannot mark a same-named transient construction in another test.
+    scopes: list[ast.AST] = [
+        node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+    findings: list[DetachedOwnerFinding] = []
+    seen: set[int] = set()
+    for scope in scopes:
+        persisted = _persisted_construction_ids(scope)
+        for call in ast.walk(scope):
+            if not isinstance(call, ast.Call) or id(call) not in persisted:
+                continue
+            for keyword in call.keywords:
+                if keyword.arg == OWNER_KEYWORD and _is_uuid4_call(keyword.value) and id(keyword) not in seen:
+                    seen.add(id(keyword))
+                    source = ast.get_source_segment(source_text, call) or PATTERN
+                    findings.append(
+                        DetachedOwnerFinding(
+                            relative_path=relative_path,
+                            line=keyword.value.lineno,
+                            pattern=PATTERN,
+                            source=" ".join(source.split()),
+                        )
+                    )
+    return findings
 
 
 def scan_paths(paths: Sequence[Path], *, repo_root: Path) -> list[DetachedOwnerFinding]:

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC8_13_128_detects_direct_detached_owner_uuid4_shortcuts(tmp_path: Path) -> None:
-    """AC8.13.128: direct DB-backed user_id=uuid4() owner shortcuts are counted."""
+    """AC8.13.128: persisted DB-backed user_id=uuid4() owner shortcuts are counted."""
     test_file = tmp_path / "apps" / "backend" / "tests" / "accounting" / "test_shortcut.py"
     test_file.parent.mkdir(parents=True)
     test_file.write_text(
@@ -20,9 +20,10 @@ from uuid import uuid4
 from src.models import Account, User
 
 
-def test_shortcut():
+def test_shortcut(db):
     User(id=uuid4(), email="ok@example.com", hashed_password="x")
-    Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD")
+    account = Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD")
+    db.add(account)
 """.lstrip(),
         encoding="utf-8",
     )
@@ -38,7 +39,7 @@ def test_shortcut():
 
 
 def test_AC8_13_128_detects_attribute_uuid4_and_scans_single_files(tmp_path: Path) -> None:
-    """AC8.13.128: scanner handles pathlib file inputs and uuid.uuid4 calls."""
+    """AC8.13.128: scanner handles pathlib file inputs and persisted uuid.uuid4 calls."""
     test_file = tmp_path / "shortcut.py"
     test_file.write_text(
         """
@@ -47,8 +48,8 @@ import uuid
 from src.models import Account
 
 
-def test_shortcut():
-    Account(user_id=uuid.uuid4(), name="Detached", type="ASSET", currency="SGD")
+def test_shortcut(db):
+    db.add(Account(user_id=uuid.uuid4(), name="Detached", type="ASSET", currency="SGD"))
 """.lstrip(),
         encoding="utf-8",
     )
@@ -58,6 +59,84 @@ def test_shortcut():
     assert len(findings) == 1
     assert findings[0].relative_path == "shortcut.py"
     assert findings[0].source.startswith("Account(user_id=uuid.uuid4()")
+
+
+def test_AC8_13_130_counts_only_persisted_detached_owners(tmp_path: Path) -> None:
+    """AC8.13.130: only persisted (db.add'd) detached owners count — the real FK risk.
+
+    Transient in-memory constructions and bare service arguments carry no production
+    foreign key, so they cannot hide ownership/cascade/cross-user bugs and are not
+    counted. This is what collapses the historically-inflated count to the few
+    rows that actually reach the database.
+    """
+    test_file = tmp_path / "apps" / "backend" / "tests" / "test_mixed.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        """
+from uuid import uuid4
+
+from src.models import Account
+
+
+def test_transient_in_memory_is_not_counted():
+    # Never added to a session -> no foreign key reached -> not a shortcut.
+    Account(user_id=uuid4(), name="Transient", type="ASSET", currency="SGD")
+
+
+def test_service_argument_is_not_counted(service):
+    service.do_work(user_id=uuid4())
+
+
+def test_persisted_row_is_counted(db):
+    db.add(Account(user_id=uuid4(), name="Persisted", type="ASSET", currency="SGD"))
+
+
+def test_add_all_persisted_rows_are_counted(db):
+    first = Account(user_id=uuid4(), name="Bulk One", type="ASSET", currency="SGD")
+    db.add_all([first, Account(user_id=uuid4(), name="Bulk Two", type="ASSET", currency="SGD")])
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    findings = detached_owner_guard.scan_paths([tmp_path / "apps" / "backend" / "tests"], repo_root=tmp_path)
+
+    names = {finding.source for finding in findings}
+    assert len(findings) == 3
+    assert any("Persisted" in name for name in names)
+    assert any("Bulk One" in name for name in names)  # add_all via assigned variable
+    assert any("Bulk Two" in name for name in names)  # add_all via inline construction
+
+
+def test_AC8_13_130_add_all_via_variable_is_counted(tmp_path: Path) -> None:
+    """AC8.13.130: rows collected into a list variable and bulk-added are still persisted."""
+    test_file = tmp_path / "apps" / "backend" / "tests" / "test_bulk.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        """
+from uuid import uuid4
+
+from src.models import Account
+
+
+def test_add_all_list_variable(db):
+    rows = [Account(user_id=uuid4(), name="Literal var", type="ASSET", currency="SGD")]
+    db.add_all(rows)
+
+
+def test_add_all_via_append(db):
+    rows = []
+    rows.append(Account(user_id=uuid4(), name="Appended", type="ASSET", currency="SGD"))
+    db.add_all(rows)
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    findings = detached_owner_guard.scan_paths([tmp_path / "apps" / "backend" / "tests"], repo_root=tmp_path)
+
+    names = {finding.source for finding in findings}
+    assert len(findings) == 2
+    assert any("Literal var" in name for name in names)
+    assert any("Appended" in name for name in names)
 
 
 def test_AC8_13_128_ignores_non_uuid4_user_ids(tmp_path: Path) -> None:
@@ -129,8 +208,8 @@ from uuid import uuid4
 from src.models import Account
 
 
-def test_shortcut():
-    Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD")
+def test_shortcut(db):
+    db.add(Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD"))
 """.lstrip(),
         encoding="utf-8",
     )
@@ -165,8 +244,8 @@ from uuid import uuid4
 from src.models import Account
 
 
-def test_shortcut():
-    Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD")
+def test_shortcut(db):
+    db.add(Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD"))
 """.lstrip(),
         encoding="utf-8",
     )
