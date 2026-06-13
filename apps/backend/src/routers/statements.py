@@ -26,10 +26,10 @@ from src.models import (
 from src.models.layer2 import AtomicTransaction
 from src.models.statement_summary import StatementSummary
 from src.schemas import (
+    AtomicTransactionResponse,
     BankStatementListResponse,
     BankStatementResponse,
     BankStatementTransactionListResponse,
-    BankStatementTransactionResponse,
     RetryParsingRequest,
     StatementDecisionRequest,
 )
@@ -540,7 +540,7 @@ async def list_statement_transactions(
     """List transactions for a statement."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
-    items = [BankStatementTransactionResponse.from_atomic(t, statement.id) for t in transactions]
+    items = [AtomicTransactionResponse.from_atomic(t, statement.id) for t in transactions]
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 
@@ -831,7 +831,7 @@ async def get_statement_for_review(
         "manual_opening_balance": statement.manual_opening_balance,
         "created_at": statement.created_at,
         "updated_at": statement.updated_at,
-        "transactions": [BankStatementTransactionResponse.from_atomic(t, statement.id) for t in transactions],
+        "transactions": [AtomicTransactionResponse.from_atomic(t, statement.id) for t in transactions],
         "pdf_url": pdf_url,
         "balance_validation_result": BalanceValidationResult(
             opening_balance=validation_result["opening_balance"],
