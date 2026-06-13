@@ -228,7 +228,9 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.7.1 | Each cash-flow line carries its account anchor (`account_id`), and clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines | `test_reporting.py`, `cashFlowPage.test.tsx` | P1 |
+| AC22.7.2 | The reusable lineage panel renders evidence nodes as an ordered source-to-report path with per-hop source, confidence, and version badges when those fields are available | `lineagePanel.test.tsx` | P1 |
 | AC22.7.3 | The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile | `cashFlowPage.test.tsx` | P1 |
+| AC22.7.4 | Desktop and mobile Playwright smoke covers Cash Flow amount drill-down opening the account-lineage drawer without document horizontal overflow | `cash-flow-drilldown.spec.ts` | P1 |
 
 ### AC22.8 — Readable Report Package
 
@@ -243,6 +245,9 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.8.1 | The report package titles its sections with human-readable labels (Reporting Framework, Report Readiness, Source Trust, Framework Policy, schedules, Traceability Appendix) rather than developer-facing snake_case identifiers | `personalReportPackagePage.test.tsx` | P1 |
+| AC22.8.2 | The loaded report package starts with a readable cover sheet and table of contents that expose the package id, selected framework, report date, and linked human section titles | `personalReportPackagePage.test.tsx` | P1 |
+| AC22.8.3 | The unselected-framework and framework-package loading states reserve the package layout with guidance or skeleton placeholders, never a blank text-only pre-selection or loading screen | `personalReportPackagePage.test.tsx` | P1 |
+| AC22.8.4 | Desktop and mobile Playwright smoke covers report-package framework selection, cover, table of contents, readiness, and no document horizontal overflow | `report-readiness.spec.ts` | P1 |
 
 ### AC22.9 — Everyday/Advanced Boundary And Naming Unification
 
@@ -272,6 +277,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.10.1 | A holding whose latest snapshot is backed by a source document is labeled "Imported"; holdings without document evidence carry no provenance label (manual data is never shown as imported, and import is never claimed without proof) | `test_portfolio_service.py`, `holdingsTable.test.tsx` | P1 |
+| AC22.10.2 | Manual valuation capture uses a controlled source enum instead of free-text provenance, while existing historical source strings remain displayable in snapshot history | `assetsPage.test.tsx` | P1 |
+| AC22.10.3 | Desktop and mobile Playwright smoke covers portfolio provenance badges only for imported holdings, with unproven holdings unlabeled and no document horizontal overflow | `portfolio-provenance.spec.ts` | P1 |
 
 ### AC22.11 — Everyday-User UX Hardening
 
@@ -283,11 +290,30 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > look only at the low-confidence tail — so the reason must be legible). The
 > `/events`→`/notifications` dedup that #865 scoped is already handled by a
 > `next.config` redirect (so #865 closed); the residual `/events` page is left in
-> place because it still anchors EPIC-019's AC19.3.5. The cross-surface "return to
-> the attention queue after resolving" is split to a follow-up because it touches
-> every review destination.
+> place because it still anchors EPIC-019's AC19.3.5. The cross-surface
+> attention return path is handled as a narrow follow-up: attention-origin links
+> carry their source into the destination, and the destination renders an
+> attention-queue return link without changing direct-entry fallbacks.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.11.1 | The statement-parsing state shows an honest indeterminate indicator with a typical-duration expectation, and never renders a fabricated fixed-percentage progress bar | `statementsPage.test.tsx` | P1 |
 | AC22.11.2 | Each attention-queue item surfaces a plain-language reason it was flagged — distinct per cause — alongside its confidence score | `attention.test.ts`, `attentionQueue.test.tsx` | P1 |
+| AC22.11.3 | Attention-origin action links preserve `from=attention`, and the linked review/processing destinations render a return link to `/attention` while direct-entry notification/statement fallbacks remain unchanged | `attentionQueue.test.tsx`, `reviewBackLinks.test.tsx`, `statementReviewPage.test.tsx`, `stage2ReviewQueueCoverage99.test.tsx`, `uiGapAudit.processingVisibility.test.tsx`, `unmatchedBoardComponent.test.tsx`, `attention-surface.spec.ts` | P1 |
+
+### AC22.12 — Accessibility Baseline Follow-Up
+
+> #909 first follow-up slice. The shipped everyday-user IA is functional, but
+> the app shell still needs cross-cutting accessibility affordances that make
+> trust surfaces usable without pointer-only navigation or motion-heavy UI:
+> global reduced-motion handling, consistent keyboard focus visibility, a
+> skip-to-content link, and restored contrast on attention reasons.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.12.1 | Global styles honor `prefers-reduced-motion: reduce` by disabling non-essential animation/transition timing and smooth scrolling across the app shell | `designTokens.test.tsx` | P1 |
+| AC22.12.2 | The authenticated shell exposes a skip-to-content link that targets the main landmark so keyboard users can bypass navigation chrome | `shellAndAuth.test.tsx` | P1 |
+| AC22.12.3 | Global focus-visible styles cover links, form controls, and shared `.btn-*` controls with token-backed focus rings | `designTokens.test.tsx` | P1 |
+| AC22.12.4 | Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant, so low-confidence explanations keep readable contrast | `attentionQueue.test.tsx` | P1 |
+| AC22.12.5 | Shared toast and flow-step status affordances use Lucide icons or text instead of unicode glyph icons, and warning toast messages do not embed emoji-like status glyphs | `toastProviderComponent.test.tsx`, `flowStepBanner.test.tsx`, `assetsPage.test.tsx` | P1 |
+| AC22.12.6 | Data-dense report and asset-table loading states reserve layout with token-backed skeleton placeholders instead of spinner-only or text-only states | `uiPrimitives.test.tsx`, `balanceSheetPage.test.tsx`, `incomeStatementPage.test.tsx`, `cashFlowPage.test.tsx`, `assetsPage.test.tsx` | P1 |

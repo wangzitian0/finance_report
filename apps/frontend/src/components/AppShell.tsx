@@ -17,6 +17,12 @@ function AppShellContent({ children }: AppShellProps) {
 
     return (
         <div className="min-h-screen">
+            <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-toast focus:rounded-control focus:bg-surface-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-content focus:shadow-floating focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+                Skip to main content
+            </a>
             <Sidebar />
 
             {/* Main Content Area. On print, drop the sidebar offset so report
@@ -34,7 +40,7 @@ function AppShellContent({ children }: AppShellProps) {
                     <WorkflowNotificationCenter />
                 </div>
 
-                <main className="min-h-[calc(100vh-4rem)]">
+                <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-4rem)]">
                     {children}
                 </main>
             </div>

@@ -84,7 +84,11 @@ describe("AssetsPage", () => {
       return Promise.reject(new Error("positions failed"))
     })
 
-    render(<AssetsPage />, { wrapper: createWrapper() })
+    const { container } = render(<AssetsPage />, { wrapper: createWrapper() })
+
+    expect(screen.getByRole("status", { name: "Loading positions" })).toHaveAttribute("aria-busy", "true")
+    expect(container.querySelectorAll("[data-testid='skeleton-block']").length).toBeGreaterThanOrEqual(9)
+    expect(container.querySelector(".animate-spin")).toBeNull()
 
     await waitFor(() => expect(screen.queryByText("Failed to load positions")).not.toBeNull())
     fireEvent.click(screen.getByRole("button", { name: "Retry loading positions" }))
@@ -311,6 +315,8 @@ describe("AssetsPage", () => {
         "warning"
       )
     })
+    const [message] = showToastMock.mock.calls[0]
+    expect(message).not.toContain("⚠")
   })
 
   it("shows error toast when reconcile fails", async () => {
@@ -365,7 +371,7 @@ describe("AssetsPage", () => {
     expect(screen.getByText(/0\.123456789 units/)).toBeInTheDocument()
   })
 
-  it("AC11.9.4 renders manual valuation snapshots and creates a new property valuation", async () => {
+  it("AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation", async () => {
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
       if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
         return Promise.resolve({
@@ -395,7 +401,7 @@ describe("AssetsPage", () => {
               as_of_date: "2026-05-01",
               value: "50000.00",
               currency: "SGD",
-              source: "CPF portal",
+              source: "Historical CPF statement",
               notes: null,
               recurrence_days: null,
               reminder_date: null,
@@ -411,16 +417,22 @@ describe("AssetsPage", () => {
 
     render(<AssetsPage />, { wrapper: createWrapper() })
 
-    await waitFor(() => expect(screen.getByText(/CPF portal/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Historical CPF statement/)).toBeInTheDocument())
     expect(screen.getByText("Manual Valuations")).toBeInTheDocument()
     expect(screen.getAllByText("CPF Balance").length).toBeGreaterThan(0)
     expect(screen.getByText("Restricted")).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Source" })).not.toBeInTheDocument()
+    const sourceSelect = screen.getByRole("combobox", { name: "Source" }) as HTMLSelectElement
+    expect(sourceSelect).toHaveValue("manual")
+    expect(screen.getByRole("option", { name: "Manual entry" })).toHaveValue("manual")
+    expect(screen.getByRole("option", { name: "Broker portal" })).toHaveValue("broker_portal")
+    expect(screen.getByRole("option", { name: "CPF portal" })).toHaveValue("cpf_portal")
 
     fireEvent.change(screen.getByLabelText("Valuation type"), { target: { value: "property_value" } })
     fireEvent.change(screen.getByLabelText("As of date"), { target: { value: "2026-05-18" } })
     fireEvent.change(screen.getByLabelText("Value"), { target: { value: "1250000.00" } })
     fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "SGD" } })
-    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "broker portal" } })
+    fireEvent.change(sourceSelect, { target: { value: "broker_portal" } })
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Audited manually" } })
     fireEvent.click(screen.getByRole("button", { name: "Add valuation" }))
 
@@ -430,6 +442,15 @@ describe("AssetsPage", () => {
         expect.objectContaining({ method: "POST" })
       )
     })
+    const [, postOptions] = mockedApiFetch.mock.calls.find(([path, options]) => (
+      path === "/api/assets/valuation-snapshots" && options?.method === "POST"
+    ))!
+    expect(JSON.parse(String(postOptions?.body))).toEqual(
+      expect.objectContaining({
+        source: "broker_portal",
+        notes: "Audited manually",
+      })
+    )
     expect(showToastMock).toHaveBeenCalledWith("Manual valuation saved", "success")
   })
 
@@ -449,7 +470,7 @@ describe("AssetsPage", () => {
     await waitFor(() => expect(screen.getByText("Manual Valuations")).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText("Value"), { target: { value: "1250000.00" } })
     fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "usd" } })
-    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "broker portal" } })
+    fireEvent.change(screen.getByRole("combobox", { name: "Source" }), { target: { value: "broker_portal" } })
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Needs follow-up" } })
     fireEvent.click(screen.getByRole("button", { name: "Add valuation" }))
 

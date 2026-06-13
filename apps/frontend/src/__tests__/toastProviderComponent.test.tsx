@@ -10,6 +10,7 @@ function TestToastConsumer() {
     <div>
       <button onClick={() => showToast("saved", "success")}>Show Success</button>
       <button onClick={() => showToast("failed", "error")}>Show Error</button>
+      <button onClick={() => showToast("check skipped items", "warning")}>Show Warning</button>
     </div>
   )
 }
@@ -55,6 +56,22 @@ describe("ToastProvider component", () => {
     dismissButton.focus()
     await user.keyboard("{Enter}")
     expect(screen.queryByText("failed")).toBeNull()
+  })
+
+  it("AC22.12.5 uses semantic icon components instead of unicode glyph icons", () => {
+    render(
+      <ToastProvider>
+        <TestToastConsumer />
+      </ToastProvider>,
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Show Warning" }))
+
+    expect(screen.getByText("check skipped items")).toBeInTheDocument()
+    expect(screen.queryByText("✓")).toBeNull()
+    expect(screen.queryByText("✕")).toBeNull()
+    expect(screen.queryByText("⚠")).toBeNull()
+    expect(screen.queryByText("ℹ")).toBeNull()
   })
 
   it("AC16.19.9 auto-expires notifications", async () => {

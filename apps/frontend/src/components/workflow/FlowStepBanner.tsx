@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Check, ChevronRight } from "lucide-react";
 
 // EPIC-022 AC22.5.1: a shared "you are here / what's next" indicator across the
 // core flow so an everyday user always knows where they are in
@@ -58,13 +59,13 @@ export function FlowStepBanner({ current }: { current: FlowStep }) {
                                               : "bg-[var(--background-muted)] text-muted"
                                     }`}
                                 >
-                                    {isDone ? "✓" : index + 1}
+                                    {isDone ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
                                 </span>
                                 {step.label}
                             </Link>
                             {index < STEPS.length - 1 && (
                                 <span aria-hidden="true" className="px-1 text-muted">
-                                    →
+                                    <ChevronRight className="h-4 w-4" />
                                 </span>
                             )}
                         </li>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
+import { SkeletonBlock } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { formatDateInput } from "@/lib/date";
@@ -22,6 +23,7 @@ import type {
   EvidenceLineageResponse,
   FrameworkPolicyResult,
   MoneyValue,
+  PersonalReportPackageContractResponse,
   PersonalReportPackageTraceabilityLine,
 } from "@/lib/types";
 
@@ -76,6 +78,172 @@ type LineagePanelState = {
   isLoading: boolean;
   error: string | null;
 };
+
+type PackageTocLink = {
+  id: string;
+  label: string;
+  status?: string;
+};
+
+function sectionAnchorId(sectionId: string): string {
+  return `package-section-${sectionId}`;
+}
+
+function packageTocLinks(
+  contract: PersonalReportPackageContractResponse,
+  includeOutputSections: boolean,
+): PackageTocLink[] {
+  const links: PackageTocLink[] = [
+    { id: "package-framework-selection", label: "Reporting Framework" },
+  ];
+  if (includeOutputSections) {
+    links.push(
+      { id: "package-readiness", label: "Report Readiness" },
+      { id: "package-source-trust", label: "Source Trust" },
+      { id: "package-framework-policy", label: "Framework Policy" },
+    );
+  }
+  links.push(
+    ...contract.sections.map((section) => ({
+      id: sectionAnchorId(section.section_id),
+      label: section.label,
+      status: section.status,
+    })),
+  );
+  if (includeOutputSections) {
+    links.push({ id: "package-export-contract", label: "Export Contract" });
+  }
+  return links;
+}
+
+function PackageCover({
+  contract,
+  reportDate,
+  selectedFrameworkLabel,
+}: {
+  contract: PersonalReportPackageContractResponse;
+  reportDate: string;
+  selectedFrameworkLabel: string | null;
+}) {
+  return (
+    <section aria-label="Report package cover" className="card p-6 mb-6">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted">
+            Personal financial-report package
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold">Personal Report Package</h2>
+          <p className="mt-2 font-mono text-sm text-muted">
+            {contract.package_id}
+          </p>
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:min-w-[28rem]">
+          <div>
+            <dt className="text-xs text-muted">Framework</dt>
+            <dd className="mt-1 font-semibold">
+              {selectedFrameworkLabel ?? "Framework not selected"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Report Date</dt>
+            <dd className="mt-1 font-mono text-xs">{reportDate}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Report Period</dt>
+            <dd className="mt-1 font-mono text-xs">
+              {reportPeriodStart(reportDate)} to {reportDate}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Package Version</dt>
+            <dd className="mt-1 font-mono text-xs">{contract.version}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  );
+}
+
+function PackageTableOfContents({ links }: { links: PackageTocLink[] }) {
+  return (
+    <nav
+      aria-label="Report package table of contents"
+      className="card p-5 mb-6"
+    >
+      <h2 className="font-semibold">Table of Contents</h2>
+      <ol className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+        {links.map((link) => (
+          <li key={link.id}>
+            <a
+              href={`#${link.id}`}
+              aria-label={link.label}
+              className="flex items-center justify-between gap-3 rounded-control border border-[var(--border)] px-3 py-2 text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              <span>{link.label}</span>
+              {link.status ? (
+                <span className="badge badge-muted">{link.status}</span>
+              ) : null}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+function PackageSetupGuidance() {
+  return (
+    <section aria-label="Package setup guidance" className="card p-5 mb-6">
+      <h2 className="font-semibold">Package Setup</h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {[
+          ["1", "Choose a framework", "Select US-like or HK-like before package output is loaded."],
+          ["2", "Confirm the date", "The report date pins period and point-in-time sections."],
+          ["3", "Review readiness", "Package blockers appear before statements and schedules."],
+        ].map(([step, title, description]) => (
+          <div key={step} className="rounded border border-[var(--border)] p-3">
+            <p className="font-mono text-xs text-muted">Step {step}</p>
+            <p className="mt-2 font-medium">{title}</p>
+            <p className="mt-1 text-sm text-muted">{description}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PackageLoadingSkeleton() {
+  return (
+    <section
+      role="status"
+      aria-label="Loading report package"
+      aria-busy="true"
+      aria-live="polite"
+      className="space-y-4"
+    >
+      <div className="grid gap-4 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="card p-4">
+            <SkeletonBlock className="h-3 w-20" />
+            <SkeletonBlock className="mt-3 h-6 w-16" />
+          </div>
+        ))}
+      </div>
+      <div className="card p-5">
+        <SkeletonBlock className="h-5 w-48" />
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="rounded border border-[var(--border)] p-3">
+              <SkeletonBlock className="h-4 w-3/5" />
+              <SkeletonBlock className="mt-3 h-3 w-full" />
+              <SkeletonBlock className="mt-2 h-3 w-4/5" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function lineageAnchorForLine(
   line: PersonalReportPackageTraceabilityLine,
@@ -177,7 +345,7 @@ export default function PersonalReportPackagePage() {
     : null;
 
   const frameworkSelection = (
-    <section className="card p-5 mb-6">
+    <section id="package-framework-selection" className="card p-5 mb-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="font-semibold">Reporting Framework</h2>
@@ -231,16 +399,26 @@ export default function PersonalReportPackagePage() {
   );
 
   if (!selectedFrameworkId) {
+    const setupTocLinks = packageTocLinks(contract, false);
     return (
       <div className="p-6">
         <div className="page-header">
           <h1 className="page-title">Personal Report Package</h1>
           <p className="page-description">{contract.package_id}</p>
         </div>
+        <PackageCover
+          contract={contract}
+          reportDate={reportDate}
+          selectedFrameworkLabel={selectedFrameworkLabel}
+        />
         {frameworkSelection}
+        <PackageTableOfContents links={setupTocLinks} />
+        <PackageSetupGuidance />
       </div>
     );
   }
+
+  const outputTocLinks = packageTocLinks(contract, true);
 
   if (
     isPackageLoading ||
@@ -256,8 +434,14 @@ export default function PersonalReportPackagePage() {
           <h1 className="page-title">Personal Report Package</h1>
           <p className="page-description">{contract.package_id}</p>
         </div>
+        <PackageCover
+          contract={contract}
+          reportDate={reportDate}
+          selectedFrameworkLabel={selectedFrameworkLabel}
+        />
         {frameworkSelection}
-        <div className="p-6 text-muted">Loading framework package...</div>
+        <PackageTableOfContents links={outputTocLinks} />
+        <PackageLoadingSkeleton />
       </div>
     );
   }
@@ -280,7 +464,15 @@ export default function PersonalReportPackagePage() {
         <p className="page-description">{contract.package_id}</p>
       </div>
 
+      <PackageCover
+        contract={contract}
+        reportDate={reportDate}
+        selectedFrameworkLabel={selectedFrameworkLabel}
+      />
+
       {frameworkSelection}
+
+      <PackageTableOfContents links={outputTocLinks} />
 
       <section className="card p-5 mb-6 print:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -304,7 +496,7 @@ export default function PersonalReportPackagePage() {
         </div>
       </section>
 
-      <section className="card p-5 mb-6">
+      <section id="package-readiness" className="card p-5 mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="font-semibold">Report Readiness</h2>
@@ -371,7 +563,7 @@ export default function PersonalReportPackagePage() {
       </section>
 
       {readiness.source_trust_summary ? (
-        <section className="card p-5 mb-6" aria-label="Source trust summary">
+        <section id="package-source-trust" className="card p-5 mb-6" aria-label="Source trust summary">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold">Source Trust</h2>
@@ -425,7 +617,7 @@ export default function PersonalReportPackagePage() {
         </section>
       ) : null}
 
-      <section className="card p-5 mb-6">
+      <section id="package-framework-policy" className="card p-5 mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="font-semibold">Framework Policy</h2>
@@ -517,7 +709,11 @@ export default function PersonalReportPackagePage() {
 
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         {contract.sections.map((section) => (
-          <section key={section.section_id} className="card p-5">
+          <section
+            key={section.section_id}
+            id={sectionAnchorId(section.section_id)}
+            className="card p-5"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-semibold">{section.label}</h2>
@@ -546,7 +742,7 @@ export default function PersonalReportPackagePage() {
         ))}
       </div>
 
-      <section className="card p-5 mb-6">
+      <section id="package-annualized-income-detail" className="card p-5 mb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">Annualized Income Schedule</h2>
@@ -665,7 +861,7 @@ export default function PersonalReportPackagePage() {
         </div>
       </section>
 
-      <section className="card p-5 mb-6">
+      <section id="package-notes-detail" className="card p-5 mb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">{packageNotes.label}</h2>
@@ -706,7 +902,7 @@ export default function PersonalReportPackagePage() {
         </div>
       </section>
 
-      <section className="card p-5 mb-6">
+      <section id="package-traceability-detail" className="card p-5 mb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">{traceabilityAppendix.label}</h2>
@@ -816,7 +1012,7 @@ export default function PersonalReportPackagePage() {
         </div>
       </section>
 
-      <section className="card p-5">
+      <section id="package-export-contract" className="card p-5">
         <h2 className="font-semibold">Export Contract</h2>
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between gap-3">

@@ -172,12 +172,12 @@ async function expectNoDocumentHorizontalScroll(page: Page) {
   expect(metrics.scrollX).toBe(0);
 }
 
-test.describe("AC19.8.7 AC19.8.8 report readiness smoke", () => {
+test.describe("AC19.8.7 AC19.8.8 AC22.8.4 report package smoke", () => {
   for (const scenario of [
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
-    test(`${scenario.name} renders report readiness blockers before package output`, async ({
+    test(`${scenario.name} renders cover, contents, and readiness before package output`, async ({
       page,
     }) => {
       await page.setViewportSize(scenario.viewport);
@@ -191,6 +191,19 @@ test.describe("AC19.8.7 AC19.8.8 report readiness smoke", () => {
       ).toBeVisible({
         timeout: COLD_ROUTE_TIMEOUT_MS,
       });
+      const cover = page.getByRole("region", { name: "Report package cover" });
+      await expect(cover.getByText("personal-financial-report-package")).toBeVisible();
+      await expect(cover.getByText("US-like")).toBeVisible();
+
+      const tableOfContents = page.getByRole("navigation", {
+        name: "Report package table of contents",
+      });
+      await expect(
+        tableOfContents.getByRole("link", { name: "Report Readiness" }),
+      ).toHaveAttribute("href", "#package-readiness");
+      await expect(
+        tableOfContents.getByRole("link", { name: "Balance Sheet" }),
+      ).toHaveAttribute("href", "#package-section-balance_sheet");
       await expect(
         page.getByText("processing_account_unresolved"),
       ).toBeVisible();

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
+import { CheckCircle2, CircleAlert, CircleX, Info, X } from "lucide-react";
 
 type ToastType = "success" | "error" | "info" | "warning";
 
@@ -50,7 +51,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
             setToasts((prev) => prev.filter((t) => t.id !== id));
             timeoutRefs.current.delete(id);
         }, 3000);
-        
+
         timeoutRefs.current.set(id, timeout);
     }, []);
 
@@ -66,39 +67,44 @@ export function ToastProvider({ children }: ToastProviderProps) {
     return (
         <ToastContext.Provider value={{ showToast }}>
             {children}
-            <div 
+            <div
                 role="region"
                 aria-live="polite"
                 aria-label="Notifications"
                 className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
             >
-                {toasts.map((toast) => (
-                    <div
-                        key={toast.id}
-                        role={toast.type === "error" ? "alert" : "status"}
-                        className={`px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[280px] max-w-[400px] animate-slide-up ${
-                            toast.type === "success" ? "bg-[var(--success)] text-white" :
-                            toast.type === "error" ? "bg-[var(--error)] text-white" :
-                            toast.type === "warning" ? "bg-[var(--warning)] text-black" :
-                            "bg-[var(--info)] text-white"
-                        }`}
-                    >
-                        <span className="text-lg" aria-hidden="true">
-                            {toast.type === "success" && "✓"}
-                            {toast.type === "error" && "✕"}
-                            {toast.type === "warning" && "⚠"}
-                            {toast.type === "info" && "ℹ"}
-                        </span>
-                        <span className="flex-1 text-sm font-medium">{toast.message}</span>
-                        <button
-                            onClick={() => removeToast(toast.id)}
-                            className="opacity-70 hover:opacity-100"
-                            aria-label="Dismiss notification"
+                {toasts.map((toast) => {
+                    const StatusIcon = {
+                        success: CheckCircle2,
+                        error: CircleX,
+                        warning: CircleAlert,
+                        info: Info,
+                    }[toast.type];
+
+                    return (
+                        <div
+                            key={toast.id}
+                            role={toast.type === "error" ? "alert" : "status"}
+                            className={`px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[280px] max-w-[400px] animate-slide-up ${
+                                toast.type === "success" ? "bg-[var(--success)] text-white" :
+                                toast.type === "error" ? "bg-[var(--error)] text-white" :
+                                toast.type === "warning" ? "bg-[var(--warning)] text-black" :
+                                "bg-[var(--info)] text-white"
+                            }`}
                         >
-                            ✕
-                        </button>
-                    </div>
-                ))}
+                            <StatusIcon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                            <span className="flex-1 text-sm font-medium">{toast.message}</span>
+                            <button
+                                type="button"
+                                onClick={() => removeToast(toast.id)}
+                                className="opacity-70 hover:opacity-100"
+                                aria-label="Dismiss notification"
+                            >
+                                <X className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                        </div>
+                    );
+                })}
             </div>
         </ToastContext.Provider>
     );

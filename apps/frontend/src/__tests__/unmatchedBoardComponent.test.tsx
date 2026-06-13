@@ -4,8 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import UnmatchedBoard from "@/components/reconciliation/UnmatchedBoard"
 import { apiFetch } from "@/lib/api"
 
+const navigationState = vi.hoisted(() => ({
+  searchParams: new URLSearchParams(),
+}))
+
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
+}))
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => navigationState.searchParams,
 }))
 
 describe("UnmatchedBoard", () => {
@@ -13,6 +21,7 @@ describe("UnmatchedBoard", () => {
 
   beforeEach(() => {
     mockedApiFetch.mockReset()
+    navigationState.searchParams = new URLSearchParams()
     const storage = new Map<string, string>()
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => storage.get(key) ?? null,
@@ -71,6 +80,16 @@ describe("UnmatchedBoard", () => {
         method: "POST",
       }),
     )
+  })
+
+  it("AC22.11.3 returns attention-origin unmatched review to the attention queue", async () => {
+    navigationState.searchParams = new URLSearchParams("from=attention")
+    mockedApiFetch.mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+
+    render(<UnmatchedBoard />)
+
+    const backLink = await screen.findByRole("link", { name: /Back to Attention queue/i })
+    expect(backLink).toHaveAttribute("href", "/attention")
   })
 
   it("AC16.20.4 AC16.31.4 supports local flag and hide actions", async () => {

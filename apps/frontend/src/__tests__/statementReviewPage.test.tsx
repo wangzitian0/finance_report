@@ -6,13 +6,19 @@ import { apiFetch } from "@/lib/api";
 
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
-const pushMock = vi.fn();
-const replaceMock = vi.fn();
+const navigationState = vi.hoisted(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    searchParams: new URLSearchParams(),
+}));
+const pushMock = navigationState.push;
+const replaceMock = navigationState.replace;
 
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
     useParams: vi.fn(() => ({ id: "s1" })),
+    useSearchParams: vi.fn(() => navigationState.searchParams),
 }));
 
 const mockedApi = vi.mocked(apiFetch);
@@ -60,6 +66,7 @@ const emptyConflicts = { duplicates: [], transfer_pairs: [] };
 describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        navigationState.searchParams = new URLSearchParams();
     });
 
     it("AC16.18.4 shows loading feedback while review data is pending", () => {
@@ -241,6 +248,50 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
         expect(pushMock).toHaveBeenNthCalledWith(1, "/statements/s0/review");
         expect(pushMock).toHaveBeenNthCalledWith(2, "/statements/s2/review");
+    });
+
+    it("AC22.11.3 returns attention-origin statement review actions to the attention queue", async () => {
+        navigationState.searchParams = new URLSearchParams("from=attention");
+
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve(baseStatement);
+            }
+
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s0" }, { id: "s1" }, { id: "s2" }], total: 3 });
+            }
+
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+
+            if (path === "/api/statements/s1/review/approve") {
+                expect(options).toMatchObject({ method: "POST" });
+                return Promise.resolve({ journal_entries_created: 1 });
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        const backLink = await screen.findByRole("link", { name: /Back to Attention queue/i });
+        expect(backLink).toHaveAttribute("href", "/attention");
+
+        fireEvent.click(screen.getByRole("button", { name: "← Prev" }));
+        fireEvent.click(screen.getByRole("button", { name: "Next →" }));
+
+        expect(pushMock).toHaveBeenNthCalledWith(1, "/statements/s0/review?from=attention");
+        expect(pushMock).toHaveBeenNthCalledWith(2, "/statements/s2/review?from=attention");
+
+        fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+        const dialog = await screen.findByRole("dialog", { name: "Approve Statement" });
+        fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+
+        await waitFor(() => {
+            expect(pushMock).toHaveBeenLastCalledWith("/attention");
+        });
     });
 
     it("AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist", async () => {

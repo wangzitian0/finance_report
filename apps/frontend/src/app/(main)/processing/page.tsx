@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { BackLink } from "@/components/ui/BackLink";
 import { apiFetch } from "@/lib/api";
 import { ProcessingPendingItem, ProcessingPendingListResponse } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date";
@@ -28,6 +29,10 @@ export default function ProcessingPage() {
 
   return (
     <div className="p-6">
+      <div className="mb-4">
+        <BackLink>Back to Notifications</BackLink>
+      </div>
+
       <div className="page-header mb-6">
         <h1 className="page-title">Processing Transfers</h1>
         <p className="page-description">Transactions currently in flight between accounts</p>
