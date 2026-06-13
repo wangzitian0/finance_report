@@ -402,7 +402,15 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         );
         // AC22.5.2: the block is explained in plain language with an in-place escape.
         expect(screen.getByText(/Approve is paused/i)).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /Resolve conflicts/i })).toBeInTheDocument();
+        const autoOpenedDialog = await screen.findByRole("dialog", { name: "Resolve Conflicts" });
+        fireEvent.click(within(autoOpenedDialog).getByRole("button", { name: "Close" }));
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog", { name: "Resolve Conflicts" })).not.toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: /Resolve conflicts/i }));
+
+        expect(await screen.findByRole("dialog", { name: "Resolve Conflicts" })).toBeInTheDocument();
     });
 
     it("AC16.32.2 shows opening and closing balance validation states separately", async () => {
