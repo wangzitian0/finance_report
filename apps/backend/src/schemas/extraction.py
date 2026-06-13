@@ -58,11 +58,6 @@ class RetryParsingRequest(BaseModel):
     model: str | None = Field(None, description="Optional model override (e.g. gpt-4o)")
 
 
-# Backwards-compatible alias: keep the name used for statement retries
-# while sharing the same underlying schema as RetryParsingRequest.
-RetryStatementRequest = RetryParsingRequest
-
-
 class TransactionUpdateRequest(BaseModel):
     """Request to manually correct a transaction."""
 
@@ -114,11 +109,6 @@ class AtomicTransactionResponse(BaseModel):
             created_at=txn.created_at,
             updated_at=txn.updated_at,
         )
-
-
-# Backwards-compatible alias: the schema was renamed from
-# ``BankStatementTransactionResponse`` as part of EPIC-011 Stage 3.
-BankStatementTransactionResponse = AtomicTransactionResponse
 
 
 class BankStatementResponse(BaseModel):
