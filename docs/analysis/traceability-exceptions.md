@@ -32,6 +32,7 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/infra/__init__.py` | Package marker |
 | `apps/backend/tests/locustfile.py` | Load-test harness, not AC proof |
 | `apps/backend/tests/market_data/__init__.py` | Package marker |
+| `apps/backend/tests/metrics/__init__.py` | Package marker |
 | `apps/backend/tests/portfolio/__init__.py` | Package marker |
 | `apps/backend/tests/reconciliation/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/__init__.py` | Package marker |
