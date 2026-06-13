@@ -1547,7 +1547,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "Build Backend SHA image" in ci_workflow
     assert "Build Frontend SHA image" in ci_workflow
     assert (
-        "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
+        "push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}"
         in ci_workflow
     )
     assert (
@@ -1609,13 +1609,13 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
     assert "if: needs.changes.outputs.pr_required == 'true'" in container_block
     assert (
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+        "if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'"
         in login_block
     )
     assert container_block.count("uses: docker/build-push-action@v5") == 2
     assert (
         container_block.count(
-            "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
+            "push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}"
         )
         == 2
     )
@@ -1623,7 +1623,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
     assert "Build Frontend SHA image" in container_block
     assert "Container image validation failed" in finish_block
     assert "PR CI dry-runs staging image builds before merge" in ci_cd
-    assert "Main push CI is the only path that pushes SHA-tagged images" in ci_cd
+    assert "Main and release-branch push CI, plus on-demand" in ci_cd
 
 
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
