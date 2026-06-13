@@ -693,8 +693,9 @@ jobs:
           cache-to: type=gha,scope=frontend,mode=max
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
           # G1 (#898, AC7.12.8): the published :<sha> image must be environment-independent.
-          # Do NOT bake NEXT_PUBLIC_API_URL/APP_URL here — the front end uses the same-origin
-          # relative /api path, so one image promotes unchanged across staging and prod.
+          # Do NOT bake NEXT_PUBLIC_API_URL or NEXT_PUBLIC_APP_URL here — the front end uses
+          # the same-origin relative /api path, so one image promotes unchanged across
+          # staging and prod.
           build-args: |
             GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
 

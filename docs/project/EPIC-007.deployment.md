@@ -233,6 +233,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
+| AC7.12.6 | SSOT (`environments.md`) defines the data axis (empty / staging / anonymized prod snapshot) and the four data red lines (RL-DATA-1..4): a PR sha never runs on prod data; prod data is anonymized before leaving prod; non-prod object storage holds no real uploads; a backup is not an anonymized snapshot | `test_AC7_12_6_environments_define_data_axis_and_red_lines` | `tests/tooling/test_data_red_lines_contract.py` | P1 |
 | AC7.12.8 | The published `:<sha>` front-end image is environment-independent (same-origin `/api`, no environment domain baked in); a contract test fails if a concrete environment domain appears in the published image | `test_AC7_12_8_published_frontend_image_has_no_baked_env_domain` | `tests/tooling/test_frontend_same_origin_contract.py` | P0 |
 
 
