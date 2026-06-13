@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
@@ -49,13 +50,18 @@ from src.models.statement_summary import StatementSummary
 from src.models.user import User
 from src.routers.reports import (
     ExportFormat,
+    PackageSnapshotExportFormat,
     ReportType as ExportReportType,
     _add_anchor_details,
     _append_blocker,
     _journal_source_anchor_detail,
     _ledger_anchor_detail,
     _source_document_details,
+    export_personal_report_package_snapshot,
     export_report,
+    generate_personal_report_package_snapshot,
+    get_personal_report_package_snapshot,
+    list_personal_report_package_snapshots,
     personal_report_package_contract,
     personal_report_package_notes,
     personal_report_package_readiness,
@@ -248,6 +254,276 @@ async def test_AC5_17_2_package_csv_export_streams_contract_rows(monkeypatch):
     assert body.splitlines()[0].startswith("package_id,section_id,line_id,label")
     assert "personal-financial-report-package,balance_sheet,cash,Cash,,SGD,ledger_posted" in body
     assert "source_document:stmt-1" in body
+
+
+async def _read_streaming_body(response) -> str:
+    return "".join([chunk async for chunk in response.body_iterator])
+
+
+def _package_snapshot_sections(label: str = "Total Assets") -> dict:
+    return {
+        "balance_sheet": {"total_assets": "100.00", "currency": "SGD"},
+        "income_statement": {"net_income": "25.00", "currency": "SGD"},
+        "cash_flow": {"summary": {"net_cash_flow": "25.00"}, "currency": "SGD"},
+        "investment_performance": {"market_value": "75.00", "currency": "SGD"},
+        "annualized_income_long_term": {
+            "income": {"annualized_total": "120000.00", "currency": "SGD"},
+            "restricted_fair_value_total": "0.00",
+        },
+        "notes": personal_report_package_notes().model_dump(mode="json"),
+        "traceability_appendix": {
+            "section_id": "traceability_appendix",
+            "label": "Traceability Appendix",
+            "status": "ready",
+            "lines": [
+                {
+                    "line_id": "balance_sheet.total_assets",
+                    "section_id": "balance_sheet",
+                    "label": label,
+                    "amount_field": "total_assets",
+                    "currency_field": "currency",
+                    "source_state": "ledger_posted",
+                    "source_anchor": {
+                        "state": "available",
+                        "source_types": ["bank_statement"],
+                        "identifiers": ["source_document:stmt-1"],
+                    },
+                    "ledger_anchor": {
+                        "state": "available",
+                        "entry_statuses": ["posted"],
+                        "identifiers": ["journal_line:line-1"],
+                    },
+                    "review_state": "trusted",
+                    "confidence_tier": "TRUSTED",
+                    "source_classes": ["bank_statement"],
+                    "proof_level": "ledger",
+                    "anchor_count": 2,
+                    "blocker_codes": [],
+                }
+            ],
+            "completeness_warnings": [],
+        },
+    }
+
+
+async def _patch_package_snapshot_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    readiness_state: str,
+    blocking_count: int,
+    section_label: str = "Total Assets",
+) -> None:
+    async def fake_readiness(*_args, **_kwargs):
+        return {
+            "package_id": "personal-financial-report-package",
+            "state": readiness_state,
+            "label": readiness_state.title(),
+            "action_href": "/reports/package",
+            "blocking_count": blocking_count,
+            "blockers": [],
+            "source_summary": {"statements": 1},
+            "source_trust_summary": {
+                "source_classes": ["bank_statement"],
+                "deterministic_pr_source_classes": ["bank_statement"],
+                "post_merge_llm_ocr_source_classes": [],
+                "manual_trusted_source_classes": [],
+                "gap_source_classes": [],
+                "blocker_codes": [],
+            },
+        }
+
+    async def fake_policy(*_args, **_kwargs):
+        anchor = {
+            "anchor_id": "source_document:stmt-1",
+            "anchor_type": "source_document",
+            "source_system": "uploaded_documents",
+            "source_id": "stmt-1",
+            "description": "Statement",
+        }
+        return SimpleNamespace(
+            result_id="policy-result:test",
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            matrix_version="1.0",
+            report_period_start=date(2025, 1, 1),
+            report_period_end=date(2025, 12, 31),
+            generated_at=date(2025, 12, 31),
+            required_statements=["balance_sheet", "income_statement", "cash_flow"],
+            decisions=[SimpleNamespace(evidence_anchors=[SimpleNamespace(**anchor)])],
+            gaps=[],
+            model_dump=lambda mode="json": {
+                "result_id": "policy-result:test",
+                "framework_id": "personal_us_gaap_like",
+                "matrix_version": "1.0",
+                "report_period_start": "2025-01-01",
+                "report_period_end": "2025-12-31",
+                "generated_at": "2025-12-31",
+                "required_statements": ["balance_sheet", "income_statement", "cash_flow"],
+                "decisions": [{"evidence_anchors": [anchor]}],
+                "gaps": [],
+            },
+        )
+
+    async def fake_sections(*_args, **_kwargs):
+        return _package_snapshot_sections(section_label)
+
+    monkeypatch.setattr("src.routers.reports.get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr("src.routers.reports.derive_user_framework_policy_result", fake_policy)
+    monkeypatch.setattr("src.routers.reports._personal_report_package_section_payloads", fake_sections)
+
+
+async def test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC5.19.1: Package generation freezes context and gates draft/trusted state by readiness."""
+    await _patch_package_snapshot_inputs(monkeypatch, readiness_state="blocked", blocking_count=1)
+
+    draft = await generate_personal_report_package_snapshot(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 12, 31),
+        as_of_date=date(2025, 12, 31),
+        currency="SGD",
+        db=db,
+        user_id=test_user.id,
+    )
+
+    draft_payload = draft.model_dump(mode="json")
+    assert draft_payload["status"] == "draft"
+    assert draft_payload["framework_id"] == "personal_us_gaap_like"
+    assert draft_payload["currency"] == "SGD"
+    assert draft_payload["readiness_state"] == "blocked"
+    assert draft_payload["payload"]["readiness"]["state"] == "blocked"
+    assert draft_payload["payload"]["source_trust_summary"]["source_classes"] == ["bank_statement"]
+    assert "traceability_appendix" in draft_payload["payload"]["section_payloads"]
+    assert "balance_sheet" in draft_payload["payload"]["section_payloads"]
+
+    await _patch_package_snapshot_inputs(monkeypatch, readiness_state="ready", blocking_count=0)
+    trusted = await generate_personal_report_package_snapshot(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 12, 31),
+        as_of_date=date(2025, 12, 31),
+        currency="SGD",
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert trusted.status == "trusted"
+    assert trusted.readiness_state == "ready"
+    latest_rows = (
+        (
+            await db.execute(
+                select(ReportSnapshot)
+                .where(ReportSnapshot.user_id == test_user.id)
+                .where(ReportSnapshot.report_type == ReportType.PACKAGE)
+                .where(ReportSnapshot.is_latest.is_(True))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [row.id for row in latest_rows] == [trusted.id]
+
+
+async def test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC5.19.2: Package snapshots list/get by user and reopen the frozen payload."""
+    await _patch_package_snapshot_inputs(monkeypatch, readiness_state="ready", blocking_count=0, section_label="Frozen")
+    snapshot = await generate_personal_report_package_snapshot(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 12, 31),
+        as_of_date=date(2025, 12, 31),
+        currency="SGD",
+        db=db,
+        user_id=test_user.id,
+    )
+    await db.flush()
+
+    other_user_id = uuid4()
+    db.add(
+        ReportSnapshot(
+            user_id=other_user_id,
+            report_type=ReportType.PACKAGE,
+            as_of_date=date(2025, 12, 31),
+            start_date=date(2025, 1, 1),
+            report_data={
+                "status": "trusted",
+                "framework_id": "personal_us_gaap_like",
+                "currency": "SGD",
+                "readiness_state": "ready",
+                "payload": {"package_id": "personal-financial-report-package", "section_payloads": {}},
+            },
+            is_latest=True,
+        )
+    )
+    await db.flush()
+
+    await _patch_package_snapshot_inputs(
+        monkeypatch, readiness_state="ready", blocking_count=0, section_label="Live Changed"
+    )
+    listed = await list_personal_report_package_snapshots(db=db, user_id=test_user.id)
+    assert [item.id for item in listed] == [snapshot.id]
+
+    reopened = await get_personal_report_package_snapshot(snapshot_id=snapshot.id, db=db, user_id=test_user.id)
+    assert reopened.payload["section_payloads"]["traceability_appendix"]["lines"][0]["label"] == "Frozen"
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_personal_report_package_snapshot(snapshot_id=snapshot.id, db=db, user_id=other_user_id)
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Package snapshot not found"
+
+
+async def test_AC5_19_3_package_snapshot_exports_are_snapshot_derived(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC5.19.3: Package JSON and CSV exports stream saved snapshot data only."""
+    await _patch_package_snapshot_inputs(
+        monkeypatch, readiness_state="ready", blocking_count=0, section_label="Frozen CSV"
+    )
+    snapshot = await generate_personal_report_package_snapshot(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 12, 31),
+        as_of_date=date(2025, 12, 31),
+        currency="SGD",
+        db=db,
+        user_id=test_user.id,
+    )
+
+    await _patch_package_snapshot_inputs(
+        monkeypatch, readiness_state="ready", blocking_count=0, section_label="Live Changed"
+    )
+    json_response = await export_personal_report_package_snapshot(
+        snapshot_id=snapshot.id,
+        format=PackageSnapshotExportFormat.JSON,
+        db=db,
+        user_id=test_user.id,
+    )
+    csv_response = await export_personal_report_package_snapshot(
+        snapshot_id=snapshot.id,
+        format=PackageSnapshotExportFormat.CSV,
+        db=db,
+        user_id=test_user.id,
+    )
+
+    json_body = await _read_streaming_body(json_response)
+    csv_body = await _read_streaming_body(csv_response)
+
+    assert "Frozen CSV" in json_body
+    assert "Live Changed" not in json_body
+    assert "personal-report-package" in json_response.headers["content-disposition"]
+    assert csv_body.splitlines()[0].startswith("package_id,section_id,line_id,label")
+    assert "Frozen CSV" in csv_body
+    assert "source_document:stmt-1" in csv_body
+    assert "Live Changed" not in csv_body
 
 
 def _statement(

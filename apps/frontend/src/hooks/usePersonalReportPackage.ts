@@ -8,6 +8,8 @@ import type {
   PersonalReportPackageContractResponse,
   PersonalReportPackageNotesResponse,
   PersonalReportPackageReadinessResponse,
+  PersonalReportPackageSnapshotResponse,
+  PersonalReportPackageSnapshotSummary,
   PersonalReportPackageTraceabilityResponse,
 } from "@/lib/types";
 
@@ -33,12 +35,39 @@ export function reportPeriodStart(reportDate: string): string {
   return `${previousYear}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
 }
 
+export function packageSnapshotRequest(
+  frameworkId: string,
+  reportDate: string,
+  currency = "SGD",
+) {
+  return {
+    framework_id: frameworkId,
+    start_date: reportPeriodStart(reportDate),
+    end_date: reportDate,
+    as_of_date: reportDate,
+    currency,
+  };
+}
+
 function packageQuery(reportDate: string, frameworkId?: string): string {
   const params = new URLSearchParams(frameworkId ? { framework_id: frameworkId } : undefined);
   params.set("start_date", reportPeriodStart(reportDate));
   params.set("end_date", reportDate);
   params.set("as_of_date", reportDate);
   return `?${params.toString()}`;
+}
+
+export async function generatePackageSnapshot(
+  frameworkId: string,
+  reportDate: string,
+): Promise<PersonalReportPackageSnapshotResponse> {
+  return apiFetch<PersonalReportPackageSnapshotResponse>(
+    "/api/reports/package/generate",
+    {
+      method: "POST",
+      body: JSON.stringify(packageSnapshotRequest(frameworkId, reportDate)),
+    },
+  );
 }
 
 type PersonalReportPackageData = {
@@ -96,6 +125,16 @@ export function usePersonalReportPackage(
     gcTime: 0,
     staleTime: 0,
   });
+  const snapshotsQuery = useQuery({
+    queryKey: ["report-package", "snapshots"],
+    queryFn: ({ signal }) =>
+      apiFetch<PersonalReportPackageSnapshotSummary[]>(
+        "/api/reports/package/snapshots",
+        signal ? { signal } : undefined,
+      ),
+    enabled: Boolean(contractQuery.data),
+    staleTime: 0,
+  });
   const packageData = packageQueryResult.data ?? null;
 
   return {
@@ -105,7 +144,9 @@ export function usePersonalReportPackage(
     annualizedSchedule: packageData?.annualizedSchedule ?? null,
     packageNotes: packageData?.packageNotes ?? null,
     traceabilityAppendix: packageData?.traceabilityAppendix ?? null,
+    packageSnapshots: snapshotsQuery.data ?? [],
+    refetchPackageSnapshots: snapshotsQuery.refetch,
     isPackageLoading: packageQueryResult.isLoading,
-    error: contractQuery.error?.message ?? packageQueryResult.error?.message ?? null,
+    error: contractQuery.error?.message ?? packageQueryResult.error?.message ?? snapshotsQuery.error?.message ?? null,
   };
 }

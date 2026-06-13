@@ -3,6 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -473,6 +474,13 @@ class PersonalReportPackageReadinessState(str, Enum):
     STALE = "stale"
 
 
+class PersonalReportPackageSnapshotStatus(str, Enum):
+    """Durability/trust state of a generated package snapshot."""
+
+    DRAFT = "draft"
+    TRUSTED = "trusted"
+
+
 class PersonalReportPackageReadinessResponse(BaseModel):
     """Deterministic readiness state for the personal report package."""
 
@@ -493,6 +501,50 @@ class PersonalReportPackageReadinessResponse(BaseModel):
     @classmethod
     def validate_action_href(cls, value: str) -> str:
         return _validate_internal_action_href(value)
+
+
+class PersonalReportPackageSnapshotSummary(BaseModel):
+    """Saved personal report package snapshot metadata."""
+
+    id: UUID = Field(description="Report snapshot identifier")
+    package_id: str = Field(description="Personal report package contract identifier")
+    status: PersonalReportPackageSnapshotStatus = Field(description="Snapshot trust state")
+    framework_id: PersonalReportingFrameworkId = Field(description="Framework selected for the frozen package")
+    start_date: date = Field(description="Package reporting period start date")
+    end_date: date = Field(description="Package reporting period end date")
+    as_of_date: date = Field(description="Package balance-sheet and point-in-time report date")
+    currency: str = Field(description="Snapshot presentation currency", min_length=3, max_length=3)
+    readiness_state: str = Field(description="Readiness state captured when the snapshot was generated")
+    is_latest: bool = Field(description="Whether this is the latest snapshot for the same package period")
+    created_at: datetime | None = Field(default=None, description="Snapshot creation timestamp")
+
+
+class PersonalReportPackageGenerateRequest(BaseModel):
+    """Request body for creating a saved package snapshot."""
+
+    framework_id: PersonalReportingFrameworkId = Field(
+        default=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        description="Framework to use when generating the package snapshot",
+    )
+    start_date: date | None = Field(default=None, description="Requested reporting period start date")
+    end_date: date | None = Field(default=None, description="Requested reporting period end date")
+    as_of_date: date | None = Field(default=None, description="Requested point-in-time report date")
+    currency: str | None = Field(
+        default=None,
+        description="Requested presentation currency",
+        min_length=3,
+        max_length=3,
+    )
+    include_restricted: bool = Field(
+        default=False,
+        description="Whether restricted manual valuations are included in generated section payloads",
+    )
+
+
+class PersonalReportPackageSnapshotResponse(PersonalReportPackageSnapshotSummary):
+    """Saved personal report package snapshot plus frozen payload."""
+
+    payload: dict[str, Any] = Field(description="Frozen package payload used for reopen and export")
 
 
 class PersonalReportPackageNote(BaseModel):

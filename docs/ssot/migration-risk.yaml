@@ -179,6 +179,11 @@ migrations:
     file: 0036_confidence_metric_snapshots.py
     risk: low
     proof: Additive append-only North-Star confidence metric table; no backfill or read-path cutover; covered by PR Alembic contract.
+  0037_report_package_snapshots:
+    file: 0037_report_package_snapshots.py
+    risk: medium
+    issue: "#705"
+    proof: Adds a report_type_enum value for package snapshots and relaxes report_snapshots.rule_version_id to nullable for package artifacts; covered by AC5.19 snapshot tests and PR Alembic contract.
   0035_manual_valuation_versioning:
     file: 0035_manual_valuation_versioning.py
     risk: medium

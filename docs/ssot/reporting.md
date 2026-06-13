@@ -42,6 +42,32 @@ conflicting published state:
   `(user_id, report_type, start_date, as_of_date)`;
 - range snapshots require `start_date <= as_of_date`.
 
+Personal report package snapshots use the same Layer 4 table with
+`report_type = package`. They freeze the package artifact rather than a
+classification-rule version, so `rule_version_id` may be null for package rows.
+Generation stores the package period, currency, selected framework, readiness
+state, source-trust summary, framework policy result, traceability appendix, and
+section payloads in `report_data`.
+
+Package snapshot endpoints:
+
+- `POST /api/reports/package/generate` creates a saved package snapshot for the
+  requested `framework_id`, `start_date`, `end_date`, `as_of_date`, and
+  `currency`.
+- `GET /api/reports/package/snapshots` lists the current user's saved package
+  snapshots.
+- `GET /api/reports/package/snapshots/{snapshot_id}` reopens the saved payload
+  without recalculating live report data.
+- `GET /api/reports/package/snapshots/{snapshot_id}/export?format=json|csv`
+  exports the saved snapshot. JSON and CSV export must be derived from
+  `report_data`, not from live report endpoint recalculation.
+
+Readiness gates the generated artifact status. If readiness is `ready`,
+`generated`, or `stale` with zero blockers, the snapshot is `trusted`; blocked,
+processing, or draft readiness can only create a `draft` snapshot. Draft
+snapshots are still immutable and exportable, but consumers must not describe
+them as trusted output.
+
 ---
 
 ## 2. Report Types

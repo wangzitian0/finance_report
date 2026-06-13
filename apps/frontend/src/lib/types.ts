@@ -286,6 +286,39 @@ export interface PersonalReportPackageReadinessResponse {
   stale_since?: string | null;
 }
 
+export interface PersonalReportPackageSnapshotPayload {
+  package_id: string;
+  version: string;
+  status: "draft" | "trusted";
+  generated_at: string;
+  framework_id: string;
+  start_date: string;
+  end_date: string;
+  as_of_date: string;
+  currency: string;
+  readiness: PersonalReportPackageReadinessResponse;
+  source_trust_summary?: PersonalReportPackageReadinessResponse["source_trust_summary"];
+  section_payloads: Record<string, unknown>;
+}
+
+export interface PersonalReportPackageSnapshotSummary {
+  id: string;
+  package_id: string;
+  status: "draft" | "trusted";
+  framework_id: string;
+  start_date: string;
+  end_date: string;
+  as_of_date: string;
+  currency: string;
+  readiness_state: string;
+  is_latest: boolean;
+  created_at?: string | null;
+}
+
+export interface PersonalReportPackageSnapshotResponse extends PersonalReportPackageSnapshotSummary {
+  payload: PersonalReportPackageSnapshotPayload;
+}
+
 export interface AdvisorSuggestion {
   basis: string;
   confidence_tier: string;

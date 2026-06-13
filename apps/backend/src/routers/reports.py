@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import csv
+import json
 from copy import deepcopy
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from io import StringIO
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Query
@@ -33,6 +35,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
+from src.models.layer4 import ReportSnapshot, ReportType as SnapshotReportType
 from src.models.portfolio import DividendIncome, MarketDataOverride
 from src.schemas import (
     AccountLineageResponse,
@@ -52,8 +55,12 @@ from src.schemas import (
     NetWorthTimeSeriesResponse,
     PersonalReportingFrameworkId,
     PersonalReportPackageContractResponse,
+    PersonalReportPackageGenerateRequest,
     PersonalReportPackageNotesResponse,
     PersonalReportPackageReadinessResponse,
+    PersonalReportPackageSnapshotResponse,
+    PersonalReportPackageSnapshotStatus,
+    PersonalReportPackageSnapshotSummary,
     PersonalReportPackageTraceabilityResponse,
     TrendPeriod,
 )
@@ -74,6 +81,7 @@ from src.services.reporting import (
     get_net_worth_timeseries,
     income_bucket,
 )
+from src.services.reporting_snapshot import ReportingSnapshotService
 from src.utils import raise_bad_request, raise_not_found
 from src.utils.money import to_money
 
@@ -126,6 +134,13 @@ async def get_available_currencies(
 class ExportFormat(str, Enum):
     """Supported export formats."""
 
+    CSV = "csv"
+
+
+class PackageSnapshotExportFormat(str, Enum):
+    """Supported saved package snapshot export formats."""
+
+    JSON = "json"
     CSV = "csv"
 
 
@@ -1404,6 +1419,375 @@ async def annualized_income_schedule(
             "Personal management report only; not tax advice.",
             "Restricted holdings are excluded from liquid net worth by default.",
         ],
+    )
+
+
+def _jsonable(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, date | datetime):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, Enum):
+        return value.value
+    return value
+
+
+def _package_dates(
+    *,
+    start_date: date | None,
+    end_date: date | None,
+    as_of_date: date | None,
+) -> tuple[date, date, date]:
+    report_end = end_date or as_of_date or date.today()
+    report_start = start_date or report_end - timedelta(days=365)
+    report_as_of = as_of_date or report_end
+    return report_start, report_end, report_as_of
+
+
+def _package_currency(currency: str | None) -> str:
+    return (currency or settings.base_currency).strip().upper()
+
+
+def _package_snapshot_status(readiness: dict[str, Any]) -> PersonalReportPackageSnapshotStatus:
+    state = str(readiness.get("state") or "")
+    blocking_count = int(readiness.get("blocking_count") or 0)
+    if state in {"ready", "generated", "stale"} and blocking_count == 0:
+        return PersonalReportPackageSnapshotStatus.TRUSTED
+    return PersonalReportPackageSnapshotStatus.DRAFT
+
+
+async def _personal_report_package_section_payloads(
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    start_date: date,
+    end_date: date,
+    as_of_date: date,
+    currency: str,
+    include_restricted: bool = False,
+) -> dict[str, Any]:
+    from src.routers.portfolio import get_investment_performance_report_schedule
+
+    balance_sheet_payload = await generate_balance_sheet(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        currency=currency,
+        include_restricted=include_restricted,
+    )
+    income_statement_payload = await generate_income_statement(
+        db,
+        user_id,
+        start_date=start_date,
+        end_date=end_date,
+        currency=currency,
+    )
+    cash_flow_payload = await generate_cash_flow(
+        db,
+        user_id,
+        start_date=start_date,
+        end_date=end_date,
+        currency=currency,
+    )
+    investment_performance_payload = await get_investment_performance_report_schedule(
+        db=db,
+        user_id=user_id,
+        period_start=start_date,
+        period_end=end_date,
+        as_of_date=as_of_date,
+        currency=currency,
+    )
+    annualized_payload = await annualized_income_schedule(
+        as_of_date=as_of_date,
+        db=db,
+        user_id=user_id,
+    )
+    traceability_payload = await personal_report_package_traceability(
+        start_date=start_date,
+        end_date=end_date,
+        as_of_date=as_of_date,
+        db=db,
+        user_id=user_id,
+    )
+    return {
+        "balance_sheet": _jsonable(balance_sheet_payload),
+        "income_statement": _jsonable(income_statement_payload),
+        "cash_flow": _jsonable(cash_flow_payload),
+        "investment_performance": _jsonable(investment_performance_payload),
+        "annualized_income_long_term": _jsonable(annualized_payload),
+        "notes": personal_report_package_notes().model_dump(mode="json"),
+        "traceability_appendix": _jsonable(traceability_payload),
+    }
+
+
+async def _build_personal_report_package_snapshot_data(
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    framework_id: PersonalReportingFrameworkId,
+    start_date: date,
+    end_date: date,
+    as_of_date: date,
+    currency: str,
+    include_restricted: bool = False,
+) -> dict[str, Any]:
+    contract = personal_report_package_contract(framework_id).model_dump(mode="json")
+    readiness = await get_personal_report_package_readiness(
+        db,
+        user_id,
+        framework_id=framework_id,
+        report_period_start=start_date,
+        report_period_end=end_date,
+        as_of_date=as_of_date,
+    )
+    policy = await derive_user_framework_policy_result(
+        db,
+        user_id,
+        framework_id=framework_id,
+        report_period_start=start_date,
+        report_period_end=end_date,
+        as_of_date=as_of_date,
+    )
+    section_payloads = await _personal_report_package_section_payloads(
+        db=db,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+        as_of_date=as_of_date,
+        currency=currency,
+        include_restricted=include_restricted,
+    )
+    readiness_payload = _jsonable(readiness)
+    status_value = _package_snapshot_status(readiness_payload).value
+    source_trust_summary = readiness_payload.get("source_trust_summary") or {}
+    payload = {
+        "package_id": contract["package_id"],
+        "version": contract["version"],
+        "status": status_value,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "framework_id": framework_id.value,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "as_of_date": as_of_date.isoformat(),
+        "currency": currency,
+        "contract": contract,
+        "readiness": readiness_payload,
+        "source_trust_summary": source_trust_summary,
+        "framework_policy": _jsonable(policy),
+        "section_payloads": section_payloads,
+    }
+    return {
+        "package_id": contract["package_id"],
+        "status": status_value,
+        "framework_id": framework_id.value,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "as_of_date": as_of_date.isoformat(),
+        "currency": currency,
+        "readiness_state": str(readiness_payload.get("state") or "draft"),
+        "payload": payload,
+    }
+
+
+def _package_snapshot_summary(snapshot: ReportSnapshot) -> PersonalReportPackageSnapshotSummary:
+    data = snapshot.report_data
+    return PersonalReportPackageSnapshotSummary(
+        id=snapshot.id,
+        package_id=data["package_id"],
+        status=data["status"],
+        framework_id=data["framework_id"],
+        start_date=data["start_date"],
+        end_date=data["end_date"],
+        as_of_date=data["as_of_date"],
+        currency=data["currency"],
+        readiness_state=data["readiness_state"],
+        is_latest=snapshot.is_latest,
+        created_at=snapshot.created_at,
+    )
+
+
+def _package_snapshot_response(snapshot: ReportSnapshot) -> PersonalReportPackageSnapshotResponse:
+    data = snapshot.report_data
+    return PersonalReportPackageSnapshotResponse(
+        **_package_snapshot_summary(snapshot).model_dump(),
+        payload=data["payload"],
+    )
+
+
+def _resolve_payload_field(payload: dict[str, Any], path: str | None) -> Any:
+    if not path:
+        return ""
+    current: Any = payload
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return ""
+        current = current[part]
+    return current
+
+
+def _package_snapshot_evidence_references(policy: dict[str, Any]) -> str:
+    references: set[str] = set()
+    for item in [*policy.get("decisions", []), *policy.get("gaps", [])]:
+        for anchor in item.get("evidence_anchors", []):
+            anchor_type = anchor.get("anchor_type")
+            source_id = anchor.get("source_id")
+            if anchor_type and source_id:
+                references.add(f"{anchor_type}:{source_id}")
+    return "|".join(sorted(references))
+
+
+def _package_snapshot_csv(snapshot: PersonalReportPackageSnapshotResponse) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    payload = snapshot.payload
+    contract = payload["contract"]
+    section_payloads = payload["section_payloads"]
+    traceability = section_payloads["traceability_appendix"]
+    evidence_bundle_references = _package_snapshot_evidence_references(payload["framework_policy"])
+    writer.writerow(contract["export_contract"]["csv_columns"])
+    for line in traceability["lines"]:
+        section_payload = section_payloads.get(line["section_id"], {})
+        amount = _resolve_payload_field(section_payload, line.get("amount_field"))
+        currency = _resolve_payload_field(section_payload, line.get("currency_field")) or snapshot.currency
+        writer.writerow(
+            [
+                snapshot.package_id,
+                line["section_id"],
+                line["line_id"],
+                line["label"],
+                amount,
+                currency,
+                line["source_state"],
+                snapshot.framework_id.value,
+                payload["framework_policy"]["result_id"],
+                payload["framework_policy"]["matrix_version"],
+                evidence_bundle_references,
+            ]
+        )
+    content = output.getvalue()
+    output.close()
+    return content
+
+
+@router.post("/package/generate", response_model=PersonalReportPackageSnapshotResponse)
+async def generate_personal_report_package_snapshot(
+    db: DbSession,
+    user_id: CurrentUserId,
+    request: PersonalReportPackageGenerateRequest | None = None,
+    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    as_of_date: date | None = None,
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=False),
+) -> PersonalReportPackageSnapshotResponse:
+    """Generate and persist an immutable personal report package snapshot."""
+    if request is not None:
+        framework_id = request.framework_id
+        start_date = request.start_date
+        end_date = request.end_date
+        as_of_date = request.as_of_date
+        currency = request.currency
+        include_restricted = request.include_restricted
+    if not isinstance(currency, str):
+        currency = None
+    if not isinstance(include_restricted, bool):
+        include_restricted = False
+    report_start, report_end, report_as_of = _package_dates(
+        start_date=start_date,
+        end_date=end_date,
+        as_of_date=as_of_date,
+    )
+    target_currency = _package_currency(currency)
+    snapshot_data = await _build_personal_report_package_snapshot_data(
+        db=db,
+        user_id=user_id,
+        framework_id=framework_id,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+        currency=target_currency,
+        include_restricted=include_restricted,
+    )
+    snapshot = await ReportingSnapshotService().create_snapshot(
+        db,
+        user_id=user_id,
+        report_type=SnapshotReportType.PACKAGE,
+        start_date=report_start,
+        as_of_date=report_as_of,
+        rule_version_id=None,
+        report_data=snapshot_data,
+        ttl_seconds=0,
+    )
+    await db.commit()
+    return _package_snapshot_response(snapshot)
+
+
+@router.get("/package/snapshots", response_model=list[PersonalReportPackageSnapshotSummary])
+async def list_personal_report_package_snapshots(
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> list[PersonalReportPackageSnapshotSummary]:
+    """List saved personal report package snapshots for the current user."""
+    stmt = (
+        select(ReportSnapshot)
+        .where(ReportSnapshot.user_id == user_id)
+        .where(ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
+        .order_by(ReportSnapshot.created_at.desc())
+        .limit(25)
+    )
+    result = await db.execute(stmt)
+    return [_package_snapshot_summary(snapshot) for snapshot in result.scalars().all()]
+
+
+@router.get("/package/snapshots/{snapshot_id}", response_model=PersonalReportPackageSnapshotResponse)
+async def get_personal_report_package_snapshot(
+    snapshot_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> PersonalReportPackageSnapshotResponse:
+    """Return one saved package snapshot without recalculating live report data."""
+    snapshot = await db.scalar(
+        select(ReportSnapshot)
+        .where(ReportSnapshot.id == snapshot_id)
+        .where(ReportSnapshot.user_id == user_id)
+        .where(ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
+    )
+    if snapshot is None:
+        raise_not_found("Package snapshot")
+    return _package_snapshot_response(snapshot)
+
+
+@router.get("/package/snapshots/{snapshot_id}/export")
+async def export_personal_report_package_snapshot(
+    snapshot_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+    format: PackageSnapshotExportFormat = Query(default=PackageSnapshotExportFormat.CSV),
+) -> StreamingResponse:
+    """Export a saved package snapshot as JSON or CSV."""
+    snapshot = await get_personal_report_package_snapshot(snapshot_id=snapshot_id, db=db, user_id=user_id)
+    stem = f"personal-report-package-{snapshot.framework_id.value}-{snapshot.as_of_date}-{snapshot.id}"
+    if format == PackageSnapshotExportFormat.JSON:
+        content = json.dumps(snapshot.model_dump(mode="json"), sort_keys=True)
+        filename = f"{stem}.json"
+        media_type = "application/json"
+    else:
+        content = _package_snapshot_csv(snapshot)
+        filename = f"{stem}.csv"
+        media_type = "text/csv"
+    return StreamingResponse(
+        StringIO(content),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
