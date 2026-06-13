@@ -2776,6 +2776,38 @@ def test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator() -> None:
     assert 'page.locator("a").filter(has_text=INSTITUTION_LABEL)' not in test_body
 
 
+def test_AC8_13_28_vision_hard_gate_waits_for_review_payload_before_approval() -> None:
+    """AC8.13.28: staging hard gate waits for Stage 1 review data before approving."""
+    gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
+    test_body = gate.split(
+        "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
+    )[1]
+
+    assert 'review_path = f"/statements/{statement_id}/review"' in test_body
+    assert "f\"a[href='{review_path}']\"" in test_body
+    assert "page.expect_response(" in test_body
+    assert 'r.request.method == "GET"' in test_body
+    assert 'f"/api/statements/{statement_id}/review"' in test_body
+    assert "review_resp.status == 200" in test_body
+    assert "(await review_resp.text())[:1_000]" in test_body
+    assert 'get_by_role("button", name="Approve", exact=True)' in test_body
+    assert 'get_by_role("link", name=re.compile("Start Review"))' not in test_body
+
+
+def test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload() -> None:
+    """AC8.13.30: staging hard gate waits for Stage 2 queue data before UI assertions."""
+    gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
+    test_body = gate.split(
+        "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
+    )[1]
+
+    assert 'stage2_queue_path = "/api/statements/stage2/queue"' in test_body
+    assert 'r.request.method == "GET"' in test_body
+    assert "stage2_page_resp.status == 200" in test_body
+    assert "stage2_page_info" in test_body
+    assert "(await stage2_page_resp.text())[:1_000]" in test_body
+
+
 def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
     """AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")

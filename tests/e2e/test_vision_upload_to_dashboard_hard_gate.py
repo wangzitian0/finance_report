@@ -195,13 +195,33 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         EXPECTED_TOTALS["transaction_count"], timeout=10_000
     )
 
-    await page.get_by_role("link", name=re.compile("Start Review")).click()
+    review_path = f"/statements/{statement_id}/review"
+    review_link = page.locator(f"a[href='{review_path}']")
+    await expect(review_link).to_be_visible(timeout=10_000)
+    async with page.expect_response(
+        lambda r: (
+            r.request.method == "GET"
+            and f"/api/statements/{statement_id}/review" in r.url
+        ),
+        timeout=30_000,
+    ) as review_info:
+        await review_link.click()
+    review_resp = await review_info.value
+    if review_resp.status != 200:
+        review_body_text = (await review_resp.text())[:1_000]
+        pytest.fail(
+            f"Stage 1 review payload failed: {review_resp.status}. Body: {review_body_text}"
+        )
+    assert review_resp.status == 200
     await expect(page).to_have_url(
         re.compile(r"/statements/[^/]+/review$"), timeout=15_000
     )
+    await expect(page.get_by_role("heading", name=fixture_path.name)).to_be_visible(
+        timeout=15_000
+    )
 
-    approve_button = page.get_by_role("button", name="Approve").first
-    await expect(approve_button).to_be_enabled(timeout=10_000)
+    approve_button = page.get_by_role("button", name="Approve", exact=True)
+    await expect(approve_button).to_be_enabled(timeout=20_000)
     async with page.expect_response(
         lambda r: f"/api/statements/{statement_id}/review/approve" in r.url
     ) as approve_info:
@@ -278,12 +298,24 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         },
     }
 
-    stage2_queue = await _api_json(page, "/api/statements/stage2/queue")
+    stage2_queue_path = "/api/statements/stage2/queue"
+    stage2_queue = await _api_json(page, stage2_queue_path)
     assert stage2_queue["pending_matches"] == []
     assert stage2_queue["consistency_checks"] == []
     assert stage2_queue["has_unresolved_checks"] is False
 
-    await _goto_ready(page, "/reconciliation/review-queue")
+    async with page.expect_response(
+        lambda r: r.request.method == "GET" and stage2_queue_path in r.url,
+        timeout=30_000,
+    ) as stage2_page_info:
+        await _goto_ready(page, "/reconciliation/review-queue")
+    stage2_page_resp = await stage2_page_info.value
+    if stage2_page_resp.status != 200:
+        stage2_body_text = (await stage2_page_resp.text())[:1_000]
+        pytest.fail(
+            f"Stage 2 queue payload failed: {stage2_page_resp.status}. Body: {stage2_body_text}"
+        )
+    assert stage2_page_resp.status == 200
     await expect(page.get_by_role("heading", name="Review queue")).to_be_visible(
         timeout=10_000
     )
