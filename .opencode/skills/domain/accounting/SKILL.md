@@ -6,6 +6,7 @@ description: Double-entry bookkeeping rules, accounting equation validation, ent
 # Double-Entry Bookkeeping Domain Model
 
 > **Core Definition**: Accounting equation, account classification, and entry rules for double-entry bookkeeping.
+> **SSOT**: [`docs/ssot/accounting.md`](../../../../docs/ssot/accounting.md) is authoritative for every rule below.
 
 ## Accounting Equation
 
@@ -14,6 +15,29 @@ Assets = Liabilities + Equity + (Income - Expenses)
 ```
 
 **At any moment, all `posted` entries must satisfy this equation.**
+
+## Money Rules (read before touching any amount)
+
+- **Decimal only** — NEVER use `float` to store, calculate, or transfer money.
+- **Rule A2 — canonical rounding**: currency amounts are quantized to **2 dp with
+  banker's rounding (`ROUND_HALF_EVEN`)**. Always round through the one helper
+  `apps/backend/src/utils/money.py::to_money()` (exposed as `src.utils.to_money`).
+  Do NOT hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for money.
+  Out of scope (keep their own quantization): FX rates & security prices (6 dp),
+  share quantities (6 dp), percentages/ratios (XIRR, TWR, MWR, allocation %).
+  Guardrail: `apps/backend/tests/accounting/test_money.py`.
+
+## Multi-Currency Journal Balance
+
+Balance is measured in the configured **base currency** (`SGD` by default), not
+raw nominal line amounts. A non-base-currency line MUST carry `fx_rate`:
+
+```
+base_amount = line.amount * line.fx_rate
+```
+
+Debit and credit totals are valid only when their converted **base** amounts
+differ by ≤ `0.01`. NEVER validate by comparing raw original-currency nominals.
 
 ## Account Classification and Debit/Credit Rules
 
@@ -29,15 +53,37 @@ Assets = Liabilities + Equity + (Income - Expenses)
 
 ### ✅ Recommended Patterns
 
-- **Pattern A**: Each entry has at least 2 lines, debit/credit balanced
-- **Pattern B**: Use Decimal for precise calculations, tolerance < 0.01
-- **Pattern C**: Posted entries can only be voided, not directly modified
+- **Pattern A**: Each entry has at least 2 lines, debit/credit balanced.
+- **Pattern B**: Use Decimal; round money via `to_money()` (Rule A2 above).
+- **Pattern C**: Posted entries can only be voided, not directly modified.
+- **Pattern D**: Multi-currency entries validate balance **after** base-currency conversion.
+- **Pattern E**: Account authorization is a domain invariant — services must
+  validate every `JournalLine.account_id` belongs to the same `user_id` as the
+  `JournalEntry`. HTTP middleware is not sufficient (services and background
+  tasks write without a request object).
+- **Pattern F**: Posted/reconciled invariants are enforced at **both** the
+  service and the database boundary (DB triggers reject ledger violations).
+- **Pattern G**: The only non-fact update allowed on a posted/reconciled entry is
+  source-type promotion from `auto_parsed`/`bank_statement`/`auto_matched` →
+  `user_confirmed`, with `source_id` and every accounting fact unchanged.
 
 ### ⛔ Prohibited Patterns
 
 - **NEVER** use FLOAT to store, calculate, or transfer monetary amounts.
-- **NEVER** allow unbalanced debit/credit entries
-- **NEVER** skip validation when writing posted status
+- **NEVER** allow unbalanced debit/credit entries (base-currency totals).
+- **NEVER** skip validation when writing posted status.
+- **NEVER** directly update or delete posted/reconciled/void ledger facts — use
+  the void/reversal workflow.
+- **NEVER** create, post, or aggregate journal lines across user boundaries.
+- **NEVER** downgrade `source_type` or change `source_id` after posting.
+
+### Async Transaction Boundary
+
+Services that receive `db: AsyncSession` from a router use `flush()` (assign IDs,
+validate constraints); the **router** calls `commit()`. Exceptions that own their
+own commit: background tasks with their own session, and streaming generators
+that outlive the router response. Enforcement:
+`apps/backend/tests/ai/test_commit_boundary.py`.
 
 ## Standard Operating Procedures
 

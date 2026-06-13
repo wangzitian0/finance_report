@@ -26,14 +26,18 @@ flowchart TB
     H --> J
 ```
 
-## Confidence Scoring
+## Confidence Scoring (SSOT V2 weights)
+
+Authoritative weights live in `apps/backend/src/services/validation.py::compute_confidence_score`:
 
 | Factor | Weight | Criteria |
 |--------|--------|----------|
-| Balance Check | 40% | opening + Σtxn ≈ closing (±0.1) |
-| Field Completeness | 30% | Required fields present |
-| Format Consistency | 20% | Valid date/amount formats |
+| Balance Check | 35% | opening + Σtxn ≈ closing (±0.1); partial credit for small diffs |
+| Field Completeness | 25% | Required fields present |
+| Format Consistency | 15% | Valid date/amount formats |
 | Transaction Count | 10% | Reasonable (1-500) |
+| Balance Progression | 10% | Running balances monotonically consistent |
+| Currency Consistency | 5% | Single/expected currency across lines |
 
 **Thresholds**:
 - ≥85: Auto-accept
@@ -42,17 +46,16 @@ flowchart TB
 
 ## Supported Institutions
 
-| Institution | Format | Tier |
-|-------------|--------|------|
-| DBS/POSB | PDF | v1 |
-| CMB (China Merchants Bank) | PDF | v1 |
-| Maybank | PDF | v1 |
-| Wise | PDF/CSV | v1 |
-| Brokerage (generic) | PDF/CSV | v1 |
-| Insurance (generic) | PDF | v1 |
-| OCBC | PDF | Extended |
-| MariBank | PDF | Extended |
-| GXS | PDF | Extended |
+Two distinct support tiers — do not conflate them:
+
+- **Tier-1 structured CSV parsers** (deterministic, in `extraction.py`): DBS,
+  POSB, Wise, OCBC, UOB, Standard Chartered, Citibank.
+- **AI-detected via prompt hints** (`src/prompts/statement.py`, PDF/image, no
+  deterministic parser): DBS, CMB, Maybank, Wise, Moomoo, Futu, IBKR, GXS,
+  MariBank, plus generic brokerage and insurance.
+
+Any other institution falls back to generic AI auto-detection. Treat this list
+as illustrative — the prompt-hint and CSV-parser source files are authoritative.
 
 ## Data Integrity
 
