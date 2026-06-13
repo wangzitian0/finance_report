@@ -25,7 +25,6 @@ ALLOWLIST_ENV_KEYS = (
     "IMAGE_TAG",
     "GIT_COMMIT_SHA",
     "IAC_CONFIG_HASH",
-    "COMPOSE_PROJECT_NAME",
     "ENV_SUFFIX",
     "ENV_DOMAIN_SUFFIX",
     "NETWORK_SUFFIX",
@@ -321,13 +320,23 @@ def preview_app_url(pr_number: int, commit_sha: str, internal_domain: str) -> st
     return preview_stable_app_url(pr_number, internal_domain)
 
 
-def preview_compose_command(pr_number: int) -> str:
+def preview_compose_command(project_name: str | None = None) -> str:
     # Build the PR's source on the Dokploy host (GitHub-source deploy) instead of
     # pulling a CI-pushed image. PR previews never push images; image building +
     # promotion happens only post-merge (staging-deploy). `--build` rebuilds the
     # backend/frontend contexts that the preview compose now declares.
+    #
+    # The `-p` project name MUST equal Dokploy's own appName for this compose.
+    # Dokploy's compose.delete tears the stack down with `docker compose down`
+    # scoped to appName; if `up` runs under a different project, delete removes
+    # the Dokploy record but leaves the containers orphaned (no `docker compose
+    # down` ever targets them, and nothing else reaps them). Callers pass the
+    # appName via get_compose_app_name(); the project-less form is only a
+    # create-time placeholder that update_compose_source() always overwrites
+    # before any deploy.
+    project_flag = f"-p {project_name} " if project_name else ""
     return (
-        f"compose -p {preview_compose_project(pr_number)} "
+        f"compose {project_flag}"
         f"-f {PR_PREVIEW_COMPOSE_PATH} up -d --build --remove-orphans"
     )
 
@@ -437,13 +446,15 @@ def build_preview_env(
     return {
         "PR_PREVIEW_PR_NUMBER": str(pr_number),
         "PR_PREVIEW_COMPOSE_NAME": f"pr-{pr_number}",
+        # Informational label only. The real docker compose project is Dokploy's
+        # appName (set via the `-p` flag in preview_compose_command); this stable
+        # per-PR identifier is NOT wired to COMPOSE_PROJECT_NAME anymore.
         "PR_PREVIEW_COMPOSE_PROJECT": preview_compose_project(pr_number),
         "PR_PREVIEW_CREATED_BY": "github-actions",
         "GIT_COMMIT_SHA": commit_sha,
         "REGISTRY": registry,
         "IMAGE_PREFIX": image_prefix,
         "IMAGE_TAG": preview_image_tag(pr_number, commit_sha),
-        "COMPOSE_PROJECT_NAME": preview_compose_project(pr_number),
         "ENV_SUFFIX": env_suffix,
         "ENV_DOMAIN_SUFFIX": env_suffix,
         "NETWORK_SUFFIX": f"-pr-{pr_number}",
@@ -632,7 +643,10 @@ def create_compose(
             "branch": branch,
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
-            "command": preview_compose_command(pr_number),
+            # Placeholder: appName does not exist until Dokploy assigns it during
+            # compose.create. update_compose_source() rewrites this with the
+            # appName-scoped command before any deploy.
+            "command": preview_compose_command(),
             "autoDeploy": False,
         },
     )
@@ -696,10 +710,12 @@ def update_compose_source(
     config: DokployConfig,
     *,
     compose_id: str,
-    pr_number: int,
     branch: str,
     github_integration_id: str,
 ) -> None:
+    # Scope `up` to Dokploy's own appName so compose.delete (which downs the
+    # stack by appName) reaps every container. See preview_compose_command().
+    app_name = get_compose_app_name(config, compose_id=compose_id)
     dokploy_api_call(
         config,
         "POST",
@@ -713,7 +729,7 @@ def update_compose_source(
             "branch": branch,
             "composePath": PR_PREVIEW_COMPOSE_PATH,
             "githubId": github_integration_id,
-            "command": preview_compose_command(pr_number),
+            "command": preview_compose_command(app_name),
             "autoDeploy": False,
         },
     )
@@ -728,6 +744,19 @@ def get_compose_data(config: DokployConfig, *, compose_id: str) -> dict[str, obj
     )
     data = json.loads(body or "{}")
     return data if isinstance(data, dict) else {}
+
+
+def get_compose_app_name(config: DokployConfig, *, compose_id: str) -> str:
+    # Dokploy derives the docker compose project from this appName, and
+    # compose.delete downs the stack by it. Fail loud rather than deploy a
+    # preview whose teardown cannot reap its containers (the orphan-leak bug).
+    app_name = str(get_compose_data(config, compose_id=compose_id).get("appName") or "")
+    if not app_name:
+        raise RuntimeError(
+            f"Dokploy compose {compose_id} has no appName; cannot align the "
+            "compose project name with teardown"
+        )
+    return app_name
 
 
 def print_compose_summary(
@@ -775,7 +804,6 @@ def configure_preview_compose(
     update_compose_source(
         config,
         compose_id=compose_id,
-        pr_number=args.pr_number,
         branch=args.branch,
         github_integration_id=args.github_integration_id,
     )

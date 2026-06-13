@@ -34,7 +34,10 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     assert env["PR_PREVIEW_PR_NUMBER"] == "591"
     assert env["PR_PREVIEW_COMPOSE_NAME"] == "pr-591"
     assert env["PR_PREVIEW_COMPOSE_PROJECT"] == "finance_report_pr_591"
-    assert env["COMPOSE_PROJECT_NAME"] == "finance_report_pr_591"
+    # COMPOSE_PROJECT_NAME is no longer injected: the docker compose project is
+    # Dokploy's appName (see preview_compose_command), so overriding it here is
+    # what orphaned merged-PR containers (compose.delete downs by appName).
+    assert "COMPOSE_PROJECT_NAME" not in env
     assert env["PR_PREVIEW_CREATED_BY"] == "github-actions"
     assert env["IMAGE_TAG"] == "pr-591-abc123"
     assert env["GIT_COMMIT_SHA"] == "abc123"
@@ -65,9 +68,16 @@ def test_AC8_13_101_preview_app_url_prefers_stable_alias() -> None:
     assert lifecycle.preview_port_offset(
         591, "abc123"
     ) != lifecycle.preview_port_offset(591, "def456")
-    assert lifecycle.preview_compose_command(591) == (
-        "compose -p finance_report_pr_591 -f docker-compose.pr-preview.yml "
+    # The compose project MUST be Dokploy's appName so compose.delete (which
+    # downs the stack by appName) reaps every container instead of orphaning it.
+    assert lifecycle.preview_compose_command("compose-pr-591-xyz") == (
+        "compose -p compose-pr-591-xyz -f docker-compose.pr-preview.yml "
         "up -d --build --remove-orphans"
+    )
+    # The project-less placeholder (create-time only) carries no `-p`; it is
+    # always overwritten by update_compose_source before any deploy.
+    assert lifecycle.preview_compose_command() == (
+        "compose -f docker-compose.pr-preview.yml up -d --build --remove-orphans"
     )
 
 
@@ -849,8 +859,13 @@ def test_AC8_13_102_preview_source_disables_dokploy_auto_deploy(
         expected_status=200,
     ) -> str:
         assert config.api_url == "https://cloud.example/api"
-        assert method == "POST"
         assert expected_status == 200
+        # update_compose_source reads the appName via GET compose.one to scope
+        # the deploy command; everything else is a POST mutation.
+        if endpoint.startswith("compose.one"):
+            assert method == "GET"
+            return '{"appName":"compose-pr-591-app"}'
+        assert method == "POST"
         if endpoint in {"compose.create", "compose.update"}:
             assert payload is not None
             payloads.append(payload)
@@ -871,12 +886,19 @@ def test_AC8_13_102_preview_source_disables_dokploy_auto_deploy(
     lifecycle.update_compose_source(
         lifecycle.DokployConfig("https://cloud.example/api", "secret"),
         compose_id="cmp-591",
-        pr_number=591,
         branch="feature",
         github_integration_id="ghid",
     )
 
+    # create uses the project-less placeholder; update rewrites it with the
+    # appName-scoped command so teardown can reap the stack.
     assert [payload["autoDeploy"] for payload in payloads] == [False, False]
+    create_payload, update_payload = payloads
+    assert "-p " not in create_payload["command"]
+    assert update_payload["command"] == (
+        "compose -p compose-pr-591-app -f docker-compose.pr-preview.yml "
+        "up -d --build --remove-orphans"
+    )
 
 
 def test_AC8_13_71_get_or_create_reuses_existing_compose(
@@ -1083,7 +1105,7 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
             return subprocess.CompletedProcess(
                 cmd,
                 0,
-                stdout=json.dumps({"env": effective_env, "composeStatus": "running"}),
+                stdout=json.dumps({"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "running"}),
                 stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
@@ -1167,7 +1189,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
                 cmd,
                 0,
                 stdout=json.dumps(
-                    {"env": effective_env, "composeStatus": "idle", "deployments": []}
+                    {"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "idle", "deployments": []}
                 ),
                 stderr="",
             )
@@ -1258,7 +1280,7 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
                 cmd,
                 0,
                 stdout=json.dumps(
-                    {"env": effective_env, "composeStatus": "idle", "deployments": []}
+                    {"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "idle", "deployments": []}
                 ),
                 stderr="",
             )
@@ -1340,7 +1362,7 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
                 0,
                 stdout=json.dumps(
                     {
-                        "env": effective_env,
+                        "appName": "compose-pr-591-app", "env": effective_env,
                         "composeStatus": "running",
                         "deployments": [{"deploymentId": "old-dep-591"}],
                     }
@@ -1433,7 +1455,7 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "env": effective_env,
+                        "appName": "compose-pr-591-app", "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [],
                     }
@@ -1446,7 +1468,7 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "env": effective_env,
+                        "appName": "compose-pr-591-app", "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [{"deploymentId": "old-dep-591"}],
                     }
@@ -1545,7 +1567,7 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
             0,
             stdout=json.dumps(
                 {
-                    "env": effective_env,
+                    "appName": "compose-pr-591-app", "env": effective_env,
                     "composeStatus": "idle",
                     "deployments": [],
                 }
@@ -1646,7 +1668,7 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "env": effective_env,
+                        "appName": "compose-pr-591-app", "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [],
                     }
@@ -1659,7 +1681,7 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "env": effective_env,
+                        "appName": "compose-pr-591-app", "env": effective_env,
                         "composeStatus": "error",
                         "deployments": [{"deploymentId": "dep-591", "status": "error"}],
                     }
@@ -1756,7 +1778,7 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "env": effective_env,
+                        "appName": "compose-pr-591-app", "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [],
                     }
@@ -1852,7 +1874,7 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
             return subprocess.CompletedProcess(
                 cmd,
                 0,
-                stdout=json.dumps({"env": effective_env, "composeStatus": "error"}),
+                stdout=json.dumps({"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "error"}),
                 stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
@@ -1932,7 +1954,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
             return subprocess.CompletedProcess(
                 cmd,
                 0,
-                stdout=json.dumps({"env": effective_env, "composeStatus": "running"}),
+                stdout=json.dumps({"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "running"}),
                 stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
