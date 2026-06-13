@@ -76,6 +76,11 @@ class RateLimiter:
             if key in self._local_state:
                 del self._local_state[key]
 
+    def clear(self) -> None:
+        """Drop all rate-limit state (every key). Used for test isolation."""
+        with self._lock:
+            self._local_state.clear()
+
 
 # Global rate limiters for auth endpoints
 auth_rate_limiter = RateLimiter(
