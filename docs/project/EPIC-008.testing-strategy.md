@@ -248,7 +248,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.10.5 | Reconciliation engine runs | `test_traceability_reconciliation_engine()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.6 | Unbalanced entry rejected | `test_traceability_unbalanced_entry_rejected()` | `e2e/test_core_journeys.py` | P0 |
 | AC8.10.7 | Reports API accessible | `test_traceability_reports_api()` | `e2e/test_core_journeys.py` | P0 |
-| AC8.10.8 | User registration flow | `test_traceability_user_registration()` | `e2e/test_core_journeys.py` | P0 |
+| AC8.10.8 | User registration flow | `test_traceability_user_registration()`, `test_registration_flow`, `test_AC8_10_8_registration_flow_accepts_current_landing_route` | `e2e/test_core_journeys.py`, `tests/e2e/test_e2e_flows.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.10.9 | Authentication validation | `test_traceability_authentication_validation()` | `e2e/test_core_journeys.py` | P0 |
 
 ### AC8.11: Phase 2 — Core Financial Journeys
@@ -298,7 +298,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.25 | Full CI starts deterministic test and image jobs after change classification while `finish` aggregates lint, AC traceability, tests, image validation, coverage, and skipped-job semantics | `test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.26 | CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift | `test_AC8_13_26_*` | `tests/tooling/` | P0 |
 | AC8.13.27 | Pull requests do not publish Coveralls status contexts; main-only Coveralls reporting remains separate from local deterministic coverage gates | `test_AC8_13_27_*` | `tests/tooling/` | P0 |
-| AC8.13.28 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
+| AC8.13.28 | Deterministic upload-to-dashboard gate runs as a critical fresh-user staging E2E | `test_statement_upload_to_dashboard_vision_hard_gate`, `test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.29 | Stage 1 review auto-posts journal entries from the deterministic fixture | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.30 | Reconciliation rerun is idempotent and Stage 2 run review reaches a cleared completion state | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |
 | AC8.13.31 | Processing Account summary and pending page stay visible and correct for the cleared run | `test_statement_upload_to_dashboard_vision_hard_gate` | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | P0 |

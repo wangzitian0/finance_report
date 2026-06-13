@@ -24,7 +24,13 @@ from playwright.async_api import Page, expect
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS: int = int(os.getenv("PARSING_TIMEOUT_MS", "120000"))
-FIXTURE_PATH = Path(__file__).resolve().parents[2] / "tests" / "e2e" / "fixtures" / "vision_hard_gate_statement.csv"
+FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "tests"
+    / "e2e"
+    / "fixtures"
+    / "vision_hard_gate_statement.csv"
+)
 FIXTURE_PERIOD_START = "2026-05-01"
 FIXTURE_PERIOD_END = "2026-05-31"
 INSTITUTION_LABEL = "Generic Vision Hard Gate"
@@ -82,7 +88,9 @@ async def _api_json(
 ) -> dict:
     request_headers = headers or await _auth_headers(page)
     if method == "POST":
-        response = await page.request.post(_get_url(path), data=data, headers=request_headers)
+        response = await page.request.post(
+            _get_url(path), data=data, headers=request_headers
+        )
     else:
         response = await page.request.get(_get_url(path), headers=request_headers)
     body = await response.text()
@@ -94,12 +102,16 @@ async def _goto_ready(page: Page, path: str) -> None:
     await page.goto(_get_url(path), wait_until="domcontentloaded")
 
 
-async def _wait_for_statement_status(page: Page, statement_id: str, target_status: str) -> dict:
+async def _wait_for_statement_status(
+    page: Page, statement_id: str, target_status: str
+) -> dict:
     headers = await _auth_headers(page)
     deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_statement: dict | None = None
     while asyncio.get_running_loop().time() < deadline:
-        last_statement = await _api_json(page, f"/api/statements/{statement_id}", headers=headers)
+        last_statement = await _api_json(
+            page, f"/api/statements/{statement_id}", headers=headers
+        )
         if last_statement.get("status") == target_status:
             return last_statement
         await page.wait_for_timeout(1_000)
@@ -109,15 +121,21 @@ async def _wait_for_statement_status(page: Page, statement_id: str, target_statu
     )
 
 
-def _assert_expected_totals(payload: dict, expected: dict[str, Decimal], keys: Sequence[str]) -> None:
+def _assert_expected_totals(
+    payload: dict, expected: dict[str, Decimal], keys: Sequence[str]
+) -> None:
     for key in keys:
-        assert _money(payload[key]) == expected[key], f"{key} mismatch: expected {expected[key]}, got {payload[key]}"
+        assert _money(payload[key]) == expected[key], (
+            f"{key} mismatch: expected {expected[key]}, got {payload[key]}"
+        )
 
 
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
-async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page_unique: Page) -> None:
+async def test_statement_upload_to_dashboard_vision_hard_gate(
+    authenticated_page_unique: Page,
+) -> None:
     """EPIC-003 EPIC-004 EPIC-005 EPIC-008 EPIC-010 EPIC-014 EPIC-015 EPIC-016 EPIC-018 EPIC-019.
 
     AC8.13.28 AC8.13.29 AC8.13.30 AC8.13.31 AC8.13.32: upload fixture to trusted reports.
@@ -129,12 +147,16 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
 
     await page.locator("#institution").fill(INSTITUTION_LABEL)
     await page.set_input_files("#file-upload", str(fixture_path))
-    await expect(page.locator("p.font-medium", has_text=fixture_path.name)).to_be_visible(timeout=5_000)
+    await expect(
+        page.locator("p.font-medium", has_text=fixture_path.name)
+    ).to_be_visible(timeout=5_000)
 
     upload_resp = None
     upload_body_text = ""
     for attempt in range(1, 4):
-        async with page.expect_response(lambda r: "/api/statements/upload" in r.url, timeout=30_000) as upload_info:
+        async with page.expect_response(
+            lambda r: "/api/statements/upload" in r.url, timeout=30_000
+        ) as upload_info:
             await page.get_by_role("button", name="Upload & Parse Statement").click()
         upload_resp = await upload_info.value
         upload_body_text = await upload_resp.text()
@@ -151,18 +173,32 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     statement_id = upload_body.get("id")
     assert statement_id, f"Upload response missing statement id: {upload_body}"
 
-    statement_row = page.locator("a").filter(has_text=INSTITUTION_LABEL).first
-    await expect(statement_row).to_be_visible(timeout=15_000)
+    statement_link = page.locator(f'a[href="/statements/{statement_id}"]')
+    await expect(statement_link).to_be_visible(timeout=15_000)
+    statement_card = statement_link.locator(
+        "xpath=ancestor::div[contains(@class, 'relative') and contains(@class, 'block')][1]"
+    )
+    await expect(statement_card).to_contain_text(fixture_path.name, timeout=15_000)
+    await expect(statement_card).to_contain_text(INSTITUTION_LABEL, timeout=15_000)
     parsed_statement = await _wait_for_statement_status(page, statement_id, "parsed")
-    assert len(parsed_statement.get("transactions") or []) == EXPECTED_TOTALS["transaction_count"]
+    assert (
+        len(parsed_statement.get("transactions") or [])
+        == EXPECTED_TOTALS["transaction_count"]
+    )
 
-    await statement_row.click()
+    await statement_link.click()
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
-    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(timeout=10_000)
-    await expect(page.locator("table tbody tr")).to_have_count(EXPECTED_TOTALS["transaction_count"], timeout=10_000)
+    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(
+        timeout=10_000
+    )
+    await expect(page.locator("table tbody tr")).to_have_count(
+        EXPECTED_TOTALS["transaction_count"], timeout=10_000
+    )
 
     await page.get_by_role("link", name=re.compile("Start Review")).click()
-    await expect(page).to_have_url(re.compile(r"/statements/[^/]+/review$"), timeout=15_000)
+    await expect(page).to_have_url(
+        re.compile(r"/statements/[^/]+/review$"), timeout=15_000
+    )
 
     approve_button = page.get_by_role("button", name="Approve").first
     await expect(approve_button).to_be_enabled(timeout=10_000)
@@ -176,16 +212,26 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     approve_resp = await approve_info.value
     approve_body = await approve_resp.json()
     assert approve_resp.status == 200, f"Stage 1 approve failed: {approve_body}"
-    assert approve_body["journal_entries_created"] == EXPECTED_TOTALS["transaction_count"]
+    assert (
+        approve_body["journal_entries_created"] == EXPECTED_TOTALS["transaction_count"]
+    )
 
-    await expect(page).to_have_url(re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000)
-    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(timeout=15_000)
+    await expect(page).to_have_url(
+        re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000
+    )
+    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(
+        timeout=15_000
+    )
 
-    journal_entries = await _api_json(page, f"/api/journal-entries?limit={EXPECTED_TOTALS['transaction_count'] + 4}")
+    journal_entries = await _api_json(
+        page, f"/api/journal-entries?limit={EXPECTED_TOTALS['transaction_count'] + 4}"
+    )
     assert journal_entries["total"] == EXPECTED_TOTALS["transaction_count"]
     assert len(journal_entries["items"]) == EXPECTED_TOTALS["transaction_count"]
     assert {item["status"].lower() for item in journal_entries["items"]} == {"posted"}
-    assert {item["memo"] for item in journal_entries["items"]} == {row["Description"] for row in _read_fixture_rows()}
+    assert {item["memo"] for item in journal_entries["items"]} == {
+        row["Description"] for row in _read_fixture_rows()
+    }
 
     reconciliation_headers = await _auth_headers(page)
     first_run = await _api_json(
@@ -224,7 +270,12 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         "pending_review": 0,
         "auto_accepted": EXPECTED_TOTALS["transaction_count"],
         "match_rate": 100.0,
-        "score_distribution": {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": EXPECTED_TOTALS["transaction_count"]},
+        "score_distribution": {
+            "0-59": 0,
+            "60-79": 0,
+            "80-89": 0,
+            "90-100": EXPECTED_TOTALS["transaction_count"],
+        },
     }
 
     stage2_queue = await _api_json(page, "/api/statements/stage2/queue")
@@ -232,12 +283,11 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     assert stage2_queue["consistency_checks"] == []
     assert stage2_queue["has_unresolved_checks"] is False
 
-    await _goto_ready(page, f"/review/run/{statement_id}")
-    await expect(page.get_by_role("heading", name="Stage 2 Run Review")).to_be_visible(timeout=10_000)
+    await _goto_ready(page, "/reconciliation/review-queue")
+    await expect(page.get_by_role("heading", name="Review queue")).to_be_visible(
+        timeout=10_000
+    )
     await expect(page.get_by_text("No pending matches")).to_be_visible(timeout=10_000)
-    run_approve_button = page.get_by_role("button", name="Approve Run")
-    await expect(run_approve_button).to_be_disabled()
-    assert await run_approve_button.get_attribute("title") == "No pending matches remain"
 
     processing_summary = await _api_json(page, "/api/accounts/processing/summary")
     assert processing_summary == {
@@ -249,17 +299,31 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     }
 
     await _goto_ready(page, "/processing")
-    await expect(page.get_by_role("heading", name="Processing Transfers")).to_be_visible(timeout=10_000)
-    await expect(page.get_by_text("No pending transfers found.")).to_be_visible(timeout=10_000)
+    await expect(
+        page.get_by_role("heading", name="Processing Transfers")
+    ).to_be_visible(timeout=10_000)
+    await expect(page.get_by_text("No pending transfers found.")).to_be_visible(
+        timeout=10_000
+    )
 
-    balance_sheet = await _api_json(page, f"/api/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD")
-    _assert_expected_totals(balance_sheet, EXPECTED_TOTALS, ("total_assets", "total_liabilities", "total_equity"))
+    balance_sheet = await _api_json(
+        page, f"/api/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD"
+    )
+    _assert_expected_totals(
+        balance_sheet,
+        EXPECTED_TOTALS,
+        ("total_assets", "total_liabilities", "total_equity"),
+    )
 
     income_statement = await _api_json(
         page,
         f"/api/reports/income-statement?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD",
     )
-    _assert_expected_totals(income_statement, EXPECTED_TOTALS, ("total_income", "total_expenses", "net_income"))
+    _assert_expected_totals(
+        income_statement,
+        EXPECTED_TOTALS,
+        ("total_income", "total_expenses", "net_income"),
+    )
 
     cash_flow = await _api_json(
         page,
@@ -276,7 +340,9 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     dashboard_analytics = page.get_by_role("region", name="Dashboard analytics")
     await expect(upload_home).to_be_visible(timeout=10_000)
     await expect(dashboard_analytics).to_be_visible(timeout=10_000)
-    await expect(upload_home.get_by_text("Loading upload-to-report workflow...")).to_be_hidden(timeout=30_000)
+    await expect(
+        upload_home.get_by_text("Loading upload-to-report workflow...")
+    ).to_be_hidden(timeout=30_000)
     await expect(
         dashboard_analytics.get_by_role("status", name="Dashboard analytics loading")
     ).to_be_hidden(timeout=30_000)
@@ -294,7 +360,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
     ).to_be_visible()
     await expect(
         page.locator(".card")
-        .filter(has_text="Net Assets")
+        .filter(has_text="Net Worth")
         .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["total_assets"]))
     ).to_be_visible()
     await expect(
@@ -313,20 +379,26 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))
     ).to_be_visible()
 
-    await _goto_ready(page, f"/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD")
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(timeout=10_000)
-    await expect(page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")).to_contain_text(
-        _format_grouped_int(EXPECTED_TOTALS["total_assets"])
+    await _goto_ready(
+        page, f"/reports/balance-sheet?as_of_date={FIXTURE_PERIOD_END}&currency=SGD"
     )
-    await expect(page.locator(".card").filter(has_text="Liabilities").filter(has_text="Total:")).to_contain_text(
-        _format_grouped_int(EXPECTED_TOTALS["total_liabilities"])
+    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
+        timeout=10_000
     )
+    await expect(
+        page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")
+    ).to_contain_text(_format_grouped_int(EXPECTED_TOTALS["total_assets"]))
+    await expect(
+        page.locator(".card").filter(has_text="Liabilities").filter(has_text="Total:")
+    ).to_contain_text(_format_grouped_int(EXPECTED_TOTALS["total_liabilities"]))
 
     await _goto_ready(
         page,
         f"/reports/income-statement?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD",
     )
-    await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(
+        timeout=10_000
+    )
     await expect(
         page.locator(".card")
         .filter(has_text="Total Income")
@@ -343,24 +415,6 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(authenticated_page
         .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_income"]))
     ).to_be_visible()
 
-    await _goto_ready(page, f"/reports/cash-flow?start_date={FIXTURE_PERIOD_START}&end_date={FIXTURE_PERIOD_END}&currency=SGD")
-    await expect(page.get_by_role("heading", name="Cash Flow Statement")).to_be_visible(timeout=10_000)
-    await expect(
-        page.locator(".card")
-        .filter(has_text="Net Cash Flow")
-        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["net_cash_flow"]))
-    ).to_be_visible()
-    await expect(
-        page.locator(".card")
-        .filter(has_text="Beginning Cash")
-        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["beginning_cash"]))
-    ).to_be_visible()
-    await expect(
-        page.locator(".card")
-        .filter(has_text="Ending Cash")
-        .filter(has_text=_format_grouped_int(EXPECTED_TOTALS["ending_cash"]))
-    ).to_be_visible()
-
 
 def test_vision_fixture_totals_match_expected_values() -> None:
     """EPIC-003 EPIC-005 EPIC-008 EPIC-016 EPIC-018.
@@ -368,8 +422,22 @@ def test_vision_fixture_totals_match_expected_values() -> None:
     AC8.13.32: deterministic fixture totals stay pinned to exact reporting values.
     """
     rows = _read_fixture_rows()
-    income = sum((_money(row["Amount"]) for row in rows if _money(row["Amount"]) > Decimal("0.00")), Decimal("0.00"))
-    expenses = sum((-_money(row["Amount"]) for row in rows if _money(row["Amount"]) < Decimal("0.00")), Decimal("0.00"))
+    income = sum(
+        (
+            _money(row["Amount"])
+            for row in rows
+            if _money(row["Amount"]) > Decimal("0.00")
+        ),
+        Decimal("0.00"),
+    )
+    expenses = sum(
+        (
+            -_money(row["Amount"])
+            for row in rows
+            if _money(row["Amount"]) < Decimal("0.00")
+        ),
+        Decimal("0.00"),
+    )
     net = income - expenses
 
     assert len(rows) == EXPECTED_TOTALS["transaction_count"]

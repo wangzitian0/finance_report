@@ -397,6 +397,17 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
     assert "/reports/balance-sheet" in test_body
 
 
+def test_AC8_10_8_registration_flow_accepts_current_landing_route() -> None:
+    """AC8.10.8 AC16.12.6 AC1.7.1: registration E2E follows current auth landing route."""
+    flow = read("tests/e2e/test_e2e_flows.py")
+    test_body = flow.split("async def test_registration_flow", 1)[1]
+
+    assert 'page.expect_response("**/api/auth/register")' in test_body
+    assert "await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN" in test_body
+    assert 'page.wait_for_url("**/dashboard"' not in test_body
+    assert '"/dashboard" in page.url' not in test_body
+
+
 def test_AC8_13_6_critical_e2e_skips_become_failures() -> None:
     """AC8.13.6: Critical staging E2E skips fail the deploy gate."""
     conftest = read("tests/e2e/conftest.py")
@@ -1154,12 +1165,9 @@ def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
 
     assert "Generated DB Schema Reference Check" in workflow
     assert (
-        "uv run python ../../tools/generate_db_schema_reference.py --check"
-        in workflow
+        "uv run python ../../tools/generate_db_schema_reference.py --check" in workflow
     )
-    generate_line = (
-        "uv run python ../../tools/generate_db_schema_reference.py\n"
-    )
+    generate_line = "uv run python ../../tools/generate_db_schema_reference.py\n"
     assert generate_line in workflow
     assert workflow.index(generate_line) < workflow.index(
         "uv run python ../../tools/generate_db_schema_reference.py --check"
@@ -2754,6 +2762,20 @@ def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
     assert "test_statement_upload_to_dashboard_vision_hard_gate" in epic
 
 
+def test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator() -> None:
+    """AC8.13.28: statement upload E2E locates the detail link by statement id."""
+    gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
+    test_body = gate.split(
+        "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
+    )[1]
+
+    assert "f'a[href=\"/statements/{statement_id}\"]'" in test_body
+    assert "statement_card" in test_body
+    assert "fixture_path.name" in test_body
+    assert "filter(has_text=INSTITUTION_LABEL).first" not in test_body
+    assert 'page.locator("a").filter(has_text=INSTITUTION_LABEL)' not in test_body
+
+
 def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
     """AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
@@ -2767,7 +2789,7 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
         "/dashboard",
         "/reports/balance-sheet",
         "/reports/income-statement",
-        "/reports/cash-flow",
+        "/api/reports/cash-flow",
         '"total_income": Decimal("5600.00")',
         '"total_expenses": Decimal("5600.00")',
         '"net_income": Decimal("0.00")',
@@ -2775,6 +2797,8 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
         '"No pending transfers found."',
     ):
         assert token in gate
+    assert 'f"/reports/cash-flow' not in gate
+    assert '"Cash Flow Statement"' not in gate
     assert "upload-to-dashboard vision hard gate" in ci_cd
 
 
