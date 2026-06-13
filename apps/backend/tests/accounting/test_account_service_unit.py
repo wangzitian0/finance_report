@@ -28,7 +28,6 @@ def user_id(test_user):
     return test_user.id
 
 
-@pytest.mark.asyncio
 async def test_create_account(mock_db, user_id):
     """Test creating an account."""
     account_data = AccountCreate(
@@ -49,7 +48,6 @@ async def test_create_account(mock_db, user_id):
     mock_db.refresh.assert_called_once_with(account)
 
 
-@pytest.mark.asyncio
 async def test_get_account_success(mock_db, user_id):
     """Test getting an existing account."""
     account_id = uuid4()
@@ -66,7 +64,6 @@ async def test_get_account_success(mock_db, user_id):
     mock_db.execute.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_get_account_not_found(mock_db, user_id):
     """Test getting a non-existent account."""
     account_id = uuid4()
@@ -80,7 +77,6 @@ async def test_get_account_not_found(mock_db, user_id):
         await account_service.get_account(mock_db, user_id, account_id)
 
 
-@pytest.mark.asyncio
 async def test_update_account_success(mock_db, user_id):
     """Test updating an account with all fields."""
     account_id = uuid4()
@@ -108,7 +104,6 @@ async def test_update_account_success(mock_db, user_id):
     mock_db.refresh.assert_called_once_with(mock_account)
 
 
-@pytest.mark.asyncio
 async def test_update_account_not_found(mock_db, user_id):
     """Test updating a non-existent account."""
     account_id = uuid4()
@@ -123,7 +118,6 @@ async def test_update_account_not_found(mock_db, user_id):
         await account_service.update_account(mock_db, user_id, account_id, update_data)
 
 
-@pytest.mark.asyncio
 async def test_list_accounts(mock_db, user_id):
     """Test listing accounts."""
     mock_accounts = [
@@ -146,7 +140,6 @@ async def test_list_accounts(mock_db, user_id):
     assert total == 2
 
 
-@pytest.mark.asyncio
 async def test_list_accounts_with_filters(mock_db, user_id):
     """Test listing accounts with filters."""
     mock_accounts = [Account(id=uuid4(), user_id=user_id, name="Acc 1")]
@@ -167,7 +160,6 @@ async def test_list_accounts_with_filters(mock_db, user_id):
     assert total == 1
 
 
-@pytest.mark.asyncio
 async def test_update_account_clear_fields(mock_db, user_id):
     """Test clearing nullable fields by setting them to None."""
     account_id = uuid4()

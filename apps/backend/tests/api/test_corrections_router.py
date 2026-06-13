@@ -39,7 +39,6 @@ async def test_post_create_correction_and_stats(client: AsyncClient, db, test_us
     assert isinstance(sbody["top_corrections"], list)
 
 
-@pytest.mark.asyncio
 async def test_create_correction_returns_404_when_transaction_is_missing(monkeypatch):
     """AC18.2.2: Corrections API maps missing transactions to 404 responses."""
 

@@ -221,7 +221,6 @@ def test_AC19_8_2_workflow_session_model_contract() -> None:
     assert {status.value for status in WorkflowSessionStatus} == {"active", "generated", "archived"}
 
 
-@pytest.mark.asyncio
 async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_safe(db_engine, test_user) -> None:
     """AC19.8.9: Concurrent status/events reads share the synthetic active workflow session."""
     sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
@@ -254,7 +253,6 @@ async def test_AC19_8_9_active_workflow_session_get_or_create_is_concurrency_saf
     assert sessions[0].status == WorkflowSessionStatus.ACTIVE
 
 
-@pytest.mark.asyncio
 async def test_AC19_8_9_active_workflow_session_reactivates_existing_inactive_dedupe_row(db, test_user) -> None:
     """AC19.8.9: Inactive synthetic sessions do not make active-session creation fail."""
     archived_session = WorkflowSession(
@@ -400,7 +398,6 @@ def test_AC19_1_3_workflow_event_schema_rejects_external_action_href() -> None:
         )
 
 
-@pytest.mark.asyncio
 async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, test_user) -> None:
     """AC19.1.4: uploaded statement event derivation is deterministic and idempotent."""
     statement, _document = await _make_statement(
@@ -426,7 +423,6 @@ async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, tes
     assert count == 1
 
 
-@pytest.mark.asyncio
 async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user) -> None:
     """AC19.1.5: workflow event reads and lifecycle changes are scoped by user_id."""
     other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
@@ -485,7 +481,6 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
     assert WorkflowEventResponse.model_validate(updated).status == WorkflowEventStatus.ARCHIVED
 
 
-@pytest.mark.asyncio
 async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lifecycle_reset(db, test_user) -> None:
     """AC19.3.1: derived sync updates mutable display fields without lifecycle reset."""
     statement, document = await _make_statement(
@@ -526,7 +521,6 @@ async def test_AC19_3_1_sync_refreshes_mutable_uploaded_event_fields_without_lif
     assert "renamed.csv" in events[0].summary
 
 
-@pytest.mark.asyncio
 async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved(db, test_user) -> None:
     """AC19.12.2 AC19.12.6 AC22.2.2 AC22.2.5: review events are idempotent, current, lifecycle-safe, and deep-link to the statement review page."""
     statement, _document = await _make_statement(
@@ -588,7 +582,6 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
     assert completed_event.action_href == f"/statements/{statement.id}"
 
 
-@pytest.mark.asyncio
 async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without_parse_failure(db, test_user) -> None:
     """AC19.12.2 AC19.12.6: legacy NULL Stage 1 rows derive the correct review event."""
     pending_statement, _pending_document = await _make_statement(
@@ -661,7 +654,6 @@ async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without
     assert parsing_failed_event.action_href == f"/statements/{rejected_by_parser.id}"
 
 
-@pytest.mark.asyncio
 async def test_AC19_12_3_report_readiness_events_follow_package_readiness_without_stale_blockers(
     db,
     test_user,
@@ -765,7 +757,6 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     assert ready_event_after_generation.status == WorkflowEventStatus.ARCHIVED
 
 
-@pytest.mark.asyncio
 async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_payloads(
     db,
     test_user,
@@ -814,7 +805,6 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
     assert blocked_event.status == WorkflowEventStatus.ARCHIVED
 
 
-@pytest.mark.asyncio
 async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_processing(
     db,
     test_user,
@@ -849,7 +839,6 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
     assert status.next_action.href == "/reports/package"
 
 
-@pytest.mark.asyncio
 async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
     """AC19.12.4 AC19.12.6: reconciliation and Processing blockers are lightweight user actions."""
 
@@ -908,7 +897,6 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
     assert all(event.report_impact == WorkflowReportImpact.BLOCKED for event in events)
 
 
-@pytest.mark.asyncio
 async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, test_user) -> None:
     """AC19.3.1: derived sync avoids per-statement workflow event lookups."""
     from sqlalchemy import event as sqlalchemy_event
@@ -939,7 +927,6 @@ async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, t
     assert "join workflow_events" in statements[0]
 
 
-@pytest.mark.asyncio
 async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
     db,
     db_engine,
@@ -1009,7 +996,6 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
     assert len(representative_queries) == 1
 
 
-@pytest.mark.asyncio
 async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user):
     """AC22.4.1: a pending Stage 2 reconciliation match surfaces a reconciliation-review
     event in the inbox that deep-links to /reconciliation/review-queue, and re-syncing

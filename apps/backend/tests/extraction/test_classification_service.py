@@ -7,7 +7,6 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy import select
 
 from src.models.account import Account, AccountType
@@ -16,7 +15,6 @@ from src.models.layer3 import ClassificationRule, RuleType, TransactionClassific
 from src.services.classification import ClassificationService
 
 
-@pytest.mark.asyncio
 class TestClassificationService:
     """Tests for classification logic."""
 

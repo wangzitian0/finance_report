@@ -69,7 +69,6 @@ class TestDirtyAccountLast4Integration:
         pytest.param("AB", "AB", id="two-chars-preserved"),
     ]
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize("ai_value,expected_sanitized", DIRTY_AI_RESPONSES)
     async def test_parse_document_sanitizes_account_last4(self, ai_value, expected_sanitized):
         """AI returns dirty account_last4 → parse_document sanitizes to ≤ 4 alphanumeric."""
@@ -107,7 +106,6 @@ class TestDirtyAccountLast4Integration:
             assert len(expected_sanitized) <= 4
             assert all(c in string.ascii_letters + string.digits for c in expected_sanitized)
 
-    @pytest.mark.asyncio
     async def test_dirty_account_last4_persists_to_db(self, db, test_user):
         """End-to-end: AI returns "553-3" → sanitized → saved to real DB → read back OK."""
         service = ExtractionService()
@@ -151,7 +149,6 @@ class TestDirtyAccountLast4Integration:
         assert len(saved.account_last4) <= 4
 
     @pytest.mark.no_db
-    @pytest.mark.asyncio
     async def test_parse_document_without_account_stays_parsed_before_approval(self):
         """High-confidence extraction without a custody account cannot become APPROVED."""
         service = ExtractionService()
@@ -198,7 +195,6 @@ class TestDbConstraintVarchar4:
     Closes gap: zero constraint violation tests existed before.
     """
 
-    @pytest.mark.asyncio
     async def test_direct_write_oversized_account_last4_raises(self, db, test_user):
         """Writing account_last4 > 4 chars directly triggers DataError."""
         stmt = StatementSummaryFactory.build(
@@ -216,7 +212,6 @@ class TestDbConstraintVarchar4:
 
         await db.rollback()
 
-    @pytest.mark.asyncio
     async def test_exactly_4_chars_accepted(self, db, test_user):
         """Writing account_last4 = exactly 4 chars succeeds."""
         stmt = StatementSummaryFactory.build(
@@ -233,7 +228,6 @@ class TestDbConstraintVarchar4:
         saved = await db.get(StatementSummary, stmt.id)
         assert saved.account_last4 == "5533"
 
-    @pytest.mark.asyncio
     async def test_null_account_last4_accepted(self, db, test_user):
         """Writing account_last4 = NULL succeeds (nullable column)."""
         stmt = StatementSummaryFactory.build(
@@ -262,7 +256,6 @@ class TestBackgroundTaskDirtyData:
     Closes gap: only ExtractionError / StorageError paths were tested before.
     """
 
-    @pytest.mark.asyncio
     async def test_background_task_with_dirty_account_last4_succeeds(self, db, test_user, monkeypatch):
         """Full background task flow: dirty AI response → sanitized → saved → PARSED/APPROVED."""
         from src.database import create_session_maker_from_db
@@ -348,7 +341,6 @@ class TestCascadingFailureRecovery:
     These tests verify the fix handles both.
     """
 
-    @pytest.mark.asyncio
     async def test_handle_parse_failure_after_data_error(self, db, test_user):
         """Simulate the exact production failure: commit DataError → handler recovers."""
         from src.services.statement_parsing import handle_parse_failure
@@ -387,7 +379,6 @@ class TestCascadingFailureRecovery:
         assert "StringDataRightTruncation" in result.validation_error
         assert result.confidence_score == 0
 
-    @pytest.mark.asyncio
     async def test_handle_parse_failure_after_integrity_error(self, db, test_user):
         """Handler recovers after IntegrityError (e.g., duplicate file_hash)."""
         from src.services.statement_parsing import handle_parse_failure
@@ -433,7 +424,6 @@ class TestCascadingFailureRecovery:
         assert result.status == BankStatementStatus.REJECTED
         assert result.validation_error == "Integrity violation test"
 
-    @pytest.mark.asyncio
     async def test_background_task_commit_failure_falls_through_to_handler(self, db, test_user, monkeypatch):
         """Verify that when commit() fails at finalize, _handle_parse_failure is invoked.
 

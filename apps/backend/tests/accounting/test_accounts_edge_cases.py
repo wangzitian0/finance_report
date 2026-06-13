@@ -6,13 +6,10 @@ that are not covered in the main test files.
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from src.models.account import Account, AccountType
 from src.models.journal import Direction, JournalEntry, JournalLine
 
 
-@pytest.mark.asyncio
 class TestAccountsRouterCoverage:
     """Additional tests for accounts router coverage."""
 

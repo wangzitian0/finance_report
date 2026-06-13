@@ -90,7 +90,6 @@ async def expense_account(db: AsyncSession, test_user_id):
     return account
 
 
-@pytest.mark.asyncio
 async def test_calculate_balance_for_asset_account(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test balance calculation for asset account with salary income."""
     # Create and post journal entry: Debit Bank 5000, Credit Salary 5000
@@ -127,7 +126,6 @@ async def test_calculate_balance_for_asset_account(db: AsyncSession, bank_accoun
     assert balance == Decimal("5000.00")
 
 
-@pytest.mark.asyncio
 async def test_calculate_balance_for_income_account(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test balance calculation for income account."""
     # Create and post journal entry
@@ -164,7 +162,6 @@ async def test_calculate_balance_for_income_account(db: AsyncSession, bank_accou
     assert balance == Decimal("3000.00")
 
 
-@pytest.mark.asyncio
 async def test_post_journal_entry_success(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test posting a draft journal entry."""
     # Create draft entry
@@ -203,7 +200,6 @@ async def test_post_journal_entry_success(db: AsyncSession, bank_account, salary
     assert posted_entry.id == entry.id
 
 
-@pytest.mark.asyncio
 async def test_AC2_13_1_create_journal_entry_rejects_cross_user_account(
     db: AsyncSession,
     bank_account,
@@ -235,7 +231,6 @@ async def test_AC2_13_1_create_journal_entry_rejects_cross_user_account(
         )
 
 
-@pytest.mark.asyncio
 async def test_AC2_13_1_line_account_ownership_accepts_empty_line_set(
     db: AsyncSession,
     test_user_id,
@@ -246,7 +241,6 @@ async def test_AC2_13_1_line_account_ownership_accepts_empty_line_set(
     assert accounts == {}
 
 
-@pytest.mark.asyncio
 async def test_AC2_13_1_line_account_ownership_rejects_missing_account(
     db: AsyncSession,
     test_user_id,
@@ -258,7 +252,6 @@ async def test_AC2_13_1_line_account_ownership_rejects_missing_account(
         await validate_line_account_ownership(db, test_user_id, {missing_account_id})
 
 
-@pytest.mark.asyncio
 async def test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary(
     db: AsyncSession,
     bank_account,
@@ -309,7 +302,6 @@ async def test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary(
     await db.rollback()
 
 
-@pytest.mark.asyncio
 async def test_AC2_13_2_posting_invariants_reject_line_with_missing_account_relationship(
     test_user_id,
 ):
@@ -343,7 +335,6 @@ async def test_AC2_13_2_posting_invariants_reject_line_with_missing_account_rela
         validate_journal_posting_invariants(entry)
 
 
-@pytest.mark.asyncio
 async def test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers(
     db: AsyncSession,
     bank_account,
@@ -400,7 +391,6 @@ async def test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers(
     assert balances[other_account.id] == Decimal("0")
 
 
-@pytest.mark.asyncio
 async def test_post_journal_entry_already_posted_fails(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that posting an already posted entry fails."""
     # Create already posted entry
@@ -437,7 +427,6 @@ async def test_post_journal_entry_already_posted_fails(db: AsyncSession, bank_ac
         await post_journal_entry(db, entry.id, test_user_id)
 
 
-@pytest.mark.asyncio
 async def test_post_unbalanced_journal_entry_fails(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that posting an unbalanced journal entry fails with ValidationError."""
     # Create draft entry with unbalanced lines (debit 1000 != credit 500)
@@ -474,7 +463,6 @@ async def test_post_unbalanced_journal_entry_fails(db: AsyncSession, bank_accoun
         await post_journal_entry(db, entry.id, test_user_id)
 
 
-@pytest.mark.asyncio
 async def test_void_journal_entry_creates_reversal(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that voiding an entry creates a reversal entry."""
     # Create and post entry
@@ -526,7 +514,6 @@ async def test_void_journal_entry_creates_reversal(db: AsyncSession, bank_accoun
     assert reversal_lines[salary_account.id].direction == Direction.DEBIT
 
 
-@pytest.mark.asyncio
 async def test_accounting_equation_holds(db: AsyncSession, bank_account, salary_account, expense_account, test_user_id):
     """Test that the accounting equation holds after multiple transactions."""
     # Transaction 1: Salary income 5000
@@ -591,7 +578,6 @@ async def test_accounting_equation_holds(db: AsyncSession, bank_account, salary_
     assert result is True
 
 
-@pytest.mark.asyncio
 async def test_draft_entries_not_included_in_balance(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that draft entries don't affect balance calculation."""
     # Create draft entry
@@ -629,7 +615,6 @@ async def test_draft_entries_not_included_in_balance(db: AsyncSession, bank_acco
     assert balance == Decimal("0")
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_basic(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test basic journal entry creation with balanced debit/credit."""
     lines_data = [
@@ -662,7 +647,6 @@ async def test_create_journal_entry_basic(db: AsyncSession, bank_account, salary
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_default_source_type(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that source_type defaults to MANUAL."""
     lines_data = [
@@ -682,7 +666,6 @@ async def test_create_journal_entry_default_source_type(db: AsyncSession, bank_a
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_custom_source_type(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test journal entry with custom source_type and source_id."""
     source_id = uuid4()
@@ -706,7 +689,6 @@ async def test_create_journal_entry_custom_source_type(db: AsyncSession, bank_ac
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that line currency defaults to SGD when not specified."""
     lines_data = [
@@ -727,7 +709,6 @@ async def test_create_journal_entry_default_currency_sgd(db: AsyncSession, bank_
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_default_currency_uses_configured_base_currency(
     db: AsyncSession, bank_account, salary_account, test_user_id, monkeypatch: pytest.MonkeyPatch
 ):
@@ -750,7 +731,6 @@ async def test_create_journal_entry_default_currency_uses_configured_base_curren
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_rejects_unbalanced_draft(
     db: AsyncSession, bank_account, salary_account, test_user_id
 ):
@@ -770,7 +750,6 @@ async def test_create_journal_entry_rejects_unbalanced_draft(
         )
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_fx_rate_required_for_foreign_currency(
     db: AsyncSession, bank_account, salary_account, test_user_id
 ):
@@ -795,7 +774,6 @@ async def test_create_journal_entry_fx_rate_required_for_foreign_currency(
         )
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_with_fx_rate(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test journal entry with foreign currency and valid fx_rate."""
     lines_data = [
@@ -822,7 +800,6 @@ async def test_create_journal_entry_with_fx_rate(db: AsyncSession, bank_account,
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_with_optional_fields(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test journal entry with optional event_type and tags."""
     lines_data = [
@@ -860,7 +837,6 @@ async def test_create_journal_entry_with_optional_fields(db: AsyncSession, bank_
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_create_journal_entry_uses_flush_not_commit(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test that create_journal_entry uses flush() not commit() - allows transaction control."""
     lines_data = [
@@ -885,7 +861,6 @@ async def test_create_journal_entry_uses_flush_not_commit(db: AsyncSession, bank
     assert result.scalar_one_or_none() is None
 
 
-@pytest.mark.asyncio
 async def test_post_unbalanced_entry_rejected(db: AsyncSession, bank_account, salary_account, test_user_id):
     """
     CRITICAL: Verify that posting an unbalanced entry is rejected.
@@ -934,7 +909,6 @@ async def test_post_unbalanced_entry_rejected(db: AsyncSession, bank_account, sa
     assert entry.status == JournalEntryStatus.DRAFT
 
 
-@pytest.mark.asyncio
 async def test_post_single_line_entry_rejected(db: AsyncSession, bank_account, test_user_id):
     """
     CRITICAL: Verify that posting a single-line entry is rejected.

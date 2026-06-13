@@ -39,7 +39,6 @@ def test_AC2_12_1_multicurrency_entry_balances_in_base_currency():
         validate_journal_balance([bank_usd, understated_credit])
 
 
-@pytest.mark.asyncio
 async def test_AC2_12_2_accounting_equation_uses_base_currency_balances(db: AsyncSession):
     """AC2.12.2: Accounting equation verification uses base-currency converted balances."""
     user_id = uuid4()

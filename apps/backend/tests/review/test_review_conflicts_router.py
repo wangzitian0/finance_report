@@ -4,7 +4,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +14,6 @@ from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 
 
-@pytest.mark.asyncio
 async def test_review_conflicts_returns_duplicate_and_transfer_candidates(
     client: AsyncClient,
     db: AsyncSession,
@@ -108,7 +106,6 @@ async def test_review_conflicts_returns_duplicate_and_transfer_candidates(
     assert data["duplicates"][0]["description"] == "Coffee"
 
 
-@pytest.mark.asyncio
 async def test_review_conflicts_returns_404_for_missing_statement(client: AsyncClient):
     """AC16.13.14: Conflicts endpoint returns 404 when statement_id does not exist."""
     response = await client.get("/review/conflicts/00000000-0000-0000-0000-000000000000")

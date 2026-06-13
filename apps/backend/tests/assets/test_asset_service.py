@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 
 from src.models.layer2 import AtomicPosition
@@ -14,7 +13,6 @@ from src.models.layer3 import ManagedPosition, PositionStatus
 from src.services.assets import AssetService
 
 
-@pytest.mark.asyncio
 class TestAssetService:
     """Tests for asset reconciliation."""
 

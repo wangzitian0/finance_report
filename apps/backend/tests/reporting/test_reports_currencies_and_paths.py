@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 import pytest_asyncio
 
 from src.models import (
@@ -58,7 +57,6 @@ async def reports_seed_data(db, test_user):
     return asset, income, expense
 
 
-@pytest.mark.asyncio
 class TestCurrenciesEndpoint:
     """Tests for GET /reports/currencies."""
 
@@ -136,7 +134,6 @@ class TestCurrenciesEndpoint:
         assert "GBP" in currencies
 
 
-@pytest.mark.asyncio
 class TestReportsHappyPaths:
     """Duplicate happy path tests to ensure coverage measurement across all shards."""
 

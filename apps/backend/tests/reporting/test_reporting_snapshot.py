@@ -9,7 +9,6 @@ from src.models.layer4 import ReportType
 from src.services.reporting_snapshot import ReportingSnapshotService
 
 
-@pytest.mark.asyncio
 class TestReportingSnapshotService:
     """Tests for snapshot CRUD."""
 

@@ -9,7 +9,6 @@ import pytest
 from src.services.extraction import ExtractionService
 
 
-@pytest.mark.asyncio
 async def test_ai_csv_parsing_returns_valid_mapping():
     """AC18.4.3: AI CSV parsing returns valid column mapping and parses transactions."""
     service = ExtractionService()
@@ -45,7 +44,6 @@ async def test_ai_csv_parsing_returns_valid_mapping():
     assert result["transactions"][1]["amount"] == "3000.00"
 
 
-@pytest.mark.asyncio
 async def test_ai_csv_parsing_skips_invalid_amount_rows():
     """AI CSV parser skips rows with invalid dates or amount values."""
     service = ExtractionService()
@@ -81,7 +79,6 @@ async def test_ai_csv_parsing_skips_invalid_amount_rows():
     assert period_start == period_end
 
 
-@pytest.mark.asyncio
 async def test_ai_csv_parsing_skips_empty_debit_credit_rows():
     """AI CSV parser skips mapped debit/credit rows that contain no amount."""
     service = ExtractionService()
@@ -115,7 +112,6 @@ async def test_ai_csv_parsing_skips_empty_debit_credit_rows():
     assert transactions[0]["direction"] == "IN"
 
 
-@pytest.mark.asyncio
 async def test_known_institution_csv_uses_hardcoded_parser():
     """Known institution CSV uses hardcoded parsers, no AI call needed."""
     service = ExtractionService()
@@ -130,7 +126,6 @@ async def test_known_institution_csv_uses_hardcoded_parser():
     assert result["transactions"][1]["direction"] == "IN"
 
 
-@pytest.mark.asyncio
 async def test_ai_csv_parsing_graceful_failure():
     """AI CSV parsing failure falls through to standard error."""
     service = ExtractionService()

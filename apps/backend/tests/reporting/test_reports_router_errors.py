@@ -4,12 +4,9 @@ from datetime import date
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-import pytest
-
 from src.services.reporting import ReportError
 
 
-@pytest.mark.asyncio
 class TestReportsRouterErrors:
     """Test error handling in reports router endpoints."""
 

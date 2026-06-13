@@ -79,7 +79,6 @@ def _source_documents() -> dict[str, list[dict[str, str]]]:
     return {"documents": [{"doc_id": str(uuid4()), "doc_type": "test"}]}
 
 
-@pytest.mark.asyncio
 async def test_AC11_18_1_positive_source_fact_constraints(db: AsyncSession, test_user) -> None:
     """AC11.18.1: Source financial facts reject non-positive values where positive is required."""
     user_id = test_user.id
@@ -155,7 +154,6 @@ async def test_AC11_18_1_positive_source_fact_constraints(db: AsyncSession, test
     )
 
 
-@pytest.mark.asyncio
 async def test_AC11_18_2_statement_summary_approved_completeness_and_period_order(
     db: AsyncSession,
     test_user,
@@ -244,7 +242,6 @@ async def test_AC11_18_2_statement_summary_approved_completeness_and_period_orde
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniqueness(
     db: AsyncSession,
     test_user,
@@ -384,7 +381,6 @@ async def test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniquen
     )
 
 
-@pytest.mark.asyncio
 async def test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints(
     db: AsyncSession,
     test_user,
@@ -453,7 +449,6 @@ async def test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints(
     )
 
 
-@pytest.mark.asyncio
 async def test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness(
     db: AsyncSession,
     test_user,

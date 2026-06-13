@@ -16,7 +16,6 @@ from src.services.accounting import (
 )
 
 
-@pytest.mark.asyncio
 async def test_balanced_entry_passes():
     """AC2.2.1: Balanced debit/credit entries should pass validation.
 
@@ -45,7 +44,6 @@ async def test_balanced_entry_passes():
     validate_journal_balance(lines)  # Should not raise
 
 
-@pytest.mark.asyncio
 async def test_unbalanced_entry_fails():
     """AC2.2.2: Unbalanced entries should be rejected.
 
@@ -75,7 +73,6 @@ async def test_unbalanced_entry_fails():
         validate_journal_balance(lines)
 
 
-@pytest.mark.asyncio
 async def test_single_line_entry_fails():
     """AC2.2.3: Single-line entries should be rejected.
 
@@ -97,7 +94,6 @@ async def test_single_line_entry_fails():
         validate_journal_balance(lines)
 
 
-@pytest.mark.asyncio
 async def test_decimal_precision():
     """AC2.2.4: Decimal calculations should not lose precision.
 
@@ -112,7 +108,6 @@ async def test_decimal_precision():
     assert str(total) == "150.75"
 
 
-@pytest.mark.asyncio
 async def test_fx_rate_required_for_non_base_currency():
     """AC2.2.5: Non-base currency lines require fx_rate.
 
@@ -135,7 +130,6 @@ async def test_fx_rate_required_for_non_base_currency():
         validate_fx_rates(lines)
 
 
-@pytest.mark.asyncio
 async def test_missing_currency_is_treated_as_base_currency_for_fx_validation():
     """AC2.2.6: Legacy lines without currency are treated as base currency.
 
@@ -157,7 +151,6 @@ async def test_missing_currency_is_treated_as_base_currency_for_fx_validation():
     validate_fx_rates(lines)
 
 
-@pytest.mark.asyncio
 async def test_missing_currency_balances_as_base_currency():
     """AC2.2.7: Balance validation treats omitted currency as base currency."""
     lines = [
@@ -184,7 +177,6 @@ async def test_missing_currency_balances_as_base_currency():
     validate_journal_balance(lines)
 
 
-@pytest.mark.asyncio
 async def test_balance_validation_requires_fx_rate_for_foreign_currency_conversion():
     """AC2.2.5: Balance conversion rejects non-base currency lines without fx_rate."""
     lines = [

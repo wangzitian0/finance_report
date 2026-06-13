@@ -50,7 +50,6 @@ async def accounts(db: AsyncSession, user_id):
     return accs
 
 
-@pytest.mark.asyncio
 async def test_aggregate_balances_with_start_date(db: AsyncSession, accounts, user_id):
     """
     GIVEN entries before and during a date range
@@ -123,7 +122,6 @@ async def test_aggregate_balances_with_start_date(db: AsyncSession, accounts, us
     assert balances_filtered[sgd_cash.id] == Decimal("300.00")
 
 
-@pytest.mark.asyncio
 async def test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_warning(
     db: AsyncSession, accounts, user_id
 ):
@@ -184,7 +182,6 @@ async def test_aggregate_balances_missing_fx_skips_unconvertible_currency_with_w
     ]
 
 
-@pytest.mark.asyncio
 async def test_aggregate_net_income_with_start_date(db: AsyncSession, accounts, user_id):
     """
     GIVEN income entries before and during a date range
@@ -255,7 +252,6 @@ async def test_aggregate_net_income_with_start_date(db: AsyncSession, accounts, 
     assert net_filtered == Decimal("500.00")
 
 
-@pytest.mark.asyncio
 async def test_net_income_fx_data_consistency_error(db: AsyncSession, accounts, user_id):
     """
     GIVEN a multi-currency entry with FX rate gap
@@ -310,7 +306,6 @@ async def test_net_income_fx_data_consistency_error(db: AsyncSession, accounts, 
             await generate_balance_sheet(db, user_id, as_of_date=date(2025, 1, 31), currency="SGD")
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_sqlalchemy_error_on_aggregation(db: AsyncSession, accounts, user_id):
     """
     GIVEN _aggregate_balances_sql raises SQLAlchemyError
@@ -327,7 +322,6 @@ async def test_balance_sheet_sqlalchemy_error_on_aggregation(db: AsyncSession, a
             await generate_balance_sheet(db, user_id, as_of_date=date(2025, 1, 31), currency="SGD")
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_sqlalchemy_error_on_net_income(db: AsyncSession, accounts, user_id):
     """
     GIVEN _aggregate_net_income_sql raises SQLAlchemyError
@@ -344,7 +338,6 @@ async def test_balance_sheet_sqlalchemy_error_on_net_income(db: AsyncSession, ac
             await generate_balance_sheet(db, user_id, as_of_date=date(2025, 1, 31), currency="SGD")
 
 
-@pytest.mark.asyncio
 async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, accounts, user_id):
     """
     GIVEN a USD income entry with SGD target currency
@@ -417,7 +410,6 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
             assert report["total_income"] == Decimal("135.00")
 
 
-@pytest.mark.asyncio
 async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts, user_id):
     """
     GIVEN a USD income entry with SGD target currency
@@ -483,7 +475,6 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
                 )
 
 
-@pytest.mark.asyncio
 async def test_trend_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
     """
     GIVEN a same-currency (SGD/SGD) account trend request
@@ -530,7 +521,6 @@ async def test_trend_same_currency_rate_none_fallback(db: AsyncSession, accounts
         assert isinstance(result["points"], list)
 
 
-@pytest.mark.asyncio
 async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
     """
     GIVEN a same-currency (SGD/SGD) category breakdown request
@@ -579,7 +569,6 @@ async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, acco
         assert isinstance(result["items"], list)
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
     """
     GIVEN same-currency (SGD/SGD) cash flow entries before and during period
@@ -657,7 +646,6 @@ async def test_cash_flow_same_currency_rate_none_fallback(db: AsyncSession, acco
         assert isinstance(result["summary"], dict)
 
 
-@pytest.mark.asyncio
 async def test_currencies_endpoint_inserts_base_currency(client, db, test_user):
     """
     GIVEN no FX rates exist in the database
@@ -670,7 +658,6 @@ async def test_currencies_endpoint_inserts_base_currency(client, db, test_user):
     assert "SGD" in currencies
 
 
-@pytest.mark.asyncio
 async def test_currencies_endpoint_with_rates_not_including_base(client, db, test_user):
     """
     GIVEN FX rates exist only between non-base currencies (JPY/KRW)

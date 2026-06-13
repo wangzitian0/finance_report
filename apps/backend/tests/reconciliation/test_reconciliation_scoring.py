@@ -373,7 +373,6 @@ def test_prune_candidates_orders_and_limits() -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_score_pattern_variants(db: AsyncSession) -> None:
     txn_empty = AtomicTransaction(
         user_id=uuid4(),
@@ -448,7 +447,6 @@ async def test_score_pattern_variants(db: AsyncSession) -> None:
     assert await score_pattern(db, txn_miss, DEFAULT_CONFIG, user_id=user_id) == 40.0
 
 
-@pytest.mark.asyncio
 async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None:
     user_id = uuid4()
     bank = Account(

@@ -4,14 +4,11 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
-
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
 from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.services.assets import AssetService
 
 
-@pytest.mark.asyncio
 async def test_create_manual_valuation_snapshot_crud_api(client):
     """AC11.9.1: Manual valuation snapshots support audited CRUD endpoints."""
     payload = {
@@ -57,7 +54,6 @@ async def test_create_manual_valuation_snapshot_crud_api(client):
     assert empty_response.json()["total"] == 0
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_filter_detail_and_default_liquidity_update(client):
     """AC11.9.1: Valuation APIs support filtering, detail reads, and default liquidity updates."""
     property_payload = {
@@ -105,7 +101,6 @@ async def test_manual_valuation_snapshot_filter_detail_and_default_liquidity_upd
     assert updated["notes"] is None
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_errors(client):
     """AC11.9.1: Valuation APIs return typed errors for bad filters and missing snapshots."""
     missing_id = uuid4()
@@ -129,7 +124,6 @@ async def test_manual_valuation_snapshot_errors(client):
     assert delete_response.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_components_api_returns_latest_as_of_values(client):
     """AC11.9.2: Latest valuation components are exposed through the assets API."""
     old_property = {
@@ -166,7 +160,6 @@ async def test_manual_valuation_components_api_returns_latest_as_of_values(clien
     assert {item["component_type"] for item in data["items"]} == {"property_value", "mortgage_balance"}
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
     """AC11.9.1: Valuation mutation endpoints return server errors when persistence fails."""
     from src.routers import assets as assets_router
@@ -198,7 +191,6 @@ async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(cli
     assert update_response.status_code == 500
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_service_updates_optional_fields_and_missing_rows(db, test_user):
     """AC11.9.1: Service updates every optional field and handles missing snapshots."""
     service = AssetService()
@@ -269,7 +261,6 @@ def test_manual_valuation_snapshot_schema_normalizes_currency():
     assert empty_update.currency is None
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_user):
     """AC11.9.2: Latest manual snapshots feed net worth components without float arithmetic."""
     service = AssetService()
@@ -312,7 +303,6 @@ async def test_manual_valuation_snapshot_latest_net_worth_components(db, test_us
     assert components.items[1].liquidity_class == "liability"
 
 
-@pytest.mark.asyncio
 async def test_manual_valuation_snapshot_restricted_toggle(db, test_user):
     """AC11.9.3: Restricted/illiquid values can be excluded from liquid net worth views."""
     service = AssetService()

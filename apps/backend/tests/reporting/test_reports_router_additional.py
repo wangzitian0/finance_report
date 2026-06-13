@@ -5,12 +5,9 @@ from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
 
-import pytest
-
 from src.services.reporting import ReportError
 
 
-@pytest.mark.asyncio
 class TestReportsRouterAdditionalCoverage:
     """Test additional reports router paths for coverage."""
 

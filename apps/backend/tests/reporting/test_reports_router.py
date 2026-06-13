@@ -74,7 +74,6 @@ def test_data_setup_reports(db: AsyncSession, test_user):
     return _setup
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_endpoint(client, test_data_setup_reports):
     """[AC5.1.4] Test balance sheet endpoint."""
     await test_data_setup_reports()
@@ -86,7 +85,6 @@ async def test_balance_sheet_endpoint(client, test_data_setup_reports):
     assert data["currency"] == "SGD"
 
 
-@pytest.mark.asyncio
 async def test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings(
     client,
     monkeypatch: pytest.MonkeyPatch,
@@ -119,7 +117,6 @@ async def test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings(
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_income_statement_endpoint(client, test_data_setup_reports):
     """Test income statement endpoint."""
     await test_data_setup_reports()
@@ -132,7 +129,6 @@ async def test_income_statement_endpoint(client, test_data_setup_reports):
     assert data["total_income"] == "1000.00"
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_endpoint(client, test_data_setup_reports):
     """Test cash flow endpoint returns valid response when data exists."""
     await test_data_setup_reports()
@@ -148,7 +144,6 @@ async def test_cash_flow_endpoint(client, test_data_setup_reports):
     assert "financing" in data
 
 
-@pytest.mark.asyncio
 async def test_AC5_16_2_cash_flow_response_preserves_fx_warnings(
     client,
     monkeypatch: pytest.MonkeyPatch,
@@ -199,7 +194,6 @@ async def test_AC5_16_2_cash_flow_response_preserves_fx_warnings(
     ]
 
 
-@pytest.mark.asyncio
 async def test_trending_endpoint(client, test_data_setup_reports):
     """Test trend endpoint."""
     asset, _ = await test_data_setup_reports()
@@ -211,7 +205,6 @@ async def test_trending_endpoint(client, test_data_setup_reports):
     assert len(data["points"]) > 0
 
 
-@pytest.mark.asyncio
 async def test_net_worth_timeseries_endpoint_commits_boundary(
     client,
     db_engine,
@@ -253,7 +246,6 @@ async def test_net_worth_timeseries_endpoint_commits_boundary(
     assert persisted is not None
 
 
-@pytest.mark.asyncio
 async def test_breakdown_endpoint(client, test_data_setup_reports):
     """Test breakdown endpoint."""
     _, income = await test_data_setup_reports()
@@ -263,7 +255,6 @@ async def test_breakdown_endpoint(client, test_data_setup_reports):
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_export_endpoint(client, test_data_setup_reports):
     """Test export endpoint."""
     await test_data_setup_reports()
@@ -287,7 +278,6 @@ async def test_export_endpoint(client, test_data_setup_reports):
     assert "text/csv" in response_is.headers["content-type"]
 
 
-@pytest.mark.asyncio
 async def test_AC5_16_1_balance_sheet_export_honors_restricted_query(
     client,
     monkeypatch: pytest.MonkeyPatch,
@@ -325,7 +315,6 @@ async def test_AC5_16_1_balance_sheet_export_honors_restricted_query(
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_AC5_17_1_cash_flow_export_returns_csv(
     client,
     monkeypatch: pytest.MonkeyPatch,
@@ -381,7 +370,6 @@ async def test_AC5_17_1_cash_flow_export_returns_csv(
     assert "Net Cash Flow,,1000.00,SGD," in response.text
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("path", "attr", "params"),
     [
@@ -418,7 +406,6 @@ async def test_reports_router_handles_report_error(
     assert response.json()["detail"] == "boom"
 
 
-@pytest.mark.asyncio
 async def test_export_report_invalid_format(client, test_data_setup_reports) -> None:
     """Test export with invalid format."""
     await test_data_setup_reports()
@@ -431,7 +418,6 @@ async def test_export_report_invalid_format(client, test_data_setup_reports) -> 
     assert response.status_code == 422
 
 
-@pytest.mark.asyncio
 async def test_export_report_missing_income_dates(client, test_data_setup_reports) -> None:
     """Test export income statement without dates."""
     await test_data_setup_reports()
@@ -445,7 +431,6 @@ async def test_export_report_missing_income_dates(client, test_data_setup_report
     assert "start_date and end_date are required" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_export_report_unsupported_type(client, test_data_setup_reports) -> None:
     """Test export with unsupported report type."""
     await test_data_setup_reports()

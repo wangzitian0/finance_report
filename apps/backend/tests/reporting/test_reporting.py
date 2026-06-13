@@ -76,7 +76,6 @@ async def chart_of_accounts(db: AsyncSession, test_user_id):
     return accounts
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_user_id):
     """[AC5.1.1] Balance sheet should satisfy Assets = Liabilities + Equity."""
     cash, _liability, equity, *_rest = chart_of_accounts
@@ -125,7 +124,6 @@ async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_
     assert report["is_balanced"] is True
 
 
-@pytest.mark.asyncio
 async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts, test_user_id):
     """[AC5.2.1] Income statement should satisfy Net Income = Income - Expenses."""
     cash, _liability, _equity, income, expense = chart_of_accounts
@@ -202,7 +200,6 @@ async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts,
     assert report["net_income"] == Decimal("4800.00")
 
 
-@pytest.mark.asyncio
 async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_of_accounts, test_user_id):
     """[AC5.1.1][AC5.2.1][AC5.3.1][AC5.6.5] Deterministic fixture yields exact report totals."""
     cash, liability, equity, income, expense = chart_of_accounts
@@ -410,7 +407,6 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
     }
 
 
-@pytest.mark.asyncio
 async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     cash, _liability, equity, *_rest = chart_of_accounts
     entry = JournalEntry(
@@ -451,7 +447,6 @@ async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_
     assert any(warning["type"] == "missing_fx_rate_partial_skip" for warning in report["fx_warnings"])
 
 
-@pytest.mark.asyncio
 async def test_income_statement_invalid_range(db: AsyncSession, test_user_id):
     """[AC5.2.3] Test income statement invalid date range validation."""
     with pytest.raises(ReportError, match="start_date must be before end_date"):
@@ -464,7 +459,6 @@ async def test_income_statement_invalid_range(db: AsyncSession, test_user_id):
         )
 
 
-@pytest.mark.asyncio
 async def test_income_statement_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     cash, _liability, _equity, income, _expense = chart_of_accounts
     entry = JournalEntry(
@@ -508,7 +502,6 @@ async def test_income_statement_fx_error(db: AsyncSession, chart_of_accounts, te
         )
 
 
-@pytest.mark.asyncio
 async def test_account_trend_account_not_found(db: AsyncSession, test_user_id):
     with pytest.raises(ReportError, match="Account not found"):
         await get_account_trend(
@@ -520,7 +513,6 @@ async def test_account_trend_account_not_found(db: AsyncSession, test_user_id):
         )
 
 
-@pytest.mark.asyncio
 async def test_account_trend_invalid_period(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
     with pytest.raises(ReportError, match="Unsupported period"):
@@ -533,7 +525,6 @@ async def test_account_trend_invalid_period(db: AsyncSession, chart_of_accounts,
         )
 
 
-@pytest.mark.asyncio
 async def test_account_trend_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
@@ -578,7 +569,6 @@ async def test_account_trend_fx_error(db: AsyncSession, chart_of_accounts, test_
         )
 
 
-@pytest.mark.asyncio
 async def test_category_breakdown_invalid_type(db: AsyncSession, test_user_id):
     with pytest.raises(ReportError, match="Breakdown type must be income or expense"):
         await get_category_breakdown(
@@ -590,7 +580,6 @@ async def test_category_breakdown_invalid_type(db: AsyncSession, test_user_id):
         )
 
 
-@pytest.mark.asyncio
 async def test_category_breakdown_invalid_period(db: AsyncSession, test_user_id):
     with pytest.raises(ReportError, match="Unsupported period"):
         await get_category_breakdown(
@@ -602,7 +591,6 @@ async def test_category_breakdown_invalid_period(db: AsyncSession, test_user_id)
         )
 
 
-@pytest.mark.asyncio
 async def test_category_breakdown_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     cash = chart_of_accounts[0]
     expense = chart_of_accounts[-1]
@@ -647,7 +635,6 @@ async def test_category_breakdown_fx_error(db: AsyncSession, chart_of_accounts, 
         )
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_invalid_range(db: AsyncSession, test_user_id):
     with pytest.raises(ReportError, match="start_date must be before end_date"):
         await generate_cash_flow(
@@ -659,7 +646,6 @@ async def test_cash_flow_invalid_range(db: AsyncSession, test_user_id):
         )
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
@@ -704,7 +690,6 @@ async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, te
         )
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_fx_error_during(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
@@ -749,7 +734,6 @@ async def test_cash_flow_fx_error_during(db: AsyncSession, chart_of_accounts, te
         )
 
 
-@pytest.mark.asyncio
 async def test_account_trend_daily_weekly(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
 
@@ -772,7 +756,6 @@ async def test_account_trend_daily_weekly(db: AsyncSession, chart_of_accounts, t
     assert weekly["period"] == "weekly"
 
 
-@pytest.mark.asyncio
 async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
     report = cast(
         dict[str, Any],
@@ -788,7 +771,6 @@ async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
     assert cast(date, report["period_start"]).year == date.today().year
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_balances_before_period(db: AsyncSession, chart_of_accounts, test_user_id) -> None:
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
@@ -832,7 +814,6 @@ async def test_cash_flow_balances_before_period(db: AsyncSession, chart_of_accou
     assert "summary" in report
 
 
-@pytest.mark.asyncio
 async def test_account_trend_monthly(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Account trend should bucket entries by month."""
     cash, _liability, _equity, income, expense = chart_of_accounts
@@ -917,7 +898,6 @@ async def test_account_trend_monthly(db: AsyncSession, chart_of_accounts, test_u
     assert points[FixedDate(2025, 2, 1)] == Decimal("-40.00")
 
 
-@pytest.mark.asyncio
 async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Category breakdown should aggregate within the selected period."""
     cash, _liability, _equity, _income, expense = chart_of_accounts
@@ -972,7 +952,6 @@ async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts,
     assert cast(list[dict[str, Any]], report["items"])[0]["total"] == Decimal("120.00")
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_user_id):
     """[AC5.3.1] Cash flow statement should track movements across periods."""
     cash, _liability, equity, income, expense = chart_of_accounts
@@ -1116,7 +1095,6 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     }
 
 
-@pytest.mark.asyncio
 async def test_cash_flow_empty_period(db: AsyncSession, chart_of_accounts, test_user_id):
     """[AC5.3.2] Cash flow statement with no transactions should return empty lists."""
     report = cast(
@@ -1136,7 +1114,6 @@ async def test_cash_flow_empty_period(db: AsyncSession, chart_of_accounts, test_
     assert cast(dict[str, Any], report["summary"])["net_cash_flow"] == Decimal("0.00")
 
 
-@pytest.mark.asyncio
 async def test_income_statement_with_tags_filter(db: AsyncSession, chart_of_accounts, test_user_id):
     """Income statement should filter by tags when specified."""
     cash, _liability, _equity, income, expense = chart_of_accounts
@@ -1226,7 +1203,6 @@ async def test_income_statement_with_tags_filter(db: AsyncSession, chart_of_acco
     assert report_with_all_tags["total_income"] == Decimal("5000.00")
 
 
-@pytest.mark.asyncio
 async def test_income_statement_with_account_type_filter(db: AsyncSession, chart_of_accounts, test_user_id):
     """Income statement should filter by account type when specified."""
     cash, _liability, _equity, income, expense = chart_of_accounts
@@ -1319,7 +1295,6 @@ async def test_income_statement_with_account_type_filter(db: AsyncSession, chart
     assert len(report_expense_only["income"]) == 0
 
 
-@pytest.mark.asyncio
 async def test_income_statement_combined_filters(db: AsyncSession, chart_of_accounts, test_user_id):
     """Income statement should support combined tags and account_type filters."""
     cash, _liability, _equity, income, expense = chart_of_accounts
@@ -1400,7 +1375,6 @@ async def test_income_statement_combined_filters(db: AsyncSession, chart_of_acco
     assert report["filters_applied"]["account_type"] == "INCOME"
 
 
-@pytest.mark.asyncio
 async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):
     """Test fallback to convert_amount when PrefetchedFxRates returns None."""
     from src.models import FxRate as FxRateModel

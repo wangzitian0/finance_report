@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
@@ -159,7 +158,6 @@ def test_parse_brokerage_positions_skips_malformed_moomoo_subscription_row():
     assert snapshots == []
 
 
-@pytest.mark.asyncio
 async def test_parse_document_preserves_brokerage_payload_for_background_import(test_user):
     """AC17.4.7: Extraction keeps structured brokerage payloads available for import."""
     service = ExtractionService()
@@ -185,7 +183,6 @@ async def test_parse_document_preserves_brokerage_payload_for_background_import(
     assert statement.extraction_metadata == {"extraction_payload": payload}
 
 
-@pytest.mark.asyncio
 async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user):
     """AC17.4.7: Brokerage transaction-like rows do not block position import handoff."""
     service = ExtractionService()
@@ -213,7 +210,6 @@ async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user
     assert statement._extracted_payload == payload
 
 
-@pytest.mark.asyncio
 async def test_parse_document_normalizes_signed_outflows_before_brokerage_routing():
     """AC8.13.10/Issue #409: Signed OUT brokerage rows do not stall parsed routing."""
     service = ExtractionService()
@@ -262,7 +258,6 @@ async def test_parse_document_normalizes_signed_outflows_before_brokerage_routin
     assert transactions[1].amount == Decimal("500.00")
 
 
-@pytest.mark.asyncio
 async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
     """AC8.13.10/Issue #409: Non-standard debit directions normalize deterministically."""
     service = ExtractionService()
@@ -301,7 +296,6 @@ async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
     assert transactions[0].amount == Decimal("500.00")
 
 
-@pytest.mark.asyncio
 async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
     """AC8.13.10/Issue #409: Brokerage payloads do not stall after OCR balance mismatch."""
     service = ExtractionService()
@@ -350,7 +344,6 @@ async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
     assert statement._extracted_payload["positions"][0]["market_value"] == "1250.50"
 
 
-@pytest.mark.asyncio
 async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test_user, monkeypatch):
     """AC17.4.7: Bank statement payloads do not call brokerage import."""
     statement = _parsed_statement(test_user.id, "bank-hash")
@@ -372,7 +365,6 @@ async def test_import_brokerage_payload_if_present_ignores_bank_payload(db, test
     assert statement.validation_error is None
 
 
-@pytest.mark.asyncio
 async def test_import_brokerage_payload_if_present_records_zero_position_payload(db, test_user):
     """AC17.4.7: Recognized brokerage payloads with no positions remain visible."""
     statement_id = uuid4()
@@ -403,7 +395,6 @@ async def test_import_brokerage_payload_if_present_records_zero_position_payload
     assert "no positions detected" in refreshed.validation_error
 
 
-@pytest.mark.asyncio
 async def test_import_brokerage_payload_if_present_uses_nested_statement_institution(db, test_user, monkeypatch):
     """AC17.4.7: Brokerage import reads broker identity from nested statement metadata."""
     statement = _parsed_statement(test_user.id, "nested-broker-hash")
@@ -446,7 +437,6 @@ async def test_import_brokerage_payload_if_present_uses_nested_statement_institu
     assert started_events[0]["broker"] == "Interactive Brokers"
 
 
-@pytest.mark.asyncio
 async def test_import_brokerage_payload_if_present_stops_when_failed_statement_is_missing(monkeypatch):
     """AC17.4.7: Brokerage import failure handling tolerates deleted statements."""
     statement_id = uuid4()
@@ -489,7 +479,6 @@ async def test_import_brokerage_payload_if_present_stops_when_failed_statement_i
     assert db.lookup == (StatementSummary, statement_id)
 
 
-@pytest.mark.asyncio
 async def test_parse_statement_background_imports_brokerage_positions(client, db, test_user, monkeypatch):
     """AC17.4.7/AC17.5.4/AC8.13.10: Background brokerage import reaches reports."""
     statement_id = uuid4()
@@ -581,7 +570,6 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     )
 
 
-@pytest.mark.asyncio
 async def test_parse_statement_background_persists_brokerage_import_failure(db, test_user, monkeypatch):
     """AC17.4.7: Brokerage import failures are visible on the parsed statement."""
     statement_id = uuid4()

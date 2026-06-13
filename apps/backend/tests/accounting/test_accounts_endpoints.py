@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -19,7 +18,6 @@ async def _create_account(client: AsyncClient, name: str, account_type: str) -> 
     return resp.json()
 
 
-@pytest.mark.asyncio
 async def test_accounts_endpoints(client: AsyncClient) -> None:
     """AC2.10.1: Accounts API endpoints
 

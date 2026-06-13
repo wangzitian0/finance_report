@@ -25,7 +25,6 @@ class TestExtractionServiceFlow:
     def service(self):
         return ExtractionService()
 
-    @pytest.mark.asyncio
     async def test_parse_document_auto_detects_institution(self, service, tmp_path):
         """Test that AI auto-detection sets institution correctly when institution=None."""
         pdf_file = tmp_path / "test.pdf"
@@ -55,7 +54,6 @@ class TestExtractionServiceFlow:
         assert stmt.institution == "UOB"
         assert stmt.account_last4 == "6789"
 
-    @pytest.mark.asyncio
     async def test_parse_document_csv_success(self, service, tmp_path):
         """Test parse_document flow for CSV with mocked specific parser."""
         csv_file = tmp_path / "test.csv"
@@ -83,7 +81,6 @@ class TestExtractionServiceFlow:
             assert stmt.status == BankStatementStatus.PARSED  # Medium confidence requires review
             assert len(events) == 0
 
-    @pytest.mark.asyncio
     async def test_parse_document_csv_without_statement_balances_remains_reviewable(self, service, tmp_path):
         """AC3.2.5: CSV transaction exports without statement balances remain reviewable."""
         csv_file = tmp_path / "dbs-export.csv"
@@ -109,7 +106,6 @@ class TestExtractionServiceFlow:
             "CSV import does not include source statement opening/closing balances; manual review required"
         )
 
-    @pytest.mark.asyncio
     async def test_parse_document_unsupported_type(self, service, tmp_path):
         """[AC3.4.2] Test parse_document raises error for unsupported type."""
         txt_file = tmp_path / "test.txt"
@@ -124,7 +120,6 @@ class TestExtractionServiceFlow:
                 file_content=txt_file.read_bytes(),
             )
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_success_json(self, service, tmp_path):
         """Test extract_financial_data handles JSON response."""
         service.api_key = "test-key"
@@ -137,7 +132,6 @@ class TestExtractionServiceFlow:
             result = await service.extract_financial_data(b"content", "DBS", "png")
             assert result == {"test": "data"}
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_markdown_json(self, service):
         """Test extract_financial_data rejects markdown wrapped JSON."""
         service.api_key = "test-key"
@@ -151,7 +145,6 @@ class TestExtractionServiceFlow:
             with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
                 await service.extract_financial_data(b"content", "DBS", "png")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_rejects_extra_text(self, service):
         """Test extract_financial_data rejects extra non-JSON text."""
         service.api_key = "test-key"
@@ -164,7 +157,6 @@ class TestExtractionServiceFlow:
             with pytest.raises(ExtractionError, match="strict JSON object"):
                 await service.extract_financial_data(b"content", "DBS", "png")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_rejects_array(self, service):
         """Test extract_financial_data rejects JSON arrays."""
         service.api_key = "test-key"
@@ -177,7 +169,6 @@ class TestExtractionServiceFlow:
             with pytest.raises(ExtractionError, match="strict JSON object"):
                 await service.extract_financial_data(b"content", "DBS", "png")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_api_error(self, service):
         """Test extract_financial_data handles API error."""
         service.api_key = "test-key"
@@ -190,14 +181,12 @@ class TestExtractionServiceFlow:
             with pytest.raises(ExtractionError, match="failed"):
                 await service.extract_financial_data(b"content", "DBS", "png")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_no_key(self, service):
         """Test extract_financial_data raises error without key."""
         service.api_key = None
         with pytest.raises(ExtractionError, match="AI provider API key not configured"):
             await service.extract_financial_data(b"content", "DBS", "pdf")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_prefers_content(self, service):
         """Test that file_content is prioritized over file_url for images."""
         service.api_key = "test-key"
@@ -220,7 +209,6 @@ class TestExtractionServiceFlow:
             assert media_part["type"] == "image_url"
             assert media_part["image_url"]["url"].startswith("data:image/png;base64,")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_valid_public_url(self, service):
         """Test extract_financial_data uses valid public URL when no content."""
         service.api_key = "test-key"
@@ -240,7 +228,6 @@ class TestExtractionServiceFlow:
             assert media_part["type"] == "image_url"
             assert media_part["image_url"]["url"] == url
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_rejects_private_url(self, service):
         """Test extract_financial_data rejects private URL when no content."""
         service.api_key = "test-key"
@@ -249,7 +236,6 @@ class TestExtractionServiceFlow:
         with pytest.raises(ExtractionError, match="No valid file content or accessible URL"):
             await service.extract_financial_data(file_content=None, file_url=url, institution="DBS", file_type="pdf")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_pdf_renders_content_for_zai_vision(self, service):
         """Test that Z.AI PDF vision fallback renders uploaded PDF content to images."""
         service.api_key = "test-key"
@@ -274,7 +260,6 @@ class TestExtractionServiceFlow:
             payload = mock_stream.call_args.kwargs["messages"]
             assert payload[0]["content"][1] == image_payload
 
-    @pytest.mark.asyncio
     async def test_force_model_pdf_renders_content_for_zai(self, service):
         """AC13.5.1: Forced Z.AI PDF vision extraction can use rendered PDF images."""
         service.api_key = "test-key"
@@ -302,7 +287,6 @@ class TestExtractionServiceFlow:
             payload = mock_stream.call_args.kwargs["messages"]
             assert payload[0]["content"][1] == image_payload
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_pdf_prefers_rendered_content_for_zai_vision(self, service):
         """Z.AI PDF vision fallback renders content instead of sending PDF URLs as images."""
         service.api_key = "test-key"
@@ -333,7 +317,6 @@ class TestExtractionServiceFlow:
             assert media_part["type"] == "image_url"
             assert media_part["image_url"]["url"].startswith("data:image/png;base64,")
 
-    @pytest.mark.asyncio
     async def test_extract_financial_data_pdf_no_content_no_url_raises(self, service):
         """Test that PDF extraction raises when neither content nor URL is available."""
         service.api_key = "test-key"

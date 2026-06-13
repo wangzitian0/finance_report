@@ -49,7 +49,6 @@ def sample_file_content():
     return b"PDF-SAMPLE-CONTENT"
 
 
-@pytest.mark.asyncio
 class TestDualWriteLayer2:
     async def test_dual_write_enabled_by_default(self, db, test_user, mock_ai_response, sample_file_content):
         """AC11.13.1: After Stage 1 cutover, parsing populates Layer 1/2 without any flag override."""

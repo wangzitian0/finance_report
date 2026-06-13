@@ -6,7 +6,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,7 +105,6 @@ async def _graph_counts(db: AsyncSession) -> tuple[int, int]:
     return node_count, edge_count
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_2_graph_writes_share_the_business_transaction(
     db: AsyncSession,
     test_user: User,
@@ -128,7 +126,6 @@ async def test_AC18_10_2_graph_writes_share_the_business_transaction(
     assert (await db.execute(select(func.count(EvidenceEdge.id)))).scalar_one() == 0
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts(
     db: AsyncSession,
     test_user: User,
@@ -178,7 +175,6 @@ async def test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preser
     assert ("ledger_line", "journal_line", line.id) in node_keys
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
     db: AsyncSession,
     test_user: User,
@@ -235,7 +231,6 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
     assert any(finding.code == "cross_user_lineage_blocked" for finding in report.findings)
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_7_materialization_caps_and_unknown_sources_return_blockers(
     db: AsyncSession,
     test_user: User,
@@ -272,7 +267,6 @@ async def test_AC18_10_7_materialization_caps_and_unknown_sources_return_blocker
     assert "entity_missing" in {blocker.code for blocker in unknown.blockers}
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     db: AsyncSession,
     test_user: User,
@@ -346,7 +340,6 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     ) in edges
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_5_detector_recognizes_supported_business_entities(
     db: AsyncSession,
     test_user: User,
@@ -374,7 +367,6 @@ async def test_AC18_10_5_detector_recognizes_supported_business_entities(
     assert not any(finding.code == "orphan_graph_node" for finding in report.findings)
 
 
-@pytest.mark.asyncio
 async def test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blockers(
     db: AsyncSession,
     test_user: User,

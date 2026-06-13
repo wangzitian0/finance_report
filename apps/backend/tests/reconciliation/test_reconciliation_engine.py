@@ -203,7 +203,6 @@ async def test_execute_matching_auto_accepts_exact_match(db: AsyncSession) -> No
     assert match.match_score >= 95
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_no_candidates(db: AsyncSession):
     """Test matching when no candidates are found for a transaction."""
     user_id = uuid4()
@@ -429,7 +428,6 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
     assert all(m.status == ReconciliationStatus.AUTO_ACCEPTED for m in matches)
 
 
-@pytest.mark.asyncio
 async def test_batch_accept_no_ids(db: AsyncSession):
     """Test batch_accept with empty list."""
     from src.services.review_queue import batch_accept
@@ -438,14 +436,12 @@ async def test_batch_accept_no_ids(db: AsyncSession):
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_no_transactions(db: AsyncSession):
     """Test matching with no pending transactions."""
     result = await execute_matching(db, user_id=uuid4())
     assert result == []
 
 
-@pytest.mark.asyncio
 async def test_find_candidates(db: AsyncSession):
     """Test find_candidates standalone helper."""
     from src.services.reconciliation import find_candidates, load_reconciliation_config
@@ -852,7 +848,6 @@ async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> Non
     assert "WEEKEND_LARGE" in weekend_types
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> None:
     """AC4.6.6: Pattern score cache reuses merchant token score across transactions."""
     user_id = uuid4()
@@ -914,7 +909,6 @@ async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> 
     assert mock_score.await_count == 1
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSession) -> None:
     """AC4.6.7: Many-to-one skips unbalanced candidates and leaves transactions unmatched."""
     user_id = uuid4()
@@ -957,7 +951,6 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
     assert matches == []
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncSession) -> None:
     """AC4.6.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
     user_id = uuid4()
@@ -1002,7 +995,6 @@ async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncS
     assert matches == []
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncSession, monkeypatch) -> None:
     """AC4.6.9: Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging."""
     user_id = uuid4()
@@ -1045,7 +1037,6 @@ async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncS
     assert matches[0].atomic_txn_id == txn.id
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_three_entry_combination_skips_unbalanced_member(db: AsyncSession) -> None:
     """AC4.7.3: Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped."""
     user_id = uuid4()
@@ -1104,7 +1095,6 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
     assert matches == []
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(db: AsyncSession, monkeypatch) -> None:
     """AC4.7.4: Reconciliation phase-2 – atomic match and transfer pair logging in layer-2."""
     user_id = uuid4()

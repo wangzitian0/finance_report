@@ -9,7 +9,6 @@ class TestCSVParsing:
     def setup_method(self):
         self.service = ExtractionService()
 
-    @pytest.mark.asyncio
     async def test_parse_dbs_csv(self):
         """[AC3.1.2] Parse DBS CSV format."""
         csv_content = b"""Transaction Date,Reference,Debit Amount,Credit Amount,Transaction Ref1,Transaction Ref2,Transaction Ref3
@@ -34,7 +33,6 @@ class TestCSVParsing:
         assert txn1["direction"] == "OUT"
         assert txn1["amount"] == "100.00"
 
-    @pytest.mark.asyncio
     async def test_parse_posb_csv(self):
         csv_content = b"""Transaction Date,Debit Amount,Credit Amount,Transaction Ref1
 20 Jan 2025,,1000.00,TRANSFER FROM SAVINGS
@@ -46,7 +44,6 @@ class TestCSVParsing:
         assert result["transactions"][0]["direction"] == "IN"
         assert result["transactions"][1]["direction"] == "OUT"
 
-    @pytest.mark.asyncio
     async def test_parse_wise_csv(self):
         """[AC3.1.3] Parse Wise CSV format."""
         csv_content = b"""ID,Created on,Direction,Source amount (after fees),Reference
@@ -65,7 +62,6 @@ class TestCSVParsing:
         assert result["transactions"][1]["direction"] == "IN"
         assert result["transactions"][1]["amount"] == "1500.00"
 
-    @pytest.mark.asyncio
     async def test_parse_ocbc_csv(self):
         csv_content = b"""Transaction Date,Description,Debit,Credit
 05/01/2025,SALARY CREDIT,,5000.00
@@ -77,7 +73,6 @@ class TestCSVParsing:
         assert result["transactions"][0]["direction"] == "IN"
         assert result["transactions"][1]["direction"] == "OUT"
 
-    @pytest.mark.asyncio
     async def test_parse_generic_csv_with_amount_column(self):
         """[AC3.1.4] Parse Generic CSV format."""
         csv_content = b"""Date,Description,Amount
@@ -92,14 +87,12 @@ class TestCSVParsing:
         assert result["transactions"][1]["direction"] == "OUT"
         assert result["transactions"][1]["amount"] == "100.00"
 
-    @pytest.mark.asyncio
     async def test_parse_empty_csv_raises_error(self):
         csv_content = b"""Transaction Date,Amount
 """
         with pytest.raises(ExtractionError, match="(No valid transactions|empty or has no data rows)"):
             await self.service._parse_csv_content(csv_content, "DBS")
 
-    @pytest.mark.asyncio
     async def test_parse_csv_with_bom(self):
         """[AC3.1.5] Parse CSV with BOM marker."""
         csv_content = b"\xef\xbb\xbfTransaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,,100.00,Test"
@@ -109,7 +102,6 @@ class TestCSVParsing:
         assert len(result["transactions"]) == 1
         assert result["transactions"][0]["amount"] == "100.00"
 
-    @pytest.mark.asyncio
     async def test_parse_csv_various_date_formats(self):
         csv_content = b"""Date,Amount,Description
 2025-01-15,100.00,ISO format
@@ -120,7 +112,6 @@ class TestCSVParsing:
 
         assert len(result["transactions"]) == 3
 
-    @pytest.mark.asyncio
     async def test_parse_csv_with_currency_symbols(self):
         csv_content = b"""Date,Debit,Credit,Description
 2025-01-15,$50.00,,Purchase
@@ -132,7 +123,6 @@ class TestCSVParsing:
         assert result["transactions"][0]["amount"] == "50.00"
         assert result["transactions"][1]["amount"] == "100.00"
 
-    @pytest.mark.asyncio
     async def test_parse_csv_with_commas_in_amounts(self):
         csv_content = b"""Date,Credit,Description
 2025-01-15,"1,500.00",Large deposit"""
@@ -142,7 +132,6 @@ class TestCSVParsing:
         assert len(result["transactions"]) == 1
         assert result["transactions"][0]["amount"] == "1500.00"
 
-    @pytest.mark.asyncio
     async def test_parse_csv_skips_invalid_rows(self):
         csv_content = b"""Transaction Date,Debit Amount,Credit Amount,Description
 15 Jan 2025,,100.00,Valid transaction
@@ -165,7 +154,6 @@ class TestCSVEdgeCases:
 
     # --- String input path (line 618) ---
 
-    @pytest.mark.asyncio
     async def test_parse_csv_string_input(self):
         """CSV content as string (not bytes) triggers string path (line 618)."""
         csv_content = "\ufeffDate,Amount,Description\n2025-01-15,100.00,Test income"
@@ -175,7 +163,6 @@ class TestCSVEdgeCases:
 
     # --- PII detection warning (line 622) ---
 
-    @pytest.mark.asyncio
     async def test_parse_csv_with_pii_warning(self):
         """CSV with PII-like content triggers warning (lines 621-627)."""
         # NRIC is a common PII type in Singapore
@@ -185,14 +172,12 @@ class TestCSVEdgeCases:
 
     # --- parse_amount edge cases (lines 667-672) ---
 
-    @pytest.mark.asyncio
     async def test_parse_amount_dash_only(self):
         """Amount column with just '-' should be skipped (line 667-668)."""
         csv_content = b"Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,-,-,Dash amounts"
         with pytest.raises(ExtractionError, match="No valid transactions"):
             await self.service._parse_csv_content(csv_content, "DBS")
 
-    @pytest.mark.asyncio
     async def test_parse_amount_invalid_decimal(self):
         """Amount column with invalid decimal triggers None return (lines 670-672)."""
         csv_content = b"Transaction Date,Debit Amount,Credit Amount,Description\n15 Jan 2025,abc,,Invalid amount"
@@ -201,7 +186,6 @@ class TestCSVEdgeCases:
 
     # --- DBS/POSB: no valid amount (lines 713-720) ---
 
-    @pytest.mark.asyncio
     async def test_dbs_no_valid_amount_skipped(self):
         """DBS row with debit=None, credit=None -> skip (lines 712-720)."""
         csv_content = (
@@ -215,7 +199,6 @@ class TestCSVEdgeCases:
 
     # --- Wise: invalid date -> skip (lines 753-759) ---
 
-    @pytest.mark.asyncio
     async def test_wise_invalid_date_skipped(self):
         """Wise row with invalid date -> skip (lines 752-759)."""
         csv_content = (
@@ -229,7 +212,6 @@ class TestCSVEdgeCases:
 
     # --- Wise: invalid/zero amount -> skip (lines 763-769) ---
 
-    @pytest.mark.asyncio
     async def test_wise_zero_amount_skipped(self):
         """Wise row with zero amount -> skip (lines 762-769)."""
         csv_content = (
@@ -240,7 +222,6 @@ class TestCSVEdgeCases:
         result = await self.service._parse_csv_content(csv_content, "Wise")
         assert len(result["transactions"]) == 1
 
-    @pytest.mark.asyncio
     async def test_wise_invalid_amount_skipped(self):
         """Wise row with invalid amount -> skip (lines 762-769)."""
         csv_content = (
@@ -253,7 +234,6 @@ class TestCSVEdgeCases:
 
     # --- OCBC: invalid date -> skip (lines 804-810) ---
 
-    @pytest.mark.asyncio
     async def test_ocbc_invalid_date_skipped(self):
         """OCBC row with invalid date -> skip (lines 803-810)."""
         csv_content = (
@@ -267,7 +247,6 @@ class TestCSVEdgeCases:
 
     # --- OCBC: no valid amount -> skip (lines 822-829) ---
 
-    @pytest.mark.asyncio
     async def test_ocbc_no_valid_amount_skipped(self):
         """OCBC row with no valid amounts -> skip (lines 821-829)."""
         csv_content = b"Transaction Date,Description,Debit,Credit\n05/01/2025,NO AMOUNTS,,\n06/01/2025,VALID,1500.00,"
@@ -277,7 +256,6 @@ class TestCSVEdgeCases:
 
     # --- Generic: invalid date -> skip (lines 858-864) ---
 
-    @pytest.mark.asyncio
     async def test_generic_invalid_date_skipped(self):
         """Generic bank row with invalid date -> skip (lines 857-864)."""
         csv_content = b"Date,Amount,Description\nINVALID,100.00,Bad date row\n2025-01-15,200.00,Valid row"
@@ -286,7 +264,6 @@ class TestCSVEdgeCases:
 
     # --- Generic: invalid amount in single amount column -> skip (lines 872-878) ---
 
-    @pytest.mark.asyncio
     async def test_generic_invalid_amount_column_skipped(self):
         """Generic bank row with invalid amount in amount column -> skip (lines 871-878)."""
         csv_content = b"Date,Amount,Description\n2025-01-15,INVALID_AMT,Bad amount\n2025-01-16,200.00,Valid row"
@@ -296,7 +273,6 @@ class TestCSVEdgeCases:
 
     # --- Generic: debit/credit fallback with no valid amount -> skip (lines 889-896) ---
 
-    @pytest.mark.asyncio
     async def test_generic_debit_credit_no_valid_amount_skipped(self):
         """Generic bank row with debit/credit columns but no valid amounts -> skip (lines 888-896)."""
         csv_content = b"Date,Debit,Credit,Description\n2025-01-15,,,No amounts\n2025-01-16,,500.00,Valid deposit"
@@ -306,7 +282,6 @@ class TestCSVEdgeCases:
 
     # --- Generic: no amount columns found -> skip (lines 897-903) ---
 
-    @pytest.mark.asyncio
     async def test_generic_no_amount_columns_found(self):
         """Generic bank row with no amount columns at all -> skip (lines 897-903)."""
         csv_content = b"Date,Description,Reference\n2025-01-15,Some transaction,REF001"
@@ -315,7 +290,6 @@ class TestCSVEdgeCases:
 
     # --- CSV parsing found no valid transactions (lines 922-928) ---
 
-    @pytest.mark.asyncio
     async def test_csv_all_rows_skipped_raises_error(self):
         """All CSV rows skipped -> ExtractionError (lines 921-928)."""
         csv_content = (

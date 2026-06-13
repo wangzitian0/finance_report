@@ -3,7 +3,6 @@
 import uuid
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 
 from src.rate_limit import RateLimitConfig, RateLimiter
@@ -105,7 +104,6 @@ def test_rate_limiter_reset_nonexistent_key_is_safe() -> None:
     limiter.reset(_unique_key())
 
 
-@pytest.mark.asyncio
 async def test_global_rate_limit_middleware_exempts_health(public_client: AsyncClient) -> None:
     """AC12.23.1: /health should never be rate-limited."""
     from src.rate_limit import api_rate_limiter
@@ -116,7 +114,6 @@ async def test_global_rate_limit_middleware_exempts_health(public_client: AsyncC
             assert response.status_code != 429
 
 
-@pytest.mark.asyncio
 async def test_global_rate_limit_middleware_blocks_after_limit(public_client: AsyncClient) -> None:
     """AC12.23.2: After exceeding limit, middleware returns 429 with Retry-After header."""
     from src.rate_limit import api_rate_limiter
@@ -130,7 +127,6 @@ async def test_global_rate_limit_middleware_blocks_after_limit(public_client: As
         assert "Rate limit exceeded" in data["detail"]
 
 
-@pytest.mark.asyncio
 async def test_global_rate_limit_middleware_allows_normal_requests(public_client: AsyncClient) -> None:
     """AC12.23.3: Normal requests within limit should pass through."""
     from src.rate_limit import api_rate_limiter
@@ -144,7 +140,6 @@ async def test_global_rate_limit_middleware_allows_normal_requests(public_client
         assert mock_is_allowed.called
 
 
-@pytest.mark.asyncio
 async def test_global_rate_limit_middleware_exempts_docs(public_client: AsyncClient) -> None:
     """AC12.23.4: /docs should never be rate-limited."""
     from src.rate_limit import api_rate_limiter

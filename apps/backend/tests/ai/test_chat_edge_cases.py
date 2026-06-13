@@ -6,10 +6,7 @@ that are not covered in the main test files.
 
 from uuid import uuid4
 
-import pytest
 
-
-@pytest.mark.asyncio
 class TestChatRouterCoverage:
     """Additional tests for chat router coverage."""
 

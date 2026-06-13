@@ -38,7 +38,6 @@ def _mock_request(
     return Request(scope=scope)
 
 
-@pytest.mark.asyncio
 async def test_register_creates_user(db: AsyncSession) -> None:
     payload = RegisterRequest(email="direct@example.com", password="secret123", name="Direct")
     mock_request = _mock_request("192.168.1.100")  # Unique IP for test
@@ -48,7 +47,6 @@ async def test_register_creates_user(db: AsyncSession) -> None:
     assert response.name == "Direct"
 
 
-@pytest.mark.asyncio
 async def test_login_rejects_invalid_password(db: AsyncSession) -> None:
     user = User(email="login-direct@example.com", hashed_password=hash_password("correct"))
     db.add(user)
@@ -60,7 +58,6 @@ async def test_login_rejects_invalid_password(db: AsyncSession) -> None:
         await login(mock_request, Response(), payload, db=db)
 
 
-@pytest.mark.asyncio
 async def test_get_me_returns_user(db: AsyncSession) -> None:
     user = User(email="me-direct@example.com", hashed_password=hash_password("secret"))
     db.add(user)
@@ -74,13 +71,11 @@ async def test_get_me_returns_user(db: AsyncSession) -> None:
     assert response.access_token == "dummy-token"
 
 
-@pytest.mark.asyncio
 async def test_get_me_missing_user_raises(db: AsyncSession) -> None:
     with pytest.raises(HTTPException, match="User not found"):
         await get_me(user_id=uuid4(), token="dummy-token", db=db)
 
 
-@pytest.mark.asyncio
 async def test_register_duplicate_email_fails(db: AsyncSession) -> None:
     """Registering with an already-used email should fail."""
     # Create first user
@@ -146,7 +141,6 @@ def test_check_rate_limit_blocks_when_exceeded() -> None:
     assert "Retry-After" in exc_info.value.headers
 
 
-@pytest.mark.asyncio
 async def test_successful_login_resets_rate_limit(db: AsyncSession) -> None:
     """Successful login should reset the rate limiter for that IP."""
     # Create user

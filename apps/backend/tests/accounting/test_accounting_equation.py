@@ -123,7 +123,6 @@ async def expense_account(db: AsyncSession, test_user_id):
 # =============================================================================
 
 
-@pytest.mark.asyncio
 async def test_accounting_equation_violation_detected(
     db: AsyncSession,
     test_user_id,
@@ -212,7 +211,6 @@ async def test_accounting_equation_violation_detected(
     assert await verify_accounting_equation(db, test_user_id) is True
 
 
-@pytest.mark.asyncio
 async def test_accounting_equation_holds_with_all_account_types(
     db: AsyncSession,
     test_user_id,
@@ -304,7 +302,6 @@ async def test_accounting_equation_holds_with_all_account_types(
 # =============================================================================
 
 
-@pytest.mark.asyncio
 async def test_posted_entry_cannot_be_reposted(db: AsyncSession, test_user_id, asset_account, income_account):
     """
     CRITICAL #2: Posted entries cannot be posted again.
@@ -350,7 +347,6 @@ async def test_posted_entry_cannot_be_reposted(db: AsyncSession, test_user_id, a
         await post_journal_entry(db, entry.id, test_user_id)
 
 
-@pytest.mark.asyncio
 async def test_posted_entry_status_immutable_via_direct_update(
     db: AsyncSession, test_user_id, asset_account, income_account
 ):
@@ -404,7 +400,6 @@ async def test_posted_entry_status_immutable_via_direct_update(
 # =============================================================================
 
 
-@pytest.mark.asyncio
 async def test_max_amount_boundary():
     """
     HIGH #8: Maximum amount boundary test (999,999,999.99).
@@ -436,7 +431,6 @@ async def test_max_amount_boundary():
     validate_journal_balance(lines)
 
 
-@pytest.mark.asyncio
 async def test_min_amount_boundary():
     """
     HIGH #8: Minimum amount boundary test (0.01).
@@ -468,7 +462,6 @@ async def test_min_amount_boundary():
     validate_journal_balance(lines)
 
 
-@pytest.mark.asyncio
 async def test_amount_precision_loss_detection():
     """
     HIGH #8: Verify that amount near tolerance boundary is correctly handled.
@@ -525,7 +518,6 @@ async def test_amount_precision_loss_detection():
 # =============================================================================
 
 
-@pytest.mark.asyncio
 async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id):
     """
     HIGH #9: Multi-line complex entry (salary breakdown) - CORRECT version.

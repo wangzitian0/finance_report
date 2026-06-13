@@ -76,7 +76,6 @@ class TestFxRateCache:
 
 
 class TestPrefetchedFxRates:
-    @pytest.mark.asyncio
     async def test_prefetch_propagates_fx_rate_error(self):
         prefetched = PrefetchedFxRates()
 
@@ -93,7 +92,6 @@ class TestPrefetchedFxRates:
 class TestPrefetchedFxRatesNonFxRateError:
     """Test ExceptionGroup re-raise when non-FxRateError (lines 259->258, 261)."""
 
-    @pytest.mark.asyncio
     async def test_prefetch_reraises_non_fx_rate_exception_group(self):
         """AC5.7.1 – ExceptionGroup containing non-FxRateError is re-raised as-is."""
         prefetched = PrefetchedFxRates()
@@ -107,7 +105,6 @@ class TestPrefetchedFxRatesNonFxRateError:
                     pairs=[("USD", "SGD", datetime.now(UTC).date(), None, None)],
                 )
 
-    @pytest.mark.asyncio
     async def test_prefetch_empty_pairs_returns_immediately(self):
         """AC5.7.2 – Empty pairs list returns without calling get_exchange_rate (line 250 branch)."""
         prefetched = PrefetchedFxRates()

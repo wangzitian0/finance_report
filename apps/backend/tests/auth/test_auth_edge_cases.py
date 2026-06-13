@@ -4,10 +4,7 @@ These tests cover edge cases and error paths for the auth router
 that are not covered in the main test files.
 """
 
-import pytest
 
-
-@pytest.mark.asyncio
 class TestAuthRouterCoverage:
     """Additional tests for auth router coverage."""
 

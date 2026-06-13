@@ -194,7 +194,6 @@ def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -
     assert "otel_exporter_otlp_endpoint" not in fields
 
 
-@pytest.mark.asyncio
 async def test_AC10_9_3_health_response_includes_redacted_observability_status(monkeypatch) -> None:
     """AC10.9.3: Health exposes the same redacted observability contract for deploy checks."""
     from src import main

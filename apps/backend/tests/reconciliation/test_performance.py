@@ -69,7 +69,6 @@ class TestMatchingAccuracy:
     maintain a labeled test set with ground-truth matches.
     """
 
-    @pytest.mark.asyncio
     async def test_high_confidence_matches_are_correct(self, db: AsyncSession):
         """
         CRITICAL #5: High-score matches (>=85) should be true positives.
@@ -154,7 +153,6 @@ class TestMatchingAccuracy:
         # This gives us confidence that high scores = true positives
         assert high_score_count >= 8, f"Expected 80%+ of exact matches to score >= 85, got {high_score_count}/10"
 
-    @pytest.mark.asyncio
     async def test_unrelated_transactions_score_low(self, db: AsyncSession):
         """
         CRITICAL #5: Unrelated transactions should NOT score high (avoid false positives).
@@ -217,7 +215,6 @@ class TestMatchingAccuracy:
         # Unrelated transaction should score LOW (< 60 = unmatched)
         assert score_result.score < 60, f"Unrelated transaction should score < 60, got {score_result.score}"
 
-    @pytest.mark.asyncio
     async def test_similar_transactions_found(self, db: AsyncSession):
         """
         CRITICAL #6: Similar transactions should NOT be missed (avoid false negatives).
@@ -288,7 +285,6 @@ class TestMatchingAccuracy:
 class TestBatchPerformance:
     """Performance tests for batch reconciliation."""
 
-    @pytest.mark.asyncio
     @pytest.mark.slow  # Mark as slow test, can be skipped with -m "not slow"
     async def test_batch_1000_transactions_reasonable_time(self, db: AsyncSession):
         """
@@ -374,7 +370,6 @@ class TestBatchPerformance:
 class TestConcurrentMatching:
     """Tests for concurrent matching safety."""
 
-    @pytest.mark.asyncio
     async def test_parallel_matching_different_statements(self, db: AsyncSession):
         """
         HIGH #14: Parallel matching of different statements should not race.
@@ -420,7 +415,6 @@ class TestConcurrentMatching:
 class TestCrossMonthMatching:
     """Tests for cross-month matching scenarios."""
 
-    @pytest.mark.asyncio
     async def test_month_end_to_month_start_match(self, db: AsyncSession):
         """
         [AC4.4.2] HIGH #15: Transaction on 1/31 should match entry from 2/1.
@@ -484,7 +478,6 @@ class TestCrossMonthMatching:
         # Amount and description are exact, so should score well
         assert score_result.score >= 70, f"Cross-month (1 day diff) match should score >= 70, got {score_result.score}"
 
-    @pytest.mark.asyncio
     async def test_friday_to_monday_weekend_gap(self, db: AsyncSession):
         """
         HIGH #15: Friday bank transaction matching Monday entry.

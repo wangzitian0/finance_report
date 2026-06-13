@@ -4,8 +4,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
-
 from src.models import (
     Account,
     AccountType,
@@ -18,7 +16,6 @@ from src.models import (
 from src.services.reconciliation import DEFAULT_CONFIG, calculate_match_score
 
 
-@pytest.mark.asyncio
 async def test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow(db):
     """AC4.9.1: Matching amount uses the bank/cash line for bank outflows."""
     bank = Account(id=uuid4(), user_id=uuid4(), name="Checking", type=AccountType.ASSET, currency="SGD")

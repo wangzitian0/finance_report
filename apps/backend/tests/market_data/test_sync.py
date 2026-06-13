@@ -16,7 +16,6 @@ from src.services import market_data
 from src.services.portfolio import PortfolioService
 
 
-@pytest.mark.asyncio
 async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -70,7 +69,6 @@ async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
     assert repr(latest) == "<StockPrice AAPL 150.123456 USD 2026-01-06>"
 
 
-@pytest.mark.asyncio
 async def test_sync_stock_prices_fetches_decade_range_once(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -112,7 +110,6 @@ async def test_sync_stock_prices_fetches_decade_range_once(
     assert count == 2
 
 
-@pytest.mark.asyncio
 async def test_sync_fx_rates_starts_after_last_stored_date(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -163,7 +160,6 @@ async def test_sync_fx_rates_starts_after_last_stored_date(
     assert count == 2
 
 
-@pytest.mark.asyncio
 async def test_sync_fx_rates_reports_skip_missing_disagreement_and_empty_work(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -230,7 +226,6 @@ async def test_sync_fx_rates_reports_skip_missing_disagreement_and_empty_work(
     assert empty.requested == 0
 
 
-@pytest.mark.asyncio
 async def test_sync_ignores_mismatched_observation_types(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -294,7 +289,6 @@ async def test_sync_ignores_mismatched_observation_types(
     assert stock_result.missing == 1
 
 
-@pytest.mark.asyncio
 async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -331,7 +325,6 @@ async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(
     assert result.inserted == 1
 
 
-@pytest.mark.asyncio
 async def test_observed_fx_pairs_include_default_and_non_base_business_currency(
     db: AsyncSession,
     test_user,
@@ -352,7 +345,6 @@ async def test_observed_fx_pairs_include_default_and_non_base_business_currency(
     assert pairs == ["HKD/SGD", "USD/SGD"]
 
 
-@pytest.mark.asyncio
 async def test_active_stock_symbols_use_active_nonzero_holdings(
     db: AsyncSession,
     test_user,
@@ -408,7 +400,6 @@ async def test_active_stock_symbols_use_active_nonzero_holdings(
     assert await market_data._active_stock_symbols(db, test_user.id) == ["AAPL"]
 
 
-@pytest.mark.asyncio
 async def test_sync_stock_prices_records_missing_trading_days(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -434,7 +425,6 @@ async def test_sync_stock_prices_records_missing_trading_days(
     assert result.disagreements == []
 
 
-@pytest.mark.asyncio
 async def test_sync_stock_prices_skips_empty_symbols_and_completed_ranges(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -468,7 +458,6 @@ async def test_sync_stock_prices_skips_empty_symbols_and_completed_ranges(
     assert result.inserted == 0
 
 
-@pytest.mark.asyncio
 async def test_stock_provider_disagreement_is_reported_without_persisting(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -510,7 +499,6 @@ async def test_stock_provider_disagreement_is_reported_without_persisting(
     assert count == 0
 
 
-@pytest.mark.asyncio
 async def test_portfolio_uses_synced_stock_price_before_atomic_snapshot(
     db: AsyncSession,
     test_user,
@@ -567,7 +555,6 @@ async def test_portfolio_uses_synced_stock_price_before_atomic_snapshot(
     assert holdings[0].unrealized_pnl == Decimal("210.00")
 
 
-@pytest.mark.asyncio
 async def test_portfolio_quantizes_synced_stock_market_values(
     db: AsyncSession,
     test_user,
@@ -623,7 +610,6 @@ async def test_portfolio_quantizes_synced_stock_market_values(
     assert holdings[0].unrealized_pnl == Decimal("495.04")
 
 
-@pytest.mark.asyncio
 async def test_persist_stock_price_returns_existing_row(
     db: AsyncSession,
 ) -> None:
@@ -653,7 +639,6 @@ async def test_persist_stock_price_returns_existing_row(
     assert price == Decimal("150.000000")
 
 
-@pytest.mark.asyncio
 async def test_persist_stock_price_reraises_integrity_error_without_concurrent_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -697,7 +682,6 @@ async def test_persist_stock_price_reraises_integrity_error_without_concurrent_r
         )
 
 
-@pytest.mark.asyncio
 async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC11.10.9: Sync state upsert resolves concurrent inserts idempotently."""
 
@@ -757,7 +741,6 @@ async def test_upsert_sync_state_handles_concurrent_insert(monkeypatch: pytest.M
     assert state.last_success_date == date(2026, 1, 6)
 
 
-@pytest.mark.asyncio
 async def test_market_data_freshness_sync_runs_once_after_24h(
     db: AsyncSession,
     test_user,
@@ -865,7 +848,6 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
     assert second.triggered is False
 
 
-@pytest.mark.asyncio
 async def test_market_data_freshness_backfills_report_date_when_latest_price_is_newer(
     db: AsyncSession,
     test_user,
@@ -945,7 +927,6 @@ async def test_market_data_freshness_backfills_report_date_when_latest_price_is_
     assert result.stock.inserted == 1
 
 
-@pytest.mark.asyncio
 async def test_market_data_freshness_skips_same_currency_pair(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -966,7 +947,6 @@ async def test_market_data_freshness_skips_same_currency_pair(
     assert result.triggered is False
 
 
-@pytest.mark.asyncio
 async def test_market_data_sync_state_updates_when_provider_has_no_rows(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -998,7 +978,6 @@ async def test_market_data_sync_state_updates_when_provider_has_no_rows(
     assert state.last_success_date == date(2026, 1, 11)
 
 
-@pytest.mark.asyncio
 async def test_market_data_status_requires_observation_date_for_freshness(
     db: AsyncSession,
 ) -> None:
@@ -1028,7 +1007,6 @@ async def test_market_data_status_requires_observation_date_for_freshness(
     assert status[0].last_observation_date is None
 
 
-@pytest.mark.asyncio
 async def test_market_data_status_falls_back_to_persisted_observation_date(
     db: AsyncSession,
 ) -> None:

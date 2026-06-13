@@ -174,7 +174,6 @@ class TestInvalidParseNotPersisted:
     def service(self):
         return ExtractionService()
 
-    @pytest.mark.asyncio
     async def test_extraction_error_not_persisted(self, service, tmp_path):
         """
         [AC3.4.1] CRITICAL #4: Extraction errors should raise, not persist bad data.
@@ -197,7 +196,6 @@ class TestInvalidParseNotPersisted:
                     file_content=bad_file.read_bytes(),
                 )
 
-    @pytest.mark.asyncio
     async def test_parse_document_bank_balance_mismatch_records_validation_error(self, service, tmp_path):
         """
         AC3.2.4: Bank statement balance mismatches preserve validation_error details.
@@ -261,7 +259,6 @@ class TestInvalidParseNotPersisted:
 class TestFileSizeLimit:
     """Test file size limit enforcement."""
 
-    @pytest.mark.asyncio
     async def test_upload_file_exceeds_10mb_limit(self, client):
         """
         [AC3.5.2] HIGH #10: File exceeding 10MB should be rejected with 413.
@@ -278,7 +275,6 @@ class TestFileSizeLimit:
         assert response.status_code == 413
         assert "10MB" in response.json().get("detail", "")
 
-    @pytest.mark.asyncio
     async def test_upload_file_at_limit_succeeds(self, client, monkeypatch):
         """
         HIGH #10: File at exactly 10MB should be accepted.
@@ -332,7 +328,6 @@ class TestParsingTimeout:
     def service(self):
         return ExtractionService()
 
-    @pytest.mark.asyncio
     async def test_extraction_timeout_raises_error(self, service):
         """
         [AC3.4.3] HIGH #11: Extraction timeout should raise ExtractionError.
@@ -365,7 +360,6 @@ class TestGeminiRetry:
     def service(self):
         return ExtractionService()
 
-    @pytest.mark.asyncio
     async def test_api_error_includes_status_code(self, service):
         """
         HIGH #12: API error should include status code for debugging.
@@ -385,7 +379,6 @@ class TestGeminiRetry:
                     file_url="https://example.com/file.pdf",
                 )
 
-    @pytest.mark.asyncio
     async def test_api_key_required(self, service):
         """
         HIGH #12: Missing API key should raise clear error.

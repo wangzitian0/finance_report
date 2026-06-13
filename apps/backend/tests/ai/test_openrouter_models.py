@@ -99,7 +99,6 @@ def test_configured_model_catalog_deduplicates_models(monkeypatch):
     assert model_ids == ["glm-5.1", "glm-4.6v", "glm-5-turbo"]
 
 
-@pytest.mark.asyncio
 async def test_fetch_model_catalog_success(monkeypatch):
     """AC6.11.1: Fetch model catalog returns models on success."""
     from src.config import settings
@@ -122,7 +121,6 @@ async def test_fetch_model_catalog_success(monkeypatch):
     assert models[0]["id"] == "model1"
 
 
-@pytest.mark.asyncio
 async def test_fetch_model_catalog_caching(monkeypatch):
     """AC6.11.3: Catalog is cached and reused on subsequent calls."""
     from src.config import settings
@@ -149,7 +147,6 @@ async def test_fetch_model_catalog_caching(monkeypatch):
     assert models1 == models2
 
 
-@pytest.mark.asyncio
 async def test_fetch_model_catalog_force_refresh(monkeypatch):
     """AC6.11.3: Force refresh bypasses cache."""
     from src.config import settings
@@ -176,7 +173,6 @@ async def test_fetch_model_catalog_force_refresh(monkeypatch):
     assert models[0]["id"] == "new-data"
 
 
-@pytest.mark.asyncio
 async def test_fetch_model_catalog_http_error(monkeypatch):
     """AC6.11.1: HTTP errors during fetch are raised."""
     from src.config import settings
@@ -193,7 +189,6 @@ async def test_fetch_model_catalog_http_error(monkeypatch):
             await fetch_model_catalog()
 
 
-@pytest.mark.asyncio
 async def test_is_model_known_found():
     """AC6.11.1: Known model returns True."""
     _MODEL_CACHE["models"] = [{"id": "known/model"}]
@@ -203,7 +198,6 @@ async def test_is_model_known_found():
     assert result is True
 
 
-@pytest.mark.asyncio
 async def test_is_model_known_not_found():
     """AC6.11.1: Unknown model returns False."""
     _MODEL_CACHE["models"] = [{"id": "other/model"}]
@@ -213,7 +207,6 @@ async def test_is_model_known_not_found():
     assert result is False
 
 
-@pytest.mark.asyncio
 async def test_get_model_info_found():
     """AC6.11.1: Get model info returns normalized info for known model."""
     _MODEL_CACHE["models"] = [{"id": "known/model", "name": "Known Model"}]
@@ -225,7 +218,6 @@ async def test_get_model_info_found():
     assert info["name"] == "Known Model"
 
 
-@pytest.mark.asyncio
 async def test_get_model_info_not_found():
     """AC6.11.1: Get model info returns None for unknown model."""
     _MODEL_CACHE["models"] = [{"id": "other/model"}]
@@ -235,7 +227,6 @@ async def test_get_model_info_not_found():
     assert info is None
 
 
-@pytest.mark.asyncio
 async def test_get_model_info_fetch_error(monkeypatch):
     """AC6.11.1: Get model info raises ModelCatalogError on fetch failure."""
     from src.config import settings

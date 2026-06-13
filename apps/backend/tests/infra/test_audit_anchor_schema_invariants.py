@@ -160,7 +160,6 @@ async def _make_rule(db: AsyncSession, user_id, *, default_account_id=None) -> C
     return rule
 
 
-@pytest.mark.asyncio
 async def test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entries(
     db: AsyncSession,
     test_user: User,
@@ -202,7 +201,6 @@ async def test_AC18_11_1_reconciliation_links_reject_missing_and_cross_user_entr
     )
 
 
-@pytest.mark.asyncio
 async def test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents(
     db: AsyncSession,
     test_user: User,
@@ -258,7 +256,6 @@ async def test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_docum
     )
 
 
-@pytest.mark.asyncio
 async def test_AC18_11_3_evidence_edges_reject_cross_user_endpoints(
     db: AsyncSession,
     test_user: User,
@@ -312,7 +309,6 @@ async def test_AC18_11_3_evidence_edges_reject_cross_user_endpoints(
     )
 
 
-@pytest.mark.asyncio
 async def test_AC18_11_3_evidence_edge_relationships_preserve_tenant_scope(
     db: AsyncSession,
     test_user: User,
@@ -367,7 +363,6 @@ async def test_AC18_11_3_evidence_edge_relationships_preserve_tenant_scope(
     assert reloaded.to_node is None
 
 
-@pytest.mark.asyncio
 async def test_AC18_11_4_account_references_reject_cross_user_accounts(
     db: AsyncSession,
     test_user: User,
@@ -433,7 +428,6 @@ async def test_AC18_11_4_account_references_reject_cross_user_accounts(
     await db.commit()
 
 
-@pytest.mark.asyncio
 async def test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers(
     db: AsyncSession,
     test_user: User,

@@ -7,7 +7,6 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -372,7 +371,6 @@ def test_parse_futu_aggregate_ignores_invalid_events_and_uses_best_value():
     assert snapshots[0].market_value == Decimal("250.00")
 
 
-@pytest.mark.asyncio
 async def test_import_interactive_brokers_positions_idempotently_reconciles(db, test_user):
     """AC17.4.3: Interactive Brokers payloads import to AtomicPosition and reconcile once."""
     service = BrokeragePositionImportService()
@@ -416,7 +414,6 @@ async def test_import_interactive_brokers_positions_idempotently_reconciles(db, 
     assert managed_rows[0].quantity == Decimal("10")
 
 
-@pytest.mark.asyncio
 async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import(db_engine, test_user):
     """AC17.4.8: Auto parse import and manual statement import race without duplicate-position 500s."""
     service = BrokeragePositionImportService()
@@ -473,7 +470,6 @@ async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_imp
     assert positions[0].asset_identifier == "Fullerton SGD Money Market Fund"
 
 
-@pytest.mark.asyncio
 async def test_import_empty_payload_without_reconcile_returns_zero_counts(db, test_user):
     """AC17.4.6: Empty imports return zero counts without invoking reconciliation."""
     service = BrokeragePositionImportService()
@@ -495,7 +491,6 @@ async def test_import_empty_payload_without_reconcile_returns_zero_counts(db, te
     assert result.reconcile_disposed == 0
 
 
-@pytest.mark.asyncio
 async def test_brokerage_import_endpoint_empty_payload_returns_zero_counts(client):
     """AC17.4.6: Brokerage import endpoint accepts empty parsed payloads without reconciliation."""
     response = await client.post(
@@ -514,7 +509,6 @@ async def test_brokerage_import_endpoint_empty_payload_returns_zero_counts(clien
     assert data["reconcile_created"] == 0
 
 
-@pytest.mark.asyncio
 async def test_brokerage_import_endpoint(client, db):
     """AC17.4.6: Brokerage import endpoint returns atomic and reconciliation counts."""
     response = await client.post(
@@ -538,7 +532,6 @@ async def test_brokerage_import_endpoint(client, db):
     assert data["reconcile_created"] == 1
 
 
-@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client, db, test_user):
     """AC8.13.10/Issue #404: Parsed brokerage statements can import portfolio positions."""
     statement = await _seed_statement(
@@ -582,7 +575,6 @@ async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client
     assert positions[0].market_value == Decimal("1250.50")
 
 
-@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_uses_persisted_extraction_positions(client, db, test_user):
     """AC8.13.10/AC17.4.7: Statement import recovers structured OCR positions from metadata."""
     file_hash = "issue-653-moomoo-structured"
@@ -634,7 +626,6 @@ async def test_statement_scoped_brokerage_import_uses_persisted_extraction_posit
     assert positions[0].market_value == Decimal("1250.50")
 
 
-@pytest.mark.asyncio
 async def test_statement_import_flows_to_holdings_and_balance_sheet(client, db, test_user):
     """AC8.13.10/AC17.4.6/AC17.5.4: Parsed brokerage import reaches holdings and balance sheet."""
     statement = await _seed_statement(
@@ -704,7 +695,6 @@ async def test_statement_import_flows_to_holdings_and_balance_sheet(client, db, 
     )
 
 
-@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_requires_parsed_status(client, db, test_user):
     """AC8.13.10/Issue #404: Position import cannot run before OCR parsing completes."""
     statement = await _seed_statement(
@@ -724,7 +714,6 @@ async def test_statement_scoped_brokerage_import_requires_parsed_status(client, 
     assert "must be parsed" in response.text
 
 
-@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_explains_internal_state_transition_stall(
     client,
     db,
@@ -758,7 +747,6 @@ async def test_statement_scoped_brokerage_import_explains_internal_state_transit
     assert "statement must be parsed before brokerage import" in response.text
 
 
-@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_explains_provider_parse_failure(client, db, test_user):
     """AC8.13.10/Issue #409: Import errors distinguish provider parsing failures."""
     statement = await _seed_statement(
@@ -780,7 +768,6 @@ async def test_statement_scoped_brokerage_import_explains_provider_parse_failure
     assert "OCR provider returned invalid JSON" in response.text
 
 
-@pytest.mark.asyncio
 async def test_statement_scoped_brokerage_import_returns_404_for_missing_statement(client):
     """AC8.13.10/Issue #404: Statement-scoped brokerage import is user-scoped."""
     response = await client.post(f"/statements/{uuid4()}/brokerage/import")

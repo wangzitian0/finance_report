@@ -6,8 +6,6 @@ Validates that factories produce correct, balanced, and valid test data.
 from decimal import Decimal
 from uuid import UUID
 
-import pytest
-
 from src.models.account import AccountType
 from src.models.journal import Direction, JournalEntryStatus
 from src.models.reconciliation import ReconciliationStatus
@@ -22,7 +20,6 @@ from tests.factories import (
 )
 
 
-@pytest.mark.asyncio
 class TestAccountFactory:
     async def test_create_async_basic(self, db, test_user):
         account = await AccountFactory.create_async(db, user_id=test_user.id)
@@ -53,7 +50,6 @@ class TestAccountFactory:
         assert account.user_id != another_user.id
 
 
-@pytest.mark.asyncio
 class TestJournalEntryFactory:
     async def test_create_balanced_async_actually_balances(self, db, test_user):
         entry, debit_acc, credit_acc = await JournalEntryFactory.create_balanced_async(
@@ -103,7 +99,6 @@ class TestJournalEntryFactory:
         assert entry.status in JournalEntryStatus
 
 
-@pytest.mark.asyncio
 class TestUserFactory:
     async def test_create_async_generates_unique_emails(self, db):
         user1 = await UserFactory.create_async(db)
@@ -119,7 +114,6 @@ class TestUserFactory:
         assert isinstance(user.id, UUID)
 
 
-@pytest.mark.asyncio
 class TestStatementSummaryFactory:
     async def test_create_async_valid_statement(self, db, test_user):
         statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id)
@@ -136,7 +130,6 @@ class TestStatementSummaryFactory:
         assert isinstance(statement.file_hash, str)
 
 
-@pytest.mark.asyncio
 class TestAtomicTransactionFactory:
     async def test_create_async_valid_transaction(self, db, test_user):
         transaction = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
@@ -146,7 +139,6 @@ class TestAtomicTransactionFactory:
         assert isinstance(transaction.amount, Decimal)
 
 
-@pytest.mark.asyncio
 class TestReconciliationMatchFactory:
     async def test_create_async_valid_match(self, db, test_user):
         atomic_txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id)
@@ -162,7 +154,6 @@ class TestReconciliationMatchFactory:
         assert 0 <= match.match_score <= 100
 
 
-@pytest.mark.asyncio
 class TestFactoryIsolation:
     async def test_factories_dont_interfere(self, db, test_user):
         account1 = await AccountFactory.create_async(db, user_id=test_user.id)

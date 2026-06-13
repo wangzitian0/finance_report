@@ -11,7 +11,6 @@ from src.database import (
 )
 
 
-@pytest.mark.asyncio
 async def test_get_db_yields_session(public_client):
     """
     GIVEN the database dependency
@@ -24,7 +23,6 @@ async def test_get_db_yields_session(public_client):
         break
 
 
-@pytest.mark.asyncio
 async def test_get_db_closes_session(public_client):
     """
     GIVEN the database dependency
@@ -40,7 +38,6 @@ async def test_get_db_closes_session(public_client):
     assert session_ref is not None
 
 
-@pytest.mark.asyncio
 async def test_set_test_session_maker_override(public_client):
     """
     GIVEN a custom session maker
@@ -73,7 +70,6 @@ async def test_set_test_session_maker_override(public_client):
         set_test_session_maker(original_maker)
 
 
-@pytest.mark.asyncio
 async def test_create_session_maker_from_db_async_engine(db):
     """
     GIVEN a db session with AsyncEngine bind
@@ -88,7 +84,6 @@ async def test_create_session_maker_from_db_async_engine(db):
         assert isinstance(new_session, AsyncSession)
 
 
-@pytest.mark.asyncio
 async def test_init_db_runs_without_error():
     """
     GIVEN the database initialization function
@@ -98,7 +93,6 @@ async def test_init_db_runs_without_error():
     await init_db()
 
 
-@pytest.mark.asyncio
 async def test_create_session_maker_invalid_bind():
     """
     GIVEN a session with invalid async engine

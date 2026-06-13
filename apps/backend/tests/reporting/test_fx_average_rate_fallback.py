@@ -11,7 +11,6 @@ from src.models import FxRate
 from src.services.fx import FxRateError, _CacheEntry, _FxRateCache, clear_fx_cache, get_average_rate
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_returns_average_when_rates_exist(db: AsyncSession):
     """get_average_rate should return the SQL average of rates in the period."""
     rates = [
@@ -31,7 +30,6 @@ async def test_get_average_rate_returns_average_when_rates_exist(db: AsyncSessio
     assert result == Decimal("1.30"), f"Expected 1.30, got {result}"
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_logs_warning_on_fallback(db: AsyncSession):
     """When no rates exist in period, get_average_rate logs a warning before falling back."""
     # Add a rate outside the requested period so the fallback (spot) query finds something
@@ -60,7 +58,6 @@ async def test_get_average_rate_logs_warning_on_fallback(db: AsyncSession):
     assert result == Decimal("1.50")
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_no_warning_when_rates_present(db: AsyncSession):
     """When rates exist in the period, no warning should be logged."""
     db.add(
@@ -78,7 +75,6 @@ async def test_get_average_rate_no_warning_when_rates_present(db: AsyncSession):
     mock_logger.warning.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_raises_when_no_rate_at_all(db: AsyncSession):
     """When no rate exists anywhere (including as a spot fallback), FxRateError is raised."""
     # No rates in DB at all for this pair
@@ -88,7 +84,6 @@ async def test_get_average_rate_raises_when_no_rate_at_all(db: AsyncSession):
         await get_average_rate(db, "XYZ", "SGD", date(2025, 1, 1), date(2025, 1, 31))
 
 
-@pytest.mark.asyncio
 async def test_get_average_rate_same_currency_returns_one(db: AsyncSession):
     """Same base and quote currency should return 1.0 without any DB query."""
     clear_fx_cache()

@@ -5,7 +5,6 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +12,6 @@ from src.services.reporting import ReportError
 from tests.accounting._ledger_helpers import create_valid_posted_entry
 
 
-@pytest.mark.asyncio
 async def test_reports_router_errors_extended(client: AsyncClient, monkeypatch):
     """[AC5.5.2] Test ReportError in all report endpoints using patch on the router's imports."""
 
@@ -41,7 +39,6 @@ async def test_reports_router_errors_extended(client: AsyncClient, monkeypatch):
             assert "Mock Error" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_export_csv_rows_coverage(client: AsyncClient):
     """Test CSV export execution of all row writing loops by mocking return data."""
 
@@ -89,7 +86,6 @@ async def test_export_csv_rows_coverage(client: AsyncClient):
         assert "Total Income,,200.0" in resp.text
 
 
-@pytest.mark.asyncio
 async def test_auth_coverage_errors(client: AsyncClient):
     """Test error paths in auth.py."""
     from src.security import create_access_token
@@ -107,7 +103,6 @@ async def test_auth_coverage_errors(client: AsyncClient):
     assert "invalid user id format" in resp.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_journal_router_coverage_errors(client: AsyncClient, db: AsyncSession, test_user):
     """Test journal router error paths."""
     # 1. Get non-existent
@@ -134,7 +129,6 @@ async def test_journal_router_coverage_errors(client: AsyncClient, db: AsyncSess
     assert "draft" in resp.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_accounts_coverage_errors(client: AsyncClient):
     """Test accounts router error paths."""
     from src.services.account_service import AccountNotFoundError
@@ -154,7 +148,6 @@ async def test_accounts_coverage_errors(client: AsyncClient):
         assert resp.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_coverage_errors(client: AsyncClient):
     """Test reconciliation router error paths."""
 

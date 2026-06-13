@@ -856,7 +856,6 @@ def test_auto_accept_helper():
     assert auto_accept(0, DEFAULT_CONFIG) is False
 
 
-@pytest.mark.asyncio
 async def test_execute_matching_with_statement_id_filter(db: AsyncSession):
     user_id = uuid4()
     user = User(id=user_id, email="test@example.com", hashed_password="test")

@@ -8,7 +8,6 @@ from src.models import User
 from src.routers.auth import hash_password
 
 
-@pytest.mark.asyncio
 async def test_register_success(public_client):
     """AC1.7.1: Test successful user registration."""
     payload = {"email": "newuser@example.com", "password": "password123", "name": "New User"}
@@ -24,7 +23,6 @@ async def test_register_success(public_client):
     assert response.cookies.get("finance_access_token")
 
 
-@pytest.mark.asyncio
 async def test_register_duplicate_email(db: AsyncSession, public_client):
     """AC1.7.2: Test registration failure with duplicate email."""
     # Pre-create user
@@ -39,7 +37,6 @@ async def test_register_duplicate_email(db: AsyncSession, public_client):
     assert response.json()["detail"] == "Email already registered"
 
 
-@pytest.mark.asyncio
 async def test_AC1_10_2_register_rejects_case_variant_duplicate_email(db: AsyncSession, public_client):
     """AC1.10.2: Email identity is normalized so case variants cannot create duplicate accounts."""
     user = User(email="existing@example.com", hashed_password=hash_password("password123"))
@@ -55,7 +52,6 @@ async def test_AC1_10_2_register_rejects_case_variant_duplicate_email(db: AsyncS
     assert response.json()["detail"] == "Email already registered"
 
 
-@pytest.mark.asyncio
 async def test_login_success(db: AsyncSession, public_client):
     """AC1.7.3: Test successful login with valid credentials."""
     password = "secretpassword"
@@ -76,7 +72,6 @@ async def test_login_success(db: AsyncSession, public_client):
     assert response.cookies.get("finance_access_token")
 
 
-@pytest.mark.asyncio
 async def test_AC1_10_2_login_accepts_normalized_email(db: AsyncSession, public_client):
     """AC1.10.2: Login resolves the same account for normalized email input."""
     password = "secretpassword"
@@ -93,7 +88,6 @@ async def test_AC1_10_2_login_accepts_normalized_email(db: AsyncSession, public_
     assert response.json()["email"] == "login-normalized@example.com"
 
 
-@pytest.mark.asyncio
 async def test_login_invalid_password(db: AsyncSession, public_client):
     """Test login with wrong password."""
     user = User(email="wrongpass@example.com", hashed_password=hash_password("correctpass"))
@@ -107,7 +101,6 @@ async def test_login_invalid_password(db: AsyncSession, public_client):
     assert response.json()["detail"] == "Invalid email or password"
 
 
-@pytest.mark.asyncio
 async def test_login_non_existent_user(public_client):
     """Test login with non-existent user."""
     payload = {"email": "ghost@example.com", "password": "password123"}
@@ -116,7 +109,6 @@ async def test_login_non_existent_user(public_client):
     assert response.status_code == 401
 
 
-@pytest.mark.asyncio
 async def test_get_me_success(client, test_user):
     """Test get current user endpoint."""
     # client fixture already includes Authorization header for test_user
@@ -128,7 +120,6 @@ async def test_get_me_success(client, test_user):
     assert data["email"] == test_user.email
 
 
-@pytest.mark.asyncio
 async def test_AC1_10_3_get_me_accepts_httponly_cookie(public_client, test_user):
     """AC1.10.3: Auth dependency accepts the HttpOnly session cookie without localStorage bearer use."""
     from src.security import create_access_token
@@ -142,7 +133,6 @@ async def test_AC1_10_3_get_me_accepts_httponly_cookie(public_client, test_user)
     assert response.json()["id"] == str(test_user.id)
 
 
-@pytest.mark.asyncio
 async def test_get_me_user_not_found(public_client):
     """Test /auth/me with non-existent user ID returns 401."""
     from src.security import create_access_token
@@ -158,7 +148,6 @@ async def test_get_me_user_not_found(public_client):
     assert response.json()["detail"] == "User not found"
 
 
-@pytest.mark.asyncio
 async def test_register_integrity_error_race_condition(monkeypatch):
     """AC1.7.4: Register endpoint handles IntegrityError race on duplicate email."""
     from fastapi import HTTPException, Request, Response

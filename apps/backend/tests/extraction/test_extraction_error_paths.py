@@ -19,7 +19,6 @@ async def mock_stream_generator(content: str):
     yield content
 
 
-@pytest.mark.asyncio
 async def test_parse_document_csv_no_content():
     service = ExtractionService()
     with pytest.raises(ExtractionError, match="File content is required for CSV parsing"):
@@ -32,7 +31,6 @@ async def test_parse_document_csv_no_content():
         )
 
 
-@pytest.mark.asyncio
 async def test_parse_document_unsupported_type():
     service = ExtractionService()
     with pytest.raises(ExtractionError, match="Unsupported file type: exe"):
@@ -51,14 +49,12 @@ def test_safe_date_invalid():
         service._safe_date("not-a-date")
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_no_content_no_url():
     service = ExtractionService()
     with pytest.raises(ExtractionError, match="File content is required"):
         await service.extract_financial_data(None, "DBS", "pdf")
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_no_api_key(monkeypatch):
     from src.config import settings
 
@@ -68,7 +64,6 @@ async def test_extract_financial_data_no_api_key(monkeypatch):
         await service.extract_financial_data(b"content", "DBS", "pdf")
 
 
-@pytest.mark.asyncio
 async def test_extract_ocr_markdown_joins_layout_results(monkeypatch):
     service = ExtractionService()
     service.api_key = "test-key"
@@ -116,7 +111,6 @@ def test_validate_external_url_handles_unexpected_input():
     assert service._validate_external_url(cast(str, object())) is False
 
 
-@pytest.mark.asyncio
 async def test_extract_ocr_markdown_rejects_empty_layout_result(monkeypatch):
     service = ExtractionService()
     service.api_key = "test-key"
@@ -152,7 +146,6 @@ async def test_extract_ocr_markdown_rejects_empty_layout_result(monkeypatch):
         )
 
 
-@pytest.mark.asyncio
 async def test_extract_json_with_models_skips_empty_model_entries():
     service = ExtractionService()
 
@@ -169,7 +162,6 @@ async def test_extract_json_with_models_skips_empty_model_entries():
         )
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_uses_ocr_first_pipeline():
     service = ExtractionService()
     service.api_key = "test-key"
@@ -190,7 +182,6 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
     assert "OCR Markdown" in call["messages"][0]["content"]
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     """AC8.12.6: Shared OCR/vision model uses one vision call and skips layout parsing."""
     service = ExtractionService()
@@ -283,7 +274,6 @@ def test_build_vision_media_payloads_reraises_render_error_without_external_url(
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
     """AC8.12.6: Dedicated OCR layout HTTP failures include status and body."""
     service = ExtractionService()
@@ -317,7 +307,6 @@ async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
         )
 
 
-@pytest.mark.asyncio
 async def test_extract_json_with_models_handles_httpx_timeout():
     """AC8.12.6: Native httpx timeouts are summarized like provider timeouts."""
     import httpx
@@ -338,7 +327,6 @@ async def test_extract_json_with_models_handles_httpx_timeout():
             )
 
 
-@pytest.mark.asyncio
 async def test_ai_parse_csv_empty_mapping_response():
     """AC8.12.6: AI CSV mapping rejects empty model responses."""
     service = ExtractionService()
@@ -359,7 +347,6 @@ async def test_ai_parse_csv_empty_mapping_response():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision():
     """AC8.12.6: Dedicated OCR failure falls back to ordered vision extraction models."""
     service = ExtractionService()
@@ -386,7 +373,6 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
     assert call["messages"][0]["content"][1] == image_payload
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_all_models_fail():
     service = ExtractionService()
     service.api_key = "test-key"
@@ -406,7 +392,6 @@ async def test_extract_financial_data_all_models_fail():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_json_markdown_fallback():
     service = ExtractionService()
     service.api_key = "test-key"
@@ -427,7 +412,6 @@ async def test_extract_financial_data_json_markdown_fallback():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
@@ -449,7 +433,6 @@ async def test_extract_financial_data_invalid_json_all_attempts():
             )
 
 
-@pytest.mark.asyncio
 async def test_parse_document_with_transaction_missing_fields():
     service = ExtractionService()
     # Mock extract_financial_data to return a transaction with missing date
@@ -477,7 +460,6 @@ async def test_parse_document_with_transaction_missing_fields():
         )
 
 
-@pytest.mark.asyncio
 async def test_parse_document_with_invalid_date_formats():
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
@@ -509,7 +491,6 @@ async def test_parse_document_with_invalid_date_formats():
         )
 
 
-@pytest.mark.asyncio
 async def test_parse_document_unexpected_exception():
     service = ExtractionService()
     # Force an unexpected exception by mocking extract_financial_data to raise one
@@ -547,7 +528,6 @@ def test_validate_external_url_invalid_cases():
     assert service._validate_external_url("not a url") is False
 
 
-@pytest.mark.asyncio
 async def test_handle_parse_failure(db, test_user):
     from src.services.statement_parsing import handle_parse_failure
 
@@ -570,7 +550,6 @@ async def test_handle_parse_failure(db, test_user):
     assert statement.confidence_score == 0
 
 
-@pytest.mark.asyncio
 async def test_parse_statement_background_storage_error(db, test_user, monkeypatch):
     from src.database import create_session_maker_from_db
     from src.services.statement_parsing import parse_statement_background
@@ -668,7 +647,6 @@ class TestSanitizeAccountLast4:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_handle_parse_failure_truncates_long_message(db, test_user):
     from src.services.statement_parsing import handle_parse_failure
 
@@ -692,7 +670,6 @@ async def test_handle_parse_failure_truncates_long_message(db, test_user):
     assert len(statement.validation_error) == 500
 
 
-@pytest.mark.asyncio
 async def test_handle_parse_failure_after_db_error(db, test_user):
     """Handler recovers from a session with pending rollback error."""
     from sqlalchemy import text
@@ -729,7 +706,6 @@ async def test_handle_parse_failure_after_db_error(db, test_user):
     assert result.balance_validated is False
 
 
-@pytest.mark.asyncio
 async def test_handle_parse_failure_none_message(db, test_user):
     from src.services.statement_parsing import handle_parse_failure
 
@@ -782,7 +758,6 @@ def test_validate_external_url_exception_path():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_parse_document_non_string_date():
     """Transaction date as non-string type triggers str() conversion (lines 261-262)."""
     service = ExtractionService()
@@ -809,7 +784,6 @@ async def test_parse_document_non_string_date():
         )
 
 
-@pytest.mark.asyncio
 async def test_parse_document_skips_none_date_string():
     """Date value 'None' and 'null' should be skipped, not raise (lines 265-273)."""
     service = ExtractionService()
@@ -849,7 +823,6 @@ async def test_parse_document_skips_none_date_string():
     assert transactions[0].description == "Valid"
 
 
-@pytest.mark.asyncio
 async def test_parse_document_invalid_amount():
     """Invalid amount string triggers ExtractionError (lines 282-283)."""
     service = ExtractionService()
@@ -885,7 +858,6 @@ async def test_parse_document_invalid_amount():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_extract_pdf_with_internal_file_url_rejected():
     """PDF extraction with file_url only, internal URL rejected -> no media_payload -> error (lines 393-407)."""
     service = ExtractionService()
@@ -899,7 +871,6 @@ async def test_extract_pdf_with_internal_file_url_rejected():
         )
 
 
-@pytest.mark.asyncio
 async def test_extract_image_with_internal_file_url_rejected():
     """Image extraction with file_url only, internal URL rejected -> error (lines 416-430)."""
     service = ExtractionService()
@@ -913,7 +884,6 @@ async def test_extract_image_with_internal_file_url_rejected():
         )
 
 
-@pytest.mark.asyncio
 async def test_extract_force_model():
     """force_model parameter sets models list to [force_model] (line 454)."""
     service = ExtractionService()
@@ -942,7 +912,6 @@ async def test_extract_force_model():
     )
 
 
-@pytest.mark.asyncio
 async def test_extract_empty_model_in_list_skipped():
     """Empty/falsy model in models list -> continue (line 472)."""
     service = ExtractionService()
@@ -961,7 +930,6 @@ async def test_extract_empty_model_in_list_skipped():
         )
 
 
-@pytest.mark.asyncio
 async def test_extract_empty_ai_response():
     """Empty AI response triggers error and continue (lines 493-509)."""
     service = ExtractionService()
@@ -982,7 +950,6 @@ async def test_extract_empty_ai_response():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_return_raw():
     """return_raw=True returns raw AI response (lines 512-513)."""
     service = ExtractionService()
@@ -1007,7 +974,6 @@ async def test_extract_return_raw():
     assert result["choices"][0]["message"]["content"] == raw_content
 
 
-@pytest.mark.asyncio
 async def test_extract_value_error_during_extraction():
     """ValueError/TypeError/KeyError/AttributeError during extraction (lines 581-590)."""
     service = ExtractionService()
@@ -1028,7 +994,6 @@ async def test_extract_value_error_during_extraction():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_no_models_tried_fallback_error():
     """No models tried (all empty) -> fallback raise (line 604)."""
     service = ExtractionService()
@@ -1109,7 +1074,6 @@ def test_build_media_payload_image():
     assert result["image_url"]["url"] == "data:image/png;base64,iVBOR"
 
 
-@pytest.mark.asyncio
 async def test_parse_document_out_direction():
     """Transaction with direction=OUT subtracts from net_transactions (line 288)."""
     service = ExtractionService()
@@ -1139,7 +1103,6 @@ async def test_parse_document_out_direction():
     assert transactions[0].direction == "OUT"
 
 
-@pytest.mark.asyncio
 async def test_extract_non_dict_json_response():
     """AI returning a JSON array instead of object raises ExtractionError (line 517-518)."""
     service = ExtractionService()
@@ -1160,7 +1123,6 @@ async def test_extract_non_dict_json_response():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_openrouter_timeout_error():
     """OpenRouterStreamError with timeout message (lines 556-564)."""
     from src.services.openrouter_streaming import OpenRouterStreamError
@@ -1180,7 +1142,6 @@ async def test_extract_openrouter_timeout_error():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_openrouter_generic_http_error():
     """OpenRouterStreamError with generic HTTP error (lines 565-577)."""
     from src.services.openrouter_streaming import OpenRouterStreamError
@@ -1200,7 +1161,6 @@ async def test_extract_openrouter_generic_http_error():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_extraction_error_reraise():
     """ExtractionError raised during streaming is re-raised, not wrapped (line 579-580)."""
     service = ExtractionService()
@@ -1221,7 +1181,6 @@ async def test_extract_extraction_error_reraise():
             )
 
 
-@pytest.mark.asyncio
 async def test_extract_pdf_with_valid_external_url():
     """PDF extraction with valid external file_url (lines 393-398)."""
     service = ExtractionService()
@@ -1244,7 +1203,6 @@ async def test_extract_pdf_with_valid_external_url():
     assert result["account_last4"] == "9999"
 
 
-@pytest.mark.asyncio
 async def test_extract_image_with_valid_external_url():
     """Image extraction with valid external file_url (lines 416-422)."""
     service = ExtractionService()
@@ -1266,7 +1224,6 @@ async def test_extract_image_with_valid_external_url():
     assert result["account_last4"] == "8888"
 
 
-@pytest.mark.asyncio
 async def test_parse_document_csv_no_institution():
     """CSV parsing without institution raises ExtractionError (line 221-222)."""
     service = ExtractionService()
@@ -1280,7 +1237,6 @@ async def test_parse_document_csv_no_institution():
         )
 
 
-@pytest.mark.asyncio
 async def test_dual_write_layer2_integrity_error_is_non_fatal():
     """AC13.11.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
     db = AsyncMock()
@@ -1322,7 +1278,6 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_pdf_private_url_raises():
     """AC8.12.4 – PDF with private URL logs warning and raises ExtractionError (lines 393->403, 416->426)."""
     service = ExtractionService()
@@ -1337,7 +1292,6 @@ async def test_extract_financial_data_pdf_private_url_raises():
         )
 
 
-@pytest.mark.asyncio
 async def test_extract_financial_data_image_private_url_raises():
     """AC8.12.5 – Image with private URL logs warning and raises ExtractionError (else branch 416->426)."""
     service = ExtractionService()
