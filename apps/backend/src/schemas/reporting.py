@@ -24,6 +24,9 @@ class ReportLine(BaseModel):
     type: AccountType
     parent_id: UUID | None = None
     amount: Decimal
+    # Worst-input confidence tier of the line's contributing facts (Axiom B).
+    # None when the line has no rated contributing fact.
+    confidence_tier: str | None = None
 
 
 class AccountLineageLine(BaseModel):
@@ -65,6 +68,9 @@ class BalanceSheetResponse(BaseModel):
     assets: list[ReportLine]
     liabilities: list[ReportLine]
     equity: list[ReportLine]
+    # Net Worth aggregate confidence: the worst-input tier across rated lines
+    # (defined rollup, not an invented number). None when nothing is rated.
+    confidence_tier: str | None = None
     total_assets: Decimal
     total_liabilities: Decimal
     total_equity: Decimal

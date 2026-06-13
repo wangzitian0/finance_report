@@ -336,6 +336,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "type": AccountType.ASSET,
             "parent_id": None,
             "amount": Decimal("1600.00"),
+            "confidence_tier": "TRUSTED",
         }
     ]
     assert balance_sheet["liabilities"] == [
@@ -345,8 +346,11 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "type": AccountType.LIABILITY,
             "parent_id": None,
             "amount": Decimal("300.00"),
+            "confidence_tier": "TRUSTED",
         }
     ]
+    # AC5.18.2: Net Worth aggregate rolls up to the worst-input tier across lines.
+    assert balance_sheet["confidence_tier"] == "TRUSTED"
 
     assert income_statement["total_income"] == Decimal("500.00")
     assert income_statement["total_expenses"] == Decimal("200.00")

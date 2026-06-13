@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -27,6 +27,7 @@ from src.models import (
 from src.models.layer3 import ManagedPosition, ManualValuationLiquidityClass, PositionStatus
 from src.services import fx
 from src.services.assets import AssetService
+from src.services.confidence_tier import derive_confidence_tier
 from src.services.fx import (
     FxRateError,
     FxWarning,
@@ -139,9 +140,27 @@ def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
     return spans
 
 
+# Confidence tiers ranked by trust (vision Axiom B). The worst-input rule rolls a
+# line/aggregate down to its least-trusted contributor — a defined rollup, never
+# an invented number.
+_CONFIDENCE_TIER_RANK: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "TRUSTED": 3}
+
+
+def _worst_confidence_tier(tiers: Iterable[str | None]) -> str | None:
+    """Return the least-trusted tier among the inputs, or None if none are rated."""
+    present = [tier for tier in tiers if tier]
+    if not present:
+        return None
+    return min(present, key=lambda tier: _CONFIDENCE_TIER_RANK.get(tier, 0))
+
+
 def _build_account_lines(
-    accounts: Sequence[Account], balances: dict[UUID, Decimal], filter_type: AccountType
+    accounts: Sequence[Account],
+    balances: dict[UUID, Decimal],
+    filter_type: AccountType,
+    tiers: dict[UUID, str] | None = None,
 ) -> list[dict[str, Any]]:
+    tiers = tiers or {}
     items = [account for account in accounts if account.type == filter_type]
     items.sort(key=lambda acc: acc.name.lower())
     return [
@@ -151,9 +170,41 @@ def _build_account_lines(
             "type": account.type,
             "parent_id": account.parent_id,
             "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
+            "confidence_tier": tiers.get(account.id),
         }
         for account in items
     ]
+
+
+async def _aggregate_account_confidence_tiers(
+    db: AsyncSession,
+    user_id: UUID,
+    account_types: tuple[AccountType, ...],
+    as_of_date: date,
+    *,
+    start_date: date | None = None,
+) -> dict[UUID, str]:
+    """Per-account worst-input confidence tier, derived from contributing entries' source_type."""
+    stmt = (
+        select(Account.id, JournalEntry.source_type)
+        .distinct()
+        .select_from(JournalLine)
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type.in_(account_types))
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.entry_date <= as_of_date)
+    )
+    if start_date:
+        stmt = stmt.where(JournalEntry.entry_date >= start_date)
+
+    result = await db.execute(stmt)
+    tiers: dict[UUID, str] = {}
+    for account_id, source_type in result.all():
+        tier = derive_confidence_tier(source_type)
+        tiers[account_id] = _worst_confidence_tier([tiers.get(account_id), tier]) or tier
+    return tiers
 
 
 def _line_total(lines: Sequence[dict[str, Any]]) -> Decimal:
@@ -623,6 +674,9 @@ async def _build_manual_valuation_lines(
             "type": AccountType.LIABILITY if is_liability else AccountType.ASSET,
             "parent_id": None,
             "amount": _quantize_money(amount),
+            # Manual valuations are user-supplied, explicitly trusted data (vision:
+            # "manual data is explicitly trusted"), mirroring source_type=manual.
+            "confidence_tier": "TRUSTED",
         }
         if is_liability:
             liability_lines.append(line)
@@ -671,9 +725,10 @@ async def generate_balance_sheet(
         if account.id not in balances:
             balances[account.id] = Decimal("0")
 
-    assets = _build_account_lines(accounts, balances, AccountType.ASSET)
-    liabilities = _build_account_lines(accounts, balances, AccountType.LIABILITY)
-    equity = _build_account_lines(accounts, balances, AccountType.EQUITY)
+    tiers = await _aggregate_account_confidence_tiers(db, user_id, account_types, as_of_date)
+    assets = _build_account_lines(accounts, balances, AccountType.ASSET, tiers)
+    liabilities = _build_account_lines(accounts, balances, AccountType.LIABILITY, tiers)
+    equity = _build_account_lines(accounts, balances, AccountType.EQUITY, tiers)
     portfolio_adjustments = await _build_portfolio_market_adjustment_lines(
         db,
         user_id,
@@ -744,12 +799,18 @@ async def generate_balance_sheet(
     total_liab_equity_inc = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
     equation_delta = _quantize_money(total_assets - total_liab_equity_inc)
 
+    # Net Worth / balance-sheet aggregate tier: the worst-input tier across every
+    # rated line. Lines with no derivable tier (e.g. market-derived adjustments)
+    # are excluded rather than counted as trusted.
+    aggregate_tier = _worst_confidence_tier(line.get("confidence_tier") for line in (*assets, *liabilities, *equity))
+
     return {
         "as_of_date": as_of_date,
         "currency": target_currency,
         "assets": assets,
         "liabilities": liabilities,
         "equity": equity,
+        "confidence_tier": aggregate_tier,
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
         "total_equity": total_equity,

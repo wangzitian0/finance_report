@@ -120,6 +120,26 @@ check and the closing transaction-sum check; extraction confidence and Stage 2
 matching may use wider scoring tolerances, but they cannot approve a Stage 1
 statement with either balance-chain check outside the 0.001 USD tolerance.
 
+### Confidence Tier Rollup (resolves OD4)
+
+Confidence tiers rank by trust: `TRUSTED > HIGH > MEDIUM > LOW`. A line or
+aggregate takes the **worst-input tier** — it is only as trustworthy as its
+least-trusted contributing fact. This is a defined rollup (a `min`), never an
+invented blended score.
+
+- A report line's tier is the worst tier among the journal entries contributing
+  to it (tier derived from `source_type` via `confidence_tier`).
+- An aggregate (e.g. Net Worth) takes the worst tier across its rated lines.
+  Lines with no derivable tier (e.g. market-derived adjustments) are excluded
+  from the rollup rather than counted as trusted; the aggregate is `null` when
+  nothing is rated.
+- Manual valuations are user-supplied, explicitly trusted data and surface as
+  `TRUSTED`.
+
+Owned first by the balance sheet (EPIC-005 AC5.18, issue #913). A `% trusted`
+proportion is a separate, additive signal (the North-Star metric, EPIC-018
+AC18.12), not the per-node badge.
+
 ---
 
 ## 6. API Contract
