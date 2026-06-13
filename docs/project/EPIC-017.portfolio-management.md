@@ -7,6 +7,7 @@
 > **Planning estimate**: 6-8 weeks
 > **Priority**: P1 (High Priority - Post Two-Stage Review)
 > **Dependencies**: EPIC-002 (Double-Entry Core), EPIC-003 (Statement Parsing), EPIC-011 (Asset Lifecycle P0)
+> **Usable milestone**: ⏸️ deferred (post-Usable). Investment portfolio is owned here but **not** required for the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1) (upload a year of real data on prod).
 
 ---
 

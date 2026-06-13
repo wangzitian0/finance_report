@@ -7,6 +7,7 @@
 > **Planning estimate**: 4-6 weeks
 > **Priority**: P0 (Critical - Foundation for User Adoption)
 > **Dependencies**: EPIC-003 (Statement Parsing), EPIC-004 (Reconciliation Engine)
+> **Usable milestone**: 🎯 gating (G3). Real-data parse errors must be fixable in two-stage review — a year of real statements will contain mistakes the user has to correct before the numbers are trustworthy. See the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1).
 
 ---
 
