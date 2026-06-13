@@ -128,6 +128,43 @@ async def test_get_holdings_provenance_imported_with_source_document(db, test_us
     assert holdings[0].provenance == "imported"
 
 
+async def test_AC22_13_1_explicit_as_of_holdings_preserve_snapshot_provenance(db, test_user, svc, account):
+    """AC22.13.1: explicit as-of holdings carry normalized provenance from the selected snapshot."""
+    as_of_date = date(2025, 1, 31)
+    position = ManagedPosition(
+        user_id=test_user.id,
+        account_id=account.id,
+        asset_identifier="VWRA",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("1200.00"),
+        currency="SGD",
+        acquisition_date=as_of_date,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+    snapshot = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=as_of_date,
+        asset_identifier="VWRA",
+        broker="Test Investment",
+        quantity=Decimal("10"),
+        market_value=Decimal("1200.00"),
+        currency="SGD",
+        asset_type="etf",
+        dedup_hash="vwra_historical_imported_provenance",
+        source_documents={
+            "documents": [{"doc_id": "22222222-2222-4222-8222-222222222222", "doc_type": "brokerage_statement"}]
+        },
+    )
+    db.add_all([position, snapshot])
+    await db.flush()
+
+    holdings = await svc.get_holdings(db, test_user.id, as_of_date=as_of_date)
+
+    assert len(holdings) == 1
+    assert holdings[0].provenance == "imported"
+
+
 async def test_get_holdings_defaults_to_latest_future_brokerage_snapshot(db, test_user, svc, account):
     """AC8.13.10/Issue #424: Latest holdings include current-month brokerage snapshots."""
     future_snapshot_date = date.today() + timedelta(days=12)

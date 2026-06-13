@@ -46,9 +46,9 @@ describe("BalanceSheetPage", () => {
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",
       currency: "SGD",
-      assets: [{ account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: "1000" }],
-      liabilities: [{ account_id: "l-root", name: "Loan", type: "LIABILITY", parent_id: null, amount: "200" }],
-      equity: [{ account_id: "e-root", name: "Capital", type: "EQUITY", parent_id: null, amount: "800" }],
+      assets: [{ account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: "1000", provenance: "manual" }],
+      liabilities: [{ account_id: "l-root", name: "Loan", type: "LIABILITY", parent_id: null, amount: "200", provenance: "derived" }],
+      equity: [{ account_id: "e-root", name: "Capital", type: "EQUITY", parent_id: null, amount: "800", provenance: "imported" }],
       total_assets: "1000",
       total_liabilities: "200",
       total_equity: "800",
@@ -69,6 +69,9 @@ describe("BalanceSheetPage", () => {
     expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
     expect(screen.getByText("Balance Equation Detail")).toBeInTheDocument()
     expect(screen.getByText("Excluded by default")).toBeInTheDocument()
+    expect(screen.getByText("Manual")).toHaveAccessibleName("Provenance: Manual")
+    expect(screen.getByText("Derived")).toHaveAccessibleName("Provenance: Derived")
+    expect(screen.getByText("Imported")).toHaveAccessibleName("Provenance: Imported")
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("include_restricted=false"))
     expect(screen.getAllByText(/Total:/)).toHaveLength(3)
 

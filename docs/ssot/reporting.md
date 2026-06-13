@@ -254,6 +254,25 @@ Endpoint:
   fact, and source document. It is report-only and must not mutate ledger state.
 - Accounts the user does not own return `404`.
 
+### 2.6b Report Line Provenance
+
+Balance Sheet and Income Statement `ReportLine` responses expose a normalized
+optional `provenance` enum when the source basis is known:
+
+| Value | Meaning |
+|---|---|
+| `imported` | The report line is fully backed by imported or user-confirmed statement/source entries. |
+| `manual` | The report line is fully backed by user-entered facts, including manual valuation synthetic lines. |
+| `derived` | The line is system-derived, market/FX adjusted, or combines multiple known provenance classes. |
+| `null` | The backend cannot safely derive the line's source basis. |
+
+For ledger account aggregates, provenance is combined from the contributing
+posted/reconciled `JournalEntry.source_type` values after the same date and
+status filters as the report amount. A single known class remains that class;
+mixed known classes collapse to `derived`; unknown-only inputs remain `null`.
+Portfolio market valuation adjustment lines are `derived`. Manual valuation
+snapshot synthetic asset/liability lines are `manual`.
+
 ### 2.7 Personal Financial-Report Package Contract
 
 Issue [#570](https://github.com/wangzitian0/finance_report/issues/570) owns the
@@ -567,6 +586,11 @@ The balance sheet combines three source classes:
 Portfolio adjustments prevent double counting without removing broker cash. If position cost basis already exists as a debit to the broker account, only the market-value delta is added to assets. If no cost-basis journal exists, the full market value is added.
 
 Manual valuation snapshots use `include_in_total_net_worth` to decide balance sheet inclusion. Snapshot currency is converted to the report currency using the historical FX rate on the report `as_of_date`.
+
+Balance sheet source classes also carry report-line provenance: ledger account
+lines derive provenance from contributing journal source types, active portfolio
+market adjustments are `derived`, and manual valuation snapshot synthetic lines
+are `manual`.
 
 `unrealized_fx_gain_loss` is not a balancing plug. It is calculated from foreign-currency asset/liability accounts by comparing:
 

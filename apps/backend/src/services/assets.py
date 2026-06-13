@@ -21,6 +21,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.schemas.provenance import DataProvenance
 from src.utils.money import to_money
 
 logger = get_logger(__name__)
@@ -68,6 +69,7 @@ class ValuationComponentItem:
     value: Decimal
     currency: str
     source: str
+    provenance: DataProvenance = "manual"
 
 
 @dataclass
@@ -380,6 +382,7 @@ class AssetService:
                     value=value,
                     currency=snapshot.currency,
                     source=snapshot.source,
+                    provenance="manual",
                 )
             )
 

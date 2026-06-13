@@ -192,6 +192,12 @@ Manual snapshot capture uses a controlled source vocabulary for new frontend sub
 `other_document`. Historical source strings remain valid response data and
 should be displayed as-is when they do not match a known vocabulary value.
 
+Manual valuation snapshot and latest valuation component API responses expose
+normalized read-model provenance as `provenance="manual"`. This field is a
+separate user-trust signal from the snapshot's `source` basis string: `source`
+describes where the user says the value came from, while `provenance` states
+that the value was user-entered rather than imported or derived by the system.
+
 ---
 
 ## 7. Design Constraints

@@ -317,3 +317,19 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.12.4 | Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant, so low-confidence explanations keep readable contrast | `attentionQueue.test.tsx` | P1 |
 | AC22.12.5 | Shared toast and flow-step status affordances use Lucide icons or text instead of unicode glyph icons, and warning toast messages do not embed emoji-like status glyphs | `toastProviderComponent.test.tsx`, `flowStepBanner.test.tsx`, `assetsPage.test.tsx` | P1 |
 | AC22.12.6 | Data-dense report and asset-table loading states reserve layout with token-backed skeleton placeholders instead of spinner-only or text-only states | `uiPrimitives.test.tsx`, `balanceSheetPage.test.tsx`, `incomeStatementPage.test.tsx`, `cashFlowPage.test.tsx`, `assetsPage.test.tsx` | P1 |
+
+### AC22.13 — Unified Provenance Taxonomy Follow-Up
+
+> #888 follow-up slice. AC22.10 shipped the conservative safe subset: a holding
+> could be labeled Imported only when a concrete source document proved that
+> claim. The remaining depth is to expose a normalized
+> Imported / Manual / Derived enum on live read models and render one shared
+> badge, while still avoiding guessed provenance for ambiguous historical
+> position paths. This slice also carries forward two #928 accessibility review
+> comments that belong to the same trust-surface baseline.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.13.1 | Portfolio holdings, explicit as-of holdings, manual valuation snapshots, and report amount lines expose a normalized provenance enum (`imported`, `manual`, `derived`) when the source basis is known, while ambiguous holdings remain unlabeled instead of guessed | `test_portfolio_service.py`, `test_reporting.py`, `test_manual_valuation_snapshots.py` | P1 |
+| AC22.13.2 | Portfolio and report surfaces render a shared Imported / Manual / Derived provenance badge; Manual is visually distinct from Imported and unlabeled values remain silent | `provenanceBadge.test.tsx`, `holdingsTable.test.tsx`, `balanceSheetPage.test.tsx`, `incomeStatementPage.test.tsx` | P1 |
+| AC22.13.3 | Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name | `designTokens.test.tsx`, `personalReportPackagePage.test.tsx` | P1 |

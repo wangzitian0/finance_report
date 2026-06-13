@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.models import AccountType, Direction
+from src.schemas.provenance import DataProvenance
 
 
 def _validate_internal_action_href(value: str) -> str:
@@ -27,6 +28,7 @@ class ReportLine(BaseModel):
     # Worst-input confidence tier of the line's contributing facts (Axiom B).
     # None when the line has no rated contributing fact.
     confidence_tier: str | None = None
+    provenance: DataProvenance | None = None
 
 
 class AccountLineageLine(BaseModel):
