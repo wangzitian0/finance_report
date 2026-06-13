@@ -164,6 +164,23 @@ disposes. Wiring each decision site to call the gate (vs. consuming the shared
 constants) is incremental; the runtime that *generates* Derived versions or
 dispatches escalations is a separate EPIC.
 
+### Correction Feedback Loop (drives the proportion down)
+
+The North-Star metric (EPIC-018 AC18.12) measures the low-confidence proportion;
+this is the mechanism that *moves* it. Owned by `services/correction_loop.py`
+(EPIC-018 AC18.14, issue #931):
+
+- Every human correction that overrode an AI proposal is labeled signal, recorded
+  append-only in `CorrectionLog`.
+- The **corpus** is a projection of that store keyed by the transaction pattern —
+  not a sidecar decision table that would drift from the provenance graph.
+- A deterministic **held-out replay** builds priors from a train split and grounds
+  recurring held-out patterns, so the low-confidence proportion strictly drops
+  exactly when corrections recur (and never invents a gain when they do not).
+
+Live grounding of generation, threshold calibration of the promotion gate from the
+corpus, and the dispatch runtime are follow-ups.
+
 ---
 
 ## 6. API Contract
