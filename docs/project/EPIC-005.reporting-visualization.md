@@ -287,6 +287,20 @@ action.
 | AC5.17.1 | Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper, and the backend CSV export supports cash-flow reports with date range and currency filters | `AC5.17.1 downloads cash-flow CSV through authenticated apiDownload`, `test_AC5_17_1_cash_flow_export_returns_csv` | `frontend/src/__tests__/cashFlowPage.test.tsx`, `reporting/test_reports_router.py` | P0 |
 | AC5.17.2 | Personal report package page exposes an authenticated CSV export action after framework selection, using the package export contract and selected framework ID | `AC5.17.2 downloads package CSV through authenticated apiDownload` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
+### AC5.18: Per-Node Confidence Tier on Balance-Sheet Payloads
+
+Axiom B makes confidence a first-class, measured property. Each balance-sheet
+line carries the confidence tier of its contributing ledger facts, and the Net
+Worth aggregate rolls up to the worst-input tier (see
+[confirmation-workflow.md](../ssot/confirmation-workflow.md) → Confidence Tier
+Rollup) — a defined rollup, not an invented number. Income statement, cash flow,
+and the monthly cards are a follow-up; provenance (#888) is the co-equal sibling axis.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.18.1 | Each balance-sheet line carries the worst-input confidence tier of its contributing journal entries | `test_AC5_18_1_lines_carry_worst_input_confidence_tier()` | `reporting/test_balance_sheet_confidence.py` | P1 |
+| AC5.18.2 | The Net Worth aggregate rolls up to the worst-input tier across rated lines, and is null when nothing is rated | `test_AC5_18_2_net_worth_rolls_up_to_worst_input_tier()` | `reporting/test_balance_sheet_confidence.py` | P1 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
