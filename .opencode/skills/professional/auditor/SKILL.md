@@ -64,7 +64,21 @@ You are an Auditor, responsible for the integrity of the financial system. Your 
 ### 3. Financial Statement Logic
 
 #### Balance Sheet (Point in Time)
-- **Equation**: `Total Assets == Total Liabilities + Total Equity`.
+- **Equation**:
+
+  ```
+  Total Assets = Total Liabilities + Total Equity + Net Income
+               + Unrealized FX Gain/Loss + Net Worth Adjustment Gain/Loss
+  ```
+
+  The last three are explicit components, not plugs — `unrealized_fx_gain_loss`
+  is computed from
+  foreign-currency accounts (excluding `FX_REVALUATION` entries), and
+  `net_worth_adjustment_gain_loss` from non-ledger value (portfolio adjustments +
+  manual valuation snapshots).
+- **Net-worth sources**: journal lines, active portfolio positions (market-value
+  delta), and manual valuation snapshots. Restricted holdings are excluded by
+  default (`include_restricted=false`).
 - **FX Rate**: Use **period-end rate** for consolidation.
 
 #### Income Statement (Period Performance)
@@ -86,7 +100,7 @@ You are an Auditor, responsible for the integrity of the financial system. Your 
 - **Pattern Shift**: New counterparty or category usage significantly different from historical profile.
 
 ### Verification Checklist
-- [ ] **Equation Check**: Does `Assets = Liabilities + Equity` hold at the reporting date?
+- [ ] **Equation Check**: Does `Total Assets = Total Liabilities + Total Equity + Net Income + Unrealized FX Gain/Loss + Net Worth Adjustment Gain/Loss` hold at the reporting date?
 - [ ] **Ledger vs Statement**: Do account balances match bank statement ending balances?
 - [ ] **Unreconciled Items**: Are all large unmatched transactions explained?
 - [ ] **FX Gains/Losses**: Are realized and unrealized FX gains correctly calculated?
@@ -112,7 +126,9 @@ You are an Auditor, responsible for the integrity of the financial system. Your 
 ---
 
 ## Workflow: Statement Reconciliation
-1. **Import**: Parse statement into `BankStatementTransaction`.
+1. **Import**: Extract the statement into `AtomicTransaction` (DWD). The legacy
+   `bank_statement*` ODS tables were removed (EPIC-011 Stage 3); reconciliation
+   reads Layer 2 and links matches via `ReconciliationMatch.atomic_txn_id`.
 2. **Match**: Generate candidate entries and calculate multi-dimensional scores.
 3. **Execute**: 
    - Auto-post matches ≥ 85.

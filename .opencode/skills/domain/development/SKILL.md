@@ -9,22 +9,29 @@ description: Development environment, testing, CI/CD, and deployment procedures.
 
 ## Moon Commands (Primary Interface)
 
+Day-to-day work goes through root tasks (`:dev`, `:test`, `:lint`, `:build`); the
+`apps/*` projects declare no tasks of their own, and sub-targets are passed via
+`--`. A few helpers run as plain scripts (e.g. smoke tests), noted inline below.
+
 ```bash
 # Development
-moon run :dev -- --backend        # FastAPI on :8000
-moon run frontend:dev       # Next.js on :3000
+moon run :dev -- --infra          # Start local infra
+moon run :dev -- --backend        # FastAPI on :8000 (after infra)
+moon run :dev -- --frontend       # Next.js on :3000
 
-# Testing
-moon run :test              # All tests
-moon run :test       # Backend tests (auto-manages DB)
-moon run :smoke             # Smoke tests
+# Testing (all via :test; auto-manages DB)
+moon run :test                    # All tests
+moon run :test -- --fast          # Fast TDD loop (no coverage)
+moon run :test -- --smart         # Coverage on changed files only
+moon run :test -- tests/accounting/   # Specific module/file
+bash tools/smoke_test.sh          # Unified smoke tests (no moon task)
 
 # Code Quality
-moon run :lint              # Lint all
-moon run :lint -- --fix     # Format Python
+moon run :lint                    # Lint all
+moon run :lint -- --fix           # Format/auto-fix
 
 # Build
-moon run :build             # Build all
+moon run :build                   # Build all
 ```
 
 ## Database Lifecycle
