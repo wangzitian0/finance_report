@@ -95,12 +95,10 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
     assert "tools/strip_lcov_branches.py" in component.expected_sources(ROOT)
     assert (
-        "tools/_lib/coverage/calculate_unified_coverage.py"
+        "common/coverage/calculate_unified_coverage.py"
         in component.expected_sources(ROOT)
     )
-    assert "tools/_lib/coverage/strip_lcov_branches.py" in component.expected_sources(
-        ROOT
-    )
+    assert "common/coverage/strip_lcov_branches.py" in component.expected_sources(ROOT)
     assert "tools/_lib/dev/test_lifecycle.py" in component.expected_sources(ROOT)
 
 
@@ -116,29 +114,22 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
 
     assert (
         build_tool.main
-        is importlib.import_module("tools._lib.coverage.build_unified_lcov").main
+        is importlib.import_module("common.coverage.build_unified_lcov").main
     )
     assert (
         calc_tool.main
-        is importlib.import_module(
-            "tools._lib.coverage.calculate_unified_coverage"
-        ).main
+        is importlib.import_module("common.coverage.calculate_unified_coverage").main
     )
     assert (
-        analyzer_tool.main
-        is importlib.import_module("tools._lib.coverage.analyzer").main
+        analyzer_tool.main is importlib.import_module("common.coverage.analyzer").main
     )
-    assert (
-        merge_tool.main
-        is importlib.import_module("tools._lib.coverage.merge_lcov").main
-    )
+    assert merge_tool.main is importlib.import_module("common.coverage.merge_lcov").main
     assert (
         strip_tool.main
-        is importlib.import_module("tools._lib.coverage.strip_lcov_branches").main
+        is importlib.import_module("common.coverage.strip_lcov_branches").main
     )
     assert (
-        policy_tool.main
-        is importlib.import_module("tools._lib.coverage.check_policy").main
+        policy_tool.main is importlib.import_module("common.coverage.check_policy").main
     )
     assert (
         metrics_tool.main is importlib.import_module("common.ci.metrics_contract").main
@@ -217,12 +208,10 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
         "tools.check_toolchain_contract": "common.ci.check_toolchain_contract",
         "tools.ci_change_classifier": "common.ci.change_classifier",
         "tools.github_workflow_timing_summary": (
-            "tools._lib.ci.github_workflow_timing_summary"
+            "common.ci.github_workflow_timing_summary"
         ),
         "tools.production_infra_smoke": "common.ci.production_infra_smoke",
-        "tools.wait_post_merge_train_turn": (
-            "tools._lib.ci.wait_post_merge_train_turn"
-        ),
+        "tools.wait_post_merge_train_turn": ("common.ci.wait_post_merge_train_turn"),
     }
 
     for tool_module, common_module in command_modules.items():

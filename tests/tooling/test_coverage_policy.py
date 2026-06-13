@@ -10,9 +10,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tools._lib.coverage import build_unified_lcov  # noqa: E402
-from tools._lib.coverage import check_policy  # noqa: E402
-from tools._lib.coverage.check_policy import (  # noqa: E402
+from common.coverage import build_unified_lcov  # noqa: E402
+from common.coverage import check_policy  # noqa: E402
+from common.coverage.check_policy import (  # noqa: E402
     audit_unregistered_sources,
     compare_component,
     main,

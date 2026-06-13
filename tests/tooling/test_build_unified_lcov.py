@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tools._lib.coverage.build_unified_lcov import (  # noqa: E402
+from common.coverage.build_unified_lcov import (  # noqa: E402
     build_unified_lcov,
     repo_relative_source,
 )

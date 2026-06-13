@@ -130,7 +130,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "tools/**/__pycache__/**",
             "tools/tests/**",
             "tools/wait_for_cheap_ci.py",
-            "tools/_lib/ci/wait_for_cheap_ci.py",
         ),
     ),
     CoverageComponent(
@@ -145,6 +144,8 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "common/**/__init__.py",
             "common/**/__pycache__/**",
             "common/tests/**",
+            # Long-poll CI waiter: no meaningful unit coverage (moved from tools/_lib/ci).
+            "common/ci/wait_for_cheap_ci.py",
         ),
     ),
 )

@@ -43,7 +43,7 @@ def staging_ai_ocr_contract_shell() -> str:
 
 def test_AC8_13_13_post_merge_train_waits_only_for_older_active_runs() -> None:
     """AC8.13.13: FIFO train gate waits for older active staging runs only."""
-    from tools._lib.ci.wait_post_merge_train_turn import (
+    from common.ci.wait_post_merge_train_turn import (
         older_active_runs,
         workflow_run_from_payload,
     )
@@ -83,7 +83,7 @@ def test_AC8_13_13_post_merge_train_waits_until_blockers_finish(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: FIFO gate polls until older active runs are gone."""
-    from tools._lib.ci import wait_post_merge_train_turn as train
+    from common.ci import wait_post_merge_train_turn as train
 
     current_payload = {
         "id": 20,
@@ -141,7 +141,7 @@ def test_AC8_13_13_post_merge_train_timeout_lists_blockers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: FIFO timeout reports the blocking run URLs."""
-    from tools._lib.ci import wait_post_merge_train_turn as train
+    from common.ci import wait_post_merge_train_turn as train
 
     current_payload = {
         "id": 20,
@@ -189,7 +189,7 @@ def test_AC8_13_13_github_actions_client_pages_workflow_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: GitHub client follows workflow-run pagination."""
-    from tools._lib.ci.wait_post_merge_train_turn import GitHubActionsClient
+    from common.ci.wait_post_merge_train_turn import GitHubActionsClient
 
     requested_urls: list[str] = []
 
@@ -222,7 +222,7 @@ def test_AC8_13_13_github_actions_client_pages_workflow_runs(
         )
 
     monkeypatch.setattr(
-        "tools._lib.ci.wait_post_merge_train_turn.urllib.request.urlopen",
+        "common.ci.wait_post_merge_train_turn.urllib.request.urlopen",
         fake_urlopen,
     )
 
@@ -242,7 +242,7 @@ def test_AC8_13_13_github_actions_client_reports_http_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC8.13.13: GitHub API failures stay readable in CI logs."""
-    from tools._lib.ci.wait_post_merge_train_turn import GitHubActionsClient
+    from common.ci.wait_post_merge_train_turn import GitHubActionsClient
 
     def fake_urlopen(_request: object, timeout: int) -> object:
         assert timeout == 20
@@ -255,7 +255,7 @@ def test_AC8_13_13_github_actions_client_reports_http_errors(
         )
 
     monkeypatch.setattr(
-        "tools._lib.ci.wait_post_merge_train_turn.urllib.request.urlopen",
+        "common.ci.wait_post_merge_train_turn.urllib.request.urlopen",
         fake_urlopen,
     )
 
@@ -274,7 +274,7 @@ def test_AC8_13_13_post_merge_train_cli_validates_context(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """AC8.13.13: CLI exits clearly when GitHub context is missing."""
-    from tools._lib.ci.wait_post_merge_train_turn import main
+    from common.ci.wait_post_merge_train_turn import main
 
     assert main(["--repository", "", "--run-id", "0", "--token", ""]) == 2
 
@@ -287,7 +287,7 @@ def test_AC8_13_13_post_merge_train_cli_handles_runtime_failure(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """AC8.13.13: CLI returns failure without a Python traceback."""
-    from tools._lib.ci import wait_post_merge_train_turn as train
+    from common.ci import wait_post_merge_train_turn as train
 
     class FakeClient:
         def __init__(self, **_kwargs: object) -> None:
@@ -2911,7 +2911,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     """AC8.13.34: CI and post-merge workflows report queue and critical-path timing."""
     ci_workflow = read(".github/workflows/ci.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    timing_script = read("tools/_lib/ci/github_workflow_timing_summary.py")
+    timing_script = read("common/ci/github_workflow_timing_summary.py")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "Write CI timing summary" in ci_workflow
@@ -3017,7 +3017,7 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
     import importlib
 
     importlib.import_module("tools.wait_for_cheap_ci")
-    from tools._lib.ci.wait_for_cheap_ci import GitHubActionsClient, main
+    from common.ci.wait_for_cheap_ci import GitHubActionsClient, main
     import urllib.request
     import urllib.error
     from io import BytesIO
