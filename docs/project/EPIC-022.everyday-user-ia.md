@@ -234,3 +234,16 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.9.1 | The Reports cockpit's reconciliation-coverage block stays in the reports context and does not link into the Advanced `/reconciliation` surface | `reportsCockpit.test.tsx` | P1 |
 | AC22.9.2 | The reconciliation match-rate is shown under a single term ("Reconciliation coverage") on both Home and Reports, backed by one shared `InfoHint` glossary entry | `dashboardPage.test.tsx`, `reportsCockpit.test.tsx`, `infoHint.test.tsx` | P1 |
 | AC22.9.3 | The "Annualized Income" cockpit card's destination matches its label (it opens the report package and the caption says so), with no silent label/destination mismatch | `reportsCockpit.test.tsx` | P1 |
+
+### AC22.10 — Provenance Labeling (Conservative Subset)
+
+> PR10 slice (#868). The vision requires manual data to never masquerade as
+> imported proof. A full Imported/Manual/Derived taxonomy needs a persisted
+> provenance field across the holding creation paths (tracked in #888, where the
+> ambiguity of empty `source_documents` is documented). This slice ships the
+> safe subset: label a holding **Imported only when it has concrete document
+> evidence**, and never infer Manual — so neither direction can be mislabeled.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.10.1 | A holding whose latest snapshot is backed by a source document is labeled "Imported"; holdings without document evidence carry no provenance label (manual data is never shown as imported, and import is never claimed without proof) | `test_portfolio_service.py`, `holdingsTable.test.tsx` | P1 |

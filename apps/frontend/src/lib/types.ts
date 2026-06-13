@@ -785,6 +785,8 @@ export interface PortfolioHolding {
   asset_type?: string | null;
   sector?: string | null;
   geography?: string | null;
+  /** "imported" when backed by a source document; null when not provable (#868). */
+  provenance?: "imported" | null;
 }
 
 export interface PortfolioSummaryResponse {
