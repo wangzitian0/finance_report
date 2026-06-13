@@ -66,3 +66,25 @@ def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():
             f"the registry-login `if:` must cover `{trigger}` so login runs whenever the "
             f"image push runs (AC7.12.4, #879). Login if: {login_if.strip()}"
         )
+
+
+def test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr():
+    pr = read(".github/workflows/pr-test.yml")
+    # deploy-preview runs only via manual workflow_dispatch — no per-PR auto-deploy (P1a-2).
+    deploy_block = pr.split("  deploy-preview:", 1)[1].split("\n  e2e:", 1)[0]
+    deploy_if = next(
+        (ln for ln in deploy_block.splitlines() if ln.strip().startswith("if:")), ""
+    )
+    assert "github.event_name == 'workflow_dispatch'" in deploy_if, (
+        "the persistent Dokploy preview (deploy-preview) must run only via manual "
+        f"workflow_dispatch; per-PR auto-preview is removed (P1a-2, #879). if: {deploy_if.strip()}"
+    )
+    # The in-runner e2e merge gate stays automatic — it must NOT require workflow_dispatch.
+    e2e_block = pr.split("\n  e2e:", 1)[1].split("\n  cleanup:", 1)[0]
+    e2e_if = next(
+        (ln for ln in e2e_block.splitlines() if ln.strip().startswith("if:")), ""
+    )
+    assert "workflow_dispatch" not in e2e_if, (
+        "the in-runner e2e merge gate must stay automatic, not gated on workflow_dispatch "
+        f"(P1a-2, #879). e2e if: {e2e_if.strip()}"
+    )
