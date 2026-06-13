@@ -191,6 +191,14 @@ class CashFlowItem(BaseModel):
     subcategory: str
     amount: Decimal
     description: str | None = None
+    # EPIC-022 #887: the account whose movement this line represents, so the
+    # frontend can drill the amount down to its contributing journal lines via
+    # /api/reports/account-lineage (each cash-flow line maps to exactly one
+    # account). None for any future aggregate line with no single anchor.
+    account_id: UUID | None = Field(
+        default=None,
+        description="Account this line's movement belongs to, for report drill-down.",
+    )
 
 
 class CashFlowSummary(BaseModel):

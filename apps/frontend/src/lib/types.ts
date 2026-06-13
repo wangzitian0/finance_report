@@ -205,6 +205,8 @@ export interface CashFlowItem {
   subcategory: string;
   amount: MoneyValue;
   description: string | null;
+  /** Account this line's movement belongs to, for report drill-down (#887). */
+  account_id?: string | null;
 }
 
 export interface CashFlowSummary {

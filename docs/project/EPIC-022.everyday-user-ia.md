@@ -205,6 +205,20 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.6.3 | The header notification center links to the full `/attention` queue, and the bell stays quiet (no badge) when nothing needs attention | `workflowSurfaces.test.tsx` | P1 |
 | AC22.6.4 | Desktop and mobile smoke covers the `/attention` queue and the Home trust meter without layout overflow | `attention-surface.spec.ts` | P1 |
 
+### AC22.7 — Close The Traceability Loop
+
+> PR7 slice (#866). Balance Sheet and Income Statement already drill amounts down
+> to source; this slice ties the Cash Flow statement together so the period's
+> change in cash is explainable, and closes the traceability loop by giving each
+> cash-flow line an account anchor (#887) so its amount drills down like the
+> other statements. A desktop/mobile smoke and the readable evidence-chain path
+> view follow separately.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.7.1 | Each cash-flow line carries its account anchor (`account_id`), and clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines | `test_reporting.py`, `cashFlowPage.test.tsx` | P1 |
+| AC22.7.3 | The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile | `cashFlowPage.test.tsx` | P1 |
+
 ### AC22.9 — Everyday/Advanced Boundary And Naming Unification
 
 > PR9 slice (#865). The IA folds accounting modules into Advanced, but the

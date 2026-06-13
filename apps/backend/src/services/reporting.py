@@ -1443,6 +1443,8 @@ async def generate_cash_flow(
             "subcategory": account.name,
             "amount": _quantize_money(amount),
             "description": f"{'Inflow' if amount > 0 else 'Outflow'} - {account.name}",
+            # EPIC-022 #887: anchor the line to its account for report drill-down.
+            "account_id": acc_id,
         }
         if account.type in (AccountType.INCOME, AccountType.EXPENSE):
             item["category"] = "Operating"
