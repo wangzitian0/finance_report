@@ -966,12 +966,30 @@ describe("PersonalReportPackagePage", () => {
       1,
     );
     expect(screen.getByText("Balance Sheet")).toBeInTheDocument();
-    expect(
-      screen.getAllByText("annualized_income_long_term").length,
-    ).toBeGreaterThanOrEqual(1);
+    // Sections are titled by their human label, not the raw snake_case section_id
+    // (EPIC-022 AC22.8.1).
     expect(
       screen.getByText("Annualized Income & Long-Term Compensation"),
     ).toBeInTheDocument();
+  });
+
+  it("AC22.8.1 titles package sections with human labels, not developer snake_case identifiers", async () => {
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    // Wait for the framework package output to load, then assert the sections.
+    await screen.findByText("Source Trust");
+
+    // Human section titles are present...
+    for (const heading of ["Report Readiness", "Source Trust", "Framework Policy", "Traceability Appendix"]) {
+      expect(screen.getAllByText(heading).length).toBeGreaterThanOrEqual(1);
+    }
+    // ...and the raw snake_case section eyebrows are gone.
+    for (const raw of ["framework_selection", "report_readiness", "source_trust_summary", "framework_policy_result"]) {
+      expect(screen.queryByText(raw)).toBeNull();
+    }
   });
 
   it("AC19.5.4 renders package readiness before report package output", async () => {
@@ -1039,10 +1057,9 @@ describe("PersonalReportPackagePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
     const sourceTrust = await screen.findByText("Source Trust");
-    await waitFor(() =>
-      expect(screen.getAllByText("traceability_appendix").length).toBeGreaterThanOrEqual(2),
-    );
-    const traceability = screen.getAllByText("traceability_appendix").at(-1)!;
+    // The traceability section is titled by its human label (AC22.8.1), not the
+    // raw section_id; it must render after the source-trust summary.
+    const traceability = (await screen.findAllByText("Traceability Appendix")).at(-1)!;
     expect(traceability).toBeDefined();
     expect(
       sourceTrust.compareDocumentPosition(traceability) &

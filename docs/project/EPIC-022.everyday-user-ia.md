@@ -219,6 +219,20 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.7.1 | Each cash-flow line carries its account anchor (`account_id`), and clicking a cash-flow amount opens the account-lineage drawer for that account's contributing journal lines | `test_reporting.py`, `cashFlowPage.test.tsx` | P1 |
 | AC22.7.3 | The Cash Flow statement renders a reconciliation that ties beginning cash + net cash flow to ending cash, and explicitly flags when it does not reconcile | `cashFlowPage.test.tsx` | P1 |
 
+### AC22.8 — Readable Report Package
+
+> PR8 slice (#867). The report package — the product's terminal deliverable —
+> was the least readable surface, exposing developer-facing snake_case
+> identifiers (`framework_selection`, `report_readiness`, `source_trust_summary`,
+> section ids) as on-screen labels. This slice replaces those with the existing
+> human section titles. The fuller readable redesign (cover + table of contents)
+> and the pinned-version export follow separately; the export engine pairs with
+> #705 (backend), so it is out of scope for this frontend-only slice.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.8.1 | The report package titles its sections with human-readable labels (Reporting Framework, Report Readiness, Source Trust, Framework Policy, schedules, Traceability Appendix) rather than developer-facing snake_case identifiers | `personalReportPackagePage.test.tsx` | P1 |
+
 ### AC22.9 — Everyday/Advanced Boundary And Naming Unification
 
 > PR9 slice (#865). The IA folds accounting modules into Advanced, but the
