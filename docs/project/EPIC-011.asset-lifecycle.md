@@ -7,6 +7,8 @@
 **Priority**: P2 (Medium Priority)  
 **Dependencies**: EPIC-002 (Double-Entry Core), EPIC-005 (Reporting)
 
+> **Usable milestone**: ⏸️ deferred (post-Usable). P0 asset tracking is done; depreciation / ESOP / valuation-history depth is owned here but **not** required for the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1) (upload a year of real data on prod).
+
 > **Status ownership**: This EPIC owns scope and AC definitions. Current proof
 > status comes from generated registries, traceability checks, tests, and CI
 > artifacts.

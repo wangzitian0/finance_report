@@ -13,6 +13,31 @@ Use the root [README](https://github.com/wangzitian0/finance_report/blob/main/RE
 commands. GitHub issue state, generated coverage numbers, and
 other live values should not be duplicated by hand in this directory index.
 
+## Current Milestone: Usable — *a year of real data on prod*
+
+Tracked by GitHub [milestone "Usable: a year of real data on prod"](https://github.com/wangzitian0/finance_report/milestone/1). This is the current product cut line:
+
+> **Usable** = a self-hoster can upload a **full year of real financial data on prod** and get **trustworthy reports**.
+
+This single acceptance scenario decomposes (MECE) into four capability gates. Each
+links to its owning EPIC(s) and the GitHub issues that gate it; live open/closed
+state lives on the issues and the milestone, not here.
+
+| Gate | Must hold | Owning EPIC(s) | Gating issues |
+|---|---|---|---|
+| **G1 · prod is safe for real data** | deploy never false-greens, ships the staging-validated image, rolls back on failure, prod is observable, and real data is backed up + restorable | EPIC-007, EPIC-010 | [#793](https://github.com/wangzitian0/finance_report/issues/793), [#876](https://github.com/wangzitian0/finance_report/issues/876), [#883](https://github.com/wangzitian0/finance_report/issues/883), [#893](https://github.com/wangzitian0/finance_report/issues/893), [#532](https://github.com/wangzitian0/finance_report/issues/532), [#575](https://github.com/wangzitian0/finance_report/issues/575), [#576](https://github.com/wangzitian0/finance_report/issues/576), [#755](https://github.com/wangzitian0/finance_report/issues/755), [#945](https://github.com/wangzitian0/finance_report/issues/945) |
+| **G2 · a year of real data ingests** | a year of real statements parse, the upload→report derivation holds at volume, manual assets and report export work | EPIC-003, EPIC-013, EPIC-005, EPIC-019 | [#705](https://github.com/wangzitian0/finance_report/issues/705), [#706](https://github.com/wangzitian0/finance_report/issues/706), [#887](https://github.com/wangzitian0/finance_report/issues/887) (+ EPIC-019 AC19.12 derivation) |
+| **G3 · the numbers are trustworthy** | confidence is load-bearing (promotion gate, merged via #930), provenance surfaced, north-star proportion measured, real-data parse errors fixable in review | EPIC-016, EPIC-018, EPIC-022 | [#917](https://github.com/wangzitian0/finance_report/issues/917) (umbrella), [#931](https://github.com/wangzitian0/finance_report/issues/931) |
+| **G4 · an everyday user can operate it** | upload-first IA, plain-language trusted surfaces | EPIC-022 ✅ shipped | — |
+
+**Deferred (post-Usable)** — scope stays owned by its EPIC but is **not** required
+for this cut: asset depreciation / ESOP / valuation-history depth (EPIC-011),
+investment portfolio (EPIC-017), framework-aware US/HK reporting (EPIC-020),
+application-layer advisor depth (EPIC-021), deep evidence-graph navigation &
+lineage backfill (EPIC-018 AC18.7–18.12, [#733](https://github.com/wangzitian0/finance_report/issues/733)/[#918](https://github.com/wangzitian0/finance_report/issues/918)),
+grounded assistant ([#912](https://github.com/wangzitian0/finance_report/issues/912)),
+and additional banks / XLSX / OCR ingest.
+
 ## Source Rules
 
 - EPIC scope lives in `docs/project/EPIC-*.md`.

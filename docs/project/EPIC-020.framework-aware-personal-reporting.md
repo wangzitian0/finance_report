@@ -6,6 +6,7 @@
 > **Phase**: Target-backward report policy
 > **Priority**: P0 for US/HK framework selection on personal financial reports
 > **Dependencies**: EPIC-002, EPIC-003, EPIC-005, EPIC-017, EPIC-018, EPIC-019
+> **Usable milestone**: ⏸️ deferred (post-Usable). Framework-aware US/HK report policy is owned here but **not** required for the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1); a single trustworthy report is enough to be usable — framework selection comes after.
 
 ---
 

@@ -8,6 +8,7 @@
 > **Priority**: P0 — the product should feel like upload files, respond to
 > required in-app events, and read trusted reports.
 > **Dependencies**: EPIC-003, EPIC-004, EPIC-005, EPIC-013, EPIC-016, EPIC-018
+> **Usable milestone**: 🎯 gating (G2). AC19.12 lightweight workflow derivation is required so a year of uploads reliably derives reports without hand-holding. Durable Prefect orchestration (AC19.13) stays deferred. See the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1).
 
 ---
 

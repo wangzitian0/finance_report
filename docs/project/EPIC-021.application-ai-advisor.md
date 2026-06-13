@@ -8,6 +8,7 @@
 > contextual decision support
 > **Dependencies**: EPIC-003, EPIC-005, EPIC-006, EPIC-008, EPIC-011, EPIC-013,
 > EPIC-017, EPIC-018, EPIC-019, EPIC-020
+> **Usable milestone**: ⏸️ deferred (post-Usable). The application-layer advisor is owned here but **not** required for the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1); trusting the report numbers does not depend on advisor depth.
 
 ---
 

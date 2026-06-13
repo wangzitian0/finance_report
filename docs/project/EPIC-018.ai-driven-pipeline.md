@@ -6,6 +6,7 @@
 > **Duration**: 4-7 weeks  
 > **Priority**: P1 (High Priority - Parallel with EPIC-016)  
 > **Dependencies**: EPIC-003 (Statement Parsing), EPIC-004 (Reconciliation Engine), EPIC-006 (AI Advisor), EPIC-013 (Statement Parsing V2)
+> **Usable milestone**: 🎯 gating (G3, partial). Load-bearing confidence — the deterministic promotion gate (#930, merged) over classified facts — is required so the numbers can be trusted. Deep evidence-graph navigation & lineage (AC18.7–18.12) is **deferred** post-Usable. See the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1).
 
 ---
 
