@@ -38,6 +38,7 @@ from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.fx import FxRateError, convert_amount
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, PortfolioService
+from src.utils.money import to_money
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 logger = get_logger(__name__)
@@ -77,7 +78,8 @@ class DividendCreateRequest(BaseModel):
 
 
 def _money(value: Decimal) -> Decimal:
-    return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # Canonical money rounding (banker's / HALF_EVEN). See docs/ssot/accounting.md#decimal-rule.
+    return to_money(Decimal(value))
 
 
 def _percent(value: Decimal | None) -> Decimal | None:

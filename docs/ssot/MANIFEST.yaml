@@ -25,11 +25,14 @@ concepts:
   # ── Accounting domain ──────────────────────────────────────────────────
   decimal_monetary_rule:
     owner: docs/ssot/accounting.md#decimal-rule
-    description: All monetary amounts MUST use Python Decimal, never float.
+    description: All monetary amounts MUST use Python Decimal, never float; money rounds via banker's HALF_EVEN.
     cross_refs:
       - AGENTS.md
       - docs/agents/red-lines.md
       - apps/backend/tests/accounting/test_decimal_safety.py
+    proofs:
+      - apps/backend/tests/accounting/test_decimal_safety.py
+      - apps/backend/tests/accounting/test_money.py
 
   accounting_equation:
     owner: docs/ssot/accounting.md#accounting-equation

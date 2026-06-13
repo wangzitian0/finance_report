@@ -101,6 +101,11 @@ when the entry moves from `posted` to `reconciled`.
     -   **Enforcement**: All Pydantic models use `Decimal`. API clients parse JSON numbers as strings or Decimals, never floats.
     -   **Guardrail**: `apps/backend/tests/accounting/test_decimal_safety.py` fuzzes models with float inputs to ensure strictness.
 
+- **Rule A2 — Canonical money rounding**: Currency amounts are quantized to **2 decimal places using banker's rounding (`ROUND_HALF_EVEN`)**. This is the single project-wide rounding mode for money.
+    -   **Enforcement**: round money through the one helper `apps/backend/src/utils/money.py::to_money()` (exposed as `src.utils.to_money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
+    -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): FX rates & security prices (6 dp), share quantities (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
+    -   **Guardrail**: `apps/backend/tests/accounting/test_money.py`.
+
 <a id="entry-balance"></a>
 
 - **Anti-pattern B**: **NEVER** allow unbalanced debit/credit entries. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected`
