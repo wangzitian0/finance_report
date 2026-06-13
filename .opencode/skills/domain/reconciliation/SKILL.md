@@ -69,8 +69,16 @@ scoring:
 - **Pattern A**: Auto-matches must record `score_breakdown` for audit
 - **Pattern B**: One-to-many matches must verify amount totals
 - **Pattern C**: Cross-period matches extend date tolerance to ±7 days
-- **Pattern D**: Review queue updates use row-level locking and increment `version`
-- **Pattern E (Performance)**: Pre-fetch candidates for entire statement period
+- **Pattern D**: Match facts are append-only (Axiom A). `reconciliation_matches`
+  carries a `version` integer and a self-referential `superseded_by_id`.
+  Replacing a match sets the prior match's `status = superseded` and its
+  `superseded_by_id` to the new match; the active match is resolved **in the
+  service** via `_get_existing_active_match` (`status != superseded AND
+  superseded_by_id IS NULL`), not by a DB partial unique index, and the
+  replacement does not increment `version`. (The partial-unique-index head
+  enforcement is applied on `manual_valuation_snapshots` — see
+  [`schema`](../schema/SKILL.md#append-only-fact-versioning-axiom-a).)
+- **Pattern E (Performance)**: Pre-fetch candidates for entire statement period.
 
 ### ⛔ Prohibited Patterns
 
