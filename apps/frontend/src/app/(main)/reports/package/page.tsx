@@ -180,8 +180,7 @@ export default function PersonalReportPackagePage() {
     <section className="card p-5 mb-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-mono text-muted">framework_selection</p>
-          <h2 className="font-semibold mt-1">Reporting Framework</h2>
+          <h2 className="font-semibold">Reporting Framework</h2>
           <p className="mt-2 text-sm text-muted">
             {selectedFrameworkId
               ? `${selectedFrameworkLabel} selected for this package.`
@@ -308,8 +307,7 @@ export default function PersonalReportPackagePage() {
       <section className="card p-5 mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-mono text-muted">report_readiness</p>
-            <h2 className="font-semibold mt-1">Report Readiness</h2>
+            <h2 className="font-semibold">Report Readiness</h2>
             <p className="mt-2 text-sm text-muted">
               {readiness.state === "blocked"
                 ? `${readiness.blocking_count} blocker${readiness.blocking_count === 1 ? "" : "s"} must be resolved before package output is trusted.`
@@ -376,10 +374,7 @@ export default function PersonalReportPackagePage() {
         <section className="card p-5 mb-6" aria-label="Source trust summary">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-mono text-muted">
-                source_trust_summary
-              </p>
-              <h2 className="font-semibold mt-1">Source Trust</h2>
+              <h2 className="font-semibold">Source Trust</h2>
             </div>
             <span className="badge badge-muted">
               {readiness.source_trust_summary.source_classes.length} classes
@@ -433,10 +428,7 @@ export default function PersonalReportPackagePage() {
       <section className="card p-5 mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-mono text-muted">
-              framework_policy_result
-            </p>
-            <h2 className="font-semibold mt-1">Framework Policy</h2>
+            <h2 className="font-semibold">Framework Policy</h2>
             <p className="mt-2 max-w-3xl break-words font-mono text-xs text-muted">
               {frameworkPolicy.result_id}
             </p>
@@ -528,9 +520,6 @@ export default function PersonalReportPackagePage() {
           <section key={section.section_id} className="card p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-mono text-muted">
-                  {section.section_id}
-                </p>
                 <h2 className="font-semibold mt-1">{section.label}</h2>
               </div>
               <span className="badge badge-muted">{section.status}</span>
@@ -560,10 +549,7 @@ export default function PersonalReportPackagePage() {
       <section className="card p-5 mb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-mono text-muted">
-              {annualizedSchedule.section_id}
-            </p>
-            <h2 className="font-semibold mt-1">Annualized Income Schedule</h2>
+            <h2 className="font-semibold">Annualized Income Schedule</h2>
           </div>
           <span className="badge badge-muted">
             {annualizedSchedule.trailing_period_days} days
@@ -682,10 +668,7 @@ export default function PersonalReportPackagePage() {
       <section className="card p-5 mb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-mono text-muted">
-              {packageNotes.section_id}
-            </p>
-            <h2 className="font-semibold mt-1">{packageNotes.label}</h2>
+            <h2 className="font-semibold">{packageNotes.label}</h2>
           </div>
           <span className="badge badge-muted">{packageNotes.status}</span>
         </div>
@@ -726,10 +709,7 @@ export default function PersonalReportPackagePage() {
       <section className="card p-5 mb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-mono text-muted">
-              {traceabilityAppendix.section_id}
-            </p>
-            <h2 className="font-semibold mt-1">{traceabilityAppendix.label}</h2>
+            <h2 className="font-semibold">{traceabilityAppendix.label}</h2>
           </div>
           <span className="badge badge-muted">
             {traceabilityAppendix.status}

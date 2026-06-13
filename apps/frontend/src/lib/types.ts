@@ -205,6 +205,8 @@ export interface CashFlowItem {
   subcategory: string;
   amount: MoneyValue;
   description: string | null;
+  /** Account this line's movement belongs to, for report drill-down (#887). */
+  account_id?: string | null;
 }
 
 export interface CashFlowSummary {
@@ -783,6 +785,8 @@ export interface PortfolioHolding {
   asset_type?: string | null;
   sector?: string | null;
   geography?: string | null;
+  /** "imported" when backed by a source document; null when not provable (#868). */
+  provenance?: "imported" | null;
 }
 
 export interface PortfolioSummaryResponse {

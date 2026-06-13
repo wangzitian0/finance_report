@@ -7,8 +7,9 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
+import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { formatDateInput } from "@/lib/date";
-import { compareAmounts, formatCurrencyLocale } from "@/lib/currency";
+import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import type { CashFlowItem, CashFlowResponse } from "@/lib/types";
@@ -17,6 +18,7 @@ export default function CashFlowPage() {
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return formatDateInput(d); });
   const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
   const [currency, setCurrency] = useState("SGD");
+  const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
 
   const queryString = useMemo(() => {
@@ -45,7 +47,24 @@ export default function CashFlowPage() {
                 <p className="font-medium truncate">{item.subcategory}</p>
                 {item.description && <p className="text-xs text-muted truncate">{item.description}</p>}
               </div>
-              <span className="font-medium ml-2">{report ? formatCurrencyLocale(item.amount, report.currency) : "—"}</span>
+              {item.account_id ? (
+                <button
+                  type="button"
+                  onClick={() => setDrillTarget({
+                    accountId: item.account_id!,
+                    accountName: item.subcategory,
+                    asOfDate: endDate,
+                    startDate,
+                    currency: report?.currency || currency,
+                  })}
+                  className="font-medium ml-2 underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                  aria-label={`View source transactions for ${item.subcategory}`}
+                >
+                  {report ? formatCurrencyLocale(item.amount, report.currency) : "—"}
+                </button>
+              ) : (
+                <span className="font-medium ml-2">{report ? formatCurrencyLocale(item.amount, report.currency) : "—"}</span>
+              )}
             </div>
           ))}
         </div>
@@ -99,6 +118,51 @@ export default function CashFlowPage() {
         </div>
       )}
 
+      {summary && (() => {
+        // AC22.7.3: tie beginning cash + net flow to ending cash so the user can
+        // see where the period's change came from, and flag if it does not
+        // reconcile.
+        const cur = report?.currency || "SGD";
+        const beginning = toDecimal(summary.beginning_cash);
+        const net = toDecimal(summary.net_cash_flow);
+        const ending = toDecimal(summary.ending_cash);
+        const expectedEnding = beginning.plus(net);
+        const drift = expectedEnding.minus(ending);
+        const reconciles = drift.abs().lessThanOrEqualTo("0.01");
+        return (
+          <div className="card p-5 mb-6" aria-label="Cash reconciliation">
+            <p className="text-xs text-muted uppercase mb-3">Cash reconciliation</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              <span>Beginning cash <strong>{formatCurrencyLocale(beginning, cur)}</strong></span>
+              <span className="text-muted">+</span>
+              <span>
+                Net cash flow{" "}
+                <strong className={net.isNegative() ? "text-[var(--error)]" : "text-[var(--success)]"}>
+                  {formatCurrencyLocale(net, cur)}
+                </strong>
+              </span>
+              <span className="text-muted">=</span>
+              <span>Ending cash <strong>{formatCurrencyLocale(ending, cur)}</strong></span>
+              <span
+                className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                  reconciles
+                    ? "bg-[var(--success-muted)] text-[var(--success)]"
+                    : "bg-[var(--warning-muted)] text-[var(--warning)]"
+                }`}
+              >
+                {reconciles ? "✓ Reconciles" : "⚠ Does not tie"}
+              </span>
+            </div>
+            {!reconciles && (
+              <p className="mt-2 text-xs text-[var(--warning)]">
+                Expected ending {formatCurrencyLocale(expectedEnding, cur)} differs from the reported ending by{" "}
+                {formatCurrencyLocale(drift, cur)}.
+              </p>
+            )}
+          </div>
+        );
+      })()}
+
       <div className="grid gap-4 lg:grid-cols-3 mb-6">
         {renderSection("Operating Activities", report?.operating || [], "text-[var(--success)]")}
         {renderSection("Investing Activities", report?.investing || [], "text-[var(--accent)]")}
@@ -137,6 +201,8 @@ export default function CashFlowPage() {
           </div>
         </div>
       )}
+
+      <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </div>
   );
 }

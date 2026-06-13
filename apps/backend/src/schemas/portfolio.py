@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -34,6 +34,14 @@ class HoldingResponse(BaseResponse):
     asset_type: str | None = None
     sector: str | None = None
     geography: str | None = None
+    # EPIC-022 #868/#888: conservative provenance. "imported" only when the
+    # holding's latest snapshot is backed by a concrete source document; None
+    # when we cannot prove import (we never infer "manual", to honour the rule
+    # that manual data must not masquerade as imported — and vice versa).
+    provenance: Literal["imported"] | None = Field(
+        default=None,
+        description='"imported" when backed by a source document; null otherwise.',
+    )
 
 
 class RealizedPnLResponse(BaseModel):
