@@ -111,7 +111,7 @@ The following diagram shows how a bank statement travels from upload through to 
 | Context | Tolerance | Source |
 |---------|-----------|--------|
 | Stage 1 balance chain validation | 0.001 USD | `promotion_gate.STATEMENT_BALANCE_TOLERANCE` (#930) |
-| Stage 2 reconciliation auto-accept / review | 85 / 60 | `promotion_gate.RECONCILIATION_AUTO_ACCEPT_SCORE` / `_REVIEW_SCORE` (#930) |
+| Stage 2 reconciliation auto-accept / review | 85 / 60 | `promotion_gate.RECONCILIATION_AUTO_ACCEPT_SCORE` / `promotion_gate.RECONCILIATION_REVIEW_SCORE` (#930) |
 | Stage 2 reconciliation match (amount score) | 0.10 USD | AGENTS.md, reconciliation.md |
 | Reconciliation statistics comparison | 1% | AGENTS.md |
 
