@@ -227,6 +227,14 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.11.3 | Destructive upgrade operations cannot be classified below critical risk | `test_AC7_11_3_destructive_migrations_must_be_classified_critical` | `tests/tooling/test_migration_risk_contract.py` | P0 |
 | AC7.11.4 | CI lint and production release dry-run execute the migration risk contract and publish release context | `test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract` | `tests/tooling/test_migration_risk_contract.py` | P0 |
 
+### AC7.12: Delivery App/Infra-boundary calibration (#876)
+
+> Framework doc-of-record lives in issue #876 (G1–P3). This table tracks only ACs that already have a test; the rest land with their implementing PRs.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.12.8 | The published `:<sha>` front-end image is environment-independent (same-origin `/api`, no environment domain baked in); a contract test fails if a concrete environment domain appears in the published image | `test_AC7_12_8_published_frontend_image_has_no_baked_env_domain` | `tests/tooling/test_frontend_same_origin_contract.py` | P0 |
+
 
 ## 📏 Acceptance Criteria
 
