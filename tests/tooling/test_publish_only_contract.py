@@ -28,9 +28,14 @@ _PUBLISH_TRIGGERS = (
 
 def test_AC7_12_4_release_branches_trigger_the_publish_workflow():
     ci = read(".github/workflows/ci.yml")
-    assert "release/**" in ci, (
+    # Target the actual `branches:` line(s), not a stray mention in a comment, so the
+    # contract can't false-pass (Copilot CR).
+    branches_lines = [
+        ln for ln in ci.splitlines() if ln.strip().startswith("branches:")
+    ]
+    assert any("release/**" in ln for ln in branches_lines), (
         "ci.yml `on.push.branches` must include release branches so release commits "
-        "publish a `:<sha>` image (AC7.12.4, #879)."
+        f"publish a `:<sha>` image (AC7.12.4, #879). branches lines: {branches_lines}"
     )
 
 
@@ -47,3 +52,17 @@ def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():
                 f"publishes for main, release branches, and on-demand dispatch "
                 f"(AC7.12.4, #879). Offending line: {line.strip()}"
             )
+
+    # The registry login must run under the same triggers, else login is skipped and
+    # the push fails only for release/** or workflow_dispatch (Copilot CR).
+    login_block = ci.split("- name: Log in to Container registry", 1)[1].split(
+        "- name:", 1
+    )[0]
+    login_if = next(
+        (ln for ln in login_block.splitlines() if ln.strip().startswith("if:")), ""
+    )
+    for trigger in _PUBLISH_TRIGGERS:
+        assert trigger in login_if, (
+            f"the registry-login `if:` must cover `{trigger}` so login runs whenever the "
+            f"image push runs (AC7.12.4, #879). Login if: {login_if.strip()}"
+        )
