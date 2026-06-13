@@ -25,6 +25,11 @@ export interface AttentionItem {
   kind: AttentionKind;
   title: string;
   detail: string;
+  /**
+   * AC22.11.2 — plain-language explanation of *why* the system flagged this,
+   * so the user understands the blocker rather than just seeing a low score.
+   */
+  reason: string;
   /** 0–100; lower means the system is less sure and the user should look. */
   confidence: number;
   /** Deep-link to the surface where the user can act on this item. */
@@ -68,6 +73,9 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
       kind: "statement_review",
       title: statement.original_filename,
       detail: balanceFailed ? "Balance needs review" : "Parsed — ready to review",
+      reason: balanceFailed
+        ? "The statement's closing balance didn't reconcile against the parsed transactions, so the extraction may have missed or misread a line."
+        : "Parsed from your upload and waiting for you to confirm the entries before they post to the ledger.",
       confidence: clampConfidence(balanceFailed ? Math.min(score, 40) : score),
       href: `/statements/${statement.id}/review`,
     });
@@ -84,6 +92,7 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
       kind: "reconciliation_review",
       title: `${stats.pending_review} match${stats.pending_review > 1 ? "es" : ""} need review`,
       detail: "Reconciliation review",
+      reason: "Auto-matched to ledger entries but below the confidence bar to post without a human check — confirm or correct each match.",
       confidence: clampConfidence(stats.match_rate ?? 0),
       href: "/reconciliation/review-queue",
     });
@@ -98,6 +107,7 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
         stats.unmatched_transactions > 1 ? "s" : ""
       }`,
       detail: "No ledger match yet",
+      reason: "These transactions have no matching ledger entry at all — either new activity you haven't recorded yet, or a reference the matcher couldn't link.",
       confidence: 0,
       href: "/reconciliation/unmatched",
     });
@@ -114,6 +124,7 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
       kind: "processing_stalled",
       title: `${stalled.length} transfer${stalled.length > 1 ? "s" : ""} stuck in transit`,
       detail: `Oldest ${oldest} days outstanding`,
+      reason: `Funds left one account but haven't been confirmed arriving in another for over ${PROCESSING_STALE_DAYS} days — the transfer may need a matching deposit or a manual close.`,
       confidence: 30,
       href: "/processing",
     });

@@ -56,6 +56,10 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
 
     expect(within(rows[1]).getByText("bad.pdf")).toBeInTheDocument();
     expect(within(rows[0]).getByText("0% confidence")).toBeInTheDocument();
+
+    // AC22.11.2: each row explains *why* it was flagged, not just a score.
+    expect(within(rows[0]).getByText(/no matching ledger entry/i)).toBeInTheDocument();
+    expect(within(rows[1]).getByText(/balance didn't reconcile/i)).toBeInTheDocument();
   });
 
   it("AC22.6.1 shows an all-clear empty state when nothing needs attention", async () => {

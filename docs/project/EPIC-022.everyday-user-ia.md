@@ -261,3 +261,22 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC22.10.1 | A holding whose latest snapshot is backed by a source document is labeled "Imported"; holdings without document evidence carry no provenance label (manual data is never shown as imported, and import is never claimed without proof) | `test_portfolio_service.py`, `holdingsTable.test.tsx` | P1 |
+
+### AC22.11 — Everyday-User UX Hardening
+
+> PR11 slice (#836). Post-merge hardening of the everyday-user surfaces, derived
+> from a UX review of the shipped IA. Two trust seams: the statement-parsing
+> screen showed a **fabricated** fixed-width progress bar (dishonest in a product
+> whose whole pitch is trustworthiness), and attention items showed a confidence
+> score with no explanation of *why* they were flagged (Axiom B asks the human to
+> look only at the low-confidence tail — so the reason must be legible). The
+> `/events`→`/notifications` dedup that #865 scoped is already handled by a
+> `next.config` redirect (so #865 closed); the residual `/events` page is left in
+> place because it still anchors EPIC-019's AC19.3.5. The cross-surface "return to
+> the attention queue after resolving" is split to a follow-up because it touches
+> every review destination.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.11.1 | The statement-parsing state shows an honest indeterminate indicator with a typical-duration expectation, and never renders a fabricated fixed-percentage progress bar | `statementsPage.test.tsx` | P1 |
+| AC22.11.2 | Each attention-queue item surfaces a plain-language reason it was flagged — distinct per cause — alongside its confidence score | `attention.test.ts`, `attentionQueue.test.tsx` | P1 |
