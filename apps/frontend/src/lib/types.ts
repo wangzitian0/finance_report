@@ -4,6 +4,7 @@
 
 export type DecimalValue = string;
 export type MoneyValue = DecimalValue;
+export type DataProvenance = "imported" | "manual" | "derived";
 export const MONEY_VALUE_CONTRACT = "decimal-string" as const;
 
 export interface Account {
@@ -123,6 +124,7 @@ export interface ReportLine {
   type: string;
   parent_id?: string | null;
   amount: MoneyValue;
+  provenance?: DataProvenance | null;
 }
 
 export interface AccountLineageLine {
@@ -766,6 +768,7 @@ export interface ManualValuationSnapshot {
   notes?: string | null;
   recurrence_days?: number | null;
   reminder_date?: string | null;
+  provenance: DataProvenance;
   created_at: string;
   updated_at: string;
 }
@@ -796,8 +799,8 @@ export interface PortfolioHolding {
   asset_type?: string | null;
   sector?: string | null;
   geography?: string | null;
-  /** "imported" when backed by a source document; null when not provable (#868). */
-  provenance?: "imported" | null;
+  /** Normalized provenance when known; null when not safely derivable (#888). */
+  provenance?: DataProvenance | null;
 }
 
 export interface PortfolioSummaryResponse {

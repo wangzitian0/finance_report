@@ -51,8 +51,8 @@ describe("IncomeStatementPage", () => {
       start_date: "2026-01-01",
       end_date: "2026-02-01",
       currency: "SGD",
-      income: [{ account_id: "i1", name: "Salary", type: "INCOME", amount: "5000" }],
-      expenses: [{ account_id: "e1", name: "Rent", type: "EXPENSE", amount: "1200" }],
+      income: [{ account_id: "i1", name: "Salary", type: "INCOME", amount: "5000", provenance: "imported" }],
+      expenses: [{ account_id: "e1", name: "Rent", type: "EXPENSE", amount: "1200", provenance: "manual" }],
       total_income: "5000",
       total_expenses: "1200",
       net_income: "3800",
@@ -71,6 +71,8 @@ describe("IncomeStatementPage", () => {
     expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
     expect(screen.getByText("Salary")).toBeInTheDocument()
     expect(screen.getByText("Rent")).toBeInTheDocument()
+    expect(screen.getByText("Imported")).toHaveAccessibleName("Provenance: Imported")
+    expect(screen.getByText("Manual")).toHaveAccessibleName("Provenance: Manual")
     expect(screen.getByRole("link", { name: "AI Interpretation" })).toHaveAttribute(
       "href",
       expect.stringContaining("/chat?prompt=")
