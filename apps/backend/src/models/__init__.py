@@ -34,6 +34,7 @@ from src.models.layer3 import (
 )
 from src.models.layer4 import ReportSnapshot, ReportType
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
+from src.models.metrics import ConfidenceMetricSnapshot
 from src.models.ping_state import PingState
 from src.models.portfolio import (
     DividendIncome,
@@ -104,6 +105,7 @@ __all__ = [
     "ReconciliationMatch",
     "ReconciliationMatchJournalEntry",
     "ReconciliationStatus",
+    "ConfidenceMetricSnapshot",
     "ReportSnapshot",
     "ReportType",
     "RuleType",

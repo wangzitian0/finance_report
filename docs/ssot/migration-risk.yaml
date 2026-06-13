@@ -175,6 +175,10 @@ migrations:
     risk: medium
     issue: "#845"
     proof: Adds preflight checks plus database CHECK/UNIQUE/partial-index guards for financial facts, statement envelopes, market prices, managed positions, and latest report snapshots; covered by AC11.18 direct DB invariant tests and the PR Alembic contract.
+  0036_confidence_metric_snapshots:
+    file: 0036_confidence_metric_snapshots.py
+    risk: low
+    proof: Additive append-only North-Star confidence metric table; no backfill or read-path cutover; covered by PR Alembic contract.
   0035_manual_valuation_versioning:
     file: 0035_manual_valuation_versioning.py
     risk: medium

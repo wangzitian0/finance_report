@@ -374,6 +374,22 @@ Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integrat
 |-------|-------|-------------|
 | AC18.6.1 | Framework reporting | AI-generated measurement or disclosure suggestions for US/HK personal report packages must remain structured, source-anchored, confidence-scored, and reviewed before EPIC-020 or EPIC-005 can treat them as trusted report inputs |
 
+### AC18.12: North-Star Confidence Metric
+
+Vision names a single North-Star Metric — *"the proportion of low-confidence data
+trends down over time,"* the single measurable expression of the axioms. This AC
+makes it a measured instrument: a deterministic LOW-tier share of the posted
+ledger facts that back reports (tier derived from journal `source_type` via
+`confidence_tier`), recorded as an append-only series so the trend is observable,
+and surfaced read-only via the API. Recording cadence (on report-package
+generation / scheduled) and the per-report-number confidence of #913 are separate.
+
+| AC ID | Phase | Description | Test | File | Priority |
+|-------|-------|-------------|------|------|----------|
+| AC18.12.1 | Metric | The low-confidence proportion is the deterministic LOW-tier share of posted/reconciled journal entries, with a full TRUSTED/HIGH/MEDIUM/LOW breakdown and a defined zero on an empty ledger | `test_AC18_12_1_low_confidence_proportion_and_tier_breakdown_are_deterministic()` | `metrics/test_confidence_north_star_metric.py` | P1 |
+| AC18.12.2 | Trend | The metric is recorded as an append-only series — snapshots accumulate and read newest-first, never overwritten — so the trend over time is observable | `test_AC18_12_2_metric_is_recorded_as_append_only_series_showing_the_trend()` | `metrics/test_confidence_north_star_metric.py` | P1 |
+| AC18.12.3 | Surface | The current metric and its recorded series are exposed read-only via the API | `test_AC18_12_3_north_star_endpoint_returns_current_and_series()` | `metrics/test_confidence_north_star_metric.py` | P1 |
+
 ---
 
 ## 🚫 Out of Scope (v1)
