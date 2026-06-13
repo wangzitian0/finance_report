@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `118`
-- Schema count: `197`
+- Endpoint count: `119`
+- Schema count: `200`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -26,6 +26,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `income` | 1 |
 | `journal-entries` | 6 |
 | `market-data` | 3 |
+| `metrics` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
 | `reports` | 16 |
@@ -140,6 +141,12 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/market-data/status` | yes | `pairs` (query), `symbols` (query), `include_default_fx` (query) | - | `200` array[`MarketDataStatusResponse`] | Market Data Status Endpoint |
 | `POST` | `/market-data/sync/fx` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Fx Endpoint |
 | `POST` | `/market-data/sync/stocks` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Stocks Endpoint |
+
+### metrics
+
+| Method | Path | Auth | Params | Request | Success responses | Summary |
+|---|---|---|---|---|---|---|
+| `GET` | `/metrics/confidence-north-star` | yes | - | - | `200` `ConfidenceNorthStarResponse` | Get Confidence North Star |
 
 ### portfolio
 
