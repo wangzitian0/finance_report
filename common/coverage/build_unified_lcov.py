@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from common.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
-from tools._lib.coverage.strip_lcov_branches import is_branch_record
+from common.coverage.strip_lcov_branches import is_branch_record
 
 
 def repo_relative_source(

@@ -1,1 +1,0 @@
-"""Coverage tool implementations."""

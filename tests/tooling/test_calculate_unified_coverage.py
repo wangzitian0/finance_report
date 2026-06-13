@@ -1,4 +1,4 @@
-"""Tests for tools._lib.coverage.calculate_unified_coverage.
+"""Tests for common.coverage.calculate_unified_coverage.
 Covers unified coverage calculation across backend, frontend, common, and tools,
 including blacklist pattern exclusions and threshold enforcement.
 """
@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools._lib.coverage import calculate_unified_coverage as cuc  # noqa: E402
+from common.coverage import calculate_unified_coverage as cuc  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -680,8 +680,7 @@ class TestBaselineComparison:
         assert "83.15" in captured.err
         assert "BASELINE COMPARISON" in captured.out
         assert (
-            "unified: current=8200/10000 (82.00%) "
-            "baseline=8315/10000 (83.15%)"
+            "unified: current=8200/10000 (82.00%) baseline=8315/10000 (83.15%)"
         ) in captured.out
         current_report = json.loads((tmp_path / "unified-coverage.json").read_text())
         assert current_report["covered_lines"] == 8200
