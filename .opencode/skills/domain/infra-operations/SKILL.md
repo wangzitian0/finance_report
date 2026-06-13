@@ -358,4 +358,4 @@ curl https://report.zitian.party/health
 - [AGENTS.md](../../../AGENTS.md) — Behavioral guidelines
 - [development.md](../../../docs/ssot/development.md) — Dev workflows
 - [observability.md](../../../docs/ssot/observability.md) — Logging
-- [secrets-management](../secrets-management/skill.md) — Env vars
+- [secrets-management](../secrets-management/SKILL.md) — Env vars
