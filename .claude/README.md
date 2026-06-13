@@ -29,6 +29,26 @@ Per-runtime mechanics (model routing, hooks, approval policy) are intentionally
 (`.opencode/oh-my-openagent.json`, `opencode.json`, `.claude/settings*.json`,
 `~/.codex/config.toml`).
 
+## Claude Code subagents (`.claude/agents/`)
+
+OpenCode's named agents live in `.opencode/oh-my-openagent.json` (a JSON config,
+not per-agent files), so they **cannot** be symlinked into Claude Code the way
+skills are. Claude Code subagents are individual markdown files with their own
+`model:` routing. `.claude/agents/` therefore holds a small Claude-native mirror
+of the cost-tiered roles — this is per-runtime mechanics, intentionally not
+shared:
+
+| Agent | Model | Role |
+|---|---|---|
+| `explore` | `haiku` | cheap/fast read-only codebase search (fan-out) |
+| `librarian` | `haiku` | external docs / web / library version lookup |
+| `oracle` | `opus` | deep architecture & design reasoning (advisory) |
+
+The main loop (session model) is the orchestrator — no file needed. Built-in
+`Explore`/`Plan`/`general-purpose` and plugin agents remain available; these just
+pin a default model per role so search fan-out doesn't run on the expensive
+session model. Tune models here, not in the shared `AGENTS.md`.
+
 ## MCP baseline
 
 So a fresh clone gets the same tool surface — not just whatever a machine
