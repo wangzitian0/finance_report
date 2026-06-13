@@ -175,6 +175,10 @@ migrations:
     risk: medium
     issue: "#845"
     proof: Adds preflight checks plus database CHECK/UNIQUE/partial-index guards for financial facts, statement envelopes, market prices, managed positions, and latest report snapshots; covered by AC11.18 direct DB invariant tests and the PR Alembic contract.
+  0035_manual_valuation_versioning:
+    file: 0035_manual_valuation_versioning.py
+    risk: medium
+    proof: Adds append-only version columns and converts manual valuation uniqueness to a partial unique index over current heads; staging should exercise manual valuation create/correct and net-worth read paths.
   0034_audit_anchor_ri:
     file: 0034_audit_anchor_referential_integrity.py
     risk: high
