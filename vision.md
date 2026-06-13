@@ -38,7 +38,7 @@ At any time, the system should help answer:
 - What should my assistant surface from trusted data, known limitations, and
   pending actions?
 
-## The Three Axioms
+## The Axioms
 
 These are the irreducible bets. When a product or architecture choice is
 ambiguous, derive the answer from these axioms first, then from the
@@ -85,6 +85,26 @@ Our hard constraints are managed as risk, not absolutes.
   already generalized the fancy operations; we align to that standard rather
   than invent our own. Minor representational gaps are tolerable.
 
+### Axiom D — The model generalizes; code guarantees the number; key nodes keep slack
+
+We are an AI-driven product, and the division of labor is drawn on purpose:
+
+- **Reach for the model where a decision needs generalization.** Parsing,
+  classifying, matching, explaining, judging the ambiguous case — default to the
+  model, because that is where generalization beats hand-tuned rules. An
+  AI-driven product pushes decisions *toward* the model, not away from it; a wall
+  of brittle thresholds where a model would generalize is a smell, not a safeguard.
+- **Code guarantees the number.** Money, accounting caliber, standardization, and
+  every report line are owned by deterministic code — Decimal-safe, balanced,
+  versioned. The model may *propose*; only code *disposes* a value into the ledger
+  or a report. (This is the bound in [Trade-off Rule 5](#trade-off-rules);
+  confidence governs the handoff per Axiom B.)
+- **Key nodes keep slack.** A critical node carries tolerance instead of chasing
+  infinite precision. We would rather bend and flag for review than hard-fail on a
+  sub-cent drift or a transient hiccup. The slack lives in *thresholds and flow* —
+  whether to auto-accept or escalate — never in the correctness of the number
+  itself. Brittleness from over-specified detail is a defect, not rigor.
+
 ## North-Star Metric
 
 **The proportion of low-confidence data trends down over time.** This is the
@@ -110,6 +130,12 @@ When two goods conflict, the higher rule wins.
 5. **Deterministic logic owns the number.** Anything that lands a value in the
    ledger or a report line is deterministic. AI may parse, classify, explain, and
    suggest; it is measured by confidence and never becomes the source of record.
+   (Axiom D)
+6. **Tolerance over infinite detail at a node.** When a node can either hard-fail
+   on perfect precision or bend within a bounded tolerance and escalate, it bends:
+   slack that degrades to review beats rigidity that breaks. This never overrides
+   Rule 5 — the bend is in thresholds and flow, never in whether the ledger
+   balances or a number is correct. (Axiom D)
 
 If a choice still feels balanced after these rules, run the Decision Filter and
 take the smaller step that improves proof quality.
