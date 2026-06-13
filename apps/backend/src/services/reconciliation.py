@@ -38,6 +38,7 @@ from src.services.processing_account import (
     detect_transfer_pattern,
     find_transfer_pairs,
 )
+from src.services.promotion_gate import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
 from src.services.source_type_priority import promote_entry_source_type, source_type_rank
 from src.services.statement_summary import resolve_custody_account_id
 
@@ -239,8 +240,8 @@ DEFAULT_CONFIG = ReconciliationConfig(
     weight_description=Decimal("0.20"),
     weight_business=Decimal("0.10"),
     weight_history=Decimal("0.05"),
-    auto_accept=85,
-    pending_review=60,
+    auto_accept=RECONCILIATION_AUTO_ACCEPT_SCORE,
+    pending_review=RECONCILIATION_REVIEW_SCORE,
     amount_percent=Decimal("0.005"),
     amount_absolute=Decimal("0.10"),
     date_days=7,

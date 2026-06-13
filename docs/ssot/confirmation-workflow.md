@@ -110,7 +110,8 @@ The following diagram shows how a bank statement travels from upload through to 
 
 | Context | Tolerance | Source |
 |---------|-----------|--------|
-| Stage 1 balance chain validation | 0.001 USD | EPIC-016 Q1 user decision |
+| Stage 1 balance chain validation | 0.001 USD | `promotion_gate.STATEMENT_BALANCE_TOLERANCE` (#930) |
+| Stage 2 reconciliation auto-accept / review | 85 / 60 | `promotion_gate.RECONCILIATION_AUTO_ACCEPT_SCORE` / `_REVIEW_SCORE` (#930) |
 | Stage 2 reconciliation match (amount score) | 0.10 USD | AGENTS.md, reconciliation.md |
 | Reconciliation statistics comparison | 1% | AGENTS.md |
 
@@ -139,6 +140,29 @@ invented blended score.
 Owned first by the balance sheet (EPIC-005 AC5.18, issue #913). A `% trusted`
 proportion is a separate, additive signal (the North-Star metric, EPIC-018
 AC18.12), not the per-node badge.
+
+### Promotion Gate (makes confidence load-bearing)
+
+The single deterministic contract that decides whether a versioned fact (see
+[schema.md → Append-Only Fact Versioning](schema.md)) may become authoritative.
+Owned by `services/promotion_gate.py` (EPIC-018 AC18.13, issue #930):
+
+> **authoritative ⇔ invariants_pass ∧ confidence ≥ τ**
+
+- **Invariants first.** A single failed deterministic invariant (e.g. the
+  balance-chain check outside `STATEMENT_BALANCE_TOLERANCE`) → `rejected`,
+  regardless of confidence. Strong code is never overridden by a high score.
+- **Then confidence.** All invariants pass but confidence below the named
+  threshold → `review` (a non-authoritative candidate, escalated for a human).
+- **Both pass** → `authoritative`.
+- The verdict records the failing invariant and its `delta` vs `tolerance`, so the
+  escalation reason is queryable — not a bare status string.
+
+The thresholds in the table above are named constants owned here, not magic
+numbers buried in services. AI / Derived versions may only *propose*; the gate
+disposes. Wiring each decision site to call the gate (vs. consuming the shared
+constants) is incremental; the runtime that *generates* Derived versions or
+dispatches escalations is a separate EPIC.
 
 ---
 
