@@ -69,6 +69,28 @@ def cleanup_fx_cache():
     clear_fx_cache()
 
 
+# --- Rate-limiter isolation (#410) ---
+@pytest.fixture(autouse=True)
+def reset_rate_limiters():
+    """Drop in-memory rate-limiter state before/after each test.
+
+    The limiters are process-global singletons keyed by client IP; without this
+    the per-IP counters accumulate across the whole session and trip a 429
+    cascade once the global API limit is exceeded (tests share one client IP).
+    """
+    from src.rate_limit import (
+        api_rate_limiter,
+        auth_rate_limiter,
+        register_rate_limiter,
+    )
+
+    for limiter in (api_rate_limiter, auth_rate_limiter, register_rate_limiter):
+        limiter.clear()
+    yield
+    for limiter in (api_rate_limiter, auth_rate_limiter, register_rate_limiter):
+        limiter.clear()
+
+
 @pytest.fixture(autouse=True)
 def disable_external_market_data_fetch(monkeypatch):
     """Keep tests deterministic unless a test explicitly enables provider fetches."""
