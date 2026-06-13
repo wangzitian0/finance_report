@@ -2789,7 +2789,7 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
         "/dashboard",
         "/reports/balance-sheet",
         "/reports/income-statement",
-        "/reports/cash-flow",
+        "/api/reports/cash-flow",
         '"total_income": Decimal("5600.00")',
         '"total_expenses": Decimal("5600.00")',
         '"net_income": Decimal("0.00")',
@@ -2797,6 +2797,8 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
         '"No pending transfers found."',
     ):
         assert token in gate
+    assert 'f"/reports/cash-flow' not in gate
+    assert '"Cash Flow Statement"' not in gate
     assert "upload-to-dashboard vision hard gate" in ci_cd
 
 
