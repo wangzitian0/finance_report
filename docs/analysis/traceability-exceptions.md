@@ -118,6 +118,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
+| `tests/tooling/test_delivery_gates_contract.py` | `docs/ssot/delivery-gates.yaml` |
 | `tests/tooling/test_dokploy_failure_snapshot.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |

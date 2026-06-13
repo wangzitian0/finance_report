@@ -369,6 +369,19 @@ concepts:
       - docs/ssot/coverage.md
       - .github/workflows/ci.yml
 
+  delivery_gate_triggers:
+    owner: docs/ssot/delivery-gates.yaml
+    description: How each delivery CI gate triggers and whether it blocks merge — the single source for trigger/blocking contracts (so a trigger change is one edit, not a fact restated across docs/tests).
+    cross_refs:
+      - docs/ssot/ci-cd.md
+      - docs/ssot/environments.md
+      - docs/project/EPIC-008.testing-strategy.md
+      - .github/workflows/pr-test.yml
+      - .github/workflows/staging-deploy.yml
+      - .github/workflows/production-release.yml
+    proofs:
+      - tests/tooling/test_delivery_gates_contract.py
+
   test_optimization:
     owner: docs/ssot/ci-cd.md#test-optimization
     description: Smart/fast/full test modes and 4-way sharding strategy.

@@ -1,0 +1,65 @@
+# Delivery Gate Triggers — SSOT
+#
+# Single source of truth for HOW each delivery CI gate is triggered and WHETHER it
+# blocks merge. The behavior contract lives HERE, in one machine-readable place.
+#
+# Why this file exists: the "in-runner e2e is a synchronous required gate" fact used
+# to be restated across ci-cd.md, environments.md, EPIC-008, the pr-test.yml comment,
+# and a dozen string-grep contract tests. Changing one trigger meant editing 7+ files,
+# and a comment reword broke unrelated tests. Now:
+#   - this manifest declares the trigger/blocking contract (one edit),
+#   - the workflow implements it (one edit),
+#   - tools/test_delivery_gates_contract.py verifies the workflow matches THIS file
+#     by parsing `on:`/job structure — not by grepping prose,
+#   - ci-cd.md / environments.md / EPIC-008 describe the *behavior* and cross-ref here
+#     instead of re-stating the mechanism.
+#
+# Validated by: tests/tooling/test_delivery_gates_contract.py
+# Owner concept in docs/ssot/MANIFEST.yaml: delivery_gate_triggers
+#
+# trigger values:
+#   pull_request      — synchronous PR check (cannot be outrun by a fast/auto merge)
+#   workflow_run      — async, after another workflow (e.g. main CI) completes
+#   workflow_dispatch — manual / on-demand
+#   tag               — on push of a release tag (on.push.tags)
+
+version: "1.0"
+
+gates:
+  - id: pr-in-runner-e2e
+    workflow: .github/workflows/pr-test.yml
+    job: e2e
+    trigger: pull_request          # synchronous — NOT workflow_run (#943)
+    blocking: true                 # the merge authority: a required check before merge
+    image_free: true              # builds the full stack on the runner; needs no CI artifact
+    description: >
+      Full-stack provider-free smoke/E2E inside the GitHub runner — the merge authority.
+      Runs synchronously on pull_request so a fast or auto merge cannot land before it
+      runs as a required check (a skipped required check counts as passed).
+
+  - id: pr-persistent-preview
+    workflow: .github/workflows/pr-test.yml
+    job: deploy-preview
+    trigger: workflow_dispatch     # on-demand only (P1a-2, #879); never per-PR auto
+    blocking: false
+    image_free: false             # builds PR source on the Dokploy host (D1, until P2/#883)
+    description: >
+      On-demand persistent Dokploy preview. Non-blocking; one click via Run workflow.
+
+  - id: staging-deploy
+    workflow: .github/workflows/staging-deploy.yml
+    job: build-and-deploy
+    trigger: workflow_run          # after a successful main CI run
+    blocking: false
+    image_free: false
+    description: >
+      Post-merge micro-soak on staging before prod. Promotes the main-CI :<sha> image.
+
+  - id: production-release
+    workflow: .github/workflows/production-release.yml
+    job: deploy
+    trigger: tag                   # vX.Y.Z release tag (manual dispatch is a recovery path)
+    blocking: false
+    image_free: true              # pure promote of an existing :<sha> digest — no rebuild
+    description: >
+      Promote the staging-validated digest to a release (staging-first, promote-not-rebuild).

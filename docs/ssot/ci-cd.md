@@ -358,6 +358,12 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - The serialized GLM gate includes `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_statement_upload_e2e.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_four_asset_net_worth_golden_path.py`, and `tests/e2e/test_personal_financial_report_package.py`. The brokerage test uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. The four-asset gate uses an isolated user to combine deterministic bank statement posting, brokerage PDF import, property/mortgage/ESOP manual valuation snapshots, exact as-of net worth, and dashboard/report totals. The personal financial report package gate verifies statements, schedules, notes, restricted-asset treatment, report exports, and source traceability from one fresh user. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, manual valuation, reporting, report packaging, or dashboard aggregation failed. The path-level proof matrix is maintained in [EPIC-017](../project/EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix) with the compact entry-point version in the README; critical product proof anchors live in [critical-proof-matrix.yaml](critical-proof-matrix.yaml). Every `post_merge_environment` proof in that matrix that carries the `llm` marker must appear in both `.github/workflows/staging-deploy.yml` and `.github/workflows/staging-ai-ocr-gate.yml`.
 
 **PR preview E2E** (`.github/workflows/pr-test.yml`):
+
+> The trigger/blocking contract for every delivery gate is the SSOT
+> [`delivery-gates.yaml`](./delivery-gates.yaml) (verified by
+> `tests/tooling/test_delivery_gates_contract.py`). This section describes the
+> *behavior*; it does not own the trigger *mechanism* — change a trigger there.
+
 - The in-runner E2E gate runs **synchronously on `pull_request`**
   (opened/synchronize/reopened), so it is a real required check a fast or auto
   merge cannot bypass. It no longer follows CI asynchronously via `workflow_run`:
