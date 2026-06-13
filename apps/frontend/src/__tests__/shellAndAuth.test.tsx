@@ -58,6 +58,23 @@ describe("AppShell and AuthGuard", () => {
     expect(screen.getByTestId("workspace-tabs").parentElement?.className).toContain("hidden md:block")
   })
 
+  it("AC22.12.2 exposes a skip-to-content link targeting the main landmark", () => {
+    const { container } = render(
+      <AppShell>
+        <div>Shell Child</div>
+      </AppShell>,
+    )
+
+    const skipLink = screen.getByRole("link", { name: "Skip to main content" })
+    expect(skipLink).toHaveAttribute("href", "#main-content")
+    expect(skipLink).toHaveClass("sr-only")
+    expect(skipLink.className).toContain("focus:not-sr-only")
+
+    const main = container.querySelector("main#main-content")
+    expect(main).not.toBeNull()
+    expect(main).toHaveAttribute("tabIndex", "-1")
+  })
+
   it("AC16.19.2 redirects unauthenticated protected routes", async () => {
     isAuthenticatedMock.mockReturnValue(false)
 

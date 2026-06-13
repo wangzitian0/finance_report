@@ -8,6 +8,7 @@ import { BarChart } from "@/components/charts/BarChart";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
+import { ReportPageSkeleton } from "@/components/reports/ReportPageSkeleton";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -70,7 +71,7 @@ export default function IncomeStatementPage() {
   const exportPath = useMemo(() => `/api/reports/export?report_type=income-statement&format=csv&${queryString}`, [queryString]);
   const aiPrompt = useMemo(() => encodeURIComponent(`Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends.`), [currency, endDate, startDate]);
 
-  if (reportQuery.isLoading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading income statement...</span></div>;
+  if (reportQuery.isLoading) return <ReportPageSkeleton label="Loading income statement" sections={2} />;
   if (reportQuery.isError) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>;
 
   return (

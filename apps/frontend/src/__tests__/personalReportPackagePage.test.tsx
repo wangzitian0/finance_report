@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
@@ -550,7 +550,7 @@ describe("PersonalReportPackagePage", () => {
     ).toBeInTheDocument();
   });
 
-  it("AC20.6.1 requires explicit framework selection before loading framework-scoped package output", async () => {
+  it("AC20.6.1 AC22.8.3 requires explicit framework selection before loading framework-scoped package output", async () => {
     mockPackageApi();
 
     renderPackagePage();
@@ -567,6 +567,18 @@ describe("PersonalReportPackagePage", () => {
     expect(
       screen.getByText("Select a framework before package output is loaded."),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Package setup guidance" }),
+    ).toBeInTheDocument();
+    const setupToc = screen.getByRole("navigation", {
+      name: "Report package table of contents",
+    });
+    expect(
+      within(setupToc).getByRole("link", { name: "Reporting Framework" }),
+    ).toHaveAttribute("href", "#package-framework-selection");
+    expect(
+      within(setupToc).getByRole("link", { name: "Balance Sheet" }),
+    ).toHaveAttribute("href", "#package-section-balance_sheet");
     expect(mockedApiFetch).not.toHaveBeenCalledWith(
       "/api/reports/package/readiness",
     );
@@ -639,7 +651,9 @@ describe("PersonalReportPackagePage", () => {
         screen.queryByText("Failed to load package data."),
       ).not.toBeInTheDocument(),
     );
-    expect(screen.getByText("Loading framework package...")).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Loading report package" }),
+    ).toHaveAttribute("aria-busy", "true");
   });
 
   it("EPIC-022 #867 offers a print / save-as-PDF export of the loaded package", async () => {
@@ -975,19 +989,19 @@ describe("PersonalReportPackagePage", () => {
       ),
     );
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("Balance Sheet");
-    expect(screen.getByText("Personal Report Package")).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Balance Sheet" });
+    expect(screen.getAllByText("Personal Report Package").length).toBeGreaterThanOrEqual(1);
     expect(
-      screen.getByText("personal-financial-report-package"),
-    ).toBeInTheDocument();
+      screen.getAllByText("personal-financial-report-package").length,
+    ).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("balance_sheet").length).toBeGreaterThanOrEqual(
       1,
     );
-    expect(screen.getByText("Balance Sheet")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument();
     // Sections are titled by their human label, not the raw snake_case section_id
     // (EPIC-022 AC22.8.1).
     expect(
-      screen.getByText("Annualized Income & Long-Term Compensation"),
+      screen.getByRole("heading", { name: "Annualized Income & Long-Term Compensation" }),
     ).toBeInTheDocument();
   });
 
@@ -1010,6 +1024,71 @@ describe("PersonalReportPackagePage", () => {
     }
   });
 
+  it("AC22.8.2 renders a readable package cover and linked table of contents", async () => {
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.change(await screen.findByLabelText("Package report date"), {
+      target: { value: "2026-05-20" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "US-like" }));
+
+    const cover = await screen.findByRole("region", {
+      name: "Report package cover",
+    });
+    expect(within(cover).getByText("Personal Report Package")).toBeInTheDocument();
+    expect(
+      within(cover).getByText("personal-financial-report-package"),
+    ).toBeInTheDocument();
+    expect(within(cover).getByText("US-like")).toBeInTheDocument();
+    expect(within(cover).getByText("2026-05-20")).toBeInTheDocument();
+
+    const toc = screen.getByRole("navigation", {
+      name: "Report package table of contents",
+    });
+    for (const [label, href] of [
+      ["Report Readiness", "#package-readiness"],
+      ["Source Trust", "#package-source-trust"],
+      ["Framework Policy", "#package-framework-policy"],
+      ["Balance Sheet", "#package-section-balance_sheet"],
+      ["Traceability Appendix", "#package-section-traceability_appendix"],
+    ] as const) {
+      expect(within(toc).getByRole("link", { name: label })).toHaveAttribute(
+        "href",
+        href,
+      );
+    }
+  });
+
+  it("AC22.8.3 reserves the framework-package layout while package sections load", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/reports/package/contract")
+        return Promise.resolve(contract);
+      if (path.startsWith("/api/reports/package/contract?framework_id="))
+        return Promise.resolve({
+          ...contract,
+          selected_framework_id: "personal_us_gaap_like",
+        });
+      return new Promise(() => undefined);
+    });
+
+    const { container } = renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    expect(
+      screen.getByRole("status", { name: "Loading report package" }),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByRole("navigation", {
+        name: "Report package table of contents",
+      }),
+    ).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-testid='skeleton-block']").length).toBeGreaterThanOrEqual(10);
+    expect(screen.queryByText("Loading framework package...")).not.toBeInTheDocument();
+  });
+
   it("AC19.5.4 renders package readiness before report package output", async () => {
     mockPackageApi();
 
@@ -1024,8 +1103,8 @@ describe("PersonalReportPackagePage", () => {
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
-    const readinessHeading = await screen.findByText("Report Readiness");
-    const balanceSheetHeading = screen.getByText("Balance Sheet");
+    const readinessHeading = await screen.findByRole("heading", { name: "Report Readiness" });
+    const balanceSheetHeading = screen.getByRole("heading", { name: "Balance Sheet" });
     expect(
       readinessHeading.compareDocumentPosition(balanceSheetHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -1108,9 +1187,7 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await waitFor(() =>
-      expect(screen.getByText("Export Contract")).toBeInTheDocument(),
-    );
+    await screen.findByRole("heading", { name: "Export Contract" });
     expect(screen.getByText("json, csv")).toBeInTheDocument();
     expect(
       screen.getByText(

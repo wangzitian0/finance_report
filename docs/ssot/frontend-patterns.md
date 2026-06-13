@@ -151,6 +151,32 @@ primitives over repeating page-local class recipes.
 
 Every UI-system change must leave both semantic and visual proof in the same PR.
 
+### Global Accessibility Baseline
+
+- `apps/frontend/src/app/globals.css` owns the app-wide keyboard and motion
+  baseline. It must include `prefers-reduced-motion: reduce` handling that
+  disables non-essential animation/transition timing and smooth scrolling.
+- Global `:focus-visible` styling must cover links, buttons, form controls,
+  summaries, focusable `[tabindex]` elements, and the shared `.btn-*` control
+  classes with token-backed outline and `shadow-focus` treatment.
+- The authenticated shell must expose a skip-to-content link that targets the
+  main landmark before navigation chrome.
+- Shared status affordances must use Lucide icons or text, not unicode glyphs
+  such as checkmarks, warning signs, or arrows as icon substitutes.
+- Data-dense reports and tables should reserve their expected shape with
+  token-backed skeleton placeholders while loading; use spinner-only states for
+  small inline actions, not full report/table surfaces.
+- Evidence-lineage drawers should render graph responses as an ordered
+  source-to-report path. Each hop should expose compact source, confidence, and
+  version badges when those fields are available, falling back to the node's
+  entity type when a source field is absent.
+- Dense trust and attention explanations must keep at least the normal
+  `text-content-muted` contrast token unless a stronger contrast proof exists.
+- Links from the `/attention` queue to review or processing destinations must
+  append `from=attention`. Destination back-links must use that source marker to
+  return to `/attention`, while preserving the existing notification or module
+  fallback when the marker is absent.
+
 - Dialog, sheet, toast, tab/navigation, and icon-only control changes need
   component tests for keyboard behavior, landmark/role semantics, accessible
   names, and live-region behavior where relevant.

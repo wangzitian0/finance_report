@@ -2,8 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 const COLD_ROUTE_TIMEOUT_MS = 10_000;
 
-// EPIC-022 AC22.6.4: desktop + mobile smoke for the confidence-ranked attention
-// queue and the Home trust meter, without layout overflow.
+// EPIC-022 AC22.6.4 / AC22.11.3: desktop + mobile smoke for the
+// confidence-ranked attention queue, attention-origin action links, and the Home
+// trust meter, without layout overflow.
 async function installAttentionMocks(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("finance_user_id", "attention-smoke-user");
@@ -82,9 +83,9 @@ test.describe("AC22.6.4 attention surface smoke", () => {
       // (confidence-ordering itself is covered by attention.test.ts unit tests).
       await expect(page.getByText(/unmatched transaction/i)).toBeVisible();
       await expect(page.getByText("march-statement.pdf")).toBeVisible();
-      // Each row deep-links to its action surface.
-      await expect(page.locator('a[href="/statements/stmt-1/review"]')).toBeVisible();
-      await expect(page.locator('a[href="/reconciliation/unmatched"]')).toBeVisible();
+      // Each row deep-links to its action surface and preserves the attention origin.
+      await expect(page.locator('a[href="/statements/stmt-1/review?from=attention"]')).toBeVisible();
+      await expect(page.locator('a[href="/reconciliation/unmatched?from=attention"]')).toBeVisible();
 
       await expectNoDocumentHorizontalScroll(page);
     });

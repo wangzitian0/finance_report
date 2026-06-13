@@ -4,10 +4,15 @@ import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
 import { apiFetch } from "@/lib/api";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
+const navigationState = vi.hoisted(() => ({
+    searchParams: new URLSearchParams(),
+}));
+
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
     useParams: vi.fn(() => ({ id: "s1" })),
+    useSearchParams: vi.fn(() => navigationState.searchParams),
 }));
 
 const mockedApi = vi.mocked(apiFetch);
@@ -16,6 +21,7 @@ const emptyConflicts = { duplicates: [], transfer_pairs: [] };
 describe("StatementReviewPage - coverage additions", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        navigationState.searchParams = new URLSearchParams();
     });
 
     it("renders loading then empty transactions and handles retry/back link", async () => {

@@ -32,4 +32,14 @@ describe("FlowStepBanner (EPIC-022 AC22.5.1)", () => {
         render(<FlowStepBanner current="upload" />);
         expect(screen.getByText(/Next: once we parse your statement/i)).toBeInTheDocument();
     });
+
+    it("AC22.12.5 uses semantic icons instead of unicode status glyphs", () => {
+        const { container } = render(<FlowStepBanner current="reports" />);
+
+        expect(container.textContent).not.toContain("✓");
+        expect(container.textContent).not.toContain("→");
+        expect(screen.getByRole("link", { name: /Upload/ })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /Review & approve/ })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /Reports/ })).toHaveAttribute("aria-current", "step");
+    });
 });

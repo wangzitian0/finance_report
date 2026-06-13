@@ -8,6 +8,7 @@ import { SankeyChart } from "@/components/charts/SankeyChart";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
+import { ReportPageSkeleton } from "@/components/reports/ReportPageSkeleton";
 import { formatDateInput } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -74,7 +75,7 @@ export default function CashFlowPage() {
     </div>
   );
 
-  if (reportQuery.isLoading) return <div className="p-6 flex items-center justify-center min-h-[60vh]"><span className="text-muted">Loading cash flow...</span></div>;
+  if (reportQuery.isLoading) return <ReportPageSkeleton label="Loading cash flow" />;
   if (reportQuery.isError) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>;
 
   return (

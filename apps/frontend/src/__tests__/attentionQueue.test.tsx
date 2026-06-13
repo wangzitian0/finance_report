@@ -37,7 +37,7 @@ function mockSources({
 describe("Attention queue (EPIC-022 AC22.6)", () => {
   beforeEach(() => mockedApiFetch.mockReset());
 
-  it("AC22.6.1 renders the open attention items lowest-confidence first, each deep-linking to its action surface", async () => {
+  it("AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links", async () => {
     mockSources({
       statements: [
         { id: "bad", original_filename: "bad.pdf", status: "parsed", confidence_score: 88, balance_validated: false, transactions: [] },
@@ -50,15 +50,18 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
 
     const rows = await screen.findAllByRole("link");
     // Unmatched (confidence 0) comes before the parsed statement (40) before pending review (80).
-    expect(rows[0]).toHaveAttribute("href", "/reconciliation/unmatched");
-    expect(rows[1]).toHaveAttribute("href", "/statements/bad/review");
-    expect(rows[2]).toHaveAttribute("href", "/reconciliation/review-queue");
+    expect(rows[0]).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
+    expect(rows[1]).toHaveAttribute("href", "/statements/bad/review?from=attention");
+    expect(rows[2]).toHaveAttribute("href", "/reconciliation/review-queue?from=attention");
 
     expect(within(rows[1]).getByText("bad.pdf")).toBeInTheDocument();
     expect(within(rows[0]).getByText("0% confidence")).toBeInTheDocument();
 
     // AC22.11.2: each row explains *why* it was flagged, not just a score.
-    expect(within(rows[0]).getByText(/no matching ledger entry/i)).toBeInTheDocument();
+    const unmatchedReason = within(rows[0]).getByText(/no matching ledger entry/i);
+    expect(unmatchedReason).toBeInTheDocument();
+    expect(unmatchedReason).toHaveClass("text-muted");
+    expect(unmatchedReason.className).not.toContain("text-muted/80");
     expect(within(rows[1]).getByText(/balance didn't reconcile/i)).toBeInTheDocument();
   });
 

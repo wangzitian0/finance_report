@@ -136,6 +136,33 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(screen.getByRole("button", { name: "Approve Selected" })).toBeEnabled()
   })
 
+  it("AC22.11.3 preserves attention origin while the Stage 2 queue updates filters", async () => {
+    navState.searchParams = new URLSearchParams("from=attention")
+
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/statements/stage2/queue")) {
+        return Promise.resolve(queue({ pending_matches: [] }) as never)
+      }
+      if (path.startsWith("/api/statements/consistency-checks/list")) {
+        return Promise.resolve({ items: [] } as never)
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    renderReviewComponent(<Stage2ReviewQueue />)
+
+    expect(await screen.findByRole("link", { name: /Back to Attention queue/i })).toHaveAttribute(
+      "href",
+      "/attention",
+    )
+
+    await waitFor(() =>
+      expect(navState.replace).toHaveBeenCalledWith("/reconciliation/review-queue?from=attention", {
+        scroll: false,
+      }),
+    )
+  })
+
   it("AC16.26.3 mobile run review preserves approval gate and pending match workflow", async () => {
     mockMobileViewport()
     navState.pathname = "/review/run/mobile-run"

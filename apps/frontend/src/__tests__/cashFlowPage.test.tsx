@@ -39,7 +39,11 @@ describe("CashFlowPage", () => {
   it("AC16.14.7 renders loading and error retry states", async () => {
     mockedApiFetch.mockRejectedValue(new Error("cashflow failed"))
 
-    render(<CashFlowPage />)
+    const { container } = render(<CashFlowPage />)
+
+    expect(screen.getByRole("status", { name: "Loading cash flow" })).toHaveAttribute("aria-busy", "true")
+    expect(container.querySelectorAll("[data-testid='skeleton-block']").length).toBeGreaterThanOrEqual(10)
+    expect(container.querySelector(".animate-spin")).toBeNull()
 
     await waitFor(() => expect(screen.getByText("cashflow failed")).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()

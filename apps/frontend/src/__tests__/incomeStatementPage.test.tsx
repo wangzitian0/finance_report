@@ -35,7 +35,11 @@ describe("IncomeStatementPage", () => {
   it("AC16.14.4 renders loading and error retry states", async () => {
     mockedApiFetch.mockRejectedValue(new Error("income failed"))
 
-    render(<IncomeStatementPage />)
+    const { container } = render(<IncomeStatementPage />)
+
+    expect(screen.getByRole("status", { name: "Loading income statement" })).toHaveAttribute("aria-busy", "true")
+    expect(container.querySelectorAll("[data-testid='skeleton-block']").length).toBeGreaterThanOrEqual(10)
+    expect(container.querySelector(".animate-spin")).toBeNull()
 
     await waitFor(() => expect(screen.getByText("income failed")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))

@@ -12,6 +12,7 @@ import { apiFetch } from "@/lib/api";
 
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
 import { formatAmount } from "@/lib/currency";
+import { ATTENTION_SOURCE_PARAM, ATTENTION_SOURCE_VALUE, isAttentionOrigin } from "@/lib/attentionNavigation";
 import type { MoneyValue } from "@/lib/types";
 
 interface ConsistencyCheck {
@@ -116,6 +117,7 @@ export function Stage2ReviewQueue() {
 
     const updateUrlParams = useCallback(() => {
         const params = new URLSearchParams();
+        if (isAttentionOrigin(searchParams)) params.set(ATTENTION_SOURCE_PARAM, ATTENTION_SOURCE_VALUE);
         if (checkTypeFilter) params.set("check_type", checkTypeFilter);
         if (statusFilter) params.set("status", statusFilter);
         if (severityFilter.length > 0) params.set("severity", severityFilter.join(","));
@@ -123,7 +125,7 @@ export function Stage2ReviewQueue() {
 
         const queryString = params.toString();
         router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
-    }, [checkTypeFilter, statusFilter, severityFilter, minScore, router, pathname]);
+    }, [checkTypeFilter, statusFilter, severityFilter, minScore, router, pathname, searchParams]);
 
     const fetchFilteredChecks = useCallback(async () => {
         setFiltering(true);

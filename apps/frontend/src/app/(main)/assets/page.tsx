@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/Toast";
+import { TableSkeleton } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale, formatQuantity, parseAmount } from "@/lib/currency";
 import { formatDateDisplay } from "@/lib/date";
@@ -11,6 +12,7 @@ import {
     ManagedPosition,
     ManagedPositionListResponse,
     ManualValuationComponentType,
+    ManualValuationSource,
     ManualValuationSnapshotListResponse,
     ReconcilePositionsResponse,
 } from "@/lib/types";
@@ -30,6 +32,17 @@ const VALUATION_TYPES: Array<{ value: ManualValuationComponentType; label: strin
     { value: "other_asset", label: "Other Asset" },
     { value: "other_liability", label: "Other Liability" },
 ];
+const VALUATION_SOURCES: Array<{ value: ManualValuationSource; label: string }> = [
+    { value: "manual", label: "Manual entry" },
+    { value: "broker_portal", label: "Broker portal" },
+    { value: "bank_portal", label: "Bank portal" },
+    { value: "cpf_portal", label: "CPF portal" },
+    { value: "tax_portal", label: "Tax portal" },
+    { value: "insurer_portal", label: "Insurer portal" },
+    { value: "employer_portal", label: "Employer portal" },
+    { value: "property_valuation", label: "Property valuation" },
+    { value: "other_document", label: "Other source document" },
+];
 
 function labelForValuationType(type: ManualValuationComponentType): string {
     return VALUATION_TYPES.find((item) => item.value === type)?.label ?? type;
@@ -37,6 +50,10 @@ function labelForValuationType(type: ManualValuationComponentType): string {
 
 function labelForLiquidityClass(value: string): string {
     return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function labelForValuationSource(source: string): string {
+    return VALUATION_SOURCES.find((item) => item.value === source)?.label ?? source;
 }
 
 export default function AssetsPage() {
@@ -48,7 +65,7 @@ export default function AssetsPage() {
         as_of_date: new Date().toISOString().slice(0, 10),
         value: "",
         currency: "SGD",
-        source: "manual",
+        source: "manual" as ManualValuationSource,
         notes: "",
     });
 
@@ -72,7 +89,7 @@ export default function AssetsPage() {
                 const skippedList = result.skipped_assets.slice(0, 3).join(", ");
                 const suffix = result.skipped_assets.length > 3 ? ` and ${result.skipped_assets.length - 3} more` : "";
                 showToast(
-                    `Reconciled ${total} positions. ⚠️ ${result.skipped} skipped due to incomplete data: ${skippedList}${suffix}`,
+                    `Reconciled ${total} positions. ${result.skipped} skipped due to incomplete data: ${skippedList}${suffix}`,
                     "warning"
                 );
             } else {
@@ -227,7 +244,7 @@ export default function AssetsPage() {
                                                 </span>
                                             </div>
                                             <p className="text-xs text-muted mt-0.5">
-                                                {formatDateDisplay(snapshot.as_of_date)} · {snapshot.source}
+                                                {formatDateDisplay(snapshot.as_of_date)} · {labelForValuationSource(snapshot.source)}
                                             </p>
                                         </div>
                                         <div className="text-right font-semibold">
@@ -305,13 +322,22 @@ export default function AssetsPage() {
                             </div>
                             <div className="grid gap-1">
                                 <label htmlFor="valuation-source" className="text-xs font-medium text-muted">Source</label>
-                                <input
+                                <select
                                     id="valuation-source"
                                     className="input"
                                     value={valuationForm.source}
-                                    onChange={(event) => setValuationForm((current) => ({ ...current, source: event.target.value }))}
+                                    onChange={(event) =>
+                                        setValuationForm((current) => ({
+                                            ...current,
+                                            source: event.target.value as ManualValuationSource,
+                                        }))
+                                    }
                                     required
-                                />
+                                >
+                                    {VALUATION_SOURCES.map((source) => (
+                                        <option key={source.value} value={source.value}>{source.label}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                         <div className="grid gap-1">
@@ -375,10 +401,7 @@ export default function AssetsPage() {
             )}
 
             {isLoading ? (
-                <div className="card p-8 text-center text-muted">
-                    <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-                    <p className="text-sm">Loading positions...</p>
-                </div>
+                <TableSkeleton label="Loading positions" rows={4} columns={3} />
             ) : error ? (
                 <div className="card p-8 text-center" role="alert" aria-live="polite">
                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
