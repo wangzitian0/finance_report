@@ -176,7 +176,7 @@ function PackageTableOfContents({ links }: { links: PackageTocLink[] }) {
           <li key={link.id}>
             <a
               href={`#${link.id}`}
-              aria-label={link.label}
+              aria-label={link.status ? `${link.label} ${link.status}` : link.label}
               className="flex items-center justify-between gap-3 rounded-control border border-[var(--border)] px-3 py-2 text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
             >
               <span>{link.label}</span>

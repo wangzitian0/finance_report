@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, PositionStatus
 from src.schemas.base import BaseResponse, ListResponse
+from src.schemas.provenance import DataProvenance
 
 
 class ManagedPositionResponse(BaseResponse):
@@ -108,6 +109,7 @@ class ManualValuationSnapshotResponse(BaseResponse):
     notes: str | None = None
     recurrence_days: int | None = None
     reminder_date: date | None = None
+    provenance: DataProvenance = "manual"
     created_at: datetime
     updated_at: datetime
 
@@ -122,6 +124,7 @@ class ValuationComponentResponse(BaseModel):
     value: Annotated[Decimal, Field(decimal_places=2)]
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     source: str
+    provenance: DataProvenance = "manual"
 
 
 class ValuationComponentsResponse(BaseModel):

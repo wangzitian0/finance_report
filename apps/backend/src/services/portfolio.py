@@ -23,13 +23,14 @@ from src.schemas.portfolio import (
     RealizedPnLResponse,
     UnrealizedPnLResponse,
 )
+from src.schemas.provenance import DataProvenance
 from src.services import fx
 from src.utils.money import to_money
 
 logger = get_logger(__name__)
 
 
-def _derive_provenance(source_documents: object) -> str | None:
+def _derive_provenance(source_documents: object) -> DataProvenance | None:
     """Conservatively derive a holding's provenance from its snapshot's source
     documents (EPIC-022 #868/#888).
 
@@ -326,6 +327,7 @@ class PortfolioService:
                     asset_type=snapshot.asset_type,
                     sector=snapshot.sector,
                     geography=snapshot.geography,
+                    provenance=_derive_provenance(snapshot.source_documents),
                 )
             )
 

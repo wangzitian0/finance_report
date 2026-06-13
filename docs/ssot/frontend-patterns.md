@@ -131,6 +131,8 @@ primitives over repeating page-local class recipes.
 - `EmptyState` — reusable empty and retry surfaces.
 - `LoadingState` — reusable loading state with `role="status"`.
 - `PageHeader` — consistent page title, description, and action layout.
+- `ProvenanceBadge` — shared Imported / Manual / Derived source badges for
+  normalized `DataProvenance` fields. Missing provenance renders no badge.
 
 ### Rules
 
@@ -142,6 +144,9 @@ primitives over repeating page-local class recipes.
   does not create nested cards.
 - Preserve the design-token contract. Primitive variants should map to token
   classes rather than hardcoded palette utilities.
+- Use `ProvenanceBadge` for normalized provenance fields instead of page-local
+  badge recipes. Imported uses the success variant, Manual uses warning, and
+  Derived uses muted.
 - Component tests must reference the owning AC IDs when primitives gain new
   behavior or variants.
 - Icon-only primitives own their accessible names. Callers must pass the
@@ -157,8 +162,9 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
   baseline. It must include `prefers-reduced-motion: reduce` handling that
   disables non-essential animation/transition timing and smooth scrolling.
 - Global `:focus-visible` styling must cover links, buttons, form controls,
-  summaries, focusable `[tabindex]` elements, and the shared `.btn-*` control
-  classes with token-backed outline and `shadow-focus` treatment.
+  summaries, focusable `[tabindex]` elements, programmatically focused
+  `[tabindex="-1"]` skip-link targets, and the shared `.btn-*` control classes
+  with token-backed outline and `shadow-focus` treatment.
 - The authenticated shell must expose a skip-to-content link that targets the
   main landmark before navigation chrome.
 - Shared status affordances must use Lucide icons or text, not unicode glyphs
@@ -183,6 +189,9 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
 - Route switchers that navigate pages must use navigation/list semantics with
   `aria-current`; only use ARIA tabs when focus stays in one page and the
   rendered tab panels are controlled by the tablist.
+- Links that show visible status badges must keep that status in the accessible
+  name. If an `aria-label` is needed, it must include all meaningful visible
+  status text, not only the primary label.
 - Future visual smoke coverage should include representative desktop and mobile
   routes, assert stable visible anchors, capture a nonblank screenshot, and keep
   document-level horizontal overflow at zero.

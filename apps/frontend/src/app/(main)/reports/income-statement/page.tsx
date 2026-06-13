@@ -9,6 +9,7 @@ import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { ReportPageSkeleton } from "@/components/reports/ReportPageSkeleton";
+import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
@@ -155,7 +156,26 @@ export default function IncomeStatementPage() {
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {report?.income?.length ? report.income.map((l) => (
               <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-                <span>{l.name}</span><button type="button" className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline" onClick={() => setDrillTarget({ accountId: l.account_id, accountName: l.name, asOfDate: endDate, startDate, currency: report.currency })} aria-label={`View source transactions for ${l.name}`}>{formatCurrencyLocale(l.amount, report.currency)}</button>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span>{l.name}</span>
+                  <ProvenanceBadge provenance={l.provenance} />
+                </span>
+                <button
+                  type="button"
+                  className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline"
+                  onClick={() =>
+                    setDrillTarget({
+                      accountId: l.account_id,
+                      accountName: l.name,
+                      asOfDate: endDate,
+                      startDate,
+                      currency: report.currency,
+                    })
+                  }
+                  aria-label={`View source transactions for ${l.name}`}
+                >
+                  {formatCurrencyLocale(l.amount, report.currency)}
+                </button>
               </div>
             )) : <p className="text-sm text-muted">No income categories.</p>}
           </div>
@@ -167,7 +187,26 @@ export default function IncomeStatementPage() {
         <div className="grid gap-2 md:grid-cols-2 max-h-96 overflow-y-auto">
           {report?.expenses?.length ? report.expenses.map((l) => (
             <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-              <span>{l.name}</span><button type="button" className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline" onClick={() => setDrillTarget({ accountId: l.account_id, accountName: l.name, asOfDate: endDate, startDate, currency: report.currency })} aria-label={`View source transactions for ${l.name}`}>{formatCurrencyLocale(l.amount, report.currency)}</button>
+              <span className="flex min-w-0 items-center gap-2">
+                <span>{l.name}</span>
+                <ProvenanceBadge provenance={l.provenance} />
+              </span>
+              <button
+                type="button"
+                className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline"
+                onClick={() =>
+                  setDrillTarget({
+                    accountId: l.account_id,
+                    accountName: l.name,
+                    asOfDate: endDate,
+                    startDate,
+                    currency: report.currency,
+                  })
+                }
+                aria-label={`View source transactions for ${l.name}`}
+              >
+                {formatCurrencyLocale(l.amount, report.currency)}
+              </button>
             </div>
           )) : <p className="text-sm text-muted">No expense categories.</p>}
         </div>

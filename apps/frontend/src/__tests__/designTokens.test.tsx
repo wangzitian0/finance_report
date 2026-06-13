@@ -108,7 +108,7 @@ describe("frontend design tokens", () => {
     expect(globals).not.toMatch(/alert bg-\[var\(--(error|success|warning|info)-muted\)\] text-\[var\(--(error|success|warning|info)\)\]/)
   })
 
-  it("AC22.12.1 AC22.12.3 defines the global accessibility baseline in SSOT and CSS", () => {
+  it("AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS", () => {
     const ssot = readFileSync(
       resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
       "utf8",
@@ -124,6 +124,9 @@ describe("frontend design tokens", () => {
     expect(globals).toContain("transition-duration: 0.01ms !important")
     expect(globals).toContain("scroll-behavior: auto !important")
     expect(globals).toContain(":focus-visible")
+    expect(globals).toContain("[tabindex]:focus-visible")
+    expect(globals).toContain('[tabindex="-1"]:focus')
+    expect(globals).not.toContain('[tabindex]:not([tabindex="-1"])')
     expect(globals).toContain(".btn-primary:focus-visible")
     expect(globals).toContain("outline: 2px solid var(--accent)")
     expect(globals).toContain("box-shadow: var(--shadow-focus)")

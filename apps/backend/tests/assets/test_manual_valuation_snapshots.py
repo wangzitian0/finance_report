@@ -30,6 +30,7 @@ async def test_create_manual_valuation_snapshot_crud_api(client):
     assert created["component_type"] == "property_value"
     assert created["liquidity_class"] == "illiquid"
     assert created["value"] == "1250000.99"
+    assert created["provenance"] == "manual"
     assert created["created_at"]
     assert created["updated_at"]
 
@@ -38,6 +39,7 @@ async def test_create_manual_valuation_snapshot_crud_api(client):
     listed = list_response.json()
     assert listed["total"] == 1
     assert listed["items"][0]["id"] == created["id"]
+    assert listed["items"][0]["provenance"] == "manual"
 
     update_response = await client.patch(
         f"/assets/valuation-snapshots/{created['id']}",
@@ -127,7 +129,7 @@ async def test_manual_valuation_snapshot_errors(client):
 
 
 async def test_manual_valuation_components_api_returns_latest_as_of_values(client):
-    """AC11.9.2: Latest valuation components are exposed through the assets API."""
+    """AC11.9.2 AC22.13.1: Latest valuation components expose manual provenance."""
     old_property = {
         "component_type": "property_value",
         "as_of_date": "2026-01-31",
@@ -160,6 +162,7 @@ async def test_manual_valuation_components_api_returns_latest_as_of_values(clien
     assert data["total_liabilities"] == "300000.03"
     assert data["net_worth_delta"] == "699999.99"
     assert {item["component_type"] for item in data["items"]} == {"property_value", "mortgage_balance"}
+    assert {item["provenance"] for item in data["items"]} == {"manual"}
 
 
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
