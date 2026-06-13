@@ -35,10 +35,6 @@ def _database_url_with_name(database_name: str) -> str:
     return base_url.set(database=database_name).render_as_string(hide_password=False)
 
 
-def _sync_alembic_url(async_url: str) -> str:
-    return async_url.replace("+asyncpg", "")
-
-
 async def _create_database(database_name: str) -> None:
     admin_url = _database_url_with_name("postgres")
     engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT", poolclass=NullPool)
