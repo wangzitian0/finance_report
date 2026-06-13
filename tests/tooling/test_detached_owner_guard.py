@@ -37,6 +37,51 @@ def test_shortcut():
     assert findings[0].pattern == "user_id=uuid4()"
 
 
+def test_AC8_13_128_detects_attribute_uuid4_and_scans_single_files(tmp_path: Path) -> None:
+    """AC8.13.128: scanner handles pathlib file inputs and uuid.uuid4 calls."""
+    test_file = tmp_path / "shortcut.py"
+    test_file.write_text(
+        """
+import uuid
+
+from src.models import Account
+
+
+def test_shortcut():
+    Account(user_id=uuid.uuid4(), name="Detached", type="ASSET", currency="SGD")
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    findings = detached_owner_guard.scan_paths([test_file], repo_root=tmp_path)
+
+    assert len(findings) == 1
+    assert findings[0].relative_path == "shortcut.py"
+    assert findings[0].source.startswith("Account(user_id=uuid.uuid4()")
+
+
+def test_AC8_13_128_ignores_non_uuid4_user_ids(tmp_path: Path) -> None:
+    """AC8.13.128: only direct uuid4 owner shortcuts count against the budget."""
+    test_file = tmp_path / "apps" / "backend" / "tests" / "test_safe.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        """
+from uuid import uuid4
+
+from src.models import Account
+
+
+def test_safe(user):
+    owner_id = uuid4()
+    Account(user_id=user.id, name="Real user", type="ASSET", currency="SGD")
+    Account(user_id=owner_id, name="Assigned first", type="ASSET", currency="SGD")
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    assert detached_owner_guard.scan_paths([test_file], repo_root=Path("/outside/root")) == []
+
+
 def test_AC8_13_128_budget_fails_on_growth() -> None:
     """AC8.13.128: detached-owner shortcut growth fails closed."""
     finding = detached_owner_guard.DetachedOwnerFinding(
@@ -51,6 +96,99 @@ def test_AC8_13_128_budget_fails_on_growth() -> None:
     assert result.ok is False
     assert result.count == 1
     assert "exceeds allowed budget 0" in result.message
+
+
+def test_AC8_13_128_formats_findings_with_limit() -> None:
+    """AC8.13.128: failure output is bounded when the shortcut list is long."""
+    findings = [
+        detached_owner_guard.DetachedOwnerFinding(
+            relative_path=f"apps/backend/tests/test_{index}.py",
+            line=index + 1,
+            pattern="user_id=uuid4()",
+            source="Account(user_id=uuid4())",
+        )
+        for index in range(3)
+    ]
+
+    output = detached_owner_guard._format_findings(findings, limit=2)
+
+    assert "apps/backend/tests/test_0.py:1: user_id=uuid4()" in output
+    assert "apps/backend/tests/test_1.py:2: user_id=uuid4()" in output
+    assert "... 1 more" in output
+    assert "test_2.py" not in output
+
+
+def test_AC8_13_128_cli_lists_findings_and_exits_zero(tmp_path: Path, capsys) -> None:
+    """AC8.13.128: CLI can list current findings while staying under budget."""
+    test_file = tmp_path / "apps" / "backend" / "tests" / "test_shortcut.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        """
+from uuid import uuid4
+
+from src.models import Account
+
+
+def test_shortcut():
+    Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD")
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    exit_code = detached_owner_guard.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--path",
+            Path("apps/backend/tests").as_posix(),
+            "--max-allowed",
+            "1",
+            "--list-findings",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "within allowed budget 1" in captured.out
+    assert "apps/backend/tests/test_shortcut.py" in captured.out
+    assert captured.err == ""
+
+
+def test_AC8_13_128_cli_fails_on_budget_growth(tmp_path: Path, capsys) -> None:
+    """AC8.13.128: CLI returns nonzero and prints findings on budget growth."""
+    test_file = tmp_path / "apps" / "backend" / "tests" / "test_shortcut.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        """
+from uuid import uuid4
+
+from src.models import Account
+
+
+def test_shortcut():
+    Account(user_id=uuid4(), name="Detached", type="ASSET", currency="SGD")
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    exit_code = detached_owner_guard.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--path",
+            Path("apps/backend/tests").as_posix(),
+            "--max-allowed",
+            "0",
+            "--show-limit",
+            "1",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert "exceeds allowed budget 0" in captured.err
+    assert "apps/backend/tests/test_shortcut.py" in captured.err
 
 
 def test_AC8_13_128_current_repo_shortcuts_do_not_exceed_budget() -> None:
