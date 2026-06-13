@@ -1047,7 +1047,7 @@ async def test_extract_no_models_tried_fallback_error():
 
 # ---------------------------------------------------------------------------
 # Additional coverage tests: _safe_date None, _extract_status_code,
-# _validate_balance/_compute_confidence wrappers, _build_media_payload image,
+# _build_media_payload image,
 # OUT direction, OpenRouterStreamError timeout/generic, non-dict JSON,
 # ExtractionError re-raise, PDF/image with valid external URL
 # ---------------------------------------------------------------------------
@@ -1069,32 +1069,6 @@ def test_extract_status_code():
     assert service._extract_status_code("HTTP 500 Internal Server Error") == "500"
     assert service._extract_status_code("no status code here") is None
     assert service._extract_status_code("") is None
-
-
-def test_validate_balance_wrapper():
-    """_validate_balance delegates to validate_balance (line 112-113)."""
-    service = ExtractionService()
-    result = service._validate_balance(
-        {
-            "opening_balance": "100.00",
-            "closing_balance": "200.00",
-            "transactions": [{"amount": "100.00", "direction": "IN"}],
-        }
-    )
-    assert isinstance(result, dict)
-
-
-def test_compute_confidence_wrapper():
-    """_compute_confidence delegates to compute_confidence_score (line 116-117)."""
-    service = ExtractionService()
-    balance_result = {"balance_valid": True, "opening": "100.00", "closing": "200.00"}
-    extracted = {
-        "opening_balance": "100.00",
-        "closing_balance": "200.00",
-        "transactions": [{"amount": "100.00", "direction": "IN", "date": "2023-01-15", "description": "Test"}],
-    }
-    score = service._compute_confidence(extracted, balance_result)
-    assert isinstance(score, int)
 
 
 def test_build_media_payload_image():

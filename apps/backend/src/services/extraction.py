@@ -34,7 +34,6 @@ from src.services.validation import (
     compute_confidence_score,
     normalize_amount_direction,
     route_by_threshold,
-    validate_balance,
     validate_balance_explicit,
 )
 
@@ -112,14 +111,6 @@ class ExtractionService:
             return None
         alphanumeric_only = re.sub(r"[^a-zA-Z0-9]", "", value)
         return alphanumeric_only[-4:] if alphanumeric_only else None
-
-    def _validate_balance(self, extracted: dict[str, Any]) -> dict[str, Any]:
-        """Wrapper for test compatibility."""
-        return validate_balance(extracted)
-
-    def _compute_confidence(self, extracted: dict[str, Any], balance_result: dict[str, Any]) -> int:
-        """Wrapper for test compatibility."""
-        return compute_confidence_score(extracted, balance_result)
 
     def _is_zai_provider(self) -> bool:
         return settings.ai_provider.lower() in {"zai", "glm"}

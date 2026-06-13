@@ -21,6 +21,7 @@ from src.models.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
+from src.utils.money import to_money
 
 logger = get_logger(__name__)
 
@@ -119,7 +120,7 @@ class AssetService:
             component_type=component_type,
             liquidity_class=liquidity_class or _DEFAULT_LIQUIDITY_CLASS[component_type],
             as_of_date=as_of_date,
-            value=value.quantize(Decimal("0.01")),
+            value=to_money(value),
             currency=currency.upper(),
             source=source,
             notes=notes,
@@ -199,7 +200,7 @@ class AssetService:
         if "as_of_date" in values and values["as_of_date"] is not None:
             snapshot.as_of_date = values["as_of_date"]
         if "value" in values and values["value"] is not None:
-            snapshot.value = values["value"].quantize(Decimal("0.01"))
+            snapshot.value = to_money(values["value"])
         if "currency" in values and values["currency"] is not None:
             snapshot.currency = values["currency"].upper()
         if "source" in values and values["source"] is not None:
@@ -274,7 +275,7 @@ class AssetService:
             ):
                 continue
 
-            value = snapshot.value.quantize(Decimal("0.01"))
+            value = to_money(snapshot.value)
             if snapshot.liquidity_class == ManualValuationLiquidityClass.LIABILITY:
                 total_liabilities += value
             else:
@@ -292,13 +293,13 @@ class AssetService:
                 )
             )
 
-        total_assets = total_assets.quantize(Decimal("0.01"))
-        total_liabilities = total_liabilities.quantize(Decimal("0.01"))
+        total_assets = to_money(total_assets)
+        total_liabilities = to_money(total_liabilities)
         return ValuationComponentsResult(
             items=items,
             total_assets=total_assets,
             total_liabilities=total_liabilities,
-            net_worth_delta=(total_assets - total_liabilities).quantize(Decimal("0.01")),
+            net_worth_delta=to_money(total_assets - total_liabilities),
         )
 
     async def get_position(
@@ -566,9 +567,9 @@ class AssetService:
         return DepreciationResult(
             position_id=position.id,
             asset_identifier=position.asset_identifier,
-            period_depreciation=period_depreciation.quantize(Decimal("0.01")),
-            accumulated_depreciation=accumulated.quantize(Decimal("0.01")),
-            book_value=book_value.quantize(Decimal("0.01")),
+            period_depreciation=to_money(period_depreciation),
+            accumulated_depreciation=to_money(accumulated),
+            book_value=to_money(book_value),
             method=method,
             useful_life_years=useful_life_years,
             salvage_value=salvage_value,

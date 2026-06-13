@@ -37,6 +37,7 @@ from src.services.fx import (
 )
 from src.services.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
 from src.services.portfolio import AssetNotFoundError, PortfolioService
+from src.utils.money import to_money
 
 logger = get_logger(__name__)
 
@@ -81,7 +82,7 @@ def income_bucket(account_name: str) -> str | None:
 def _quantize_money(amount: Decimal | int) -> Decimal:
     if isinstance(amount, int):
         amount = Decimal(amount)
-    return amount.quantize(Decimal("0.01"))
+    return to_money(amount)
 
 
 def _month_start(value: date) -> date:
