@@ -65,7 +65,9 @@ def build_corpus_from_corrections(corrections: Iterable[CorrectionLog]) -> list[
     """
     records: list[CorrectionRecord] = []
     for correction in corrections:
-        key = _normalize_key(correction.transaction_description or correction.original_category)
+        # Normalize each candidate independently: a whitespace-only description must
+        # fall back to original_category rather than yield an empty key.
+        key = _normalize_key(correction.transaction_description) or _normalize_key(correction.original_category)
         if not key:
             continue
         records.append(
@@ -118,6 +120,9 @@ class CorrectionLoopService:
     async def build_corpus(self, db: AsyncSession, user_id: UUID) -> list[CorrectionRecord]:
         """Project a user's append-only corrections into the replayable corpus."""
         result = await db.execute(
-            select(CorrectionLog).where(CorrectionLog.user_id == user_id).order_by(CorrectionLog.created_at)
+            select(CorrectionLog)
+            .where(CorrectionLog.user_id == user_id)
+            # id breaks created_at ties so the corpus order — and the replay split — is deterministic.
+            .order_by(CorrectionLog.created_at, CorrectionLog.id)
         )
         return build_corpus_from_corrections(result.scalars().all())

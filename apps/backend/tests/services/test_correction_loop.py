@@ -36,12 +36,15 @@ def test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern():
     corrections = [
         _correction(description="  Starbucks  COFFEE ", original="Travel", corrected="Meals"),
         _correction(description=None, original="Misc", corrected="Software"),  # falls back to original_category key
-        _correction(description="   ", original=None, corrected="Ignored"),  # empty key -> skipped
+        _correction(
+            description="   ", original="Groceries", corrected="Food"
+        ),  # whitespace desc -> falls back, not dropped
+        _correction(description="   ", original=None, corrected="Ignored"),  # no usable pattern -> skipped
     ]
 
     corpus = build_corpus_from_corrections(corrections)
 
-    assert [record.key for record in corpus] == ["starbucks coffee", "misc"]
+    assert [record.key for record in corpus] == ["starbucks coffee", "misc", "groceries"]
     assert corpus[0].corrected_category == "Meals"
     assert corpus[0].proposed_category == "Travel"
 
