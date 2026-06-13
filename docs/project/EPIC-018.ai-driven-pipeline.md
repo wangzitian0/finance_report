@@ -408,6 +408,23 @@ consolidation.
 | AC18.13.3 | Gate | Invariants pass and confidence meets threshold yields authoritative; the same contract carries both tier and reconciliation-score confidence | `test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative()` | `services/test_promotion_gate.py` | P1 |
 | AC18.13.4 | Consolidation | The previously-scattered thresholds (balance 0.001, reconciliation 85/60) are named, centrally owned, and consumed by the services | `test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services()` | `services/test_promotion_gate.py` | P1 |
 
+### AC18.14: Correction Feedback Loop — Corrections Drive The Proportion Down
+
+The North-Star metric (AC18.12) is a thermometer; this is the furnace. Every human
+correction that overrode an AI proposal is labeled signal. Derived as a corpus
+from the append-only `CorrectionLog` (a projection of the provenance substrate, not
+a sidecar) and replayed as priors, a recurring correction grounds future instances
+of the same pattern so they are no longer low-confidence — measurably driving the
+proportion down. This AC owns the corpus and the measurable replay; wiring the
+priors into live generation, calibrating the promotion-gate thresholds (#930) from
+the corpus, and the runtime that dispatches AI attempts are follow-ups.
+
+| ID | Phase | Description | Test | File | Priority |
+|----|-------|-------------|------|------|----------|
+| AC18.14.1 | Corpus | The correction corpus is derived from `CorrectionLog` (no sidecar), keyed by the transaction pattern, capturing proposed vs corrected | `test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern()` | `services/test_correction_loop.py` | P1 |
+| AC18.14.2 | Replay | Replaying the corpus as priors strictly lowers the held-out low-confidence proportion when correction patterns recur, and invents no reduction when they do not | `test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur()`, `test_AC18_14_2_replay_does_not_invent_reduction_without_recurrence()` | `services/test_correction_loop.py` | P1 |
+| AC18.14.3 | Substrate | The service builds the corpus from the persisted correction store, scoped to the user | `test_AC18_14_3_service_builds_corpus_from_persisted_corrections()` | `services/test_correction_loop.py` | P1 |
+
 ---
 
 ## 🚫 Out of Scope (v1)
