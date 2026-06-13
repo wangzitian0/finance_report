@@ -198,7 +198,7 @@ describe("StatementsPage", () => {
     expect(screen.getByText("frobnicating")).toBeInTheDocument()
   })
 
-  it("AC16.14.11 enables polling when parsing statements exist", async () => {
+  it("AC16.14.11 AC22.11.1 enables polling with an honest parsing state (no fabricated progress)", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
         {
@@ -224,6 +224,12 @@ describe("StatementsPage", () => {
 
     await waitFor(() => expect(screen.getByText("AI Parsing in Progress")).toBeInTheDocument())
     expect(intervalSpy).toHaveBeenCalled()
+
+    // AC22.11.1: the parsing state is honest — a time expectation, and NO
+    // fabricated fixed-percentage progress bar.
+    const status = screen.getByRole("status")
+    expect(status).toHaveTextContent(/usually takes ~2.3 minutes/i)
+    expect(status.querySelector('[style*="width: 60%"]')).toBeNull()
   })
 
   it("AC16.14.12 delete action calls delete API and toast", async () => {

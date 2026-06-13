@@ -127,24 +127,21 @@ export default function UploadPage() {
                 </Alert>
             )}
 
-            {/* Parsing Progress */}
+            {/* Parsing status — AC22.11.1: an honest indeterminate state. We do
+                not know real percent-complete, so we show activity + a time
+                expectation instead of a fabricated fixed-width progress bar. */}
             {polling && (
-                <div className="mb-4 p-4 border border-[var(--accent)]/30 bg-[var(--accent-muted)] rounded-lg">
-                    <div className="flex items-center gap-3 mb-2">
+                <div
+                    className="mb-4 p-4 border border-[var(--accent)]/30 bg-[var(--accent-muted)] rounded-lg"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <div className="flex items-center gap-3">
                         <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                         <div className="flex-1">
                             <div className="text-sm font-medium text-[var(--accent)]">AI Parsing in Progress</div>
-                            <div className="text-xs text-muted">Extracting transactions from your statement...</div>
+                            <div className="text-xs text-muted">Extracting transactions from your statement — this usually takes ~2–3 minutes.</div>
                         </div>
-                    </div>
-                    <div className="h-1.5 bg-[var(--background-muted)] rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-[var(--accent)] rounded-full animate-pulse"
-                            style={{ width: '60%' }}
-                            role="status"
-                            aria-label="Loading statements"
-                            aria-live="polite"
-                        />
                     </div>
                 </div>
             )}

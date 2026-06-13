@@ -66,6 +66,20 @@ describe("attention model (EPIC-022 AC22.6)", () => {
     expect(byId["processing:stalled"]).toBe("/processing");
   });
 
+  it("AC22.11.2 every item explains why it was flagged", () => {
+    const items = buildAttentionItems(sources);
+    const byId = Object.fromEntries(items.map((i) => [i.id, i.reason]));
+    // Every surfaced item carries a non-trivial, plain-language reason.
+    for (const item of items) {
+      expect(item.reason.length).toBeGreaterThan(20);
+    }
+    // The reason is contextual, not boilerplate: a failed-balance statement
+    // reads differently from a clean parsed one.
+    expect(byId["statement:bad"]).toMatch(/balance/i);
+    expect(byId["statement:bad"]).not.toBe(byId["statement:ok"]);
+    expect(byId["reconciliation:unmatched"]).toMatch(/no matching ledger/i);
+  });
+
   it("AC22.6.1 is empty when everything is reconciled and approved", () => {
     expect(
       buildAttentionItems({

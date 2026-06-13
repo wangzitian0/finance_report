@@ -108,6 +108,8 @@ export default function AttentionPage() {
                   )}
                 </div>
                 <p className="text-xs text-muted mt-0.5">{item.detail}</p>
+                {/* AC22.11.2 — explain why this was flagged, not just a score. */}
+                <p className="text-xs text-muted/80 mt-1 max-w-prose">{item.reason}</p>
               </div>
               <div className="flex flex-shrink-0 items-center gap-3">
                 <Badge variant={confidenceVariant(item.confidence)}>{item.confidence}% confidence</Badge>
