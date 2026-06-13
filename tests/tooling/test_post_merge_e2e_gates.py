@@ -1627,7 +1627,8 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
 
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
-    """AC8.13.89: PR preview follows successful CI and does not build/push PR images."""
+    """AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
+    of CI) and does not build/push PR images."""
     workflow = read(".github/workflows/pr-test.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     compose = read("docker-compose.yml")
