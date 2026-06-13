@@ -139,6 +139,75 @@ export function LoadingState({ label, framed = true, className, ...props }: Load
   );
 }
 
+interface SkeletonBlockProps extends HTMLAttributes<HTMLDivElement> {
+  label?: string;
+}
+
+export function SkeletonBlock({ label, className, ...props }: SkeletonBlockProps) {
+  const block = (
+    <div
+      data-testid="skeleton-block"
+      className={cx("animate-pulse rounded-control bg-surface-muted", className)}
+      {...props}
+    />
+  );
+
+  if (!label) return block;
+
+  return (
+    <div role="status" aria-label={label} aria-live="polite" aria-busy="true">
+      {block}
+    </div>
+  );
+}
+
+interface TableSkeletonProps extends HTMLAttributes<HTMLDivElement> {
+  label: string;
+  rows?: number;
+  columns?: number;
+}
+
+export function TableSkeleton({
+  label,
+  rows = 5,
+  columns = 4,
+  className,
+  ...props
+}: TableSkeletonProps) {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      aria-live="polite"
+      aria-busy="true"
+      className={cx("card p-5", className)}
+      {...props}
+    >
+      <div className="space-y-3" aria-hidden="true">
+        {Array.from({ length: rows }).map((_, rowIndex) => (
+          <div
+            key={rowIndex}
+            className="grid gap-3"
+            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+          >
+            {Array.from({ length: columns }).map((__, columnIndex) => (
+              <SkeletonBlock
+                key={columnIndex}
+                className={cx(
+                  "h-4",
+                  columnIndex === 0 && "w-full",
+                  columnIndex > 0 && columnIndex < columns - 1 && "w-4/5",
+                  columnIndex === columns - 1 && "ml-auto w-2/3",
+                )}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface PageHeaderProps extends HTMLAttributes<HTMLDivElement> {
   title: string;
   description?: string;

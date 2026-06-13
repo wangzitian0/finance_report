@@ -186,6 +186,12 @@ migration code; link to the generated DB reference from docs.
 Manual snapshots cover property value, mortgage or loan balance, CPF or long-term savings, tax payable/refund, insurance cash value, ESOP, RSU, stock options, and generic assets/liabilities. The value is always stored as a positive `Decimal`; the liquidity class determines whether it contributes to assets, liabilities, restricted, or illiquid net worth presentation.
 Reminder cadence is optional; when present, `recurrence_days` is positive.
 
+Manual snapshot capture uses a controlled source vocabulary for new frontend submissions:
+`manual`, `broker_portal`, `bank_portal`, `cpf_portal`, `tax_portal`,
+`insurer_portal`, `employer_portal`, `property_valuation`, and
+`other_document`. Historical source strings remain valid response data and
+should be displayed as-is when they do not match a known vocabulary value.
+
 ---
 
 ## 7. Design Constraints

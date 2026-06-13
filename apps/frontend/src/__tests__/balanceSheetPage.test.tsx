@@ -31,7 +31,11 @@ describe("BalanceSheetPage", () => {
   it("AC16.14.1 renders loading and error retry states", async () => {
     mockedApiFetch.mockRejectedValue(new Error("balance failed"))
 
-    render(<BalanceSheetPage />)
+    const { container } = render(<BalanceSheetPage />)
+
+    expect(screen.getByRole("status", { name: "Loading balance sheet" })).toHaveAttribute("aria-busy", "true")
+    expect(container.querySelectorAll("[data-testid='skeleton-block']").length).toBeGreaterThanOrEqual(12)
+    expect(container.querySelector(".animate-spin")).toBeNull()
 
     await waitFor(() => expect(screen.getByText("balance failed")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))

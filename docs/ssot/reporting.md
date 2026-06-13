@@ -289,6 +289,15 @@ Required section IDs:
 | `notes` | EPIC-005 | `/api/reports/package/notes` | ready |
 | `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | ready |
 
+The frontend package assembly route must present the package as a readable
+deliverable, not only an API inventory. It renders a cover sheet and table of
+contents before package output, using the selected framework, report date,
+package id, and stable human section labels from this contract. Before a
+framework is selected, the page must show setup guidance and the contract-backed
+table of contents without loading framework-scoped output. While selected
+framework data is loading, the page must reserve the package layout with
+skeleton placeholders instead of a blank or text-only loading screen.
+
 Package readiness:
 
 - Endpoint: `GET /api/reports/package/readiness`

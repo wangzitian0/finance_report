@@ -6,12 +6,20 @@ import DashboardPage from '@/app/(main)/page';
 import { apiFetch } from '@/lib/api';
 import type { ReactNode } from 'react';
 
+const navigationState = vi.hoisted(() => ({
+  searchParams: new URLSearchParams(),
+}));
+
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
 }));
 
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
+}));
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => navigationState.searchParams,
 }));
 
 vi.mock("@/components/charts/BarChart", () => ({
@@ -35,6 +43,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
   beforeEach(() => {
     mockedApiFetch.mockReset();
+    navigationState.searchParams = new URLSearchParams();
   });
 
   it('AC15.7.1 — GET /api/accounts/processing/summary contract', async () => {
@@ -145,6 +154,30 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     render(<ProcessingPage />);
 
     expect(await screen.findByText("processing unavailable")).toBeInTheDocument();
+  });
+
+  it('AC22.11.3 — /processing returns attention-origin users to the attention queue', async () => {
+    navigationState.searchParams = new URLSearchParams("from=attention");
+    mockedApiFetch.mockResolvedValue({
+      items: [
+        {
+          entry_id: "e1",
+          from_account: "Bank A",
+          to_account: "Bank B",
+          amount: "500.00",
+          currency: "SGD",
+          initiated_date: "2026-05-01",
+          days_outstanding: 9,
+          description: "Transfer 1"
+        }
+      ],
+      total: 1
+    });
+
+    render(<ProcessingPage />);
+
+    const backLink = await screen.findByRole("link", { name: /Back to Attention queue/i });
+    expect(backLink).toHaveAttribute("href", "/attention");
   });
 
   it('AC15.7.5 — ProcessingSummaryCard mount test', async () => {

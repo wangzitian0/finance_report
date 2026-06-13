@@ -108,6 +108,27 @@ describe("frontend design tokens", () => {
     expect(globals).not.toMatch(/alert bg-\[var\(--(error|success|warning|info)-muted\)\] text-\[var\(--(error|success|warning|info)\)\]/)
   })
 
+  it("AC22.12.1 AC22.12.3 defines the global accessibility baseline in SSOT and CSS", () => {
+    const ssot = readFileSync(
+      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      "utf8",
+    )
+    const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8")
+
+    expect(ssot).toContain("### Global Accessibility Baseline")
+    expect(ssot).toContain("`prefers-reduced-motion: reduce`")
+    expect(ssot).toContain("`:focus-visible`")
+
+    expect(globals).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(globals).toContain("animation-duration: 0.01ms !important")
+    expect(globals).toContain("transition-duration: 0.01ms !important")
+    expect(globals).toContain("scroll-behavior: auto !important")
+    expect(globals).toContain(":focus-visible")
+    expect(globals).toContain(".btn-primary:focus-visible")
+    expect(globals).toContain("outline: 2px solid var(--accent)")
+    expect(globals).toContain("box-shadow: var(--shadow-focus)")
+  })
+
   it("AC16.29.3 AC16.29.4 renders ConfidenceBadge variants through semantic token classes", () => {
     const tiers = ["TRUSTED", "HIGH", "MEDIUM", "LOW"] as const
 

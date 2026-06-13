@@ -6,8 +6,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import ReconciliationWorkbench from "@/components/reconciliation/Workbench"
 import { apiFetch } from "@/lib/api"
 
+const navigationState = vi.hoisted(() => ({
+  searchParams: new URLSearchParams(),
+}))
+
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
+}))
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => navigationState.searchParams,
 }))
 
 function createWrapper() {
@@ -27,6 +35,7 @@ describe("ReconciliationWorkbench", () => {
 
   beforeEach(() => {
     mockedApiFetch.mockReset()
+    navigationState.searchParams = new URLSearchParams()
   })
 
   const statsResponse = {

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ChevronLeft } from "lucide-react";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -16,6 +17,12 @@ import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
 import { ReviewActionBar } from "@/components/review/ReviewActionBar";
 import { TransactionTable, Transaction } from "@/components/review/TransactionTable";
 import { ConflictResolutionDialog } from "@/components/review/ConflictResolutionDialog";
+import {
+    ATTENTION_RETURN_HREF,
+    ATTENTION_RETURN_LABEL,
+    isAttentionOrigin,
+    withAttentionSource,
+} from "@/lib/attentionNavigation";
 
 interface BalanceValidationResult {
     opening_balance: string;
@@ -65,7 +72,13 @@ export default function StatementReviewPage() {
     const { showToast } = useToast();
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const statementId = params.id as string;
+    const fromAttention = isAttentionOrigin(searchParams);
+    const returnHref = fromAttention ? ATTENTION_RETURN_HREF : "/statements";
+    const returnLabel = fromAttention ? ATTENTION_RETURN_LABEL : "Back to Statements";
+    const statementReviewHref = (id: string) =>
+        fromAttention ? withAttentionSource(`/statements/${id}/review`) : `/statements/${id}/review`;
 
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -101,7 +114,11 @@ export default function StatementReviewPage() {
             const createdCount = result.journal_entries_created ?? 0;
             showToast(`Statement approved. ${createdCount} journal entries posted.`, "success");
             setApproveDialogOpen(false);
-            router.push(`/statements/${statementId}?approved=1&entriesCreated=${createdCount}`);
+            router.push(
+                fromAttention
+                    ? ATTENTION_RETURN_HREF
+                    : `/statements/${statementId}?approved=1&entriesCreated=${createdCount}`,
+            );
         },
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to approve", "error")
     });
@@ -114,7 +131,7 @@ export default function StatementReviewPage() {
         onSuccess: () => {
             showToast("Statement rejected", "success");
             setRejectDialogOpen(false);
-            router.push("/statements");
+            router.push(fromAttention ? ATTENTION_RETURN_HREF : "/statements");
         },
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error")
     });
@@ -125,7 +142,7 @@ export default function StatementReviewPage() {
         mutationFn: () => apiFetch(`/api/statements/${statementId}/retry`, { method: "POST" }),
         onSuccess: () => {
             showToast("Re-parsing started", "success");
-            router.push(`/statements/${statementId}`);
+            router.push(fromAttention ? ATTENTION_RETURN_HREF : `/statements/${statementId}`);
         },
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to re-parse", "error")
     });
@@ -162,16 +179,16 @@ export default function StatementReviewPage() {
                                 <button type="button" onClick={() => refetch()} className="btn-primary">
                                     Retry
                                 </button>
-                                <Link href="/statements" className="btn-secondary">
-                                    Back to Statements
+                                <Link href={returnHref} className="btn-secondary">
+                                    {returnLabel}
                                 </Link>
                             </div>
                         </>
                     ) : (
                         <>
                             <p className="text-muted mb-6">Statement not found</p>
-                            <Link href="/statements" className="btn-primary">
-                                Back to Statements
+                            <Link href={returnHref} className="btn-primary">
+                                {returnLabel}
                             </Link>
                         </>
                     )}
@@ -189,16 +206,14 @@ export default function StatementReviewPage() {
         : null;
 
     return (
-        <div className="flex min-h-[calc(100vh-2rem)] flex-col p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Link href="/statements" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    Back to Statements
+        <div className="flex min-h-[calc(100vh-2rem)] w-full max-w-full min-w-0 flex-col overflow-x-hidden p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
+            <div className="mb-4 flex min-w-0 max-w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Link href={returnHref} className="flex min-w-0 items-center gap-1 text-sm text-muted hover:text-[var(--foreground)]">
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                    <span className="truncate">{returnLabel}</span>
                 </Link>
 
-                <div className="flex items-center gap-2 overflow-x-auto">
+                <div className="flex min-w-0 max-w-full items-center gap-2 overflow-x-auto">
                     {(() => {
                         const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
                         const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
@@ -207,7 +222,7 @@ export default function StatementReviewPage() {
                         return (
                             <>
                                 <button
-                                    onClick={() => prevId && router.push(`/statements/${prevId}/review`)}
+                                    onClick={() => prevId && router.push(statementReviewHref(prevId))}
                                     disabled={!prevId}
                                     className="btn-ghost btn-sm disabled:opacity-30"
                                     title="Previous pending statement"
@@ -218,7 +233,7 @@ export default function StatementReviewPage() {
                                     {currentIndex + 1} / {pendingStatements.length}
                                 </span>
                                 <button
-                                    onClick={() => nextId && router.push(`/statements/${nextId}/review`)}
+                                    onClick={() => nextId && router.push(statementReviewHref(nextId))}
                                     disabled={!nextId}
                                     className="btn-ghost btn-sm disabled:opacity-30"
                                     title="Next pending statement"
@@ -261,7 +276,7 @@ export default function StatementReviewPage() {
                 currency={data.currency || "SGD"}
             />
 
-            <div className="grid flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
                 <PdfPreviewPane pdfUrl={data.pdf_url} />
 
                 <TransactionTable

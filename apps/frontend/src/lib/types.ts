@@ -743,6 +743,17 @@ export type ManualValuationLiquidityClass =
   | "illiquid"
   | "liability";
 
+export type ManualValuationSource =
+  | "manual"
+  | "broker_portal"
+  | "bank_portal"
+  | "cpf_portal"
+  | "tax_portal"
+  | "insurer_portal"
+  | "employer_portal"
+  | "property_valuation"
+  | "other_document";
+
 export interface ManualValuationSnapshot {
   id: string;
   user_id: string;

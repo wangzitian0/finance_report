@@ -11,6 +11,8 @@ import {
   IconButton,
   LoadingState,
   PageHeader,
+  SkeletonBlock,
+  TableSkeleton,
 } from "@/components/ui"
 
 describe("UI primitives", () => {
@@ -69,5 +71,19 @@ describe("UI primitives", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Failed to load")
     expect(screen.getByText("No accounts yet")).toBeInTheDocument()
     expect(screen.getByRole("status", { name: "Loading accounts" })).toBeInTheDocument()
+  })
+
+  it("AC22.12.6 renders token-backed skeleton primitives without spinner affordances", () => {
+    const { container } = render(
+      <div>
+        <SkeletonBlock label="Loading metric" className="h-6 w-24" />
+        <TableSkeleton label="Loading report rows" rows={2} columns={3} />
+      </div>,
+    )
+
+    expect(screen.getByRole("status", { name: "Loading metric" })).toHaveAttribute("aria-busy", "true")
+    expect(screen.getByRole("status", { name: "Loading report rows" })).toHaveAttribute("aria-busy", "true")
+    expect(container.querySelectorAll("[data-testid='skeleton-block']").length).toBeGreaterThanOrEqual(7)
+    expect(container.querySelector(".animate-spin")).toBeNull()
   })
 })
