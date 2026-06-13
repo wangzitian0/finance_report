@@ -9,7 +9,7 @@
 # and a comment reword broke unrelated tests. Now:
 #   - this manifest declares the trigger/blocking contract (one edit),
 #   - the workflow implements it (one edit),
-#   - tools/test_delivery_gates_contract.py verifies the workflow matches THIS file
+#   - tests/tooling/test_delivery_gates_contract.py verifies the workflow matches THIS file
 #     by parsing `on:`/job structure — not by grepping prose,
 #   - ci-cd.md / environments.md / EPIC-008 describe the *behavior* and cross-ref here
 #     instead of re-stating the mechanism.
