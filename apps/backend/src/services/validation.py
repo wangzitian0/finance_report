@@ -28,7 +28,8 @@ def normalize_amount_direction(amount: Decimal, direction_value: Any = None) -> 
 def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
     """Validate that opening + transactions ~= closing within tolerance.
 
-    Legacy interface for backward compatibility.
+    Dict-based entry point used by extraction; ``validate_balance_explicit``
+    is the Decimal-based variant.
     """
     try:
         opening = Decimal(str(extracted.get("opening_balance") or "0"))

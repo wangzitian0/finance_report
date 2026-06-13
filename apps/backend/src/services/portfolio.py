@@ -24,6 +24,7 @@ from src.schemas.portfolio import (
     UnrealizedPnLResponse,
 )
 from src.services import fx
+from src.utils.money import to_money
 
 logger = get_logger(__name__)
 
@@ -158,11 +159,11 @@ class PortfolioService:
                 converted_cost = position.cost_basis
                 currency = position.currency
 
-            converted_value = converted_value.quantize(Decimal("0.01"))
-            converted_cost = converted_cost.quantize(Decimal("0.01"))
+            converted_value = to_money(converted_value)
+            converted_cost = to_money(converted_cost)
 
             # Calculate P&L (unrealized: market_value - cost_basis)
-            unrealized_pnl = (converted_value - converted_cost).quantize(Decimal("0.01"))
+            unrealized_pnl = to_money(converted_value - converted_cost)
             if converted_cost != Decimal("0"):
                 unrealized_pnl_percent = (unrealized_pnl / converted_cost) * Decimal("100")
             else:
@@ -296,10 +297,10 @@ class PortfolioService:
             else:
                 converted_cost_basis = cost_basis
 
-            converted_market_value = converted_market_value.quantize(Decimal("0.01"))
-            converted_cost_basis = converted_cost_basis.quantize(Decimal("0.01"))
+            converted_market_value = to_money(converted_market_value)
+            converted_cost_basis = to_money(converted_cost_basis)
 
-            unrealized_pnl = (converted_market_value - converted_cost_basis).quantize(Decimal("0.01"))
+            unrealized_pnl = to_money(converted_market_value - converted_cost_basis)
             if converted_cost_basis != Decimal("0"):
                 unrealized_pnl_percent = (unrealized_pnl / converted_cost_basis) * Decimal("100")
             else:
@@ -484,7 +485,7 @@ class PortfolioService:
         return RealizedPnLResponse(
             period_start=period_start,
             period_end=period_end,
-            total_realized_pnl=total_realized_pnl.quantize(Decimal("0.01")),
+            total_realized_pnl=to_money(total_realized_pnl),
             total_realized_pnl_percent=total_realized_pnl_percent.quantize(Decimal("0.01")),
             positions_count=len(disposed_positions),
             details=details,
@@ -595,10 +596,10 @@ class PortfolioService:
         await db.flush()
         return UnrealizedPnLResponse(
             as_of_date=eval_date,
-            total_unrealized_pnl=total_unrealized_pnl.quantize(Decimal("0.01")),
+            total_unrealized_pnl=to_money(total_unrealized_pnl),
             total_unrealized_pnl_percent=total_unrealized_pnl_percent.quantize(Decimal("0.01")),
-            total_market_value=total_market_value.quantize(Decimal("0.01")),
-            total_cost_basis=total_cost_basis.quantize(Decimal("0.01")),
+            total_market_value=to_money(total_market_value),
+            total_cost_basis=to_money(total_cost_basis),
             holdings_count=len(positions),
             details=details,
         )
@@ -721,13 +722,13 @@ class PortfolioService:
             net_pnl_percent = Decimal("0")
 
         return PortfolioSummaryResponse(
-            total_market_value=total_market_value.quantize(Decimal("0.01")),
-            total_cost_basis=total_cost_basis.quantize(Decimal("0.01")),
-            total_unrealized_pnl=total_unrealized_pnl.quantize(Decimal("0.01")),
+            total_market_value=to_money(total_market_value),
+            total_cost_basis=to_money(total_cost_basis),
+            total_unrealized_pnl=to_money(total_unrealized_pnl),
             total_unrealized_pnl_percent=net_pnl_percent.quantize(Decimal("0.01")),
             total_realized_pnl=Decimal("0"),  # Phase 1 only
             total_realized_pnl_percent=Decimal("0"),
-            net_pnl=net_pnl.quantize(Decimal("0.01")),
+            net_pnl=to_money(net_pnl),
             net_pnl_percent=net_pnl_percent.quantize(Decimal("0.01")),
             holdings_count=len(holdings),
             active_positions_count=active_positions_count,

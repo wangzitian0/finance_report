@@ -42,6 +42,7 @@ from src.schemas.reporting import (
 )
 from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.fx import FxRateError, convert_amount
+from src.utils.money import to_money
 
 PACKAGE_ID = "personal-financial-report-package"
 MARKET_DATA_STALE_AFTER_DAYS = 90
@@ -573,7 +574,7 @@ async def get_personal_report_package_readiness(
         )
 
     try:
-        processing_balance = (await _processing_account_balance(db, user_id)).quantize(Decimal("0.01"))
+        processing_balance = to_money(await _processing_account_balance(db, user_id))
     except FxRateError as exc:
         blockers.append(
             _blocker(

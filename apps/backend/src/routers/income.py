@@ -13,6 +13,7 @@ from src.schemas.income import AnnualizedIncomeResponse
 from src.services.fx import FxRateError, convert_amount
 from src.services.reporting import income_bucket
 from src.utils import raise_bad_request
+from src.utils.money import to_money
 
 router = APIRouter(prefix="/income", tags=["income"])
 
@@ -66,10 +67,10 @@ async def get_annualized_income(
         totals["total"] += signed_amount
 
     return AnnualizedIncomeResponse(
-        annualized_salary=totals["salary"].quantize(Decimal("0.01")),
-        annualized_bonus=totals["bonus"].quantize(Decimal("0.01")),
-        annualized_dividend=totals["dividend"].quantize(Decimal("0.01")),
-        annualized_total=totals["total"].quantize(Decimal("0.01")),
+        annualized_salary=to_money(totals["salary"]),
+        annualized_bonus=to_money(totals["bonus"]),
+        annualized_dividend=to_money(totals["dividend"]),
+        annualized_total=to_money(totals["total"]),
         currency=currency,
         as_of=report_date,
     )

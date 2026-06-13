@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 
 from src.services.extraction import ExtractionError, ExtractionService
+from src.services.validation import compute_confidence_score, validate_balance
 
 # Get fixtures directory
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -29,7 +30,7 @@ class TestBalanceValidation:
                 {"amount": "100.00", "direction": "OUT"},
             ],
         }
-        result = self.service._validate_balance(extracted)
+        result = validate_balance(extracted)
         assert result["balance_valid"] is True
         assert result["difference"] == "0.00"
 
@@ -42,7 +43,7 @@ class TestBalanceValidation:
                 {"amount": "100.00", "direction": "IN"},
             ],
         }
-        result = self.service._validate_balance(extracted)
+        result = validate_balance(extracted)
         assert result["balance_valid"] is False
         assert "mismatch" in result["notes"].lower()
 
@@ -55,7 +56,7 @@ class TestBalanceValidation:
                 {"amount": "100.00", "direction": "IN"},
             ],
         }
-        result = self.service._validate_balance(extracted)
+        result = validate_balance(extracted)
         # Should pass with 0.10 tolerance
         assert result["balance_valid"] is True
 
@@ -79,7 +80,7 @@ class TestConfidenceScoring:
             ],
         }
         validation = {"balance_valid": True, "difference": "0.00"}
-        score = self.service._compute_confidence(extracted, validation)
+        score = compute_confidence_score(extracted, validation)
         assert score >= 85, f"Expected high confidence, got {score}"
 
     def test_medium_confidence(self):
@@ -95,7 +96,7 @@ class TestConfidenceScoring:
             ],
         }
         validation = {"balance_valid": False, "difference": "5.00"}
-        score = self.service._compute_confidence(extracted, validation)
+        score = compute_confidence_score(extracted, validation)
         assert 60 <= score < 85, f"Expected medium confidence, got {score}"
 
     def test_low_confidence_empty_transactions(self):
@@ -109,7 +110,7 @@ class TestConfidenceScoring:
             "transactions": [],  # No transactions
         }
         validation = {"balance_valid": False, "difference": "100.00"}
-        score = self.service._compute_confidence(extracted, validation)
+        score = compute_confidence_score(extracted, validation)
         assert score < 60, "Low-confidence statements should require manual review"
 
 
@@ -446,7 +447,7 @@ class TestExtractionServiceHelpers:
             "closing_balance": "0",
         }
         validation = {"balance_valid": True, "difference": "0.00"}
-        score = self.service._compute_confidence(extracted, validation)
+        score = compute_confidence_score(extracted, validation)
         assert 0 <= score <= 100
 
     @pytest.mark.asyncio

@@ -264,8 +264,8 @@ async def get_portfolio_summary(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     data = summary.model_dump()
-    data["realized_pnl_ytd"] = Decimal(realized_pnl_ytd).quantize(Decimal("0.01"))
-    data["dividend_income_ytd"] = Decimal(dividend_income_ytd).quantize(Decimal("0.01"))
+    data["realized_pnl_ytd"] = to_money(Decimal(realized_pnl_ytd))
+    data["dividend_income_ytd"] = to_money(Decimal(dividend_income_ytd))
     return PortfolioSummaryDashboardResponse(**data)
 
 
@@ -360,9 +360,9 @@ async def get_holding_realized_lots(
                 acquired_date=acquired_date,
                 sold_date=txn.transaction_date,
                 quantity=txn.quantity or Decimal("0.000000"),
-                basis=(txn.cost_basis or Decimal("0.00")).quantize(Decimal("0.01")),
-                proceeds=(txn.gross_amount - txn.fees).quantize(Decimal("0.01")),
-                gain_loss=(txn.realized_pnl or Decimal("0.00")).quantize(Decimal("0.01")),
+                basis=to_money(txn.cost_basis or Decimal("0.00")),
+                proceeds=to_money(txn.gross_amount - txn.fees),
+                gain_loss=to_money(txn.realized_pnl or Decimal("0.00")),
                 holding_period=holding_period,
                 currency=txn.currency,
             )
