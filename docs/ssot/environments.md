@@ -171,6 +171,49 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 
 ---
 
+## Data Axis & Red Lines
+
+An environment is **(code × data)**. The sections above cover the *code* side
+(which image runs where); this section owns the *data* side — **which data an
+environment runs on**. Data is the second input to the deploy primitive
+`deploy(env, code, data)`. Most of this project's risk (financial correctness,
+Alembic migrations) lives here, so the constraints below are **red lines**, not
+preferences.
+
+### Data sources
+
+| Source | What it is | Used by |
+|--------|------------|---------|
+| **empty** | migrations freshly applied, seed/fixtures only | `e2e`, `preview` |
+| **staging** | data accumulated by testing | `staging` |
+| **anonymized prod snapshot** | the *shape* of real data, with amounts/PII anonymized | `rehearsal`, `staging` (fed by `snapshot-sync`) |
+| *(real prod data)* | live data | **`production` only** |
+
+**Default is safe-on-failure**: a non-prod environment defaults to **empty /
+synthetic** data. The anonymized snapshot is an additive opt-in — if anonymization
+ever breaks, the degrade lands on empty/synthetic, **never** on real data.
+
+### Data red lines
+
+These are decided constraints; every environment inherits them. Each has a stable
+label so a reword cannot silently drop it.
+
+- **RL-DATA-1** — Unreviewed code (a **PR** sha) may never run against **prod data**.
+- **RL-DATA-2** — **Prod** data must be **anonymized** before it leaves the prod
+  network into any other environment (this is a financial system — real
+  amounts/PII are an incident, not a convenience).
+- **RL-DATA-3** — Non-prod **object storage** holds **no real uploads**; financial
+  PDFs/scans can't be reliably anonymized, so use a **synthetic** document set.
+- **RL-DATA-4** — A **backup** is **not** an anonymized **snapshot**: disaster
+  recovery needs an encrypted *real-data* backup; the staging feed needs an
+  *anonymized* one. They are two separate pipelines.
+
+> Governance anchor: these red lines are the data-side counterpart of the
+> App/Infra artifact boundary. Tracked by #876 (G2 #877); the migration-rehearsal
+> use of the anonymized snapshot ties to AC7.11.
+
+---
+
 ## Related
 
 - [development.md](./development.md) — Moon commands and local setup
