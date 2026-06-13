@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
@@ -168,3 +169,97 @@ def parse_lcov_sources(
             if line.startswith("SF:"):
                 sources.add(component.normalize_lcov_source(line[3:], repo_root))
     return sources
+
+
+# --- Coverage registration guard ---------------------------------------------
+#
+# `expected_sources()` makes each component recursive, so a new file *inside* a
+# component source root (e.g. apps/backend/src/<anything>) is automatically
+# measured. The remaining bypass is code placed *outside* every component root
+# (a new top-level package, apps/<new-app>/, or a loose module next to src/).
+# Such a tree is invisible to the per-component audit, so it could ship with
+# zero coverage while the gate stays green.
+#
+# `find_unregistered_sources()` closes that hole: every tracked source file must
+# be either (a) under a CoverageComponent source root, or (b) matched by an
+# explicit exempt pattern below. Adding an unlisted code directory makes the
+# guard fail until the author either moves it under a covered root or registers
+# it here in a reviewable diff — coverage cannot be skipped by "not registering".
+
+SOURCE_EXTENSIONS: tuple[str, ...] = (".py", ".ts", ".tsx")
+
+# Repo-relative globs (matched against the full path and the basename) for
+# source that is intentionally NOT subject to line coverage. Keep this list
+# minimal and justified — broadening it re-opens the bypass.
+COVERAGE_EXEMPT_PATTERNS: tuple[str, ...] = (
+    # Test code — gated behaviorally, not counted as product source.
+    "test_*.py",
+    "conftest.py",
+    "*.test.ts",
+    "*.test.tsx",
+    "*.spec.ts",
+    "*.spec.tsx",
+    "tests/**",
+    "**/tests/**",
+    "**/__tests__/**",
+    "apps/frontend/playwright/**",
+    # Build/runtime configuration and type declarations, not product logic.
+    "*.config.ts",
+    "*.config.js",
+    "*.config.mjs",
+    "*.config.cjs",
+    "*.d.ts",
+    "apps/frontend/vitest.setup.ts",
+    # Alembic data migrations.
+    "apps/backend/migrations/**",
+    # Agent tooling / skills — not shipped product runtime.
+    ".opencode/**",
+    # Docs build tooling.
+    "docs/**",
+    # Vendored submodule — owns its own coverage in its own repo.
+    "repo/**",
+)
+
+
+def component_source_prefixes(repo_root: Path = ROOT_DIR) -> tuple[str, ...]:
+    """Repo-relative, slash-terminated source roots of every coverage component."""
+    return tuple(
+        component.source_path(repo_root).relative_to(repo_root).as_posix().rstrip("/")
+        + "/"
+        for component in COMPONENTS
+    )
+
+
+def is_registered_source(rel_path: str, repo_root: Path = ROOT_DIR) -> bool:
+    """True if a repo-relative source path is claimed by a component or exempt.
+
+    "Claimed" means it lives under a component source root (covered, even if the
+    component then excludes it from the percentage — it is still visible). Files
+    matched by ``COVERAGE_EXEMPT_PATTERNS`` are deliberately out of scope.
+    """
+    path = rel_path.replace("\\", "/")
+    if any(path.startswith(prefix) for prefix in component_source_prefixes(repo_root)):
+        return True
+    basename = path.rsplit("/", 1)[-1]
+    return any(
+        fnmatch(path, pattern) or fnmatch(basename, pattern)
+        for pattern in COVERAGE_EXEMPT_PATTERNS
+    )
+
+
+def find_unregistered_sources(
+    candidate_files: Iterable[str], repo_root: Path = ROOT_DIR
+) -> list[str]:
+    """Return source files that escape both component scopes and the exempt list.
+
+    ``candidate_files`` is an iterable of repo-relative paths (e.g. ``git
+    ls-files`` output). Non-source extensions are ignored. A non-empty result
+    means coverage could be bypassed by those paths.
+    """
+    orphans = [
+        path.replace("\\", "/")
+        for raw in candidate_files
+        if (path := raw.replace("\\", "/")).endswith(SOURCE_EXTENSIONS)
+        and not is_registered_source(path, repo_root)
+    ]
+    return sorted(orphans)

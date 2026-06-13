@@ -12,8 +12,19 @@ sys.path.insert(0, str(ROOT))
 
 from tools._lib.coverage import build_unified_lcov  # noqa: E402
 from tools._lib.coverage import check_policy  # noqa: E402
-from tools._lib.coverage.check_policy import compare_component, main, run_audit  # noqa: E402
-from common.coverage.policy import CoverageComponent, parse_lcov_sources  # noqa: E402
+from tools._lib.coverage.check_policy import (  # noqa: E402
+    audit_unregistered_sources,
+    compare_component,
+    main,
+    run_audit,
+    tracked_source_files,
+)
+from common.coverage.policy import (  # noqa: E402
+    CoverageComponent,
+    find_unregistered_sources,
+    is_registered_source,
+    parse_lcov_sources,
+)
 
 
 def _component(
@@ -45,7 +56,9 @@ def test_expected_sources_include_new_modules_by_default(tmp_path):
     assert component.expected_sources(tmp_path) == {"src/services/new_module.py"}
 
 
-def test_expected_sources_recursively_include_all_eligible_files_except_exclusions(tmp_path):
+def test_expected_sources_recursively_include_all_eligible_files_except_exclusions(
+    tmp_path,
+):
     """AC8.13.15: Coverage scope is recursive and deny-list based."""
     component = _component(
         tmp_path,
@@ -293,6 +306,66 @@ def test_build_unified_lcov_main_exits_with_builder_result(tmp_path, monkeypatch
     assert calls == [
         (tmp_path / "coverage" / "unified.lcov", tmp_path.resolve(), False)
     ]
+
+
+def test_unregistered_guard_flags_code_outside_every_component():
+    """A new top-level package or loose module outside src is flagged."""
+    orphans = find_unregistered_sources(
+        [
+            "apps/backend/src/services/ok.py",  # claimed by backend
+            "apps/frontend/src/lib/ok.ts",  # claimed by frontend
+            "tools/ok.py",  # claimed by tools
+            "common/ok.py",  # claimed by common
+            "apps/worker/src/handler.py",  # ORPHAN: new app
+            "libs/util.py",  # ORPHAN: new top-level package
+            "apps/backend/rogue.py",  # ORPHAN: inside component dir but outside src
+        ]
+    )
+    assert orphans == [
+        "apps/backend/rogue.py",
+        "apps/worker/src/handler.py",
+        "libs/util.py",
+    ]
+
+
+def test_unregistered_guard_exempts_tests_config_and_non_product_trees():
+    """Test files, config, migrations, skills and docs are not product source."""
+    candidates = [
+        "apps/backend/tests/test_x.py",
+        "tests/tooling/test_y.py",
+        "apps/frontend/src/__tests__/z.test.tsx",
+        "apps/frontend/playwright/flow.spec.ts",
+        "apps/frontend/vitest.config.ts",
+        "apps/frontend/vitest.setup.ts",
+        "apps/backend/migrations/versions/0001_x.py",
+        ".opencode/skills/professional/qa-testing/scripts/gen.py",
+        "docs/hooks.py",
+        "newpkg/foo.go",  # not a tracked source extension we measure
+    ]
+    assert find_unregistered_sources(candidates) == []
+
+
+def test_is_registered_source_distinguishes_covered_from_orphan():
+    assert is_registered_source("apps/backend/src/main.py") is True
+    assert is_registered_source("common/coverage/policy.py") is True
+    assert is_registered_source("apps/newservice/handler.py") is False
+
+
+def test_real_repo_has_no_unregistered_source_trees():
+    """Live gate: every tracked source file is covered or explicitly exempt.
+
+    If this fails, a code directory was added without registering it for
+    coverage. Either move it under a coverage component source root, or add an
+    explicit, justified entry to COVERAGE_EXEMPT_PATTERNS.
+    """
+    orphans = find_unregistered_sources(tracked_source_files(ROOT), ROOT)
+    assert orphans == [], "Unregistered source trees escape coverage: " + ", ".join(
+        orphans
+    )
+
+
+def test_audit_unregistered_sources_passes_on_current_repo():
+    assert audit_unregistered_sources(ROOT) == 0
 
 
 def test_AC8_13_56_tools_policy_tracks_python_command_entrypoints(tmp_path):
