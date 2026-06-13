@@ -15,21 +15,21 @@ export function TransactionTable({ transactions, currency }: TransactionTablePro
     const transactionRows = transactions ?? [];
 
     return (
-        <div className="card flex flex-col min-h-0 h-full overflow-hidden">
+        <div className="card flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
             <div className="card-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-sm font-medium">Transactions</h3>
                 <span className="text-xs text-muted">{transactionRows.length} total</span>
             </div>
 
-            <div data-testid="stage1-mobile-transaction-list" className="flex-1 divide-y divide-[var(--border)] overflow-y-auto md:hidden">
+            <div data-testid="stage1-mobile-transaction-list" className="min-w-0 flex-1 divide-y divide-[var(--border)] overflow-y-auto md:hidden">
                 {transactionRows.map((txn) => (
                     <article
                         key={txn.id}
                         data-testid={`stage1-mobile-transaction-card-${txn.id}`}
-                        className="space-y-4 p-4"
+                        className="min-w-0 space-y-4 p-4"
                     >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium uppercase text-muted">Transaction</p>
                                 <p className="mt-1 break-words font-medium">{txn.description}</p>
                             </div>
@@ -64,7 +64,7 @@ export function TransactionTable({ transactions, currency }: TransactionTablePro
                             </div>
 
                             <p
-                                className={`text-right text-sm font-semibold ${
+                                className={`min-w-0 break-words text-right text-sm font-semibold ${
                                     txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"
                                 }`}
                             >

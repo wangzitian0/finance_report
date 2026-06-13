@@ -206,14 +206,14 @@ export default function StatementReviewPage() {
         : null;
 
     return (
-        <div className="flex min-h-[calc(100vh-2rem)] flex-col p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Link href={returnHref} className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">
+        <div className="flex min-h-[calc(100vh-2rem)] w-full max-w-full min-w-0 flex-col overflow-x-hidden p-4 md:p-6 2xl:h-[calc(100vh-2rem)]">
+            <div className="mb-4 flex min-w-0 max-w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Link href={returnHref} className="flex min-w-0 items-center gap-1 text-sm text-muted hover:text-[var(--foreground)]">
                     <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                    {returnLabel}
+                    <span className="truncate">{returnLabel}</span>
                 </Link>
 
-                <div className="flex items-center gap-2 overflow-x-auto">
+                <div className="flex min-w-0 max-w-full items-center gap-2 overflow-x-auto">
                     {(() => {
                         const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
                         const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
@@ -276,7 +276,7 @@ export default function StatementReviewPage() {
                 currency={data.currency || "SGD"}
             />
 
-            <div className="grid flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
                 <PdfPreviewPane pdfUrl={data.pdf_url} />
 
                 <TransactionTable
