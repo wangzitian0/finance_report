@@ -1998,7 +1998,7 @@ def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> N
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
 
-    assert "workflow_run:" in workflow
+    assert "workflow_run:" not in workflow
     assert 'PYTHONUNBUFFERED: "1"' in workflow
     assert "timeout-minutes: 25" in e2e_block
     assert "Wait for stack readiness" in e2e_block

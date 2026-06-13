@@ -1,20 +1,23 @@
 # PR Test Environment Workflow
 #
-# The default PR preview follows the PR's CI workflow: after the matching CI run
-# completes successfully, this workflow starts the full stack inside the GitHub
-# runner, runs provider-free smoke/E2E, and destroys the stack in the same job.
-# It does not build/push PR preview images and does not create a persistent
-# Dokploy URL. PR close/merge, failed CI, cancelled CI, and timed-out CI runs
-# delete legacy Dokploy preview resources for the PR.
+# The in-runner E2E gate runs SYNCHRONOUSLY on pull_request: it starts the full
+# stack inside the GitHub runner, runs provider-free smoke/E2E, and destroys the
+# stack in the same job. As a synchronous required check it must pass before merge —
+# the old workflow_run trigger fired only after CI and a fast/auto merge could outrun
+# it (a skipped required check counts as passed). It is image-free, builds no PR
+# preview images, and creates no persistent Dokploy URL. PR close triggers cleanup of
+# legacy Dokploy preview resources.
 
 name: PR Test Environment
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  # The in-runner e2e gate runs SYNCHRONOUSLY on pull_request (not via async
+  # workflow_run): workflow_run fires after CI and a fast/auto merge can land before
+  # it ever runs as a required check, so the "merge authority" was bypassable. As a
+  # real pull_request check it must pass before merge. (e2e is image-free — it builds
+  # the stack on the runner — so it needs no CI artifact and can run independently.)
   pull_request:
-    types: [closed]
+    types: [opened, synchronize, reopened, closed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -31,7 +34,7 @@ on:
           - cleanup
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || github.event_name == 'pull_request' && github.event.pull_request.number || github.event.inputs.pr_number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -111,34 +114,14 @@ jobs:
               if event.get("action") == "closed":
                   action = "cleanup"
                   action_reason = "pull-request-closed"
-          elif event_name == "workflow_run":
-              workflow_run = event.get("workflow_run") or {}
-              pull_requests = workflow_run.get("pull_requests") or []
-              pr = pull_requests[0] if pull_requests else {}
-              pr_number = str(pr.get("number") or "")
-              head_sha = workflow_run.get("head_sha") or head_sha
-              head_branch = workflow_run.get("head_branch") or head_branch
-              triggering_ci_conclusion = workflow_run.get("conclusion") or ""
-              triggering_ci_event = workflow_run.get("event") or ""
-              head_repository = (workflow_run.get("head_repository") or {}).get(
-                  "full_name"
-              )
-
-              if not pr_number:
-                  action = "skip"
-                  action_reason = "workflow-run-without-pr"
-              elif triggering_ci_event != "pull_request":
-                  action = "skip"
-                  action_reason = f"workflow-run-event-{triggering_ci_event}"
-              elif head_repository and head_repository != repository:
-                  action = "skip"
-                  action_reason = "fork-pr-no-preview-secrets"
-              elif triggering_ci_conclusion == "success":
-                  action = "deploy"
-                  action_reason = "successful-pr-ci"
               else:
-                  action = "cleanup"
-                  action_reason = f"ci-{triggering_ci_conclusion or 'unknown'}"
+                  # opened/synchronize/reopened: run the in-runner e2e gate
+                  # synchronously on this PR commit, so it is a real required check a
+                  # fast/auto merge cannot outrun (the old workflow_run path was async
+                  # and bypassable). Preview is unaffected — deploy-preview stays
+                  # workflow_dispatch-only (P1a-2).
+                  action = "deploy"
+                  action_reason = "pull-request-sync"
 
           compose_name = f"pr-{pr_number}" if pr_number else ""
           commit_slug = preview_commit_slug(head_sha or github_sha)
@@ -491,11 +474,17 @@ jobs:
         with:
           script: |
             const marker = '<!-- pr-preview-status -->';
-            const passed = process.env.E2E_OUTCOME === 'success';
+            const outcome = process.env.E2E_OUTCOME || 'skipped';
+            const passed = outcome === 'success';
+            const wasSkipped = outcome === 'skipped' || outcome === '';
+            // Distinguish skipped from failed: a skipped check (e.g. a non-runtime PR,
+            // or a post-close cleanup run) is NOT a failure and must not read "Failed".
             const title = passed
               ? 'PR Preview Validation Passed'
-              : 'PR Preview Validation Failed';
-            const result = passed ? 'pass' : (process.env.E2E_OUTCOME || 'skipped');
+              : wasSkipped
+                ? 'PR Preview Validation Skipped'
+                : 'PR Preview Validation Failed';
+            const result = passed ? 'pass' : outcome;
             const body = `${marker}
             ## ${title}
 
