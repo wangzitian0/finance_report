@@ -36,7 +36,7 @@ Authoritative weights live in `apps/backend/src/services/validation.py::compute_
 | Field Completeness | 25% | Required fields present |
 | Format Consistency | 15% | Valid date/amount formats |
 | Transaction Count | 10% | Reasonable (1-500) |
-| Balance Progression | 10% | Running balances monotonically consistent |
+| Balance Progression | 10% | `balance_after` chain is arithmetically consistent: `balance_after[n] == balance_after[n-1] ± amount[n]` (±0.10) |
 | Currency Consistency | 5% | Single/expected currency across lines |
 
 **Thresholds**:

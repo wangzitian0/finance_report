@@ -70,10 +70,14 @@ scoring:
 - **Pattern B**: One-to-many matches must verify amount totals
 - **Pattern C**: Cross-period matches extend date tolerance to ±7 days
 - **Pattern D**: Match facts are append-only (Axiom A). `reconciliation_matches`
-  is the canonical example — `version` integer + self-referential
-  `superseded_by_id`; the live match is the head (`superseded_by_id IS NULL`),
-  enforced by a partial unique index. Replacing a match appends a new version and
-  marks the prior one `superseded`. See [`schema`](../schema/SKILL.md#append-only-fact-versioning-axiom-a).
+  carries a `version` integer and a self-referential `superseded_by_id`.
+  Replacing a match sets the prior match's `status = superseded` and its
+  `superseded_by_id` to the new match; the active match is resolved **in the
+  service** via `_get_existing_active_match` (`status != superseded AND
+  superseded_by_id IS NULL`), not by a DB partial unique index, and the
+  replacement does not increment `version`. (The partial-unique-index head
+  enforcement is applied on `manual_valuation_snapshots` — see
+  [`schema`](../schema/SKILL.md#append-only-fact-versioning-axiom-a).)
 - **Pattern E (Performance)**: Pre-fetch candidates for entire statement period.
 
 ### ⛔ Prohibited Patterns
