@@ -156,7 +156,8 @@ export default function CashFlowPage() {
             {!reconciles && (
               <p className="mt-2 text-xs text-[var(--warning)]">
                 Expected ending {formatCurrencyLocale(expectedEnding, cur)} differs from the reported ending by{" "}
-                {formatCurrencyLocale(drift, cur)}.
+                {formatCurrencyLocale(drift.abs(), cur)} — the reported ending is{" "}
+                {drift.isPositive() ? "lower" : "higher"} than expected.
               </p>
             )}
           </div>

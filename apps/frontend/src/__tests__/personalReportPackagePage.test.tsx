@@ -642,6 +642,24 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("Loading framework package...")).toBeInTheDocument();
   });
 
+  it("EPIC-022 #867 offers a print / save-as-PDF export of the loaded package", async () => {
+    mockPackageApi();
+    const printMock = vi.fn();
+    const originalPrint = window.print;
+    window.print = printMock;
+
+    try {
+      renderPackagePage();
+      fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+      const printButton = await screen.findByRole("button", { name: /Print \/ Save as PDF/i });
+      fireEvent.click(printButton);
+      expect(printMock).toHaveBeenCalled();
+    } finally {
+      window.print = originalPrint;
+    }
+  });
+
   it("AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework", async () => {
     mockPackageApi();
 
