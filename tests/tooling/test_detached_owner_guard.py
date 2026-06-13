@@ -107,6 +107,38 @@ def test_add_all_persisted_rows_are_counted(db):
     assert any("Bulk Two" in name for name in names)  # add_all via inline construction
 
 
+def test_AC8_13_130_add_all_via_variable_is_counted(tmp_path: Path) -> None:
+    """AC8.13.130: rows collected into a list variable and bulk-added are still persisted."""
+    test_file = tmp_path / "apps" / "backend" / "tests" / "test_bulk.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        """
+from uuid import uuid4
+
+from src.models import Account
+
+
+def test_add_all_list_variable(db):
+    rows = [Account(user_id=uuid4(), name="Literal var", type="ASSET", currency="SGD")]
+    db.add_all(rows)
+
+
+def test_add_all_via_append(db):
+    rows = []
+    rows.append(Account(user_id=uuid4(), name="Appended", type="ASSET", currency="SGD"))
+    db.add_all(rows)
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    findings = detached_owner_guard.scan_paths([tmp_path / "apps" / "backend" / "tests"], repo_root=tmp_path)
+
+    names = {finding.source for finding in findings}
+    assert len(findings) == 2
+    assert any("Literal var" in name for name in names)
+    assert any("Appended" in name for name in names)
+
+
 def test_AC8_13_128_ignores_non_uuid4_user_ids(tmp_path: Path) -> None:
     """AC8.13.128: only direct uuid4 owner shortcuts count against the budget."""
     test_file = tmp_path / "apps" / "backend" / "tests" / "test_safe.py"

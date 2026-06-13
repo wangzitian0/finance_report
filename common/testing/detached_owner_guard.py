@@ -75,29 +75,52 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
     """
     added_var_names: set[str] = set()
     construction_ids: set[int] = set()
+
+    def _collect_added(node: ast.expr) -> None:
+        """From an add/add_all argument: record variable names and mark constructions."""
+        if isinstance(node, ast.Name):
+            added_var_names.add(node.id)
+        elif isinstance(node, ast.Call):
+            construction_ids.add(id(node))
+        elif isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            for element in node.elts:
+                _collect_added(element)
+
+    def _mark_constructions(node: ast.expr) -> None:
+        """Mark a construction, or every construction inside a literal collection."""
+        if isinstance(node, ast.Call):
+            construction_ids.add(id(node))
+        elif isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            for element in node.elts:
+                _mark_constructions(element)
+
+    # db.add(x) / db.add_all([...] | var). A Name argument (or Name list element)
+    # records the variable so rows collected into a list and bulk-added later are
+    # still treated as persisted.
     for node in ast.walk(scope):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("add", "add_all"):
-            targets: list[ast.expr] = []
-            if node.func.attr == "add":
-                targets = list(node.args)
-            else:
-                for arg in node.args:
-                    if isinstance(arg, ast.List | ast.Tuple):
-                        targets.extend(arg.elts)
-            for target in targets:
-                if isinstance(target, ast.Name):
-                    added_var_names.add(target.id)
-                elif isinstance(target, ast.Call):
-                    construction_ids.add(id(target))
+            for arg in node.args:
+                _collect_added(arg)
+
+    # Constructions reaching an added variable: var = Model(...) / var = [Model(...), ...]
+    # and var.append(Model(...)) / var.extend([Model(...), ...]).
     for node in ast.walk(scope):
         if (
             isinstance(node, ast.Assign)
-            and isinstance(node.value, ast.Call)
             and len(node.targets) == 1
             and isinstance(node.targets[0], ast.Name)
             and node.targets[0].id in added_var_names
         ):
-            construction_ids.add(id(node.value))
+            _mark_constructions(node.value)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in ("append", "extend")
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in added_var_names
+        ):
+            for arg in node.args:
+                _mark_constructions(arg)
     return construction_ids
 
 
@@ -114,7 +137,7 @@ def scan_file(path: Path, *, repo_root: Path) -> list[DetachedOwnerFinding]:
     # Judge persistence within each function so a var name added in one test
     # cannot mark a same-named transient construction in another test.
     scopes: list[ast.AST] = [
-        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
 
     findings: list[DetachedOwnerFinding] = []
