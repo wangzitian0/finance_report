@@ -35,14 +35,6 @@ class BankStatementTransactionStatusEnum(str, Enum):
     UNMATCHED = "unmatched"
 
 
-class ConfidenceLevelEnum(str, Enum):
-    """Legacy confidence level (API backward-compat only)."""
-
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-
-
 # --- Request Schemas ---
 
 
