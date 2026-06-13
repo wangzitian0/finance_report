@@ -30,6 +30,14 @@ The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.
   and builds backend/frontend from source on the host (`up -d --build`); no GHCR
   image is pulled or pushed. The preview persists until PR close, then is removed
   by native `compose.delete`.
+- **Preview compose project MUST equal Dokploy's `appName`.** `compose.delete`
+  tears the stack down with `docker compose down` scoped to the `appName`. The
+  preview `up` command therefore passes `-p <appName>` (read back from
+  `compose.one`), and the deploy env MUST NOT set `COMPOSE_PROJECT_NAME`.
+  Overriding the project (e.g. to `finance_report_pr_<n>`) desyncs `up` from
+  `down`: `compose.delete` removes the Dokploy record and on-disk compose
+  directory but `down` matches no containers, orphaning the whole stack with
+  nothing left to reap it.
 
 ---
 
