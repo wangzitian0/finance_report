@@ -46,17 +46,23 @@ python tools/debug.py logs backend --env production --method signoz
 
 ### Container Naming
 
-⚠️ **Production uses underscore**: `finance_report-*` (not hyphen)
+⚠️ **Staging & Production use underscore**: `finance_report-{service}${ENV_SUFFIX}`
+(from the infra2 IaC compose, not the local `docker-compose.yml`). DB service is
+`postgres`, not `db`. SSOT: [environments.md](../../../docs/ssot/environments.md).
 
 | Environment | Backend | PostgreSQL | Redis |
 |-------------|---------|------------|-------|
 | **Production** | `finance_report-backend` | `finance_report-postgres` | `finance_report-redis` |
-| Staging | `finance-report-backend-staging` | `finance-report-db-staging` | `finance-report-redis-staging` |
-| PR | `finance-report-backend-pr-47` | `finance-report-db-pr-47` | `finance-report-redis-pr-47` |
+| Staging | `finance_report-backend-staging` | `finance_report-postgres-staging` | `finance_report-redis-staging` |
+| PR Preview | service DNS (no fixed name) | service DNS | service DNS |
 
-**Critical**: Container name = hostname in Dokploy network.
+**Critical**: For staging/prod, container name = hostname in the Dokploy network;
+the backend's `DATABASE_URL`/`REDIS_URL` (from `10.app/secrets.ctmpl`) resolve to
+these exact names. PR Preview raw compose drops fixed `container_name` and uses
+compose service DNS.
 
-**Note**: `tools/debug.py` currently only supports hyphenated patterns (staging/PR).
+**Note**: `tools/debug.py` (`CONTAINER_PATTERNS`) maps these underscore names for
+staging/production and the hyphenated `finance-report-*` names for local/CI.
 For production, use direct SSH: `ssh root@$VPS_HOST "docker logs finance_report-backend"`
 
 ---

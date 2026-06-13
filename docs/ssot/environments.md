@@ -125,10 +125,22 @@ PR validation is split into two independent things (issue #839):
 | **Local CI** | *(uses Local Dev containers)* | *(uses Local Dev containers)* | `finance_report_test_{namespace}` | `statements-{namespace}` |
 | **GitHub CI** | *(GitHub Services)* | *(N/A)* | `finance_report_test` | `statements` (mock) |
 | **PR Preview** | Runner compose backend service | Runner compose frontend service | `postgres` service DNS | `minio` service DNS |
-| **Staging** | `finance-report-backend-staging` | `finance-report-frontend-staging` | `finance-report-db-staging` | `finance-report-staging` |
-| **Production** | `finance-report-backend` | `finance-report-frontend` | `finance-report-db` | `finance-report-production` |
+| **Staging** | `finance_report-backend-staging` | `finance_report-frontend-staging` | `finance_report-postgres-staging` | `finance-report-staging` |
+| **Production** | `finance_report-backend` | `finance_report-frontend` | `finance_report-postgres` | `finance-report-production` |
 
-**Note**: Container names follow the pattern `finance-report-{service}${ENV_SUFFIX}` from `docker-compose.yml` for fixed-name environments. PR Preview raw compose removes fixed container names and uses compose service DNS on a project-scoped internal network, because Dokploy compose project names can change across retries while the PR route remains stable. `ENV_SUFFIX` is `-pr-{N}` for PR Preview and `-staging` for Staging; empty for Production.
+**Note**: Two distinct conventions — do not conflate them.
+- **Local Dev / CI** use the local `docker-compose.yml` pattern
+  `finance-report-{service}${ENV_SUFFIX:-}` (**hyphen**, DB service `db`).
+- **Staging / Production** are deployed by the infra2 IaC compose files
+  (`repo/finance_report/finance_report/{01.postgres,02.redis,10.app}/compose.yaml`),
+  whose `container_name` is `finance_report-{service}${ENV_SUFFIX}` (**underscore**,
+  DB service `postgres`). The backend connects to these underscore hostnames — see
+  `10.app/secrets.ctmpl` (`DATABASE_URL` → `finance_report-postgres${suffix}`,
+  `REDIS_URL` → `finance_report-redis${suffix}`). `ENV_SUFFIX` is `-staging` for
+  Staging, empty for Production.
+- **PR Preview** raw compose removes fixed container names and uses compose service
+  DNS on a project-scoped internal network, because Dokploy compose project names
+  can change across retries while the PR route remains stable.
 
 ---
 

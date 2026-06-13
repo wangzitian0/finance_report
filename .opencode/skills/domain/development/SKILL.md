@@ -9,8 +9,9 @@ description: Development environment, testing, CI/CD, and deployment procedures.
 
 ## Moon Commands (Primary Interface)
 
-All commands go through root tasks (`:dev`, `:test`, `:lint`, `:build`); the
-`apps/*` projects declare no tasks of their own. Sub-targets are passed via `--`.
+Day-to-day work goes through root tasks (`:dev`, `:test`, `:lint`, `:build`); the
+`apps/*` projects declare no tasks of their own, and sub-targets are passed via
+`--`. A few helpers run as plain scripts (e.g. smoke tests), noted inline below.
 
 ```bash
 # Development
