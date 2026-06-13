@@ -186,6 +186,7 @@ class AssetService:
             .where(ManualValuationSnapshot.source == source)
             .where(ManualValuationSnapshot.as_of_date == as_of_date)
             .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+            .with_for_update()
         )
         return result.scalar_one_or_none()
 

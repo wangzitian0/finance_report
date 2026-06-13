@@ -97,6 +97,17 @@ shown to users must be normalized through the Advisor Brief safe-route allowlist
 before link rendering, and contextual chat entry links must seed scoped prompts
 through `/chat?prompt=...` without clearing the user's existing chat session.
 
+`POST /api/chat` remains a text streaming endpoint, but personal-data answers
+also expose compact application-owned grounding metadata in the
+`X-Advisor-Metadata` response header. The header contains only summarized
+metadata: `grounded`, `citations[]` (`label`, `source_ref`,
+`confidence_tier`, `href`) and `actions[]` (`kind`, `label`, `href`, optional
+`count`). Citations point to safe internal report/advisor surfaces rather than
+raw account numbers, source files, or transaction-level PII. Action chips are
+read-only deep links such as `Review N`; they must never execute ledger writes,
+approvals, postings, or reconciliation mutations. The frontend must render this
+metadata directly and must not infer citations or actions by parsing LLM prose.
+
 ### 2.4 Financial Suggestion Scope
 
 The assistant may surface explainable personal-finance suggestions from trusted
@@ -207,6 +218,7 @@ application state and points to safe next actions.
 | Real OCR brokerage upload → portfolio value | `test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value` | ✅ Staging gate |
 | EPIC-021 application-layer contract | `test_AC21_1_1_ai_advisor_is_application_layer_contract`, `test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics` | ✅ Framing |
 | EPIC-021 backend advisor context | `test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_suggestions`, `test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state`, `test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_and_persistence` | ✅ Backend context |
+| EPIC-022 grounded chat metadata | `test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_actions`, `test_AC22_14_1_chat_response_exposes_grounding_metadata_header`, `chatPanelComponent.test.tsx` | ✅ Grounded chat |
 
 ---
 

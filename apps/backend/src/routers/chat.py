@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Annotated
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from src.schemas.chat import (
     ChatMessagePreview,
     ChatMessageResponse,
     ChatRequest,
+    ChatResponseMetadata,
     ChatSessionResponse,
     ChatSessionStatusEnum,
     ChatSuggestionsResponse,
@@ -78,6 +80,16 @@ async def chat_message(
     if stream.model_name:
         headers["X-Model-Name"] = stream.model_name
         headers["Access-Control-Expose-Headers"] += ", X-Model-Name"
+    metadata = getattr(stream, "metadata", None)
+    metadata_header: str | None = None
+    if isinstance(metadata, ChatResponseMetadata):
+        if metadata.grounded or metadata.citations or metadata.actions:
+            metadata_header = metadata.model_dump_json()
+    elif isinstance(metadata, dict):
+        metadata_header = json.dumps(metadata, separators=(",", ":"))
+    if metadata_header:
+        headers["X-Advisor-Metadata"] = metadata_header
+        headers["Access-Control-Expose-Headers"] += ", X-Advisor-Metadata"
 
     return StreamingResponse(stream.stream, media_type="text/plain", headers=headers)
 

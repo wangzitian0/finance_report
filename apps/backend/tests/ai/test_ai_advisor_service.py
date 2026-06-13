@@ -541,6 +541,60 @@ async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sour
     ]
 
 
+@pytest.mark.no_db
+def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_actions() -> None:
+    """AC22.14.1 AC22.14.3: Chat metadata cites facts and deep-links pending review actions."""
+    service = AIAdvisorService()
+
+    metadata = service.build_chat_grounding_metadata(
+        {
+            "total_assets": "SGD 1200.00",
+            "equity": "SGD 900.00",
+            "monthly_expenses": "SGD 300.00",
+            "pending_review": "2",
+            "balance_sheet_confidence_tier": "TRUSTED",
+            "income_statement_confidence_tier": "HIGH",
+            "advisor_context": json.dumps(
+                {
+                    "suggestions": [
+                        {
+                            "basis": "Cash-flow context has 2 pending reconciliation review item(s).",
+                            "confidence_tier": "review_required",
+                            "source_refs": ["cash_flow", "reconciliation"],
+                            "limitation": "Unreviewed reconciliation items should not be treated as trusted.",
+                            "next_action_href": "/reconciliation/review-queue",
+                        }
+                    ]
+                }
+            ),
+        },
+        "What is my net worth and what should I review?",
+    )
+
+    assert metadata.grounded is True
+    assert {citation.source_ref for citation in metadata.citations} >= {
+        "balance_sheet.total_equity",
+        "income_statement.current_month",
+    }
+    assert {citation.confidence_tier for citation in metadata.citations} >= {"TRUSTED", "HIGH"}
+    assert [action.model_dump() for action in metadata.actions] == [
+        {
+            "kind": "reconciliation_review",
+            "label": "Review 2",
+            "href": "/reconciliation/review-queue",
+            "count": 2,
+        }
+    ]
+
+
+@pytest.mark.no_db
+def test_AC22_14_1_unknown_confidence_tiers_roll_up_as_least_trusted() -> None:
+    """AC22.14.1: Unknown citation confidence values are never promoted above known tiers."""
+    service = AIAdvisorService()
+
+    assert service._worst_confidence_tier(["HIGH", "UNAVAILABLE", "LOW"]) == "UNAVAILABLE"
+
+
 def test_AC21_2_1_jsonable_normalizes_nested_context_values() -> None:
     """AC21.2.1: Advisor context serialization normalizes nested deterministic values."""
     service = AIAdvisorService()
