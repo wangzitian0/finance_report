@@ -182,12 +182,12 @@ preferences.
 
 ### Data sources
 
-| Source | What it is | Used by |
+| Source | What it is | Used by (environment) |
 |--------|------------|---------|
-| **empty** | migrations freshly applied, seed/fixtures only | `e2e`, `preview` |
-| **staging** | data accumulated by testing | `staging` |
-| **anonymized prod snapshot** | the *shape* of real data, with amounts/PII anonymized | `rehearsal`, `staging` (fed by `snapshot-sync`) |
-| *(real prod data)* | live data | **`production` only** |
+| **empty** | migrations freshly applied, seed/fixtures only | GitHub CI, PR Preview |
+| **staging** | data accumulated by testing | Staging |
+| **anonymized prod snapshot** | the *shape* of real data, with amounts/PII anonymized | Staging, and `rehearsal` *(planned, #893)* — fed by `snapshot-sync` |
+| *(real prod data)* | live data | **Production only** |
 
 **Default is safe-on-failure**: a non-prod environment defaults to **empty /
 synthetic** data. The anonymized snapshot is an additive opt-in — if anonymization

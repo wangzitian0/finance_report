@@ -24,15 +24,37 @@ DATA_RED_LINES = {
     "RL-DATA-3": ["object storage", "synthetic"],  # non-prod holds no real uploads
     "RL-DATA-4": ["backup", "snapshot"],  # a backup is not an anonymized snapshot
 }
-DATA_SOURCES = ["empty", "anonymized prod snapshot"]
+# All three data sources (Copilot CR: don't let a regression silently drop one).
+# Checked inside the "Data sources" subsection so a stray mention elsewhere in the
+# SSOT (e.g. the Staging environment) cannot satisfy the assertion.
+DATA_SOURCES = ["empty", "staging", "anonymized prod snapshot"]
+
+
+def _subsection(md: str, header: str) -> str:
+    """Text from ``header`` up to the next same-or-higher-level heading, lowercased."""
+    out, capturing = [], False
+    for line in md.splitlines():
+        if line.strip() == header:
+            capturing = True
+            continue
+        if capturing and line.startswith("### "):
+            break
+        if capturing:
+            out.append(line)
+    return "\n".join(out).lower()
 
 
 def test_AC7_12_6_environments_define_data_axis_and_red_lines():
-    env = read("docs/ssot/environments.md").lower()
+    md = read("docs/ssot/environments.md")
+    sources = _subsection(md, "### Data sources")
+    assert sources, (
+        "environments.md must have a '### Data sources' subsection (AC7.12.6, #877)."
+    )
     for src in DATA_SOURCES:
-        assert src in env, (
-            f"environments.md must define the data source '{src}' (AC7.12.6, #877)."
+        assert src in sources, (
+            f"environments.md '### Data sources' must define '{src}' (AC7.12.6, #877)."
         )
+    env = md.lower()
     for label, keywords in DATA_RED_LINES.items():
         assert label.lower() in env, (
             f"environments.md must state data red line {label} (AC7.12.6, #877)."
