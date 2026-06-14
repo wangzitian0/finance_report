@@ -234,6 +234,7 @@ A user with pre-existing assets/liabilities can establish year-start balances vi
 | AC2.15.3 | An opening balance for a non-owned or unknown account is rejected | `test_AC2_15_3_unknown_account_is_rejected` | `accounting/test_opening_balance.py` | P0 |
 | AC2.15.4 | An opening balance establishes a starting position, not a delta: it is rejected when an affected account already has posted activity before the opening date | `test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists` | `accounting/test_opening_balance.py` | P0 |
 | AC2.15.5 | Opening balances are accepted only in the base currency, with a clear error rather than a confusing FX-rate failure | `test_AC2_15_5_non_base_currency_is_rejected` | `accounting/test_opening_balance.py` | P0 |
+| AC2.15.6 | An opening balance into an account whose currency differs from the request currency is rejected, so journal lines cannot be mis-stamped | `test_AC2_15_6_account_currency_mismatch_is_rejected` | `accounting/test_opening_balance.py` | P0 |
 
 ## 📏 Acceptance Criteria
 

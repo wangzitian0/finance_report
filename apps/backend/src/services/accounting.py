@@ -358,6 +358,11 @@ async def post_opening_balance_entry(
         if amount <= Decimal("0"):
             raise ValidationError("Opening balance amounts must be positive")
         account = accounts[account_id]
+        if (account.currency or "").upper() != normalized_currency:
+            raise ValidationError(
+                f"Opening balance currency {normalized_currency} does not match the currency "
+                f"of account {account_id} ({account.currency}); lines must not be mis-stamped."
+            )
         if account.type in (AccountType.ASSET, AccountType.EXPENSE):
             direction = Direction.DEBIT
             total_debit += amount

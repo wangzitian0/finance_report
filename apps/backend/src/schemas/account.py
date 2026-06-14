@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.models.account import AccountType
 from src.schemas.base import BaseResponse, ListResponse
@@ -21,8 +21,13 @@ class OpeningBalanceRequest(BaseModel):
 
     entry_date: date
     balances: dict[UUID, Annotated[Decimal, Field(gt=Decimal("0"), decimal_places=2)]]
-    currency: str | None = None
+    currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
     memo: Annotated[str, Field(min_length=1, max_length=500)] = "Opening balances"
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str | None) -> str | None:
+        return value.upper() if value else value
 
 
 class AccountBase(BaseModel):

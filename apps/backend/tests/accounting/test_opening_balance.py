@@ -94,3 +94,17 @@ async def test_AC2_15_5_non_base_currency_is_rejected(client):
         json={"entry_date": "2026-01-01", "balances": {bank: "1000.00"}, "currency": "USD"},
     )
     assert resp.status_code == 400
+
+
+async def test_AC2_15_6_account_currency_mismatch_is_rejected(client):
+    """AC2.15.6: an opening balance into an account whose currency differs from the
+    request (base) currency is rejected, so journal lines cannot be mis-stamped."""
+    resp_acc = await client.post("/accounts", json={"name": "USD Bank", "type": "ASSET", "currency": "USD"})
+    assert resp_acc.status_code == 201, resp_acc.text
+    usd_bank = resp_acc.json()["id"]
+    # Request currency defaults to base (SGD), which mismatches the USD account.
+    resp = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {usd_bank: "1000.00"}},
+    )
+    assert resp.status_code == 400
