@@ -137,6 +137,14 @@ class DeduplicationService:
         }
 
         if existing:
+            # Opportunistically backfill balance_after for legacy rows persisted before the
+            # column existed. The dedup hash already matched, so the disambiguator (and thus the
+            # running balance fed into it) is identical -- this only fills a NULL, never rewrites a
+            # value. Without this, pre-migration rows stay NULL forever and the Stage-1 guard keeps
+            # treating them as ambiguous, so already-stuck statements would not benefit from the fix.
+            if existing.balance_after is None and balance_after is not None:
+                existing.balance_after = balance_after
+
             source_docs = existing.source_documents
             if not isinstance(source_docs, list):
                 source_docs = []
