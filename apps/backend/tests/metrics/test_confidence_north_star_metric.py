@@ -84,3 +84,16 @@ async def test_AC18_12_3_north_star_endpoint_returns_current_and_series(client):
     assert body["current"]["total_count"] == 0
     assert body["current"]["low_confidence_count"] == 0
     assert isinstance(body["series"], list)
+
+
+@pytest.mark.asyncio
+async def test_AC18_12_4_post_records_a_snapshot_into_the_series(client):
+    """AC18.12.4: POST records a North-Star point on demand, so the trend accumulates."""
+    assert (await client.get("/metrics/confidence-north-star")).json()["series"] == []
+
+    created = await client.post("/metrics/confidence-north-star/snapshots")
+    assert created.status_code == 201
+    assert created.json()["captured_at"]
+
+    series = (await client.get("/metrics/confidence-north-star")).json()["series"]
+    assert len(series) == 1

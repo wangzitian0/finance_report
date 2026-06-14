@@ -25,6 +25,28 @@ from src.services.statement_validation import (
 DEFAULT_ACCOUNT_NAME = "Statement Validation Default Account"
 
 
+def test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate():
+    """AC18.13.5: Stage-1 balance approval is disposed by the promotion gate, preserving the exact messages."""
+    from src.services.statement_validation import _raise_if_balance_chain_invalid
+
+    ok = {"opening_match": True, "closing_match": True, "opening_delta": "0", "closing_delta": "0"}
+    _raise_if_balance_chain_invalid(ok)  # both invariants pass -> authoritative -> no raise
+
+    with pytest.raises(ValueError, match="Opening balance mismatch"):
+        _raise_if_balance_chain_invalid(
+            {"opening_match": False, "closing_match": True, "opening_delta": "0.5", "closing_delta": "0"}
+        )
+    with pytest.raises(ValueError, match="Balance mismatch"):
+        _raise_if_balance_chain_invalid(
+            {"opening_match": True, "closing_match": False, "opening_delta": "0", "closing_delta": "0.5"}
+        )
+    with pytest.raises(ValueError, match="Balance still invalid after edits"):
+        _raise_if_balance_chain_invalid(
+            {"opening_match": True, "closing_match": False, "opening_delta": "0", "closing_delta": "0.5"},
+            after_edits=True,
+        )
+
+
 @pytest.fixture
 def user_id(test_user):
     return test_user.id
