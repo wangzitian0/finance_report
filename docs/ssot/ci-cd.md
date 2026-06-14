@@ -28,7 +28,7 @@ changes (Classify Changes) ──→ backend shards ───────┐    
 | Job | Purpose | Dependencies |
 |-----|---------|--------------|
 | **changes** | Detect whether changed paths require heavy backend/frontend/coverage jobs | None |
-| **lint** | Static analysis (backend `src tests` ruff check + format check, frontend lint) + manifest/doc/CI metrics contract checks | None (first job) |
+| **lint** | Static analysis (backend `src tests` ruff check + format check, frontend lint) + content-level secret scan (gitleaks, mirrors the pre-commit hook) + manifest/doc/CI metrics contract checks | None (first job) |
 | **schema-migrations** | Run Alembic `upgrade head` followed by `alembic check` against an ephemeral Postgres service before merge | `needs: [changes]` |
 | **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |

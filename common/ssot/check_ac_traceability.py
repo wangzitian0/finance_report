@@ -261,7 +261,12 @@ def print_report(
     print("AC TRACEABILITY REPORT")
     print(f"{'=' * 60}")
     print(f"Registry: {result.total} total ACs, {result.mandatory_total} mandatory")
-    print(f"CI real covered  : {len(result.covered)} ({coverage_pct:.1f}%)")
+    print(f"L1 reference hygiene : {len(result.covered)} ({coverage_pct:.1f}%)")
+    print("  L1 = an AC id is referenced by a CI-executed, non-placeholder test")
+    print("  file; this proves the reference EXISTS, NOT that behavior is verified.")
+    print("  Behavioral assurance is gated separately and anchors far fewer ACs:")
+    print("    L2 critical proof matrix    -> tools/check_critical_proof_matrix.py")
+    print("    L3 behavioral-score ratchet -> tools/check_ac_score_baseline.py")
     print(f"Unexecuted-only  : {len(result.unexecuted_only)}")
     print(f"Placeholder-only : {len(result.placeholder_only)}")
     print(f"Stub-only        : {len(result.stub_only)}")
@@ -428,8 +433,12 @@ def main() -> int:
         and not result.unexecuted_only
     ):
         print(
-            "TRACEABILITY GATE PASSED: all mandatory ACs have at least one "
-            "CI-executed real, non-placeholder AC reference."
+            "L1 REFERENCE-HYGIENE GATE PASSED: every mandatory AC has at least one "
+            "CI-executed, non-placeholder AC reference.\n"
+            "  NOTE: this is L1 reference hygiene, NOT behavioral coverage. It does "
+            "not assert that any test exercises the AC's behavior. Behavioral "
+            "assurance is gated by the L2 critical proof matrix and the L3 "
+            "ac-behavioral-ratchet, which intentionally anchor far fewer ACs."
         )
 
     return 0

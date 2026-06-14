@@ -498,6 +498,64 @@ class TestPrintReport:
         cat.print_report(result, [], {})
         capsys.readouterr()
 
+    def test_AC8_13_135_report_labels_l1_hygiene_not_behavioral(self, capsys):
+        """AC8.13.135: the coverage number is labelled L1 reference hygiene, not
+        behavioral coverage, so a passing gate is not read as behavioral proof."""
+        acs = [self._make_ac("AC1.1.1")]
+        result = cat.TraceabilityResult(
+            covered=["AC1.1.1"],
+            placeholder_only=[],
+            stub_only=[],
+            unexecuted_only=[],
+            missing=[],
+            total=1,
+            mandatory_total=1,
+        )
+        cat.print_report(
+            result, acs, {"AC1.1.1": cat.ACReferenceStats(real_files={"f.py"})}
+        )
+        out = capsys.readouterr().out
+        # The headline names the L1 layer and disclaims behavioral assurance.
+        assert "L1 reference hygiene" in out
+        assert "NOT that behavior is verified" in out
+        # The misleading bare "CI real covered" headline is gone.
+        assert "CI real covered" not in out
+        # Behavioral authorities are named so a reader knows where coverage lives.
+        assert "L2 critical proof matrix" in out
+        assert "L3 behavioral-score ratchet" in out
+
+    def test_AC8_13_135_pass_message_points_to_behavioral_gates(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """AC8.13.135: the gate-passed message qualifies itself as L1 hygiene and
+        names the L2/L3 behavioral gates instead of claiming full coverage."""
+        reg = tmp_path / "registry.yaml"
+        reg.write_text(SAMPLE_REGISTRY_YAML)
+        test_dir = tmp_path / "tests"
+        test_dir.mkdir()
+        (test_dir / "test_something.py").write_text("# AC1.1.1\n# AC1.1.2\n")
+        empty_infra = tmp_path / "empty_infra.yaml"
+        empty_infra.write_text("version: '1.0'\ngroups: {}\n")
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "check_ac_traceability.py",
+                "--registry",
+                str(reg),
+                "--infra-registry",
+                str(empty_infra),
+                "--test-dirs",
+                str(test_dir),
+            ],
+        )
+        assert cat.main() == 0
+        out = capsys.readouterr().out
+        assert "L1 REFERENCE-HYGIENE GATE PASSED" in out
+        assert "NOT behavioral coverage" in out
+        assert "ac-behavioral-ratchet" in out
+        # The old wording that implied full behavioral coverage must be gone.
+        assert "all mandatory ACs have at least one" not in out
+
 
 class TestMain:
     """main() returns 0 when all mandatory ACs are covered, 1 otherwise."""
