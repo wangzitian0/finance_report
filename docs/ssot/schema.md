@@ -203,7 +203,11 @@ volume, and edge cases that CI and staging will never reproduce perfectly.
 
 The machine-readable owner for migration risk is
 [migration-risk.yaml](./migration-risk.yaml), validated by
-`tools/check_migration_risk.py`.
+`tools/check_migration_risk.py`. Risk is **auto-classified** from each
+migration's `upgrade()` body (destructive drops → critical, data mutation →
+high, compatibility-sensitive schema changes → medium, otherwise low), so the
+manifest only lists migrations that carry release proof for an auto-classified
+high/critical change or that deliberately raise risk above the auto floor.
 
 | Risk | Meaning | Default proof |
 |---|---|---|

@@ -226,6 +226,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.11.2 | High and critical migration risk entries require release proof notes for staging, production preflight, and rollback/expand-contract strategy | `test_AC7_11_2_high_and_critical_migrations_require_release_proof` | `tests/tooling/test_migration_risk_contract.py` | P0 |
 | AC7.11.3 | Destructive upgrade operations cannot be classified below critical risk | `test_AC7_11_3_destructive_migrations_must_be_classified_critical` | `tests/tooling/test_migration_risk_contract.py` | P0 |
 | AC7.11.4 | CI lint and production release dry-run execute the migration risk contract and publish release context | `test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract` | `tests/tooling/test_migration_risk_contract.py` | P0 |
+| AC7.11.5 | Risk is auto-classified from each migration's `upgrade()` body (destructive→critical, data-mutation→high, compatibility-sensitive→medium, else low); low/medium migrations need no manifest entry, while auto-classified high/critical migrations require an explicit release-proof entry | `test_AC7_11_5_low_and_medium_migrations_are_auto_classified` | `tests/tooling/test_migration_risk_contract.py` | P0 |
 
 ### AC7.12: Delivery App/Infra-boundary calibration (#876)
 
