@@ -13,7 +13,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Environments that are real deployments (infra2 issues the telemetry contract
 # here). Local/CI/preview are exempt from the deployed-env fast-fail below.
-_DEPLOYED_ENVIRONMENTS = frozenset({"staging", "production"})
+# Single source of truth — boot.py imports this (config is the lower-level module).
+PROTECTED_ENVIRONMENTS = frozenset({"staging", "production"})
 
 
 def parse_comma_list(value: str | list[str] | None, default: list[str]) -> list[str]:
@@ -415,7 +416,7 @@ class Settings(BaseSettings):
         environments (local/CI/preview) and telemetry-off deploys are exempt, so
         this never trips local, tests, or a SigNoz-less deploy.
         """
-        if self.environment.strip().lower() not in _DEPLOYED_ENVIRONMENTS:
+        if self.environment.strip().lower() not in PROTECTED_ENVIRONMENTS:
             return self
         if not self.otel_exporter_otlp_endpoint:
             return self
