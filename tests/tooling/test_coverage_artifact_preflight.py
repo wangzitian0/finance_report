@@ -2,10 +2,10 @@
 
 Covers two related concerns on the unified coverage pipeline:
 
-- #414 (AC14.1.18): the unified aggregation must fail *explicitly* and name the
+- #414 (AC14.1.20): the unified aggregation must fail *explicitly* and name the
   offending component LCOV when a CI-critical artifact is missing or empty,
   rather than silently treating it as 0% and emitting a misleading number.
-- #923 (AC14.1.19): coverage components carry an explicit ``tier``
+- #923 (AC14.1.21): coverage components carry an explicit ``tier``
   (``ci-critical`` vs ``best-effort``). The preflight enforces presence only for
   ``ci-critical`` tiers, so a missing best-effort ``tools`` artifact does not
   hard-fail the aggregation while application and shared-library trees stay
@@ -53,23 +53,23 @@ def _write_lcov(path: Path, covered: int, total: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# #923 — tooling coverage tiering (AC14.1.19)
+# #923 — tooling coverage tiering (AC14.1.21)
 # ---------------------------------------------------------------------------
 
 
 class TestCoverageTiering:
-    """AC14.1.19: components are tiered ci-critical vs best-effort."""
+    """AC14.1.21: components are tiered ci-critical vs best-effort."""
 
-    def test_AC14_1_19_tools_component_is_best_effort_tier(self):
+    def test_AC14_1_21_tools_component_is_best_effort_tier(self):
         # tools/ is largely one-off governance / CI glue: best-effort, not gated
         # on artifact presence.
         assert COMPONENT_BY_NAME["tools"].tier == BEST_EFFORT
 
-    def test_AC14_1_19_app_and_common_components_are_ci_critical_tier(self):
+    def test_AC14_1_21_app_and_common_components_are_ci_critical_tier(self):
         for name in ("backend", "frontend", "common"):
             assert COMPONENT_BY_NAME[name].tier == CI_CRITICAL, name
 
-    def test_AC14_1_19_preflight_skips_best_effort_missing_artifact(self, tmp_path):
+    def test_AC14_1_21_preflight_skips_best_effort_missing_artifact(self, tmp_path):
         # ci-critical artifact present, best-effort tools artifact absent ->
         # preflight passes (no error) because best-effort is not enforced.
         critical = _component("backend", "coverage/backend.lcov", CI_CRITICAL)
@@ -85,14 +85,14 @@ class TestCoverageTiering:
 
 
 # ---------------------------------------------------------------------------
-# #414 — artifact preflight fails explicitly (AC14.1.18)
+# #414 — artifact preflight fails explicitly (AC14.1.20)
 # ---------------------------------------------------------------------------
 
 
 class TestRequiredArtifactsPreflight:
-    """AC14.1.18: missing/empty CI-critical artifacts fail explicitly."""
+    """AC14.1.20: missing/empty CI-critical artifacts fail explicitly."""
 
-    def test_AC14_1_18_preflight_fails_when_ci_critical_artifact_missing(
+    def test_AC14_1_20_preflight_fails_when_ci_critical_artifact_missing(
         self, tmp_path
     ):
         critical = _component("backend", "coverage/backend.lcov", CI_CRITICAL)
@@ -105,7 +105,7 @@ class TestRequiredArtifactsPreflight:
         assert "backend" in errors[0]
         assert "coverage/backend.lcov" in errors[0]
 
-    def test_AC14_1_18_preflight_fails_when_ci_critical_artifact_empty(self, tmp_path):
+    def test_AC14_1_20_preflight_fails_when_ci_critical_artifact_empty(self, tmp_path):
         critical = _component("frontend", "coverage/frontend.lcov", CI_CRITICAL)
         empty = tmp_path / "coverage" / "frontend.lcov"
         empty.parent.mkdir(parents=True, exist_ok=True)
@@ -117,7 +117,7 @@ class TestRequiredArtifactsPreflight:
         assert "frontend" in errors[0]
         assert "empty" in errors[0].lower()
 
-    def test_AC14_1_18_preflight_passes_when_all_present(self, tmp_path):
+    def test_AC14_1_20_preflight_passes_when_all_present(self, tmp_path):
         backend = _component("backend", "coverage/backend.lcov", CI_CRITICAL)
         frontend = _component("frontend", "coverage/frontend.lcov", CI_CRITICAL)
         _write_lcov(tmp_path / "coverage" / "backend.lcov", 5, 10)
@@ -128,7 +128,7 @@ class TestRequiredArtifactsPreflight:
             == []
         )
 
-    def test_AC14_1_18_main_fails_fast_with_named_missing_artifact(
+    def test_AC14_1_20_main_fails_fast_with_named_missing_artifact(
         self, tmp_path, monkeypatch, capsys
     ):
         """main() exits non-zero and names the missing artifact before aggregating."""
