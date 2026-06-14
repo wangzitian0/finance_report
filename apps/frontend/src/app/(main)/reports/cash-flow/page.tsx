@@ -45,7 +45,7 @@ export default function CashFlowPage() {
       {items.length > 0 ? (
         <div className="space-y-2">
           {items.map((item, idx) => (
-            <div key={idx} className="flex justify-between items-center p-2 rounded-md bg-[var(--background-muted)] text-sm">
+            <div key={`${item.subcategory}-${item.account_id ?? "na"}-${idx}`} className="flex justify-between items-center p-2 rounded-md bg-[var(--background-muted)] text-sm">
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{item.subcategory}</p>
                 {item.description && <p className="text-xs text-muted truncate">{item.description}</p>}

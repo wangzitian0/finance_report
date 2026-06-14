@@ -77,7 +77,7 @@ export function ConflictResolutionDialog({
                                     </h3>
                                     <div className="space-y-2">
                                         {duplicateCandidates.map((c, i) => (
-                                            <div key={i} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
+                                            <div key={`${c.txn_date}:${c.description}:${i}`} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
                                                 <div className="text-sm">
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>
@@ -104,7 +104,7 @@ export function ConflictResolutionDialog({
                                     </h3>
                                     <div className="space-y-2">
                                         {transferPairCandidates.map((c, i) => (
-                                            <div key={i} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
+                                            <div key={`${c.txn_date}:${c.description}:${i}`} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
                                                 <div className="text-sm">
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>
