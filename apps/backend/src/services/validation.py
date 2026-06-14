@@ -52,8 +52,12 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
 
         return validate_balance_explicit(opening, closing, net)
     except (ValueError, KeyError, InvalidOperation) as exc:
+        # ``balance_computable=False`` flags that the difference could not be
+        # derived (structurally-broken payload), so callers can branch on an
+        # explicit flag instead of parsing the human-readable ``notes`` string.
         return {
             "balance_valid": False,
+            "balance_computable": False,
             "expected_closing": "0",
             "actual_closing": "0",
             "difference": "0",
@@ -69,6 +73,7 @@ def validate_balance_explicit(opening: Decimal, closing: Decimal, net_transactio
 
     return {
         "balance_valid": balance_valid,
+        "balance_computable": True,
         "expected_closing": str(expected_closing),
         "actual_closing": str(closing),
         "difference": f"{diff:.2f}",
