@@ -422,8 +422,13 @@ async def derive_uploaded_statement_event(
     return await upsert_workflow_event(db, user_id=user_id, payload=payload)
 
 
-async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> None:
-    """Derive deterministic workflow events from existing user-owned records."""
+async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> dict:
+    """Derive deterministic workflow events from existing user-owned records.
+
+    Returns the personal report package readiness computed during the sync so
+    callers (e.g. get_workflow_status) can reuse it instead of recomputing the
+    multi-query readiness a second time per request (#987 perf fix).
+    """
     workflow_session: WorkflowSession | None = None
     existing_event = aliased(WorkflowEvent)
     ods_document = aliased(UploadedDocument)
@@ -544,6 +549,8 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
     for session_id in stale_session_ids:
         await refresh_workflow_session_summary(db, user_id=user_id, session_id=session_id)
 
+    return package_readiness
+
 
 async def refresh_workflow_session_summary(
     db: AsyncSession,
@@ -603,10 +610,16 @@ async def list_workflow_events_response(
     limit: int = 50,
 ) -> WorkflowEventListResponse:
     """Return a bounded event list plus total count for the same filter."""
-    # Reuse get_workflow_status as the single source of truth for the active
-    # session's derived (primary_state, report_readiness). get_workflow_status
-    # already runs sync_workflow_events_for_user, so we do not duplicate it here.
-    workflow_status = await get_workflow_status(db, user_id=user_id)
+    # Sync once here and reuse get_workflow_status as the single source of truth
+    # for the active session's derived (primary_state, report_readiness). The
+    # readiness computed during sync is injected so get_workflow_status does not
+    # sync or recompute the multi-query readiness a second time (#987 perf fix).
+    package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
+    workflow_status = await get_workflow_status(
+        db,
+        user_id=user_id,
+        synced_package_readiness=package_readiness,
+    )
 
     filters = [WorkflowEvent.user_id == user_id]
     if status is not None:
@@ -706,10 +719,25 @@ async def build_workflow_session_summary(
     )
 
 
-async def get_workflow_status(db: AsyncSession, *, user_id: UUID) -> WorkflowStatusResponse:
-    """Return the compact workflow status for primary UI surfaces."""
-    await sync_workflow_events_for_user(db, user_id=user_id)
-    package_readiness = await get_personal_report_package_readiness(db, user_id=user_id)
+async def get_workflow_status(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    synced_package_readiness: dict | None = None,
+) -> WorkflowStatusResponse:
+    """Return the compact workflow status for primary UI surfaces.
+
+    sync_workflow_events_for_user already computes the personal report package
+    readiness, so its return value is reused here instead of recomputing the
+    multi-query readiness a second time (#987 perf fix). Callers that have
+    already synced (e.g. list_workflow_events_response) inject that readiness via
+    synced_package_readiness to skip both the redundant sync and the second
+    readiness pass, while still deriving the SAME primary_state/report_readiness.
+    """
+    if synced_package_readiness is None:
+        package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
+    else:
+        package_readiness = synced_package_readiness
     package_readiness_state = _collapse_package_readiness_state(str(package_readiness["state"]))
     package_blocking_count = int(package_readiness["blocking_count"])
 
