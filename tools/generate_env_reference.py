@@ -35,13 +35,20 @@ if str(ROOT_DIR) not in sys.path:
 
 
 def _settings_model():
-    """Import the backend ``Settings`` class lazily (needs the backend env)."""
-    for path in (str(BACKEND_DIR), str(BACKEND_DIR / "src")):
-        if path not in sys.path:
-            sys.path.append(path)
-    from src.config import Settings
+    """Load the backend ``Settings`` class from config.py by explicit file path.
 
-    return Settings
+    Loading by path (rather than ``from src.config import Settings``) avoids any
+    ambiguity from a cached/namespace ``src`` package contributed by other tests,
+    and keeps sys.path untouched (tool-wrapper contract AC8.13.56). config.py only
+    imports pydantic, so it loads standalone given the backend env.
+    """
+    import importlib.util
+
+    config_path = BACKEND_DIR / "src" / "config.py"
+    spec = importlib.util.spec_from_file_location("_env_reference_config", config_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.Settings
 
 
 ENV_EXAMPLE_PATH = ROOT_DIR / ".env.example"
