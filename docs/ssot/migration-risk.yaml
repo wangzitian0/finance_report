@@ -184,6 +184,11 @@ migrations:
     risk: medium
     issue: "#705"
     proof: Adds a report_type_enum value for package snapshots and relaxes report_snapshots.rule_version_id to nullable for package artifacts; covered by AC5.19 snapshot tests and PR Alembic contract.
+  0038_atomic_txn_balance_after:
+    file: 0038_atomic_txn_balance_after.py
+    risk: low
+    issue: "#962"
+    proof: Additive nullable atomic_transactions.balance_after column plus a dedup_hash comment sync; no backfill, existing rows stay NULL. Covered by AC4.6.6/4.6.8 and the PR Alembic contract.
   0035_manual_valuation_versioning:
     file: 0035_manual_valuation_versioning.py
     risk: medium

@@ -231,9 +231,7 @@ class TestDeduplicationService:
         assert txn.balance_after == Decimal("3966.50")
 
         # Reload from DB to confirm the value is persisted, not just set in memory.
-        reloaded = (
-            await db.execute(select(AtomicTransaction).where(AtomicTransaction.id == txn.id))
-        ).scalar_one()
+        reloaded = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.id == txn.id))).scalar_one()
         assert reloaded.balance_after == Decimal("3966.50")
 
     async def test_upsert_atomic_transaction_duplicate_appends_source(self, db, test_user):

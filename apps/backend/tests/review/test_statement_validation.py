@@ -75,6 +75,7 @@ class TestDuplicateGuardBalanceAfter:
         ]
         assert _has_unresolved_statement_conflicts(no_balance) is True
 
+
 DEFAULT_ACCOUNT_NAME = "Statement Validation Default Account"
 
 
