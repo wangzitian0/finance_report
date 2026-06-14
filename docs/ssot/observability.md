@@ -19,7 +19,7 @@
 
     - [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
       — OTLP single no-suffix collector, signal types, OTLP env vars.
-    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md)
+    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity)
       — telemetry identity (`service.version` / `deployment.environment`) and
       environment taxonomy.
 
@@ -73,7 +73,7 @@ filtering**, and the allowed `deployment.environment` values are part of the
   [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md).
 - Environment taxonomy + telemetry identity (`deployment.environment` values,
   `service.version`) →
-  [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md).
+  [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
 
 Credentials for the SigNoz UI are stored in 1Password (`Infra2` vault), item
 `platform/signoz/admin`. To view App logs, filter the SigNoz UI by the
@@ -145,7 +145,7 @@ concrete endpoint, `service.version`, and `deployment.environment` values, plus
 the `invoke env.set` procedure, live in the infra2 contract — see
 [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
 and
-[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md).
+[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
 The App must not hardcode or restate these per-environment values; it consumes
 whatever infra2 injects and fast-fails if a required value is absent.
 

@@ -13,7 +13,7 @@
     telemetry identity) are **owned and issued by infra2** (runtime), not by this
     App doc (software):
 
-    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md)
+    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity)
       — environment taxonomy + telemetry identity.
     - [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
       — single no-suffix OTLP collector and OTLP env vars.
@@ -192,7 +192,7 @@ separated (the `deployment.environment` surface alias and its allowed values) is
 part of the **infra2-owned** observability contract —
 [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
 and
-[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md).
+[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
 This App doc does not enumerate those values.
 
 **Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared SigNoz.
