@@ -198,6 +198,46 @@ separate user-trust signal from the snapshot's `source` basis string: `source`
 describes where the user says the value came from, while `provenance` states
 that the value was user-entered rather than imported or derived by the system.
 
+<a id="guided-evidence-intake-contract"></a>
+
+#### Guided Evidence Intake Contract (#706)
+
+Guided evidence intake is the end-to-end contract for capturing a manual-trusted
+value with a structured, auditable evidence basis. It binds the frontend guided
+form, the persisted `valuation_basis` enum, the component classification, and the
+report artifacts that surface the basis into one chain.
+
+**Guided form → `component_type` → default `valuation_basis`.** The shared guided
+form offers three source classes; each maps to a backend `component_type` and a
+sensible default basis (the user may override the basis from the full enum):
+
+| Guided source class | `component_type`   | Default `valuation_basis`   |
+|---------------------|--------------------|-----------------------------|
+| `esop_rsu_plan`     | `rsu`              | `employer_grant_document`   |
+| `property_statement`| `property_value`   | `market_appraisal`          |
+| `liability_statement`| `other_liability` | `bank_statement`            |
+
+**`valuation_basis` enum values** (`ManualValuationBasis`, persisted on the
+snapshot; nullable): `market_appraisal`, `broker_statement`,
+`employer_grant_document`, `bank_statement`, `government_statement`,
+`insurer_statement`, `self_estimate`. A current evidence-bearing snapshot that
+carries no basis (and no legacy notes) surfaces a `missing_valuation_basis`
+readiness blocker rather than being rejected (see AC11.9.5).
+
+**Report artifacts that surface the basis.** The captured basis flows, null-safe
+(falling back to `unspecified`), into the report outputs:
+
+- **Annualized income schedule** (`GET /api/reports/package/annualized-income-schedule`):
+  each restricted holding's `valuation_basis` carries the snapshot enum value
+  (AC11.11.4).
+- **Balance sheet / net worth**: manual snapshots aggregate into asset/liability
+  and restricted/illiquid totals by `liquidity_class` (AC11.9.2–3).
+- **Package "valuation-basis" note**: the package surfaces the
+  `manual_valuation_snapshots` source state for the basis disclosure.
+- **Traceability appendix** (`personal_report_package_traceability`): each manual
+  snapshot's source-anchor detail records its `valuation_basis` enum value
+  (AC11.9.10).
+
 ---
 
 ## 7. Design Constraints
