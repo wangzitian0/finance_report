@@ -126,6 +126,29 @@ CHECKS: tuple[Check, ...] = (
         why="service changed: re-run the commit/transaction-boundary meta-test",
         cwd="apps/backend",
     ),
+    Check(
+        name="env-reference",
+        globs=("apps/backend/src/config.py",),
+        commands=((PY, "tools/generate_env_reference.py", "--check"),),
+        why="config.py changed: regenerate .env.example + env reference and assert no drift",
+    ),
+    Check(
+        name="tooling",
+        globs=("tools/*", "common/*"),
+        commands=((PY, "-m", "pytest", "tests/tooling/", "-q", "--no-cov"),),
+        why="tooling/common changed: run tests/tooling (tool-wrapper sys.path contract + dispatchers)",
+    ),
+    Check(
+        name="frontend",
+        globs=("apps/frontend/*",),
+        commands=(
+            ("npm", "run", "lint"),
+            ("npm", "run", "test:coverage"),
+            ("npm", "run", "build"),
+        ),
+        why="frontend changed: eslint + vitest coverage gate + next build (layout/route type rules)",
+        cwd="apps/frontend",
+    ),
 )
 
 
