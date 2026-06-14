@@ -124,9 +124,30 @@ no source statement balances were provided.
 - 60-84: Review queue
 - <60: Manual entry required
 
+**The ~90 ceiling.** The Balance Progression component (10%) is only awarded
+when transactions carry a per-line running `balance_after` chain. Statements
+that omit per-line balances (most bank/brokerage PDFs) therefore top out near 90
+even when every other factor is perfect. This is an inherent ceiling of the
+weighting, not a scoring defect — a higher score requires source data that
+exposes the running balance per row.
+
+**Under-extraction guard.** A brokerage statement that yields fewer than
+`BROKERAGE_MIN_PLAUSIBLE_TXNS` (2) transactions is a strong under-capture signal
+— comparable brokerage statements extract ~10 rows. `compute_confidence_score`
+caps such parses at `UNDER_EXTRACTION_SCORE_CAP` (60) so under-capture never
+presents as high confidence.
+
 If a high-confidence statement fails any Stage 1 posting guard, the parser must
 preserve the extracted statement and transactions, set the statement to parsed
 pending review, and expose the guard reason for human correction.
+
+**CSV without source balances never auto-approves.** A CSV export that carries
+no source statement opening/closing balances is parsed with
+`balance_source = inferred_from_csv_transactions`; the parser forces the
+statement to `parsed` (review) with `balance_validated = false`, and the
+confidence score excludes the balance-validation component
+(`balance_proof_available = false`). Inferred `0 + transactions = closing` is
+not balance proof and must not satisfy the auto-approve precondition.
 
 ## API Endpoints
 

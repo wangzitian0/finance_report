@@ -12,6 +12,12 @@ BALANCE_TOLERANCE = Decimal("0.10")
 IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
 OUT_DIRECTION_ALIASES = {"OUT", "DEBIT", "DR", "WITHDRAWAL", "WITHDRAW", "OUTFLOW", "PAYMENT"}
 
+# Under-extraction guard (issue #967). A brokerage statement that yields at most
+# one transaction is a strong under-capture signal — comparable brokerage
+# statements extract ~10 rows — so its confidence must not present as high.
+BROKERAGE_MIN_PLAUSIBLE_TXNS = 2
+UNDER_EXTRACTION_SCORE_CAP = 60
+
 
 def normalize_amount_direction(amount: Decimal, direction_value: Any = None) -> tuple[Decimal, str]:
     """Return absolute amount plus canonical IN/OUT direction."""
@@ -86,11 +92,26 @@ def compute_confidence_score(
     extracted: dict[str, Any],
     balance_result: dict[str, Any],
     missing_fields: list[str] | None = None,
+    *,
+    is_brokerage: bool = False,
+    effective_txn_count: int | None = None,
 ) -> int:
     """Compute confidence score (0-100) based on SSOT V2 weights.
 
     Weights: Balance 35% | Completeness 25% | Format 15% | Txn Count 10%
            | Balance Progression 10% | Currency Consistency 5%
+
+    The Balance Progression component (10%) is only awarded when transactions
+    carry a per-line running ``balance_after`` chain. Statements without that
+    chain therefore top out near 90 even when otherwise clean — this is the
+    documented ceiling, not a bug (issue #967).
+
+    When ``is_brokerage`` is set and the parse yields an implausibly low
+    transaction count (``< BROKERAGE_MIN_PLAUSIBLE_TXNS``), the score is capped
+    at ``UNDER_EXTRACTION_SCORE_CAP`` so under-capture does not present as high
+    confidence. The under-extraction check uses ``effective_txn_count`` when
+    provided — the count of *persisted* transactions after skipped/invalid rows
+    — falling back to the raw extracted-payload count otherwise.
     """
     if missing_fields is None:
         missing_fields = validate_completeness(extracted)
@@ -144,7 +165,18 @@ def compute_confidence_score(
     header_currency = extracted.get("currency")
     score += _score_currency_consistency(transactions, header_currency)
 
-    return min(100, score)
+    score = min(100, score)
+
+    # Under-extraction penalty (issue #967): a brokerage statement with an
+    # implausibly low transaction count is likely an under-capture, so cap the
+    # score below the auto-approve band regardless of how clean the captured
+    # rows look. Prefer the persisted count (after skipped/invalid rows) so a
+    # payload that extracts 2 rows but persists only 1 still trips the cap.
+    txn_count = effective_txn_count if effective_txn_count is not None else len(transactions)
+    if is_brokerage and txn_count < BROKERAGE_MIN_PLAUSIBLE_TXNS:
+        score = min(score, UNDER_EXTRACTION_SCORE_CAP)
+
+    return score
 
 
 def _score_balance_progression(transactions: list[dict[str, Any]]) -> int:
