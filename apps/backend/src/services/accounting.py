@@ -318,7 +318,7 @@ async def post_opening_balance_entry(
     if not balances:
         raise ValidationError("At least one opening balance is required")
 
-    normalized_currency = currency.upper()
+    normalized_currency = currency.strip().upper()
     account_ids = list(balances.keys())
     result = await db.execute(select(Account).where(Account.id.in_(account_ids), Account.user_id == user_id))
     accounts = {account.id: account for account in result.scalars().all()}
@@ -333,7 +333,7 @@ async def post_opening_balance_entry(
     if system_targets:
         raise ValidationError(f"Opening balances cannot target system accounts: {system_targets}")
 
-    base_currency = settings.base_currency.upper()
+    base_currency = settings.base_currency.strip().upper()
     if normalized_currency != base_currency:
         raise ValidationError(
             f"Opening balances are supported only in the base currency ({base_currency}); got {normalized_currency}."
@@ -365,7 +365,7 @@ async def post_opening_balance_entry(
         if amount <= Decimal("0"):
             raise ValidationError("Opening balance amounts must be positive")
         account = accounts[account_id]
-        if (account.currency or "").upper() != normalized_currency:
+        if (account.currency or "").strip().upper() != normalized_currency:
             raise ValidationError(
                 f"Opening balance currency {normalized_currency} does not match the currency "
                 f"of account {account_id} ({account.currency}); lines must not be mis-stamped."

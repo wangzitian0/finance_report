@@ -24,10 +24,14 @@ class OpeningBalanceRequest(BaseModel):
     currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
     memo: Annotated[str, Field(min_length=1, max_length=500)] = "Opening balances"
 
-    @field_validator("currency")
+    @field_validator("currency", mode="before")
     @classmethod
-    def normalize_currency(cls, value: str | None) -> str | None:
-        return value.upper() if value else value
+    def normalize_currency(cls, value: object) -> object:
+        # Strip + uppercase before the length check so " sgd " normalizes to "SGD",
+        # consistent with currency normalization elsewhere (e.g. reporting).
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
 
 
 class AccountBase(BaseModel):
