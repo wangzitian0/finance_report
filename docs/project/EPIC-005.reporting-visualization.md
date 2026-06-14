@@ -316,6 +316,12 @@ same package after later ledger or market-data changes.
 | AC5.19.3 | Package JSON and CSV downloads are derived from a saved snapshot rather than recalculating live data | `test_AC5_19_3_package_snapshot_exports_are_snapshot_derived` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.19.4 | The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact | `AC5.19.4 generates and downloads package snapshots` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
 
+### AC5.20: Year-Scale Reporting Validation ([#951](https://github.com/wangzitian0/finance_report/issues/951))
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.20.1 | At a full year's transaction volume (~1000 entries) the balance sheet, income statement, and cash flow tie out and generate within a generous wall-clock backstop — guarding the income-statement aggregation against a silent O(n^2) regression | `test_AC5_20_year_scale_reporting_ties_out_within_budget` | `reporting/test_year_scale_reporting.py` | P1 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
