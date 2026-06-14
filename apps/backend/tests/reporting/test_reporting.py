@@ -316,7 +316,7 @@ async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts,
     assert report["net_income"] == Decimal("4800.00")
 
 
-async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_of_accounts, test_user_id):
+async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_of_accounts, test_user_id, ac_evidence):
     """[AC5.1.1][AC5.2.1][AC5.3.1][AC5.6.5] Deterministic fixture yields exact report totals."""
     cash, liability, equity, income, expense = chart_of_accounts
 
@@ -527,6 +527,31 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
         "beginning_cash": Decimal("0.00"),
         "ending_cash": Decimal("1600.00"),
     }
+
+    # Behavioral evidence: each statement's headline total matches the golden value
+    # computed from the deterministic fixture above; any drift in the report math
+    # (sign rules, status/date filtering, FX) would move these numbers off the golden.
+    ac_evidence(
+        ac_id="AC5.1.1",
+        score=1.0,
+        metric="balance_sheet_totals_match_golden",
+        comment="assets 1600.00, liabilities 300.00, equity 1000.00; equation balanced (delta 0.00)",
+        provenance="deterministic",
+    )
+    ac_evidence(
+        ac_id="AC5.2.1",
+        score=1.0,
+        metric="income_statement_net_income_match_golden",
+        comment="income 500.00 - expenses 200.00 == net_income 300.00",
+        provenance="deterministic",
+    )
+    ac_evidence(
+        ac_id="AC5.3.1",
+        score=1.0,
+        metric="cash_flow_net_match_golden",
+        comment="operating 300.00 + financing 1300.00 == net_cash_flow 1600.00; ending_cash 1600.00",
+        provenance="deterministic",
+    )
 
 
 async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):

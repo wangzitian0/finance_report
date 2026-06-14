@@ -327,7 +327,7 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
 
 
 @pytest.mark.asyncio
-async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user):
+async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user, ac_evidence):
     """AC11.19.2: Heads-only reads use the current version, so a correction never double-counts."""
     service = AssetService()
     key = dict(
@@ -347,6 +347,17 @@ async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(
     snapshots, total = await service.list_valuation_snapshots(db, test_user.id)
     assert total == 1, "list returns only current heads"
     assert snapshots[0].value == Decimal("1100000.00")
+
+    # Behavioral evidence (#990 version/supersession selection): heads-only read returns
+    # the corrected 1,100,000 only; a superseded leak (superseded_by_id IS NULL filter
+    # broken) would double-count to 2,100,000.
+    ac_evidence(
+        ac_id="AC11.19.2",
+        score=1.0,
+        metric="superseded_version_excluded_head_total_match",
+        comment="net-worth components total_assets == 1,100,000 (head only), not 2,100,000",
+        provenance="deterministic",
+    )
 
 
 @pytest.mark.asyncio
