@@ -281,10 +281,17 @@ class AssetService:
         *,
         values: dict,
     ) -> ManualValuationSnapshot | None:
-        """Update a manual valuation snapshot."""
+        """Update a manual valuation snapshot.
+
+        Superseded versions are frozen history (vision Axiom A): a recorded fact is
+        never edited in place. Editing one is rejected; corrections re-submit a new
+        version via create_valuation_snapshot.
+        """
         snapshot = await self.get_valuation_snapshot(db, user_id, snapshot_id)
         if not snapshot:
             return None
+        if snapshot.superseded_by_id is not None:
+            raise AssetServiceError("Cannot edit a superseded valuation version; submit a correction instead")
 
         if "component_type" in values and values["component_type"] is not None:
             snapshot.component_type = values["component_type"]
