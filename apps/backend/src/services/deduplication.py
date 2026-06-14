@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
-from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import (
     AtomicPosition,
     AtomicPositionSourceDocument,
@@ -574,11 +574,22 @@ async def dual_write_layer2(
             existing.balance_validated = statement.balance_validated
             existing.validation_error = statement.validation_error
             existing.status = statement.status
+            # parse_document builds a fresh StatementSummary and sets stage1_status there, but this
+            # reused envelope is the row that gets persisted. Mirror the freshly-computed
+            # pending-review marker onto it, without clobbering a state that was already reviewed
+            # (approved/rejected) on a re-parse.
+            if existing.stage1_status is None:
+                existing.stage1_status = statement.stage1_status
             existing.uploaded_document_id = uploaded_doc.id
             db.add(existing)
         else:
             statement.uploaded_document_id = uploaded_doc.id
             db.add(statement)
+        # Reaching here means the parse succeeded and its facts are persisted, so the ODS document
+        # advances out of 'uploaded'. Without this the status never progresses and every document
+        # appears perpetually un-processed.
+        uploaded_doc.status = DocumentStatus.COMPLETED
+        db.add(uploaded_doc)
         await db.flush()
 
         logger.info(

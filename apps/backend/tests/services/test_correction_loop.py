@@ -109,3 +109,44 @@ async def test_AC18_14_3_service_builds_corpus_from_persisted_corrections(db, te
     assert len(corpus) == 1
     assert corpus[0].key == "netflix"
     assert corpus[0].corrected_category == "Entertainment"
+
+
+@pytest.mark.asyncio
+async def test_AC18_14_4_service_replay_measures_held_out_reduction(db, test_user):
+    """AC18.14.4: the service replays the live corpus, surfacing the held-out reduction.
+
+    This is the loop being *observed* end-to-end against persisted data: corrections
+    whose pattern recurs ground the held-out split, so the measured low-confidence
+    proportion strictly drops — the auditable evidence the furnace works.
+    """
+    from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
+
+    document = await UploadedDocumentFactory.create_async(db, user_id=test_user.id)
+    # Two recurring patterns (Netflix, Spotify) interleaved so a 0.5 split grounds
+    # every held-out item from the train split.
+    for description, original, corrected in [
+        ("Netflix", "Utilities", "Entertainment"),
+        ("Spotify", "Utilities", "Entertainment"),
+        ("Netflix", "Utilities", "Entertainment"),
+        ("Spotify", "Utilities", "Entertainment"),
+    ]:
+        txn = await AtomicTransactionFactory.create_async(
+            db, test_user.id, source_doc_id=document.id, description=description
+        )
+        db.add(
+            CorrectionLog(
+                user_id=test_user.id,
+                transaction_id=txn.id,
+                original_category=original,
+                corrected_category=corrected,
+                transaction_description=description,
+            )
+        )
+    await db.commit()
+
+    result = await CorrectionLoopService().replay(db, test_user.id, train_ratio=Decimal("0.5"))
+
+    assert result.holdout_size == 2
+    assert result.grounded == 2
+    assert result.reduced is True
+    assert result.proportion_after < result.proportion_before

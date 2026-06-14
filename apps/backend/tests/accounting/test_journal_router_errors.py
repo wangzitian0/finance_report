@@ -56,6 +56,24 @@ class TestJournalRouterErrors:
         error_msg = str(response_data).lower()
         assert "balance" in error_msg or "debit" in error_msg or "credit" in error_msg
 
+    async def test_create_entry_service_validation_error_returns_400(self, client, db, test_user):
+        """
+        GIVEN a schema-valid balanced entry referencing a non-existent account
+        WHEN creating the entry
+        THEN the service ValidationError surfaces as 400 (router except path)
+        """
+        entry_data = {
+            "entry_date": str(date.today()),
+            "memo": "Unknown account",
+            "lines": [
+                {"account_id": str(uuid4()), "direction": "DEBIT", "amount": "100.00", "currency": "SGD"},
+                {"account_id": str(uuid4()), "direction": "CREDIT", "amount": "100.00", "currency": "SGD"},
+            ],
+        }
+        response = await client.post("/journal-entries", json=entry_data)
+        assert response.status_code == 400
+        assert "not found" in response.json()["detail"].lower()
+
     async def test_post_entry_validation_error(self, client, db, test_user):
         """
         GIVEN a draft journal entry that fails validation on posting

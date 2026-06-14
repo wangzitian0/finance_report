@@ -417,15 +417,20 @@ correction that overrode an AI proposal is labeled signal. Derived as a corpus
 from the append-only `CorrectionLog` (a projection of the provenance substrate, not
 a sidecar) and replayed as priors, a recurring correction grounds future instances
 of the same pattern so they are no longer low-confidence — measurably driving the
-proportion down. This AC owns the corpus and the measurable replay; wiring the
-priors into live generation, calibrating the promotion-gate thresholds (#930) from
-the corpus, and the runtime that dispatches AI attempts are follow-ups.
+proportion down. This AC owns the corpus, the measurable replay, and making that
+replay **observable** over the live corpus (mirroring how AC18.12 makes the
+thermometer observable); calibrating the promotion-gate thresholds (#930) from the
+corpus, and wiring the priors into live generation, are follow-ups. (Live
+correction grounding of extraction already exists today via the few-shot path —
+AC18.2.3 — so this AC adds the *audit* view of the loop's effect, not a second
+grounding mechanism.)
 
 | ID | Phase | Description | Test | File | Priority |
 |----|-------|-------------|------|------|----------|
 | AC18.14.1 | Corpus | The correction corpus is derived from `CorrectionLog` (no sidecar), keyed by the transaction pattern, capturing proposed vs corrected | `test_AC18_14_1_corpus_is_derived_from_corrections_keyed_by_pattern()` | `services/test_correction_loop.py` | P1 |
 | AC18.14.2 | Replay | Replaying the corpus as priors strictly lowers the held-out low-confidence proportion when correction patterns recur, and invents no reduction when they do not | `test_AC18_14_2_replay_lowers_low_confidence_proportion_when_patterns_recur()`, `test_AC18_14_2_replay_does_not_invent_reduction_without_recurrence()` | `services/test_correction_loop.py` | P1 |
 | AC18.14.3 | Substrate | The service builds the corpus from the persisted correction store, scoped to the user | `test_AC18_14_3_service_builds_corpus_from_persisted_corrections()` | `services/test_correction_loop.py` | P1 |
+| AC18.14.4 | Observable | The held-out replay result is surfaced read-only over the live corpus, so the loop's effect on the low-confidence proportion is auditable (no new source of truth) | `test_AC18_14_4_service_replay_measures_held_out_reduction()`, `test_AC18_14_4_replay_endpoint_surfaces_the_loop_effect()` | `services/test_correction_loop.py`, `metrics/test_correction_loop_replay.py` | P1 |
 
 ---
 

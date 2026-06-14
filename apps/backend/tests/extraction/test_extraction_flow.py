@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.models.statement_enums import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.services.extraction import ExtractionError, ExtractionService
 
 
@@ -80,6 +80,34 @@ class TestExtractionServiceFlow:
 
             assert stmt.status == BankStatementStatus.PARSED  # Medium confidence requires review
             assert len(events) == 0
+
+    async def test_parsed_statement_sets_stage1_pending_review(self, service, tmp_path):
+        """AC16.22.8: a statement routed to parsed/review carries stage1_status=pending_review
+        explicitly, so the pending-review queue does not depend on a NULL fallback."""
+        csv_file = tmp_path / "review.csv"
+        csv_file.write_bytes(b"dummy csv")
+
+        mock_data = {
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "0.00",
+            "closing_balance": "0.00",
+            "transactions": [],
+        }
+
+        with patch.object(service, "_parse_csv_content", new_callable=AsyncMock) as mock_csv:
+            mock_csv.return_value = mock_data
+
+            stmt, _events = await service.parse_document(
+                csv_file,
+                "DBS",
+                user_id=UUID("00000000-0000-0000-0000-000000000002"),
+                file_type="csv",
+                file_content=csv_file.read_bytes(),
+            )
+
+        assert stmt.status == BankStatementStatus.PARSED
+        assert stmt.stage1_status == Stage1Status.PENDING_REVIEW
 
     async def test_parse_document_csv_without_statement_balances_remains_reviewable(self, service, tmp_path):
         """AC3.2.5: CSV transaction exports without statement balances remain reviewable."""

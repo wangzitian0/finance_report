@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
 from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.schemas.provenance import DataProvenance
-from src.services.assets import AssetService, ValuationComponentItem
+from src.services.assets import AssetService, AssetServiceError, ValuationComponentItem
 
 
 async def test_create_manual_valuation_snapshot_crud_api(client):
@@ -347,6 +347,27 @@ async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(
     snapshots, total = await service.list_valuation_snapshots(db, test_user.id)
     assert total == 1, "list returns only current heads"
     assert snapshots[0].value == Decimal("1100000.00")
+
+
+@pytest.mark.asyncio
+async def test_editing_a_superseded_valuation_is_rejected(db, test_user):
+    """Audit review: PATCH must not edit frozen history (Axiom A); superseded versions are read-only."""
+    service = AssetService()
+    identity = dict(
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=date(2026, 5, 18),
+        source="manual appraisal",
+    )
+    first = await service.create_valuation_snapshot(
+        db, user_id=test_user.id, value=Decimal("1000000.00"), currency="SGD", **identity
+    )
+    await service.create_valuation_snapshot(
+        db, user_id=test_user.id, value=Decimal("1100000.00"), currency="SGD", **identity
+    )  # supersedes `first`
+    await db.commit()
+
+    with pytest.raises(AssetServiceError, match="superseded"):
+        await service.update_valuation_snapshot(db, test_user.id, first.id, values={"value": Decimal("999.00")})
 
 
 @pytest.mark.asyncio

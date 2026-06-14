@@ -1028,6 +1028,10 @@ async def generate_balance_sheet(
     # rated line. Lines with no derivable tier (e.g. market-derived adjustments)
     # are excluded rather than counted as trusted.
     aggregate_tier = _worst_confidence_tier(line.get("confidence_tier") for line in (*assets, *liabilities, *equity))
+    # Aggregate provenance: the shared provenance across rated lines, or "derived"
+    # when sources mix. Mirrors the per-line provenance so the schema field is
+    # populated rather than always None.
+    aggregate_provenance = _combine_provenance([line.get("provenance") for line in (*assets, *liabilities, *equity)])
     response_assets = assets if include_allocation_metadata else _strip_allocation_metadata(assets)
     response_liabilities = liabilities if include_allocation_metadata else _strip_allocation_metadata(liabilities)
     response_equity = equity if include_allocation_metadata else _strip_allocation_metadata(equity)
@@ -1039,6 +1043,7 @@ async def generate_balance_sheet(
         "liabilities": response_liabilities,
         "equity": response_equity,
         "confidence_tier": aggregate_tier,
+        "provenance": aggregate_provenance,
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
         "total_equity": total_equity,

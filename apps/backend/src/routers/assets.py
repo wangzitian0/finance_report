@@ -169,6 +169,9 @@ async def update_valuation_snapshot(
             values=payload.model_dump(exclude_unset=True),
         )
         await db.commit()
+    except AssetServiceError as e:
+        await db.rollback()
+        raise_bad_request(str(e), cause=e)
     except Exception as e:
         logger.error("Manual valuation snapshot update failed", error=str(e), user_id=str(user_id))
         await db.rollback()

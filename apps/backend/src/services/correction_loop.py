@@ -126,3 +126,20 @@ class CorrectionLoopService:
             .order_by(CorrectionLog.created_at, CorrectionLog.id)
         )
         return build_corpus_from_corrections(result.scalars().all())
+
+    async def replay(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        train_ratio: Decimal = Decimal("0.5"),
+    ) -> ReplayResult:
+        """Build the live corpus and replay it, surfacing the held-out reduction.
+
+        This is the loop made *observable*: a read-only measurement over the
+        current corpus, so the furnace's effect on the north-star proportion is
+        auditable. It records nothing and grounds no live generation — the corpus
+        stays a projection of ``CorrectionLog`` (no second source of truth).
+        """
+        corpus = await self.build_corpus(db, user_id)
+        return replay_low_confidence_reduction(corpus, train_ratio=train_ratio)

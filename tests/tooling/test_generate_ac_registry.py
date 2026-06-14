@@ -251,12 +251,12 @@ class TestWriteRegistry:
 
         assert "It's done" in content
 
-    def test_default_output_alias_and_extra_metadata_are_preserved(
+    def test_default_output_and_extra_metadata_are_preserved(
         self, tmp_path, monkeypatch
     ):
         """AC8.13.17: Generated grouped registries keep canonical metadata."""
         out = tmp_path / "ac_registry.yaml"
-        monkeypatch.setattr(gar, "OUTPUT", str(out))
+        monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(out))
 
         gar.write_registry(
             {

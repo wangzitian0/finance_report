@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_TEST_ROOTS = (Path("apps/backend/tests"),)
-# Counts only persisted (db.add'd) detached owners — the real foreign-key risk.
+# Counts only persisted (session-written) detached owners — the real foreign-key risk.
 # The two remaining are intentional cross-user isolation tests that must own a
 # different user's row; transient in-memory / service-argument uses do not count.
 DEFAULT_MAX_DETACHED_OWNER_SHORTCUTS = 2
@@ -65,19 +65,30 @@ def _relative_path(path: Path, repo_root: Path) -> str:
         return path.as_posix()
 
 
+_PERSIST_METHODS = ("add", "add_all", "merge", "bulk_save_objects")
+
+
 def _persisted_construction_ids(scope: ast.AST) -> set[int]:
-    """Return ids of model-construction Call nodes persisted via db.add / db.add_all.
+    """Return ids of model-construction Call nodes persisted via a session write.
 
     Only persisted rows carry the production foreign key, so only they can hide the
     ownership / cascade / cross-user bugs this guard exists to catch. A
     ``user_id=uuid4()`` on a transient in-memory object or a bare service argument
     is not a detached-owner shortcut — it never reaches the database.
+
+    Persistence is detected for ``add`` / ``add_all`` / ``merge`` /
+    ``bulk_save_objects`` calls, including rows collected into a list variable and
+    bulk-added later. This is a deliberate **lower bound**: a row persisted only
+    through a cross-function helper or factory (``db.add(make_row())``) is not
+    counted, so the budget bounds the *directly-visible* detached owners, not the
+    total. The durable fix is keeping the test ``users`` foreign key and owning
+    rows with the ``test_user`` fixture.
     """
     added_var_names: set[str] = set()
     construction_ids: set[int] = set()
 
     def _collect_added(node: ast.expr) -> None:
-        """From an add/add_all argument: record variable names and mark constructions."""
+        """From a session-write argument: record variable names and mark constructions."""
         if isinstance(node, ast.Name):
             added_var_names.add(node.id)
         elif isinstance(node, ast.Call):
@@ -94,11 +105,11 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
             for element in node.elts:
                 _mark_constructions(element)
 
-    # db.add(x) / db.add_all([...] | var). A Name argument (or Name list element)
-    # records the variable so rows collected into a list and bulk-added later are
-    # still treated as persisted.
+    # Any session write in _PERSIST_METHODS (db.add / db.add_all / db.merge /
+    # db.bulk_save_objects). A Name argument (or Name list element) records the
+    # variable so rows collected into a list and bulk-added later are still persisted.
     for node in ast.walk(scope):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("add", "add_all"):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _PERSIST_METHODS:
             for arg in node.args:
                 _collect_added(arg)
 
@@ -127,9 +138,10 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
 def scan_file(path: Path, *, repo_root: Path) -> list[DetachedOwnerFinding]:
     """Return persisted detached-owner shortcuts found in one Python file.
 
-    A finding is counted only when its enclosing model construction is added to a
-    session (``db.add`` / ``db.add_all``) — the real foreign-key risk. Transient
-    in-memory constructions and bare service arguments are not counted.
+    A finding is counted only when its enclosing model construction is written to a
+    session (``db.add`` / ``db.add_all`` / ``db.merge`` / ``db.bulk_save_objects``) —
+    the real foreign-key risk. Transient in-memory constructions and bare service
+    arguments are not counted.
     """
     source_text = path.read_text(encoding="utf-8")
     tree = ast.parse(source_text, filename=str(path))
