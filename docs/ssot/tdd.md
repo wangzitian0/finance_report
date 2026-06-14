@@ -93,6 +93,17 @@ README outcome table, matrix rows, owner EPIC reverse declarations, and explicit
 E2E proof anchors in sync. It is not a general-purpose semantic parser for all
 tests.
 
+The matrix `proofs` section is a **generated artifact**, not a hand-maintained
+list. Its source of truth is a co-located `@ac_proof(...)` decorator on each
+critical-proof test (`common/testing/ac_proof.py`);
+`tools/generate_critical_proof_matrix.py` statically scans those decorators and
+emits the YAML, and `--check` fails CI if the checked-in file drifts (exactly
+like `tools/generate_ac_registry.py --check`). The macro `outcomes` section —
+the README/EPIC outcome contract — stays hand-maintained in
+`docs/ssot/critical-proof-outcomes.yaml` and is merged in verbatim. A PR
+anchoring a new AC therefore edits only its own test file (adds the decorator);
+two such PRs touching different tests do not collide on the central YAML.
+
 ## Proof Semantics
 
 | Category | Counts as proof? | Notes |
@@ -118,6 +129,28 @@ Macro and micro proof are intentionally separate:
   `tools/check_critical_proof_matrix.py`.
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
   and AC traceability gates.
+
+## Cross-Cutting Index Artifacts: Two Kinds
+
+Several SSOT files are *cross-cutting indexes* — one central file that many
+independent PRs touch. Hand-maintaining them as one shared list makes
+independent PRs collide textually (false sharing) and forces a linear merge
+train. Every such artifact must be stored in one of two conflict-resistant
+forms, chosen by what the file fundamentally *is*:
+
+| Kind | What it is | Storage rule | Examples |
+|---|---|---|---|
+| **Derived index** | A projection of facts that already live somewhere else | Generate from the co-located source; check the result in as an artifact guarded by `--check` (fail CI on drift). A PR edits only the source (e.g. its own test/EPIC), never the index. | `ac_registry` / `infra_registry` (from EPIC docs), `critical-proof-matrix.yaml` (from `@ac_proof` decorators), `vision-proof-matrix.yaml` *(same class — migrate next)* |
+| **Persisted ratchet** | A floor that must survive across runs and must NOT be regenerated from current state | Keep persisted, but store conflict-free: one sorted, line-oriented record per key, with `merge=union` in `.gitattributes` so PRs adding *different* keys auto-merge and only same-key edits conflict. | `ac-score-baseline.jsonl` |
+
+The distinction is critical: regenerating a *derived index* is correct and
+required; regenerating a *persisted ratchet* from current scores would erase the
+floor it exists to protect. A new file that is a central index but stored as a
+hand-maintained shared list is drift — convert it to the matching kind.
+
+`docs/ssot/vision-proof-matrix.yaml` is a known same-class **derived index** that
+is still hand-maintained; migrating it to the generated + `--check` pattern is
+tracked as follow-up and intentionally out of scope here.
 
 ## SSOT Governance Metrics
 
@@ -198,7 +231,7 @@ file into an independent HLS concept:
 
 - `docs/ssot/observability-logging.md` is a child playbook of
   `observability_logging`.
-- `docs/ssot/ac-score-baseline.json` is a machine baseline artifact of
+- `docs/ssot/ac-score-baseline.jsonl` is a machine baseline artifact of
   `tdd_workflow`.
 
 The second cleanup threshold is

@@ -26,6 +26,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from common.testing.ac_proof import ac_proof
 from playwright.async_api import Page, expect
 
 from conftest import fail_or_skip_ai_ocr_gate
@@ -325,6 +326,50 @@ async def _create_manual_snapshot(
     return response.json()
 
 
+@ac_proof(
+    "personal-financial-report-package-post-merge",
+    ac_ids=[
+        "AC5.1.1",
+        "AC5.1.4",
+        "AC5.2.3",
+        "AC5.3.1",
+        "AC5.8.1",
+        "AC5.12.4",
+        "AC5.13.4",
+        "AC5.13.5",
+        "AC11.8.3",
+        "AC11.9.1",
+        "AC11.9.2",
+        "AC11.9.3",
+        "AC11.11.1",
+        "AC11.11.2",
+        "AC17.10.1",
+        "AC17.10.2",
+        "AC17.12.1",
+        "AC17.12.2",
+        "AC17.12.3",
+        "AC8.13.83",
+        "AC8.13.84",
+        "AC8.13.85",
+        "AC8.13.87",
+        "AC8.13.88",
+    ],
+    scope="behavioral",
+    ci_tier="post_merge_environment",
+    trust_mode="llm_ocr_post_merge",
+    source_classes=[
+        "bank_statement",
+        "brokerage_statement",
+        "property_statement",
+        "liability_statement",
+        "esop_rsu_plan",
+        "csv_export",
+        "manual_record",
+    ],
+    mirror_proof_id="personal-package-source-trust-pr",
+    issue="#573",
+    required_markers=["e2e", "tier3", "critical", "llm"],
+)
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical

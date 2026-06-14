@@ -49,7 +49,8 @@ the eval emitter.
 - Wired exactly one real AC end-to-end: **AC4.1.4** (reconciliation description
   similarity) emits its measured similarity in
   `apps/backend/tests/reconciliation/test_reconciliation_scoring.py`.
-- Seeded baseline: `docs/ssot/ac-score-baseline.json`.
+- Seeded baseline: `docs/ssot/ac-score-baseline.jsonl` (sorted, line-oriented
+  JSONL with `merge=union` so independent ACs auto-merge; one AC per line).
 - Hermetic proof of the whole chain: `tests/tooling/test_ac_evidence_pipeline.py`.
 
 ## Deliberately **out of scope** (follow-ups)

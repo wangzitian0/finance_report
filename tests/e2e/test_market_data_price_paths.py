@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from common.testing.ac_proof import ac_proof
 
 from conftest import AuthState
 
@@ -70,6 +71,16 @@ def _market_valuation_lines(report: dict, broker_name: str) -> list[dict]:
     ]
 
 
+@ac_proof(
+    "market-data-provider-price-path",
+    ac_ids=["AC11.10.7", "AC11.10.11"],
+    scope="behavioral",
+    ci_tier="post_merge_environment",
+    trust_mode="hybrid",
+    source_classes=["brokerage_statement"],
+    issue="#539",
+    required_markers=["e2e", "tier3", "critical"],
+)
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical

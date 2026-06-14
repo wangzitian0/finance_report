@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -19,6 +20,17 @@ from sqlalchemy.pool import NullPool
 from src.config import settings
 from src.logger import get_logger
 from src.services.fx import clear_fx_cache
+
+# Make the repo's ``common/`` importable at collection time (not just inside the
+# ``ac_evidence`` fixture). conftest.py is imported before the test modules in
+# this tree, so a backend test can carry a top-level co-located proof decorator
+# (``from common.testing.ac_proof import ac_proof``) without ImportError. Insert
+# at the front so the repo's ``common/`` wins over any third-party ``common`` in
+# site-packages. This only widens what is importable; tests that do not import
+# ``common`` are unaffected.
+_REPO_ROOT = str(Path(__file__).resolve().parents[3])
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 logger = get_logger(__name__)
 

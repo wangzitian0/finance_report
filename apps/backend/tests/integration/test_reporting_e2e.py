@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from common.testing.ac_proof import ac_proof
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Account, AccountType, FxRate
@@ -51,6 +52,15 @@ async def _posted_entry(
     await post_journal_entry(db, entry.id, user_id)
 
 
+@ac_proof(
+    "structured-source-reporting-pr",
+    ac_ids=["AC5.15.1", "AC8.14.4"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["bank_statement", "csv_export", "manual_record"],
+    issue="#696",
+)
 async def test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf(
     db: AsyncSession,
     test_user,

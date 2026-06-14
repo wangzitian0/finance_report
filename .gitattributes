@@ -1,0 +1,9 @@
+# Conflict-free ratchet baseline storage.
+#
+# docs/ssot/ac-score-baseline.jsonl is a PERSISTED ratchet stored as sorted,
+# line-oriented JSONL (one AC per line). `merge=union` makes git concatenate
+# both sides on merge, so two PRs that adopt DIFFERENT ACs auto-merge by union;
+# only two PRs editing the SAME AC line produce a (legitimate, semantic)
+# conflict. Re-run `tools/migrate_proof_index_storage.py` to re-sort/normalise
+# after a union merge if line order drifts.
+docs/ssot/ac-score-baseline.jsonl merge=union

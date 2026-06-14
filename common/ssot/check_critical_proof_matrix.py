@@ -772,7 +772,39 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     parser.add_argument("--matrix", type=Path, default=DEFAULT_MATRIX)
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "Also fail if the checked-in matrix differs from a fresh generation "
+            "from the co-located @ac_proof declarations (generated-artifact gate)."
+        ),
+    )
     return parser.parse_args()
+
+
+def _generated_drift_errors(repo_root: Path, matrix_path: Path) -> list[str]:
+    """Return drift errors if the matrix is not freshly generated.
+
+    The matrix ``proofs`` section is a DERIVED index generated from the
+    ``@ac_proof`` decorators. ``--check`` asserts the checked-in artifact matches
+    a fresh generation, exactly like ``generate_ac_registry.py --check``.
+    """
+    from common.ssot.generate_critical_proof_matrix import (
+        DEFAULT_OUTCOMES,
+        build_matrix,
+        render_matrix,
+    )
+
+    outcomes_path = repo_root / DEFAULT_OUTCOMES.relative_to(REPO_ROOT)
+    expected = render_matrix(build_matrix(repo_root, outcomes_path))
+    current = matrix_path.read_text(encoding="utf-8") if matrix_path.exists() else ""
+    if current != expected:
+        return [
+            f"{_rel(matrix_path, repo_root)} is out of date with co-located "
+            "@ac_proof declarations. Run: python tools/generate_critical_proof_matrix.py"
+        ]
+    return []
 
 
 def main() -> int:
@@ -793,7 +825,9 @@ def main() -> int:
     else:
         print(report)
 
-    errors = validation.errors
+    errors = list(validation.errors)
+    if args.check:
+        errors.extend(_generated_drift_errors(repo_root, matrix_path))
     if errors:
         for error in errors:
             print(f"::error title=Critical proof matrix::{error}", file=sys.stderr)

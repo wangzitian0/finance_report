@@ -20,6 +20,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from common.testing.ac_proof import ac_proof
 from playwright.async_api import Page, expect
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
@@ -119,6 +120,16 @@ def _assert_expected_totals(payload: dict, expected: dict[str, Decimal], keys: S
         assert _money(payload[key]) == expected[key], f"{key} mismatch: expected {expected[key]}, got {payload[key]}"
 
 
+@ac_proof(
+    "deterministic-upload-to-dashboard",
+    ac_ids=["AC8.13.28", "AC8.13.29", "AC8.13.30", "AC8.13.31", "AC8.13.32"],
+    scope="behavioral",
+    ci_tier="post_merge_environment",
+    trust_mode="hybrid",
+    source_classes=["bank_statement", "csv_export"],
+    issue="#420",
+    required_markers=["e2e", "tier3", "critical"],
+)
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical

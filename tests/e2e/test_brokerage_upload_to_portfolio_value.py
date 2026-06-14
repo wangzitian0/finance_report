@@ -23,6 +23,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page
 
@@ -325,6 +326,17 @@ def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
     assert "Bank - Main" in message
 
 
+@ac_proof(
+    "brokerage-pdf-to-portfolio-value",
+    ac_ids=["AC8.13.10"],
+    scope="behavioral",
+    ci_tier="post_merge_environment",
+    trust_mode="llm_ocr_post_merge",
+    source_classes=["brokerage_statement"],
+    mirror_proof_id="personal-package-source-trust-pr",
+    issue="#404",
+    required_markers=["e2e", "tier3", "critical", "llm"],
+)
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical

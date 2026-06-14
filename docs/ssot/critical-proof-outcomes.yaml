@@ -1,0 +1,76 @@
+version: "1.0"
+description: "Macro-outcome contract source for docs/ssot/critical-proof-matrix.yaml. Owns ONLY the README -> EPIC -> E2E macro outcome mapping (outcome -> owner EPICs + proof_ids). The proofs[] section of the matrix is generated from @ac_proof(...) decorators co-located on the tests; do not hand-edit proofs. Outcomes rarely change and are not the merge-train false-sharing hotspot, so they stay hand-maintained here."
+
+outcomes:
+  - id: personal-financial-report-package
+    question: "Can I generate one auditable personal financial-report package with statements, schedules, notes, and source traceability?"
+    status: covered
+    owner_epics:
+      - EPIC-005
+      - EPIC-008
+      - EPIC-011
+      - EPIC-017
+      - EPIC-018
+      - EPIC-020
+    issue: "#567"
+    proof_ids:
+      - personal-financial-report-package-post-merge
+
+  - id: asset-distribution-net-worth
+    question: "How much money do I have, and where is it distributed?"
+    status: covered
+    owner_epics:
+      - EPIC-005
+      - EPIC-008
+      - EPIC-011
+      - EPIC-017
+    proof_ids:
+      - deterministic-upload-to-dashboard
+      - four-asset-as-of-net-worth
+    issue: "#444"
+
+  - id: monthly-income-spending
+    question: "How much did I earn and spend this month?"
+    status: covered
+    owner_epics:
+      - EPIC-005
+      - EPIC-008
+    proof_ids:
+      - deterministic-upload-to-dashboard
+
+  - id: investment-performance
+    question: "How are my investments performing?"
+    status: covered
+    owner_epics:
+      - EPIC-005
+      - EPIC-008
+      - EPIC-017
+    proof_ids:
+      - brokerage-pdf-to-portfolio-value
+      - market-data-provider-price-path
+      - personal-financial-report-package-post-merge
+    issue: "#596"
+
+  - id: annualized-income-long-term
+    question: "What is my annualized income across salary, ESOP, dividends, and other long-term components?"
+    status: covered
+    owner_epics:
+      - EPIC-005
+      - EPIC-011
+      - EPIC-017
+    proof_ids:
+      - personal-financial-report-package-post-merge
+    issue: "#566"
+
+  - id: source-ledger-report-traceability
+    question: "Can every trusted dashboard number be traced from source document to ledger to report?"
+    status: covered
+    owner_epics:
+      - EPIC-003
+      - EPIC-004
+      - EPIC-008
+      - EPIC-016
+      - EPIC-018
+    proof_ids:
+      - dbs-pdf-full-journey
+      - deterministic-upload-to-dashboard
