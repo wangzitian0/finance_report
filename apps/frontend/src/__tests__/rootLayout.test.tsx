@@ -34,6 +34,27 @@ describe("RootLayout", () => {
     expect(screen.getByText("Root Child")).toBeInTheDocument()
   })
 
+  it("Infra-014 C5: warns once per process when client id is missing in a deployed env", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const prevUrl = process.env.NEXT_PUBLIC_APP_URL
+    const prevId = process.env.OPENPANEL_CLIENT_ID
+    process.env.NEXT_PUBLIC_APP_URL = "https://report.zitian.party"
+    delete process.env.OPENPANEL_CLIENT_ID
+    try {
+      render(<RootLayout><div>a</div></RootLayout>)
+      render(<RootLayout><div>b</div></RootLayout>)
+      // force-dynamic runs per request, but the module-level guard logs only once.
+      expect(errorSpy).toHaveBeenCalledTimes(1)
+      expect(String(errorSpy.mock.calls[0]?.[0])).toContain("OPENPANEL_CLIENT_ID is empty")
+    } finally {
+      errorSpy.mockRestore()
+      if (prevUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+      else process.env.NEXT_PUBLIC_APP_URL = prevUrl
+      if (prevId === undefined) delete process.env.OPENPANEL_CLIENT_ID
+      else process.env.OPENPANEL_CLIENT_ID = prevId
+    }
+  })
+
   it("Infra-014 C5: flags a missing OpenPanel client id only in deployed non-preview envs", () => {
     // Deployed (staging/production https hosts) without a client id -> surfaced.
     expect(analyticsClientIdMissingInDeployedEnv(undefined, "https://report.zitian.party")).toBe(true)
