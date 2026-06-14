@@ -8,10 +8,16 @@ import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 // #1001 / AC16.36: the dedicated /review surface is a first-class Stage-2 review
 // destination, independent of the reconciliation workbench it used to nest under.
+//
+// Hoist stable router/searchParams instances so every hook call returns the same
+// references. Stage2ReviewQueue memoizes callbacks on `router`/`searchParams`;
+// fresh objects per render would retrigger effects and make the test flaky/slow.
+const router = { replace: vi.fn(), push: vi.fn() };
+const searchParams = new URLSearchParams();
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("next/navigation", () => ({
-    useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
-    useSearchParams: vi.fn(() => new URLSearchParams()),
+    useRouter: vi.fn(() => router),
+    useSearchParams: vi.fn(() => searchParams),
     usePathname: vi.fn(() => "/review"),
 }));
 
