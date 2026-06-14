@@ -1,19 +1,21 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { BarChart } from "@/components/charts/BarChart";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
-import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { ReportPageSkeleton } from "@/components/reports/ReportPageSkeleton";
+import { ReportPageShell } from "@/components/reports/ReportPageShell";
+import { ReportToolbar } from "@/components/reports/ReportToolbar";
+import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
+import { CurrencyFilterControl, DateFilterControl } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
+import { useReportFilters } from "@/hooks/useReportFilters";
 import type { IncomeStatementResponse } from "@/lib/types";
 
 const ACCOUNT_TYPE_OPTIONS = [
@@ -33,10 +35,18 @@ const TAG_OPTIONS = [
   { value: "food", label: "Food & Dining" },
 ];
 
+const defaultStartDate = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 11);
+  d.setDate(1);
+  return formatDateInput(d);
+};
+
 export default function IncomeStatementPage() {
-  const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 11); d.setDate(1); return formatDateInput(d); });
-  const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
-  const [currency, setCurrency] = useState("SGD");
+  const { startDate, setStartDate, endDate, setEndDate, currency, setCurrency } = useReportFilters({
+    reportType: "income-statement",
+    initialStartDate: defaultStartDate(),
+  });
   const [accountTypeFilter, setAccountTypeFilter] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
@@ -70,29 +80,29 @@ export default function IncomeStatementPage() {
 
   const barItems = useMemo(() => report ? report.trends.slice(-6).map((t) => ({ label: formatMonthLabel(t.period_start), income: amountToChartNumber(t.total_income), expense: amountToChartNumber(t.total_expenses) })) : [], [report]);
   const exportPath = useMemo(() => `/api/reports/export?report_type=income-statement&format=csv&${queryString}`, [queryString]);
-  const aiPrompt = useMemo(() => encodeURIComponent(`Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends.`), [currency, endDate, startDate]);
-
-  if (reportQuery.isLoading) return <ReportPageSkeleton label="Loading income statement" sections={2} />;
-  if (reportQuery.isError) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>;
+  const aiPrompt = useMemo(() => `Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends.`, [currency, endDate, startDate]);
 
   return (
-    <div className="p-6">
-      <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-        <div>
-          <h1 className="page-title">Income Statement</h1>
-          <p className="page-description">Net Income = Income - Expenses</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
-          <Link href="/" className="btn-secondary text-sm">Home</Link>
-          <ExportCsvButton path={exportPath} />
-        </div>
-      </div>
-
+    <ReportPageShell
+      title="Income Statement"
+      description="Net Income = Income - Expenses"
+      loadingLabel="Loading income statement"
+      loadingSections={2}
+      isLoading={reportQuery.isLoading}
+      isError={reportQuery.isError}
+      errorMessage={reportQuery.error?.message}
+      onRetry={() => void reportQuery.refetch()}
+      toolbar={
+        <ReportToolbar
+          aiPrompt={aiPrompt}
+          exportControl={<ExportCsvButton path={exportPath} />}
+        />
+      }
+    >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Start date</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input w-auto" /></label>
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">End date</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input w-auto" /></label>
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto">{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+        <DateFilterControl label="Start date" value={startDate} onChange={setStartDate} />
+        <DateFilterControl label="End date" value={endDate} onChange={setEndDate} />
+        <CurrencyFilterControl value={currency} currencies={currencies} onChange={setCurrency} />
         <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Account type</span><select value={accountTypeFilter} onChange={(e) => setAccountTypeFilter(e.target.value)} className="input w-auto">
           {ACCOUNT_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select></label>
@@ -213,6 +223,6 @@ export default function IncomeStatementPage() {
       </div>
 
       <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
-    </div>
+    </ReportPageShell>
   );
 }

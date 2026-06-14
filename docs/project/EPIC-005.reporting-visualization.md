@@ -350,6 +350,51 @@ explicit FX-failure response model. Monetary values stay `Decimal`.
 | AC5.32.5 | Currency normalization is a single shared helper (`normalize_currency_code`), not duplicated `.strip().upper()` | `test_AC5_32_5_normalize_currency_code_is_shared_helper` | `reporting/test_income_typed_currency.py` | P2 |
 | AC5.32.6 | The endpoint normalizes a soft (lower-case) base-currency setting in its response | `test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_config` | `reporting/test_income_typed_currency.py` | P2 |
 
+### AC5.33: Report Page Shell + Toolbar Primitives ([#751](https://github.com/wangzitian0/finance_report/issues/751))
+
+Slice 3 of the frontend reuse architecture (#751). Extract the repeated
+report-route boilerplate (header, AI-interpretation / home / CSV-export toolbar,
+loading skeleton, error+retry state) into shared composition primitives
+(`ReportPageShell`, `ReportToolbar`, `AiPromptAction`) so report routes stay thin
+and behavior is identical across balance-sheet, income-statement, and cash-flow.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.33.1 | `ReportPageShell` renders title, description, and toolbar slot, and shows the report body when not loading or errored | `AC5.33.1 renders title, description, toolbar, and body content` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 |
+| AC5.33.2 | `ReportPageShell` renders the loading skeleton (and not the body) while `isLoading` | `AC5.33.2 shows loading skeleton while loading` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 |
+| AC5.33.3 | `ReportPageShell` renders the error message with a working Retry action on `isError` | `AC5.33.3 shows error message and retries on click` | `apps/frontend/src/__tests__/reportPageShell.test.tsx` | P1 |
+| AC5.33.4 | `ReportToolbar` composes the AI-prompt action, Home link, and CSV export action from its props | `AC5.33.4 renders AI prompt, home link, and CSV export` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 |
+| AC5.33.5 | `AiPromptAction` links to the chat route with a URL-encoded prompt | `AC5.33.5 links to chat with url-encoded prompt` | `apps/frontend/src/__tests__/reportToolbar.test.tsx` | P1 |
+
+### AC5.34: Report Filter Controls + Filter Hook ([#751](https://github.com/wangzitian0/finance_report/issues/751))
+
+Slice 3 of #751. Provide reusable date and currency filter controls plus a
+`useReportFilters` query-layer hook that owns the filter state and derives the
+query string, CSV export path, and AI-prompt text so route pages only express
+page-level intent.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.34.1 | `DateFilterControl` renders a labelled date input and emits changes | `AC5.34.1 renders labelled date input and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 |
+| AC5.34.2 | `CurrencyFilterControl` renders a labelled currency select with the provided options and emits changes | `AC5.34.2 renders currency options and emits change` | `apps/frontend/src/__tests__/reportFilters.test.tsx` | P1 |
+| AC5.34.3 | `useReportFilters` builds a query string from its date and currency state | `AC5.34.3 builds query string from filter state` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
+| AC5.34.4 | `useReportFilters` derives the CSV export path for the given report type | `AC5.34.4 derives csv export path for report type` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
+| AC5.34.5 | `useReportFilters` updates the query string when the currency changes | `AC5.34.5 updates query string when currency changes` | `apps/frontend/src/__tests__/useReportFilters.test.ts` | P1 |
+
+### AC5.35: Dashboard Aggregation Moved Into Hook Layer ([#751](https://github.com/wangzitian0/finance_report/issues/751))
+
+Slice 3 of #751. Move the dashboard's parallel API aggregation and report
+normalization out of the route page and into a `useDashboardData` hook (over the
+shared `apiFetch` transport), so the home route composes data instead of
+fetching and normalizing it inline. Monetary values stay decimal strings.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.35.1 | `useDashboardData` aggregates the dashboard endpoints over `apiFetch` and exposes a single loading flag | `AC5.35.1 aggregates dashboard endpoints over apiFetch` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
+| AC5.35.2 | `useDashboardData` normalizes missing balance-sheet / income / annualized fields to safe decimal-string defaults | `AC5.35.2 normalizes missing report fields to defaults` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
+| AC5.35.3 | `useDashboardData` surfaces an error message and a retry that refetches when aggregation fails | `AC5.35.3 surfaces error and retries on failure` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
+| AC5.35.4 | `useDashboardData` tolerates a failing chat-suggestions endpoint without failing the whole dashboard | `AC5.35.4 tolerates failing chat suggestions endpoint` | `apps/frontend/src/__tests__/useDashboardData.test.ts` | P1 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
