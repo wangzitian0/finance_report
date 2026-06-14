@@ -133,6 +133,16 @@ CHECKS: tuple[Check, ...] = (
         why="config.py changed: regenerate .env.example + env reference and assert no drift",
     ),
     Check(
+        name="openapi-spec",
+        globs=(
+            "apps/backend/src/routers/*.py",
+            "apps/backend/src/schemas/*.py",
+            "apps/backend/src/main.py",
+        ),
+        commands=((PY, "tools/generate_openapi_spec.py", "--check"),),
+        why="router/schema changed: the committed apps/frontend/openapi.json (source for the generated FE api-types) must be regenerated — enforces the FE↔BE contract (#1004)",
+    ),
+    Check(
         name="tooling",
         globs=("tools/*", "common/*"),
         commands=((PY, "-m", "pytest", "tests/tooling/", "-q", "--no-cov"),),

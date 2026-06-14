@@ -210,21 +210,19 @@ export function Stage2ReviewQueue() {
 
         setActionLoading(true);
         try {
-            const result = await apiFetch<{ success: boolean; approved_count: number; error?: string }>(
+            const result = await apiFetch<{ approved_count: number }>(
                 "/api/statements/batch-approve-matches",
                 {
                     method: "POST",
                     body: JSON.stringify({ match_ids: Array.from(selectedMatches) }),
                 }
             );
-            if (result.success) {
-                showToast(`Approved ${result.approved_count} matches`, "success");
-                setSelectedMatches(new Set());
-                fetchData();
-                fetchFilteredChecks();
-            } else {
-                showToast(result.error || "Failed to approve", "error");
-            }
+            // #1001: a 2xx means success; failures (e.g. unresolved checks → 409)
+            // throw ApiError and are surfaced in the catch below.
+            showToast(`Approved ${result.approved_count} matches`, "success");
+            setSelectedMatches(new Set());
+            fetchData();
+            fetchFilteredChecks();
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to approve", "error");
         } finally {
@@ -237,19 +235,17 @@ export function Stage2ReviewQueue() {
 
         setActionLoading(true);
         try {
-            const result = await apiFetch<{ success: boolean; rejected_count: number }>(
+            const result = await apiFetch<{ rejected_count: number }>(
                 "/api/statements/batch-reject-matches",
                 {
                     method: "POST",
                     body: JSON.stringify({ match_ids: Array.from(selectedMatches) }),
                 }
             );
-            if (result.success) {
-                showToast(`Rejected ${result.rejected_count} matches`, "success");
-                setSelectedMatches(new Set());
-                fetchData();
-                fetchFilteredChecks();
-            }
+            showToast(`Rejected ${result.rejected_count} matches`, "success");
+            setSelectedMatches(new Set());
+            fetchData();
+            fetchFilteredChecks();
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to reject", "error");
         } finally {
@@ -278,22 +274,18 @@ export function Stage2ReviewQueue() {
 
         setActionLoading(true);
         try {
-            const result = await apiFetch<{ success: boolean; approved_count: number; error?: string }>(
+            const result = await apiFetch<{ approved_count: number }>(
                 "/api/statements/batch-approve-matches",
                 {
                     method: "POST",
                     body: JSON.stringify({ match_ids: matchIds, run_id: runId }),
                 }
             );
-            if (result.success) {
-                showToast(`Approved ${result.approved_count} run matches`, "success");
-                setSelectedMatches(new Set());
-                fetchData();
-                fetchFilteredChecks();
-                fetchProcessingSummary();
-            } else {
-                showToast(result.error || "Failed to approve run", "error");
-            }
+            showToast(`Approved ${result.approved_count} run matches`, "success");
+            setSelectedMatches(new Set());
+            fetchData();
+            fetchFilteredChecks();
+            fetchProcessingSummary();
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to approve run", "error");
         } finally {

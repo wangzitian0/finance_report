@@ -17,7 +17,9 @@ from src.models.layer2 import AtomicTransaction
 from src.models.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.schemas.review import (
     BatchApproveRequest,
+    BatchApproveResponse,
     BatchRejectRequest,
+    BatchRejectResponse,
     ConsistencyCheckListResponse,
     ConsistencyCheckResponse,
     ResolveCheckRequest,
@@ -25,6 +27,7 @@ from src.schemas.review import (
     ReviewConflictCandidate,
     ReviewConflictsResolveResponse,
     ReviewConflictsResponse,
+    Stage2PendingMatch,
     Stage2ReviewQueueResponse,
 )
 from src.services.confidence_tier import derive_reconciliation_score_tier
@@ -38,7 +41,7 @@ from src.services.consistency_checks import (
 from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
 from src.services.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
-from src.utils import raise_not_found
+from src.utils import raise_conflict, raise_not_found
 
 logger = get_logger(__name__)
 
@@ -144,16 +147,16 @@ async def get_stage2_review_queue(
     for match in matches:
         transaction = match.atomic_transaction
         pending_matches.append(
-            {
-                "id": str(match.id),
-                "match_score": match.match_score,
-                "status": match.status.value,
-                "created_at": match.created_at.isoformat() if match.created_at else None,
-                "description": transaction.description if transaction else None,
-                "amount": transaction.amount if transaction else None,
-                "txn_date": transaction.txn_date.isoformat() if transaction else None,
-                "confidence_tier": derive_reconciliation_score_tier(match.match_score),
-            }
+            Stage2PendingMatch(
+                id=match.id,
+                match_score=match.match_score,
+                status=match.status.value,
+                created_at=match.created_at,
+                description=transaction.description if transaction else None,
+                amount=transaction.amount if transaction else None,
+                txn_date=transaction.txn_date if transaction else None,
+                confidence_tier=derive_reconciliation_score_tier(match.match_score),
+            )
         )
 
     checks = await get_pending_checks(db, user_id, run_id=run_id, limit=None)
@@ -232,29 +235,26 @@ async def list_consistency_checks(
     )
 
 
-@router.post("/batch-approve-matches", response_model=dict)
+@router.post("/batch-approve-matches", response_model=BatchApproveResponse)
 async def batch_approve_matches(
     request: BatchApproveRequest,
     db: DbSession,
     user_id: CurrentUserId,
-) -> dict:
-    """Batch approve matches (blocked by unresolved checks)."""
+) -> BatchApproveResponse:
+    """Batch approve matches (blocked by unresolved checks).
+
+    #1001: unresolved consistency checks now raise a 409 (structured
+    ``ErrorResponse``) instead of returning ``{"success": false}`` in a 200 body.
+    """
     if await has_unresolved_checks(db, user_id, run_id=request.run_id):
-        return {
-            "success": False,
-            "error": "Cannot batch approve while there are unresolved consistency checks",
-            "approved_count": 0,
-            "journal_entries_created": 0,
-            "journal_entries_reconciled": 0,
-        }
+        raise_conflict("Cannot batch approve while there are unresolved consistency checks")
 
     if not request.match_ids:
-        return {
-            "success": True,
-            "approved_count": 0,
-            "journal_entries_created": 0,
-            "journal_entries_reconciled": 0,
-        }
+        return BatchApproveResponse(
+            approved_count=0,
+            journal_entries_created=0,
+            journal_entries_reconciled=0,
+        )
 
     matches_query = (
         select(ReconciliationMatch)
@@ -308,23 +308,22 @@ async def batch_approve_matches(
 
     await db.commit()
 
-    return {
-        "success": True,
-        "approved_count": approved_count,
-        "journal_entries_created": journal_entries_created,
-        "journal_entries_reconciled": journal_entries_reconciled,
-    }
+    return BatchApproveResponse(
+        approved_count=approved_count,
+        journal_entries_created=journal_entries_created,
+        journal_entries_reconciled=journal_entries_reconciled,
+    )
 
 
-@router.post("/batch-reject-matches", response_model=dict)
+@router.post("/batch-reject-matches", response_model=BatchRejectResponse)
 async def batch_reject_matches(
     request: BatchRejectRequest,
     db: DbSession,
     user_id: CurrentUserId,
-) -> dict:
+) -> BatchRejectResponse:
     """Batch reject matches."""
     if not request.match_ids:
-        return {"success": True, "rejected_count": 0}
+        return BatchRejectResponse(rejected_count=0)
 
     result = await db.execute(
         select(ReconciliationMatch)
@@ -345,7 +344,4 @@ async def batch_reject_matches(
 
     await db.commit()
 
-    return {
-        "success": True,
-        "rejected_count": rejected_count,
-    }
+    return BatchRejectResponse(rejected_count=rejected_count)

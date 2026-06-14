@@ -23,6 +23,7 @@ from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
     CostBasisMethodUpdateRequest,
+    CostBasisMethodUpdateResponse,
     DividendEventResponse,
     HoldingResponse,
     InvestmentPerformanceAllocationRow,
@@ -30,6 +31,7 @@ from src.schemas.portfolio import (
     InvestmentPerformanceHoldingRow,
     InvestmentPerformanceReportScheduleResponse,
     PortfolioSummaryDashboardResponse,
+    PriceUpdateBatchResponse,
     PriceUpdateRequest as SchemaPriceUpdateRequest,
     RealizedLotResponse,
 )
@@ -388,13 +390,13 @@ async def get_holding_realized_lots(
     return rows
 
 
-@router.patch("/{ticker}", response_model=dict)
+@router.patch("/{ticker}", response_model=CostBasisMethodUpdateResponse)
 async def update_holding_cost_basis_method(
     ticker: str,
     request: CostBasisMethodUpdateRequest,
     db: DbSession,
     user_id: CurrentUserId,
-) -> dict:
+) -> CostBasisMethodUpdateResponse:
     """Persist cost-basis method for all active positions matching a holding ticker."""
     result = await db.execute(
         select(ManagedPosition)
@@ -408,7 +410,10 @@ async def update_holding_cost_basis_method(
     for position in positions:
         position.cost_basis_method = request.cost_basis_method
     await db.commit()
-    return {"updated_count": len(positions), "cost_basis_method": request.cost_basis_method.value}
+    return CostBasisMethodUpdateResponse(
+        updated_count=len(positions),
+        cost_basis_method=request.cost_basis_method,
+    )
 
 
 @router.get("/performance", response_model=PerformanceMetricsResponse)
@@ -893,12 +898,12 @@ async def get_asset_class_allocation(
     return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
 
 
-@router.post("/prices/update", status_code=status.HTTP_200_OK)
+@router.post("/prices/update", response_model=PriceUpdateBatchResponse, status_code=status.HTTP_200_OK)
 async def update_prices(
     db: DbSession,
     user_id: CurrentUserId,
     request: PriceUpdateBatchRequest,
-) -> dict:
+) -> PriceUpdateBatchResponse:
     """Update market prices manually (batch)."""
     logger.info(
         "Updating market prices",
@@ -926,4 +931,4 @@ async def update_prices(
     await db.commit()
 
     logger.info("Market prices updated", updated_count=len(results))
-    return {"updated_count": len(results), "results": results}
+    return PriceUpdateBatchResponse(updated_count=len(results), results=results)

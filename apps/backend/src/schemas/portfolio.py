@@ -90,6 +90,24 @@ class PriceUpdateResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class PriceUpdateBatchResponse(BaseModel):
+    """Typed response for ``POST /portfolio/prices/update`` (#1008).
+
+    Replaces a raw ``dict`` return so the batch result is declared in OpenAPI and
+    consumable by the generated frontend client.
+    """
+
+    updated_count: int = Field(..., description="Number of price overrides applied.")
+    results: list[PriceUpdateResponse] = Field(default_factory=list)
+
+
+class CostBasisMethodUpdateResponse(BaseModel):
+    """Typed response for ``PATCH /portfolio/{ticker}`` (#1008)."""
+
+    updated_count: int = Field(..., description="Number of active positions updated.")
+    cost_basis_method: CostBasisMethod
+
+
 class PortfolioSummaryResponse(BaseModel):
     """Schema for overall portfolio summary."""
 

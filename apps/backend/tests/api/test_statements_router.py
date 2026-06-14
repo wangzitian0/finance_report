@@ -2782,9 +2782,9 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     result = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id)
 
     assert len(result.pending_matches) == 1
-    assert result.pending_matches[0]["status"] == "pending_review"
-    assert result.pending_matches[0]["match_score"] == 75
-    assert result.pending_matches[0]["confidence_tier"] == "MEDIUM"
+    assert result.pending_matches[0].status == "pending_review"
+    assert result.pending_matches[0].match_score == 75
+    assert result.pending_matches[0].confidence_tier == "MEDIUM"
 
 
 async def test_run_stage2_checks_success(db, test_user):
@@ -2965,14 +2965,17 @@ async def test_batch_approve_matches_blocked_by_unresolved_checks(db, test_user)
     db.add(check)
     await db.commit()
 
-    result = await review_router.batch_approve_matches(
-        request=BatchApproveRequest(match_ids=[]),
-        db=db,
-        user_id=test_user.id,
-    )
+    # #1001: unresolved checks now raise a 409 structured error instead of
+    # returning {"success": false} in a 200 body.
+    with pytest.raises(HTTPException) as exc:
+        await review_router.batch_approve_matches(
+            request=BatchApproveRequest(match_ids=[]),
+            db=db,
+            user_id=test_user.id,
+        )
 
-    assert result["success"] is False
-    assert "unresolved" in result["error"]
+    assert exc.value.status_code == status.HTTP_409_CONFLICT
+    assert "unresolved" in exc.value.detail
 
 
 async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_user):
@@ -3254,16 +3257,14 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
 
     queue = await review_router.get_stage2_review_queue(db=db, user_id=test_user.id, run_id="run-123")
 
-    assert [match["id"] for match in queue.pending_matches] == [str(in_run_match.id)]
+    assert [str(match.id) for match in queue.pending_matches] == [str(in_run_match.id)]
 
     result = await review_router.batch_approve_matches(
         request=BatchApproveRequest(match_ids=[in_run_match.id, other_run_match.id], run_id="run-123"),
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["approved_count"] == 1
+    assert result.approved_count == 1
     await db.refresh(in_run_match)
     await db.refresh(other_run_match)
     assert in_run_match.status == ReconciliationStatus.ACCEPTED
@@ -3280,9 +3281,7 @@ async def test_batch_approve_matches_empty_list(db, test_user):
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["approved_count"] == 0
+    assert result.approved_count == 0
 
 
 async def test_batch_approve_matches_success(db, test_user):
@@ -3327,9 +3326,7 @@ async def test_batch_approve_matches_success(db, test_user):
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["approved_count"] == 1
+    assert result.approved_count == 1
 
 
 async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
@@ -3369,11 +3366,9 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["approved_count"] == 1
-    assert result["journal_entries_created"] == 0
-    assert result["journal_entries_reconciled"] == 1
+    assert result.approved_count == 1
+    assert result.journal_entries_created == 0
+    assert result.journal_entries_reconciled == 1
 
     await db.refresh(match)
     await db.refresh(txn)
@@ -3419,11 +3414,9 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["approved_count"] == 1
-    assert result["journal_entries_created"] == 1
-    assert result["journal_entries_reconciled"] == 1
+    assert result.approved_count == 1
+    assert result.journal_entries_created == 1
+    assert result.journal_entries_reconciled == 1
 
     await db.refresh(match)
     await db.refresh(txn)
@@ -3446,11 +3439,9 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
         db=db,
         user_id=test_user.id,
     )
-
-    assert second_result["success"] is True
-    assert second_result["approved_count"] == 0
-    assert second_result["journal_entries_created"] == 0
-    assert second_result["journal_entries_reconciled"] == 0
+    assert second_result.approved_count == 0
+    assert second_result.journal_entries_created == 0
+    assert second_result.journal_entries_reconciled == 0
 
     second_entry_result = await db.execute(
         select(JournalEntry)
@@ -3550,11 +3541,9 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["approved_count"] == 1
-    assert result["journal_entries_created"] == 0
-    assert result["journal_entries_reconciled"] == 1
+    assert result.approved_count == 1
+    assert result.journal_entries_created == 0
+    assert result.journal_entries_reconciled == 1
 
     await db.refresh(match)
     await db.refresh(entry)
@@ -3728,9 +3717,7 @@ async def test_batch_reject_matches_empty_list(db, test_user):
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["rejected_count"] == 0
+    assert result.rejected_count == 0
 
 
 async def test_batch_reject_matches_success(db, test_user):
@@ -3775,9 +3762,7 @@ async def test_batch_reject_matches_success(db, test_user):
         db=db,
         user_id=test_user.id,
     )
-
-    assert result["success"] is True
-    assert result["rejected_count"] == 1
+    assert result.rejected_count == 1
 
 
 async def test_wait_for_parse_tasks_empty():

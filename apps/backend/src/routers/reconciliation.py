@@ -325,13 +325,13 @@ async def pending_review_queue(
 
 @router.post("/matches/{match_id}/accept", response_model=ReconciliationMatchResponse)
 async def accept_match(
-    match_id: str,
+    match_id: UUID,
     *,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchResponse:
     try:
-        match = await accept_match_service(db, match_id, user_id=user_id)
+        match = await accept_match_service(db, str(match_id), user_id=user_id)
         await db.commit()
     except ValueError as exc:
         if "not found" in str(exc).lower():
@@ -348,13 +348,13 @@ async def accept_match(
 
 @router.post("/matches/{match_id}/reject", response_model=ReconciliationMatchResponse)
 async def reject_match(
-    match_id: str,
+    match_id: UUID,
     *,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchResponse:
     try:
-        match = await reject_match_service(db, match_id, user_id=user_id)
+        match = await reject_match_service(db, str(match_id), user_id=user_id)
         await db.commit()
     except ValueError as exc:
         if "not found" in str(exc).lower():
@@ -447,7 +447,7 @@ async def list_unmatched(
 
 @router.post("/unmatched/{txn_id}/create-entry", response_model=JournalEntrySummary)
 async def create_entry(
-    txn_id: str,
+    txn_id: UUID,
     *,
     db: DbSession,
     user_id: CurrentUserId,
@@ -537,7 +537,7 @@ async def batch_create_entries(
 
 @router.get("/transactions/{txn_id}/anomalies", response_model=list[AnomalyResponse])
 async def list_anomalies(
-    txn_id: str,
+    txn_id: UUID,
     *,
     db: DbSession,
     user_id: CurrentUserId,

@@ -50,8 +50,8 @@ from src.models.statement_summary import StatementSummary
 from src.models.user import User
 from src.routers.reports import (
     ExportFormat,
+    ExportReportType,
     PackageSnapshotExportFormat,
-    ReportType as ExportReportType,
     _add_anchor_details,
     _append_blocker,
     _journal_source_anchor_detail,

@@ -535,3 +535,15 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 **Priority**: P1 (high) — needed for vision parity but not blocking user adoption.
 **Estimated effort**: 3-5 days backend + 2-3 days frontend.
+
+### AC5.33: Report Snapshots Typed Contract ([#1008](https://github.com/wangzitian0/finance_report/issues/1008))
+
+Tier 2 of #1000. `GET /reports/{report_type}/snapshots` declares a typed
+`list[ReportSnapshotSummary]` response (built from the ORM via `from_attributes`
+instead of a hand-rolled dict), and `report_type` is typed as the snapshot enum so
+an unknown value is rejected with 422 instead of silently returning an empty list.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.33.1 | An unknown `report_type` returns 422 | `test_AC5_33_1_report_snapshots_unknown_type_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
+| AC5.33.2 | A valid `report_type` returns a typed list | `test_AC5_33_2_report_snapshots_valid_type_returns_typed_list` | `api/test_typed_contract_sweep.py` | P2 |
