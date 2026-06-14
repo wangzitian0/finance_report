@@ -12,6 +12,7 @@ import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { ReportPageShell } from "@/components/reports/ReportPageShell";
 import { ReportToolbar } from "@/components/reports/ReportToolbar";
+import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { CurrencyFilterControl, DateFilterControl } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
@@ -114,7 +115,12 @@ export default function BalanceSheetPage() {
       isError={reportQuery.isError}
       errorMessage={reportQuery.error?.message}
       onRetry={() => void reportQuery.refetch()}
-      toolbar={<ReportToolbar aiPrompt={aiPrompt} exportPath={exportPath} />}
+      toolbar={
+        <ReportToolbar
+          aiPrompt={aiPrompt}
+          exportControl={<ExportCsvButton path={exportPath} />}
+        />
+      }
     >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
         <DateFilterControl label="As of date" value={asOfDate} onChange={setAsOfDate} />

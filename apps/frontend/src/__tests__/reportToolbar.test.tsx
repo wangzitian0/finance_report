@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -12,16 +12,19 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/lib/api", () => ({
-  apiDownload: vi.fn(),
-}));
-
 describe("ReportToolbar", () => {
-  it("AC5.33.4 renders AI prompt, home link, and CSV export", () => {
+  it("AC5.33.4 renders AI prompt, home link, and caller-provided export control", () => {
+    // The export control is caller-provided (#751: this primitive must not import
+    // API/transport code). The page wires the actual export behavior in.
+    const onExport = vi.fn();
     render(
       <ReportToolbar
         aiPrompt="Explain my balance sheet"
-        exportPath="/api/reports/export?report_type=balance-sheet&format=csv&currency=SGD"
+        exportControl={
+          <button type="button" onClick={onExport}>
+            Export CSV
+          </button>
+        }
       />,
     );
 
@@ -31,7 +34,11 @@ describe("ReportToolbar", () => {
       `/chat?prompt=${encodeURIComponent("Explain my balance sheet")}`,
     );
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument();
+
+    const exportButton = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportButton).toBeInTheDocument();
+    fireEvent.click(exportButton);
+    expect(onExport).toHaveBeenCalledTimes(1);
   });
 
   it("AC5.33.5 links to chat with url-encoded prompt", () => {
