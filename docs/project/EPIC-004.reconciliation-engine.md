@@ -128,6 +128,18 @@ Automatically match bank transactions with journal entries, implementing intelli
 | AC4.3.1 | Auto-Accept Logic | `test_auto_accept_threshold` | `reconciliation/test_reconciliation_engine.py` | P0 |
 | AC4.3.2 | Review Queue Logic | `test_review_queue_actions_and_entry_creation` | `reconciliation/test_reconciliation_engine.py` | P0 |
 | AC4.3.3 | Batch Accept | `test_accept_reject_batch_accept` | `reconciliation/test_reconciliation_router_additional.py` | P1 |
+| AC4.3.4 | Test accepting a reconciliation match. | `test_accept_match_success` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.5 | Test accepting non-existent match. | `test_accept_match_not_found` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.6 | Test rejecting a reconciliation match. | `test_reject_match_success` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.7 | Test rejecting non-existent match. | `test_reject_match_not_found` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.8 | Test getting reconciliation statistics. | `test_reconciliation_stats_success` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.9 | Test listing unmatched transactions. | `test_list_unmatched_success` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.10 | Test creating journal entry from unmatched transaction. | `test_create_entry_from_unmatched_success` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.11 | Test creating entry from non-existent transaction. | `test_create_entry_from_unmatched_not_found` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.12 | Test that unauthenticated clients cannot access reconciliation endpoints. | `test_unauthenticated_access` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.13 | Test that users can only access their own reconciliation data. | `test_user_isolation` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.14 | Test batch creating entries for all unmatched transactions. | `test_batch_create_entries_for_all_unmatched` | `api/test_reconciliation_router.py` | P1 |
+| AC4.3.15 | Test batch create returns 400 without all/txn_ids filter. | `test_batch_create_entries_requires_filter` | `api/test_reconciliation_router.py` | P1 |
 
 ### AC4.4: Performance & Edge Cases
 
@@ -141,6 +153,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC4.5.1 | Anomaly Detection Core | `test_detect_anomalies_flags_expected_patterns` | `reconciliation/test_reconciliation_engine.py` | P2 |
+| AC4.5.2 | Test listing anomalies for non-existent transaction. | `test_list_anomalies_not_found` | `api/test_reconciliation_router.py` | P1 |
 
 ### AC4.6: Source Type Conflict & Transfer Detection
 
@@ -154,6 +167,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 | AC4.6.6 | Duplicate guard respects running balance: same date/description/amount/direction with different `balance_after` are NOT flagged as duplicate candidates | `test_duplicate_guard_distinguishes_by_balance_after` | `review/test_statement_validation.py` | P1 |
 | AC4.6.7 | Duplicate guard still flags same date/description/amount/direction when `balance_after` is equal or absent (ambiguous, needs review) | `test_duplicate_guard_flags_when_balance_after_equal_or_absent` | `review/test_statement_validation.py` | P1 |
 | AC4.6.8 | `AtomicTransaction` persists the extracted `balance_after` so the conflict guard can disambiguate distinct-but-identical transactions | `test_upsert_persists_balance_after` | `extraction/test_deduplication.py` | P1 |
+| AC4.6.9 | Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging. | `test_execute_matching_many_to_one_layer2_sets_atomic_txn_id` | `reconciliation/test_reconciliation_engine.py` | P1 |
 
 ### AC4.8: Archive Baseline Benchmark Ownership
 
@@ -308,3 +322,12 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 | Week 3 | Review queue + Anomaly detection | ✅ Done |
 | Week 4 | Frontend UI + Algorithm tuning + Testing | ✅ Done |
 | Week 5 | Embedding integration + Time-aware rules | ✅ Done |
+
+### AC4.7: Recovered Coverage
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC4.7.1 | POST /corrections persists a correction and /corrections/stats reflects it. | `test_post_create_correction_and_stats` | `api/test_corrections_router.py` | P1 |
+| AC4.7.2 | get_few_shot_examples respects default limit and caches results. | `test_get_few_shot_examples_cache_hit_and_limit` | `extraction/test_correction_service_cache.py` | P1 |
+| AC4.7.3 | Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped. | `test_execute_matching_three_entry_combination_skips_unbalanced_member` | `reconciliation/test_reconciliation_engine.py` | P1 |
+| AC4.7.4 | Reconciliation phase-2 – atomic match and transfer pair logging in layer-2. | `test_execute_matching_layer2_atomic_match_and_transfer_pair_logging` | `reconciliation/test_reconciliation_engine.py` | P1 |

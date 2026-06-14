@@ -244,3 +244,10 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 - All extraction tests pass
 - Lint/type checks pass
 - PR is ready for review with SSOT + project docs updated
+
+### AC13.11: Recovered Coverage
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.11.1 | Dual-write handles duplicate document hash / IntegrityError without failing. | `test_dual_write_layer2_integrity_error_is_non_fatal` | `extraction/test_extraction_error_paths.py` | P1 |
+| AC13.11.2 | Dedup upsert sanitizes malformed source_documents payloads (transaction). | `test_upsert_atomic_transaction_handles_non_list_source_documents` | `extraction/test_deduplication.py` | P1 |

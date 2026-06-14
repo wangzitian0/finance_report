@@ -266,6 +266,11 @@ job inventories or scenario counts into this EPIC.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC8.12.6 | OCR/vision provider fallback, timeout, and empty-response errors are deterministic | `test_extract_financial_data_shared_ocr_vision_skips_layout_parser`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision` | `apps/backend/tests/extraction/test_extraction_error_paths.py` | P1 |
+| AC8.12.1 | Liability accounts return -net_balance so coverage hits else branch. | `test_returns_negated_balance_for_liability_account` | `reporting/test_fx_revaluation.py` | P1 |
+| AC8.12.2 | SQLAlchemyError on flush is wrapped in RevaluationError. | `test_flush_error_raises_revaluation_error` | `reporting/test_fx_revaluation.py` | P1 |
+| AC8.12.3 | Accounts that return None from calculate_unrealized_fx_for_account are skipped. | `test_none_revaluation_skipped` | `reporting/test_fx_revaluation.py` | P1 |
+| AC8.12.4 | PDF with private URL logs warning and raises ExtractionError (lines 393->403, 416->426). | `test_extract_financial_data_pdf_private_url_raises` | `extraction/test_extraction_error_paths.py` | P1 |
+| AC8.12.5 | Image with private URL logs warning and raises ExtractionError (else branch 416->426). | `test_extract_financial_data_image_private_url_raises` | `extraction/test_extraction_error_paths.py` | P1 |
 
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
 
