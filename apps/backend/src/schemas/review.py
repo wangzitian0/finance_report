@@ -134,10 +134,48 @@ class BatchRejectRequest(BaseModel):
     match_ids: list[UUID] = Field(default_factory=list)
 
 
+class Stage2PendingMatch(BaseModel):
+    """A reconciliation match awaiting Stage-2 review (#1001).
+
+    Replaces the untyped ``dict`` previously nested inside
+    ``Stage2ReviewQueueResponse.pending_matches`` so the row shape is declared in
+    OpenAPI and consumable by the generated frontend client.
+    """
+
+    id: UUID
+    match_score: Decimal
+    status: str
+    created_at: datetime | None = None
+    description: str | None = None
+    amount: Decimal | None = None
+    txn_date: date | None = None
+    confidence_tier: str
+
+
 class Stage2ReviewQueueResponse(BaseModel):
-    pending_matches: list[dict]
+    pending_matches: list[Stage2PendingMatch]
     consistency_checks: list[ConsistencyCheckResponse]
     has_unresolved_checks: bool
+
+
+class BatchApproveResponse(BaseModel):
+    """Typed result of ``POST /statements/batch-approve-matches`` (#1001).
+
+    Replaces ``response_model=dict``. Failure modes (e.g. unresolved consistency
+    checks) now surface as proper HTTP error responses (409) carrying the shared
+    ``ErrorResponse`` shape, instead of being smuggled into a 200 body as
+    ``{"success": false}``.
+    """
+
+    approved_count: int
+    journal_entries_created: int
+    journal_entries_reconciled: int
+
+
+class BatchRejectResponse(BaseModel):
+    """Typed result of ``POST /statements/batch-reject-matches`` (#1001)."""
+
+    rejected_count: int
 
 
 class ReviewConflictCandidate(BaseModel):

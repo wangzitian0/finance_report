@@ -214,8 +214,18 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
 
 **Rules:**
 - **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
-- **Authorization**: The utility automatically injects the `Bearer <token>` header from local storage.
+- **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because the utility calls `fetch` with `credentials: "include"`. The utility still adds a `Bearer <token>` header when `getAccessToken()` returns one (e.g. SSR/non-browser callers that hold a token), but in the browser the token is not persisted to local storage.
 - **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
+- **Structured errors (#1005)**: On a non-2xx the utility throws an `ApiError`
+  carrying `status`, `errorId`, and `requestId` parsed from the backend's
+  `{error_id, detail, request_id}` body. Branch on the machine-readable code
+  (`isApiErrorCode(err, "conflict")` or `err.errorId === "not_found"`), not on
+  `err.message` text. `ApiError extends Error`, so existing `err.message` display
+  paths keep working.
+- **Generated types (#1004)**: `src/lib/api-types.ts` is generated from the backend
+  OpenAPI schema (`apps/frontend/openapi.json`) via `npm run gen:api-types`. The
+  committed spec is staleness-gated by `tools/generate_openapi_spec.py --check`, so
+  the FE↔BE contract fails CI when it drifts. Do not hand-edit `api-types.ts`.
 
 ## 7. Shared-Layer Dependency Rules
 
