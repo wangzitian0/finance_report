@@ -189,6 +189,11 @@ migrations:
     risk: low
     issue: "#962"
     proof: Additive nullable atomic_transactions.balance_after column plus a dedup_hash comment sync; no backfill, existing rows stay NULL. Covered by AC4.6.6/4.6.8 and the PR Alembic contract.
+  0039_stmt_conflicts_resolved:
+    file: 0039_stmt_conflicts_resolved.py
+    risk: low
+    issue: "#962"
+    proof: Additive nullable statement_summaries.stage1_conflicts_resolved_at column; no backfill, existing rows stay NULL (the prior "unresolved" behavior). Covered by AC16.34.1/16.34.2 and the PR Alembic contract.
   0035_manual_valuation_versioning:
     file: 0035_manual_valuation_versioning.py
     risk: medium

@@ -10,18 +10,25 @@ interface ConflictCandidate {
     amount: MoneyValue;
 }
 
+type ResolveAction = "confirm_distinct" | "link_transfer";
+
 interface ConflictResolutionDialogProps {
     isOpen: boolean;
     onClose: () => void;
     duplicateCandidates: ConflictCandidate[];
     transferPairCandidates: ConflictCandidate[];
+    /** #962: resolve the candidates so a legitimate conflict no longer blocks approval. */
+    onResolve?: (action: ResolveAction) => void;
+    isResolving?: boolean;
 }
 
 export function ConflictResolutionDialog({
     isOpen,
     onClose,
     duplicateCandidates,
-    transferPairCandidates
+    transferPairCandidates,
+    onResolve,
+    isResolving = false
 }: ConflictResolutionDialogProps) {
     const dialogRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
@@ -75,7 +82,14 @@ export function ConflictResolutionDialog({
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>
                                                 </div>
-                                                <button className="btn-primary btn-sm">Resolve</button>
+                                                <button
+                                                    type="button"
+                                                    className="btn-primary btn-sm"
+                                                    disabled={isResolving || !onResolve}
+                                                    onClick={() => onResolve?.("confirm_distinct")}
+                                                >
+                                                    {isResolving ? "Resolving…" : "Resolve"}
+                                                </button>
                                             </div>
                                         ))}
                                     </div>
@@ -95,7 +109,14 @@ export function ConflictResolutionDialog({
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>
                                                 </div>
-                                                <button className="btn-primary btn-sm">Link Pair</button>
+                                                <button
+                                                    type="button"
+                                                    className="btn-primary btn-sm"
+                                                    disabled={isResolving || !onResolve}
+                                                    onClick={() => onResolve?.("link_transfer")}
+                                                >
+                                                    {isResolving ? "Resolving…" : "Link Pair"}
+                                                </button>
                                             </div>
                                         ))}
                                     </div>

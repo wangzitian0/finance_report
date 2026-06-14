@@ -56,4 +56,42 @@ describe("ConflictResolutionDialog", () => {
         expect(screen.getAllByText("Resolve").length).toBeGreaterThanOrEqual(1);
         expect(screen.getAllByText("Link Pair").length).toBeGreaterThanOrEqual(1);
     });
+
+    it("AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action", () => {
+        const onResolve = vi.fn();
+        render(
+            <ConflictResolutionDialog
+                isOpen={true}
+                onClose={onClose}
+                duplicateCandidates={[{ description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
+                transferPairCandidates={[{ description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }]}
+                onResolve={onResolve}
+            />
+        );
+
+        fireEvent.click(screen.getByText("Resolve"));
+        expect(onResolve).toHaveBeenCalledWith("confirm_distinct");
+
+        fireEvent.click(screen.getByText("Link Pair"));
+        expect(onResolve).toHaveBeenCalledWith("link_transfer");
+    });
+
+    it("AC16.34.3 disables the action buttons while a resolution is in flight", () => {
+        const onResolve = vi.fn();
+        render(
+            <ConflictResolutionDialog
+                isOpen={true}
+                onClose={onClose}
+                duplicateCandidates={[{ description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
+                transferPairCandidates={[]}
+                onResolve={onResolve}
+                isResolving
+            />
+        );
+
+        const resolving = screen.getByText("Resolving…");
+        expect(resolving).toBeDisabled();
+        fireEvent.click(resolving);
+        expect(onResolve).not.toHaveBeenCalled();
+    });
 });

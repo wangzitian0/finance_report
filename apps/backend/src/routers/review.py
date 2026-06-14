@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
+from src.logger import get_logger
 from src.models import (
     JournalEntry,
     JournalEntryStatus,
@@ -20,7 +21,9 @@ from src.schemas.review import (
     ConsistencyCheckListResponse,
     ConsistencyCheckResponse,
     ResolveCheckRequest,
+    ResolveConflictsRequest,
     ReviewConflictCandidate,
+    ReviewConflictsResolveResponse,
     ReviewConflictsResponse,
     Stage2ReviewQueueResponse,
 )
@@ -34,8 +37,10 @@ from src.services.consistency_checks import (
 )
 from src.services.review_queue import accept_match as accept_match_service, get_stage2_queue
 from src.services.source_type_priority import STATEMENT_SOURCE_TYPES
-from src.services.statement_validation import resolve_statement_transactions
+from src.services.statement_validation import resolve_statement_conflicts, resolve_statement_transactions
 from src.utils import raise_not_found
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/statements", tags=["review"])
 conflicts_router = APIRouter(prefix="/review", tags=["review"])
@@ -89,6 +94,37 @@ async def get_review_conflicts(
             by_abs_amount[key] = txn
 
     return ReviewConflictsResponse(duplicates=duplicates, transfer_pairs=transfer_pairs)
+
+
+@conflicts_router.post("/conflicts/{statement_id}/resolve", response_model=ReviewConflictsResolveResponse)
+async def resolve_review_conflicts(
+    statement_id: UUID,
+    request: ResolveConflictsRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReviewConflictsResolveResponse:
+    """Resolve a statement's Stage-1 duplicate/transfer-pair candidates (#962).
+
+    Records the reviewer's decision so the approval guard stops blocking, instead
+    of leaving a legitimately-conflicting statement permanently stuck in ``parsed``.
+    """
+    try:
+        statement = await resolve_statement_conflicts(db, statement_id, user_id)
+        # Read before commit: commit expires the ORM object, and a post-commit
+        # attribute access would trigger a lazy load outside the async greenlet.
+        resolved_at = statement.stage1_conflicts_resolved_at
+        await db.commit()
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    logger.info(
+        "stage1.conflicts.resolved",
+        audit_event="stage1.conflicts.resolved",
+        statement_id=str(statement_id),
+        action=request.action,
+    )
+    return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)
 
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)

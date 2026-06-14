@@ -83,6 +83,7 @@ export default function StatementReviewPage() {
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
     const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+    const [conflictsResolved, setConflictsResolved] = useState(false);
 
     // Queries
     const { data, isLoading: loading, error, refetch } = useQuery({
@@ -134,6 +135,22 @@ export default function StatementReviewPage() {
             router.push(fromAttention ? ATTENTION_RETURN_HREF : "/statements");
         },
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error")
+    });
+
+    // #962 / AC16.34.1: resolve the duplicate/transfer-pair candidates so a
+    // legitimately-conflicting statement can be approved instead of being stuck.
+    const resolveConflictsMutation = useMutation({
+        mutationFn: (action: "confirm_distinct" | "link_transfer") =>
+            apiFetch(`/api/review/conflicts/${statementId}/resolve`, {
+                method: "POST",
+                body: JSON.stringify({ action }),
+            }),
+        onSuccess: () => {
+            showToast("Conflicts resolved", "success");
+            setConflictsResolved(true);
+            setConflictDialogOpen(false);
+        },
+        onError: (err) => showToast(err instanceof Error ? err.message : "Failed to resolve conflicts", "error"),
     });
 
     // EPIC-022 AC22.5.2: re-parse in place when a balance mismatch blocks approval,
@@ -200,7 +217,8 @@ export default function StatementReviewPage() {
     const balanceValid = Boolean(
         data.balance_validation_result?.opening_match && data.balance_validation_result?.closing_match
     );
-    const hasUnresolvedConflicts = duplicateCandidates.length > 0 || transferPairCandidates.length > 0;
+    const hasUnresolvedConflicts =
+        !conflictsResolved && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
     const approvalBlockedReason = hasUnresolvedConflicts
         ? "Resolve duplicate and transfer-pair candidates before approval"
         : null;
@@ -290,6 +308,8 @@ export default function StatementReviewPage() {
                 onClose={() => setConflictDialogOpen(false)}
                 duplicateCandidates={duplicateCandidates}
                 transferPairCandidates={transferPairCandidates}
+                onResolve={(action) => resolveConflictsMutation.mutate(action)}
+                isResolving={resolveConflictsMutation.isPending}
             />
 
             <ConfirmDialog
