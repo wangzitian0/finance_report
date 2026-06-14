@@ -108,6 +108,17 @@ read-only deep links such as `Review N`; they must never execute ledger writes,
 approvals, postings, or reconciliation mutations. The frontend must render this
 metadata directly and must not infer citations or actions by parsing LLM prose.
 
+Because the endpoint returns a bare `StreamingResponse` (no FastAPI
+`response_model`), its out-of-band payload is declared by the typed contract
+`ChatStreamEnvelope` (`apps/backend/src/schemas/streaming.py`). The envelope
+fixes the wire structure: a `text/plain` token body plus headers
+`X-Session-Id` (session UUID), optional `X-Model-Name`, and optional
+`X-Advisor-Metadata` (validated against `ChatResponseMetadata` before
+serialization; omitted when the metadata is empty), with `X-Session-Id`,
+`X-Model-Name`, and `X-Advisor-Metadata` listed in `Access-Control-Expose-Headers`
+in that order. This is a description of the existing wire behavior, not a change
+to it (EPIC-006 AC6.33).
+
 ### 2.4 Financial Suggestion Scope
 
 The assistant may surface explainable personal-finance suggestions from trusted

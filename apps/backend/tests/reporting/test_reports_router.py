@@ -347,6 +347,25 @@ async def test_export_endpoint(client, test_data_setup_reports):
     assert "text/csv" in response_is.headers["content-type"]
 
 
+async def test_AC6_33_8_export_response_matches_typed_envelope(client, test_data_setup_reports):
+    """AC6.33.8: /reports/export emits the media type + attachment header declared by the typed envelope."""
+    from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
+
+    await test_data_setup_reports()
+
+    params = {"report_type": "balance-sheet", "format": "csv", "currency": "SGD"}
+    response = await client.get("/reports/export", params=params)
+
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith("attachment; filename=")
+    filename = disposition.split("filename=", 1)[1]
+    # The wire header must equal what the typed envelope would produce.
+    envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=filename)
+    assert envelope.to_headers()["Content-Disposition"] == disposition
+
+
 async def test_AC5_16_1_balance_sheet_export_honors_restricted_query(
     client,
     monkeypatch: pytest.MonkeyPatch,

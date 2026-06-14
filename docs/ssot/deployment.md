@@ -172,6 +172,37 @@ deploy helper reports only endpoint, HTTP status, safe message fields, and an
 allowlisted effective environment diff for `IMAGE_TAG`, `GIT_COMMIT_SHA`,
 `IAC_CONFIG_HASH`, `ENV_SUFFIX`, and `COMPOSE_PROFILES`.
 
+### Stale effective app env failure mode (issue #575)
+
+A Dokploy deploy can report success while the **effective** remote app env /
+compose config stays on the previous release: the generated app `.env` keeps the
+old `IMAGE_TAG`, `GIT_COMMIT_SHA`, and `IAC_CONFIG_HASH`, so the health gate
+reads the stale version for its whole window. Triggering the deploy and seeing
+the rollout reach `done` is therefore **not** proof that the requested release is
+effective.
+
+To close this gap, after the rollout reaches `done` but **before** the long
+health wait, `tools/dokploy_deploy.sh` re-fetches `compose.one` and verifies the
+**effective** remote app env against the requested release via
+`verify_effective_remote_app_env` (allowlisted `IMAGE_TAG`, `GIT_COMMIT_SHA`,
+`IAC_CONFIG_HASH`; secret env values are never echoed):
+
+- **Match** → proceed to the health wait.
+- **Stale** → fail fast with diagnostics that name each stale value
+  (`expected=… actual=…`), and attempt one **guarded automated recovery** path
+  before failing the deploy.
+
+The automated recovery is `force_recreate_stateless_app`, gated behind the
+explicit `DOKPLOY_ALLOW_FORCE_RECREATE=true` opt-in. It refreshes the release
+token with a fresh `IAC_CONFIG_HASH` (forcing Dokploy to recreate the stateless
+app containers even for an unchanged image tag), re-pushes the corrected env, and
+forces a `compose.redeploy`. The recreate also resolves the fixed
+`container_name` (`finance_report-{backend,frontend}${ENV_SUFFIX}`) conflict by
+replacing the stale stateless containers; postgres/redis are never touched. The
+deploy then re-verifies the effective env and fails the release if it is still
+stale. This replaces the previous manual SSH + stateless container recreate
+recovery.
+
 Dokploy API and CLI usage should stay minimal and state-oriented. Use whichever
 surface exposes the required operation, then prove correctness by comparing the
 effective runtime state against the requested allowlist; do not log full API

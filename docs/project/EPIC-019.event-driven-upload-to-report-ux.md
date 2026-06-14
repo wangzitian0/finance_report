@@ -326,6 +326,7 @@ workflow state exists.
 | AC19.2.4 | `PATCH /workflow/events/{id}` updates only the authenticated user's event lifecycle and returns 404 for missing or non-owned events | `test_AC19_2_4_workflow_event_patch_is_user_scoped` | P0 |
 | AC19.2.5 | Status and events reads run deterministic derived sync without duplicating events or resetting read/archive lifecycle state | `test_AC19_2_5_workflow_reads_sync_derived_events_without_lifecycle_reset` | P0 |
 | AC19.2.6 | Workflow API router is mounted and documented in the workflow-events SSOT as the compact read path for later UI slices | `test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path` | P0 |
+| AC19.2.7 | `GET /workflow/events` session summaries reuse the authoritative `get_workflow_status` derivation, so a blocked active session never reports `primary_state=ready`/`report_readiness=none` while `/workflow/status` reports blocked | `test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked` | P0 |
 
 ### AC19.3 — In-App Event Inbox, Header Badge, And Status Feed
 

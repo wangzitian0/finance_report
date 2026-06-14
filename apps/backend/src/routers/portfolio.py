@@ -43,6 +43,11 @@ from src.utils.money import to_money
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 logger = get_logger(__name__)
 
+# Default cap + bounds for portfolio list endpoints (issue #1007, AC17.30).
+# Matches the accounts module convention (limit default 100, ge=1, le=500).
+_DEFAULT_LIST_LIMIT = 100
+_MAX_LIST_LIMIT = 500
+
 _portfolio_service = PortfolioService()
 _brokerage_import_service = BrokeragePositionImportService()
 
@@ -167,13 +172,17 @@ async def get_holdings(
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
     include_disposed: bool = Query(False, description="Include disposed positions"),
+    limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[HoldingResponse]:
-    """Get portfolio holdings with P&L."""
+    """Get portfolio holdings with P&L (bounded by limit/offset; see AC17.30)."""
     logger.info(
         "Getting holdings",
         user_id=str(user_id),
         as_of_date=as_of_date,
         include_disposed=include_disposed,
+        limit=limit,
+        offset=offset,
     )
 
     try:
@@ -187,8 +196,9 @@ async def get_holdings(
         # No holdings found — return empty list instead of error
         return []
 
-    logger.info("Retrieved holdings", count=len(holdings))
-    return holdings
+    page = list(holdings)[offset : offset + limit]
+    logger.info("Retrieved holdings", count=len(page), total=len(holdings))
+    return page
 
 
 @router.get("/summary", response_model=PortfolioSummaryDashboardResponse)
@@ -274,15 +284,19 @@ async def get_holding_dividends(
     ticker: str,
     db: DbSession,
     user_id: CurrentUserId,
+    limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[DividendEventResponse]:
-    """List dividend events for a holding ticker."""
+    """List dividend events for a holding ticker (bounded by limit/offset; see AC17.30)."""
     result = await db.execute(
         select(DividendIncome)
         .join(ManagedPosition, DividendIncome.position_id == ManagedPosition.id)
         .where(DividendIncome.user_id == user_id)
         .where(ManagedPosition.user_id == user_id)
         .where(ManagedPosition.asset_identifier == ticker)
-        .order_by(DividendIncome.payment_date.desc())
+        .order_by(DividendIncome.payment_date.desc(), DividendIncome.id.desc())
+        .offset(offset)
+        .limit(limit)
     )
     return [
         DividendEventResponse(
@@ -340,15 +354,19 @@ async def get_holding_realized_lots(
     ticker: str,
     db: DbSession,
     user_id: CurrentUserId,
+    limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[RealizedLotResponse]:
-    """List lot-level realized P&L rows for a holding ticker."""
+    """List lot-level realized P&L rows for a holding ticker (bounded by limit/offset; see AC17.30)."""
     result = await db.execute(
         select(InvestmentTransaction, ManagedPosition)
         .outerjoin(ManagedPosition, InvestmentTransaction.position_id == ManagedPosition.id)
         .where(InvestmentTransaction.user_id == user_id)
         .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL)
         .where(InvestmentTransaction.asset_identifier == ticker)
-        .order_by(InvestmentTransaction.transaction_date.desc())
+        .order_by(InvestmentTransaction.transaction_date.desc(), InvestmentTransaction.id.desc())
+        .offset(offset)
+        .limit(limit)
     )
     rows = []
     for txn, position in result.all():
@@ -796,12 +814,16 @@ async def get_sector_allocation(
     db: DbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
+    limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
-    """Get sector allocation breakdown."""
+    """Get sector allocation breakdown (bounded by limit/offset; see AC17.30)."""
     logger.info(
         "Getting sector allocation",
         user_id=str(user_id),
         as_of_date=as_of_date,
+        limit=limit,
+        offset=offset,
     )
 
     breakdowns = await allocation.get_sector_allocation(
@@ -810,8 +832,9 @@ async def get_sector_allocation(
         as_of_date=as_of_date or date.today(),
     )
 
-    logger.info("Retrieved sector allocation", count=len(breakdowns))
-    return [AllocationBreakdownResponse(**b.to_dict()) for b in breakdowns]
+    page = list(breakdowns)[offset : offset + limit]
+    logger.info("Retrieved sector allocation", count=len(page), total=len(breakdowns))
+    return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
 
 
 @router.get("/allocation/geography", response_model=list[AllocationBreakdownResponse])
@@ -819,12 +842,16 @@ async def get_geography_allocation(
     db: DbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
+    limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
-    """Get geography allocation breakdown."""
+    """Get geography allocation breakdown (bounded by limit/offset; see AC17.30)."""
     logger.info(
         "Getting geography allocation",
         user_id=str(user_id),
         as_of_date=as_of_date,
+        limit=limit,
+        offset=offset,
     )
 
     breakdowns = await allocation.get_geography_allocation(
@@ -833,8 +860,9 @@ async def get_geography_allocation(
         as_of_date=as_of_date or date.today(),
     )
 
-    logger.info("Retrieved geography allocation", count=len(breakdowns))
-    return [AllocationBreakdownResponse(**b.to_dict()) for b in breakdowns]
+    page = list(breakdowns)[offset : offset + limit]
+    logger.info("Retrieved geography allocation", count=len(page), total=len(breakdowns))
+    return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
 
 
 @router.get("/allocation/asset-class", response_model=list[AllocationBreakdownResponse])
@@ -842,12 +870,16 @@ async def get_asset_class_allocation(
     db: DbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(None, description="Calculate as of this date (default: today)"),
+    limit: int = Query(_DEFAULT_LIST_LIMIT, ge=1, le=_MAX_LIST_LIMIT, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
-    """Get asset class allocation breakdown."""
+    """Get asset class allocation breakdown (bounded by limit/offset; see AC17.30)."""
     logger.info(
         "Getting asset class allocation",
         user_id=str(user_id),
         as_of_date=as_of_date,
+        limit=limit,
+        offset=offset,
     )
 
     breakdowns = await allocation.get_asset_class_allocation(
@@ -856,8 +888,9 @@ async def get_asset_class_allocation(
         as_of_date=as_of_date or date.today(),
     )
 
-    logger.info("Retrieved asset class allocation", count=len(breakdowns))
-    return [AllocationBreakdownResponse(**b.to_dict()) for b in breakdowns]
+    page = list(breakdowns)[offset : offset + limit]
+    logger.info("Retrieved asset class allocation", count=len(page), total=len(breakdowns))
+    return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
 
 
 @router.post("/prices/update", status_code=status.HTTP_200_OK)

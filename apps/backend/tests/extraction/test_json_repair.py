@@ -70,6 +70,37 @@ class TestRepairJsonObject:
         assert repaired is not None
         assert json.loads(repaired) == {"path": "C:\\Users\\x", "quote": 'she said "hi"', "ok": True}
 
+    def test_prefers_largest_object_when_example_precedes_real(self):
+        """AC13.14.7: when a small example object precedes the real (larger)
+        extraction, the real one is recovered — not the leading example."""
+        content = (
+            'Here is the format I will use: {"institution": "Example", "transactions": []}\n'
+            "Now the actual data:\n"
+            '{"institution": "DBS", "opening_balance": "1000.00", "closing_balance": "1100.00", '
+            '"transactions": [{"amount": "100.00", "direction": "IN"}]}'
+        )
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        obj = json.loads(repaired)
+        assert obj["institution"] == "DBS"
+        assert obj["transactions"] == [{"amount": "100.00", "direction": "IN"}]
+
+    def test_complete_object_then_trailing_unbalanced_brace(self):
+        """AC13.14.8: a complete object followed by trailing junk that opens an
+        unbalanced brace still recovers the complete object."""
+        content = '{"institution": "DBS", "transactions": []}\nnote: {oops'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"institution": "DBS", "transactions": []}
+
+    def test_leading_unbalanced_brace_then_real_object(self):
+        """AC13.14.9: a leading unmatched brace (junk) before the real object does
+        not stop the scan — the real object is still recovered."""
+        content = 'note: {oops\n{"institution": "DBS", "transactions": []}'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"institution": "DBS", "transactions": []}
+
 
 class TestExtractionSalvagesFencedResponse:
     async def test_fenced_response_is_salvaged(self):

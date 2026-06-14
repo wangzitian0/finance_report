@@ -281,7 +281,7 @@ if [[ ${#missing_args[@]} -gt 0 ]] || [[ ${#missing_envs[@]} -gt 0 ]]; then
   echo "========================================="
   echo "ERROR: Missing Required Dependencies"
   echo "========================================="
-  
+
   if [[ ${#missing_args[@]} -gt 0 ]]; then
     echo ""
     echo "Missing Arguments:"
@@ -289,7 +289,7 @@ if [[ ${#missing_args[@]} -gt 0 ]] || [[ ${#missing_envs[@]} -gt 0 ]]; then
     echo ""
     echo "Usage: $0 <compose_id> <image_tag> <app_url>"
   fi
-  
+
   if [[ ${#missing_envs[@]} -gt 0 ]]; then
     echo ""
     echo "Missing Environment Variables:"
@@ -297,7 +297,7 @@ if [[ ${#missing_args[@]} -gt 0 ]] || [[ ${#missing_envs[@]} -gt 0 ]]; then
     echo ""
     echo "Required in workflow step 'env:' section"
   fi
-  
+
   echo "========================================="
   exit 1
 fi
@@ -409,6 +409,153 @@ if [[ "$rollout_status" -eq 2 || "$rollout_status" -eq 3 ]]; then
   fi
 elif [[ "$rollout_status" -ne 0 ]]; then
   exit "$rollout_status"
+fi
+
+# Read back the EFFECTIVE remote app env after Dokploy reports a rollout as done
+# but BEFORE the long health wait, and compare the release-defining values
+# (IMAGE_TAG, GIT_COMMIT_SHA, IAC_CONFIG_HASH) against what this deploy
+# requested. Issue #575: Dokploy can report success while the generated app env
+# / effective compose config remains on the previous release, which makes the
+# health gate wait out its entire window reading the old version. On mismatch
+# this fails fast with diagnostics that NAME the stale values (never secrets).
+#
+# Usage: verify_effective_remote_app_env <compose_id> <expected_image_tag> <expected_iac_config_hash>
+# Returns: 0 when the effective env matches; 1 when it is stale.
+verify_effective_remote_app_env() {
+  local compose_id="$1"
+  local expected_image_tag="$2"
+  local expected_iac_config_hash="$3"
+  local verify_response_file
+  local verify_response
+  local effective
+  local key expected actual
+  local stale=0
+
+  verify_response_file=$(mktemp)
+  register_cleanup "$verify_response_file" 2>/dev/null || true
+
+  dokploy_api_call "GET" "compose.one?composeId=$compose_id" "" "$verify_response_file" "Effective remote app env verification"
+  verify_response=$(cat "$verify_response_file")
+  effective=$(safe_jq '.env // empty' "$verify_response" "post-rollout effective env fetch") || return 1
+
+  echo "Verifying effective remote app env before health wait (compose_id=$compose_id)"
+  # Only the allowlisted release-defining values are read; secret env values are
+  # never echoed.
+  for key in IMAGE_TAG GIT_COMMIT_SHA IAC_CONFIG_HASH; do
+    case "$key" in
+      IMAGE_TAG) expected="$expected_image_tag" ;;
+      GIT_COMMIT_SHA) expected="$expected_image_tag" ;;
+      IAC_CONFIG_HASH) expected="$expected_iac_config_hash" ;;
+    esac
+    actual="$(env_value "$effective" "$key")"
+    if [[ "$expected" == "$actual" ]]; then
+      echo "$key: match"
+    else
+      echo "$key: expected=$expected actual=$actual"
+      stale=1
+    fi
+  done
+
+  if [[ "$stale" -eq 0 ]]; then
+    echo "effective_env_verification: match"
+    return 0
+  fi
+
+  echo "effective_env_verification: stale" >&2
+  echo "ERROR: Dokploy reported success but the effective remote app env is stale (issue #575)" >&2
+  return 1
+}
+
+# Safe, GUARDED reconcile / force-recreate path for the stateless app containers
+# when the effective remote env is stale after a "successful" Dokploy deploy.
+# Issue #575: recovery previously required manual SSH + a stateless container
+# recreate. This reconcile refreshes the release token (a fresh IAC_CONFIG_HASH
+# so Dokploy is forced to recreate even for the same image tag), pushes the
+# corrected env, and forces a compose.redeploy. It is gated behind the explicit
+# DOKPLOY_ALLOW_FORCE_RECREATE opt-in because force-recreate can briefly drop the
+# fixed-container_name stateless app containers; postgres/redis are never touched.
+#
+# Usage: force_recreate_stateless_app <compose_id> <image_tag> <current_env>
+# Returns: 0 on a triggered reconcile; 1 when not permitted or on failure.
+force_recreate_stateless_app() {
+  local compose_id="$1"
+  local image_tag="$2"
+  local current_env="$3"
+  local reconciled_env
+  local refreshed_hash
+  local reconcile_payload
+  local reconcile_update_file
+
+  if [[ "${DOKPLOY_ALLOW_FORCE_RECREATE:-false}" != "true" ]]; then
+    echo "Stale effective env detected but DOKPLOY_ALLOW_FORCE_RECREATE is not 'true'; refusing automated force-recreate." >&2
+    echo "Set DOKPLOY_ALLOW_FORCE_RECREATE=true to allow the guarded stateless app reconcile." >&2
+    return 1
+  fi
+
+  echo "Reconciling stale stateless app deployment via guarded force-recreate (compose_id=$compose_id)"
+  # Force a fresh release token so Dokploy recreates the stateless app
+  # containers even when the requested image tag is unchanged. The fixed
+  # container_name (finance_report-{backend,frontend}${ENV_SUFFIX}) can otherwise
+  # collide with the still-running stale container; a recreate resolves the
+  # container_name conflict by replacing it.
+  refreshed_hash="reconcile-${image_tag}-$(date +%s)"
+  reconciled_env="$current_env"
+  reconciled_env=$(update_env_var "$reconciled_env" "IMAGE_TAG" "$image_tag")
+  reconciled_env=$(update_env_var "$reconciled_env" "GIT_COMMIT_SHA" "$image_tag")
+  reconciled_env=$(update_env_var "$reconciled_env" "IAC_CONFIG_HASH" "$refreshed_hash")
+  RECONCILE_IAC_CONFIG_HASH="$refreshed_hash"
+
+  reconcile_update_file=$(mktemp)
+  register_cleanup "$reconcile_update_file" 2>/dev/null || true
+  reconcile_payload=$(safe_jq_build --arg id "$compose_id" --arg env "$reconciled_env" '{composeId: $id, env: $env}') || return 1
+  dokploy_api_call "POST" "compose.update" "$reconcile_payload" "$reconcile_update_file" "Stale-env reconcile update" || return 1
+
+  # compose.redeploy forces a recreate of the (stateless) app containers,
+  # resolving the fixed container_name conflict by replacing the stale ones.
+  deploy_compose "compose.redeploy" "Stale-env force-recreate redeploy" || return 1
+  echo "Stale-env force-recreate redeploy triggered with refreshed IAC_CONFIG_HASH"
+  return 0
+}
+
+# Issue #575: Dokploy can report the rollout as done while the effective remote
+# app env / compose config is still on the previous release. Verify the
+# effective remote app state (IMAGE_TAG / GIT_COMMIT_SHA / IAC_CONFIG_HASH)
+# BEFORE the caller starts the long health wait. On a stale mismatch, attempt a
+# single guarded force-recreate reconcile and re-verify; otherwise fail fast.
+if ! verify_effective_remote_app_env "$COMPOSE_ID" "$IMAGE_TAG" "$IAC_CONFIG_HASH_VALUE"; then
+  dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Pre-reconcile env snapshot"
+  reconcile_response=$(cat "$response_file")
+  reconcile_env=$(safe_jq '.env // empty' "$reconcile_response" "pre-reconcile env fetch") || exit 1
+
+  # Capture the rollout-wait baseline from the PRE-reconcile snapshot, BEFORE
+  # force_recreate_stateless_app triggers compose.redeploy. A post-redeploy
+  # snapshot can already include the newly-created deployment record (a fast
+  # redeploy completes before we re-fetch), which would hide the new deployment
+  # from wait_for_dokploy_deployment_rollout and cause a spurious "did not
+  # create a new deployment" timeout. Using the pre-reconcile baseline
+  # guarantees the freshly-created deployment is detected as new.
+  previous_deployment_ids=$(deployment_ids_from_response "$reconcile_response") || exit 1
+  previous_deployment_signatures=$(deployment_signature_map_from_response "$reconcile_response") || exit 1
+
+  if ! force_recreate_stateless_app "$COMPOSE_ID" "$IMAGE_TAG" "$reconcile_env"; then
+    echo "ERROR: Effective remote app env is stale and automated reconcile was not performed (issue #575)" >&2
+    exit 1
+  fi
+
+  set +e
+  wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids" "$previous_deployment_signatures"
+  rollout_status=$?
+  set -e
+  if [[ "$rollout_status" -ne 0 ]]; then
+    echo "ERROR: Stale-env reconcile redeploy did not reach done (issue #575)" >&2
+    exit "$rollout_status"
+  fi
+
+  if ! verify_effective_remote_app_env "$COMPOSE_ID" "$IMAGE_TAG" "${RECONCILE_IAC_CONFIG_HASH:-$IAC_CONFIG_HASH_VALUE}"; then
+    echo "ERROR: Effective remote app env is still stale after force-recreate reconcile (issue #575)" >&2
+    exit 1
+  fi
+  echo "Stale effective remote app env reconciled successfully"
 fi
 
 echo "Deployment triggered successfully"

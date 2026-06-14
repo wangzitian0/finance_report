@@ -985,3 +985,244 @@ async def test_get_performance_mwr_calculation_error(client: AsyncClient, portfo
     response = await client.get("/portfolio/performance")
     assert response.status_code == 422
     assert "MWR convergence failed" in response.json()["detail"]
+
+
+# --- AC17.30: Portfolio list endpoint pagination (issue #1007) ---
+
+
+@pytest.fixture
+async def portfolio_with_many_dividends(db: AsyncSession, test_user, portfolio_with_data):
+    """Seed many dividend rows for a single ticker to exercise pagination bounds."""
+    position = portfolio_with_data["position"]
+    dividends = [
+        DividendIncome(
+            user_id=test_user.id,
+            position_id=position.id,
+            payment_date=date(2026, 1, 1) + timedelta(days=index),
+            amount=Decimal("1.00"),
+            currency="SGD",
+        )
+        for index in range(7)
+    ]
+    db.add_all(dividends)
+    await db.commit()
+    return {"count": len(dividends), "ticker": "AAPL"}
+
+
+@pytest.fixture
+async def portfolio_with_many_realized(db: AsyncSession, test_user, portfolio_with_data):
+    """Seed many SELL transactions for a single ticker to exercise pagination bounds."""
+    position = portfolio_with_data["position"]
+    sells = [
+        InvestmentTransaction(
+            user_id=test_user.id,
+            position_id=position.id,
+            transaction_date=date(2026, 1, 1) + timedelta(days=index),
+            transaction_type=InvestmentTransactionType.SELL,
+            asset_identifier="AAPL",
+            quantity=Decimal("1"),
+            unit_price=Decimal("130.00"),
+            gross_amount=Decimal("130.00"),
+            fees=Decimal("0.00"),
+            currency="SGD",
+            cost_basis=Decimal("100.00"),
+            realized_pnl=Decimal("30.00"),
+            cost_basis_method=CostBasisMethod.FIFO,
+        )
+        for index in range(7)
+    ]
+    db.add_all(sells)
+    await db.commit()
+    return {"count": len(sells), "ticker": "AAPL"}
+
+
+def _override_holdings_default_limit(monkeypatch: pytest.MonkeyPatch, new_default: int) -> None:
+    """Monkeypatch the holdings route's `limit` default so default-cap behaviour
+    can be validated without seeding hundreds of rows.
+
+    FastAPI captures the default in the route's ``field_info`` at import time, so
+    patching the module constant alone has no effect on requests; we patch the
+    bound field default directly and restore it afterwards.
+    """
+    for route in portfolio_router.router.routes:
+        if getattr(route, "path", None) == "/portfolio/holdings" and "GET" in getattr(route, "methods", set()):
+            for query_param in route.dependant.query_params:
+                if query_param.name == "limit":
+                    monkeypatch.setattr(query_param.field_info, "default", new_default)
+                    return
+    raise AssertionError("Could not locate holdings route 'limit' query parameter")
+
+
+async def test_AC17_30_1_holdings_default_cap_applied(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC17.30.1: GET /portfolio/holdings caps results at the *default* limit when
+    no `limit` param is passed.
+
+    The default cap is monkeypatched to 2 and 3 holdings are seeded, so omitting
+    `limit` must genuinely return only the default-capped 2 rows (not all 3).
+    """
+    _override_holdings_default_limit(monkeypatch, 2)
+
+    for index in range(3):
+        ticker = f"TICK{index}"
+        db.add_all(
+            [
+                ManagedPosition(
+                    user_id=test_user.id,
+                    account_id=investment_account.id,
+                    asset_identifier=ticker,
+                    quantity=Decimal("10"),
+                    cost_basis=Decimal("1000.00"),
+                    currency="SGD",
+                    acquisition_date=date.today(),
+                    status=PositionStatus.ACTIVE,
+                    cost_basis_method=CostBasisMethod.FIFO,
+                ),
+                AtomicPosition(
+                    user_id=test_user.id,
+                    snapshot_date=date.today(),
+                    asset_identifier=ticker,
+                    broker="Test Broker",
+                    quantity=Decimal("10"),
+                    market_value=Decimal("1100.00"),
+                    currency="SGD",
+                    dedup_hash=f"cap_snapshot_{ticker}",
+                    source_documents={},
+                ),
+            ]
+        )
+    await db.commit()
+
+    # No `limit` param -> the (patched) default cap of 2 must apply, not all 3.
+    response = await client.get("/portfolio/holdings")
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+
+async def test_AC17_30_2_holdings_limit_offset_honored(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    investment_account,
+):
+    """AC17.30.2: GET /portfolio/holdings honors limit and offset to page through holdings."""
+    for index in range(3):
+        ticker = f"PAGE{index}"
+        db.add_all(
+            [
+                ManagedPosition(
+                    user_id=test_user.id,
+                    account_id=investment_account.id,
+                    asset_identifier=ticker,
+                    quantity=Decimal("10"),
+                    cost_basis=Decimal("1000.00"),
+                    currency="SGD",
+                    acquisition_date=date.today(),
+                    status=PositionStatus.ACTIVE,
+                    cost_basis_method=CostBasisMethod.FIFO,
+                ),
+                AtomicPosition(
+                    user_id=test_user.id,
+                    snapshot_date=date.today(),
+                    asset_identifier=ticker,
+                    broker="Test Broker",
+                    quantity=Decimal("10"),
+                    market_value=Decimal("1100.00"),
+                    currency="SGD",
+                    dedup_hash=f"page_snapshot_{ticker}",
+                    source_documents={},
+                ),
+            ]
+        )
+    await db.commit()
+
+    full = await client.get("/portfolio/holdings")
+    assert full.status_code == 200
+    full_assets = [row["asset_identifier"] for row in full.json()]
+    assert len(full_assets) == 3
+
+    page = await client.get("/portfolio/holdings?limit=1&offset=1")
+    assert page.status_code == 200
+    page_assets = [row["asset_identifier"] for row in page.json()]
+    assert page_assets == full_assets[1:2]
+
+
+async def test_AC17_30_3_holdings_rejects_out_of_range_pagination(client: AsyncClient):
+    """AC17.30.3: GET /portfolio/holdings rejects out-of-range limit/offset with 422."""
+    too_large = await client.get("/portfolio/holdings?limit=10000")
+    assert too_large.status_code == 422
+
+    zero_limit = await client.get("/portfolio/holdings?limit=0")
+    assert zero_limit.status_code == 422
+
+    negative_offset = await client.get("/portfolio/holdings?offset=-1")
+    assert negative_offset.status_code == 422
+
+
+async def test_AC17_30_4_dividends_limit_offset_honored(
+    client: AsyncClient,
+    portfolio_with_many_dividends,
+):
+    """AC17.30.4: GET /portfolio/{ticker}/dividends honors limit/offset and rejects out-of-range."""
+    ticker = portfolio_with_many_dividends["ticker"]
+    total = portfolio_with_many_dividends["count"]
+
+    full = await client.get(f"/portfolio/{ticker}/dividends")
+    assert full.status_code == 200
+    assert len(full.json()) == total
+
+    limited = await client.get(f"/portfolio/{ticker}/dividends?limit=3")
+    assert limited.status_code == 200
+    assert len(limited.json()) == 3
+
+    offset_page = await client.get(f"/portfolio/{ticker}/dividends?limit=3&offset=3")
+    assert offset_page.status_code == 200
+    assert [row["id"] for row in offset_page.json()] == [row["id"] for row in full.json()[3:6]]
+
+    assert (await client.get(f"/portfolio/{ticker}/dividends?limit=10000")).status_code == 422
+
+
+async def test_AC17_30_5_realized_limit_offset_honored(
+    client: AsyncClient,
+    portfolio_with_many_realized,
+):
+    """AC17.30.5: GET /portfolio/{ticker}/realized honors limit/offset and rejects out-of-range."""
+    ticker = portfolio_with_many_realized["ticker"]
+    total = portfolio_with_many_realized["count"]
+
+    full = await client.get(f"/portfolio/{ticker}/realized")
+    assert full.status_code == 200
+    assert len(full.json()) == total
+
+    limited = await client.get(f"/portfolio/{ticker}/realized?limit=2")
+    assert limited.status_code == 200
+    assert len(limited.json()) == 2
+
+    offset_page = await client.get(f"/portfolio/{ticker}/realized?limit=2&offset=2")
+    assert offset_page.status_code == 200
+    assert [row["lot_id"] for row in offset_page.json()] == [row["lot_id"] for row in full.json()[2:4]]
+
+    assert (await client.get(f"/portfolio/{ticker}/realized?offset=-1")).status_code == 422
+
+
+async def test_AC17_30_6_allocation_limit_offset_honored(
+    client: AsyncClient,
+    portfolio_with_data,
+):
+    """AC17.30.6: GET /portfolio/allocation/* honors limit/offset and rejects out-of-range."""
+    full = await client.get("/portfolio/allocation/sector")
+    assert full.status_code == 200
+    full_rows = full.json()
+
+    limited = await client.get("/portfolio/allocation/sector?limit=1")
+    assert limited.status_code == 200
+    assert len(limited.json()) <= 1
+    assert len(limited.json()) <= len(full_rows)
+
+    assert (await client.get("/portfolio/allocation/geography?limit=10000")).status_code == 422
+    assert (await client.get("/portfolio/allocation/asset-class?offset=-1")).status_code == 422

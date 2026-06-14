@@ -1075,7 +1075,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
         in workflow
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
@@ -1804,7 +1804,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert "needs:" not in traceability_block.split("steps:", 1)[0]
     assert (
         "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, "
-        "container-images, lint, tooling-coverage, unified-coverage, ac-traceability]"
+        "container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
         in finish_block
     )
     assert "Standalone lint and AC traceability start immediately" in ci_cd

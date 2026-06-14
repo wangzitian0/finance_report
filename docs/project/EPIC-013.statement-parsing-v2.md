@@ -220,6 +220,9 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.14.4 | Content with no recoverable JSON object returns None; braces inside strings do not truncate | `test_unrecoverable_returns_none()`, `test_does_not_misread_braces_in_strings()` | `extraction/test_json_repair.py` | P1 |
 | AC13.14.5 | The extraction loop salvages a fenced response instead of rejecting the upload | `test_fenced_response_is_salvaged()`, `test_extract_financial_data_markdown_json()`, `test_extract_financial_data_json_markdown_fallback()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py`, `extraction/test_extraction_error_paths.py` | P1 |
 | AC13.14.6 | A response with no recoverable JSON still fails through the model-chain path | `test_unrecoverable_response_still_fails()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.7 | When a small example object precedes the real (larger) extraction, the largest object is recovered (not the example) | `test_prefers_largest_object_when_example_precedes_real()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.8 | A complete object followed by trailing unbalanced-brace junk still recovers the complete object | `test_complete_object_then_trailing_unbalanced_brace()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.9 | A leading unmatched brace (junk) before the real object does not stop the scan — the real object is recovered | `test_leading_unbalanced_brace_then_real_object()` | `extraction/test_json_repair.py` | P1 |
 
 ### AC13.10: Source Type Priority & Conflict Resolution
 
@@ -302,8 +305,10 @@ this gate.
 
 Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the
 model response; this AC pins the *request* so the model itself decodes
-reproducibly: temperature 0 / `do_sample` false plus a fixed `seed`
-(`AI_JSON_SEED`, default 42) forwarded to the provider.
+reproducibly: temperature 0 / `do_sample` false, plus an optional fixed `seed`
+(`AI_JSON_SEED`) forwarded to the provider. The seed is **off by default**
+because Z.AI/GLM validates params strictly and some models (e.g. the default
+`glm-4.6v`) reject `seed` with HTTP 400; it is opt-in for seed-supporting models.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
@@ -311,6 +316,7 @@ reproducibly: temperature 0 / `do_sample` false plus a fixed `seed`
 | AC13.16.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |
+| AC13.16.5 | The seed is off (None) by default so it is never sent to providers that reject it (e.g. glm-4.6v) | `test_seed_is_off_by_default()` | `extraction/test_seed_determinism.py` | P1 |
 
 ### AC13.17: Balance-Aware Self-Consistency Re-extract (issue #989 Step B)
 
@@ -334,3 +340,7 @@ kept so routing is unchanged. Only failing parses retry, so average cost is boun
 | AC13.17.6 | `AI_EXTRACT_MAX_ATTEMPTS=1` keeps single-shot behavior | `test_max_attempts_one_disables_retry()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.7 | A structurally-invalid parse (balance uncomputable, difference 0) does not win "best" over a numerically-close parse | `test_structurally_invalid_parse_does_not_win_as_best()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.8 | If every attempt is structurally invalid, the last parse is returned so `parse_document` reports the failure | `test_all_invalid_returns_last_parse()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.9 | A transient extraction error on a retry attempt keeps the earlier usable parse (no upload regression) | `test_transient_retry_error_keeps_earlier_usable_parse()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.10 | If every attempt raises, the error propagates so the upload fails as in the single-call path | `test_all_attempts_error_reraises()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.11 | A transient error on the first attempt does not abort; a later reconciling attempt is returned | `test_first_attempt_error_then_success_recovers()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.12 | An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins | `test_error_mid_run_does_not_skip_remaining_attempts()` | `extraction/test_self_consistency.py` | P1 |

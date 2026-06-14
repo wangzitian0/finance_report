@@ -111,11 +111,15 @@ class PortfolioService:
 
         eval_date = await self._default_holdings_eval_date(db, user_id)
 
-        # Get all managed positions for user
+        # Get all managed positions for user.
+        # Order deterministically (asset_identifier, then id tiebreaker) so that
+        # downstream limit/offset pagination returns stable, consistent pages
+        # across requests.
         positions_query = (
             select(ManagedPosition)
             .where(ManagedPosition.user_id == user_id)
             .options(selectinload(ManagedPosition.account))
+            .order_by(ManagedPosition.asset_identifier, ManagedPosition.id)
         )
 
         if not include_disposed:

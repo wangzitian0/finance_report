@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Analytics } from "@/components/Analytics";
 import { AuthGuard } from "@/components/AuthGuard";
+import { analyticsClientIdMissingInDeployedEnv } from "@/lib/analytics-env";
 import { Inter } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -46,6 +47,11 @@ export const viewport: Viewport = {
 // and already effectively dynamic).
 export const dynamic = "force-dynamic";
 
+// `force-dynamic` runs RootLayout per request, so log the misconfig at most once
+// per server process (mirrors the module-level guard in lib/api.ts) to avoid
+// flooding container logs / SigNoz on every request.
+let analyticsMisconfigWarned = false;
+
 export default function RootLayout({
   children,
 }: {
@@ -54,6 +60,17 @@ export default function RootLayout({
   // Gate entirely on the client id: when unset, no <Analytics> (and no extra
   // client boundary / analytics bundle) is rendered at all — a complete no-op.
   const openpanelClientId = process.env.OPENPANEL_CLIENT_ID?.trim();
+
+  if (
+    !analyticsMisconfigWarned &&
+    analyticsClientIdMissingInDeployedEnv(openpanelClientId, process.env.NEXT_PUBLIC_APP_URL)
+  ) {
+    analyticsMisconfigWarned = true;
+    console.error(
+      `[observability] OPENPANEL_CLIENT_ID is empty for ${process.env.NEXT_PUBLIC_APP_URL}; ` +
+        "page-view analytics is disabled. infra2 must issue the OpenPanel client id for this environment.",
+    );
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>

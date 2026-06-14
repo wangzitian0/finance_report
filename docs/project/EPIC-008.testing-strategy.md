@@ -438,6 +438,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
 | AC8.16.1 | A low-confidence extracted ledger input and a corrected (superseded) manual valuation both reach the report correctly: ledger numbers and the accounting equation hold, the low-confidence line carries the worst-input tier (not laundered), the superseded valuation is excluded from net-worth components, and the manual valuation does not contaminate the ledger balance sheet | `test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence` | `apps/backend/tests/integration/test_augmentation_seam_e2e.py` | P1 |
+| AC8.16.2 | A report aggregates only the requesting user's facts: with posted entries for two users, user A's balance sheet, income statement, and net-worth totals reflect only A's data — user B's accounts never appear and never inflate a total (cross-user leak at the report-number level, now testable since the test schema keeps the `users` FK per #991) | `test_AC8_16_2_reports_exclude_other_users_entries` | `apps/backend/tests/integration/test_cross_user_report_isolation_e2e.py` | P1 |
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

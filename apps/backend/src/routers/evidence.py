@@ -3,7 +3,7 @@
 from typing import Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from src.deps import CurrentUserId, DbSession
 from src.models.evidence import EvidenceEdge, EvidenceNode
@@ -11,8 +11,11 @@ from src.schemas.evidence import (
     EvidenceLineageBlocker,
     EvidenceLineageDirection,
     EvidenceLineageEdge,
+    EvidenceLineageError,
     EvidenceLineageNode,
     EvidenceLineageResponse,
+    build_edge_properties,
+    build_node_properties,
 )
 from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.services.evidence_lineage import DEFAULT_MAX_DEPTH, EvidenceLineageService, EvidenceTraversalStep
@@ -31,6 +34,31 @@ _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS = {
     "uploaded_document": {"source_document"},
     "atomic_transaction": {"atomic_fact"},
 }
+
+# Blocker codes that mean materialization genuinely failed (as opposed to the
+# anchor simply not existing yet, which is a legitimate empty/partial result).
+# When any of these surface, the request must NOT return 200-with-blockers; it
+# returns a non-2xx status with a structured EvidenceLineageError detail so
+# clients can distinguish a real failure from an empty graph.
+_GENUINE_FAILURE_BLOCKER_CODES = {
+    "materialization_write_cap_reached": 503,
+    "cross_user_lineage_blocked": 409,
+    "unsupported_provenance": 422,
+}
+
+
+def _materialization_failure_status(blockers: list[EvidenceLineageBlocker]) -> int | None:
+    """Return the HTTP status for the most severe genuine-failure blocker, if any.
+
+    ``entity_missing`` and ``graph_node_missing`` are deliberately excluded: they
+    represent an absent anchor, which is a valid empty result, not a failure.
+    """
+    statuses = [
+        _GENUINE_FAILURE_BLOCKER_CODES[blocker.code]
+        for blocker in blockers
+        if blocker.code in _GENUINE_FAILURE_BLOCKER_CODES
+    ]
+    return max(statuses) if statuses else None
 
 
 @router.get("/lineage", response_model=EvidenceLineageResponse)
@@ -66,6 +94,15 @@ async def get_evidence_lineage(
         ]
         if materialization.has_writes:
             await db.commit()
+        failure_status = _materialization_failure_status(materialization_blockers)
+        if failure_status is not None:
+            raise HTTPException(
+                status_code=failure_status,
+                detail=EvidenceLineageError(
+                    message="Evidence Graph materialization could not complete for this entity.",
+                    blockers=materialization_blockers,
+                ).model_dump(),
+            )
         anchor = await lineage.get_node_for_entity(
             db,
             user_id=user_id,
@@ -151,7 +188,7 @@ def _node_dto(node: EvidenceNode) -> EvidenceLineageNode:
         node_kind=node.node_kind,
         entity_type=node.entity_type,
         entity_id=node.entity_id,
-        properties=node.properties,
+        properties=build_node_properties(node.node_kind, node.properties),
     )
 
 
@@ -164,7 +201,7 @@ def _edge_dto(step: EvidenceTraversalStep, *, direction: str) -> EvidenceLineage
         relation=edge.relation,
         direction=cast(Literal["upstream", "downstream"], direction),
         depth=step.depth,
-        properties=edge.properties,
+        properties=build_edge_properties(edge.properties),
     )
 
 

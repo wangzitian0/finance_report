@@ -80,6 +80,7 @@ nav:
       - Overview: reference/api-overview.md
       - Generated API Reference: reference/api.md
       - Generated DB Schema Reference: reference/db-schema.md
+      - Router Contract Maturity: reference/router-contract-maturity.md
   - Technical Docs:
       - Architecture: ssot/README.md
       - Development Guide: ssot/development.md

@@ -27,7 +27,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
 | `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Disable provider 'thinking' mode for AI JSON completion calls. |
 | `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
-| `AI_JSON_SEED` | `42` |  |  | AI Provider | Fixed decoding seed for reproducible AI extraction (empty to omit). |
+| `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
 | `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_MODEL_CATALOG_SOURCE` | `configured` |  |  | AI Provider | Source of the AI model catalog. |
@@ -62,6 +62,8 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `ENABLE_AI_CLASSIFICATION` | `false` |  |  | Feature Flags | EPIC-018: enable AI-assisted transaction classification suggestions (default false, opt-in to avoid API costs). |
 | `ENABLE_AI_RECONCILIATION` | `false` |  |  | Feature Flags | EPIC-018: enable AI-assisted reconciliation scoring (default false, opt-in to avoid API costs). |
 | `ENABLE_STORAGE_SWEEP` | `true` |  |  | Feature Flags | Enable periodic background sweep for orphaned S3 objects. Set to false in test/CI environments to suppress background S3 network calls. |
+| `STORAGE_SWEEP_GRACE_PERIOD_HOURS` | `24` |  |  | Feature Flags | Grace period (hours) before an orphaned S3 object is eligible for the storage sweep. Objects younger than this are never deleted, to avoid racing with in-progress uploads (issue #356, default 24h). |
+| `STORAGE_SWEEP_INTERVAL_SECONDS` | `86400` |  |  | Feature Flags | Interval (seconds) between orphaned-S3-object sweep runs (issue #356, default 86400s = daily). |
 | `GIT_COMMIT_SHA` | `unknown` |  |  | Deployment metadata | Deployment commit SHA (set by CI, not manually). |
 | `API_RATE_LIMIT_REQUESTS` | `300` |  |  | Rate Limiting | Global API rate-limit request count (applies to all endpoints except /health, /ping, /docs). Default 300 allows E2E test suites and power users. |
 | `API_RATE_LIMIT_WINDOW` | `60` |  |  | Rate Limiting | Global API rate-limit window in seconds. |

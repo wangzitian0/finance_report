@@ -116,6 +116,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `docs/ssot/frontend-patterns.md` |
 | `apps/frontend/src/lib/currency.test.ts` | `docs/ssot/frontend-patterns.md` |
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
+| `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |
 | `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_check_ssot_ownership.py` | `docs/ssot/MANIFEST.yaml` |
@@ -126,6 +127,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_merge_lcov.py` | `docs/ssot/coverage.md` |
+| `tests/tooling/test_preflight.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_sanitize_fixtures.py` | `docs/agents/red-lines.md` |
 | `tests/tooling/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
 | `tests/tooling/test_validate_schemas.py` | `docs/ssot/schema.md` |

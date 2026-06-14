@@ -411,6 +411,33 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
   Dokploy `compose.delete`) by PR number/compose name rather than broad volume
   pruning. The deploy path is get-or-create + redeploy, so it updates the
   preview in place across commits without a pre-deploy delete.
+- PR preview rollout proof fails fast on a missing deployment record. When
+  Dokploy reports `composeStatus=done` but never exposes a **new** deployment
+  record for the requested SHA within the new-record window,
+  `wait_for_dokploy_deployment_rollout` raises the classified
+  `DokployNoNewDeploymentRecord` error
+  (`platform_failure_domain=dokploy-worker-or-deployment-record`) instead of
+  proceeding to commit-scoped readiness. This stops the lifecycle from
+  false-greening against stale records and then wasting the full readiness
+  window probing a route for a SHA that never rolled out. The diagnostics
+  distinguish "no new deployment created" (control-plane / worker failure) from
+  "new deployment created but route not ready" (a readiness/Traefik 404 window),
+  so a 404 is no longer the only signal. The retry ladder still recovers via
+  `compose.redeploy` and compose recreation because the classified error
+  subclasses `DokployDeploymentDidNotStart`.
+- PR preview deploy never leaves a silent half-update. The deploy mutates the
+  Dokploy compose (source then env) before triggering the rollout, so the
+  failure path captures the last-known-good source/env of an existing compose
+  before mutating. On a deploy/rollout failure it either rolls the compose back
+  to that last-known-good state (`recovery_state=rolled-back`) or, when no good
+  snapshot exists (a freshly created or recreated compose), explicitly marks the
+  record safe-to-reconcile (`recovery_state=marked-safe-to-reconcile`). The
+  failure context records which mutation step (`source`, `env`, `deploy`, or
+  `rollout`) the compose was left at. `update_compose_env` additionally
+  reconciles the **whole** requested env against the effective remote env so a
+  stale non-allowlisted key from a prior deploy cannot diverge unnoticed;
+  divergence fails fast with key-name-only diagnostics that never print env
+  values.
 - PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
 - PR preview non-LLM E2E is a strict preview-relevant subset: `STRICT_E2E_GATES=true`, marker `(smoke or e2e) and not llm`, `-n 4` parallelism, and explicit paths limited to `tests/e2e/test_core_journeys.py` plus `tests/e2e/test_e2e_flows.py::test_full_navigation`. Broader business regression paths, provider-sensitive paths, and state-sensitive registration or statement workflows remain staging/post-merge responsibilities.
 - The shared `.github/actions/setup-e2e-tests` action owns E2E Python import setup. It must export the repository root through `PYTHONPATH` via `$GITHUB_ENV` before preview, staging, AI/OCR, or production E2E pytest commands run, because `tests/e2e/conftest.py` imports shared helpers through the `tests.e2e.*` package path while pytest may choose `tests/e2e` as its root directory.
