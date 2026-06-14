@@ -40,9 +40,7 @@ def _month_csv(year_month: str) -> bytes:
     Debit/Credit columns), so no AI CSV-mapping fallback is triggered.
     """
     return (
-        "Date,Description,Debit Amount,Credit Amount\n"
-        f"{year_month}-05,Salary,,{SALARY}\n"
-        f"{year_month}-20,Rent,{RENT},\n"
+        f"Date,Description,Debit Amount,Credit Amount\n{year_month}-05,Salary,,{SALARY}\n{year_month}-20,Rent,{RENT},\n"
     ).encode()
 
 
@@ -107,8 +105,13 @@ async def test_AC8_15_1_full_year_statement_to_report_ties_out(
         opening = running
         closing = running + net_per_month
         total_created += await _ingest_month(
-            db, user_id, bank, _month_csv(year_month), f"{year_month}.csv",
-            opening=opening, closing=closing,
+            db,
+            user_id,
+            bank,
+            _month_csv(year_month),
+            f"{year_month}.csv",
+            opening=opening,
+            closing=closing,
         )
         running = closing
     await db.commit()
@@ -122,9 +125,7 @@ async def test_AC8_15_1_full_year_statement_to_report_ties_out(
     income_statement = await generate_income_statement(
         db, user_id, start_date=period_start, end_date=period_end, currency="SGD"
     )
-    cash_flow = await generate_cash_flow(
-        db, user_id, start_date=period_start, end_date=period_end, currency="SGD"
-    )
+    cash_flow = await generate_cash_flow(db, user_id, start_date=period_start, end_date=period_end, currency="SGD")
 
     expected_income = SALARY * len(MONTHS)  # 15000.00
     expected_expenses = RENT * len(MONTHS)  # 4500.00
