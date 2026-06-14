@@ -1130,3 +1130,53 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     }
     for path, markers in inbound_refs.items():
         _assert_file_mentions(path, markers)
+
+
+def test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family() -> None:
+    """AC14.1.23: #824 threshold cleanup drives ``high_risk_entries_missing_proof`` to zero.
+
+    The governance report flags FR SSOT concepts that match high-risk terms but
+    carry no executable proof path. This cleanup binds the two flagged platform
+    concepts (``container_naming`` and ``test_optimization``) to their existing
+    proof tests and tags them with the ``platform`` family from the #821 HLS
+    family map. It backfills metadata only; no concept is moved or re-owned and
+    no runtime behavior changes.
+    """
+
+    report = governance_report.build_report(ROOT, include_infra2=False)
+    finance = _source(report, "finance_report")
+
+    assert report["overall"]["errors"] == []
+    assert finance["errors"] == []
+    assert finance["entry_count"] > 0
+
+    # Threshold metric reduced by this cleanup: high-risk owners with no proof.
+    assert finance["high_risk_entries"]["missing_proof"] == []
+    high_risk_candidate = next(
+        candidate
+        for candidate in finance["future_gate_candidates"]
+        if candidate["code"] == "high_risk_entries_missing_proof"
+    )
+    assert high_risk_candidate["count"] == 0
+
+    manifest = yaml.safe_load(
+        (ROOT / "docs/ssot/MANIFEST.yaml").read_text(encoding="utf-8")
+    )
+    concepts = manifest["concepts"]
+
+    # container_naming: high-risk ("environment") platform concept now proven.
+    container_naming = concepts["container_naming"]
+    assert container_naming["family"] == "platform"
+    assert container_naming["kind"] == "concept"
+    assert container_naming["proofs"] == [
+        "tests/tooling/test_issue_489_deployment_contracts.py",
+    ]
+
+    # test_optimization: high-risk ("ci") platform concept now proven.
+    test_optimization = concepts["test_optimization"]
+    assert test_optimization["family"] == "platform"
+    assert test_optimization["kind"] == "concept"
+    assert test_optimization["proofs"] == [
+        "apps/backend/tests/unit/infra/test_test_lifecycle.py",
+        "tests/tooling/test_github_workflow_timing_summary.py",
+    ]
