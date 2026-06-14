@@ -55,6 +55,21 @@ class TestRepairJsonObject:
         assert repaired is not None
         assert json.loads(repaired) == {"note": "balance {pending}", "ok": True}
 
+    def test_unbalanced_open_brace_returns_none(self):
+        """AC13.14.4c: An opening brace with no matching close (truncated response)
+        is unrecoverable rather than returning a partial object."""
+        assert ExtractionService._repair_json_object('{"a": 1, "b": 2') is None
+        # A brace inside a string must not count as the close that balances it.
+        assert ExtractionService._repair_json_object('{"note": "a } b"') is None
+
+    def test_escaped_quote_in_string_does_not_end_object_early(self):
+        """AC13.14.4d: A backslash-escaped quote inside a string value does not end
+        the string early, so the full object is recovered."""
+        content = '{"path": "C:\\\\Users\\\\x", "quote": "she said \\"hi\\"", "ok": true}'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"path": "C:\\Users\\x", "quote": 'she said "hi"', "ok": True}
+
 
 class TestExtractionSalvagesFencedResponse:
     async def test_fenced_response_is_salvaged(self):
