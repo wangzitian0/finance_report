@@ -210,6 +210,20 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.18.1 | The vision model list appends `VISION_FALLBACK_MODELS` after the primary OCR/vision model, deduplicated and order-preserving, so more than one model is attempted on the vision path | `test_ocr_model_selection_helpers_deduplicate_vision_models()`, `test_vision_extraction_models_dedupes_fallback_against_primary()`, `test_vision_extraction_models_without_fallbacks_returns_primary_only()`, `test_extract_financial_data_shared_ocr_vision_skips_layout_parser()`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision()` | `extraction/test_extraction_error_paths.py` | P1 |
 | AC13.18.2 | When the primary vision model raises a non-retryable provider error (e.g. a 400), the vision path attempts the configured vision fallback model and succeeds instead of failing the upload | `test_vision_path_falls_back_to_secondary_model_on_non_retryable_error()` | `extraction/test_extraction_error_paths.py` | P1 |
 
+### AC13.19: Tolerant Statement Date Parsing ([#1086](https://github.com/wangzitian0/finance_report/issues/1086))
+
+A single empty/non-ISO date previously aborted the entire document parse, making
+Chinese-format statements (`2025年01月15日`) unparseable and discarding an otherwise-good
+multi-month statement on one bad row. A shared `_tolerant_parse_date` accepts common
+non-ISO formats, and an unparseable transaction-row date is skip-and-flagged instead
+of fatal.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.19.1 | Common non-ISO date formats parse; empty/garbage return None | `test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats` | `extraction/test_tolerant_date_parsing.py` | P1 |
+| AC13.19.2 | A Chinese-format statement parses instead of being rejected | `test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting` | `extraction/test_tolerant_date_parsing.py` | P1 |
+| AC13.19.3 | One unparseable row date is non-fatal — the row is skipped, the rest parse | `test_AC13_19_3_one_bad_row_date_is_non_fatal` | `extraction/test_tolerant_date_parsing.py` | P1 |
+
 ### AC13.14: JSON-Repair Retry (issue #982)
 
 | ID | Test Case | Test Function | File | Priority |

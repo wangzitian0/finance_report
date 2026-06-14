@@ -4,7 +4,7 @@ import hashlib
 import ipaddress
 import json
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
@@ -44,6 +44,49 @@ CSV_INFERRED_BALANCE_REVIEW_NOTE = (
 )
 
 
+# Date formats seen across real bank/brokerage statements, beyond strict ISO.
+# Ordered so day-first forms win before the ambiguous US month-first form; this
+# preserves the prior CSV parser's resolution while adding non-ISO support (#1086).
+_DATE_FORMATS: tuple[str, ...] = (
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%Y.%m.%d",
+    "%Y年%m月%d日",  # Chinese bank statements, e.g. 2025年01月15日
+    "%d/%m/%Y",
+    "%d-%m-%Y",
+    "%d.%m.%Y",
+    "%m/%d/%Y",
+    "%d %b %Y",
+    "%d %B %Y",
+)
+
+
+def _tolerant_parse_date(value: str | None) -> date | None:
+    """Parse a date from common bank/brokerage formats, not just strict ISO (#1086).
+
+    Returns ``None`` for empty/unparseable input so callers decide whether a missing
+    date is fatal (a required statement period) or skippable (one bad transaction
+    row), instead of a strict ``date.fromisoformat`` aborting the whole document.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null", "n/a", "-"}:
+        return None
+    # Fast path: ISO date, or an ISO datetime whose leading 10 chars are the date.
+    iso_candidate = text[:10] if ("T" in text or " " in text) else text
+    try:
+        return date.fromisoformat(iso_candidate)
+    except ValueError:
+        pass
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 class ExtractionError(Exception):
     """Raised when extraction fails."""
 
@@ -67,19 +110,15 @@ class ExtractionService:
         self.deduplication_service = DeduplicationService()
 
     def _safe_date(self, value: str | None) -> date:
-        """Safely parse date from string."""
+        """Safely parse a required date, accepting common non-ISO formats (#1086)."""
         if not value:
             logger.error("Date is required but was None or empty", value=value)
             raise ValueError("Date is required")
-        try:
-            return date.fromisoformat(str(value))
-        except (ValueError, TypeError) as exc:
-            logger.error(
-                "Failed to parse date",
-                value=value,
-                error_type=type(exc).__name__,
-            )
-            raise ValueError(f"Invalid date format: {value}") from exc
+        parsed = _tolerant_parse_date(value)
+        if parsed is None:
+            logger.error("Failed to parse date", value=value)
+            raise ValueError(f"Invalid date format: {value}")
+        return parsed
 
     def _safe_optional_date(self, value: str | None) -> date | None:
         """Safely parse an optional date from extraction output."""
@@ -405,16 +444,17 @@ class ExtractionService:
                     )
                     continue
 
-                try:
-                    parsed_date = date.fromisoformat(txn_date_val)
-                except ValueError as exc:
-                    if is_brokerage_payload:
-                        logger.info(
-                            "Skipping brokerage transaction row with non-bank date",
-                            filename=original_filename or (file_path.name if file_path else "unknown"),
-                        )
-                        continue
-                    raise ExtractionError(f"Invalid transaction date format: {txn_date_val}") from exc
+                parsed_date = _tolerant_parse_date(txn_date_val)
+                if parsed_date is None:
+                    # #1086: one unparseable row date is non-fatal — skip and flag the
+                    # row instead of rejecting the whole (often multi-month) statement.
+                    logger.warning(
+                        "Skipping transaction row with unparseable date",
+                        raw_date=txn_date_val,
+                        is_brokerage=is_brokerage_payload,
+                        filename=original_filename or (file_path.name if file_path else "unknown"),
+                    )
+                    continue
 
                 try:
                     amount = Decimal(str(txn["amount"]))
@@ -1165,7 +1205,6 @@ class ExtractionService:
         """
         import csv
         import io
-        from datetime import datetime
 
         if isinstance(file_content, bytes):
             text = file_content.decode(encoding="utf-8-sig", errors="ignore")
@@ -1196,23 +1235,8 @@ class ExtractionService:
         period_end: date | None = None
 
         def parse_date(value: str) -> date | None:
-            """Try multiple date formats."""
-            formats = [
-                "%d %b %Y",
-                "%d/%m/%Y",
-                "%Y-%m-%d",
-                "%d-%m-%Y",
-                "%m/%d/%Y",
-                "%Y/%m/%d",
-                "%d %B %Y",
-            ]
-            value = value.strip()
-            for fmt in formats:
-                try:
-                    return datetime.strptime(value, fmt).date()
-                except ValueError:
-                    continue
-            return None
+            """Parse a CSV date via the shared tolerant parser (#1086)."""
+            return _tolerant_parse_date(value)
 
         def parse_amount(value: str) -> Decimal | None:
             """Parse amount string to Decimal."""
