@@ -132,6 +132,119 @@ def test_AC7_13_3_force_recreate_path_exists_and_is_guarded() -> None:
     assert "force_recreate_stateless_app" in script
 
 
+def test_AC7_13_6_rollout_baseline_snapshotted_before_force_recreate() -> None:
+    """AC7.13.6: the rollout-wait baseline is the PRE-reconcile snapshot.
+
+    Regression guard for the Copilot ordering bug: ``previous_deployment_ids`` /
+    ``previous_deployment_signatures`` (the baseline passed to
+    ``wait_for_dokploy_deployment_rollout``) must be captured from the
+    pre-reconcile ``compose.one`` snapshot, *before*
+    ``force_recreate_stateless_app`` triggers ``compose.redeploy``. Capturing
+    them after the redeploy lets a fast redeploy's freshly-created deployment
+    record leak into the baseline, so the waiter sees no "new" deployment and
+    spuriously times out with "did not create a new deployment".
+    """
+    script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+
+    # The baseline capture from the pre-reconcile snapshot must precede the
+    # force-recreate call that triggers compose.redeploy.
+    baseline_capture = 'previous_deployment_ids=$(deployment_ids_from_response "$reconcile_response")'
+    force_recreate_call = 'force_recreate_stateless_app "$COMPOSE_ID" "$IMAGE_TAG"'
+    assert baseline_capture in script, "pre-reconcile baseline capture missing"
+    assert force_recreate_call in script, "force-recreate call missing"
+    assert script.index(baseline_capture) < script.index(force_recreate_call), (
+        "rollout baseline must be snapshotted BEFORE force_recreate triggers redeploy"
+    )
+
+    # The pre-reconcile snapshot must feed the rollout wait, and a stale
+    # post-reconcile snapshot must NOT be used as the rollout baseline.
+    assert (
+        'previous_deployment_signatures=$(deployment_signature_map_from_response "$reconcile_response")'
+        in script
+    ), "pre-reconcile signature baseline missing"
+    assert (
+        "Post-reconcile deployment snapshot" not in script
+    ), "post-reconcile snapshot must not be used as the rollout baseline"
+
+
+def test_AC7_13_6_fast_redeploy_detected_as_new_with_pre_reconcile_baseline() -> None:
+    """AC7.13.6: a fast redeploy is still recognized as a new deployment.
+
+    Behavioral regression test exercising the real
+    ``wait_for_dokploy_deployment_rollout`` with the pre-reconcile baseline.
+    The pre-reconcile snapshot has a single deployment ``d1``. By the time the
+    rollout waiter probes, the fast redeploy has already created ``d2``
+    (status ``done``). Using the pre-reconcile baseline ({d1}) the waiter sees
+    ``d2`` as new and succeeds. If the (buggy) post-reconcile baseline
+    ({d1,d2}) were used, ``d2`` would not be "new" and the waiter would time
+    out -- so this asserts the correct ordering end-to-end.
+    """
+    helpers = _function_block(
+        "deployment_ids_from_response()", "redact_dokploy_diagnostic_value()"
+    )
+    waiter = _function_block(
+        "wait_for_dokploy_deployment_rollout()", "deploy_compose()"
+    )
+
+    # Pre-reconcile snapshot: only d1 exists.
+    pre_snapshot = '{"deployments":[{"deploymentId":"d1","status":"done","createdAt":"1"}]}'
+    # Rollout probe response: fast redeploy already created d2 (done).
+    rollout_resp = (
+        '{"composeStatus":"done","deployments":['
+        '{"deploymentId":"d1","status":"done","createdAt":"1"},'
+        '{"deploymentId":"d2","status":"done","createdAt":"2"}]}'
+    )
+
+    harness = r"""
+response_file=$(mktemp)
+safe_jq() { printf "%s" "$2" | jq -r "$1"; }
+render_dokploy_rollout_summary() { :; }
+# Sequenced stub: first call returns the pre-reconcile snapshot, every
+# subsequent (rollout probe) call returns the post-redeploy rollout response.
+__CALLS=0
+dokploy_api_call() {
+  local output_file="$4"
+  __CALLS=$((__CALLS + 1))
+  if [[ "$__CALLS" -eq 1 ]]; then
+    printf "%s" "$PRE_SNAPSHOT" > "$output_file"
+  else
+    printf "%s" "$ROLLOUT_RESP" > "$output_file"
+  fi
+  return 0
+}
+"""
+
+    # Reconstruct the fixed reconcile ordering: capture baseline from the
+    # pre-reconcile snapshot BEFORE the (stubbed) redeploy, then wait.
+    driver = r"""
+dokploy_api_call "GET" "compose.one?composeId=cid" "" "$response_file" "Pre-reconcile env snapshot"
+reconcile_response=$(cat "$response_file")
+previous_deployment_ids=$(deployment_ids_from_response "$reconcile_response")
+previous_deployment_signatures=$(deployment_signature_map_from_response "$reconcile_response")
+# (force_recreate -> compose.redeploy happens here; the fast redeploy created d2)
+wait_for_dokploy_deployment_rollout "cid" "$previous_deployment_ids" "$previous_deployment_signatures"
+echo "RECONCILE_ROLLOUT_OK"
+"""
+
+    snippet = helpers + waiter + harness + driver
+    result = _run(
+        snippet,
+        {
+            "PRE_SNAPSHOT": pre_snapshot,
+            "ROLLOUT_RESP": rollout_resp,
+            "DOKPLOY_ROLLOUT_INTERVAL_SECONDS": "0",
+            "DOKPLOY_ROLLOUT_TIMEOUT_SECONDS": "5",
+            "DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS": "5",
+        },
+    )
+    out = result.stdout + result.stderr
+    assert result.returncode == 0, out
+    # The new deployment d2 must be detected as new (not hidden by the baseline).
+    assert "new_deployment_ids=d2" in out, out
+    assert "RECONCILE_ROLLOUT_OK" in out, out
+    assert "did not create a new deployment" not in out, out
+
+
 def test_AC7_13_5_deployment_doc_describes_stale_env_failure_and_recovery() -> None:
     """AC7.13.5: deployment SSOT documents the stale-env failure mode + recovery."""
     doc = (ROOT / "docs" / "ssot" / "deployment.md").read_text(encoding="utf-8")

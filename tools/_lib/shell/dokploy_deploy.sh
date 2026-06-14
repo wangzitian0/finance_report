@@ -527,15 +527,21 @@ if ! verify_effective_remote_app_env "$COMPOSE_ID" "$IMAGE_TAG" "$IAC_CONFIG_HAS
   reconcile_response=$(cat "$response_file")
   reconcile_env=$(safe_jq '.env // empty' "$reconcile_response" "pre-reconcile env fetch") || exit 1
 
+  # Capture the rollout-wait baseline from the PRE-reconcile snapshot, BEFORE
+  # force_recreate_stateless_app triggers compose.redeploy. A post-redeploy
+  # snapshot can already include the newly-created deployment record (a fast
+  # redeploy completes before we re-fetch), which would hide the new deployment
+  # from wait_for_dokploy_deployment_rollout and cause a spurious "did not
+  # create a new deployment" timeout. Using the pre-reconcile baseline
+  # guarantees the freshly-created deployment is detected as new.
+  previous_deployment_ids=$(deployment_ids_from_response "$reconcile_response") || exit 1
+  previous_deployment_signatures=$(deployment_signature_map_from_response "$reconcile_response") || exit 1
+
   if ! force_recreate_stateless_app "$COMPOSE_ID" "$IMAGE_TAG" "$reconcile_env"; then
     echo "ERROR: Effective remote app env is stale and automated reconcile was not performed (issue #575)" >&2
     exit 1
   fi
 
-  dokploy_api_call "GET" "compose.one?composeId=$COMPOSE_ID" "" "$response_file" "Post-reconcile deployment snapshot"
-  reconcile_snapshot=$(cat "$response_file")
-  previous_deployment_ids=$(deployment_ids_from_response "$reconcile_snapshot") || exit 1
-  previous_deployment_signatures=$(deployment_signature_map_from_response "$reconcile_snapshot") || exit 1
   set +e
   wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids" "$previous_deployment_signatures"
   rollout_status=$?
