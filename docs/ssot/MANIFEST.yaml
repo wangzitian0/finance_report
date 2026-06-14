@@ -137,6 +137,15 @@ concepts:
       - docs/ssot/reconciliation.md
       - apps/backend/tests/extraction/test_dual_write_layer2.py
 
+  extraction_confidence_tiers:
+    owner: docs/ssot/extraction.md#confidence-scoring
+    family: extraction
+    kind: concept
+    description: Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.
+    cross_refs:
+      - docs/ssot/reconciliation.md#thresholds
+      - docs/ssot/confirmation-workflow.md#confidence-tier-rollup
+
   extraction_failed_case_registry:
     owner: docs/ssot/extraction-audit-failed-cases.yaml
     family: extraction
@@ -227,6 +236,22 @@ concepts:
     cross_refs:
       - docs/ssot/reconciliation.md
       - docs/ssot/processing_account.md
+
+  confirmation_workflow_states:
+    owner: docs/ssot/confirmation-workflow.md#state-machine
+    family: reconciliation
+    kind: concept
+    description: Stage 1 & Stage 2 confirmation state transitions (the cross-cutting state machine).
+    cross_refs:
+      - docs/ssot/reconciliation.md#state-machine
+
+  confidence_tier_rollup:
+    owner: docs/ssot/confirmation-workflow.md#confidence-tier-rollup
+    family: extraction
+    kind: concept
+    description: Confidence-tier rollup that makes extraction confidence load-bearing for promotion.
+    cross_refs:
+      - docs/ssot/extraction.md#confidence-scoring
 
   workflow_events:
     owner: docs/ssot/workflow-events.md

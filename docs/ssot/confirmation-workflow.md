@@ -31,7 +31,7 @@ Both use the string value `"pending_review"` by convention, but the state machin
 
 ---
 
-## 3. Cross-Cutting State Machine
+## 3. <a id="state-machine"></a>Cross-Cutting State Machine
 
 The following diagram shows how a bank statement travels from upload through to posted journal entries.
 
@@ -121,7 +121,7 @@ check and the closing transaction-sum check; extraction confidence and Stage 2
 matching may use wider scoring tolerances, but they cannot approve a Stage 1
 statement with either balance-chain check outside the 0.001 USD tolerance.
 
-### Confidence Tier Rollup (resolves OD4)
+### <a id="confidence-tier-rollup"></a>Confidence Tier Rollup (resolves OD4)
 
 Confidence tiers rank by trust: `TRUSTED > HIGH > MEDIUM > LOW`. A line or
 aggregate takes the **worst-input tier** — it is only as trustworthy as its
