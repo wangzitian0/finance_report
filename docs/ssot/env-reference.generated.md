@@ -36,6 +36,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `OCR_MODEL` | `glm-4.6v` |  |  | AI Provider | OCR AI model id. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
 | `PRIMARY_MODEL` | `glm-5.1` |  |  | AI Provider | Primary AI model id. |
+| `VISION_FALLBACK_MODELS` |  | `glm-4.5v` |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
 | `VISION_MODEL` | `glm-4.6v` |  |  | AI Provider | Vision AI model id. |
 | `ZAI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). ZAI_API_KEY is preferred for the default Z.AI provider; AI_API_KEY is a provider-neutral alias. |
 | `AI_API_KEY` |  |  | yes | AI Provider | Alias of `ZAI_API_KEY`. |

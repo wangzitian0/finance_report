@@ -203,6 +203,13 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.15.4 | `is_brokerage` defaults to False so existing callers are unaffected | `test_default_is_not_brokerage()` | `extraction/test_extraction.py` | P1 |
 | AC13.15.5 | The cap uses the persisted transaction count (after skipped rows), not the raw extracted count | `test_effective_count_uses_persisted_not_extracted()` | `extraction/test_extraction.py` | P1 |
 
+### AC13.17: Vision Extraction Falls Back to Secondary Models (issue #1034)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.17.1 | The vision model list appends `VISION_FALLBACK_MODELS` after the primary OCR/vision model, deduplicated and order-preserving, so more than one model is attempted on the vision path | `test_ocr_model_selection_helpers_deduplicate_vision_models()`, `test_vision_extraction_models_dedupes_fallback_against_primary()`, `test_vision_extraction_models_without_fallbacks_returns_primary_only()`, `test_extract_financial_data_shared_ocr_vision_skips_layout_parser()`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision()` | `extraction/test_extraction_error_paths.py` | P1 |
+| AC13.17.2 | When the primary vision model raises a non-retryable provider error (e.g. a 400), the vision path attempts the configured vision fallback model and succeeds instead of failing the upload | `test_vision_path_falls_back_to_secondary_model_on_non_retryable_error()` | `extraction/test_extraction_error_paths.py` | P1 |
+
 ### AC13.14: JSON-Repair Retry (issue #982)
 
 | ID | Test Case | Test Function | File | Priority |
