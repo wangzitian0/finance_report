@@ -14,7 +14,14 @@ from src.models.evidence import EvidenceEdge, EvidenceNode
 from src.models.journal import Direction, JournalEntry, JournalEntrySourceType, JournalEntryStatus, JournalLine
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.routers.evidence import _should_attempt_lazy_materialization
+from src.routers.evidence import _materialization_failure_status, _should_attempt_lazy_materialization
+from src.schemas.evidence import (
+    EvidenceLineageBlocker,
+    LedgerLineProperties,
+    MaterializationEdgeProperties,
+    build_edge_properties,
+    build_node_properties,
+)
 from src.services.deduplication import DeduplicationService
 from src.services.evidence_lineage import EvidenceLineageService
 from tests.factories import UserFactory
@@ -320,3 +327,155 @@ def test_AC18_10_7_lazy_materialization_requires_supported_entity_type_and_match
         _should_attempt_lazy_materialization(entity_type="journal_line", node_kind="source_document", anchor=None)
         is False
     )
+
+
+def test_AC18_31_1_node_properties_are_typed_and_round_trip() -> None:
+    """AC18.31.1: ledger_line properties coerce into a typed model and preserve monetary string amounts."""
+    raw = {
+        "journal_entry_id": str(uuid4()),
+        "account_id": str(uuid4()),
+        "direction": "DEBIT",
+        "amount": "123.45",
+        "currency": "SGD",
+    }
+    typed = build_node_properties("ledger_line", raw)
+
+    assert isinstance(typed, LedgerLineProperties)
+    # Monetary amount stays a string (Decimal-as-string), never a float.
+    assert typed.amount == "123.45"
+    assert isinstance(typed.amount, str)
+    # Round-trips back to the same JSON shape clients already consume.
+    assert typed.model_dump() == raw
+
+
+def test_AC18_31_1_node_properties_preserve_unknown_and_partial_keys() -> None:
+    """AC18.31.1: typed properties stay backward-compatible with legacy/partial rows."""
+    partial = build_node_properties("source_document", {"original_filename": "may.csv", "legacy_key": "kept"})
+    dumped = partial.model_dump()
+
+    assert dumped["original_filename"] == "may.csv"
+    # Unknown keys from historical rows are preserved (extra="allow").
+    assert dumped["legacy_key"] == "kept"
+    # Unknown node kinds still coerce (generic fallback) instead of raising.
+    assert build_node_properties("future_kind", {"anything": "ok"}).model_dump()["anything"] == "ok"
+
+
+def test_AC18_31_1_edge_properties_are_typed() -> None:
+    """AC18.31.1: edge properties coerce into the materialization edge model."""
+    typed = build_edge_properties({"adapter": "lazy_materialization", "dedup_hash": "abc"})
+
+    assert isinstance(typed, MaterializationEdgeProperties)
+    assert typed.adapter == "lazy_materialization"
+    assert typed.dedup_hash == "abc"
+
+
+def test_AC18_31_2_failure_status_distinguishes_genuine_failure_from_empty() -> None:
+    """AC18.31.2: only genuine-failure blocker codes map to a non-2xx status."""
+    # Absent-anchor states are valid empty results, not failures.
+    assert _materialization_failure_status([]) is None
+    assert _materialization_failure_status([EvidenceLineageBlocker(code="graph_node_missing", message="x")]) is None
+    assert _materialization_failure_status([EvidenceLineageBlocker(code="entity_missing", message="x")]) is None
+    # Genuine failures map to dedicated statuses.
+    assert (
+        _materialization_failure_status([EvidenceLineageBlocker(code="cross_user_lineage_blocked", message="x")]) == 409
+    )
+    assert _materialization_failure_status([EvidenceLineageBlocker(code="unsupported_provenance", message="x")]) == 422
+    assert (
+        _materialization_failure_status([EvidenceLineageBlocker(code="materialization_write_cap_reached", message="x")])
+        == 503
+    )
+    # The most severe (highest) status wins when several genuine failures co-occur.
+    assert (
+        _materialization_failure_status(
+            [
+                EvidenceLineageBlocker(code="cross_user_lineage_blocked", message="x"),
+                EvidenceLineageBlocker(code="materialization_write_cap_reached", message="y"),
+            ]
+        )
+        == 503
+    )
+
+
+async def test_AC18_31_2_lineage_api_returns_non_200_on_materialization_failure(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.31.2: a genuine materialization failure returns a non-200 status with structured detail.
+
+    A journal line owned by another user can be resolved by the deterministic
+    materializer but is blocked cross-user. This is a real failure, not an empty
+    graph, so the endpoint must return 409 with an EvidenceLineageError body
+    instead of 200-with-blockers.
+    """
+    other_user = await UserFactory.create_async(db)
+    bank = Account(user_id=other_user.id, name="Other Bank", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=other_user.id, name="Other Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([bank, income])
+    await db.flush()
+    entry = JournalEntry(
+        user_id=other_user.id,
+        entry_date=date(2026, 5, 3),
+        memo="Cross-user entry",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    line = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=bank.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("10.00"),
+        currency="SGD",
+    )
+    other_line = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=income.id,
+        direction=Direction.CREDIT,
+        amount=Decimal("10.00"),
+        currency="SGD",
+    )
+    db.add_all([line, other_line])
+    await db.commit()
+
+    response = await client.get(
+        "/evidence/lineage",
+        params={
+            "entity_type": "journal_line",
+            "entity_id": str(line.id),
+            "node_kind": "ledger_line",
+            "direction": "upstream",
+        },
+    )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["error"] == "evidence_materialization_failed"
+    assert any(blocker["code"] == "cross_user_lineage_blocked" for blocker in detail["blockers"])
+
+
+async def test_AC18_31_2_lineage_api_keeps_200_for_empty_graph(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC18.31.2: an absent anchor stays a 200 empty/blocker result (backward-compatible)."""
+    response = await client.get(
+        "/evidence/lineage",
+        params={
+            "entity_type": "uploaded_document",
+            "entity_id": str(uuid4()),
+            "direction": "downstream",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["anchor"] is None
+    assert payload["blockers"] == [
+        {
+            "code": "graph_node_missing",
+            "message": "No owned Evidence Graph node exists for this entity identity.",
+        }
+    ]
