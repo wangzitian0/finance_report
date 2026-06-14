@@ -457,6 +457,29 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
 
 ---
 
+### AC8.17: Test-Account Cleanup Tooling
+
+Shared/staging databases accumulate throwaway accounts from QA and E2E runs
+(`qa.*@example.com`, `e2e-*@test.example.com`, ...). This group covers the purge
+library that reclaims them ([#997](https://github.com/wangzitian0/finance_report/issues/997)
+item 4). The purge is **safe by construction**: each account is removed inside
+its own savepoint (all-or-nothing), and an account still holding immutable
+posted/reconciled ledger entries is *reported and skipped*, never force-deleted —
+the same contract the API enforces with a 409 ([#988](https://github.com/wangzitian0/finance_report/issues/988)).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.17.1 | Only disposable test accounts (qa/e2e/load-test prefixes on example.com / test.example.com) are selected; real accounts and plain local fixtures are excluded | `test_selection_matches_test_accounts_and_excludes_real_ones`, `test_owned_tables_cover_core_user_data_and_exclude_users` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.2 | Applying the purge removes a clean test account and every row it owns, while leaving non-test accounts untouched | `test_apply_purges_clean_account_and_leaves_others` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.3 | An account owning a posted (immutable) ledger entry is reported blocked and fully preserved, not force-deleted | `test_account_with_posted_ledger_entry_is_blocked_not_deleted` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.4 | A dry run names the accounts it would purge but persists no deletions | `test_dry_run_reports_but_persists_nothing` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.5 | The CLI `--apply` environment guard allows dev/staging/CI and refuses production (or an unset environment) without an explicit override | `test_environment_guard_allows_dev_staging_and_refuses_production` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+
+The operator entry point is `tools/purge_test_accounts.py` (dry-run by default;
+`--apply` to delete; runbook in `docs/contributing/staging-test-account-cleanup.md`).
+
+---
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI
