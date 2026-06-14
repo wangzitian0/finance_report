@@ -6,10 +6,32 @@ from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.models.account import AccountType
 from src.schemas.base import BaseResponse, ListResponse
+
+
+class OpeningBalanceRequest(BaseModel):
+    """Guided opening-balance request (#949): map accounts to year-start balances.
+
+    Each account is increased to its balance on its normal side; the net offsets
+    into the system Opening Balance Equity account so the entry stays balanced.
+    """
+
+    entry_date: date
+    balances: dict[UUID, Annotated[Decimal, Field(gt=Decimal("0"), decimal_places=2)]]
+    currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
+    memo: Annotated[str, Field(min_length=1, max_length=500)] = "Opening balances"
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def normalize_currency(cls, value: object) -> object:
+        # Strip + uppercase before the length check so " sgd " normalizes to "SGD",
+        # consistent with currency normalization elsewhere (e.g. reporting).
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
 
 
 class AccountBase(BaseModel):
