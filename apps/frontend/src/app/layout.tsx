@@ -47,6 +47,11 @@ export const viewport: Viewport = {
 // and already effectively dynamic).
 export const dynamic = "force-dynamic";
 
+// `force-dynamic` runs RootLayout per request, so log the misconfig at most once
+// per server process (mirrors the module-level guard in lib/api.ts) to avoid
+// flooding container logs / SigNoz on every request.
+let analyticsMisconfigWarned = false;
+
 export default function RootLayout({
   children,
 }: {
@@ -56,7 +61,11 @@ export default function RootLayout({
   // client boundary / analytics bundle) is rendered at all — a complete no-op.
   const openpanelClientId = process.env.OPENPANEL_CLIENT_ID?.trim();
 
-  if (analyticsClientIdMissingInDeployedEnv(openpanelClientId, process.env.NEXT_PUBLIC_APP_URL)) {
+  if (
+    !analyticsMisconfigWarned &&
+    analyticsClientIdMissingInDeployedEnv(openpanelClientId, process.env.NEXT_PUBLIC_APP_URL)
+  ) {
+    analyticsMisconfigWarned = true;
     console.error(
       `[observability] OPENPANEL_CLIENT_ID is empty for ${process.env.NEXT_PUBLIC_APP_URL}; ` +
         "page-view analytics is disabled. infra2 must issue the OpenPanel client id for this environment.",
