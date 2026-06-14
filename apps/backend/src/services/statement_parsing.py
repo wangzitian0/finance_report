@@ -8,10 +8,12 @@ from uuid import UUID, uuid4
 
 import structlog
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.logger import get_logger
 from src.models import BankStatementStatus
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.statement_summary import StatementSummary
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
@@ -136,6 +138,46 @@ async def import_brokerage_payload_if_present(
         await db.commit()
 
 
+async def _ensure_failed_document_lineage(
+    db: AsyncSession,
+    statement: StatementSummary,
+    *,
+    file_hash: str,
+    storage_key: str,
+    original_filename: str,
+) -> None:
+    """Persist an ODS ``UploadedDocument`` (status ``failed``) for a parse that never reached
+    ``dual_write_layer2`` (which is the normal create path on success).
+
+    Without this, a hard parse failure leaves no document row, so the uploaded raw file — the
+    thing a human most needs to inspect for a failed parse — is unreachable from the statement
+    (#982). The document type is unknown for a failed parse, so it defaults to ``bank_statement``;
+    a later successful reparse reconciles the same ``(user_id, file_hash)`` row via dual-write.
+    """
+    existing = (
+        await db.execute(
+            select(UploadedDocument)
+            .where(UploadedDocument.user_id == statement.user_id)
+            .where(UploadedDocument.file_hash == file_hash)
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        existing.status = DocumentStatus.FAILED
+        statement.uploaded_document_id = existing.id
+        return
+    document = UploadedDocument(
+        user_id=statement.user_id,
+        file_path=storage_key,
+        file_hash=file_hash,
+        original_filename=original_filename,
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.FAILED,
+    )
+    db.add(document)
+    await db.flush()
+    statement.uploaded_document_id = document.id
+
+
 async def handle_parse_failure(
     statement: StatementSummary,
     db: AsyncSession,
@@ -146,6 +188,9 @@ async def handle_parse_failure(
     model_to_use: str | None = None,
     error_type: str | None = None,
     request_id: str | None = None,
+    file_hash: str | None = None,
+    storage_key: str | None = None,
+    original_filename: str | None = None,
 ) -> None:
     """Handle parse failure by marking statement as REJECTED.
 
@@ -182,6 +227,14 @@ async def handle_parse_failure(
         refreshed.validation_error = message[:500] if message else message
         refreshed.confidence_score = 0
         refreshed.balance_validated = False
+        if file_hash and storage_key:
+            await _ensure_failed_document_lineage(
+                db,
+                refreshed,
+                file_hash=file_hash,
+                storage_key=storage_key,
+                original_filename=original_filename or file_hash,
+            )
         await db.commit()
         logger.error(
             "statement.parse.failed",
@@ -223,6 +276,9 @@ async def _handle_parse_failure(
     model_to_use: str | None,
     error_type: str | None,
     request_id: str,
+    file_hash: str | None = None,
+    storage_key: str | None = None,
+    original_filename: str | None = None,
 ) -> None:
     await handle_parse_failure(
         statement,
@@ -235,6 +291,9 @@ async def _handle_parse_failure(
                 "model_to_use": model_to_use,
                 "error_type": error_type,
                 "request_id": request_id,
+                "file_hash": file_hash,
+                "storage_key": storage_key,
+                "original_filename": original_filename,
             }
         ),
     )
@@ -375,6 +434,9 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
+                file_hash=file_hash,
+                storage_key=storage_key,
+                original_filename=filename,
             )
             return
         except Exception as exc:
@@ -395,6 +457,9 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
+                file_hash=file_hash,
+                storage_key=storage_key,
+                original_filename=filename,
             )
             return
 
@@ -449,4 +514,7 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
                 request_id=request_id,
+                file_hash=file_hash,
+                storage_key=storage_key,
+                original_filename=filename,
             )

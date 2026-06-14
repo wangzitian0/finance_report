@@ -6,17 +6,53 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from src.models.layer1 import DocumentStatus, UploadedDocument
 from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.services.deduplication import dual_write_layer2
 from src.services.extraction import ExtractionError, ExtractionService
+from src.services.statement_parsing import handle_parse_failure
 from tests.factories import StatementSummaryFactory
 
 
 async def mock_stream_generator(content: str):
     """Helper to create async generator for streaming mock."""
     yield content
+
+
+async def test_handle_parse_failure_persists_failed_document_lineage(db, test_user):
+    """AC16.22.10: a hard parse failure persists an UploadedDocument(failed) so the uploaded raw
+    file stays traceable from the rejected statement (#982). The document is normally created on
+    success in dual_write; a failure happens before that, so without this the raw file is orphaned.
+    """
+    statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSING)
+    await db.commit()
+
+    await handle_parse_failure(
+        statement,
+        db,
+        message="All 1 models failed. Breakdown: 1 json_parse.",
+        file_hash=statement.file_hash,
+        storage_key=f"statements/{statement.id}/abc123.pdf",
+        original_filename="futu-2506.pdf",
+    )
+
+    doc = (
+        await db.execute(
+            select(UploadedDocument)
+            .where(UploadedDocument.user_id == test_user.id)
+            .where(UploadedDocument.file_hash == statement.file_hash)
+        )
+    ).scalar_one()
+    assert doc.status == DocumentStatus.FAILED
+    assert doc.original_filename == "futu-2506.pdf"
+
+    refreshed = await db.get(StatementSummary, statement.id)
+    assert refreshed.status == BankStatementStatus.REJECTED
+    assert refreshed.uploaded_document_id == doc.id
 
 
 async def test_parse_document_csv_no_content():
