@@ -193,6 +193,16 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.9.1 | Test full score with all factors | `test_full_score_with_all_factors()` | `extraction/test_extraction.py` | P0 |
 | AC13.9.2 | Test no new factors caps at 85 | `test_no_new_factors_caps_at_85()` | `extraction/test_extraction.py` | P0 |
 
+### AC13.15: Under-Extraction Penalty (issue #967)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.15.1 | Brokerage statement with a single transaction is penalized below the review/auto-approve band | `test_brokerage_single_txn_penalized()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.2 | Brokerage statement with a plausible transaction count is not penalized | `test_brokerage_sufficient_txns_not_penalized()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.3 | Non-brokerage (bank) statement with one transaction keeps its existing score | `test_bank_single_txn_not_penalized()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.4 | `is_brokerage` defaults to False so existing callers are unaffected | `test_default_is_not_brokerage()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.5 | The cap uses the persisted transaction count (after skipped rows), not the raw extracted count | `test_effective_count_uses_persisted_not_extracted()` | `extraction/test_extraction.py` | P1 |
+
 ### AC13.14: JSON-Repair Retry (issue #982)
 
 | ID | Test Case | Test Function | File | Priority |

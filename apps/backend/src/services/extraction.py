@@ -496,12 +496,19 @@ class ExtractionService:
                         "balance_proof_available": False,
                         "notes": CSV_INFERRED_BALANCE_REVIEW_NOTE,
                     },
+                    is_brokerage=is_brokerage_payload,
+                    effective_txn_count=len(transactions),
                 )
                 status = BankStatementStatus.PARSED
                 is_valid = False
             else:
                 # For confidence score, we use the original extracted dict to maintain logic.
-                confidence = compute_confidence_score(extracted, balance_result)
+                confidence = compute_confidence_score(
+                    extracted,
+                    balance_result,
+                    is_brokerage=is_brokerage_payload,
+                    effective_txn_count=len(transactions),
+                )
                 # Routing differs by document class on purpose (#981): brokerage payloads
                 # reconcile via Layer-2 AtomicPosition snapshots, not a running-balance chain, so
                 # `balance_valid` is not their gating signal — they always go to `parsed`/review.
