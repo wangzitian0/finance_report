@@ -304,3 +304,24 @@ reproducibly: temperature 0 / `do_sample` false plus a fixed `seed`
 | AC13.16.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |
+
+### AC13.17: Balance-Aware Self-Consistency Re-extract (issue #989 Step B)
+
+Step A (AC13.16) makes a single decode reproducible; this AC adds the
+**self-consistency** half. When a bank statement's running-balance chain fails to
+reconcile, `_extract_with_balance_retry` re-extracts up to
+`AI_EXTRACT_MAX_ATTEMPTS` times — each attempt with a *varied* seed (configured
+seed, then +1, +2 …) so retries are different-but-reproducible samples — and keeps
+the first parse that reconciles before the statement would route to `uploaded`.
+Brokerage payloads are never retried (they reconcile via Layer-2 positions, not a
+running-balance chain); if no attempt reconciles, the smallest-difference result is
+kept so routing is unchanged. Only failing parses retry, so average cost is bounded.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.17.1 | A reconciling first parse is returned without retry | `test_reconciles_first_attempt_single_call()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.2 | A failing parse is retried and the reconciling result wins | `test_retries_until_reconciles()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.3 | When no attempt reconciles, the smallest-difference result is kept | `test_keeps_best_when_none_reconcile()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.4 | Brokerage payloads are not retried | `test_brokerage_is_not_retried()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.5 | Attempt 0 uses the configured seed; retries vary it (seed+1, seed+2 …) | `test_seed_varies_per_attempt()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.6 | `AI_EXTRACT_MAX_ATTEMPTS=1` keeps single-shot behavior | `test_max_attempts_one_disables_retry()` | `extraction/test_self_consistency.py` | P1 |

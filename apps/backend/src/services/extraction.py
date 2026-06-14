@@ -34,6 +34,7 @@ from src.services.validation import (
     compute_confidence_score,
     normalize_amount_direction,
     route_by_threshold,
+    validate_balance,
     validate_balance_explicit,
 )
 
@@ -321,12 +322,13 @@ class ExtractionService:
                     raise ExtractionError("Institution is required for CSV parsing")
                 extracted = await self._parse_csv_content(file_content, institution)
             elif file_type in ("pdf", "png", "jpg", "jpeg"):
-                extracted = await self.extract_financial_data(
+                extracted = await self._extract_with_balance_retry(
                     file_content=file_content,
                     institution=institution,
                     file_type=file_type,
                     file_url=file_url,
                     force_model=force_model,
+                    filename=original_filename or (file_path.name if file_path else None),
                 )
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
@@ -668,6 +670,78 @@ class ExtractionService:
         )
         return markdown
 
+    async def _extract_with_balance_retry(
+        self,
+        *,
+        file_content: bytes | None,
+        institution: str | None,
+        file_type: str,
+        file_url: str | None,
+        force_model: str | None,
+        filename: str | None,
+    ) -> dict[str, Any]:
+        """Re-extract until the running-balance chain reconciles (#989 Step B).
+
+        A non-deterministic model can drop/misread a transaction so the same PDF
+        sometimes reconciles and sometimes does not. When a bank statement fails
+        balance validation, re-extract up to ``ai_extract_max_attempts`` times,
+        each with a *different but reproducible* seed, and keep the first parse
+        that reconciles. Brokerage payloads do not reconcile like bank statements
+        (they import via Layer-2 positions), so they are never retried. If no
+        attempt reconciles, the smallest-difference result is returned so routing
+        to ``uploaded`` is unchanged.
+        """
+        max_attempts = max(1, settings.ai_extract_max_attempts)
+        base_seed = settings.ai_json_seed
+        best: dict[str, Any] | None = None
+        best_diff: Decimal | None = None
+
+        for attempt in range(max_attempts):
+            # Attempt 0 uses the configured seed; retries vary it so each is a
+            # distinct deterministic sample (None base => provider-side variance).
+            seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
+            extracted = await self.extract_financial_data(
+                file_content=file_content,
+                institution=institution,
+                file_type=file_type,
+                file_url=file_url,
+                force_model=force_model,
+                seed_override=seed_override,
+            )
+
+            if looks_like_brokerage_payload(
+                extracted,
+                filename=filename,
+                institution=institution or extracted.get("institution"),
+            ):
+                return extracted
+
+            result = validate_balance(extracted)
+            if result.get("balance_valid"):
+                if attempt > 0:
+                    logger.info(
+                        "Balance reconciled on re-extract",
+                        attempt=attempt + 1,
+                        max_attempts=max_attempts,
+                        institution=institution or extracted.get("institution"),
+                    )
+                return extracted
+
+            try:
+                diff = Decimal(str(result.get("difference", "0") or "0"))
+            except (ValueError, TypeError, InvalidOperation):
+                diff = Decimal("0")
+            if best is None or diff < best_diff:
+                best, best_diff = extracted, diff
+
+        if max_attempts > 1:
+            logger.info(
+                "Balance did not reconcile after re-extract; keeping best parse",
+                attempts=max_attempts,
+                best_difference=str(best_diff),
+            )
+        return best if best is not None else extracted
+
     @staticmethod
     def _repair_json_object(content: str) -> str | None:
         """Best-effort recovery of a JSON object from a malformed model response.
@@ -722,6 +796,7 @@ class ExtractionService:
         return_raw: bool,
         has_content: bool,
         has_url: bool,
+        seed_override: int | None = None,
     ) -> dict[str, Any]:
         """Stream JSON extraction through the configured chat models."""
         last_error: ExtractionError | None = None
@@ -748,7 +823,7 @@ class ExtractionService:
                     max_tokens=settings.ai_json_max_tokens,
                     temperature=0.0,
                     do_sample=False,
-                    seed=settings.ai_json_seed,
+                    seed=seed_override if seed_override is not None else settings.ai_json_seed,
                     thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
                 )
 
@@ -901,6 +976,7 @@ class ExtractionService:
         return_raw: bool = False,
         file_url: str | None = None,
         force_model: str | None = None,
+        seed_override: int | None = None,
     ) -> dict[str, Any]:
         """Extract structured statement data using OCR + chat models."""
         if file_content is None and not file_url:
@@ -957,6 +1033,7 @@ class ExtractionService:
                 return_raw=return_raw,
                 has_content=bool(file_content),
                 has_url=bool(file_url),
+                seed_override=seed_override,
             )
 
         if self._uses_dedicated_layout_ocr():
@@ -977,6 +1054,7 @@ class ExtractionService:
                     return_raw=return_raw,
                     has_content=bool(file_content),
                     has_url=bool(file_url),
+                    seed_override=seed_override,
                 )
             except ExtractionError as ocr_error:
                 logger.warning(
@@ -1021,6 +1099,7 @@ class ExtractionService:
             return_raw=return_raw,
             has_content=bool(file_content),
             has_url=bool(file_url),
+            seed_override=seed_override,
         )
 
     async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:

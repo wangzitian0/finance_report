@@ -258,6 +258,14 @@ S3_PRESIGN_EXPIRY_SECONDS=300
   `balance_validated`, `confidence_score`, and Stage-1 routing from flipping
   between uploads of the same source (#989). Set `AI_JSON_SEED=` (empty) to omit
   the seed for providers that reject it.
+- **Balance-aware self-consistency re-extract**: when a bank statement's
+  running-balance chain fails to reconcile, `_extract_with_balance_retry`
+  re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed —
+  configured seed, then +1, +2 …) and keeps the first parse that reconciles before
+  routing to `uploaded` (#989 Step B). Brokerage payloads are never retried; if no
+  attempt reconciles, the smallest-difference result is kept so routing is
+  unchanged. Only failing parses retry, so average cost is bounded; set
+  `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
