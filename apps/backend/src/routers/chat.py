@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Annotated
 from uuid import UUID
 
@@ -24,6 +23,7 @@ from src.schemas.chat import (
     ChatSessionStatusEnum,
     ChatSuggestionsResponse,
 )
+from src.schemas.streaming import ChatStreamEnvelope
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
 from src.services.ai_models import is_model_known
 from src.utils import raise_bad_request, raise_not_found, raise_service_unavailable
@@ -73,25 +73,26 @@ async def chat_message(
     # _stream_and_store commits the assistant message after the generator completes.
     await db.commit()
 
-    headers = {
-        "X-Session-Id": str(stream.session_id),
-        "Access-Control-Expose-Headers": "X-Session-Id",
-    }
-    if stream.model_name:
-        headers["X-Model-Name"] = stream.model_name
-        headers["Access-Control-Expose-Headers"] += ", X-Model-Name"
-    metadata = getattr(stream, "metadata", None)
-    metadata_header: str | None = None
-    if isinstance(metadata, ChatResponseMetadata):
-        if metadata.grounded or metadata.citations or metadata.actions:
-            metadata_header = metadata.model_dump_json()
-    elif isinstance(metadata, dict):
-        metadata_header = json.dumps(metadata, separators=(",", ":"))
-    if metadata_header:
-        headers["X-Advisor-Metadata"] = metadata_header
-        headers["Access-Control-Expose-Headers"] += ", X-Advisor-Metadata"
+    # Declare the streaming response's out-of-band payload (session id, model
+    # name, grounding metadata) through the typed contract so the header
+    # structure is validated and testable. Wire bytes are unchanged.
+    raw_metadata = getattr(stream, "metadata", None)
+    advisor_metadata: ChatResponseMetadata | None = None
+    if isinstance(raw_metadata, ChatResponseMetadata):
+        advisor_metadata = raw_metadata
+    elif isinstance(raw_metadata, dict):
+        advisor_metadata = ChatResponseMetadata.model_validate(raw_metadata)
+    envelope = ChatStreamEnvelope(
+        session_id=stream.session_id,
+        model_name=stream.model_name,
+        advisor_metadata=advisor_metadata,
+    )
 
-    return StreamingResponse(stream.stream, media_type="text/plain", headers=headers)
+    return StreamingResponse(
+        stream.stream,
+        media_type=envelope.media_type.value,
+        headers=envelope.to_headers(),
+    )
 
 
 @router.get("/history", response_model=ChatHistoryResponse)

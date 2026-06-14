@@ -65,6 +65,7 @@ from src.schemas import (
     PersonalReportPackageTraceabilityResponse,
     TrendPeriod,
 )
+from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 from src.services.confidence_metric import ConfidenceMetricService
 from src.services.confidence_tier import derive_confidence_tier
 from src.services.evidence_lineage import EvidenceLineageService
@@ -1784,16 +1785,14 @@ async def export_personal_report_package_snapshot(
     stem = f"personal-report-package-{snapshot.framework_id.value}-{snapshot.as_of_date}-{snapshot.id}"
     if format == PackageSnapshotExportFormat.JSON:
         content = json.dumps(snapshot.model_dump(mode="json"), sort_keys=True)
-        filename = f"{stem}.json"
-        media_type = "application/json"
+        envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.JSON, filename=f"{stem}.json")
     else:
         content = _package_snapshot_csv(snapshot)
-        filename = f"{stem}.csv"
-        media_type = "text/csv"
+        envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=f"{stem}.csv")
     return StreamingResponse(
         StringIO(content),
-        media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        media_type=envelope.media_type.value,
+        headers=envelope.to_headers(),
     )
 
 
@@ -2206,10 +2205,11 @@ async def export_report(
     await db.commit()
     content = output.getvalue()
     output.close()
+    envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=filename)
     return StreamingResponse(
         StringIO(content),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        media_type=envelope.media_type.value,
+        headers=envelope.to_headers(),
     )
 
 
