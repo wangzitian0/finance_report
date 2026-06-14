@@ -148,6 +148,9 @@ jobs:
       - name: SSOT Manifest Check
         run: |
           uv run --with pyyaml python tools/check_manifest.py
+      - name: SSOT Governance Exceptions Check
+        run: |
+          uv run --with pyyaml python tools/check_governance_exceptions.py
       - name: SSOT Governance Report
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
