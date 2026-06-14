@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `127`
-- Schema count: `211`
+- Endpoint count: `128`
+- Schema count: `213`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -30,7 +30,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
 | `reports` | 21 |
-| `review` | 7 |
+| `review` | 8 |
 | `statements` | 15 |
 | `untagged` | 3 |
 | `user-settings` | 2 |
@@ -216,6 +216,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/review/conflicts/{statement_id}` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
+| `POST` | `/review/conflicts/{statement_id}/resolve` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
 | `POST` | `/statements/batch-approve-matches` | yes | - | `BatchApproveRequest` | `200` object | Batch Approve Matches |
 | `POST` | `/statements/batch-reject-matches` | yes | - | `BatchRejectRequest` | `200` object | Batch Reject Matches |
 | `GET` | `/statements/consistency-checks/list` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
