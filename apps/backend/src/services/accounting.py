@@ -405,6 +405,59 @@ async def post_opening_balance_entry(
     return await post_journal_entry(db, entry.id, user_id)
 
 
+async def get_opening_balance_readiness(db: AsyncSession, user_id: UUID) -> dict:
+    """Detect whether a user's balance sheet may be silently incomplete (#949 / AC2.16.1).
+
+    The everyday-user persona who already owns assets/liabilities on day one will,
+    without recording opening balances, get a balance sheet that looks right but
+    omits the starting position. This returns ``needs_opening_balance=True`` when
+    the user has posted activity but no opening-balance entry on or before the
+    earliest such activity, so the UI can nudge them before they ship incomplete
+    numbers.
+    """
+    posted = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
+
+    # Opening-balance entries are exactly the journal entries with a line on the
+    # user's system-managed Opening Balance Equity account (code 3199).
+    opening_entry_ids = (
+        select(JournalLine.journal_entry_id)
+        .join(Account, Account.id == JournalLine.account_id)
+        .where(
+            Account.user_id == user_id,
+            Account.is_system.is_(True),
+            Account.code == "3199",
+        )
+    )
+
+    # Earliest "real" activity = earliest posted/reconciled entry that is not an
+    # opening-balance entry (statements, manual entries, FX, processing, ...).
+    earliest_activity = await db.scalar(
+        select(func.min(JournalEntry.entry_date)).where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.status.in_(posted),
+            JournalEntry.id.notin_(opening_entry_ids),
+        )
+    )
+    earliest_opening = await db.scalar(
+        select(func.min(JournalEntry.entry_date)).where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.status.in_(posted),
+            JournalEntry.id.in_(opening_entry_ids),
+        )
+    )
+
+    has_activity = earliest_activity is not None
+    has_opening_before = earliest_opening is not None and (
+        earliest_activity is None or earliest_opening <= earliest_activity
+    )
+    return {
+        "needs_opening_balance": has_activity and not has_opening_before,
+        "has_activity": has_activity,
+        "has_opening_entry": earliest_opening is not None,
+        "earliest_activity_date": earliest_activity,
+    }
+
+
 async def create_journal_entry(
     db: AsyncSession,
     user_id: UUID,

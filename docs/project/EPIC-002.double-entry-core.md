@@ -253,6 +253,19 @@ A user with pre-existing assets/liabilities can establish year-start balances vi
 | AC2.15.7 | Opening balances may only target user-managed accounts; a system account (e.g. Processing) cannot be set via this endpoint even though the entry is SYSTEM-typed | `test_AC2_15_7_system_account_target_is_rejected` | `accounting/test_opening_balance.py` | P0 |
 | AC2.15.8 | The Accounts page offers a guided opening-balance flow: a non-accountant enters an as-of date and a starting balance per eligible (active, non-income/expense) account, and the UI posts the balances map to `POST /api/accounts/opening-balances` — never hand-written journal lines — validating positive two-decimal amounts and surfacing backend errors instead of silently closing | `AC2.15.8 lists only eligible accounts and hides income/expense and inactive ones`, `AC2.15.8 posts a balances map without requiring hand-written journal lines`, `AC2.15.8 blocks submission until at least one positive balance is entered`, `AC2.15.8 rejects non-positive or over-precise amounts before calling the API`, `AC2.15.8 surfaces a backend error instead of closing` | `apps/frontend/src/__tests__/openingBalanceModal.test.tsx` | P1 |
 
+### AC2.16: Opening-Balance Readiness Nudge ([#949](https://github.com/wangzitian0/finance_report/issues/949))
+
+The everyday-user persona who already owns assets/liabilities on day one can post
+real activity without ever recording a starting position, yielding a balance
+sheet that looks right but silently omits the opening balances. These ACs surface
+that gap before the numbers are trusted.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.16.1 | `get_opening_balance_readiness` reports `needs_opening_balance=True` only when the user has posted activity and no opening-balance entry on or before its earliest date (no activity, an opening entry before activity, or a mis-dated opening entry after activity are all distinguished) | `test_AC2_16_1_no_activity_does_not_need_opening_balance`, `test_AC2_16_1_activity_without_opening_entry_needs_opening_balance`, `test_AC2_16_1_opening_entry_before_activity_clears_the_nudge`, `test_AC2_16_1_opening_entry_after_activity_still_needs` | `apps/backend/tests/accounting/test_opening_balance_readiness.py` | P1 |
+| AC2.16.2 | `GET /api/accounts/opening-balance-readiness` exposes the readiness signal to the UI | `test_AC2_16_2_readiness_endpoint_returns_status` | `apps/backend/tests/accounting/test_opening_balance_readiness.py` | P1 |
+| AC2.16.3 | The Accounts page shows a warning nudge (with a CTA that opens the guided flow) when opening balances are missing, and hides it once they are recorded | `AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing`, `AC2.16.3 hides the readiness nudge when opening balances are already recorded` | `apps/frontend/src/__tests__/accountsPage.test.tsx` | P1 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC2.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.

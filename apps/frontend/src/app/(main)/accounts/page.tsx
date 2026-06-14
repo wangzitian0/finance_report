@@ -32,6 +32,16 @@ export default function AccountsPage() {
         queryFn: () => apiFetch<AccountListResponse>("/api/accounts?include_balance=true"),
     });
 
+    // #949: nudge the user if they have activity but no recorded opening balances,
+    // so they don't silently ship an incomplete balance sheet.
+    const { data: readiness } = useQuery({
+        queryKey: ["opening-balance-readiness"],
+        queryFn: () =>
+            apiFetch<{ needs_opening_balance: boolean; earliest_activity_date: string | null }>(
+                "/api/accounts/opening-balance-readiness",
+            ),
+    });
+
     const deleteMutation = useMutation({
         mutationFn: (accountId: string) => apiFetch(`/api/accounts/${accountId}`, { method: "DELETE" }),
         onSuccess: () => {
@@ -98,6 +108,26 @@ export default function AccountsPage() {
                     </div>
                 )}
             />
+
+            {/* #949 readiness nudge: warn before shipping a silently-incomplete balance sheet. */}
+            {readiness?.needs_opening_balance && (
+                <Alert variant="warning" className="mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                            Your balance sheet may be incomplete — you have activity
+                            {readiness.earliest_activity_date ? ` since ${readiness.earliest_activity_date}` : ""} but
+                            no opening balances recorded. Set your starting balances so reports tie out from day one.
+                        </span>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setIsOpeningBalanceOpen(true)}
+                            className="shrink-0"
+                        >
+                            Set opening balances
+                        </Button>
+                    </div>
+                </Alert>
+            )}
 
             {/* Tabs */}
             <div className="mb-6 flex w-full flex-wrap gap-1 rounded-lg bg-[var(--background-muted)] p-1 sm:w-fit">
@@ -211,6 +241,7 @@ export default function AccountsPage() {
                 onSuccess={() => {
                     showToast("Opening balances recorded", "success");
                     queryClient.invalidateQueries({ queryKey: ["accounts"] });
+                    queryClient.invalidateQueries({ queryKey: ["opening-balance-readiness"] });
                 }}
                 accounts={accounts}
             />
