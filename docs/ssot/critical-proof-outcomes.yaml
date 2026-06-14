@@ -1,5 +1,8 @@
 version: "1.0"
-description: "Macro-outcome contract source for docs/ssot/critical-proof-matrix.yaml. Owns ONLY the README -> EPIC -> E2E macro outcome mapping (outcome -> owner EPICs + proof_ids). The proofs[] section of the matrix is generated from @ac_proof(...) decorators co-located on the tests; do not hand-edit proofs. Outcomes rarely change and are not the merge-train false-sharing hotspot, so they stay hand-maintained here."
+# NOTE: this `description` is copied verbatim into the generated
+# docs/ssot/critical-proof-matrix.yaml, so it is written to describe THAT
+# generated artifact (not this source file).
+description: "Generated critical proof matrix: the README -> EPIC -> E2E macro outcome guard plus the core product proof paths. Both sections are GENERATED, do not hand-edit this matrix. The `outcomes` section comes from docs/ssot/critical-proof-outcomes.yaml (hand-maintained outcome -> owner EPICs + proof_ids mapping); the `proofs` section is collected from the @ac_proof(...) decorators co-located on the tests (common/testing/ac_proof.py). Regenerate with tools/generate_critical_proof_matrix.py."
 
 outcomes:
   - id: personal-financial-report-package
