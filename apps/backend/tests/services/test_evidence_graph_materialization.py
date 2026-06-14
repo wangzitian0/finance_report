@@ -18,6 +18,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.deduplication import DeduplicationService
 from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.services.evidence_graph_materialization import EvidenceGraphMaterializationService
+from tests.factories import UserFactory
 
 
 async def _create_historical_statement_entry(
@@ -189,7 +190,7 @@ async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
         entity_id=uuid4(),
         properties={},
     )
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     source = EvidenceNode(
         user_id=test_user.id,
         node_kind="source_document",

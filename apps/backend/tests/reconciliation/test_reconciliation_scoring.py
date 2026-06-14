@@ -373,7 +373,7 @@ def test_prune_candidates_orders_and_limits() -> None:
     )
 
 
-async def test_score_pattern_variants(db: AsyncSession) -> None:
+async def test_score_pattern_variants(db: AsyncSession, test_user) -> None:
     txn_empty = AtomicTransaction(
         user_id=uuid4(),
         txn_date=date.today(),
@@ -398,7 +398,7 @@ async def test_score_pattern_variants(db: AsyncSession) -> None:
     )
     assert await score_pattern(db, txn_no_history, DEFAULT_CONFIG, user_id=uuid4()) == 0.0
 
-    user_id = uuid4()
+    user_id = test_user.id
     past_txn = AtomicTransaction(
         user_id=user_id,
         txn_date=date.today(),

@@ -50,9 +50,9 @@ async def _entry(db, user_id, entry_date: date, lines: list[tuple[Account, Direc
     await db.flush()
 
 
-async def test_net_worth_timeseries_daily_points(db):
+async def test_net_worth_timeseries_daily_points(db, test_user):
     """AC5.7.1: Daily net worth time-series returns assets, liabilities, and net worth."""
-    user_id = uuid4()
+    user_id = test_user.id
     cash = await _account(db, user_id, "Cash", AccountType.ASSET)
     equity = await _account(db, user_id, "Owner Equity", AccountType.EQUITY)
     expense = await _account(db, user_id, "Dining", AccountType.EXPENSE)
@@ -88,9 +88,9 @@ async def test_net_worth_timeseries_daily_points(db):
     ]
 
 
-async def test_net_worth_timeseries_uses_historical_fx_per_point(db):
+async def test_net_worth_timeseries_uses_historical_fx_per_point(db, test_user):
     """AC5.7.3: Each point uses the historical FX rate at that point's date."""
-    user_id = uuid4()
+    user_id = test_user.id
     usd_cash = await _account(db, user_id, "USD Cash", AccountType.ASSET, currency="USD")
     equity = await _account(db, user_id, "Owner Equity", AccountType.EQUITY, currency="USD")
     await _entry(

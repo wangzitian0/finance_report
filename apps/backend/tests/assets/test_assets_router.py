@@ -11,6 +11,7 @@ from uuid import uuid4
 from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
+from tests.factories import UserFactory
 
 
 class TestAssetsRouter:
@@ -144,7 +145,7 @@ class TestAssetsRouter:
 
     async def test_get_position_wrong_user(self, client, db):
         """AC11.3.3: GET /assets/positions/{id} returns 404 for other user's position."""
-        other_user_id = uuid4()
+        other_user_id = (await UserFactory.create_async(db)).id
         account = Account(
             user_id=other_user_id,
             name="Other Broker",

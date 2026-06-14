@@ -72,6 +72,7 @@ from src.services.deduplication import dual_write_layer2
 from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.services.fx import FxRateError
 from src.services.review_queue import create_entry_from_txn
+from tests.factories import UserFactory
 
 
 @pytest.fixture(autouse=True)
@@ -445,7 +446,7 @@ async def test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable(
     )
     await db.flush()
 
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     db.add(
         ReportSnapshot(
             user_id=other_user_id,

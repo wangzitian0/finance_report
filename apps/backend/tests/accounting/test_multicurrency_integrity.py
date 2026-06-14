@@ -39,9 +39,9 @@ def test_AC2_12_1_multicurrency_entry_balances_in_base_currency():
         validate_journal_balance([bank_usd, understated_credit])
 
 
-async def test_AC2_12_2_accounting_equation_uses_base_currency_balances(db: AsyncSession):
+async def test_AC2_12_2_accounting_equation_uses_base_currency_balances(db: AsyncSession, test_user):
     """AC2.12.2: Accounting equation verification uses base-currency converted balances."""
-    user_id = uuid4()
+    user_id = test_user.id
     usd_asset = Account(user_id=user_id, name="USD Bank", type=AccountType.ASSET, currency="USD")
     equity = Account(user_id=user_id, name="Opening Equity", type=AccountType.EQUITY, currency="SGD")
     db.add_all([usd_asset, equity])

@@ -14,6 +14,7 @@ from sqlalchemy import select
 from src.models.layer1 import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.deduplication import DeduplicationService
+from tests.factories import UserFactory
 
 
 class TestDeduplicationService:
@@ -517,7 +518,7 @@ class TestDeduplicationService:
         THEN: Different dedup hashes are generated (user_id is part of hash)"""
         service = DeduplicationService()
         user1_id = test_user.id
-        user2_id = uuid4()
+        user2_id = (await UserFactory.create_async(db)).id
         doc_id = uuid4()
 
         # Create transaction for user 1

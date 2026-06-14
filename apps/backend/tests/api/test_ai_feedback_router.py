@@ -21,6 +21,7 @@ from src.models import (
 )
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.layer3 import RuleType
+from tests.factories import UserFactory
 
 pytestmark = pytest.mark.asyncio
 
@@ -322,7 +323,7 @@ async def test_ac18_5_6_get_ai_suggestions_scopes_to_current_user(
     test_user: User,
 ) -> None:
     """AC18.5.6: suggestions belonging to other users are not surfaced."""
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     await _seed_classification_suggestion(db, other_user_id, confidence=70, description="Other user txn")
     await _seed_reconciliation_suggestion(db, other_user_id, match_score=72, description="Other user bank")
     await db.commit()

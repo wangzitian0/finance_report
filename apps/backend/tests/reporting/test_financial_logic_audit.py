@@ -2,7 +2,6 @@
 
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,8 +37,8 @@ async def _add_entry(
 
 
 @pytest.fixture
-async def cash_flow_accounts(db: AsyncSession):
-    user_id = uuid4()
+async def cash_flow_accounts(db: AsyncSession, test_user):
+    user_id = test_user.id
     cash = Account(user_id=user_id, name="Cash", type=AccountType.ASSET, currency="SGD")
     equity = Account(user_id=user_id, name="Owner Equity", type=AccountType.EQUITY, currency="SGD")
     rent = Account(user_id=user_id, name="Rent Expense", type=AccountType.EXPENSE, currency="SGD")

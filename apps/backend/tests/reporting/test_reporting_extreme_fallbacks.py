@@ -28,8 +28,8 @@ from src.services.reporting import (
 
 
 @pytest.fixture
-def test_user_id():
-    return uuid4()
+def test_user_id(test_user):
+    return test_user.id
 
 
 async def test_reporting_extreme_fallbacks_failure_reporting(db: AsyncSession, test_user_id):

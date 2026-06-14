@@ -2,7 +2,6 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
-from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +18,7 @@ from src.services.portfolio import (
     PortfolioNotFoundError,
     PortfolioService,
 )
+from tests.factories import UserFactory
 
 
 @pytest.fixture
@@ -571,8 +571,9 @@ async def test_get_holdings_no_atomic_for_classification(db, test_user, svc, acc
     db.add(pos)
 
     # Atomic with matching asset_identifier but for a DIFFERENT user
+    other_user_id = (await UserFactory.create_async(db)).id
     other_user_atom = AtomicPosition(
-        user_id=uuid4(),
+        user_id=other_user_id,
         snapshot_date=date.today(),
         asset_identifier="NOCLASS",
         broker="B",

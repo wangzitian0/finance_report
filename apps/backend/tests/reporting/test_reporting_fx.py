@@ -28,8 +28,8 @@ from src.services.reporting import (
 
 
 @pytest.fixture
-def test_user_id():
-    return uuid4()
+def test_user_id(test_user):
+    return test_user.id
 
 
 @pytest.fixture

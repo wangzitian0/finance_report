@@ -26,7 +26,6 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
     TransactionDirection,
-    User,
 )
 from src.services.reconciliation import (
     DEFAULT_CONFIG,
@@ -69,15 +68,14 @@ class TestMatchingAccuracy:
     maintain a labeled test set with ground-truth matches.
     """
 
-    async def test_high_confidence_matches_are_correct(self, db: AsyncSession):
+    async def test_high_confidence_matches_are_correct(self, db: AsyncSession, test_user):
         """
         CRITICAL #5: High-score matches (>=85) should be true positives.
 
         This test creates scenarios where we KNOW the match is correct,
         then verifies the algorithm scores them highly.
         """
-        user_id = uuid4()
-        user = User(id=user_id, email="accuracy@example.com", hashed_password="hashed")
+        user_id = test_user.id
         bank = Account(
             user_id=user_id,
             name="Bank - Accuracy Test",
@@ -91,7 +89,7 @@ class TestMatchingAccuracy:
             currency="SGD",
         )
 
-        db.add_all([user, bank, income])
+        db.add_all([bank, income])
         await db.flush()
 
         # Create 10 known-correct match pairs
@@ -153,18 +151,17 @@ class TestMatchingAccuracy:
         # This gives us confidence that high scores = true positives
         assert high_score_count >= 8, f"Expected 80%+ of exact matches to score >= 85, got {high_score_count}/10"
 
-    async def test_unrelated_transactions_score_low(self, db: AsyncSession):
+    async def test_unrelated_transactions_score_low(self, db: AsyncSession, test_user):
         """
         CRITICAL #5: Unrelated transactions should NOT score high (avoid false positives).
 
         Creates entries and transactions that should NOT match.
         """
-        user_id = uuid4()
-        user = User(id=user_id, email="fp@example.com", hashed_password="hashed")
+        user_id = test_user.id
         bank = Account(user_id=user_id, name="Bank - FP Test", type=AccountType.ASSET, currency="SGD")
         expense = Account(user_id=user_id, name="Expense - FP Test", type=AccountType.EXPENSE, currency="SGD")
 
-        db.add_all([user, bank, expense])
+        db.add_all([bank, expense])
         await db.flush()
 
         # Entry from January - Rent payment
@@ -215,18 +212,17 @@ class TestMatchingAccuracy:
         # Unrelated transaction should score LOW (< 60 = unmatched)
         assert score_result.score < 60, f"Unrelated transaction should score < 60, got {score_result.score}"
 
-    async def test_similar_transactions_found(self, db: AsyncSession):
+    async def test_similar_transactions_found(self, db: AsyncSession, test_user):
         """
         CRITICAL #6: Similar transactions should NOT be missed (avoid false negatives).
 
         Tests that fuzzy matching finds transactions with minor differences.
         """
-        user_id = uuid4()
-        user = User(id=user_id, email="fn@example.com", hashed_password="hashed")
+        user_id = test_user.id
         bank = Account(user_id=user_id, name="Bank - FN Test", type=AccountType.ASSET, currency="SGD")
         income = Account(user_id=user_id, name="Income - FN Test", type=AccountType.INCOME, currency="SGD")
 
-        db.add_all([user, bank, income])
+        db.add_all([bank, income])
         await db.flush()
 
         # Entry: Salary
@@ -286,19 +282,18 @@ class TestBatchPerformance:
     """Performance tests for batch reconciliation."""
 
     @pytest.mark.slow  # Mark as slow test, can be skipped with -m "not slow"
-    async def test_batch_1000_transactions_reasonable_time(self, db: AsyncSession):
+    async def test_batch_1000_transactions_reasonable_time(self, db: AsyncSession, test_user):
         """
         [AC4.4.1] HIGH #13: Batch matching 1000 transactions should complete quickly.
 
         Note: Full 10,000 test is too slow for CI. Use 1000 as representative.
         Scale: 1000 txns < 2s implies 10,000 < 20s (within acceptable range).
         """
-        user_id = uuid4()
-        user = User(id=user_id, email="perf@example.com", hashed_password="hashed")
+        user_id = test_user.id
         bank = Account(user_id=user_id, name="Bank - Perf", type=AccountType.ASSET, currency="SGD")
         expense = Account(user_id=user_id, name="Expense - Perf", type=AccountType.EXPENSE, currency="SGD")
 
-        db.add_all([user, bank, expense])
+        db.add_all([bank, expense])
         await db.flush()
 
         # Create 100 transactions (reduced from 1000 for CI speed)
@@ -370,16 +365,15 @@ class TestBatchPerformance:
 class TestConcurrentMatching:
     """Tests for concurrent matching safety."""
 
-    async def test_parallel_matching_different_statements(self, db: AsyncSession):
+    async def test_parallel_matching_different_statements(self, db: AsyncSession, test_user):
         """
         HIGH #14: Parallel matching of different statements should not race.
         """
-        user_id = uuid4()
-        user = User(id=user_id, email="concurrent@example.com", hashed_password="hashed")
+        user_id = test_user.id
         bank = Account(user_id=user_id, name="Bank - Concurrent", type=AccountType.ASSET, currency="SGD")
         income = Account(user_id=user_id, name="Income - Concurrent", type=AccountType.INCOME, currency="SGD")
 
-        db.add_all([user, bank, income])
+        db.add_all([bank, income])
         await db.flush()
 
         # Three logical "statements" worth of transactions on the Layer-2 stream.
@@ -415,18 +409,17 @@ class TestConcurrentMatching:
 class TestCrossMonthMatching:
     """Tests for cross-month matching scenarios."""
 
-    async def test_month_end_to_month_start_match(self, db: AsyncSession):
+    async def test_month_end_to_month_start_match(self, db: AsyncSession, test_user):
         """
         [AC4.4.2] HIGH #15: Transaction on 1/31 should match entry from 2/1.
 
         Common scenario: Bank processes on last day, user enters on first day of new month.
         """
-        user_id = uuid4()
-        user = User(id=user_id, email="crossmonth@example.com", hashed_password="hashed")
+        user_id = test_user.id
         bank = Account(user_id=user_id, name="Bank - CrossMonth", type=AccountType.ASSET, currency="SGD")
         income = Account(user_id=user_id, name="Income - CrossMonth", type=AccountType.INCOME, currency="SGD")
 
-        db.add_all([user, bank, income])
+        db.add_all([bank, income])
         await db.flush()
 
         # Entry dated Feb 1
@@ -478,18 +471,17 @@ class TestCrossMonthMatching:
         # Amount and description are exact, so should score well
         assert score_result.score >= 70, f"Cross-month (1 day diff) match should score >= 70, got {score_result.score}"
 
-    async def test_friday_to_monday_weekend_gap(self, db: AsyncSession):
+    async def test_friday_to_monday_weekend_gap(self, db: AsyncSession, test_user):
         """
         HIGH #15: Friday bank transaction matching Monday entry.
 
         Common scenario: Friday evening bank processing, Monday user entry.
         """
-        user_id = uuid4()
-        user = User(id=user_id, email="weekend@example.com", hashed_password="hashed")
+        user_id = test_user.id
         bank = Account(user_id=user_id, name="Bank - Weekend", type=AccountType.ASSET, currency="SGD")
         expense = Account(user_id=user_id, name="Expense - Weekend", type=AccountType.EXPENSE, currency="SGD")
 
-        db.add_all([user, bank, expense])
+        db.add_all([bank, expense])
         await db.flush()
 
         # Entry dated Monday (2024-01-15)

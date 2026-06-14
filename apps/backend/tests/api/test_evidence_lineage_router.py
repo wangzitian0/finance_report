@@ -17,6 +17,7 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.routers.evidence import _should_attempt_lazy_materialization
 from src.services.deduplication import DeduplicationService
 from src.services.evidence_lineage import EvidenceLineageService
+from tests.factories import UserFactory
 
 
 async def test_AC18_9_1_AC18_9_2_lineage_api_resolves_owned_anchor_and_both_directions(
@@ -141,7 +142,7 @@ async def test_AC18_9_3_lineage_api_returns_blocker_for_missing_or_cross_user_an
 ):
     """AC18.9.3: Missing or cross-user graph identities return explicit blocker state."""
     service = EvidenceLineageService()
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     other_entity_id = uuid4()
     await service.upsert_node(
         db,

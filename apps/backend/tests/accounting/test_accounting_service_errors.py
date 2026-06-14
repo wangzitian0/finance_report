@@ -35,18 +35,19 @@ from src.services.accounting import (
     void_journal_entry,
 )
 from tests.accounting._ledger_helpers import create_valid_posted_entry
+from tests.factories import UserFactory
 
 
 @pytest.fixture
-async def test_user_id():
-    return uuid4()
+async def test_user_id(test_user):
+    return test_user.id
 
 
 async def test_calculate_account_balance_errors(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="not found"):
         await calculate_account_balance(db, uuid4(), test_user_id)
 
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     account = Account(
         user_id=other_user_id,
         name="Other User Account",
@@ -65,7 +66,7 @@ async def test_post_journal_entry_errors(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="not found"):
         await post_journal_entry(db, uuid4(), test_user_id)
 
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     entry = JournalEntry(
         user_id=other_user_id,
         entry_date=date.today(),
@@ -132,7 +133,7 @@ async def test_void_journal_entry_errors(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="not found"):
         await void_journal_entry(db, uuid4(), "reason", test_user_id)
 
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     entry = await create_valid_posted_entry(db, other_user_id, memo="Other user entry")
 
     with pytest.raises(ValidationError, match="does not belong to user"):

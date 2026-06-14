@@ -144,10 +144,9 @@ def test_normalize_text_and_grouping() -> None:
     assert len(groups[0]) == 2
 
 
-async def test_execute_matching_auto_accepts_exact_match(db: AsyncSession) -> None:
+async def test_execute_matching_auto_accepts_exact_match(db: AsyncSession, test_user) -> None:
     """Exact matches should be auto-accepted and reconciled."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"auto-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     bank = Account(
         user_id=user_id,
         name="Bank - Main",
@@ -167,7 +166,7 @@ async def test_execute_matching_auto_accepts_exact_match(db: AsyncSession) -> No
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
-    db.add_all([user, bank, income, entry])
+    db.add_all([bank, income, entry])
     await db.flush()
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 1, 15))
 
@@ -203,9 +202,9 @@ async def test_execute_matching_auto_accepts_exact_match(db: AsyncSession) -> No
     assert match.match_score >= 95
 
 
-async def test_execute_matching_no_candidates(db: AsyncSession):
+async def test_execute_matching_no_candidates(db: AsyncSession, test_user):
     """Test matching when no candidates are found for a transaction."""
-    user_id = uuid4()
+    user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 1, 1))
 
     txn = _atomic(
@@ -224,10 +223,9 @@ async def test_execute_matching_no_candidates(db: AsyncSession):
     await db.refresh(txn)
 
 
-async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
+async def test_transfer_pair_not_double_counted(db: AsyncSession, test_user) -> None:
     """AC4.6.2: Matching transfer OUT/IN within 3 days uses Processing entries only."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"transfer-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     checking = Account(
         user_id=user_id,
         name="Bank - Checking",
@@ -240,7 +238,7 @@ async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
         type=AccountType.ASSET,
         currency="SGD",
     )
-    db.add_all([user, checking, savings])
+    db.add_all([checking, savings])
     await db.flush()
 
     out_summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 3, 10), account_id=checking.id)
@@ -289,10 +287,9 @@ async def test_transfer_pair_not_double_counted(db: AsyncSession) -> None:
     assert {entry.status for entry in transfer_entries} == {JournalEntryStatus.RECONCILED}
 
 
-async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -> None:
+async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession, test_user) -> None:
     """Pending review and unmatched cases are handled correctly."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"pending-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     bank = Account(
         user_id=user_id,
         name="Bank - Alt",
@@ -312,7 +309,7 @@ async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -
         source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.POSTED,
     )
-    db.add_all([user, bank, holding, entry])
+    db.add_all([bank, holding, entry])
     await db.flush()
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 2, 10))
 
@@ -357,10 +354,9 @@ async def test_execute_matching_pending_review_and_unmatched(db: AsyncSession) -
     await db.refresh(txn_unmatched)
 
 
-async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
+async def test_execute_matching_many_to_one_group(db: AsyncSession, test_user) -> None:
     """[AC4.2.1] Batch-like transactions should reconcile via many-to-one grouping."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"batch-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     bank = Account(
         user_id=user_id,
         name="Bank - Batch",
@@ -381,7 +377,7 @@ async def test_execute_matching_many_to_one_group(db: AsyncSession) -> None:
         status=JournalEntryStatus.POSTED,
     )
 
-    db.add_all([user, bank, expense, entry])
+    db.add_all([bank, expense, entry])
     await db.flush()
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 4, 1))
 
@@ -442,11 +438,11 @@ async def test_execute_matching_no_transactions(db: AsyncSession):
     assert result == []
 
 
-async def test_find_candidates(db: AsyncSession):
+async def test_find_candidates(db: AsyncSession, test_user):
     """Test find_candidates standalone helper."""
     from src.services.reconciliation import find_candidates, load_reconciliation_config
 
-    user_id = uuid4()
+    user_id = test_user.id
     config = load_reconciliation_config()
 
     await create_valid_posted_entry(db, user_id, entry_date=date(2024, 1, 1), memo="Test Entry")
@@ -460,10 +456,9 @@ async def test_find_candidates(db: AsyncSession):
     assert len(results) == 0
 
 
-async def test_execute_matching_multi_entry_combinations(db: AsyncSession) -> None:
+async def test_execute_matching_multi_entry_combinations(db: AsyncSession, test_user) -> None:
     """[AC4.2.3] Multi-entry combinations should produce the best match (One-to-Many)."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"multi-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     bank = Account(
         user_id=user_id,
         name="Bank - Multi",
@@ -498,7 +493,7 @@ async def test_execute_matching_multi_entry_combinations(db: AsyncSession) -> No
         status=JournalEntryStatus.POSTED,
     )
 
-    db.add_all([user, bank, expense, entry_a, entry_b, entry_c])
+    db.add_all([bank, expense, entry_a, entry_b, entry_c])
     await db.flush()
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 4, 5))
 
@@ -578,9 +573,9 @@ async def test_review_queue_error_paths(db: AsyncSession) -> None:
     assert await batch_accept(db, [], user_id=uuid4()) == []
 
 
-async def test_get_or_create_account_reuses_existing(db: AsyncSession) -> None:
+async def test_get_or_create_account_reuses_existing(db: AsyncSession, test_user) -> None:
     """get_or_create_account returns existing records."""
-    user_id = uuid4()
+    user_id = test_user.id
     account = await get_or_create_account(
         db,
         name="Bank - Main",
@@ -600,9 +595,10 @@ async def test_get_or_create_account_reuses_existing(db: AsyncSession) -> None:
 
 async def test_create_entry_from_txn_inflow_uses_statement_currency(
     db: AsyncSession,
+    test_user,
 ) -> None:
     """Inflow transactions use statement currency and income account."""
-    user_id = uuid4()
+    user_id = test_user.id
     db.add(
         FxRate(
             base_currency="USD",
@@ -639,9 +635,10 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
 
 async def test_create_entry_from_txn_requires_fx_rate_for_foreign_statement_currency(
     db: AsyncSession,
+    test_user,
 ) -> None:
     """Foreign-currency statement auto-entry creation must not invent FX rates."""
-    user_id = uuid4()
+    user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 4, 11), currency="USD")
 
     txn = _atomic(
@@ -799,9 +796,9 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     assert entry_accept.status == JournalEntryStatus.RECONCILED
 
 
-async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> None:
+async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession, test_user) -> None:
     """[AC4.5.1] Anomaly detection flags large, frequent, and new merchants."""
-    user_id = uuid4()
+    user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 3, 4))
 
     history_events = [
@@ -848,9 +845,9 @@ async def test_detect_anomalies_flags_expected_patterns(db: AsyncSession) -> Non
     assert "WEEKEND_LARGE" in weekend_types
 
 
-async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> None:
+async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession, test_user) -> None:
     """AC4.6.6: Pattern score cache reuses merchant token score across transactions."""
-    user_id = uuid4()
+    user_id = test_user.id
     bank = Account(user_id=user_id, name="Bank - Cache", type=AccountType.ASSET, currency="SGD")
     expense = Account(user_id=user_id, name="Expense - Cache", type=AccountType.EXPENSE, currency="SGD")
     entry = JournalEntry(
@@ -909,9 +906,9 @@ async def test_execute_matching_reuses_pattern_score_cache(db: AsyncSession) -> 
     assert mock_score.await_count == 1
 
 
-async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSession) -> None:
+async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSession, test_user) -> None:
     """AC4.6.7: Many-to-one skips unbalanced candidates and leaves transactions unmatched."""
-    user_id = uuid4()
+    user_id = test_user.id
     await create_valid_posted_entry(
         db,
         user_id,
@@ -951,9 +948,9 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
     assert matches == []
 
 
-async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncSession) -> None:
+async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncSession, test_user) -> None:
     """AC4.6.8: Many-to-one keeps existing match when journal entry IDs are unchanged."""
-    user_id = uuid4()
+    user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 8, 1))
     txn = _atomic(
         owner_id=user_id,
@@ -995,9 +992,9 @@ async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncS
     assert matches == []
 
 
-async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncSession, monkeypatch) -> None:
+async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncSession, monkeypatch, test_user) -> None:
     """AC4.6.9: Layer-2 reconciliation writes atomic_txn_id and supports transfer-pair logging."""
-    user_id = uuid4()
+    user_id = test_user.id
 
     txn = AtomicTransaction(
         user_id=user_id,
@@ -1037,9 +1034,9 @@ async def test_execute_matching_many_to_one_layer2_sets_atomic_txn_id(db: AsyncS
     assert matches[0].atomic_txn_id == txn.id
 
 
-async def test_execute_matching_three_entry_combination_skips_unbalanced_member(db: AsyncSession) -> None:
+async def test_execute_matching_three_entry_combination_skips_unbalanced_member(db: AsyncSession, test_user) -> None:
     """AC4.7.3: Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped."""
-    user_id = uuid4()
+    user_id = test_user.id
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 9, 12))
 
     txn = _atomic(
@@ -1095,9 +1092,11 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
     assert matches == []
 
 
-async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(db: AsyncSession, monkeypatch) -> None:
+async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(
+    db: AsyncSession, monkeypatch, test_user
+) -> None:
     """AC4.7.4: Reconciliation phase-2 – atomic match and transfer pair logging in layer-2."""
-    user_id = uuid4()
+    user_id = test_user.id
 
     entry = JournalEntry(
         user_id=user_id,
