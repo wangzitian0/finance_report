@@ -1105,7 +1105,13 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
             return subprocess.CompletedProcess(
                 cmd,
                 0,
-                stdout=json.dumps({"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "running"}),
+                stdout=json.dumps(
+                    {
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
+                        "composeStatus": "running",
+                    }
+                ),
                 stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
@@ -1189,7 +1195,12 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
                 cmd,
                 0,
                 stdout=json.dumps(
-                    {"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "idle", "deployments": []}
+                    {
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
+                        "composeStatus": "idle",
+                        "deployments": [],
+                    }
                 ),
                 stderr="",
             )
@@ -1280,7 +1291,12 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
                 cmd,
                 0,
                 stdout=json.dumps(
-                    {"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "idle", "deployments": []}
+                    {
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
+                        "composeStatus": "idle",
+                        "deployments": [],
+                    }
                 ),
                 stderr="",
             )
@@ -1362,7 +1378,8 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
                 0,
                 stdout=json.dumps(
                     {
-                        "appName": "compose-pr-591-app", "env": effective_env,
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
                         "composeStatus": "running",
                         "deployments": [{"deploymentId": "old-dep-591"}],
                     }
@@ -1455,7 +1472,8 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "appName": "compose-pr-591-app", "env": effective_env,
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [],
                     }
@@ -1468,7 +1486,8 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "appName": "compose-pr-591-app", "env": effective_env,
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [{"deploymentId": "old-dep-591"}],
                     }
@@ -1567,7 +1586,8 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
             0,
             stdout=json.dumps(
                 {
-                    "appName": "compose-pr-591-app", "env": effective_env,
+                    "appName": "compose-pr-591-app",
+                    "env": effective_env,
                     "composeStatus": "idle",
                     "deployments": [],
                 }
@@ -1668,7 +1688,8 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "appName": "compose-pr-591-app", "env": effective_env,
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [],
                     }
@@ -1681,7 +1702,8 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "appName": "compose-pr-591-app", "env": effective_env,
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
                         "composeStatus": "error",
                         "deployments": [{"deploymentId": "dep-591", "status": "error"}],
                     }
@@ -1778,7 +1800,8 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
                 0,
                 stdout=json.dumps(
                     {
-                        "appName": "compose-pr-591-app", "env": effective_env,
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
                         "composeStatus": "idle",
                         "deployments": [],
                     }
@@ -1874,7 +1897,13 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
             return subprocess.CompletedProcess(
                 cmd,
                 0,
-                stdout=json.dumps({"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "error"}),
+                stdout=json.dumps(
+                    {
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
+                        "composeStatus": "error",
+                    }
+                ),
                 stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
@@ -1954,7 +1983,13 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
             return subprocess.CompletedProcess(
                 cmd,
                 0,
-                stdout=json.dumps({"appName": "compose-pr-591-app", "env": effective_env, "composeStatus": "running"}),
+                stdout=json.dumps(
+                    {
+                        "appName": "compose-pr-591-app",
+                        "env": effective_env,
+                        "composeStatus": "running",
+                    }
+                ),
                 stderr="",
             )
         return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
@@ -2749,3 +2784,313 @@ def test_AC8_13_125_pr_preview_runner_lifecycle_has_hard_timeout() -> None:
     assert "for i in $(seq 1 60)" in e2e_block
     assert "stack did not become healthy within 300s" in e2e_block
     assert "docker compose down --volumes --remove-orphans --timeout 30" in e2e_block
+
+
+# ---------------------------------------------------------------------------
+# Issue #756 — fail-fast on no-new-deployment record (classified error)
+# Issue #758 — rollback / safe-to-reconcile on mutate-then-fail
+# ---------------------------------------------------------------------------
+
+
+def _deploy_args() -> SimpleNamespace:
+    return SimpleNamespace(
+        action="deploy",
+        pr_number=591,
+        compose_name="pr-591",
+        compose_id="",
+        environment_id="env-test",
+        api_url="https://cloud.example/api",
+        api_key="secret-key",
+        github_integration_id="ghid",
+        branch="feature",
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+        dry_run=False,
+    )
+
+
+def test_AC7_13_1_no_new_deployment_record_raises_classified_subclass(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC7.13.1: A done compose with no new deployment record fails fast with the
+    dedicated DokployNoNewDeploymentRecord classified error (subclass of
+    DokployDeploymentDidNotStart so the existing retry flow still catches it)."""
+    lifecycle = lifecycle_module()
+
+    assert issubclass(
+        lifecycle.DokployNoNewDeploymentRecord,
+        lifecycle.DokployDeploymentDidNotStart,
+    )
+
+    monkeypatch.setattr(
+        lifecycle,
+        "get_compose_data",
+        lambda *args, **kwargs: {
+            "composeStatus": "done",
+            "deployments": [{"deploymentId": "old-dep"}],
+        },
+    )
+    monkeypatch.setattr(lifecycle.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(lifecycle.DokployNoNewDeploymentRecord) as excinfo:
+        lifecycle.wait_for_dokploy_deployment_rollout(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+            compose_id="cmp-1",
+            previous_deployment_ids={"old-dep"},
+            timeout_seconds=1,
+            new_deployment_timeout_seconds=0,
+        )
+
+    assert "dokploy-worker-or-deployment-record" in str(excinfo.value)
+    out = capsys.readouterr().out
+    assert "proceeding to commit-scoped readiness" not in out
+    # AC7.13.2: diagnostics distinguish "no new deployment created" from a
+    # "route not ready" 404 window.
+    assert "did not create a new deployment record" in out
+
+
+def test_AC7_13_2_env_reconciliation_rejects_stale_non_allowlisted_keys() -> None:
+    """AC7.13.2: Non-allowlisted stale keys lingering in the effective env are
+    detected and the diagnostic names keys only (no secret values)."""
+    lifecycle = lifecycle_module()
+
+    requested = {"IMAGE_TAG": "pr-1-sha", "ZAI_API_KEY": "wanted"}
+    effective = "\n".join(
+        [
+            "IMAGE_TAG=pr-1-sha",
+            "ZAI_API_KEY=wanted",
+            # leftover from a previous deploy, not in the requested env at all
+            "STALE_TOKEN=leaked-secret-value",
+        ]
+    )
+
+    divergent = lifecycle.env_reconciliation_divergence(requested, effective)
+    assert "STALE_TOKEN" in divergent
+
+    diff = lifecycle.render_env_reconciliation_diff(requested, effective)
+    assert "STALE_TOKEN" in diff
+    assert "leaked-secret-value" not in diff
+    assert "raw_env_printed: false" in diff
+
+    # A fully-matching env reconciles cleanly.
+    clean = "\n".join(["IMAGE_TAG=pr-1-sha", "ZAI_API_KEY=wanted"])
+    assert lifecycle.env_reconciliation_divergence(requested, clean) == []
+
+
+def test_AC7_13_3_update_compose_env_fails_fast_on_stale_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC7.13.3: update_compose_env fails fast when the effective remote env keeps
+    a stale non-allowlisted key that diverges from the requested env."""
+    lifecycle = lifecycle_module()
+
+    requested = lifecycle.build_preview_env(
+        pr_number=591,
+        commit_sha="abc123",
+        registry="ghcr.io",
+        image_prefix="owner/finance_report",
+        internal_domain="zitian.party",
+    )
+    # Effective env echoes everything requested plus an orphan key.
+    effective = lifecycle.render_env(requested) + "ORPHAN_LEFTOVER=stale\n"
+
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", lambda *a, **k: "{}")
+    monkeypatch.setattr(lifecycle, "get_compose_env", lambda *a, **k: effective)
+
+    with pytest.raises(RuntimeError, match="did not match requested deploy env"):
+        lifecycle.update_compose_env(
+            lifecycle.DokployConfig("https://cloud.example/api", "secret"),
+            compose_id="cmp-1",
+            env=requested,
+        )
+
+
+def test_AC7_13_4_mutate_then_fail_marks_state_and_records_step(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """AC7.13.4: When rollout fails after the compose was mutated, deploy_action
+    leaves an explicitly-marked safe-to-reconcile state, records which mutation
+    step it was left at, and does not silently report success."""
+    lifecycle = lifecycle_module()
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    context_path = tmp_path / "context.json"
+    monkeypatch.setenv(lifecycle.PR_PREVIEW_CONTEXT_ENV, str(context_path))
+
+    good_env = lifecycle.render_env(
+        lifecycle.build_preview_env(
+            pr_number=591,
+            commit_sha="prevsha",
+            registry="ghcr.io",
+            image_prefix="owner/finance_report",
+            internal_domain="zitian.party",
+        )
+    )
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                stderr="",
+            )
+        if "compose.create" in rendered:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout='{"composeId":"cmp-591-recreated"}', stderr=""
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps(
+                    {
+                        "appName": "compose-pr-591-app",
+                        "env": good_env,
+                        "composeStatus": "done",
+                        "deployments": [{"deploymentId": "old-dep-591"}],
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    # Make the mutation steps no-ops so we exercise the rollout-failure path.
+    monkeypatch.setattr(lifecycle, "update_compose_env", lambda *a, **k: None)
+    monkeypatch.setattr(lifecycle, "update_compose_source", lambda *a, **k: None)
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+
+    def fake_wait(*args: object, **kwargs: object) -> None:
+        raise lifecycle.DokployDeploymentFailed("rollout never went healthy")
+
+    monkeypatch.setattr(lifecycle, "wait_for_dokploy_deployment_rollout", fake_wait)
+
+    assert lifecycle.main_from_args(_deploy_args()) == 1
+
+    context = json.loads(context_path.read_text())
+    assert context["phase"] == "failed"
+    # AC7.13.4: the mutation step the environment was left at is recorded.
+    assert context.get("mutation_step") in {"deploy", "env", "source", "rollout"}
+    # AC7.13.1/758: an explicitly-marked safe-to-reconcile or rolled-back state,
+    # not a silent half-update.
+    assert context.get("recovery_state") in {
+        "rolled-back",
+        "marked-safe-to-reconcile",
+    }
+    out = capsys.readouterr().out
+    assert "PR preview deploy failed" in out
+
+
+def test_AC7_13_4_existing_compose_rolls_back_to_last_known_good_on_env_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """AC7.13.4: An existing compose whose env update fails reconciliation is
+    rolled back to its captured last-known-good source/env (not left half
+    updated), recording the env mutation step it failed at."""
+    lifecycle = lifecycle_module()
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    context_path = tmp_path / "context.json"
+    monkeypatch.setenv(lifecycle.PR_PREVIEW_CONTEXT_ENV, str(context_path))
+
+    last_known_good_env = "IMAGE_TAG=pr-591-prevsha\nGOOD_MARKER=keep\n"
+    last_known_good_command = (
+        "compose -p compose-pr-591-app -f docker-compose.pr-preview.yml up -d"
+    )
+    update_calls: list[dict[str, object]] = []
+
+    def fake_run_command(
+        cmd: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        rendered = " ".join(cmd)
+        if "environment.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                stderr="",
+            )
+        if "compose.one" in rendered:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=json.dumps(
+                    {
+                        "appName": "compose-pr-591-app",
+                        "command": last_known_good_command,
+                        "env": last_known_good_env,
+                        "composeStatus": "done",
+                        "deployments": [{"deploymentId": "old-dep-591"}],
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+
+    monkeypatch.setattr(lifecycle, "run_command", fake_run_command)
+    monkeypatch.setattr(lifecycle, "update_compose_source", lambda *a, **k: None)
+
+    # Capture the rollback compose.update payload directly.
+    original_api_call = lifecycle.dokploy_api_call
+
+    def spy_api_call(config, method, endpoint, *, payload=None, expected_status=200):
+        if endpoint == "compose.update" and payload is not None:
+            update_calls.append(dict(payload))
+            return "{}"
+        return original_api_call(
+            config, method, endpoint, payload=payload, expected_status=expected_status
+        )
+
+    monkeypatch.setattr(lifecycle, "dokploy_api_call", spy_api_call)
+
+    # Effective env keeps a stale non-allowlisted key, so update_compose_env
+    # raises the reconciliation RuntimeError after the snapshot was captured.
+    def fake_get_compose_env(config, *, compose_id):
+        requested = lifecycle.build_preview_env(
+            pr_number=591,
+            commit_sha="abc123",
+            registry="ghcr.io",
+            image_prefix="owner/finance_report",
+            internal_domain="zitian.party",
+        )
+        return lifecycle.render_env(requested) + "STALE_LEFTOVER=old\n"
+
+    monkeypatch.setattr(lifecycle, "get_compose_env", fake_get_compose_env)
+
+    assert lifecycle.main_from_args(_deploy_args()) == 1
+
+    context = json.loads(context_path.read_text())
+    assert context["phase"] == "failed"
+    assert context.get("mutation_step") == "env"
+    assert context.get("recovery_state") == "rolled-back"
+    # The rollback restored the captured last-known-good env/command.
+    rollback = update_calls[-1]
+    assert rollback.get("env") == last_known_good_env
+    assert rollback.get("command") == last_known_good_command
+    out = capsys.readouterr().out
+    assert "Rolled compose back to last-known-good" in out
+
+
+def test_AC7_13_5_ci_cd_docs_describe_failure_modes() -> None:
+    """AC7.13.5: ci-cd SSOT documents both the no-new-deployment fail-fast mode
+    and the half-update rollback / safe-to-reconcile recovery path."""
+    ci_cd = (ROOT / "docs/ssot/ci-cd.md").read_text()
+    assert "dokploy-worker-or-deployment-record" in ci_cd
+    assert "safe-to-reconcile" in ci_cd
+    lowered = ci_cd.lower()
+    assert "no new deployment" in lowered
+    assert "rollback" in lowered or "roll back" in lowered
