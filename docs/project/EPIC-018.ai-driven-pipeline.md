@@ -390,6 +390,7 @@ generation / scheduled) and the per-report-number confidence of #913 are separat
 | AC18.12.1 | Metric | The low-confidence proportion is the deterministic LOW-tier share of posted/reconciled journal entries, with a full TRUSTED/HIGH/MEDIUM/LOW breakdown and a defined zero on an empty ledger | `test_AC18_12_1_low_confidence_proportion_and_tier_breakdown_are_deterministic()` | `metrics/test_confidence_north_star_metric.py` | P1 |
 | AC18.12.2 | Trend | The metric is recorded as an append-only series — snapshots accumulate and read newest-first, never overwritten — so the trend over time is observable | `test_AC18_12_2_metric_is_recorded_as_append_only_series_showing_the_trend()` | `metrics/test_confidence_north_star_metric.py` | P1 |
 | AC18.12.3 | Surface | The current metric and its recorded series are exposed read-only via the API | `test_AC18_12_3_north_star_endpoint_returns_current_and_series()` | `metrics/test_confidence_north_star_metric.py` | P1 |
+| AC18.12.4 | Wired | A North-Star snapshot is recorded when a report package is generated, and on demand via a POST endpoint, so the trend actually accumulates in production | `test_AC18_12_4_post_records_a_snapshot_into_the_series()`, `test_generate_personal_report_package_snapshot` | `metrics/test_confidence_north_star_metric.py`, `api/test_reports_router.py` | P1 |
 
 ### AC18.13: Promotion Gate — Confidence Is Load-Bearing
 
@@ -407,6 +408,7 @@ consolidation.
 | AC18.13.2 | Gate | Invariants pass but confidence below threshold yields a non-authoritative review candidate | `test_AC18_13_2_invariants_pass_but_low_confidence_is_review()` | `services/test_promotion_gate.py` | P1 |
 | AC18.13.3 | Gate | Invariants pass and confidence meets threshold yields authoritative; the same contract carries both tier and reconciliation-score confidence | `test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative()` | `services/test_promotion_gate.py` | P1 |
 | AC18.13.4 | Consolidation | The previously-scattered thresholds (balance 0.001, reconciliation 85/60) are named, centrally owned, and consumed by the services | `test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services()` | `services/test_promotion_gate.py` | P1 |
+| AC18.13.5 | Wired | Stage-1 statement balance-chain approval is disposed by the promotion gate (balance checks as invariants), making the gate load-bearing for a real decision while preserving behavior | `test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate()` | `review/test_statement_validation.py` | P1 |
 
 ### AC18.14: Correction Feedback Loop — Corrections Drive The Proportion Down
 

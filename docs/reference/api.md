@@ -5,7 +5,7 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `124`
+- Endpoint count: `125`
 - Schema count: `209`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
@@ -26,7 +26,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `income` | 1 |
 | `journal-entries` | 6 |
 | `market-data` | 3 |
-| `metrics` | 1 |
+| `metrics` | 2 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
 | `reports` | 21 |
@@ -147,6 +147,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/metrics/confidence-north-star` | yes | - | - | `200` `ConfidenceNorthStarResponse` | Get Confidence North Star |
+| `POST` | `/metrics/confidence-north-star/snapshots` | yes | - | - | `201` `ConfidenceMetricSnapshotResponse` | Record Confidence North Star Snapshot |
 
 ### portfolio
 

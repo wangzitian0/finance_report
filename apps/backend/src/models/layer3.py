@@ -320,9 +320,10 @@ class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     value: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     source: Mapped[str] = mapped_column(String(120), nullable=False)
-    # Structured evidence basis for guided manual-asset intake (#706). Nullable:
-    # legacy rows and non-evidence components may omit it; evidence-bearing
-    # components (ESOP/RSU/property/liability) require it at the API layer.
+    # Structured evidence basis for guided manual-asset intake (#706). Nullable
+    # and optional at the API; a current evidence-bearing valuation that lacks
+    # any basis (and any legacy notes) surfaces a `missing_valuation_basis`
+    # readiness blocker rather than being rejected.
     valuation_basis: Mapped[ManualValuationBasis | None] = mapped_column(
         SQLEnum(
             ManualValuationBasis,
