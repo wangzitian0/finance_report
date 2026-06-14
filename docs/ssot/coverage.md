@@ -53,14 +53,48 @@ GitHub event, commit, run attempt, toolchain versions, and input file hashes.
 
 The authoritative component/file policy lives in `common/coverage/policy.py`. Coverage tools must emit LCOV source paths that match that policy:
 
-| Component | Source Root | LCOV Path Prefix | Main Report |
-|-----------|-------------|------------------|-------------|
-| Backend | `apps/backend/src` | `src/...` relative to `apps/backend` | `coverage/backend.lcov` |
-| Frontend | `apps/frontend/src` | `src/...` relative to `apps/frontend` | `coverage/frontend.lcov` |
-| Common | `common` | `common/...` relative to repo root | `coverage/common.lcov` |
-| Tools | `tools` | `tools/...` relative to repo root | `coverage/tools.lcov` |
+| Component | Source Root | LCOV Path Prefix | Main Report | Tier |
+|-----------|-------------|------------------|-------------|------|
+| Backend | `apps/backend/src` | `src/...` relative to `apps/backend` | `coverage/backend.lcov` | ci-critical |
+| Frontend | `apps/frontend/src` | `src/...` relative to `apps/frontend` | `coverage/frontend.lcov` | ci-critical |
+| Common | `common` | `common/...` relative to repo root | `coverage/common.lcov` | ci-critical |
+| Tools | `tools` | `tools/...` relative to repo root | `coverage/tools.lcov` | best-effort |
 
 `tools/check_coverage_policy.py` compares the source tree against LCOV `SF:` entries in CI. It fails when an eligible source file is missing from LCOV, or when an excluded/nonexistent file appears in LCOV. This is the guardrail that keeps new modules on the same coverage denominator automatically.
+
+### Coverage tiers (#923)
+
+Each component carries an explicit `tier` on `common/coverage/policy.py::CoverageComponent`:
+
+- **`ci-critical`** (backend, frontend, common): application and shared-library
+  trees whose silent failure can false-green the pipeline or break a
+  gate/deploy. Their coverage artifact is **required** — see the artifact
+  preflight below.
+- **`best-effort`** (tools): largely one-off governance / CI glue, mostly thin
+  shims over `common/`. Its LCOV is still merged into the unified number when
+  present and remains subject to the no-regression gate, but a **missing** tools
+  artifact does not hard-fail the aggregation.
+
+New components default to `ci-critical`, so a tree is only ever down-tiered to
+`best-effort` by an explicit, reviewable diff (per the anti-bypass guard). The
+tier is the lever for the guiding rule: *gate at high coverage iff CI-critical*.
+
+> **Library layering**: reusable coverage/CI implementation lives under
+> `common/` (`common/coverage`, `common/ci`); the top-level `tools/*.py` are thin
+> command wrappers. The legacy duplicate `tools/_lib/ci` and `tools/_lib/coverage`
+> trees have been consolidated into `common/` — there is one gated library tree.
+
+### Artifact preflight (#414)
+
+`tools/calculate_unified_coverage.py` runs `required_artifacts_preflight()`
+**before** aggregating or writing `unified-coverage.json`. For every
+`ci-critical` component it asserts the component LCOV exists and is non-empty.
+If a required artifact is **missing or empty**, the calculator fails fast and
+prints a message naming the offending component and its expected LCOV path
+(e.g. `backend: required coverage artifact is missing (expected
+coverage/backend.lcov) ...`), instead of silently treating it as 0% and emitting
+a misleading unified number. `best-effort` components are skipped by the
+preflight, so the tools artifact can be absent without blocking aggregation.
 
 ### Registration guard (no unregistered source trees)
 
@@ -162,13 +196,16 @@ jobs:
 
 `tools/calculate_unified_coverage.py`:
 
-1. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
-2. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
-3. Aggregates backend + frontend + common + tools covered/executable counts
-4. Reports unified percentage and exits 1 if coverage dropped below baseline
-5. Lists file-level low coverage from the same component LCOV files when run
+1. Runs the artifact preflight (#414): fails fast and names the offending
+   component LCOV when a `ci-critical` artifact is missing or empty, before any
+   aggregation or `unified-coverage.json` write
+2. Parses LCOV files (`LF:` = total executable lines, `LH:` = covered lines)
+3. Uses LCOV `LF:` as denominator (NOT filesystem line counts)
+4. Aggregates backend + frontend + common + tools covered/executable counts
+5. Reports unified percentage and exits 1 if coverage dropped below baseline
+6. Lists file-level low coverage from the same component LCOV files when run
    with `--list-low-files`
-6. Writes the current `unified-coverage.json` before failing on a regression,
+7. Writes the current `unified-coverage.json` before failing on a regression,
    so CI artifacts retain the exact raw line-count inputs that failed the gate
 
 File-level coverage audits must use the same LCOV inputs as the unified gate,

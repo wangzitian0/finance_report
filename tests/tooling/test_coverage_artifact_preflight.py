@@ -1,0 +1,152 @@
+"""Coverage artifact preflight + tooling coverage tiering.
+
+Covers two related concerns on the unified coverage pipeline:
+
+- #414 (AC14.1.18): the unified aggregation must fail *explicitly* and name the
+  offending component LCOV when a CI-critical artifact is missing or empty,
+  rather than silently treating it as 0% and emitting a misleading number.
+- #923 (AC14.1.19): coverage components carry an explicit ``tier``
+  (``ci-critical`` vs ``best-effort``). The preflight enforces presence only for
+  ``ci-critical`` tiers, so a missing best-effort ``tools`` artifact does not
+  hard-fail the aggregation while application and shared-library trees stay
+  strictly gated.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from common.coverage import calculate_unified_coverage as cuc  # noqa: E402
+from common.coverage.policy import (  # noqa: E402
+    CI_CRITICAL,
+    BEST_EFFORT,
+    COMPONENT_BY_NAME,
+    CoverageComponent,
+)
+
+
+def _component(name: str, lcov_path: str, tier: str) -> CoverageComponent:
+    return CoverageComponent(
+        name=name,
+        component_root="",
+        source_subdir=name,
+        extensions=(".py",),
+        ci_lcov_path=lcov_path,
+        local_lcov_paths=(),
+        exclude_patterns=(),
+        tier=tier,
+    )
+
+
+def _write_lcov(path: Path, covered: int, total: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"SF:{path.stem}/mod.py\nDA:1,1\nLH:{covered}\nLF:{total}\nend_of_record\n"
+    )
+
+
+# ---------------------------------------------------------------------------
+# #923 — tooling coverage tiering (AC14.1.19)
+# ---------------------------------------------------------------------------
+
+
+class TestCoverageTiering:
+    """AC14.1.19: components are tiered ci-critical vs best-effort."""
+
+    def test_AC14_1_19_tools_component_is_best_effort_tier(self):
+        # tools/ is largely one-off governance / CI glue: best-effort, not gated
+        # on artifact presence.
+        assert COMPONENT_BY_NAME["tools"].tier == BEST_EFFORT
+
+    def test_AC14_1_19_app_and_common_components_are_ci_critical_tier(self):
+        for name in ("backend", "frontend", "common"):
+            assert COMPONENT_BY_NAME[name].tier == CI_CRITICAL, name
+
+    def test_AC14_1_19_preflight_skips_best_effort_missing_artifact(self, tmp_path):
+        # ci-critical artifact present, best-effort tools artifact absent ->
+        # preflight passes (no error) because best-effort is not enforced.
+        critical = _component("backend", "coverage/backend.lcov", CI_CRITICAL)
+        best_effort = _component("tools", "coverage/tools.lcov", BEST_EFFORT)
+        _write_lcov(tmp_path / "coverage" / "backend.lcov", 5, 10)
+        # tools.lcov intentionally not written
+
+        errors = cuc.required_artifacts_preflight(
+            (critical, best_effort), repo_root=tmp_path
+        )
+
+        assert errors == []
+
+
+# ---------------------------------------------------------------------------
+# #414 — artifact preflight fails explicitly (AC14.1.18)
+# ---------------------------------------------------------------------------
+
+
+class TestRequiredArtifactsPreflight:
+    """AC14.1.18: missing/empty CI-critical artifacts fail explicitly."""
+
+    def test_AC14_1_18_preflight_fails_when_ci_critical_artifact_missing(
+        self, tmp_path
+    ):
+        critical = _component("backend", "coverage/backend.lcov", CI_CRITICAL)
+        # backend.lcov intentionally absent
+
+        errors = cuc.required_artifacts_preflight((critical,), repo_root=tmp_path)
+
+        assert len(errors) == 1
+        # error must name the offending component and its expected LCOV path
+        assert "backend" in errors[0]
+        assert "coverage/backend.lcov" in errors[0]
+
+    def test_AC14_1_18_preflight_fails_when_ci_critical_artifact_empty(self, tmp_path):
+        critical = _component("frontend", "coverage/frontend.lcov", CI_CRITICAL)
+        empty = tmp_path / "coverage" / "frontend.lcov"
+        empty.parent.mkdir(parents=True, exist_ok=True)
+        empty.write_text("")  # exists but no measured lines
+
+        errors = cuc.required_artifacts_preflight((critical,), repo_root=tmp_path)
+
+        assert len(errors) == 1
+        assert "frontend" in errors[0]
+        assert "empty" in errors[0].lower()
+
+    def test_AC14_1_18_preflight_passes_when_all_present(self, tmp_path):
+        backend = _component("backend", "coverage/backend.lcov", CI_CRITICAL)
+        frontend = _component("frontend", "coverage/frontend.lcov", CI_CRITICAL)
+        _write_lcov(tmp_path / "coverage" / "backend.lcov", 5, 10)
+        _write_lcov(tmp_path / "coverage" / "frontend.lcov", 8, 10)
+
+        assert (
+            cuc.required_artifacts_preflight((backend, frontend), repo_root=tmp_path)
+            == []
+        )
+
+    def test_AC14_1_18_main_fails_fast_with_named_missing_artifact(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """main() exits non-zero and names the missing artifact before aggregating."""
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setenv("BASELINE_FILE", "")
+
+        critical = _component("backend", "coverage/backend.lcov", CI_CRITICAL)
+        monkeypatch.setattr(cuc, "PREFLIGHT_COMPONENTS", (critical,))
+        # backend.lcov absent -> preflight must fail
+
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+
+        assert exc.value.code == 1
+        captured = capsys.readouterr()
+        combined = captured.out + captured.err
+        assert "backend" in combined
+        assert "coverage/backend.lcov" in combined
+        # must fail BEFORE writing a misleading unified-coverage.json
+        assert not (tmp_path / "unified-coverage.json").exists()

@@ -28,6 +28,12 @@ from common.coverage.policy import COMPONENTS, CoverageComponent, get_component
 
 # Configuration
 ROOT_DIR = Path(__file__).resolve().parents[3]
+
+# Components subject to the artifact preflight (#414). Defaults to the full
+# policy set; the preflight only *enforces* presence for CI-critical tiers
+# (#923), so best-effort components (e.g. tools) are skipped automatically.
+PREFLIGHT_COMPONENTS: tuple[CoverageComponent, ...] = COMPONENTS
+
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 FRONTEND_DIR = ROOT_DIR / "apps" / "frontend"
 TOOLS_DIR = ROOT_DIR / "tools"
@@ -210,6 +216,42 @@ def parse_lcov_file(lcov_path: Path) -> dict:
     }
 
 
+def required_artifacts_preflight(
+    components: tuple[CoverageComponent, ...] = PREFLIGHT_COMPONENTS,
+    repo_root: Path = ROOT_DIR,
+) -> list[str]:
+    """Return explicit errors for missing/empty CI-critical coverage artifacts.
+
+    #414: a missing artifact must surface as a named failure, not silently
+    collapse to 0% and skew the unified number. #923: only ``ci-critical``
+    components are enforced; ``best-effort`` trees (e.g. tools) are skipped so a
+    missing best-effort artifact does not hard-fail the aggregation.
+
+    Each returned string names the component and its expected LCOV path so CI
+    output identifies exactly which artifact is missing or empty.
+    """
+    errors: list[str] = []
+    for component in components:
+        if not component.is_ci_critical:
+            continue
+        lcov_path = component.lcov_path(repo_root)
+        rel = component.ci_lcov_path
+        if not lcov_path.exists():
+            errors.append(
+                f"{component.name}: required coverage artifact is missing "
+                f"(expected {rel}); the {component.tier} component cannot be "
+                "aggregated without it"
+            )
+            continue
+        measured = parse_lcov_file(lcov_path)["total_measured_lines"]
+        if measured <= 0:
+            errors.append(
+                f"{component.name}: required coverage artifact {rel} is empty "
+                "(no measured lines); refusing to aggregate a misleading 0%"
+            )
+    return errors
+
+
 def get_component_coverage(component: CoverageComponent) -> dict:
     lcov_path = component.lcov_path(ROOT_DIR)
     coverage_data = parse_lcov_file(lcov_path)
@@ -371,7 +413,10 @@ def print_baseline_comparison(
     current_breakdown = current_unified.get("breakdown", {})
     baseline_breakdown = baseline.get("breakdown", {})
     for component_name in ("backend", "frontend", "common", "tools"):
-        if component_name not in current_breakdown or component_name not in baseline_breakdown:
+        if (
+            component_name not in current_breakdown
+            or component_name not in baseline_breakdown
+        ):
             continue
         print(
             f"   {component_name}: "
@@ -412,6 +457,20 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     print("=" * 60)
     print("Unified Coverage Calculator")
     print("=" * 60)
+
+    # Artifact preflight (#414/#923): fail fast and name the offending artifact
+    # before aggregating or writing unified-coverage.json, so a missing
+    # CI-critical input never collapses to a silent, misleading 0%.
+    preflight_errors = required_artifacts_preflight(PREFLIGHT_COMPONENTS, ROOT_DIR)
+    if preflight_errors:
+        print(
+            "\n❌ Coverage artifact preflight failed: required component "
+            "artifact(s) missing or empty.",
+            file=sys.stderr,
+        )
+        for error in preflight_errors:
+            print(f"   - {error}", file=sys.stderr)
+        sys.exit(1)
 
     # Get coverage for each component
     print("\n📊 Backend Coverage...")
