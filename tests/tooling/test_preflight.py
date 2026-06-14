@@ -53,6 +53,27 @@ class TestSelectChecks:
         ]
         assert "schema-validate" in names
 
+    def test_router_edit_selects_api_reference_and_router_contract(self):
+        # A router change shifts the OpenAPI surface AND the router-contract
+        # maturity scan; both generated docs are CI-gated, so preflight must
+        # flag them locally (parity with CI's api-reference + Tooling gates).
+        names = [
+            c.name
+            for c in preflight.select_checks(["apps/backend/src/routers/income.py"])
+        ]
+        assert "api-reference" in names
+        assert "router-contract" in names
+
+    def test_schema_edit_selects_api_reference(self):
+        # Schema changes also move the OpenAPI reference (but not the
+        # router-contract scan, which only reads routers/).
+        names = [
+            c.name
+            for c in preflight.select_checks(["apps/backend/src/schemas/income.py"])
+        ]
+        assert "api-reference" in names
+        assert "router-contract" not in names
+
     def test_frontend_edit_selects_frontend_gate(self):
         names = [
             c.name
