@@ -803,6 +803,15 @@ jobs:
               echo "- Failures observed: ${verified_failures}"
               echo "- Audit filter: attributes.audit_event EXISTS"
             } | tee -a "$GITHUB_STEP_SUMMARY"
+            # #1089: surface which corpus docs actually failed (and real counts)
+            # from the JUnit output instead of a binary "unknown / 1+". This is the
+            # post-merge delivery gate, so the diagnostics must live here too.
+            if [ -f test-results/staging-ai-ocr-gate.xml ]; then
+              echo "" | tee -a "$GITHUB_STEP_SUMMARY"
+              .venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+                --summarize-junit test-results/staging-ai-ocr-gate.xml \
+                | tee -a "$GITHUB_STEP_SUMMARY" || true
+            fi
           }
 
           echo "Starting Staging AI/OCR Gate for $APP_URL"
