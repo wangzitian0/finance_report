@@ -618,9 +618,7 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
         "unrealized_pnl": "300.00",
         "realized_pnl": "150.00",
     }
-    matches = sum(data[k] == v for k, v in golden.items()) + sum(
-        holding[k] == v for k, v in holding_golden.items()
-    )
+    matches = sum(data[k] == v for k, v in golden.items()) + sum(holding[k] == v for k, v in holding_golden.items())
     total_fields = len(golden) + len(holding_golden)
     ac_evidence(
         ac_id="AC17.10.6",

@@ -339,10 +339,7 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
         ac_id="AC11.19.1",
         score=1.0 if chain_correct else 0.0,
         metric="append_only_version_chain_matches_golden",
-        comment=(
-            "v1=1000000.00 frozen & superseded_by=head; "
-            "head v2=1100000.00 with superseded_by=None"
-        ),
+        comment=("v1=1000000.00 frozen & superseded_by=head; head v2=1100000.00 with superseded_by=None"),
         provenance="deterministic",
     )
 
