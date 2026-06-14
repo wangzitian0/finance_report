@@ -89,6 +89,32 @@ CHECKS: tuple[Check, ...] = (
         why="Pydantic schema changed: validate schema contracts",
     ),
     Check(
+        name="api-reference",
+        globs=(
+            "apps/backend/src/routers/*.py",
+            "apps/backend/src/schemas/*.py",
+            "apps/backend/src/main.py",
+        ),
+        commands=((PY, "../../tools/generate_api_reference.py", "--check"),),
+        why="router/schema changed: the generated OpenAPI reference (docs/reference/api.md) must be regenerated — mirrors the CI 'Generated API Reference Check' Lint gate",
+        cwd="apps/backend",
+    ),
+    Check(
+        name="router-contract",
+        globs=("apps/backend/src/routers/*.py",),
+        commands=(
+            (
+                PY,
+                "-m",
+                "pytest",
+                "tests/tooling/test_audit_router_contracts.py::test_findings_doc_is_in_sync",
+                "-q",
+                "--no-cov",
+            ),
+        ),
+        why="router changed: docs/reference/router-contract-maturity.md must be regenerated (tools/audit_router_contracts.py --output ...) — mirrors the CI Tooling/Common Coverage gate",
+    ),
+    Check(
         name="migration-risk",
         globs=("apps/backend/migrations/*",),
         commands=((PY, "tools/check_migration_risk.py"),),

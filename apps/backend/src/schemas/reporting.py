@@ -578,7 +578,10 @@ class ReportSnapshotSummary(BaseModel):
     report_type: ReportType = Field(description="Report type this snapshot was generated for")
     as_of_date: date | None = Field(default=None, description="Point-in-time report date")
     start_date: date | None = Field(default=None, description="Period start date (None for point-in-time reports)")
-    rule_version_id: UUID = Field(description="Rule version used to generate the snapshot")
+    rule_version_id: UUID | None = Field(
+        default=None,
+        description="Rule version used to generate the snapshot (None for package snapshots)",
+    )
     is_latest: bool = Field(description="Whether this is the latest snapshot for the same type/period")
     created_at: datetime | None = Field(default=None, description="Snapshot creation timestamp")
 

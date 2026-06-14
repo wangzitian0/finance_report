@@ -214,7 +214,7 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
 
 **Rules:**
 - **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
-- **Authorization**: The utility automatically injects the `Bearer <token>` header from local storage.
+- **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because the utility calls `fetch` with `credentials: "include"`. The utility still adds a `Bearer <token>` header when `getAccessToken()` returns one (e.g. SSR/non-browser callers that hold a token), but in the browser the token is not persisted to local storage.
 - **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
 - **Structured errors (#1005)**: On a non-2xx the utility throws an `ApiError`
   carrying `status`, `errorId`, and `requestId` parsed from the backend's

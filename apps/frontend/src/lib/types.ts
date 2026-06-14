@@ -826,6 +826,17 @@ export type ManualValuationLiquidityClass =
   | "illiquid"
   | "liability";
 
+// Structured evidence basis for a manual valuation (EPIC-011 AC11.9.5/#706).
+// Mirrors the backend `ManualValuationBasis` enum.
+export type ManualValuationBasis =
+  | "market_appraisal"
+  | "broker_statement"
+  | "employer_grant_document"
+  | "bank_statement"
+  | "government_statement"
+  | "insurer_statement"
+  | "self_estimate";
+
 export type ManualValuationSource =
   | "manual"
   | "broker_portal"
@@ -846,6 +857,7 @@ export interface ManualValuationSnapshot {
   value: string;
   currency: string;
   source: string;
+  valuation_basis?: ManualValuationBasis | null;
   notes?: string | null;
   recurrence_days?: number | null;
   reminder_date?: string | null;
@@ -1070,4 +1082,31 @@ export interface CorrectionLoopReplayResponse {
   proportion_after: DecimalValue;
   /** Whether the correction loop measurably lowered the held-out proportion. */
   reduced: boolean;
+}
+
+// ── User AI settings & session identity (EPIC-022 AC22.15 / #1010) ──────────
+//
+// Mirrors backend `UserAiSettingsResponse` / `UserAiSettingsUpdate`
+// (apps/backend/src/schemas/user.py).
+
+export interface UserAiSettings {
+  enable_ai_reconciliation: boolean;
+  enable_ai_classification: boolean;
+}
+
+export type UserAiSettingsUpdate = Partial<UserAiSettings>;
+
+/**
+ * Identity returned by `GET /api/auth/me`, consumed by `useSessionBootstrap`.
+ *
+ * Deliberately excludes the bearer `access_token` that the backend
+ * `AuthResponse` carries: the frontend uses cookie-based auth and never
+ * persists a token from this endpoint, so exposing it on the typed shape would
+ * only invite misuse. This type is the non-secret identity subset only.
+ */
+export interface CurrentUser {
+  id: string;
+  email: string;
+  name: string | null;
+  created_at: string;
 }

@@ -126,7 +126,7 @@ file.
 | Ordinary backend source | `moon run :test -- --smart` or `moon run :test -- --fast tests/...` for a focused backend path | Escalate when the change crosses service boundaries or touches shared helpers |
 | accounting, posting, reconciliation, money, balance | Focused domain pytest suite plus changed-file tests | Always include invariant tests beyond the touched file |
 | schema, migrations | `cd apps/backend && uv run alembic upgrade head && uv run alembic check`, plus focused DB-backed tests | Required for any Alembic, SQLAlchemy model, enum, or persistence contract change |
-| API contract, OpenAPI | Backend API tests plus affected frontend API consumer tests | Required for route, schema, generated API reference, or response-shape changes |
+| API contract, OpenAPI | Backend API tests plus affected frontend API consumer tests; `tools/preflight.py` runs the `api-reference` and `router-contract` gates so `docs/reference/api.md` and `docs/reference/router-contract-maturity.md` are verified locally, matching the CI Lint and Tooling gates | Required for route, schema, generated API reference, or response-shape changes |
 | Frontend component or route | Focused Vitest/spec, then affected Playwright when browser behavior changes | Escalate for navigation, responsive layout, workflow, or API-bound behavior |
 | shared common/tooling | Focused tooling tests plus affected downstream contracts | Escalate when a common package feeds CI, coverage, SSOT, or command wrappers |
 | Docker, workflow, environment, deploy | Static/tooling contract checks locally; PR CI and deployed gates own runtime proof | Required image/deploy proof stays in PR CI, PR Preview, staging, or production |

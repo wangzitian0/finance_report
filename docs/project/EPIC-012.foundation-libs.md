@@ -409,7 +409,7 @@ callers branch on a machine-readable code instead of matching `detail` text.
 ### AC12.28: Generated Frontend API Types from OpenAPI ([#1004](https://github.com/wangzitian0/finance_report/issues/1004))
 
 Tier 2 of #1000. The backend OpenAPI schema generates a checked-in TypeScript
-types module, and a staleness gate (`tools/generate_frontend_types.py --check`)
+types module, and a staleness gate (`tools/generate_openapi_spec.py --check`)
 fails when the generated types drift from the live schema — enforcing the FE↔BE
 contract at the boundary.
 

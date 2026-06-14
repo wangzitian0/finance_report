@@ -2,6 +2,9 @@ import { getAccessToken, getUserId } from "./auth";
 import type {
   ConfidenceNorthStarResponse,
   CorrectionLoopReplayResponse,
+  CurrentUser,
+  UserAiSettings,
+  UserAiSettingsUpdate,
   WorkflowEventListResponse,
   WorkflowEventResponse,
   WorkflowEventStatus,
@@ -105,11 +108,14 @@ function parseApiError(
       const parsed = JSON.parse(errorText);
       if (parsed && typeof parsed === "object") {
         const body = parsed as {
-          detail?: string;
+          detail?: unknown;
           error_id?: string;
           request_id?: string;
         };
-        message = body.detail || errorText;
+        // FastAPI validation errors (422) return `detail` as an array of objects,
+        // not a string. Only use it as the message when it's actually a string;
+        // otherwise keep the raw text so users never see `[object Object]`.
+        message = typeof body.detail === "string" ? body.detail : errorText;
         errorId = body.error_id ?? null;
         requestId = body.request_id ?? null;
       } else {
@@ -370,4 +376,28 @@ export async function fetchConfidenceNorthStar(): Promise<ConfidenceNorthStarRes
 /** The held-out replay of the correction loop — does it lower the proportion? */
 export async function fetchCorrectionLoopReplay(): Promise<CorrectionLoopReplayResponse> {
   return apiFetch<CorrectionLoopReplayResponse>("/api/metrics/correction-loop/replay");
+}
+
+// ── Current-user AI settings (EPIC-022 AC22.15 / #1010) ────────────────────
+
+/** The effective AI feature flags for the signed-in user. */
+export async function fetchUserSettings(): Promise<UserAiSettings> {
+  return apiFetch<UserAiSettings>("/api/users/me/settings");
+}
+
+/** Persist current-user AI setting overrides and return the effective flags. */
+export async function patchUserSettings(
+  update: UserAiSettingsUpdate
+): Promise<UserAiSettings> {
+  return apiFetch<UserAiSettings>("/api/users/me/settings", {
+    method: "PATCH",
+    body: JSON.stringify(update),
+  });
+}
+
+// ── Session bootstrap (EPIC-022 AC22.15 / #1010) ───────────────────────────
+
+/** The authenticated identity backing the current session cookie/token. */
+export async function fetchCurrentUser(): Promise<CurrentUser> {
+  return apiFetch<CurrentUser>("/api/auth/me");
 }

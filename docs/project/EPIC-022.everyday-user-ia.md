@@ -347,3 +347,21 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.14.1 | `POST /api/chat` exposes structured grounding metadata for personal-data answers, including source citations with confidence tiers, without sending or returning raw account numbers or transaction-level PII | `test_chat_router.py`, `test_ai_advisor_service.py` | P1 |
 | AC22.14.2 | `ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose | `chatPanelComponent.test.tsx` | P1 |
 | AC22.14.3 | A grounded chat answer that has pending reconciliation review context exposes a `Review N` action deep-link to the review queue while preserving the assistant's read-only/no-write boundary | `test_ai_advisor_service.py`, `chatPanelComponent.test.tsx` | P1 |
+
+### AC22.15 — Settings Editor And Session Bootstrap (Surface Gaps)
+
+> #1010 follow-up slice (part of #1000 Tier 3). The `PATCH /users/me/settings`
+> capability existed on the backend but the AI Settings page only auto-toggled
+> per-checkbox via inline `apiFetch`, with no typed client function, no explicit
+> save action, and no submit/success/error affordance. The `/auth/me` endpoint
+> was registered and backend-tested but never consumed by the frontend. This
+> slice gives the user a real settings editor backed by a typed `lib/api.ts`
+> client function, and consumes `/auth/me` for session bootstrap so it is no
+> longer frontend-dead. The broader `users` CRUD endpoints stay deliberately
+> deferred (no user-admin panel) — recorded in the backend README.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.15.1 | A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response | `apiFunctions.test.ts` | P1 |
+| AC22.15.2 | The AI Settings page renders an editable form with explicit Save and Reset controls that submits the edited flags via `patchUserSettings`, surfacing loading, submitting, success, and error states using shared UI primitives | `aiSettingsPage.test.tsx` | P1 |
+| AC22.15.3 | A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid | `apiFunctions.test.ts`, `appShellSessionBootstrap.test.tsx` | P1 |

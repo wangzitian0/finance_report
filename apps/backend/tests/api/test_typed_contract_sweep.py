@@ -3,7 +3,7 @@
 One pass that gives every touched router a declared response/param contract:
 - AC12.27 structured ``ErrorResponse`` shape across handlers + OpenAPI (#1005)
 - AC4.12  reconciliation ``match_id``/``txn_id`` path params typed as ``UUID`` (#1008)
-- AC5.33  ``GET /reports/{report_type}/snapshots`` typed list + enum param (#1008)
+- AC5.36  ``GET /reports/{report_type}/snapshots`` typed list + enum param (#1008)
 - AC17.31 portfolio ``PATCH``/``prices/update`` typed responses, no raw ``dict`` (#1008)
 - AC16.35 Stage-2 batch endpoints typed + 409 on unresolved checks (#1001)
 """
@@ -63,18 +63,18 @@ async def test_AC4_12_2_create_entry_malformed_uuid_returns_422(client: AsyncCli
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-# --- AC5.33: report snapshots typed contract (#1008) ----------------------------
+# --- AC5.36: report snapshots typed contract (#1008) ----------------------------
 
 
-async def test_AC5_33_1_report_snapshots_unknown_type_returns_422(client: AsyncClient) -> None:
-    """AC5.33.1: an unknown ``report_type`` is rejected with 422 instead of
+async def test_AC5_36_1_report_snapshots_unknown_type_returns_422(client: AsyncClient) -> None:
+    """AC5.36.1: an unknown ``report_type`` is rejected with 422 instead of
     silently returning an empty list."""
     response = await client.get("/reports/not-a-report-type/snapshots")
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-async def test_AC5_33_2_report_snapshots_valid_type_returns_typed_list(client: AsyncClient) -> None:
-    """AC5.33.2: a valid ``report_type`` returns a (possibly empty) typed list."""
+async def test_AC5_36_2_report_snapshots_valid_type_returns_typed_list(client: AsyncClient) -> None:
+    """AC5.36.2: a valid ``report_type`` returns a (possibly empty) typed list."""
     response = await client.get("/reports/balance_sheet/snapshots")
     assert response.status_code == status.HTTP_200_OK
     assert isinstance(response.json(), list)

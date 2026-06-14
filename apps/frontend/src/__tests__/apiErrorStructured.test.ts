@@ -73,6 +73,30 @@ describe("structured ApiError (#1005)", () => {
     expect(isApiErrorCode(caught, "not_found")).toBe(false);
   });
 
+  it("test_AC12_27_3 does not stringify a non-string (422 array) detail", async () => {
+    // FastAPI request-validation errors return `detail` as an array of objects.
+    // The message must fall back to the raw text, never "[object Object]".
+    const rawBody = JSON.stringify({
+      detail: [{ loc: ["query", "x"], msg: "field required", type: "missing" }],
+    });
+    const fetchMock = makeFetchMock(422, rawBody);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { apiFetch, ApiError } = await import("../lib/api");
+
+    let caught: unknown;
+    try {
+      await apiFetch("/api/test");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ApiError);
+    const apiErr = caught as InstanceType<typeof ApiError>;
+    expect(apiErr.status).toBe(422);
+    expect(apiErr.message).not.toContain("[object Object]");
+    expect(apiErr.message).toBe(rawBody);
+  });
+
   it("test_AC12_27_3 keeps message fallback when the body has no error_id", async () => {
     const fetchMock = makeFetchMock(500, "plain text failure");
     vi.stubGlobal("fetch", fetchMock);

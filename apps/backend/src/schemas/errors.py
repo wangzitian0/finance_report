@@ -82,10 +82,18 @@ class ErrorResponse(BaseModel):
 
 # Reusable OpenAPI ``responses=`` block so the common 4xx/5xx contract is declared
 # once and attached to every router (see ``app.include_router(..., responses=...)``).
+#
+# 422 is intentionally NOT listed here: FastAPI auto-documents request-validation
+# errors as ``HTTPValidationError`` (``{"detail": [...]}``) and there is no
+# ``RequestValidationError`` handler overriding that, so declaring 422 as
+# ``ErrorResponse`` would make the OpenAPI/typed client disagree with the runtime
+# body. The codes below are the ones the handlers actually emit as ``ErrorResponse``.
 COMMON_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     400: {"model": ErrorResponse, "description": "Bad request"},
     401: {"model": ErrorResponse, "description": "Unauthorized"},
+    403: {"model": ErrorResponse, "description": "Forbidden"},
     404: {"model": ErrorResponse, "description": "Not found"},
-    422: {"model": ErrorResponse, "description": "Validation error"},
+    409: {"model": ErrorResponse, "description": "Conflict"},
+    429: {"model": ErrorResponse, "description": "Too many requests"},
     500: {"model": ErrorResponse, "description": "Internal server error"},
 }

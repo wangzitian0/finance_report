@@ -20,3 +20,10 @@ moon run :test
 | Environment contract | [environments.md](../../docs/ssot/environments.md), [.env.example](../../.env.example) |
 | Database model | [schema.md](../../docs/ssot/schema.md), [Generated DB schema reference](../../docs/reference/db-schema.md) |
 | Test policy | [tdd.md](../../docs/ssot/tdd.md), [coverage.md](../../docs/ssot/coverage.md) |
+
+## Router notes
+
+- `users` (`src/routers/users.py`) is intentionally self-scoped; a multi-user
+  admin panel is **deliberately deferred** (no multi-tenant need). See #1010 /
+  EPIC-022 AC22.15. Only `/users/me/settings` is consumed (the AI Settings editor).
+- `GET /auth/me` backs the frontend session bootstrap (`hooks/useSessionBootstrap.ts`).

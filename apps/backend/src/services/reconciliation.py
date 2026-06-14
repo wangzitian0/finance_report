@@ -984,14 +984,12 @@ async def execute_matching(
     db: AsyncSession,
     *,
     user_id: UUID,
-    statement_id: UUID | str | None = None,
     limit: int | None = None,
 ) -> list[ReconciliationMatch]:
     """Execute reconciliation matching for pending transactions."""
     config = load_reconciliation_config()
 
-    # Read pending transactions from Layer 2 (atomic_transactions). ``statement_id``
-    # has no meaning on the atomic stream and is accepted only for caller compatibility.
+    # Read pending transactions from Layer 2 (atomic_transactions).
     transactions = await _get_pending_layer2_transactions(db, user_id, limit)
 
     if not transactions:
@@ -1360,7 +1358,6 @@ async def execute_matching(
         logger.error(
             "Reconciliation flush failed",
             user_id=str(user_id),
-            statement_id=str(statement_id) if statement_id else None,
             matches_attempted=len(matches),
             error=str(e),
             error_type=type(e).__name__,
