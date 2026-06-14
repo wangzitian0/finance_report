@@ -5,6 +5,8 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { MoneyValue } from "@/lib/types";
 
 interface ConflictCandidate {
+    /** Stable transaction id from the backend (ReviewConflictCandidate.id). */
+    id: string;
     description: string;
     txn_date: string;
     amount: MoneyValue;
@@ -76,8 +78,8 @@ export function ConflictResolutionDialog({
                                         Duplicate Candidates
                                     </h3>
                                     <div className="space-y-2">
-                                        {duplicateCandidates.map((c, i) => (
-                                            <div key={i} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
+                                        {duplicateCandidates.map((c) => (
+                                            <div key={c.id} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
                                                 <div className="text-sm">
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>
@@ -103,8 +105,8 @@ export function ConflictResolutionDialog({
                                         Transfer Pair Candidates
                                     </h3>
                                     <div className="space-y-2">
-                                        {transferPairCandidates.map((c, i) => (
-                                            <div key={i} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
+                                        {transferPairCandidates.map((c) => (
+                                            <div key={c.id} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
                                                 <div className="text-sm">
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>
