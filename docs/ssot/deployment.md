@@ -94,20 +94,19 @@ Smoke:   ❌ Not run (unit tests only)
 ### staging-deploy.yml
 
 ```yaml
-Trigger: Successful push CI workflow_run on main or manual dispatch
+Trigger: Manual dispatch only (workflow_dispatch with a `ref` input)
 Flow:    promote SHA images -> deploy -> smoke/non-LLM E2E -> AI/OCR gate
 URL:     https://report-staging.zitian.party
 ```
 
-Normal staging deploys reuse SHA-tagged backend and frontend images built by the
-matching successful `push` `CI` workflow on `main`. The deploy job checks out the CI
-`workflow_run.head_sha`, so it no longer spends staging runner time polling for
-CI completion. If a SHA image is missing, staging falls back to building only
-the missing image before promotion. Provider-backed AI/OCR tests run after
-deploy health in the same serialized post-merge workflow unit.
-Non-`push`, failed, cancelled, timed-out, or non-main CI workflow runs write a
-skipped summary before FIFO wait, image promotion, Dokploy rollout, smoke tests,
-or AI/OCR validation can run.
+Staging deploy is manual: it runs only on `workflow_dispatch` and does not
+auto-follow main CI. The deploy job checks out the dispatched `ref` (falling back
+to `github.sha`) and never polls or waits for CI inside the job. Staging deploys
+reuse SHA-tagged backend and frontend images built by main `push`/`workflow_dispatch`
+CI; if a SHA image is missing, staging falls back to building only the missing
+image before promotion. Provider-backed AI/OCR tests run after deploy health in
+the same serialized dispatch workflow unit, and can also be invoked on demand via
+`staging-ai-ocr-gate.yml`.
 
 The production release workflow strictly promotes the staging-validated image digest to the release version tag (`vX.Y.Z`) instead of rebuilding from source. This creates a promote-not-rebuild consistency ladder: `pr (SHA image) → staging (promotes SHA to staging tag, validates digest) → prod (promotes staging-validated SHA to version tag)`. By keeping the exact same image digest across all three environments, we eliminate drift from base images, build-time dependencies, or workflow changes, ensuring that production only runs artifacts that have been fully tested and validated.
 

@@ -795,8 +795,12 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
     # PyYAML parses the bare `on:` key as the boolean True.
     triggers = parsed.get("on", parsed.get(True))
     assert isinstance(triggers, dict), "staging-deploy.yml must declare an `on:` map"
-    assert "workflow_dispatch" in triggers, "staging deploy must be manually dispatchable"
-    assert "workflow_run" not in triggers, "staging deploy must NOT auto-follow CI (manual-only)"
+    assert "workflow_dispatch" in triggers, (
+        "staging deploy must be manually dispatchable"
+    )
+    assert "workflow_run" not in triggers, (
+        "staging deploy must NOT auto-follow CI (manual-only)"
+    )
     assert "ref" in (triggers["workflow_dispatch"].get("inputs") or {}), (
         "manual dispatch must accept a `ref` input to deploy any commit"
     )
@@ -1415,15 +1419,33 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert '-m "smoke or e2e"' not in pr_workflow
 
 
-def test_AC8_13_21_post_merge_ai_ocr_requires_successful_ci_workflow_run() -> None:
-    """AC8.13.21: Provider-backed post-merge AI/OCR runs only after successful main CI."""
+def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
+    """AC8.13.21: Provider-backed staging AI/OCR runs inside a manual dispatch, not auto-after-CI."""
     workflow = read(".github/workflows/staging-deploy.yml")
+    on_demand_gate = read(".github/workflows/staging-ai-ocr-gate.yml")
 
-    assert "workflow_run:" in workflow
-    assert 'workflows: ["CI"]' in workflow
-    assert "types: [completed]" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "ref: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
+    parsed = yaml.safe_load(workflow)
+    # PyYAML parses the bare `on:` key as the boolean True.
+    triggers = parsed.get("on", parsed.get(True))
+    assert isinstance(triggers, dict), "staging-deploy.yml must declare an `on:` map"
+    assert "workflow_dispatch" in triggers, (
+        "staging deploy must be manually dispatchable"
+    )
+    assert "workflow_run" not in triggers, "staging deploy must NOT auto-follow CI"
+
+    # The AI/OCR gate still exists in the staging deploy workflow and inherits its
+    # `workflow_dispatch` trigger rather than auto-following a CI `workflow_run`.
+    assert "ai-ocr-gate:" in workflow
+    assert "name: Staging AI/OCR Gate" in workflow
+    assert "Run Staging AI/OCR Gate" in workflow
+    # The gate job is reached on a manual dispatch (build-and-deploy gates on it).
+    assert "if: ${{ github.event_name == 'workflow_dispatch' }}" in workflow
+
+    # An on-demand recovery entry point also runs the gate via workflow_dispatch.
+    on_demand_parsed = yaml.safe_load(on_demand_gate)
+    on_demand_triggers = on_demand_parsed.get("on", on_demand_parsed.get(True))
+    assert isinstance(on_demand_triggers, dict)
+    assert "workflow_dispatch" in on_demand_triggers
 
 
 def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> None:
@@ -1501,32 +1523,39 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert '"/chat"' in provider_test
     assert "Wait for matching CI success" not in workflow
     assert "wait_for_github_ci.py" not in workflow
-    assert (
-        "successful-main-CI `workflow_run` trigger before spending provider quota"
-        in ci_cd
-    )
+    assert "inherits the deploy workflow's `workflow_dispatch` trigger" in ci_cd
 
 
-def test_AC8_13_22_staging_deploy_starts_from_successful_ci_before_building() -> None:
-    """AC8.13.22: Staging deploy builds only after successful main CI workflow_run."""
+def test_AC8_13_22_staging_deploy_builds_from_dispatched_ref() -> None:
+    """AC8.13.22: Staging deploy builds and deploys the manually dispatched `ref`."""
     workflow = read(".github/workflows/staging-deploy.yml")
+
+    parsed = yaml.safe_load(workflow)
+    # PyYAML parses the bare `on:` key as the boolean True.
+    triggers = parsed.get("on", parsed.get(True))
+    assert isinstance(triggers, dict)
+    assert "workflow_dispatch" in triggers
+    assert "workflow_run" not in triggers
 
     assert "actions: read" in workflow
     assert "contents: read" in workflow
     assert "packages: write" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "github.event.workflow_run.head_branch == 'main'" in workflow
+    # The build-and-deploy job runs on a manual dispatch, not a CI workflow_run.
+    assert "if: ${{ github.event_name == 'workflow_dispatch' }}" in workflow
     assert "Wait for matching CI success" not in workflow
-    assert workflow.index(
-        "ref: ${{ github.event.workflow_run.head_sha || github.sha }}"
-    ) < workflow.index("Build and push Backend")
-    assert workflow.index(
-        "ref: ${{ github.event.workflow_run.head_sha || github.sha }}"
-    ) < workflow.index("Deploy to Staging")
+    # Checkout uses the dispatched ref (falling back to the triggering SHA), and
+    # that checkout happens before any build or deploy.
+    assert "ref: ${{ inputs.ref || github.sha }}" in workflow
+    assert workflow.index("ref: ${{ inputs.ref || github.sha }}") < workflow.index(
+        "Build and push Backend"
+    )
+    assert workflow.index("ref: ${{ inputs.ref || github.sha }}") < workflow.index(
+        "Deploy to Staging"
+    )
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
-    """AC8.13.36: Main CI builds SHA images and staging reuses them after CI passes."""
+    """AC8.13.36: Main CI builds SHA images and staging reuses them on manual dispatch."""
     ci_workflow = read(".github/workflows/ci.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
     check_script = read("tools/_lib/shell/check_ghcr_image_tag.sh")
@@ -1570,9 +1599,9 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "steps.frontend_image.outputs.build_required == 'true'" in deploy_workflow
     assert "Promote Backend Image to Staging Tag" in deploy_workflow
     assert "Promote Frontend Image to Staging Tag" in deploy_workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in deploy_workflow
+    assert "ref: ${{ inputs.ref || github.sha }}" in deploy_workflow
     assert deploy_workflow.index(
-        "ref: ${{ github.event.workflow_run.head_sha || github.sha }}"
+        "ref: ${{ inputs.ref || github.sha }}"
     ) < deploy_workflow.index("Resolve Backend Image")
     assert deploy_workflow.index("Resolve Backend Image") < deploy_workflow.index(
         "Build and push Backend"
@@ -1592,8 +1621,12 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert 'write_output "build_required" "false"' in check_script
     assert 'write_output "build_required" "true"' in check_script
     assert "SHA-tagged staging images" in ci_cd
-    assert "retags those immutable images as `staging`" in ci_cd
     assert "falls back to building only the missing image" in ci_cd
+    assert (
+        "promotes existing SHA images to the moving `staging` tag on a manual "
+        "dispatch" in ci_cd
+    )
+    assert "when the `:<sha>` image already exists from CI" in ci_cd
 
 
 def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
@@ -2046,85 +2079,31 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     assert "strip branch records before upload" in ci_cd
 
 
-def test_AC8_13_43_failed_ci_workflow_run_reports_no_deploy_diagnostic() -> None:
-    """AC8.13.43: Failed main CI reports staging state without deploying."""
-    workflow = read(".github/workflows/staging-deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
-
-    assert "Probe current staging version" in workflow
-    assert "id: staging_before" in workflow
-    assert "https://report-staging.zitian.party/api/health" in workflow
-    assert "Current Staging Before Deploy" in workflow
-    assert "ci-not-success-summary:" in workflow
-    assert "name: CI Workflow Run Ignored" in workflow
-    assert "github.event.workflow_run.event != 'push'" in workflow
-    assert "github.event.workflow_run.conclusion != 'success'" in workflow
-    assert "Staging Deploy Skipped Before VPS Changes" in workflow
-    assert "main CI workflow_run did not satisfy staging promotion guard" in workflow
-    assert (
-        "No FIFO wait, image promotion, Dokploy change, smoke test, or AI/OCR validation ran."
-        in workflow
-    )
-    assert "id: wait_ci" not in workflow
-    assert "wait_for_github_ci.py" not in workflow
-    assert "Failed, cancelled, timed-out, non-push, or non-main CI runs do not" in ci_cd
-    assert "does not poll or wait for CI inside the deploy job" in ci_cd
-
-
-def test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run() -> None:
-    """AC8.13.93: Automatic staging mutation requires successful main push CI."""
+def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
+    """AC8.13.93: Staging is mutated only by an explicit manual dispatch; no auto path."""
     workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
 
-    successful_main_push_guard = (
-        "github.event.workflow_run.event == 'push' && "
-        "github.event.workflow_run.conclusion == 'success' && "
-        "github.event.workflow_run.head_branch == 'main'"
-    )
-    ignored_guard = (
-        "github.event.workflow_run.event != 'push' || "
-        "github.event.workflow_run.conclusion != 'success' || "
-        "github.event.workflow_run.head_branch != 'main'"
-    )
+    parsed = yaml.safe_load(workflow)
+    # PyYAML parses the bare `on:` key as the boolean True.
+    triggers = parsed.get("on", parsed.get(True))
+    assert isinstance(triggers, dict), "staging-deploy.yml must declare an `on:` map"
+    # The ONLY trigger is a manual dispatch: no workflow_run / push / schedule path
+    # can mutate staging.
+    assert list(triggers.keys()) == ["workflow_dispatch"]
+    assert "ref" in (triggers["workflow_dispatch"].get("inputs") or {})
 
-    assert workflow.count(successful_main_push_guard) >= 3
+    # The retired auto-deploy machinery (the dedicated "CI Workflow Run Ignored"
+    # skip-summary job that fired on a non-success CI workflow_run) is gone.
+    assert "ci-not-success-summary:" not in workflow
+    assert "name: CI Workflow Run Ignored" not in workflow
 
-    skipped_section = workflow.split("ci-not-success-summary:", 1)[1].split(
-        "\n  build-and-deploy:", 1
-    )[0]
-    assert ignored_guard in skipped_section
-    assert "- Trigger event: ${{ github.event.workflow_run.event }}" in skipped_section
-    assert (
-        "- Head branch: ${{ github.event.workflow_run.head_branch }}" in skipped_section
-    )
-    assert "- CI run ID: ${{ github.event.workflow_run.id }}" in skipped_section
-    assert (
-        "- CI run attempt: ${{ github.event.workflow_run.run_attempt }}"
-        in skipped_section
-    )
-    assert "No FIFO wait, image promotion, Dokploy change" in skipped_section
-    assert "tools/wait_post_merge_train_turn.py" not in skipped_section
-    assert "docker buildx imagetools create" not in skipped_section
-    assert "tools/dokploy_deploy.sh" not in skipped_section
+    # The build-and-deploy job, image promotion, and Dokploy mutation only run on
+    # a manual dispatch.
+    assert "if: ${{ github.event_name == 'workflow_dispatch' }}" in workflow
 
-    deploy_context = workflow.split("Write staging deploy context", 1)[1].split(
-        "Upload staging deploy test context", 1
-    )[0]
-    for expected_line in [
-        "triggering_ci_run_id=${{ github.event.workflow_run.id }}",
-        "triggering_ci_run_attempt=${{ github.event.workflow_run.run_attempt }}",
-        "triggering_ci_event=${{ github.event.workflow_run.event }}",
-        "triggering_ci_head_sha=${{ github.event.workflow_run.head_sha }}",
-        "triggering_ci_created_at=${{ github.event.workflow_run.created_at }}",
-        "triggering_ci_conclusion=${{ github.event.workflow_run.conclusion }}",
-        "triggering_ci_url=${{ github.event.workflow_run.html_url }}",
-        "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}",
-        "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}",
-        "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}",
-    ]:
-        assert expected_line in deploy_context
-
+    # The structured deploy failure-context classification is preserved.
     failure_context = workflow.split("Classify staging deploy failure context", 1)[
         1
     ].split("Write staging deploy context", 1)[0]
@@ -2143,15 +2122,10 @@ def test_AC8_13_93_staging_promotion_requires_successful_main_push_ci_run() -> N
     ]:
         assert expected_line in failure_context
 
-    assert "successful `push` `CI` `workflow_run` on `main`" in ci_cd
-    assert "do not enter FIFO, promote images, push `staging` tags" in ci_cd
-    assert "CI run id, run attempt, trigger event, head SHA" in ci_cd
+    assert "Staging deploy is manual" in ci_cd
+    assert "does not poll or wait for CI" in ci_cd
     assert "failure domain, failed step, and failure summary" in ci_cd
-    assert "Trigger: Successful push CI workflow_run on main" in deployment
-    assert (
-        "Non-`push`, failed, cancelled, timed-out, or non-main CI workflow runs"
-        in deployment
-    )
+    assert "manual" in deployment.lower()
 
 
 def test_AC8_13_45_make_test_routes_through_root_moon_test() -> None:
