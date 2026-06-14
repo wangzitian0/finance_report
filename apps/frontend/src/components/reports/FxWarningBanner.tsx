@@ -34,8 +34,8 @@ export function FxWarningBanner({ warnings }: FxWarningBannerProps) {
     <div className="mb-6 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4 text-sm">
       <p className="font-medium text-[var(--warning)]">Partial FX data used</p>
       <ul className="mt-2 space-y-1 text-muted">
-        {warnings.map((warning, index) => (
-          <li key={`${warning.type}:${warning.date ?? index}`}>{formatWarning(warning)}</li>
+        {warnings.map((warning) => (
+          <li key={`${warning.type}:${warning.from_currency ?? ""}-${warning.to_currency ?? ""}:${warning.date ?? ""}:${warning.fallback_date ?? ""}`}>{formatWarning(warning)}</li>
         ))}
       </ul>
     </div>

@@ -603,10 +603,14 @@ async def test_parse_document_with_invalid_date_formats():
         }
     )
 
-    with pytest.raises(ExtractionError, match="Invalid transaction date format"):
-        await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
-        )
+    # #1086: an unparseable transaction-row date is non-fatal — the row is skipped
+    # and the rest of the document still parses, instead of rejecting the whole
+    # (often multi-month) statement.
+    statement, transactions = await service.parse_document(
+        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    )
+    assert statement is not None
+    assert len(transactions) == 0
 
 
 async def test_parse_document_unexpected_exception():
@@ -895,11 +899,13 @@ async def test_parse_document_non_string_date():
             ],
         }
     )
-    # str(True) -> 'True' which is not ISO format -> should raise
-    with pytest.raises(ExtractionError, match="Invalid transaction date format"):
-        await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
-        )
+    # str(True) -> 'True' is not a parseable date. #1086: the row is skipped
+    # (non-fatal) rather than aborting the document.
+    statement, transactions = await service.parse_document(
+        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    )
+    assert statement is not None
+    assert len(transactions) == 0
 
 
 async def test_parse_document_skips_none_date_string():
