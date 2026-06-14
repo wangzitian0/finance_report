@@ -255,7 +255,7 @@ class Bootloader:
     @staticmethod
     async def _check_ai_provider() -> ServiceStatus:
         """Validate AI API key."""
-        api_key = getattr(settings, "ai_api_key", None) or getattr(settings, "openrouter_api_key", None)
+        api_key = getattr(settings, "ai_api_key", None)
         if not isinstance(api_key, str) or not api_key:
             return ServiceStatus("ai_provider", "skipped", "Not configured")
 
@@ -272,8 +272,6 @@ class Bootloader:
         start = time.perf_counter()
         try:
             base_url = getattr(settings, "ai_base_url", None)
-            if not isinstance(base_url, str) or not base_url:
-                base_url = getattr(settings, "openrouter_base_url", None)
             if not isinstance(base_url, str) or not base_url:
                 return ServiceStatus("ai_provider", "error", "Base URL not configured")
             async with httpx.AsyncClient(timeout=5.0) as client:

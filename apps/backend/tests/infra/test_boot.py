@@ -18,7 +18,6 @@ def mock_settings():
     with patch("src.boot.settings") as mock:
         mock.database_url = "postgresql+asyncpg://test:test@localhost/test"
         mock.ai_api_key = None
-        mock.openrouter_api_key = None
         mock.s3_endpoint = "http://localhost:9000"
         mock.s3_access_key = "minio"
         mock.s3_secret_key = "minio123"
@@ -36,7 +35,7 @@ def mock_settings():
         mock.cors_origin_regex = ".*"
         mock.otel_exporter_otlp_endpoint = None
         mock.otel_service_name = "test"
-        mock.openrouter_base_url = ZAI_CODING_BASE_URL
+        mock.ai_base_url = ZAI_CODING_BASE_URL
         yield mock
 
 
@@ -409,7 +408,6 @@ class TestBootloaderS3:
 
 class TestBootloaderOpenrouter:
     async def test_check_openrouter_skipped(self, mock_settings):
-        mock_settings.openrouter_api_key = None
         mock_settings.ai_api_key = None
 
         status = await Bootloader._check_openrouter()
@@ -418,7 +416,6 @@ class TestBootloaderOpenrouter:
         assert status.service == "ai_provider"
 
     async def test_check_openrouter_success(self, mock_settings):
-        mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
 
@@ -435,7 +432,6 @@ class TestBootloaderOpenrouter:
             assert status.service == "ai_provider"
 
     async def test_check_openrouter_configured_catalog_skips_network_probe(self, mock_settings):
-        mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
         mock_settings.ai_model_catalog_source = "configured"
 
@@ -445,10 +441,8 @@ class TestBootloaderOpenrouter:
         assert "Configured provider=" in status.message
 
     async def test_check_openrouter_remote_catalog_requires_base_url(self, mock_settings):
-        mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
         mock_settings.ai_base_url = None
-        mock_settings.openrouter_base_url = None
 
         status = await Bootloader._check_openrouter()
 
@@ -456,7 +450,6 @@ class TestBootloaderOpenrouter:
         assert status.message == "Base URL not configured"
 
     async def test_check_openrouter_auth_failure(self, mock_settings):
-        mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
 
@@ -473,7 +466,6 @@ class TestBootloaderOpenrouter:
             assert "401" in status.message
 
     async def test_check_openrouter_exception(self, mock_settings):
-        mock_settings.openrouter_api_key = "test-key"
         mock_settings.ai_api_key = "test-key"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
 

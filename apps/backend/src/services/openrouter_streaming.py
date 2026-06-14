@@ -57,15 +57,11 @@ async def _stream_openrouter_base(
     """
     if not api_key:
         api_key = getattr(settings, "ai_api_key", None)
-        if not isinstance(api_key, str) or not api_key:
-            api_key = getattr(settings, "openrouter_api_key", None)
     if not isinstance(api_key, str) or not api_key:
         raise OpenRouterStreamError("AI provider API key not configured", retryable=False)
 
     if not base_url:
         base_url = getattr(settings, "ai_base_url", None)
-        if not isinstance(base_url, str) or not base_url:
-            base_url = getattr(settings, "openrouter_base_url", None)
     if not isinstance(base_url, str) or not base_url:
         raise OpenRouterStreamError("AI provider base URL not configured", retryable=False)
 

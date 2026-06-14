@@ -62,8 +62,8 @@ class TestStreamApiKeyFallback:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
                 with patch("src.services.openrouter_streaming.settings") as mock_settings:
-                    mock_settings.openrouter_api_key = "settings-api-key"
-                    mock_settings.openrouter_base_url = "https://test.openrouter.ai/api/v1"
+                    mock_settings.ai_api_key = "settings-api-key"
+                    mock_settings.ai_base_url = "https://test.openrouter.ai/api/v1"
 
                     chunks = []
                     async for chunk in stream_openrouter_chat(
@@ -77,7 +77,7 @@ class TestStreamApiKeyFallback:
     async def test_stream_raises_when_no_api_key_available(self):
         """AC6.7.3: Stream raises error when no API key available."""
         with patch("src.services.openrouter_streaming.settings") as mock_settings:
-            mock_settings.openrouter_api_key = None
+            mock_settings.ai_api_key = None
 
             with pytest.raises(OpenRouterStreamError) as exc_info:
                 async for _ in stream_openrouter_chat(

@@ -235,32 +235,5 @@ class Settings(BaseSettings):
             ],
         )
 
-    @property
-    def openrouter_api_key(self) -> str:
-        """Backward-compatible alias for legacy internal call sites/tests."""
-        return self.ai_api_key
-
-    @openrouter_api_key.setter
-    def openrouter_api_key(self, value: str) -> None:
-        self.ai_api_key = value
-
-    @property
-    def openrouter_base_url(self) -> str:
-        """Backward-compatible alias for legacy internal call sites/tests."""
-        return self.ai_base_url
-
-    @openrouter_base_url.setter
-    def openrouter_base_url(self, value: str) -> None:
-        self.ai_base_url = value
-
-    @property
-    def openrouter_daily_limit_usd(self) -> int | None:
-        """Backward-compatible alias for legacy internal call sites/tests."""
-        return self.ai_daily_limit_usd
-
-    @openrouter_daily_limit_usd.setter
-    def openrouter_daily_limit_usd(self, value: int | None) -> None:
-        self.ai_daily_limit_usd = value
-
 
 settings = Settings()
