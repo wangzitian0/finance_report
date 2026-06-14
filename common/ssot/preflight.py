@@ -31,18 +31,24 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # sub-checks run under the same Python (and therefore the same dependencies).
 PY = "{python}"
 
-Runner = Callable[[Sequence[str]], int]
+Runner = Callable[[Sequence[str], str], int]
 Git = Callable[[Sequence[str]], str]
 
 
 @dataclass(frozen=True)
 class Check:
-    """A named gate: run ``commands`` when a changed path matches a ``glob``."""
+    """A named gate: run ``commands`` when a changed path matches a ``glob``.
+
+    ``cwd`` is the working directory (relative to the repo root) the commands run
+    in. Backend gates use ``apps/backend`` so ``ruff`` discovers the backend Ruff
+    config and ``pytest`` can import ``src.*`` — matching how CI invokes them.
+    """
 
     name: str
     globs: tuple[str, ...]
     commands: tuple[tuple[str, ...], ...]
     why: str
+    cwd: str = "."
 
 
 # Ordered cheapest/most-localizing first. ``fnmatch`` treats ``*`` as matching
@@ -98,10 +104,11 @@ CHECKS: tuple[Check, ...] = (
         name="backend-format",
         globs=("apps/backend/*.py",),
         commands=(
-            ("ruff", "check", "apps/backend/src", "apps/backend/tests"),
-            ("ruff", "format", "--check", "apps/backend/src", "apps/backend/tests"),
+            ("ruff", "check", "src", "tests"),
+            ("ruff", "format", "--check", "src", "tests"),
         ),
         why="backend Python changed: ruff lint + format check",
+        cwd="apps/backend",
     ),
     Check(
         name="transaction-boundary",
@@ -111,12 +118,13 @@ CHECKS: tuple[Check, ...] = (
                 PY,
                 "-m",
                 "pytest",
-                "apps/backend/tests/infra/test_transaction_boundaries.py",
+                "tests/infra/test_transaction_boundaries.py",
                 "-q",
                 "--no-cov",
             ),
         ),
         why="service changed: re-run the commit/transaction-boundary meta-test",
+        cwd="apps/backend",
     ),
 )
 
@@ -169,8 +177,8 @@ def changed_files(base: str | None = None, *, git: Git = _default_git) -> list[s
     return sorted(out)
 
 
-def _default_runner(argv: Sequence[str]) -> int:
-    return subprocess.run(list(argv), cwd=REPO_ROOT, check=False).returncode
+def _default_runner(argv: Sequence[str], cwd: str) -> int:
+    return subprocess.run(list(argv), cwd=cwd, check=False).returncode
 
 
 def _resolve(command: tuple[str, ...], python: str) -> list[str]:
@@ -187,9 +195,10 @@ def run_checks(
     python = python or sys.executable
     results: list[CheckResult] = []
     for check in checks:
+        cwd = str(REPO_ROOT / check.cwd)
         ok = True
         for command in check.commands:
-            if runner(_resolve(command, python)) != 0:
+            if runner(_resolve(command, python), cwd) != 0:
                 ok = False
                 break
         results.append(CheckResult(check.name, ok))

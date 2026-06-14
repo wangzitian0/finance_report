@@ -69,19 +69,45 @@ def test_every_check_command_references_an_existing_script():
                     assert (REPO_ROOT / part).exists(), f"{check.name}: missing {part}"
 
 
+def test_backend_gates_run_in_the_backend_directory():
+    """Backend ruff/pytest must run from apps/backend (config + src import path)."""
+    by_name = {c.name: c for c in preflight.CHECKS}
+    assert by_name["backend-format"].cwd == "apps/backend"
+    assert by_name["transaction-boundary"].cwd == "apps/backend"
+
+
+def test_run_checks_passes_each_check_cwd_to_the_runner():
+    seen: list[str] = []
+
+    def runner(argv, cwd):
+        seen.append(cwd)
+        return 0
+
+    preflight.run_checks(
+        [c for c in preflight.CHECKS if c.name == "backend-format"],
+        runner=runner,
+        python="python3",
+    )
+    assert seen and all(c.endswith("apps/backend") for c in seen)
+
+
 class TestRunAndMain:
     def test_run_checks_reports_per_check_pass_fail(self):
         checks = preflight.select_checks(["apps/backend/migrations/versions/0099_x.py"])
-        results = preflight.run_checks(checks, runner=lambda argv: 0, python="python3")
+        results = preflight.run_checks(
+            checks, runner=lambda argv, cwd: 0, python="python3"
+        )
         assert all(r.ok for r in results)
 
-        results = preflight.run_checks(checks, runner=lambda argv: 1, python="python3")
+        results = preflight.run_checks(
+            checks, runner=lambda argv, cwd: 1, python="python3"
+        )
         assert all(not r.ok for r in results)
 
     def test_run_checks_fails_fast_on_first_nonzero_command(self):
         calls: list[list[str]] = []
 
-        def runner(argv):
+        def runner(argv, cwd):
             calls.append(list(argv))
             return 1  # first command fails
 
@@ -91,16 +117,16 @@ class TestRunAndMain:
         assert len(calls) == 1
 
     def test_main_returns_nonzero_when_a_gate_fails(self):
-        rc = preflight.main(["--changed", ".env.example"], runner=lambda argv: 1)
+        rc = preflight.main(["--changed", ".env.example"], runner=lambda argv, cwd: 1)
         assert rc == 1
 
     def test_main_returns_zero_when_gates_pass(self):
-        rc = preflight.main(["--changed", ".env.example"], runner=lambda argv: 0)
+        rc = preflight.main(["--changed", ".env.example"], runner=lambda argv, cwd: 0)
         assert rc == 0
 
     def test_main_no_relevant_gates_is_clean(self):
         rc = preflight.main(
-            ["--changed", "apps/frontend/src/app/page.tsx"], runner=lambda argv: 1
+            ["--changed", "apps/frontend/src/app/page.tsx"], runner=lambda argv, cwd: 1
         )
         assert rc == 0
 
@@ -108,7 +134,7 @@ class TestRunAndMain:
         ran = []
         rc = preflight.main(
             ["--list", "--changed", "docs/project/EPIC-008.x.md"],
-            runner=lambda argv: ran.append(argv) or 0,
+            runner=lambda argv, cwd: ran.append(argv) or 0,
         )
         assert rc == 0
         assert ran == []
@@ -121,7 +147,7 @@ class TestRunAndMain:
                 return ""
             return ".env.example\n"
 
-        rc = preflight.main([], runner=lambda argv: 0, git=fake_git)
+        rc = preflight.main([], runner=lambda argv, cwd: 0, git=fake_git)
         assert rc == 0
 
 

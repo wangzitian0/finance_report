@@ -32,7 +32,8 @@ apps/backend/.venv/bin/python tools/check_ac_traceability.py    # gate: every ma
 ```
 
 The **preflight** skill runs both automatically when it sees an EPIC/registry
-change in your diff — prefer `python tools/preflight.py` so you can't forget.
+change in your diff — prefer `apps/backend/.venv/bin/python tools/preflight.py`
+(an interpreter with the project deps) so you can't forget.
 
 ## Gotchas (learned the hard way)
 
