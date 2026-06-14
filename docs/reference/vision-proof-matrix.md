@@ -11,20 +11,20 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 |---|---:|
 | Vision nodes (anchors) | 9 |
 | Vision nodes with an owning EPIC | 9 |
-| Acceptance Criteria mapped | 1841 |
-| ACs with a real test reference | 1838 |
+| Acceptance Criteria mapped | 1846 |
+| ACs with a real test reference | 1843 |
 
 ## Vision nodes
 
 | Vision anchor | Node | Owner EPICs | ACs | ACs with test |
 |---|---|---|---:|---:|
 | `decision-1-portfolio-self-developed` | Portfolio is native. | EPIC-017 | 111 | 111 |
-| `decision-2-event-middle-layer` | Uploaded sources become reviewed records before ledger knowledge. | EPIC-003, EPIC-013, EPIC-018, EPIC-019, EPIC-022 | 373 | 373 |
+| `decision-2-event-middle-layer` | Uploaded sources become reviewed records before ledger knowledge. | EPIC-003, EPIC-013, EPIC-018, EPIC-019, EPIC-022 | 376 | 376 |
 | `decision-3-record-layer` | Uploaded sources become reviewed records before ledger knowledge. | EPIC-011, EPIC-019 | 149 | 149 |
 | `decision-4-two-stage-review` | Review separates source accuracy from batch consistency. | EPIC-004, EPIC-016, EPIC-022 | 378 | 378 |
 | `decision-5-processing-account` | In-transit funds stay visible. | EPIC-015 | 31 | 31 |
-| `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 203 | 200 |
-| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 430 | 430 |
+| `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 204 | 201 |
+| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 431 | 431 |
 | `non-goals-not-budgeting-app` | Becoming a consumer budgeting app | EPIC-005 | 94 | 94 |
 | `non-goals-not-robo-advisor` | Automated trading, portfolio | EPIC-006 | 72 | 72 |
 
@@ -152,7 +152,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 
 - **Node**: Uploaded sources become reviewed records before ledger knowledge.
 - **Owner EPICs**: EPIC-003, EPIC-013, EPIC-018, EPIC-019, EPIC-022
-- **ACs**: 373 (373 with a real test reference)
+- **ACs**: 376 (376 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
@@ -320,6 +320,9 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC13.17.12 | EPIC-013 | An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins | `apps/backend/tests/extraction/test_self_consistency.py` |
 | AC13.18.1 | EPIC-013 | The vision model list appends VISION_FALLBACK_MODELS after the primary OCR/vision model, deduplicated and order-preserving, so more than one model is attempted on the vision path | `apps/backend/tests/extraction/test_extraction_error_paths.py` |
 | AC13.18.2 | EPIC-013 | When the primary vision model raises a non-retryable provider error (e.g. a 400), the vision path attempts the configured vision fallback model and succeeds instead of failing the upload | `apps/backend/tests/extraction/test_extraction_error_paths.py` |
+| AC13.19.1 | EPIC-013 | Common non-ISO date formats parse; empty/garbage return None | `apps/backend/tests/extraction/test_tolerant_date_parsing.py` |
+| AC13.19.2 | EPIC-013 | A Chinese-format statement parses instead of being rejected | `apps/backend/tests/extraction/test_tolerant_date_parsing.py` |
+| AC13.19.3 | EPIC-013 | One unparseable row date is non-fatal — the row is skipped, the rest parse | `apps/backend/tests/extraction/test_tolerant_date_parsing.py` |
 | AC18.1.1 | EPIC-018 | 1 | `apps/backend/tests/extraction/test_extraction.py`<br>`apps/backend/tests/extraction/test_extraction_flow.py`<br>`apps/backend/tests/extraction/test_pdf_fixtures.py` |
 | AC18.1.2 | EPIC-018 | 1 | `apps/backend/tests/extraction/test_extraction_flow.py` |
 | AC18.1.3 | EPIC-018 | 1 | `apps/backend/tests/extraction/test_classification_service.py` |
@@ -1119,11 +1122,11 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 
 - **Node**: The stack stays self-hostable.
 - **Owner EPICs**: EPIC-001, EPIC-007, EPIC-010, EPIC-012
-- **ACs**: 203 (200 with a real test reference)
+- **ACs**: 204 (201 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
-| AC1.1.1 | EPIC-001 | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_ac_evidence_pipeline.py`<br>`tests/tooling/test_ac_registry_format.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py`<br>`tests/tooling/test_audit_ac_epic_mismatches.py`<br>`tests/tooling/test_build_ac_traceability.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_ac_registry.py`<br>`tests/tooling/test_generate_epic_status.py`<br>`tests/tooling/test_issue_459_traceability_gate.py`<br>`tests/tooling/test_issue_493_foundation_ttd_behavior.py`<br>`tests/tooling/test_lint_doc_consistency.py` |
+| AC1.1.1 | EPIC-001 | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_ac_evidence_pipeline.py`<br>`tests/tooling/test_ac_registry_format.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py`<br>`tests/tooling/test_audit_ac_epic_mismatches.py`<br>`tests/tooling/test_build_ac_traceability.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_ac_registry.py`<br>`tests/tooling/test_generate_epic_status.py`<br>`tests/tooling/test_issue_459_traceability_gate.py`<br>`tests/tooling/test_issue_493_foundation_ttd_behavior.py`<br>`tests/tooling/test_lint_doc_consistency.py`<br>`tests/tooling/test_proof_index_architecture.py` |
 | AC1.1.2 | EPIC-001 | apps/backend/moon.yml exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py`<br>`tests/tooling/test_audit_ac_epic_mismatches.py`<br>`tests/tooling/test_build_ac_traceability.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_epic_status.py`<br>`tests/tooling/test_lint_doc_consistency.py` |
 | AC1.1.3 | EPIC-001 | apps/frontend/moon.yml exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_epic_status.py` |
 | AC1.1.4 | EPIC-001 | tools/infra.sh local infrastructure command exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_generate_epic_status.py` |
@@ -1326,12 +1329,13 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC12.27.3 | EPIC-012 | Frontend apiFetch throws ApiError carrying the parsed errorId | `apps/frontend/src/__tests__/apiErrorStructured.test.ts` |
 | AC12.28.1 | EPIC-012 | The generator emits the spec from the live OpenAPI schema | `tests/tooling/test_generate_openapi_spec.py` |
 | AC12.28.2 | EPIC-012 | The --check staleness gate fails when the committed spec is stale | `tests/tooling/test_generate_openapi_spec.py` |
+| AC12.28.3 | EPIC-012 | High-traffic call sites type responses against the generated schema | `apps/frontend/src/__tests__/apiTypedClient.test.ts` |
 
 ### `decision-filter-accuracy-auditability`
 
 - **Node**: Decision Filter
 - **Owner EPICs**: EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021
-- **ACs**: 430 (430 with a real test reference)
+- **ACs**: 431 (431 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
@@ -1608,6 +1612,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC8.13.134 | EPIC-008 | Consolidated/archived stale docs stay absent and every mkdocs nav markdown target resolves (no dangling internal links after the consolidation) (#350) | `tests/tooling/test_stale_docs_consolidation.py` |
 | AC8.13.135 | EPIC-008 | The AC traceability report labels its mandatory-coverage number as L1 reference hygiene (reference exists), never as behavioral coverage, and its pass message names the separate L2 critical-proof-matrix and L3 behavioral-score-ratchet gates as the behavioral authorities — so a passing traceability gate cannot be read as misleading behavioral assurance | `tests/tooling/test_check_ac_traceability.py` |
 | AC8.13.136 | EPIC-008 | A content-level secret scan (gitleaks) runs in both the pre-commit hooks and the CI lint job (local==CI parity), blocking credential material by content rather than by filename so .gitignore is not the only line of defense | `tests/tooling/test_secret_scan_gate.py` |
+| AC8.13.137 | EPIC-008 | Cross-cutting proof-index artifacts are stored conflict-free by kind: the critical-proof matrix is a DERIVED index generated from co-located @ac_proof decorators and guarded by --check round-trip, while the AC-score ratchet baseline is a PERSISTED ratchet stored as sorted JSONL with a merge=union gitattribute — and the ratchet still fails on regression, missing evidence, or non-pass code | `tests/tooling/test_proof_index_architecture.py` |
 | AC8.14.1 | EPIC-008 | Critical proof matrix classifies product proof paths by trust mode and source classes | `tests/tooling/test_check_critical_proof_matrix.py` |
 | AC8.14.2 | EPIC-008 | Critical post-merge LLM/OCR product proofs must name a PR deterministic mirror proof for the same source classes | `tests/tooling/test_check_critical_proof_matrix.py` |
 | AC8.14.3 | EPIC-008 | Personal report package critical proof has a deterministic PR mirror covering bank, brokerage, manual valuation, restricted-compensation, CSV, and manual-record source classes | `apps/backend/tests/api/test_personal_report_package_contract.py`<br>`tests/tooling/test_personal_report_package_fixture_contract.py` |

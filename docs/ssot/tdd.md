@@ -148,9 +148,12 @@ required; regenerating a *persisted ratchet* from current scores would erase the
 floor it exists to protect. A new file that is a central index but stored as a
 hand-maintained shared list is drift — convert it to the matching kind.
 
-`docs/ssot/vision-proof-matrix.yaml` is a known same-class **derived index** that
-is still hand-maintained; migrating it to the generated + `--check` pattern is
-tracked as follow-up and intentionally out of scope here.
+`docs/ssot/vision-proof-matrix.yaml` is the same-class **derived index** to look
+to next: it is already generated from EPIC ACs by
+`tools/generate_vision_proof_matrix.py --check`, but its rows are still derived
+from EPIC AC tables rather than from co-located per-test declarations. Aligning
+it with the `@ac_proof` co-location model (so its proof rows come from the tests
+themselves) is tracked as follow-up and intentionally out of scope here.
 
 ## SSOT Governance Metrics
 
