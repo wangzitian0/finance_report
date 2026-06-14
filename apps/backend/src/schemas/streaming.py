@@ -29,7 +29,7 @@ from __future__ import annotations
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.schemas.chat import ChatResponseMetadata
 
@@ -40,6 +40,12 @@ MODEL_NAME_HEADER = "X-Model-Name"
 ADVISOR_METADATA_HEADER = "X-Advisor-Metadata"
 EXPOSE_HEADERS_HEADER = "Access-Control-Expose-Headers"
 CONTENT_DISPOSITION_HEADER = "Content-Disposition"
+
+# Characters that are unsafe to interpolate into an HTTP header value:
+# CR/LF enable header injection / response splitting; the double-quote and
+# semicolon break out of the Content-Disposition parameter; path separators
+# would leak directory structure into the suggested filename.
+_UNSAFE_FILENAME_CHARS = frozenset('\r\n";/\\')
 
 
 class ChatStreamMediaType(str, Enum):
@@ -128,8 +134,25 @@ class ExportStreamEnvelope(BaseModel):
     filename: str = Field(
         min_length=1,
         max_length=255,
-        description="Attachment filename rendered into the Content-Disposition response header.",
+        description="Validated attachment filename rendered into the Content-Disposition response header.",
     )
+
+    @field_validator("filename")
+    @classmethod
+    def _reject_unsafe_filename(cls, value: str) -> str:
+        """Reject characters unsafe in an HTTP header value.
+
+        ``filename`` is interpolated directly into the ``Content-Disposition``
+        header, so CR/LF (header injection / response splitting), double-quotes,
+        semicolons (which would break out of the disposition parameter), and
+        path separators must not appear. Length alone is not enough to keep the
+        "validated filename" claim honest.
+        """
+        if _UNSAFE_FILENAME_CHARS.intersection(value):
+            raise ValueError(
+                "filename must not contain CR, LF, double-quote, semicolon, or path separators",
+            )
+        return value
 
     def to_headers(self) -> dict[str, str]:
         """Build the attachment header dict for the export streaming response."""

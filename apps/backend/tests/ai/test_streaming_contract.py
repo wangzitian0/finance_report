@@ -111,6 +111,39 @@ def test_AC6_33_6_export_envelope_rejects_unknown_media_type() -> None:
         ExportStreamEnvelope(media_type="application/pdf", filename="x.pdf")  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    "bad_filename",
+    [
+        "report\r\nSet-Cookie: x=1.csv",  # CRLF header injection
+        "report\n.csv",  # bare LF
+        "report\r.csv",  # bare CR
+        'report".csv',  # double-quote breaks the disposition parameter
+        "report;rm -rf.csv",  # semicolon breaks out of the parameter
+        "../../etc/passwd",  # forward-slash path separator
+        "dir\\report.csv",  # backslash path separator
+    ],
+)
+def test_AC6_33_9_export_envelope_rejects_unsafe_filename(bad_filename: str) -> None:
+    """AC6.33.9: Export filename rejects header-injection / disposition-breaking chars.
+
+    The filename is interpolated into the Content-Disposition header, so CR/LF,
+    double-quotes, semicolons, and path separators must be rejected rather than
+    merely length-validated.
+    """
+    with pytest.raises(ValidationError):
+        ExportStreamEnvelope(media_type=ExportStreamMediaType.CSV, filename=bad_filename)
+
+
+def test_AC6_33_9_export_envelope_accepts_normal_filename() -> None:
+    """AC6.33.9: A normal attachment filename still passes validation."""
+    envelope = ExportStreamEnvelope(
+        media_type=ExportStreamMediaType.CSV,
+        filename="balance-sheet-2026-01-01.csv",
+    )
+    assert envelope.filename == "balance-sheet-2026-01-01.csv"
+    assert envelope.to_headers()["Content-Disposition"] == ("attachment; filename=balance-sheet-2026-01-01.csv")
+
+
 @pytest.mark.no_db
 async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> None:
     """AC6.33.7: chat_message builds its response from the typed envelope.

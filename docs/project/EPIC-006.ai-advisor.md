@@ -552,3 +552,4 @@ before serialization. See `docs/ssot/ai.md` (chat) and `docs/ssot/reporting.md`
 | AC6.33.6 | Export envelope rejects unknown media types. | `test_AC6_33_6_export_envelope_rejects_unknown_media_type` | `ai/test_streaming_contract.py` | P0 |
 | AC6.33.7 | chat_message builds its streaming response from the typed envelope. | `test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers` | `ai/test_streaming_contract.py` | P0 |
 | AC6.33.8 | /reports/export wire headers match the typed export envelope. | `test_AC6_33_8_export_response_matches_typed_envelope` | `reporting/test_reports_router.py` | P0 |
+| AC6.33.9 | Export filename rejects CR/LF, double-quote, semicolon, and path separators (header-injection safe). | `test_AC6_33_9_export_envelope_rejects_unsafe_filename` | `ai/test_streaming_contract.py` | P0 |
