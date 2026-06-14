@@ -603,3 +603,68 @@ class TestMain:
         assert all_ids == ["AC1.1.1", "AC7.1.1"]
         assert len(all_ids) == len(set(all_ids))
         assert set(feature_ids).isdisjoint(infra_ids)
+
+
+class TestFindAcCollisions:
+    """find_ac_collisions guards AC ID uniqueness across EPIC docs.
+
+    extract_acs keeps the first definition of a repeated AC ID and silently drops
+    the rest, so a duplicate row can hide a real, differently-scoped AC (and its
+    test) from the registry. These tests pin the collision detector that makes
+    such drift fail the registry --check gate instead of passing silently.
+    """
+
+    def _write_epic(self, tmp_path, fname, content):
+        epic_dir = tmp_path / "docs" / "project"
+        epic_dir.mkdir(parents=True, exist_ok=True)
+        (epic_dir / fname).write_text(content)
+        return epic_dir
+
+    def test_clean_doc_has_no_collisions(self, tmp_path):
+        epic_dir = self._write_epic(
+            tmp_path,
+            "EPIC-002.double-entry-core.md",
+            "### AC2.1: Group\n\n| AC2.1.1 | First |\n| AC2.1.2 | Second |\n",
+        )
+        dup_defs, dup_headings = gar.find_ac_collisions(epic_dir=epic_dir)
+        assert dup_defs == {}
+        assert dup_headings == {}
+
+    def test_duplicate_table_definition_is_flagged(self, tmp_path):
+        epic_dir = self._write_epic(
+            tmp_path,
+            "EPIC-002.double-entry-core.md",
+            "| AC2.13.1 | User-scoped rule |\n"
+            "| AC2.13.1 | A different framework rule sharing the id |\n",
+        )
+        dup_defs, _ = gar.find_ac_collisions(epic_dir=epic_dir)
+        assert "AC2.13.1" in dup_defs
+
+    def test_checklist_bullet_is_not_a_competing_definition(self, tmp_path):
+        """A bullet that restates an AC must not be treated as a duplicate row."""
+        epic_dir = self._write_epic(
+            tmp_path,
+            "EPIC-015.processing-account.md",
+            "| AC15.7.6 | Sidebar shows Processing |\n- [x] AC15.7.6 done\n",
+        )
+        dup_defs, _ = gar.find_ac_collisions(epic_dir=epic_dir)
+        assert dup_defs == {}
+
+    def test_duplicate_group_heading_is_flagged(self, tmp_path):
+        epic_dir = self._write_epic(
+            tmp_path,
+            "EPIC-002.double-entry-core.md",
+            "### AC2.12: UI Responsiveness\n\n| AC2.12.3 | mobile |\n"
+            "### AC2.12: Multi-Currency\n\n| AC2.12.1 | base ccy |\n",
+        )
+        _, dup_headings = gar.find_ac_collisions(epic_dir=epic_dir)
+        assert any(key.endswith(":AC2.12") for key in dup_headings)
+
+    def test_check_mode_fails_on_collision(self, tmp_path, monkeypatch):
+        epic_dir = self._write_epic(
+            tmp_path,
+            "EPIC-002.double-entry-core.md",
+            "| AC2.13.1 | one |\n| AC2.13.1 | two |\n",
+        )
+        monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
+        assert gar.main(["--check"]) == 1

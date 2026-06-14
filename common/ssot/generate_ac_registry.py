@@ -147,6 +147,57 @@ def load_overrides(path: str | Path = OVERRIDES) -> dict[str, dict]:
     return load_existing_registry(path)
 
 
+_HEADING_AC_PATTERN = re.compile(r"^#{2,6}\s+(AC\d+\.\d+)\b")
+
+
+def _epic_files(epic_dir: str | Path | None = None) -> list[Path]:
+    source_dir = Path(epic_dir or EPIC_DIR)
+    return [
+        source_dir / f
+        for f in sorted(os.listdir(source_dir))
+        if re.match(r"EPIC-\d+.*\.md", f)
+        and "IMPLEMENTATION" not in f
+        and "ENCODING" not in f
+    ]
+
+
+def find_ac_collisions(
+    epic_dir: str | Path | None = None,
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Find AC identity collisions in EPIC docs.
+
+    Returns ``(duplicate_definitions, duplicate_headings)``:
+
+    - ``duplicate_definitions``: ``ACx.y.z`` defined by more than one Markdown
+      **table row** (``| ACx.y.z | ... |``). ``extract_acs`` keeps the first and
+      silently drops the rest, so a collision can hide a real, differently-scoped
+      AC (and its test) from the registry. Only table rows count — checklist
+      bullets that merely restate an AC are not competing definitions.
+    - ``duplicate_headings``: ``### ACx.y`` group heading repeated within one EPIC,
+      which makes the group's namespace and "next free index" ambiguous.
+    """
+    def_locations: dict[str, list[str]] = {}
+    heading_locations: dict[str, list[str]] = {}
+    for path in _epic_files(epic_dir):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                heading = _HEADING_AC_PATTERN.match(stripped)
+                if heading:
+                    heading_locations.setdefault(
+                        f"{path.name}:{heading.group(1)}", []
+                    ).append(path.name)
+                    continue
+                if not stripped.startswith("|"):
+                    continue
+                cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+                if cells and AC_PATTERN.fullmatch(cells[0]):
+                    def_locations.setdefault(cells[0], []).append(path.name)
+    duplicate_definitions = {k: v for k, v in def_locations.items() if len(v) > 1}
+    duplicate_headings = {k: v for k, v in heading_locations.items() if len(v) > 1}
+    return duplicate_definitions, duplicate_headings
+
+
 def extract_acs(
     existing_acs: dict[str, dict] | None = None,
     epic_dir: str | Path | None = None,
@@ -378,6 +429,30 @@ def main(argv: list[str] | None = None) -> int:
         classify_ac(ac_id, entry)
 
     if args.check:
+        duplicate_defs, duplicate_headings = find_ac_collisions()
+        if duplicate_defs or duplicate_headings:
+            if duplicate_defs:
+                details = "; ".join(
+                    f"{ac_id} defined in {', '.join(sorted(set(files)))}"
+                    for ac_id, files in sorted(
+                        duplicate_defs.items(), key=lambda kv: sort_key(kv[0])
+                    )
+                )
+                print(
+                    "ERROR: AC IDs are defined more than once (the registry keeps the "
+                    f"first and silently drops the rest): {details}",
+                    file=sys.stderr,
+                )
+            if duplicate_headings:
+                heads = "; ".join(
+                    f"{key.split(':', 1)[1]} in {key.split(':', 1)[0]}"
+                    for key in sorted(duplicate_headings)
+                )
+                print(
+                    f"ERROR: duplicate AC group headings make the namespace ambiguous: {heads}",
+                    file=sys.stderr,
+                )
+            return 1
         if registry_errors:
             details = ", ".join(
                 f"{path}: {'; '.join(errors)}"
