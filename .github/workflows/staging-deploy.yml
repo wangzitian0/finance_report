@@ -1,21 +1,21 @@
 # Staging Deployment Workflow
 #
-# Triggers: successful push CI workflow_run on main, or manual dispatch
+# Trigger: MANUAL ONLY (workflow_dispatch). Staging no longer auto-follows main.
+# Per docs/ssot/environments.md, staging/prod/preview are all deployed manually;
+# CI is the quality gate for development, not auto-deploy.
 # Actions: Build images → Deploy to staging → Smoke/E2E → AI/OCR gate
-#
-# Staging validates post-merge commits as FIFO train units. Each successful
-# main push CI workflow_run is preserved; later runs wait before mutating
-# staging until older Deploy Staging workflow runs have fully completed.
 # Data is persisted between deployments.
 
 name: Deploy Staging
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA, branch, or tag to deploy to staging (default: main)"
+        required: false
+        default: main
+        type: string
 
 concurrency:
   group: staging-deploy
@@ -35,55 +35,9 @@ env:
   UV_VERSION: "0.9.18"
 
 jobs:
-  ci-not-success-summary:
-    name: CI Workflow Run Ignored
-    if: ${{ github.event_name == 'workflow_run' && (github.event.workflow_run.event != 'push' || github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_branch != 'main') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Report skipped staging deploy
-        env:
-          STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
-        run: |
-          target_sha="${{ github.event.workflow_run.head_sha }}"
-          target_short="${target_sha:0:7}"
-          response="$(curl -fsS --max-time 15 "$STAGING_HEALTH_URL" || true)"
-          healthy=false
-          if [ -n "$response" ]; then
-            healthy=true
-          fi
-          staging_sha="$(
-            RESPONSE="$response" python - <<'PY'
-          import json
-          import os
-
-          payload = os.environ.get("RESPONSE", "")
-          try:
-              data = json.loads(payload) if payload else {}
-          except json.JSONDecodeError:
-              data = {}
-          print(data.get("git_sha") or data.get("version") or "unknown")
-          PY
-          )"
-          {
-            echo "## Staging Deploy Skipped Before VPS Changes"
-            echo ""
-            echo "- Failure class: main CI workflow_run did not satisfy staging promotion guard"
-            echo "- Trigger event: ${{ github.event.workflow_run.event }}"
-            echo "- Head branch: ${{ github.event.workflow_run.head_branch }}"
-            echo "- CI conclusion: ${{ github.event.workflow_run.conclusion }}"
-            echo "- CI run ID: ${{ github.event.workflow_run.id }}"
-            echo "- CI run attempt: ${{ github.event.workflow_run.run_attempt }}"
-            echo "- Target main SHA: $target_short"
-            echo "- Current staging health: $healthy"
-            echo "- Current staging SHA: $staging_sha"
-            echo "- CI run: ${{ github.event.workflow_run.html_url }}"
-            echo ""
-            echo "No FIFO wait, image promotion, Dokploy change, smoke test, or AI/OCR validation ran."
-          } >> "$GITHUB_STEP_SUMMARY"
-
   build-and-deploy:
     name: Build and Deploy
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -108,7 +62,7 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
 
       - name: Get Commit SHA
