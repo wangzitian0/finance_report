@@ -19,12 +19,21 @@ import type {
  * parse with Number only at the display boundary. A non-finite or missing
  * value renders as an em dash rather than "NaN%".
  */
-export function formatProportionPercent(value: string | number, decimals = 1): string {
-  // `Number("")` and `Number("  ")` coerce to 0, which would render a misleading
-  // "0.0%" for a missing value — guard the empty/blank string explicitly.
-  if (typeof value === "string" && value.trim() === "") return "—";
+/**
+ * Parse a proportion to a finite number, or `null` for a missing/blank/non-finite
+ * value. `Number("")` and `Number("  ")` coerce to 0, so blank strings must be
+ * rejected explicitly rather than silently treated as 0.
+ */
+export function parseProportion(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   const proportion = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(proportion)) return "—";
+  return Number.isFinite(proportion) ? proportion : null;
+}
+
+export function formatProportionPercent(value: string | number, decimals = 1): string {
+  const proportion = parseProportion(value);
+  if (proportion === null) return "—";
   return `${(proportion * 100).toFixed(decimals)}%`;
 }
 
@@ -44,10 +53,12 @@ export interface TrendDelta {
  */
 export function trendDelta(series: ConfidenceMetricSnapshot[]): TrendDelta {
   if (series.length < 2) return { direction: "flat", delta: 0 };
-  const newest = Number(series[0]?.low_confidence_proportion ?? 0);
-  const previous = Number(series[1]?.low_confidence_proportion ?? 0);
+  const newest = parseProportion(series[0]?.low_confidence_proportion);
+  const previous = parseProportion(series[1]?.low_confidence_proportion);
+  // A blank/missing endpoint means there is nothing trustworthy to compare.
+  if (newest === null || previous === null) return { direction: "flat", delta: 0 };
   const delta = newest - previous;
-  if (!Number.isFinite(delta) || delta === 0) return { direction: "flat", delta: 0 };
+  if (delta === 0) return { direction: "flat", delta: 0 };
   return { direction: delta < 0 ? "down" : "up", delta };
 }
 
@@ -69,9 +80,11 @@ export function toSparklinePoints(
     .reverse()
     .map((snapshot) => ({
       label: labelFor(snapshot),
-      value: Number(snapshot.low_confidence_proportion) * 100,
+      proportion: parseProportion(snapshot.low_confidence_proportion),
     }))
-    .filter((point) => Number.isFinite(point.value));
+    // Drop blank/non-finite points so a missing value can't inject a bogus 0% datapoint.
+    .filter((point): point is { label: string; proportion: number } => point.proportion !== null)
+    .map((point) => ({ label: point.label, value: point.proportion * 100 }));
 }
 
 export interface ReplaySummary {

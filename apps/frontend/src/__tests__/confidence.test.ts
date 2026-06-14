@@ -65,6 +65,22 @@ describe("confidence helpers (#1003 / #1055 PR4)", () => {
       expect(points.map((p) => p.label)).toEqual(["old", "new"]);
       expect(points.map((p) => p.value)).toEqual([20, 10]);
     });
+
+    it("drops blank-proportion snapshots instead of charting a bogus 0%", () => {
+      const points = toSparklinePoints(
+        [snapshot("new", "0.10"), snapshot("blank", "  "), snapshot("old", "0.20")],
+        (s) => s.id,
+      );
+      expect(points.map((p) => p.label)).toEqual(["old", "new"]);
+      expect(points.map((p) => p.value)).toEqual([20, 10]);
+    });
+  });
+
+  describe("blank/missing-proportion guards", () => {
+    it("trendDelta stays flat when an endpoint proportion is blank (no false 'down')", () => {
+      expect(trendDelta([snapshot("new", "  "), snapshot("old", "0.20")]).direction).toBe("flat");
+      expect(trendDelta([snapshot("new", "0.10"), snapshot("old", "")]).direction).toBe("flat");
+    });
   });
 
   describe("summarizeReplay", () => {
