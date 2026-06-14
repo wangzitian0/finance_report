@@ -95,9 +95,11 @@ As-is:
 
 To-be:
 
-- [ ] Define the FR SSOT HLS model with 6-8 families, concept boundaries, and
+- [x] Define the FR SSOT HLS model with 6-8 families, concept boundaries, and
   child binding rules in
-  [#821](https://github.com/wangzitian0/finance_report/issues/821).
+  [#821](https://github.com/wangzitian0/finance_report/issues/821) (see
+  [SSOT HLS Family Model](#ssot-hls-family-model) below; documentation only —
+  no concept is moved or re-owned in this step).
 - [x] Add report-only design metrics for family coverage, orphan files,
   duplicate owners, clause binding, proof/checker coverage, and high-risk
   owner coverage in
@@ -108,6 +110,48 @@ To-be:
 - [ ] Run threshold-based SSOT cleanup only after the metrics show enough
   evidence for targeted consolidation in
   [#824](https://github.com/wangzitian0/finance_report/issues/824).
+
+## SSOT HLS Family Model
+
+This is the FR high-level structure (HLS) family model defined by
+[#821](https://github.com/wangzitian0/finance_report/issues/821). It is the
+**foundation for the [#824](https://github.com/wangzitian0/finance_report/issues/824)
+threshold cleanup**: it groups the existing FR SSOT concepts in
+[`docs/ssot/MANIFEST.yaml`](../ssot/MANIFEST.yaml) into 6-8 reader-facing
+families so cleanup PRs can backfill `family` / `kind` and bind child artifacts
+deterministically.
+
+This step is **documentation only**. It does not move, rename, merge, or
+re-own any concept; `MANIFEST.yaml` remains the single owner registry. The
+family column maps to the `family` field a manifest entry should carry; the
+member column lists the current inferred manifest groupings (the
+`inferred_family_distribution` keys in
+`python tools/report_ssot_governance.py`) that belong to each family.
+
+### Concept vs clause boundary
+
+- A **concept** is an independently governed SSOT base element with its own
+  owner file (an entry whose `kind` is `concept`, or unset and treated as the
+  default). It is the unit that a family groups.
+- A **clause** is a child parameter, machine table, baseline, registry, or
+  matrix that only exists to parameterize a parent concept (`kind` of `clause`,
+  `matrix`, `registry`, or `baseline`). A clause MUST `parent` its concept and
+  inherit the parent's family; it is never reviewed as a standalone concept.
+- A **family** is a reader-facing grouping of related concepts. Families do not
+  own facts; they route a reader to the owning concept before the individual
+  entry. Ownership stays in `MANIFEST.yaml`.
+
+### FR family map (6-8 families)
+
+| Family | Scope | Member manifest groups (inferred) |
+|---|---|---|
+| `accounting` | Double-entry ledger, in-transit funds, reconciliation, and trust hierarchy | `accounting`, `reconciliation`, `confirmation`, `processing`, `source` |
+| `reporting` | Reports, frameworks, market data, assets, and evidence/workflow read models | `reporting`, `framework`, `market`, `assets`, `evidence`, `workflow` |
+| `extraction` | Statement parsing, AI advisor, and PDF fixtures | `extraction`, `ai`, `pdf` |
+| `schema` | Database schema, data layering, enum naming, and migration risk | `schema`, `migration` |
+| `platform` | Dev workflow, environments, CI/CD, coverage, deployment, and observability | `development`, `environments`, `ci`, `test`, `delivery`, `coverage`, `deployment`, `observability`, `runtime`, `env` |
+| `identity` | Auth identity and frontend integration contract | `auth`, `frontend` |
+| `governance` | TDD workflow, critical-proof matrix, agent governance, and branch policy | `tdd`, `critical`, `agents`, `contributing` |
 
 ## Simplification Acceleration Track
 
@@ -233,3 +277,4 @@ Historical work-progress reports and test-organization audits were removed from 
 | AC14.1.15 | Threshold cleanup for #824 migrates representative machine-owned FR SSOT entries to explicit `family`, `kind`, `proofs`, and inbound SSOT Markdown links so `finance_report.machine_owner_entries_missing_proof` stays zero | `test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof` | `tests/tooling/test_ssot_governance_report.py` | P1 |
 | AC14.1.16 | SSOT governance gates keep protected per-system governance ratios non-decreasing and protected debt counts non-increasing against the base ref | `test_AC14_1_16_ssot_governance_ratios_cannot_regress` | `tests/tooling/test_ssot_governance_report.py` | P1 |
 | AC14.1.17 | DB schema inventory is generated from SQLAlchemy metadata, published by the MkDocs build, CI-checked for deterministic generation, gitignored as generated output, and linked from macro SSOT/domain docs instead of hand-maintained table/column/API catalogs | `test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata`, `test_AC14_1_17_generated_db_schema_reference_is_ci_checked` | `tests/tooling/test_generate_db_schema_reference.py`, `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
+| AC14.1.18 | FR (EPIC-014) and infra2 (Infra-006) each document a 6-8 family SSOT HLS model with explicit concept/clause boundaries, the family map covers every MANIFEST.yaml-inferred family, the HLS checklist links #821/#822/#823/#824, and the definition does not move or re-own any SSOT concept | `test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent`, `test_AC14_1_18_infra2_hls_family_model_is_documented_and_consistent`, `test_AC14_1_18_hls_checklist_links_governance_loop_issues`, `test_AC14_1_18_documentation_only_does_not_re_own_concepts` | `tests/tooling/test_ssot_hls_family_model.py` | P1 |
