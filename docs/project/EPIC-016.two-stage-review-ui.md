@@ -591,6 +591,20 @@ the shared UI-system contract.
 
 **Priority**: P0 — Stage 1 monolith is the #1 reported UX blocker.
 **Estimated effort**: 6-8 days frontend (component split + inline edit + conflict dialog + mobile nav) + 2-3 days backend (conflicts endpoint) + 1-2 days test infra.
+
+### AC16.35: Stage-2 Batch Endpoints Typed Contract ([#1001](https://github.com/wangzitian0/finance_report/issues/1001))
+
+Tier 1 of #1000. The Stage-2 batch endpoints in `apps/backend/src/routers/review.py`
+replace `response_model=dict` + `{"success": false}`-in-body with typed
+`BatchApproveResponse`/`BatchRejectResponse`, and unresolved consistency checks
+surface as a proper 409 structured error. `Stage2ReviewQueueResponse.pending_matches`
+is a typed `Stage2PendingMatch`, not `list[dict]`.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC16.35.1 | An empty batch approve returns the typed counters with no `success` field | `test_AC16_35_1_batch_approve_empty_returns_typed_response` | `api/test_typed_contract_sweep.py` | P1 |
+| AC16.35.2 | Unresolved consistency checks block batch approve with a 409 structured error | `test_AC16_35_2_batch_approve_blocked_returns_409` | `api/test_typed_contract_sweep.py` | P1 |
+
 ---
 
 ## Historical Implementation Notes

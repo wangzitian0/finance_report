@@ -1,7 +1,8 @@
 version: 1
 exceptions: []
 
-# Temporary SSOT governance gate exceptions live here.
+# ---------------------------------------------------------------------------
+# Temporary SSOT governance gate exceptions live in `exceptions` above.
 # Each exception must target a single gate finding and link a GitHub issue.
 #
 # target formats:
@@ -14,3 +15,63 @@ exceptions: []
 #   - target: finance_report:manifest:temporary_concept
 #     issue: https://github.com/wangzitian0/finance_report/issues/000
 #     reason: Temporary migration path; remove by the linked issue.
+# ---------------------------------------------------------------------------
+
+# ===========================================================================
+# Bottom-up proof classification (issue #524).
+#
+# `proof_exceptions` and `code_owned_surfaces` classify the surfaces the
+# bottom-up proof chain (test/file -> AC -> EPIC) deliberately does not gate as
+# normal AC proof, so they never become hidden drift. The registry is validated
+# by `tools/check_governance_exceptions.py`; each entry needs an `id`, an
+# `owner` (the code/doc that authoritatively defines the value), a `reason`, and
+# a tracking `issue`.
+# ===========================================================================
+
+# Budgeted or e2e-only proofs that are intentionally not full mandatory PR-CI AC
+# proof. Each is bounded by a guard or override and tracked for burn-down.
+proof_exceptions:
+  - id: detached-owner-shortcut-budget
+    owner: common/testing/detached_owner_guard.py
+    reason: >-
+      Persisted `user_id=uuid4()` owner shortcuts in DB-backed backend tests are
+      a bounded budget (default 2) enforced by the detached-owner guard rather
+      than per-test AC proof; the guard fails if the budget grows.
+    issue: https://github.com/wangzitian0/finance_report/issues/524
+  - id: password-reset-e2e-only-override
+    owner: docs/ac_registry_overrides.yaml
+    reason: >-
+      AC8.2.6 (password reset) is covered only by the `test_password_reset_flow`
+      e2e test with no PR-CI unit/integration coverage yet, so it is registered
+      as a non-mandatory override and excluded from the mandatory traceability
+      gate until CI coverage exists.
+    issue: https://github.com/wangzitian0/finance_report/issues/524
+
+# Thresholds and generated artifacts whose authoritative value lives in code or
+# config, not in prose docs. Docs must link to the owner, never copy the value.
+code_owned_surfaces:
+  - id: backend-coverage-threshold
+    owner: apps/backend/pyproject.toml
+    reason: >-
+      Backend coverage thresholds and source tree are owned by pyproject.toml
+      plus common/coverage/policy.py; docs link to the policy instead of copying
+      mutable numeric values.
+    issue: https://github.com/wangzitian0/finance_report/issues/524
+  - id: frontend-coverage-threshold
+    owner: apps/frontend/vitest.config.ts
+    reason: >-
+      Frontend LCOV line/statement coverage thresholds are owned by
+      vitest.config.ts; the unified coverage gate reads them from code.
+    issue: https://github.com/wangzitian0/finance_report/issues/524
+  - id: generated-api-reference
+    owner: tools/generate_api_reference.py
+    reason: >-
+      docs/reference/api.md is generated from the live OpenAPI schema; the
+      generator owns the surface, the committed page is a rendered snapshot.
+    issue: https://github.com/wangzitian0/finance_report/issues/524
+  - id: generated-db-schema-reference
+    owner: tools/generate_db_schema_reference.py
+    reason: >-
+      docs/reference/db-schema.md is generated at build time from the SQLAlchemy
+      models; it is git-ignored and produced by the generator, not authored.
+    issue: https://github.com/wangzitian0/finance_report/issues/524

@@ -31,6 +31,12 @@ from src.schemas.chat import (
     ChatSessionResponse,
     ChatSuggestionsResponse,
 )
+from src.schemas.errors import (
+    COMMON_ERROR_RESPONSES,
+    ErrorCode,
+    ErrorResponse,
+    error_code_for_status,
+)
 from src.schemas.journal import (
     JournalEntryCreate,
     JournalEntryListResponse,
@@ -102,6 +108,7 @@ from src.schemas.reporting import (
     PolicyFactDomain,
     PolicyProvenance,
     PolicyReviewState,
+    ReportSnapshotSummary,
     TrendPeriod,
 )
 from src.schemas.review import (
@@ -151,6 +158,10 @@ from .extraction import (
 )
 
 __all__ = [
+    "COMMON_ERROR_RESPONSES",
+    "ErrorCode",
+    "ErrorResponse",
+    "error_code_for_status",
     "AccountCreate",
     "AccountCoverageCadence",
     "AccountCoverageIssue",
@@ -251,6 +262,7 @@ __all__ = [
     "ReconciliationStatsResponse",
     "ReconciliationStatusEnum",
     "RegisterRequest",
+    "ReportSnapshotSummary",
     "ResolveCheckRequest",
     "RetryParsingRequest",
     "StatementDecisionRequest",

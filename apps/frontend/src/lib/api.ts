@@ -2,6 +2,9 @@ import { getAccessToken, getUserId } from "./auth";
 import type {
   ConfidenceNorthStarResponse,
   CorrectionLoopReplayResponse,
+  CurrentUser,
+  UserAiSettings,
+  UserAiSettingsUpdate,
   WorkflowEventListResponse,
   WorkflowEventResponse,
   WorkflowEventStatus,
@@ -59,6 +62,72 @@ export function resetRedirectGuard(): void {
   redirecting = false;
 }
 
+/**
+ * Structured API error (#1005).
+ *
+ * The backend returns `{ error_id, detail, request_id }` for every failure.
+ * `ApiError` carries the machine-readable `errorId` so callers can branch on a
+ * stable code (e.g. `err.errorId === "conflict"`) instead of matching `message`
+ * text. It extends `Error`, so existing `err instanceof Error` / `err.message`
+ * call sites keep working unchanged.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly errorId: string | null;
+  readonly requestId: string | null;
+
+  constructor(
+    message: string,
+    status: number,
+    errorId: string | null = null,
+    requestId: string | null = null
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.errorId = errorId;
+    this.requestId = requestId;
+  }
+}
+
+/** Narrowing helper: true when `err` is an {@link ApiError} with the given code. */
+export function isApiErrorCode(err: unknown, code: string): boolean {
+  return err instanceof ApiError && err.errorId === code;
+}
+
+/** Parse a backend error body into `{ message, errorId, requestId }`. */
+function parseApiError(
+  errorText: string,
+  status: number
+): { message: string; errorId: string | null; requestId: string | null } {
+  let message = `Request failed with ${status}`;
+  let errorId: string | null = null;
+  let requestId: string | null = null;
+  if (errorText) {
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed && typeof parsed === "object") {
+        const body = parsed as {
+          detail?: unknown;
+          error_id?: string;
+          request_id?: string;
+        };
+        // FastAPI validation errors (422) return `detail` as an array of objects,
+        // not a string. Only use it as the message when it's actually a string;
+        // otherwise keep the raw text so users never see `[object Object]`.
+        message = typeof body.detail === "string" ? body.detail : errorText;
+        errorId = body.error_id ?? null;
+        requestId = body.request_id ?? null;
+      } else {
+        message = errorText;
+      }
+    } catch {
+      message = errorText;
+    }
+  }
+  return { message, errorId, requestId };
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -88,21 +157,8 @@ export async function apiFetch<T>(
     }
 
     const errorText = await res.text();
-    let message = `Request failed with ${res.status}`;
-    if (errorText) {
-      try {
-        const parsed = JSON.parse(errorText);
-        if (parsed && typeof parsed === "object") {
-          const detail = (parsed as { detail?: string }).detail;
-          message = detail || errorText;
-        } else {
-          message = errorText;
-        }
-      } catch {
-        message = errorText;
-      }
-    }
-    throw new Error(message);
+    const { message, errorId, requestId } = parseApiError(errorText, res.status);
+    throw new ApiError(message, res.status, errorId, requestId);
   }
 
   // 204 No Content has no response body
@@ -203,21 +259,8 @@ export async function apiStream(
     }
 
     const errorText = await res.text();
-    let message = `Request failed with ${res.status}`;
-    if (errorText) {
-      try {
-        const parsed = JSON.parse(errorText);
-        if (parsed && typeof parsed === "object") {
-          const detail = (parsed as { detail?: string }).detail;
-          message = detail || errorText;
-        } else {
-          message = errorText;
-        }
-      } catch {
-        message = errorText;
-      }
-    }
-    throw new Error(message);
+    const { message, errorId, requestId } = parseApiError(errorText, res.status);
+    throw new ApiError(message, res.status, errorId, requestId);
   }
 
   return {
@@ -282,21 +325,8 @@ export async function apiUpload<T>(
     }
 
     const errorText = await res.text();
-    let message = `Request failed with ${res.status}`;
-    if (errorText) {
-      try {
-        const parsed = JSON.parse(errorText);
-        if (parsed && typeof parsed === "object") {
-          const detail = (parsed as { detail?: string }).detail;
-          message = detail || errorText;
-        } else {
-          message = errorText;
-        }
-      } catch {
-        message = errorText;
-      }
-    }
-    throw new Error(message);
+    const { message, errorId, requestId } = parseApiError(errorText, res.status);
+    throw new ApiError(message, res.status, errorId, requestId);
   }
 
   // 204 No Content has no response body
@@ -346,4 +376,28 @@ export async function fetchConfidenceNorthStar(): Promise<ConfidenceNorthStarRes
 /** The held-out replay of the correction loop — does it lower the proportion? */
 export async function fetchCorrectionLoopReplay(): Promise<CorrectionLoopReplayResponse> {
   return apiFetch<CorrectionLoopReplayResponse>("/api/metrics/correction-loop/replay");
+}
+
+// ── Current-user AI settings (EPIC-022 AC22.15 / #1010) ────────────────────
+
+/** The effective AI feature flags for the signed-in user. */
+export async function fetchUserSettings(): Promise<UserAiSettings> {
+  return apiFetch<UserAiSettings>("/api/users/me/settings");
+}
+
+/** Persist current-user AI setting overrides and return the effective flags. */
+export async function patchUserSettings(
+  update: UserAiSettingsUpdate
+): Promise<UserAiSettings> {
+  return apiFetch<UserAiSettings>("/api/users/me/settings", {
+    method: "PATCH",
+    body: JSON.stringify(update),
+  });
+}
+
+// ── Session bootstrap (EPIC-022 AC22.15 / #1010) ───────────────────────────
+
+/** The authenticated identity backing the current session cookie/token. */
+export async function fetchCurrentUser(): Promise<CurrentUser> {
+  return apiFetch<CurrentUser>("/api/auth/me");
 }

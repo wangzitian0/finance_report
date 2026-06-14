@@ -63,6 +63,7 @@ from src.schemas import (
     PersonalReportPackageSnapshotStatus,
     PersonalReportPackageSnapshotSummary,
     PersonalReportPackageTraceabilityResponse,
+    ReportSnapshotSummary,
     TrendPeriod,
 )
 from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
@@ -148,7 +149,7 @@ class PackageSnapshotExportFormat(str, Enum):
     CSV = "csv"
 
 
-class ReportType(str, Enum):
+class ExportReportType(str, Enum):
     """Supported report types for export."""
 
     BALANCE_SHEET = "balance-sheet"
@@ -2055,7 +2056,7 @@ async def category_breakdown(
 
 @router.get("/export")
 async def export_report(
-    report_type: ReportType = Query(...),
+    report_type: ExportReportType = Query(...),
     format: ExportFormat = Query(default=ExportFormat.CSV),
     as_of_date: date | None = Query(default=None),
     start_date: date | None = Query(default=None),
@@ -2071,7 +2072,7 @@ async def export_report(
     writer = csv.writer(output)
 
     try:
-        if report_type == ReportType.BALANCE_SHEET:
+        if report_type == ExportReportType.BALANCE_SHEET:
             report_date = as_of_date or date.today()
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
             report = await generate_balance_sheet(
@@ -2093,7 +2094,7 @@ async def export_report(
             writer.writerow(["Total Liabilities", "", report["total_liabilities"], report["currency"]])
             writer.writerow(["Total Equity", "", report["total_equity"], report["currency"]])
             filename = f"balance-sheet-{report['as_of_date']}.csv"
-        elif report_type == ReportType.INCOME_STATEMENT:
+        elif report_type == ExportReportType.INCOME_STATEMENT:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for income statement export")
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
@@ -2112,7 +2113,7 @@ async def export_report(
             writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
             writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
-        elif report_type == ReportType.CASH_FLOW:
+        elif report_type == ExportReportType.CASH_FLOW:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for cash flow export")
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
@@ -2147,7 +2148,7 @@ async def export_report(
             writer.writerow(["Beginning Cash", "", summary["beginning_cash"], report["currency"], ""])
             writer.writerow(["Ending Cash", "", summary["ending_cash"], report["currency"], ""])
             filename = f"cash-flow-{start_date}-to-{end_date}.csv"
-        elif report_type == ReportType.PACKAGE:
+        elif report_type == ExportReportType.PACKAGE:
             selected_framework = framework_id or PersonalReportingFrameworkId.US_GAAP_LIKE
             contract = personal_report_package_contract(selected_framework)
             policy = await personal_report_package_framework_policy(
@@ -2213,15 +2214,17 @@ async def export_report(
     )
 
 
-@router.get("/{report_type}/snapshots")
+@router.get("/{report_type}/snapshots", response_model=list[ReportSnapshotSummary])
 async def list_report_snapshots(
-    report_type: str,
+    report_type: SnapshotReportType,
     db: DbSession = None,
     user_id: CurrentUserId = None,
-) -> list[dict]:
+) -> list[ReportSnapshotSummary]:
     """List available report snapshots for a given report type.
 
-    AC18.4.2: ReportSnapshot (Layer 4) is queryable via API.
+    AC18.4.2: ReportSnapshot (Layer 4) is queryable via API. ``report_type`` is
+    typed as the snapshot enum so an unknown value is rejected with 422 at the
+    boundary (#1008) instead of silently returning an empty list.
     """
     from sqlalchemy import select as sa_select
 
@@ -2237,15 +2240,4 @@ async def list_report_snapshots(
     result = await db.execute(stmt)
     snapshots = result.scalars().all()
 
-    return [
-        {
-            "id": str(s.id),
-            "report_type": s.report_type.value if hasattr(s.report_type, "value") else str(s.report_type),
-            "as_of_date": s.as_of_date.isoformat() if s.as_of_date else None,
-            "start_date": s.start_date.isoformat() if s.start_date else None,
-            "rule_version_id": str(s.rule_version_id),
-            "is_latest": s.is_latest,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-        }
-        for s in snapshots
-    ]
+    return [ReportSnapshotSummary.model_validate(s) for s in snapshots]

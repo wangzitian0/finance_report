@@ -39,6 +39,39 @@ async def test_post_create_correction_and_stats(client: AsyncClient, db, test_us
     assert isinstance(sbody["top_corrections"], list)
 
 
+def test_AC18_2_5_top_corrections_is_typed_pydantic_model():
+    """AC18.2.5: top_corrections is typed as a TopCorrection Pydantic model.
+
+    The stats response schema must declare ``top_corrections`` as a list of
+    ``TopCorrection`` models (count: int, original_category: str | None,
+    corrected_category: str), not an untyped ``list[dict]``.
+    """
+    # The model exists and carries the exact keys the service emits.
+    item = corrections.TopCorrection(
+        count=3,
+        original_category=None,
+        corrected_category="Transport",
+    )
+    assert item.count == 3
+    assert item.original_category is None
+    assert item.corrected_category == "Transport"
+
+    # The response schema field is typed as list[TopCorrection], not list[dict].
+    field = corrections.CorrectionStatsResponse.model_fields["top_corrections"]
+    assert field.annotation == list[corrections.TopCorrection]
+
+    # Raw service-shaped dicts coerce into the typed model.
+    response = corrections.CorrectionStatsResponse(
+        total_corrections=3,
+        top_corrections=[
+            {"count": 3, "original_category": None, "corrected_category": "Transport"},
+        ],
+        correction_rate_by_category={"None": 100.0},
+    )
+    assert isinstance(response.top_corrections[0], corrections.TopCorrection)
+    assert response.top_corrections[0].corrected_category == "Transport"
+
+
 async def test_create_correction_returns_404_when_transaction_is_missing(monkeypatch):
     """AC18.2.2: Corrections API maps missing transactions to 404 responses."""
 

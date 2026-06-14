@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
+import { useSessionBootstrap } from "@/hooks/useSessionBootstrap";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
@@ -14,6 +15,8 @@ interface AppShellProps {
 
 function AppShellContent({ children }: AppShellProps) {
     const { isCollapsed } = useWorkspace();
+    // Confirm/refresh the authenticated session against /auth/me on mount.
+    useSessionBootstrap();
 
     return (
         <div className="min-h-screen">

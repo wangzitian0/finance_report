@@ -498,8 +498,8 @@ class TestPrintReport:
         cat.print_report(result, [], {})
         capsys.readouterr()
 
-    def test_AC8_13_131_report_labels_l1_hygiene_not_behavioral(self, capsys):
-        """AC8.13.131: the coverage number is labelled L1 reference hygiene, not
+    def test_AC8_13_135_report_labels_l1_hygiene_not_behavioral(self, capsys):
+        """AC8.13.135: the coverage number is labelled L1 reference hygiene, not
         behavioral coverage, so a passing gate is not read as behavioral proof."""
         acs = [self._make_ac("AC1.1.1")]
         result = cat.TraceabilityResult(
@@ -524,10 +524,10 @@ class TestPrintReport:
         assert "L2 critical proof matrix" in out
         assert "L3 behavioral-score ratchet" in out
 
-    def test_AC8_13_131_pass_message_points_to_behavioral_gates(
+    def test_AC8_13_135_pass_message_points_to_behavioral_gates(
         self, tmp_path, monkeypatch, capsys
     ):
-        """AC8.13.131: the gate-passed message qualifies itself as L1 hygiene and
+        """AC8.13.135: the gate-passed message qualifies itself as L1 hygiene and
         names the L2/L3 behavioral gates instead of claiming full coverage."""
         reg = tmp_path / "registry.yaml"
         reg.write_text(SAMPLE_REGISTRY_YAML)

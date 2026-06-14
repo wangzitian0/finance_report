@@ -30,11 +30,23 @@ class CorrectionResponse(BaseModel):
     corrected_category: str
 
 
+class TopCorrection(BaseModel):
+    """A single aggregated correction pattern (original → corrected category).
+
+    Mirrors the dict shape emitted by ``get_correction_stats`` so the stats
+    response carries a typed schema instead of an opaque ``dict``.
+    """
+
+    count: int
+    original_category: str | None
+    corrected_category: str
+
+
 class CorrectionStatsResponse(BaseModel):
     """Correction statistics response."""
 
     total_corrections: int
-    top_corrections: list[dict]
+    top_corrections: list[TopCorrection]
     correction_rate_by_category: dict[str, float]
 
 

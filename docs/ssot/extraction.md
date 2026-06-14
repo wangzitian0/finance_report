@@ -108,7 +108,7 @@ must not be auto-approved solely because `0 + transactions = inferred closing`.
 Their confidence score must not include the balance-validation component because
 no source statement balances were provided.
 
-## Confidence Scoring
+## <a id="confidence-scoring"></a>Confidence Scoring
 
 | Factor | Weight |
 |--------|--------|

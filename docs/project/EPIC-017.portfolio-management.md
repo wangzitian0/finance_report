@@ -420,3 +420,15 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current portfoli
 
 **Priority**: P1 — depends on backend portfolio API delivery; surfaces vision-critical metrics.
 **Estimated effort**: 5-7 days frontend (3 tabs + cost-basis selector + summary additions); backend dividend/realized endpoints tracked in core EPIC-017 scope.
+
+### AC17.31: Portfolio Typed Responses ([#1008](https://github.com/wangzitian0/finance_report/issues/1008))
+
+Tier 2 of #1000. `POST /portfolio/prices/update` and `PATCH /portfolio/{ticker}`
+declare typed Pydantic responses (`PriceUpdateBatchResponse`,
+`CostBasisMethodUpdateResponse`) instead of raw `dict`, so the response contract is
+visible in OpenAPI and the generated frontend client.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.31.1 | `prices/update` returns the typed `{updated_count, results}` shape | `test_AC17_31_1_prices_update_returns_typed_batch_response` | `api/test_typed_contract_sweep.py` | P2 |
+| AC17.31.2 | `PATCH {ticker}` for an unknown holding returns a structured 404 | `test_AC17_31_2_patch_unknown_holding_returns_404` | `api/test_typed_contract_sweep.py` | P2 |

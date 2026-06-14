@@ -214,10 +214,88 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
 
 **Rules:**
 - **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
-- **Authorization**: The utility automatically injects the `Bearer <token>` header from local storage.
+- **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because the utility calls `fetch` with `credentials: "include"`. The utility still adds a `Bearer <token>` header when `getAccessToken()` returns one (e.g. SSR/non-browser callers that hold a token), but in the browser the token is not persisted to local storage.
 - **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
+- **Structured errors (#1005)**: On a non-2xx the utility throws an `ApiError`
+  carrying `status`, `errorId`, and `requestId` parsed from the backend's
+  `{error_id, detail, request_id}` body. Branch on the machine-readable code
+  (`isApiErrorCode(err, "conflict")` or `err.errorId === "not_found"`), not on
+  `err.message` text. `ApiError extends Error`, so existing `err.message` display
+  paths keep working.
+- **Generated types (#1004)**: `src/lib/api-types.ts` is generated from the backend
+  OpenAPI schema (`apps/frontend/openapi.json`) via `npm run gen:api-types`. The
+  committed spec is staleness-gated by `tools/generate_openapi_spec.py --check`, so
+  the FE↔BE contract fails CI when it drifts. Do not hand-edit `api-types.ts`.
 
-## 7. Monetary Amounts
+## 7. Shared-Layer Dependency Rules
+
+The frontend is built on a small set of shared foundation layers that feature
+routes and pages compose. This section is the SSOT for **where each layer lives
+today** and **which direction dependencies are allowed to flow** (issue #751,
+Slice 1).
+
+### Layer Map (as built)
+
+Boundaries are enforced **by convention and import paths**, not by separate
+workspace packages. Each layer lives under `apps/frontend/src/`:
+
+| Layer | Lives in | Responsibility |
+|-------|----------|----------------|
+| **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiFetch`, `apiUpload`, `apiDownload`, `apiStream`, `apiDelete`, and typed endpoint helpers. |
+| **Money boundary** | `lib/currency.ts` | Decimal-safe parsing, arithmetic, and formatting (`decimal.js`). |
+| **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useDashboardData`, `useReportFilters`, `useCurrencies`). |
+| **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges). |
+| **Feature modules** | `components/<feature>/*` | Domain UI that composes primitives + hooks (e.g. `components/reports/*`). |
+| **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only. |
+
+The intended dependency direction is:
+
+```text
+app routes
+  -> feature modules (components/<feature>/*)
+    -> query helpers (hooks/*)
+      -> transport (lib/api)
+        -> shared API types (lib/types)
+    -> UI primitives (components/ui/*)
+    -> money boundary (lib/currency)
+```
+
+### Rules
+
+- **`components/ui/*` must not import business features, API clients, or React
+  Query.** Primitives stay presentational: they take props and render
+  token-backed markup. They do not import `lib/api`, `@tanstack/react-query`,
+  hooks, or feature components.
+- **`lib/api` must not import React or UI.** The transport layer is
+  framework-agnostic; it depends only on `lib/auth` and `lib/types`. It must not
+  import React, hooks, or anything under `components/`.
+- **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/currency`) but not on
+  route components.** A hook may call `apiFetch` and shape data, but it must not
+  import `app/**/page.tsx` or otherwise depend on a specific route.
+- **Feature modules compose UI primitives, query hooks, and domain logic.** This
+  is where `components/ui/*`, `hooks/*`, and `lib/currency` are wired together
+  for a concrete workflow.
+- **Route pages stay thin.** Pages should compose feature modules and express
+  page-level intent. They should not own raw endpoint construction or repeated
+  loading/error/empty/retry markup — push those into hooks and primitives.
+
+### Why no `shared/*` or `packages/*` directory yet
+
+The original design sketch named these layers `shared/ui`, `shared/api`,
+`shared/query`, and `shared/money`. They were **deliberately not** materialized
+as physical `apps/frontend/src/shared/*` folders or workspace `packages/*`.
+Instead the same boundaries are realized in place — `lib/`, `hooks/`, and
+`components/ui/` — and kept honest by the dependency rules above plus the
+`lib/api.ts` red line (no raw `fetch()`).
+
+Package extraction (e.g. `packages/ui`, `packages/frontend-api`,
+`packages/financial-core`) is **deferred future work**. It should only happen
+**after** the boundaries above are stable and proven by reuse across multiple
+features. Extracting packages before that point would freeze boundaries that are
+still settling and add tooling cost without a reuse payoff. Until then, treat the
+import-path rules in this section as the contract.
+
+## 8. Monetary Amounts
 
 Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/currency.ts`.
 
@@ -231,7 +309,7 @@ Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/
 - Do not calculate or display cross-currency allocation percentages from raw nominal amounts. Show per-currency amounts until the backend provides a single-currency FX-converted total.
 - Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
 
-## 8. Responsive Navigation
+## 9. Responsive Navigation
 
 Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as the route source of truth.
 
@@ -242,7 +320,7 @@ Desktop sidebar and mobile drawer navigation share `components/navigation.ts` as
 - Mobile must not render desktop workspace tabs; phone navigation uses the drawer only.
 - Do not create separate reduced mobile menus that hide core routes.
 
-## 9. Mobile Review Surfaces
+## 10. Mobile Review Surfaces
 
 Review and journal workflows must be usable at phone widths without relying on
 document-level horizontal scrolling.
@@ -273,7 +351,7 @@ document-level horizontal scrolling.
 - `components/journal/JournalEntryDetailsModal.tsx`
 - `playwright/mobile-ux.spec.ts`
 
-## 10. App Metadata & PWA Head Tags
+## 11. App Metadata & PWA Head Tags
 
 Root app metadata lives in `app/layout.tsx`.
 
@@ -283,13 +361,13 @@ Root app metadata lives in `app/layout.tsx`.
 - Use `appleWebApp` for iOS web-app capability metadata; do not duplicate
   `apple-mobile-web-app-capable` in `metadata.other`.
 
-## 11. Security & Authentication
+## 12. Security & Authentication
 
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
 - **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
 - **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
 
-## 12. Shared Types
+## 13. Shared Types
 
 To avoid duplication, shared interfaces are defined in `src/lib/types.ts`.
 
@@ -307,7 +385,7 @@ import { Account, AccountListResponse } from "@/lib/types";
 // components/accounts/AccountFormModal.tsx
 ```
 
-## 13. Brokerage Import Completion Path
+## 14. Brokerage Import Completion Path
 
 After a brokerage PDF is uploaded and parsed, users must be able to see the import status and navigate to their portfolio.
 
@@ -338,7 +416,7 @@ Upload PDF → Parsing (polling) → parsed/approved status
 - `src/__tests__/statementDetailPage.coverage.test.tsx` — AC17.8.1–AC17.8.3, AC17.8.5
 - `src/__tests__/portfolioPage.test.tsx` — AC17.8.4
 
-## 14. Dashboard First-Run Onboarding
+## 15. Dashboard First-Run Onboarding
 
 The Dashboard must give first-time users a direct path into the core flow instead of only rendering empty metrics.
 

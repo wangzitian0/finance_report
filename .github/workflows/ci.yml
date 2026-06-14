@@ -85,7 +85,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
       - name: Secret Scan (gitleaks)
-        # AC8.13.132 — content-level secret scan. Mirrors the gitleaks pre-commit
+        # AC8.13.136 — content-level secret scan. Mirrors the gitleaks pre-commit
         # hook so the same gate runs locally and in CI (local==CI parity). Scans
         # the working tree (--no-git) to fail on committed credential material
         # without being tripped by unrelated git history.
@@ -164,6 +164,9 @@ jobs:
       - name: SSOT Manifest Check
         run: |
           uv run --with pyyaml python tools/check_manifest.py
+      - name: SSOT Governance Exceptions Check
+        run: |
+          uv run --with pyyaml python tools/check_governance_exceptions.py
       - name: SSOT Governance Report
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -195,6 +198,9 @@ jobs:
       - name: CI Metrics Contract Check
         run: |
           uv run python tools/check_ci_metrics_contract.py
+      - name: Workflow Contract Check
+        run: |
+          uv run --with pyyaml python tools/check_workflow_contract.py
 
   schema-migrations:
     name: Schema Migration Contract

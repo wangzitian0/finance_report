@@ -1,4 +1,4 @@
-"""Contract test for the content-level secret-scan gate (AC8.13.132).
+"""Contract test for the content-level secret-scan gate (AC8.13.136).
 
 Filename-based `.gitignore` only stops *tracked* credential files; it does not
 stop a `git add -f .env` or a pasted key. This gate adds a content-level scan
@@ -19,7 +19,7 @@ def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
 
-def test_AC8_13_132_gitleaks_runs_in_precommit_and_ci() -> None:
+def test_AC8_13_136_gitleaks_runs_in_precommit_and_ci() -> None:
     """gitleaks is wired into both pre-commit and the CI lint job."""
     # 1. pre-commit: a gitleaks repo with the gitleaks hook id.
     precommit = yaml.safe_load(_read(".pre-commit-config.yaml"))

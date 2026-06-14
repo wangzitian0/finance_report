@@ -331,3 +331,15 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 | AC4.7.2 | get_few_shot_examples respects default limit and caches results. | `test_get_few_shot_examples_cache_hit_and_limit` | `extraction/test_correction_service_cache.py` | P1 |
 | AC4.7.3 | Reconciliation phase-2 – 3-entry combo exceeding tolerance is skipped. | `test_execute_matching_three_entry_combination_skips_unbalanced_member` | `reconciliation/test_reconciliation_engine.py` | P1 |
 | AC4.7.4 | Reconciliation phase-2 – atomic match and transfer pair logging in layer-2. | `test_execute_matching_layer2_atomic_match_and_transfer_pair_logging` | `reconciliation/test_reconciliation_engine.py` | P1 |
+
+### AC4.12: Reconciliation UUID-Typed Path Params ([#1008](https://github.com/wangzitian0/finance_report/issues/1008))
+
+Tier 2 of #1000. The `match_id` and `txn_id` path params in
+`apps/backend/src/routers/reconciliation.py` are typed as `UUID`, so a malformed
+id is rejected with 422 at the boundary instead of reaching the query layer as an
+arbitrary string.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC4.12.1 | A non-UUID `match_id` on accept returns 422 | `test_AC4_12_1_accept_match_malformed_uuid_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
+| AC4.12.2 | A non-UUID `txn_id` on create-entry returns 422 | `test_AC4_12_2_create_entry_malformed_uuid_returns_422` | `api/test_typed_contract_sweep.py` | P2 |

@@ -37,7 +37,7 @@ repos:
         args: [--warn-unused-ignores, --ignore-missing-imports, --follow-imports=silent]
         files: ^apps/backend/src/
 
-  # Content-level secret scan (AC8.13.132). Filename-based .gitignore only stops
+  # Content-level secret scan (AC8.13.136). Filename-based .gitignore only stops
   # tracked credential files; this scans staged *content*, so a `git add -f .env`
   # or a pasted key is blocked by what it is, not what it is named. The same scan
   # runs in the CI `lint` job (local==CI parity).

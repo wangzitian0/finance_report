@@ -52,7 +52,7 @@ flowchart TB
     J -->|Reject| H
 ```
 
-### State Machine
+### <a id="state-machine"></a>State Machine
 
 ```mermaid
 stateDiagram-v2
