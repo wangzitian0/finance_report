@@ -1071,3 +1071,30 @@ export interface CorrectionLoopReplayResponse {
   /** Whether the correction loop measurably lowered the held-out proportion. */
   reduced: boolean;
 }
+
+// ── User AI settings & session identity (EPIC-022 AC22.15 / #1010) ──────────
+//
+// Mirrors backend `UserAiSettingsResponse` / `UserAiSettingsUpdate`
+// (apps/backend/src/schemas/user.py).
+
+export interface UserAiSettings {
+  enable_ai_reconciliation: boolean;
+  enable_ai_classification: boolean;
+}
+
+export type UserAiSettingsUpdate = Partial<UserAiSettings>;
+
+/**
+ * Identity returned by `GET /api/auth/me`, consumed by `useSessionBootstrap`.
+ *
+ * Deliberately excludes the bearer `access_token` that the backend
+ * `AuthResponse` carries: the frontend uses cookie-based auth and never
+ * persists a token from this endpoint, so exposing it on the typed shape would
+ * only invite misuse. This type is the non-secret identity subset only.
+ */
+export interface CurrentUser {
+  id: string;
+  email: string;
+  name: string | null;
+  created_at: string;
+}

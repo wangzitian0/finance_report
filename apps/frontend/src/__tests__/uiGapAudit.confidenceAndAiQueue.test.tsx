@@ -5,10 +5,12 @@ import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
 import AiSettingsPage from "@/app/(main)/settings/ai/page";
 import AuditTrailPanel from "@/components/AuditTrailPanel";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fetchUserSettings, patchUserSettings } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
+  fetchUserSettings: vi.fn(),
+  patchUserSettings: vi.fn(),
 }));
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -16,10 +18,14 @@ vi.mock("@/components/ui/Toast", () => ({
 }));
 
 const mockedApiFetch = vi.mocked(apiFetch);
+const mockedFetchUserSettings = vi.mocked(fetchUserSettings);
+const mockedPatchUserSettings = vi.mocked(patchUserSettings);
 
 describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset();
+    mockedFetchUserSettings.mockReset();
+    mockedPatchUserSettings.mockReset();
   });
 
   it("AC18.5.1 — ConfidenceBadge renders confidence tier labels", () => {
@@ -182,9 +188,8 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   });
 
   it("AC18.5.5 — Settings AI toggles persist", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({ enable_ai_reconciliation: true, enable_ai_classification: false })
-      .mockResolvedValueOnce({ enable_ai_reconciliation: true, enable_ai_classification: true });
+    mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: false });
+    mockedPatchUserSettings.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: true });
 
     render(<AiSettingsPage />);
 
@@ -194,11 +199,12 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(classificationToggle).not.toBeChecked();
 
     fireEvent.click(classificationToggle);
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/users/me/settings", {
-        method: "PATCH",
-        body: JSON.stringify({ enable_ai_classification: true }),
+      expect(mockedPatchUserSettings).toHaveBeenCalledWith({
+        enable_ai_reconciliation: true,
+        enable_ai_classification: true,
       }),
     );
   });
@@ -225,7 +231,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   });
 
   it("AC18.5.7 — AI settings mount reflects saved toggles", async () => {
-    mockedApiFetch.mockResolvedValueOnce({ enable_ai_reconciliation: false, enable_ai_classification: true });
+    mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: false, enable_ai_classification: true });
 
     render(<AiSettingsPage />);
 
@@ -234,27 +240,26 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   });
 
   it("test_AC8_13_48 — AI settings handles load and reconciliation update failures", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("settings unavailable"));
+    mockedFetchUserSettings.mockRejectedValueOnce(new Error("settings unavailable"));
 
     render(<AiSettingsPage />);
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/users/me/settings"));
-    expect(screen.getByText("Loading AI settings...")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("settings unavailable");
 
-    mockedApiFetch.mockReset();
-    mockedApiFetch
-      .mockResolvedValueOnce({ enable_ai_reconciliation: false, enable_ai_classification: true })
-      .mockRejectedValueOnce(new Error("update failed"));
+    mockedFetchUserSettings.mockReset();
+    mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: false, enable_ai_classification: true });
+    mockedPatchUserSettings.mockRejectedValueOnce(new Error("update failed"));
 
     render(<AiSettingsPage />);
 
     const reconciliationToggle = await screen.findByLabelText("Enable AI reconciliation");
     fireEvent.click(reconciliationToggle);
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/users/me/settings", {
-        method: "PATCH",
-        body: JSON.stringify({ enable_ai_reconciliation: true }),
+      expect(mockedPatchUserSettings).toHaveBeenCalledWith({
+        enable_ai_reconciliation: true,
+        enable_ai_classification: true,
       }),
     );
     expect(await screen.findByText("update failed")).toBeInTheDocument();
