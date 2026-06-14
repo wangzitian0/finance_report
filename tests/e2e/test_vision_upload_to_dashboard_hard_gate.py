@@ -152,12 +152,23 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
             break
         await asyncio.sleep(attempt * 2)
     assert upload_resp is not None
-    assert upload_resp.status in (200, 201, 202), (
-        f"Upload endpoint returned unexpected status {upload_resp.status}. Body: {upload_body_text}"
-    )
-    upload_body = await upload_resp.json()
-    statement_id = upload_body.get("id")
-    assert statement_id, f"Upload response missing statement id: {upload_body}"
+    if upload_resp.status == 409:
+        # Retrying through a transient gateway error is not idempotent for this endpoint: if a
+        # prior attempt's POST reached the backend before the gateway blip, the duplicate-upload
+        # guard (409 by file_hash) now fires. The statement already exists, so resolve its id from
+        # the list and proceed instead of failing the gate (#944 CR).
+        listing = await page.request.get(_get_url("/api/statements"), headers=await _auth_headers(page))
+        items = (await listing.json()).get("items", [])
+        match = next((s for s in items if s.get("original_filename") == fixture_path.name), None)
+        assert match, f"Upload returned 409 (duplicate) but no matching statement was found: {items}"
+        statement_id = match["id"]
+    else:
+        assert upload_resp.status in (200, 201, 202), (
+            f"Upload endpoint returned unexpected status {upload_resp.status}. Body: {upload_body_text}"
+        )
+        upload_body = await upload_resp.json()
+        statement_id = upload_body.get("id")
+        assert statement_id, f"Upload response missing statement id: {upload_body}"
 
     statement_link = page.locator(f'a[href="/statements/{statement_id}"]')
     await expect(statement_link).to_be_visible(timeout=15_000)
