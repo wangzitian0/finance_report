@@ -238,6 +238,7 @@ FALLBACK_MODELS=glm-5-turbo,glm-5
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
+AI_JSON_SEED=42
 AI_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
@@ -251,6 +252,12 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 
 ## Parsing Resilience
 
+- **Deterministic decoding**: JSON extraction pins `temperature=0` and
+  `do_sample=false`, and forwards a fixed request `seed` (`AI_JSON_SEED`,
+  default `42`) so the same statement decodes reproducibly. This keeps
+  `balance_validated`, `confidence_score`, and Stage-1 routing from flipping
+  between uploads of the same source (#989). Set `AI_JSON_SEED=` (empty) to omit
+  the seed for providers that reject it.
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by

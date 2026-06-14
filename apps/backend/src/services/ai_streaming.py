@@ -46,6 +46,7 @@ async def _stream_ai_base(
     max_tokens: int | None = None,
     temperature: float | None = None,
     do_sample: bool | None = None,
+    seed: int | None = None,
     thinking: dict[str, Any] | None = None,
     response_format: dict[str, str] | None = None,
     mode_label: str = "streaming",
@@ -83,6 +84,8 @@ async def _stream_ai_base(
         payload["temperature"] = temperature
     if do_sample is not None:
         payload["do_sample"] = do_sample
+    if seed is not None:
+        payload["seed"] = seed
     if thinking is not None:
         payload["thinking"] = thinking
 
@@ -239,6 +242,7 @@ async def stream_ai_json(
     max_tokens: int | None = None,
     temperature: float | None = None,
     do_sample: bool | None = None,
+    seed: int | None = None,
     thinking: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
     """
@@ -262,6 +266,7 @@ async def stream_ai_json(
         max_tokens=max_tokens,
         temperature=temperature,
         do_sample=do_sample,
+        seed=seed,
         thinking=thinking,
         response_format=None,
         mode_label="JSON extraction",

@@ -290,3 +290,17 @@ this gate.
 | AC13.13.1 | Pure scoring + routing functions return identical results across N runs on the same input. | `test_scoring_and_routing_are_deterministic` | `extraction/test_extraction_determinism.py` | P0 |
 | AC13.13.2 | Re-parsing identical model output yields identical confidence/status/validation_error across N parses. | `test_repeated_parse_yields_identical_confidence_status_validation` | `extraction/test_extraction_determinism.py` | P0 |
 | AC13.13.3 | Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
+
+### AC13.16: Deterministic Decoding — Request Seed (issue #989)
+
+Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the
+model response; this AC pins the *request* so the model itself decodes
+reproducibly: temperature 0 / `do_sample` false plus a fixed `seed`
+(`AI_JSON_SEED`, default 42) forwarded to the provider.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.16.1 | A provided seed is forwarded in the streaming request payload | `test_stream_ai_json_includes_seed_when_provided()` | `ai/test_ai_streaming.py` | P1 |
+| AC13.16.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
+| AC13.16.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
+| AC13.16.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |
