@@ -50,7 +50,7 @@ const base: InvestmentPerformanceReportSchedule = {
 }
 
 describe("computeMarketValuePerformance", () => {
-  it("derives totals and return on cost from holdings", () => {
+  it("AC17.14.4 derives totals and return on cost from holdings", () => {
     const result = computeMarketValuePerformance(base)
     expect(result.totalCostBasis).toBe("3000.00")
     expect(result.totalMarketValue).toBe("3300.00")
@@ -58,13 +58,13 @@ describe("computeMarketValuePerformance", () => {
     expect(result.returnOnCostPercent).toBe("10.00")
   })
 
-  it("returns null return on cost when cost basis is zero", () => {
+  it("AC17.14.4 returns null return on cost when cost basis is zero", () => {
     const result = computeMarketValuePerformance({ ...base, unrealized_pnl: "0.00", holdings: [] })
     expect(result.totalCostBasis).toBe("0.00")
     expect(result.returnOnCostPercent).toBeNull()
   })
 
-  it("tolerates a partial schedule missing the holdings array", () => {
+  it("AC17.14.4 tolerates a partial schedule missing the holdings array", () => {
     const partial = { ...base, holdings: undefined } as unknown as InvestmentPerformanceReportSchedule
     const result = computeMarketValuePerformance(partial)
     expect(result.totalCostBasis).toBe("0.00")
