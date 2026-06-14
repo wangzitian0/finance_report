@@ -29,6 +29,13 @@ class TestRepairJsonObject:
         assert repaired is not None
         assert json.loads(repaired) == {"a": 1, "nested": {"b": 2}}
 
+    def test_strips_single_line_fence(self):
+        """AC13.14.1b: A single-line fenced block (no newline) is recovered."""
+        content = '```json {"institution": "DBS", "transactions": []}```'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"institution": "DBS", "transactions": []}
+
     def test_clean_object_is_preserved(self):
         """AC13.14.3: An already-clean object round-trips unchanged."""
         content = '{"x": "y"}'

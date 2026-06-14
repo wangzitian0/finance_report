@@ -197,7 +197,7 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.14.1 | A ```json fenced object is recovered | `test_strips_json_code_fence()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.1 | A markdown json-fenced object (multi-line and single-line) is recovered | `test_strips_json_code_fence()`, `test_strips_single_line_fence()` | `extraction/test_json_repair.py` | P1 |
 | AC13.14.2 | Surrounding prose and a bare fence reduce to the outermost balanced object | `test_strips_bare_code_fence_and_prose()`, `test_extract_financial_data_salvages_extra_text()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py` | P1 |
 | AC13.14.3 | An already-clean object round-trips unchanged | `test_clean_object_is_preserved()` | `extraction/test_json_repair.py` | P1 |
 | AC13.14.4 | Content with no recoverable JSON object returns None; braces inside strings do not truncate | `test_unrecoverable_returns_none()`, `test_does_not_misread_braces_in_strings()` | `extraction/test_json_repair.py` | P1 |

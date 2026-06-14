@@ -660,23 +660,18 @@ class ExtractionService:
         """Best-effort recovery of a JSON object from a malformed model response.
 
         Models occasionally wrap an otherwise-valid object in a markdown code
-        fence or pad it with prose. Rather than rejecting the upload (#982), strip
-        any fence and extract the outermost balanced ``{...}`` object — tracking
-        string literals so braces inside values do not truncate it. The repair is
-        deterministic and does not invent data; it returns ``None`` when no
-        object can be recovered, leaving the original failure path intact.
+        fence or pad it with prose. Rather than rejecting the upload (#982),
+        extract the outermost balanced ``{...}`` object — tracking string
+        literals so braces inside values do not truncate it. Scanning from the
+        first ``{`` to its matching ``}`` naturally ignores any surrounding fence
+        (including single-line ``` ```json {...}``` ``` blocks) or prose. The
+        repair is deterministic and does not invent data; it returns ``None``
+        when no object can be recovered, leaving the original failure path intact.
         """
         if not content:
             return None
 
         text = content.strip()
-        if text.startswith("```"):
-            # Drop the opening fence line (``` or ```json) and any closing fence.
-            text = text.split("\n", 1)[1] if "\n" in text else ""
-            if text.rstrip().endswith("```"):
-                text = text.rstrip()[: -len("```")]
-            text = text.strip()
-
         start = text.find("{")
         if start == -1:
             return None
