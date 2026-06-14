@@ -1,37 +1,35 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
-import { compareAmounts, formatAmount } from "@/lib/currency";
-import { PerformanceMetrics } from "@/lib/types";
+import { compareAmounts, formatAmount, formatCurrencyLocale } from "@/lib/currency";
+import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
+import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
-function safeComparePercent(value: string): number | null {
-    try {
-        return compareAmounts(value, "0");
-    } catch {
-        return null;
-    }
-}
-
-function formatPercent(value: string): string {
-    const comparison = safeComparePercent(value);
-    if (comparison === null) return "—";
-    const sign = comparison > 0 ? "+" : "";
+function formatReturnPercent(value: string | null): string {
+    if (value === null) return "N/A";
+    const sign = compareAmounts(value, "0") > 0 ? "+" : "";
     return `${sign}${formatAmount(value, 2)}%`;
 }
 
-function getPercentColor(value: string): string {
-    const comparison = safeComparePercent(value);
-    if (comparison === null || comparison === 0) return "";
+function amountClass(value: string | null): string {
+    if (value === null) return "text-muted";
+    const comparison = compareAmounts(value, "0");
+    if (comparison === 0) return "";
     return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
 }
 
-export function PerformanceCard() {
-    const { data, isLoading, error } = useQuery({
-        queryKey: ["portfolio-performance"],
-        queryFn: () => apiFetch<PerformanceMetrics>("/api/portfolio/performance"),
-    });
+interface PerformanceCardProps {
+    schedule?: InvestmentPerformanceReportSchedule;
+    isLoading?: boolean;
+    error?: unknown;
+}
 
+/**
+ * The asset-dashboard performance answer (#914): unrealized market-value
+ * gain/loss, a simple return on cost for the schedule period, and a
+ * price-freshness flag. TWR/IRR/MWR stay on the reporting side and are not
+ * presented here as the headline answer.
+ */
+export function PerformanceCard({ schedule, isLoading = false, error = null }: PerformanceCardProps) {
     if (isLoading) {
         return (
             <div className="card p-5">
@@ -43,7 +41,7 @@ export function PerformanceCard() {
         );
     }
 
-    if (error || !data) {
+    if (error || !schedule) {
         return (
             <div className="card p-5">
                 <p className="text-xs text-muted uppercase tracking-wide mb-3">Performance</p>
@@ -52,24 +50,36 @@ export function PerformanceCard() {
         );
     }
 
-    const metrics = [
-        { label: "XIRR", value: data.xirr, tooltip: "Extended Internal Rate of Return — annualized return accounting for irregular cash flows" },
-        { label: "TWR", value: data.time_weighted_return, tooltip: "Time-Weighted Return — measures portfolio manager performance" },
-        { label: "MWR", value: data.money_weighted_return, tooltip: "Money-Weighted Return — measures investor experience including timing" },
-    ];
+    const performance = computeMarketValuePerformance(schedule);
+    const freshness = schedule.data_freshness;
 
     return (
         <div className="card p-5">
-            <p className="text-xs text-muted uppercase tracking-wide mb-3">Performance Metrics</p>
-            <div className="grid grid-cols-3 gap-4">
-                {metrics.map((m) => (
-                    <div key={m.label} title={m.tooltip}>
-                        <p className="text-xs text-muted">{m.label}</p>
-                        <p className={`text-xl font-semibold mt-0.5 ${getPercentColor(m.value)}`}>
-                            {formatPercent(m.value)}
-                        </p>
-                    </div>
-                ))}
+            <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs text-muted uppercase tracking-wide">Market-Value Performance</p>
+                <span
+                    className={`text-xs ${freshness.stale ? "text-[var(--error)]" : "text-muted"}`}
+                    title={freshness.latest_price_date ? `Latest price ${freshness.latest_price_date}` : undefined}
+                >
+                    {freshness.stale ? "Prices stale" : "Prices current"}
+                </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-4">
+                <div>
+                    <p className="text-xs text-muted">Unrealized gain/loss</p>
+                    <p className={`text-xl font-semibold mt-0.5 ${amountClass(performance.unrealizedPnl)}`}>
+                        {formatCurrencyLocale(performance.unrealizedPnl, schedule.currency)}
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">vs cost {formatCurrencyLocale(performance.totalCostBasis, schedule.currency)}</p>
+                </div>
+                <div>
+                    <p className="text-xs text-muted">Return on cost</p>
+                    <p className={`text-xl font-semibold mt-0.5 ${amountClass(performance.returnOnCostPercent)}`}>
+                        {formatReturnPercent(performance.returnOnCostPercent)}
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">as of {schedule.as_of_date}</p>
+                </div>
             </div>
         </div>
     );

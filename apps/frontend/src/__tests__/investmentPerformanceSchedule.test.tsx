@@ -15,6 +15,19 @@ const schedule = {
   realized_pnl: "1200.00",
   unrealized_pnl: "-300.00",
   dividend_income: "88.00",
+  holdings: [
+    {
+      asset_identifier: "AAPL",
+      quantity: "10",
+      cost_basis: "3000.00",
+      market_value: "2700.00",
+      unrealized_pnl: "-300.00",
+      realized_pnl: "0.00",
+      dividend_income: "0.00",
+      currency: "SGD",
+    },
+  ],
+  allocation: [],
   data_freshness: {
     latest_price_date: null,
     market_data_provider: null,
@@ -40,6 +53,12 @@ describe("InvestmentPerformanceSchedule", () => {
   it("AC8.13.92 renders stale data, missing metrics, and empty source/notes branches", () => {
     render(<InvestmentPerformanceSchedule schedule={schedule as never} />)
 
+    // Market-value answer leads: unrealized -300 / cost 3000 = -10.00%
+    expect(screen.getByText("Market-value performance")).toBeInTheDocument()
+    expect(screen.getByText("Return on Cost")).toBeInTheDocument()
+    expect(screen.getByText("-10.00%")).toHaveClass("text-[var(--error)]")
+    // TWR/IRR/MWR are demoted to a clearly-labelled reporting-only section
+    expect(screen.getByText("Analytical return measures (reporting only)")).toBeInTheDocument()
     expect(screen.getByText("+8.25%")).toHaveClass("text-[var(--success)]")
     expect(screen.getAllByText("N/A").length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText("-1.50%")).toHaveClass("text-[var(--error)]")
