@@ -670,3 +670,34 @@ async def test_provider_http_range_wrappers_parse_success_and_http_errors(monkey
     assert await market_data._fetch_yahoo_stock_price_series("AAPL", date(2026, 1, 5), date(2026, 1, 5)) is None
     assert await market_data._fetch_stooq_fx_rate_series("USD", "SGD", date(2026, 1, 5), date(2026, 1, 5)) is None
     assert await market_data._fetch_stooq_stock_price_series("AAPL", date(2026, 1, 5), date(2026, 1, 5)) is None
+
+
+def test_looks_like_ticker_accepts_real_tickers_rejects_free_text() -> None:
+    """AC17.15.1: Plausible tickers pass; brokerage fund-name free text is rejected."""
+    for symbol in ("AAPL", "MSFT", "BRK.B", "0700.HK", "USDSGD", "^GSPC", "aapl"):
+        assert market_data._looks_like_ticker(symbol), symbol
+
+    for symbol in (
+        "CSOP USD MONEY MARKET FUND SGX296797238",
+        "Fullerton SGD Cash Fund",
+        "",
+        "   ",
+        "A" * 40,
+    ):
+        assert not market_data._looks_like_ticker(symbol), symbol
+
+
+async def test_yahoo_stock_fetch_short_circuits_for_non_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC17.15.2: A non-ticker identifier skips the Yahoo request and returns None."""
+
+    async def fail_if_called(*_args: object, **_kwargs: object) -> httpx.Response | None:
+        raise AssertionError("Yahoo provider must not be queried for non-ticker identifiers")
+
+    monkeypatch.setattr(market_data, "_fetch_provider_response", fail_if_called)
+
+    result = await market_data._fetch_yahoo_stock_price_series(
+        "CSOP USD MONEY MARKET FUND SGX296797238",
+        date(2026, 1, 1),
+        date(2026, 1, 5),
+    )
+    assert result is None

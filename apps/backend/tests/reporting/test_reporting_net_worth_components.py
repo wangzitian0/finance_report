@@ -3,6 +3,7 @@
 AC18.4.1: Reports read Layer 3 TransactionClassification category breakdowns.
 """
 
+import logging
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
@@ -343,6 +344,37 @@ async def test_portfolio_without_market_price_is_skipped(db: AsyncSession, test_
 
     assert report["total_assets"] == Decimal("0.00")
     assert not any("market valuation adjustment" in line["name"] for line in report["assets"])
+
+
+async def test_portfolio_without_market_price_logs_warning(db: AsyncSession, test_user, caplog):
+    """AC17.15.3: An unpriced position omitted from net worth logs a warning, not a silent debug.
+
+    A dropped position understates net worth; the omission must be observable so it is
+    not silently lost (issue #1035).
+    """
+    report_date = date(2025, 3, 31)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)
+    db.add(
+        ManagedPosition(
+            user_id=test_user.id,
+            account_id=brokerage.id,
+            asset_identifier="CSOP USD MONEY MARKET FUND SGX296797238",
+            quantity=Decimal("10"),
+            cost_basis=Decimal("1000.00"),
+            currency="SGD",
+            acquisition_date=report_date,
+            status=PositionStatus.ACTIVE,
+            cost_basis_method=CostBasisMethod.FIFO,
+        )
+    )
+    await db.commit()
+
+    with caplog.at_level(logging.WARNING, logger="src.services.reporting"):
+        await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+    warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
+    assert any("omitted from net worth" in record.getMessage() for record in warnings)
+    assert any("CSOP USD MONEY MARKET FUND SGX296797238" in record.getMessage() for record in warnings)
 
 
 async def test_portfolio_market_adjustment_skips_zero_delta(db: AsyncSession, test_user):
