@@ -23,15 +23,25 @@ which is where seam bugs hide.
 
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
-from src.models import Account, AccountType, JournalEntrySourceType
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models import Account, AccountType, JournalEntrySourceType, User
 from src.models.layer3 import ManualValuationComponentType
 from src.services.accounting import create_journal_entry, post_journal_entry
 from src.services.assets import AssetService
 from src.services.reporting import generate_balance_sheet
 
 
-async def _account(db, user_id, *, name, account_type, currency="SGD"):
+async def _account(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    name: str,
+    account_type: AccountType,
+    currency: str = "SGD",
+) -> Account:
     account = Account(user_id=user_id, name=name, type=account_type, currency=currency)
     db.add(account)
     await db.flush()
@@ -39,7 +49,15 @@ async def _account(db, user_id, *, name, account_type, currency="SGD"):
     return account
 
 
-async def _posted(db, user_id, *, entry_date, memo, lines, source_type):
+async def _posted(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    entry_date: date,
+    memo: str,
+    lines: list[dict[str, object]],
+    source_type: JournalEntrySourceType,
+) -> None:
     entry = await create_journal_entry(
         db=db,
         user_id=user_id,
@@ -51,7 +69,9 @@ async def _posted(db, user_id, *, entry_date, memo, lines, source_type):
     await post_journal_entry(db, entry.id, user_id)
 
 
-async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence(db, test_user):
+async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence(
+    db: AsyncSession, test_user: User
+) -> None:
     """AC8.16.1: low-confidence extracted inputs and a corrected valuation reach the
     report without leaking a superseded row or laundering a low-confidence input."""
     user_id = test_user.id
