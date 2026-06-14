@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
@@ -33,6 +34,26 @@ ALLOWLIST_ENV_KEYS = (
     "S3_HOST",
     "COMPOSE_PROFILES",
 )
+
+# Keys that the platform (Dokploy / Vault-agent) injects or owns in the
+# effective compose env. They legitimately appear in the effective env without
+# being part of the deterministic requested preview env, so reconciliation must
+# not treat them as stale drift (issue #758).
+PLATFORM_MANAGED_ENV_KEYS = (
+    "COMPOSE_PROJECT_NAME",
+    "VAULT_APP_TOKEN",
+)
+PLATFORM_MANAGED_ENV_PREFIXES = (
+    "VAULT_",
+    "DOKPLOY_",
+)
+
+
+def is_platform_managed_env_key(key: str) -> bool:
+    return key in PLATFORM_MANAGED_ENV_KEYS or key.startswith(
+        PLATFORM_MANAGED_ENV_PREFIXES
+    )
+
 
 COMPOSE_SUMMARY_KEYS = (
     "composeId",
@@ -89,6 +110,18 @@ class DokployConfig:
 
 class DokployDeploymentDidNotStart(RuntimeError):
     """Dokploy accepted a deploy request but did not create a new deployment."""
+
+
+class DokployNoNewDeploymentRecord(DokployDeploymentDidNotStart):
+    """Dokploy never created a new deployment record for the requested rollout.
+
+    Distinct from a generic "did not start": the compose can report
+    ``composeStatus=done`` against *stale* deployment records, which previously
+    let the waiter false-green and waste the readiness window probing a route
+    for a SHA that never rolled out (issue #756). This subclass classifies that
+    failure domain (``dokploy-worker-or-deployment-record``) while still being
+    caught by the existing ``DokployDeploymentDidNotStart`` retry handlers.
+    """
 
 
 class DokployDeploymentFailed(RuntimeError):
@@ -171,6 +204,57 @@ def render_allowlisted_env_diff(expected: dict[str, str], actual_env_text: str) 
     lines.append(
         f"result: {'match' if allowlisted_env_matches(expected, actual_env_text) else 'mismatch'}"
     )
+    lines.append("raw_env_printed: false")
+    return "\n".join(lines)
+
+
+def env_reconciliation_divergence(
+    requested: dict[str, str], actual_env_text: str
+) -> list[str]:
+    """Return env keys whose effective remote value diverges from the request.
+
+    Covers the whole requested env (not just the allowlist) plus stale keys that
+    linger in the effective env but were never requested — the non-allowlisted
+    drift class from issue #758. Only key *names* are returned so callers can
+    surface them without leaking secret values.
+    """
+
+    actual = parse_env(actual_env_text)
+    divergent: set[str] = set()
+    # A requested key that the effective env *does* expose must match. We do not
+    # flag requested keys the effective payload omits: Dokploy can return a
+    # partial view, and "incomplete echo" is a separate concern from the stale
+    # non-allowlisted drift this guards against.
+    for key, value in requested.items():
+        if key in actual and actual[key] != value:
+            divergent.add(key)
+    # A key present in the effective env that we never requested and that the
+    # platform does not own is a stale leftover from a prior deploy.
+    for key in actual:
+        if key not in requested and not is_platform_managed_env_key(key):
+            divergent.add(key)
+    return sorted(divergent)
+
+
+def render_env_reconciliation_diff(
+    requested: dict[str, str], actual_env_text: str
+) -> str:
+    """Render a secret-safe reconciliation diagnostic (key names only)."""
+
+    divergent = env_reconciliation_divergence(requested, actual_env_text)
+    actual = parse_env(actual_env_text)
+    lines = ["Effective deploy env reconciliation"]
+    lines.append(f"requested_key_count: {len(requested)}")
+    lines.append(f"effective_key_count: {len(actual)}")
+    for key in divergent:
+        if key not in requested:
+            reason = "stale-unrequested-key"
+        elif key not in actual:
+            reason = "missing-from-effective"
+        else:
+            reason = "value-mismatch"
+        lines.append(f"divergent_key: {key} ({reason})")
+    lines.append(f"result: {'match' if not divergent else 'mismatch'}")
     lines.append("raw_env_printed: false")
     return "\n".join(lines)
 
@@ -389,6 +473,8 @@ def build_preview_context(
     phase: str,
     compose_id: str = "",
     error: str = "",
+    mutation_step: str = "",
+    recovery_state: str = "",
 ) -> dict[str, str]:
     app_url = preview_app_url(args.pr_number, args.commit_sha, args.internal_domain)
     context = {
@@ -417,6 +503,10 @@ def build_preview_context(
     }
     if error:
         context["error"] = redact_diagnostic_value(error)
+    if mutation_step:
+        context["mutation_step"] = mutation_step
+    if recovery_state:
+        context["recovery_state"] = recovery_state
     return context
 
 
@@ -787,11 +877,48 @@ def update_compose_env(
     )
     effective_env = get_compose_env(config, compose_id=compose_id)
     print(render_allowlisted_env_diff(expected, effective_env))
+    # Reconcile the *whole* requested env against the effective remote env so a
+    # stale non-allowlisted key from a prior deploy cannot silently diverge
+    # (issue #758). Diagnostics name keys only and never print values.
+    print(render_env_reconciliation_diff(env, effective_env))
     if not allowlisted_env_matches(expected, effective_env):
         raise RuntimeError(
             "Dokploy effective environment did not match requested deploy env"
         )
+    if env_reconciliation_divergence(env, effective_env):
+        raise RuntimeError(
+            "Dokploy effective environment did not match requested deploy env "
+            "after full reconciliation (stale or divergent non-allowlisted keys)"
+        )
     print(f"Environment variables configured for compose: {compose_id}")
+
+
+def capture_compose_state(config: DokployConfig, *, compose_id: str) -> dict[str, str]:
+    """Snapshot the last-known-good compose source command and env.
+
+    Captured *before* a deploy mutates the compose so the failure path can roll
+    the record back instead of leaving a half-updated compose pointing at a SHA
+    that never rolled out (issue #758).
+    """
+
+    data = get_compose_data(config, compose_id=compose_id)
+    return {
+        "command": str(data.get("command") or ""),
+        "env": str(data.get("env") or ""),
+    }
+
+
+def restore_compose_state(
+    config: DokployConfig, *, compose_id: str, state: dict[str, str]
+) -> None:
+    """Roll the compose source command and env back to a captured snapshot."""
+
+    payload: dict[str, object] = {"composeId": compose_id}
+    if state.get("command"):
+        payload["command"] = state["command"]
+    payload["env"] = state.get("env", "")
+    dokploy_api_call(config, "POST", "compose.update", payload=payload)
+    print(f"Rolled compose back to last-known-good source/env: {compose_id}")
 
 
 def configure_preview_compose(
@@ -800,7 +927,12 @@ def configure_preview_compose(
     compose_id: str,
     args: argparse.Namespace,
     preview_env: dict[str, str],
+    on_step: Callable[[str], None] | None = None,
 ) -> None:
+    # ``on_step`` lets the caller mark which mutation the compose was left at
+    # (source vs env) so a failure can report and recover precisely (issue #758).
+    if on_step is not None:
+        on_step("source")
     update_compose_source(
         config,
         compose_id=compose_id,
@@ -808,6 +940,8 @@ def configure_preview_compose(
         github_integration_id=args.github_integration_id,
     )
     print_compose_summary(config, compose_id=compose_id, label="after-source-update")
+    if on_step is not None:
+        on_step("env")
     update_compose_env(
         config,
         compose_id=compose_id,
@@ -1027,12 +1161,13 @@ def wait_for_dokploy_deployment_rollout(
             and now >= new_deployment_deadline
         ):
             print(
-                "Dokploy did not expose a new deployment record, but compose "
+                "Dokploy did not create a new deployment record, but compose "
                 "is done with existing deployment records; failing before "
-                "application readiness. platform_failure_domain="
+                "application readiness instead of probing the route for a SHA "
+                "that never rolled out. platform_failure_domain="
                 "dokploy-worker-or-deployment-record"
             )
-            raise DokployDeploymentDidNotStart(
+            raise DokployNoNewDeploymentRecord(
                 "Dokploy compose is done with existing deployment records but "
                 "did not create a new deployment record for this rollout before "
                 f"readiness polling: compose_id={compose_id} "
@@ -1057,7 +1192,7 @@ def wait_for_dokploy_deployment_rollout(
                 )
                 new_deployment_deadline = min(now + 60.0, deadline)
                 continue
-            raise DokployDeploymentDidNotStart(
+            raise DokployNoNewDeploymentRecord(
                 "Dokploy deployment did not create a new deployment before "
                 f"readiness polling: compose_id={compose_id} "
                 f"composeStatus={compose_status or 'unknown'} "
@@ -1089,8 +1224,19 @@ def deploy_action(args: argparse.Namespace) -> int:
     config = DokployConfig(api_url=args.api_url, api_key=args.api_key)
     context_path = os.environ.get(PR_PREVIEW_CONTEXT_ENV, "")
     compose_id = ""
+    # Tracks which mutation the compose was left at and the last-known-good
+    # snapshot to roll back to on failure (issue #758). "step" advances as the
+    # deploy mutates source -> env -> deploy -> rollout. "good" is None until we
+    # have a snapshot worth restoring (only existing composes have one).
+    mutation: dict[str, object] = {"step": "preflight", "good": None}
 
-    def record_context(phase: str, *, error: str = "") -> None:
+    def record_context(
+        phase: str,
+        *,
+        error: str = "",
+        mutation_step: str = "",
+        recovery_state: str = "",
+    ) -> None:
         write_preview_context(
             context_path,
             build_preview_context(
@@ -1098,6 +1244,8 @@ def deploy_action(args: argparse.Namespace) -> int:
                 phase=phase,
                 compose_id=compose_id,
                 error=error,
+                mutation_step=mutation_step,
+                recovery_state=recovery_state,
             ),
         )
 
@@ -1145,11 +1293,23 @@ def deploy_action(args: argparse.Namespace) -> int:
         )
 
         def configure_current_compose() -> None:
+            # Snapshot the last-known-good source/env of an *existing* compose
+            # before mutating it, so a later rollout failure can roll back rather
+            # than leave a half-updated compose (issue #758). A freshly-created
+            # compose has no good state to restore, so leave the snapshot unset
+            # and fall back to the marked safe-to-reconcile path.
+            if existing_compose and mutation["good"] is None:
+                mutation["good"] = capture_compose_state(config, compose_id=compose_id)
+
+            def mark_step(step: str) -> None:
+                mutation["step"] = step
+
             configure_preview_compose(
                 config,
                 compose_id=compose_id,
                 args=args,
                 preview_env=preview_env,
+                on_step=mark_step,
             )
 
         def trigger_and_wait(*, force_redeploy: bool) -> None:
@@ -1158,6 +1318,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             previous_deployment_signatures = deployment_signatures(
                 compose_data.get("deployments")
             )
+            mutation["step"] = "deploy"
             deploy_compose(config, compose_id=compose_id, force_redeploy=force_redeploy)
             print_compose_summary(
                 config,
@@ -1169,6 +1330,7 @@ def deploy_action(args: argparse.Namespace) -> int:
             record_context(
                 "redeploy-triggered" if force_redeploy else "deploy-triggered"
             )
+            mutation["step"] = "rollout"
             wait_for_dokploy_deployment_rollout(
                 config,
                 compose_id=compose_id,
@@ -1182,6 +1344,9 @@ def deploy_action(args: argparse.Namespace) -> int:
 
         def recreate_compose_before_retry() -> None:
             nonlocal compose_id, existing_compose
+            # The compose is being torn down and recreated fresh; there is no
+            # prior good state to roll back to anymore.
+            mutation["good"] = None
             delete_compose(config, compose_id=compose_id)
             compose_id = create_compose(
                 config,
@@ -1263,7 +1428,37 @@ def deploy_action(args: argparse.Namespace) -> int:
             )
         return 0
     except Exception as exc:
-        record_context("failed", error=f"{type(exc).__name__}: {exc}")
+        # Issue #758: never leave a silent half-update. If we mutated an existing
+        # compose, roll it back to the captured last-known-good source/env;
+        # otherwise (a freshly-created or already-recreated compose) explicitly
+        # mark the record safe-to-reconcile so a retry/reconcile knows the
+        # compose is not a trustworthy running state. Always record which
+        # mutation step the compose was left at.
+        mutation_step = str(mutation.get("step") or "preflight")
+        recovery_state = "marked-safe-to-reconcile"
+        good_state = mutation.get("good")
+        if isinstance(good_state, dict) and compose_id:
+            try:
+                restore_compose_state(config, compose_id=compose_id, state=good_state)
+                recovery_state = "rolled-back"
+            except Exception as rollback_exc:  # pragma: no cover - defensive
+                print(
+                    "WARNING: failed to roll preview compose back to "
+                    f"last-known-good; left safe-to-reconcile: "
+                    f"{type(rollback_exc).__name__}: "
+                    f"{redact_diagnostic_value(rollback_exc)}"
+                )
+        print(
+            "PR preview deploy left compose in a recovery state: "
+            f"compose_id={compose_id or 'none'} "
+            f"mutation_step={mutation_step} recovery_state={recovery_state}"
+        )
+        record_context(
+            "failed",
+            error=f"{type(exc).__name__}: {exc}",
+            mutation_step=mutation_step,
+            recovery_state=recovery_state,
+        )
         print(
             "PR preview deploy failed: "
             f"{type(exc).__name__}: {redact_diagnostic_value(exc)}"
