@@ -61,7 +61,7 @@ from src.services.ai_advisor import (
     normalize_question,
     redact_sensitive,
 )
-from src.services.openrouter_streaming import OpenRouterStreamError
+from src.services.ai_streaming import AIStreamError
 from src.services.reporting import ReportError
 
 
@@ -241,7 +241,7 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     async def fake_stream_model(model: str, _messages: list[dict[str, str]]):
         calls.append(model)
         if model == "primary":
-            raise OpenRouterStreamError(message="fail primary", retryable=True)
+            raise AIStreamError(message="fail primary", retryable=True)
         yield "hello"
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
@@ -263,12 +263,12 @@ async def test_stream_openrouter_raises_when_all_fail(
     service.fallback_models = ["fallback"]
 
     async def fake_stream_model(model: str, _messages: list[dict[str, str]]):
-        raise OpenRouterStreamError(message=f"fail {model}", retryable=True)
+        raise AIStreamError(message=f"fail {model}", retryable=True)
         yield  # pragma: no cover
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
-    with pytest.raises(OpenRouterStreamError, match="fallback"):
+    with pytest.raises(AIStreamError, match="fallback"):
         async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
             pass
 
@@ -949,17 +949,17 @@ async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest
 
 
 async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC6.13.4: _stream_model proxies chunks from stream_openrouter_chat."""
+    """AC6.13.4: _stream_model proxies chunks from stream_ai_chat."""
     service = AIAdvisorService()
     service.api_key = "test-key"
 
-    async def fake_stream_openrouter_chat(**_kwargs):
+    async def fake_stream_ai_chat(**_kwargs):
         yield "chunk-a"
         yield "chunk-b"
 
     import src.services.ai_advisor as _mod
 
-    monkeypatch.setattr(_mod, "stream_openrouter_chat", fake_stream_openrouter_chat)
+    monkeypatch.setattr(_mod, "stream_ai_chat", fake_stream_ai_chat)
 
     chunks = []
     async for chunk in service._stream_model("some-model", [{"role": "user", "content": "hi"}]):

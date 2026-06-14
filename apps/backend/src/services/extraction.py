@@ -21,13 +21,13 @@ from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.prompts import get_parsing_prompt
+from src.services.ai_streaming import (
+    AIStreamError,
+    accumulate_stream,
+    stream_ai_json,
+)
 from src.services.brokerage_positions import looks_like_brokerage_payload
 from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
-from src.services.openrouter_streaming import (
-    OpenRouterStreamError,
-    accumulate_stream,
-    stream_openrouter_json,
-)
 from src.services.pii_redaction import detect_pii
 from src.services.storage import redact_presigned_url
 from src.services.validation import (
@@ -682,7 +682,7 @@ class ExtractionService:
                     institution=institution,
                 )
 
-                stream = stream_openrouter_json(
+                stream = stream_ai_json(
                     messages=messages,
                     model=model,
                     api_key=self.api_key,
@@ -746,7 +746,7 @@ class ExtractionService:
                     )
                     continue
 
-            except OpenRouterStreamError as e:
+            except AIStreamError as e:
                 from src.constants.error_ids import ErrorIds
 
                 error_msg = str(e)
@@ -1342,9 +1342,9 @@ class ExtractionService:
         import json
 
         from src.prompts.csv_mapping import build_csv_mapping_prompt
-        from src.services.openrouter_streaming import (
+        from src.services.ai_streaming import (
             accumulate_stream,
-            stream_openrouter_json,
+            stream_ai_json,
         )
 
         if not self.api_key:
@@ -1358,7 +1358,7 @@ class ExtractionService:
         prompt = build_csv_mapping_prompt(headers, sample_rows)
         messages = [{"role": "user", "content": prompt}]
 
-        stream = stream_openrouter_json(
+        stream = stream_ai_json(
             messages=messages,
             model=self.primary_model,
             api_key=self.api_key,

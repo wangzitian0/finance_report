@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from src.services.openrouter_models import (
+from src.services.ai_models import (
     _MODEL_CACHE,
     ModelCatalogError,
     _configured_model_catalog,
@@ -108,7 +108,7 @@ async def test_fetch_model_catalog_success(monkeypatch):
     mock_response.json.return_value = {"data": [{"id": "model1"}, {"id": "model2"}]}
     mock_response.raise_for_status = MagicMock()
 
-    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+    with patch("src.services.ai_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.return_value = mock_response
         mock_instance.__aenter__.return_value = mock_instance
@@ -130,7 +130,7 @@ async def test_fetch_model_catalog_caching(monkeypatch):
     mock_response.json.return_value = {"data": [{"id": "cached"}]}
     mock_response.raise_for_status = MagicMock()
 
-    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+    with patch("src.services.ai_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.return_value = mock_response
         mock_instance.__aenter__.return_value = mock_instance
@@ -156,7 +156,7 @@ async def test_fetch_model_catalog_force_refresh(monkeypatch):
     mock_response.json.return_value = {"data": [{"id": "new-data"}]}
     mock_response.raise_for_status = MagicMock()
 
-    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+    with patch("src.services.ai_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.return_value = mock_response
         mock_instance.__aenter__.return_value = mock_instance
@@ -178,7 +178,7 @@ async def test_fetch_model_catalog_http_error(monkeypatch):
     from src.config import settings
 
     monkeypatch.setattr(settings, "ai_model_catalog_source", "remote")
-    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+    with patch("src.services.ai_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.side_effect = httpx.RequestError("test error")
         mock_instance.__aenter__.return_value = mock_instance
@@ -232,7 +232,7 @@ async def test_get_model_info_fetch_error(monkeypatch):
     from src.config import settings
 
     monkeypatch.setattr(settings, "ai_model_catalog_source", "remote")
-    with patch("src.services.openrouter_models.httpx.AsyncClient") as mock_client:
+    with patch("src.services.ai_models.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
         mock_instance.get.side_effect = httpx.RequestError("test error")
         mock_instance.__aenter__.return_value = mock_instance

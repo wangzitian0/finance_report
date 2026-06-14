@@ -29,8 +29,8 @@ from src.models import (
 )
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
+from src.services.ai_streaming import stream_ai_chat
 from src.services.market_data import MarketDataScopeStatus, get_market_data_status
-from src.services.openrouter_streaming import stream_openrouter_chat
 from src.services.portfolio import PortfolioNotFoundError, PortfolioService
 from src.services.reconciliation import get_reconciliation_stats
 from src.services.report_readiness import get_personal_report_package_readiness
@@ -973,7 +973,7 @@ class AIAdvisorService:
         self, messages: list[dict[str, str]], preferred_model: str | None
     ) -> AsyncIterator[tuple[str, str]]:
         from src.constants.error_ids import ErrorIds
-        from src.services.openrouter_streaming import OpenRouterStreamError
+        from src.services.ai_streaming import AIStreamError
 
         models = [self.primary_model, *self.fallback_models]
         if preferred_model:
@@ -985,7 +985,7 @@ class AIAdvisorService:
                 async for chunk in self._stream_model(model, messages):
                     yield chunk, model
                 return
-            except OpenRouterStreamError as exc:
+            except AIStreamError as exc:
                 logger.warning(
                     "AI model failed, trying fallback",
                     error_id=ErrorIds.AI_STREAMING_FAILED,
@@ -1016,7 +1016,7 @@ class AIAdvisorService:
             raise last_error
 
     async def _stream_model(self, model: str, messages: list[dict[str, str]]) -> AsyncIterator[str]:
-        async for chunk in stream_openrouter_chat(
+        async for chunk in stream_ai_chat(
             messages=messages,
             model=model,
             api_key=self.api_key,

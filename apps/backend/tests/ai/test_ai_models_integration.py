@@ -16,7 +16,7 @@ class TestModelCatalogIntegration:
 
     async def test_fetch_model_catalog(self):
         """AC6.11.1: Fetch model catalog returns data from OpenRouter."""
-        from src.services.openrouter_models import fetch_model_catalog
+        from src.services.ai_models import fetch_model_catalog
 
         models = await fetch_model_catalog()
         assert len(models) > 0, "AI provider returned empty model catalog"
@@ -25,7 +25,7 @@ class TestModelCatalogIntegration:
     async def test_primary_model_exists_in_catalog(self):
         """AC6.11.1: Primary model exists in AI provider catalog."""
         from src.config import settings
-        from src.services.openrouter_models import is_model_known
+        from src.services.ai_models import is_model_known
 
         is_known = await is_model_known(settings.primary_model)
         assert is_known, (
@@ -36,7 +36,7 @@ class TestModelCatalogIntegration:
     async def test_ocr_model_has_image_support(self):
         """AC6.11.1: OCR model supports image/PDF inputs for PDF parsing."""
         from src.config import settings
-        from src.services.openrouter_models import get_model_info, model_matches_modality
+        from src.services.ai_models import get_model_info, model_matches_modality
 
         model_info = await get_model_info(settings.ocr_model)
         assert model_info is not None, f"Could not fetch info for {settings.ocr_model}"
@@ -63,7 +63,7 @@ class TestModelCatalogIntegration:
 
     async def test_glm_models_available(self):
         """AC6.11.1: At least one GLM model available in catalog."""
-        from src.services.openrouter_models import fetch_model_catalog
+        from src.services.ai_models import fetch_model_catalog
 
         models = await fetch_model_catalog()
         glm_models = [m for m in models if m.get("id", "").lower().startswith("glm-")]
@@ -91,7 +91,7 @@ class TestModelValidationIntegration:
 
     async def test_model_without_image_support_rejected(self, client, test_user):
         """AC6.11.2: Model without image support rejected for PDF upload."""
-        from src.services.openrouter_models import fetch_model_catalog, normalize_model_entry
+        from src.services.ai_models import fetch_model_catalog, normalize_model_entry
 
         models = await fetch_model_catalog()
         text_only_candidates = []
@@ -146,7 +146,7 @@ class TestModelCatalogCaching:
         """AC6.11.3: Catalog caching reduces API calls."""
         import time
 
-        from src.services.openrouter_models import fetch_model_catalog
+        from src.services.ai_models import fetch_model_catalog
 
         first = await fetch_model_catalog(force_refresh=True)
         start = time.time()
@@ -158,7 +158,7 @@ class TestModelCatalogCaching:
 
     async def test_force_refresh_bypasses_cache(self):
         """AC6.11.3: Force refresh bypasses cache."""
-        from src.services.openrouter_models import fetch_model_catalog
+        from src.services.ai_models import fetch_model_catalog
 
         first = await fetch_model_catalog(force_refresh=True)
         second = await fetch_model_catalog(force_refresh=True)

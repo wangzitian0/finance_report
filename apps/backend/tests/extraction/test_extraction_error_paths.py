@@ -313,7 +313,7 @@ async def test_extract_json_with_models_handles_httpx_timeout():
 
     service = ExtractionService()
 
-    with patch("src.services.extraction.stream_openrouter_json", side_effect=httpx.TimeoutException("slow")):
+    with patch("src.services.extraction.stream_ai_json", side_effect=httpx.TimeoutException("slow")):
         with pytest.raises(ExtractionError, match="All 1 models failed.*timeout"):
             await service._extract_json_with_models(
                 messages=[{"role": "user", "content": "Extract"}],
@@ -333,8 +333,8 @@ async def test_ai_parse_csv_empty_mapping_response():
     service.api_key = "test-key"
 
     with (
-        patch("src.services.openrouter_streaming.stream_openrouter_json"),
-        patch("src.services.openrouter_streaming.accumulate_stream", new_callable=AsyncMock) as mock_accum,
+        patch("src.services.ai_streaming.stream_ai_json"),
+        patch("src.services.ai_streaming.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = "  "
         with pytest.raises(ExtractionError, match="AI CSV mapping returned empty response"):
@@ -378,10 +378,10 @@ async def test_extract_financial_data_all_models_fail():
     service.api_key = "test-key"
     service.ocr_model = None
 
-    from src.services.openrouter_streaming import OpenRouterStreamError
+    from src.services.ai_streaming import AIStreamError
 
-    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
-        mock_stream.side_effect = OpenRouterStreamError("HTTP 429: Quota Exceeded")
+    with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        mock_stream.side_effect = AIStreamError("HTTP 429: Quota Exceeded")
 
         with pytest.raises(ExtractionError, match="rate limited"):
             await service.extract_financial_data(
@@ -400,7 +400,7 @@ async def test_extract_financial_data_json_markdown_fallback():
     # Current code rejects markdown wrapping - test that it properly rejects
     content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
 
-    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+    with patch("src.services.extraction.stream_ai_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
         with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
@@ -420,7 +420,7 @@ async def test_extract_financial_data_invalid_json_all_attempts():
     # Invalid JSON - should fail with JSON parse error immediately
     content = "Invalid JSON without markdown that is clearly not empty"
 
-    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
+    with patch("src.services.extraction.stream_ai_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
         # Now expects JSON parse error, not "all models failed"
@@ -892,7 +892,7 @@ async def test_extract_force_model():
     valid_json = '{"account_last4": "1234", "transactions": []}'
 
     with (
-        patch("src.services.extraction.stream_openrouter_json") as mock_stream,
+        patch("src.services.extraction.stream_ai_json") as mock_stream,
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = valid_json
@@ -937,7 +937,7 @@ async def test_extract_empty_ai_response():
     service.ocr_model = None
 
     with (
-        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.stream_ai_json"),
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = ""  # Empty response
@@ -959,7 +959,7 @@ async def test_extract_return_raw():
     raw_content = '{"account_last4": "1234", "transactions": []}'
 
     with (
-        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.stream_ai_json"),
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = raw_content
@@ -981,7 +981,7 @@ async def test_extract_value_error_during_extraction():
     service.ocr_model = None
 
     with (
-        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.stream_ai_json"),
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.side_effect = ValueError("some programming error")
@@ -1013,7 +1013,7 @@ async def test_extract_no_models_tried_fallback_error():
 # ---------------------------------------------------------------------------
 # Additional coverage tests: _safe_date None, _extract_status_code,
 # _build_media_payload image,
-# OUT direction, OpenRouterStreamError timeout/generic, non-dict JSON,
+# OUT direction, AIStreamError timeout/generic, non-dict JSON,
 # ExtractionError re-raise, PDF/image with valid external URL
 # ---------------------------------------------------------------------------
 
@@ -1084,7 +1084,7 @@ async def test_extract_non_dict_json_response():
     service.ocr_model = None
 
     with (
-        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.stream_ai_json"),
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = '[{"amount": "100.00"}]'  # Array, not object
@@ -1098,15 +1098,15 @@ async def test_extract_non_dict_json_response():
 
 
 async def test_extract_openrouter_timeout_error():
-    """OpenRouterStreamError with timeout message (lines 556-564)."""
-    from src.services.openrouter_streaming import OpenRouterStreamError
+    """AIStreamError with timeout message (lines 556-564)."""
+    from src.services.ai_streaming import AIStreamError
 
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
 
-    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
-        mock_stream.side_effect = OpenRouterStreamError("Request timed out after 30s")
+    with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        mock_stream.side_effect = AIStreamError("Request timed out after 30s")
         with pytest.raises(ExtractionError, match="timed out"):
             await service.extract_financial_data(
                 file_content=b"content",
@@ -1117,15 +1117,15 @@ async def test_extract_openrouter_timeout_error():
 
 
 async def test_extract_openrouter_generic_http_error():
-    """OpenRouterStreamError with generic HTTP error (lines 565-577)."""
-    from src.services.openrouter_streaming import OpenRouterStreamError
+    """AIStreamError with generic HTTP error (lines 565-577)."""
+    from src.services.ai_streaming import AIStreamError
 
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
 
-    with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
-        mock_stream.side_effect = OpenRouterStreamError("HTTP 502: Bad Gateway")
+    with patch("src.services.extraction.stream_ai_json") as mock_stream:
+        mock_stream.side_effect = AIStreamError("HTTP 502: Bad Gateway")
         with pytest.raises(ExtractionError, match="failed.*HTTP 502"):
             await service.extract_financial_data(
                 file_content=b"content",
@@ -1142,7 +1142,7 @@ async def test_extract_extraction_error_reraise():
     service.ocr_model = None
 
     with (
-        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.stream_ai_json"),
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.side_effect = ExtractionError("Custom extraction failure")
@@ -1164,7 +1164,7 @@ async def test_extract_pdf_with_valid_external_url():
     valid_json = '{"account_last4": "9999", "transactions": []}'
 
     with (
-        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.stream_ai_json"),
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = valid_json
@@ -1185,7 +1185,7 @@ async def test_extract_image_with_valid_external_url():
     valid_json = '{"account_last4": "8888", "transactions": []}'
 
     with (
-        patch("src.services.extraction.stream_openrouter_json"),
+        patch("src.services.extraction.stream_ai_json"),
         patch("src.services.extraction.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = valid_json

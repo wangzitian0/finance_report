@@ -56,7 +56,7 @@ def test_fx_rate_repr():
 
 def test_openrouter_model_normalize_entry():
     """AC6.11.1: OpenRouter model normalize entry extracts modalities."""
-    from src.services.openrouter_models import normalize_model_entry
+    from src.services.ai_models import normalize_model_entry
 
     entry = {
         "id": "test/model",
@@ -74,7 +74,7 @@ def test_openrouter_model_normalize_entry():
 
 def test_openrouter_model_matches_modality():
     """AC6.11.1: OpenRouter model matches modality filtering."""
-    from src.services.openrouter_models import model_matches_modality
+    from src.services.ai_models import model_matches_modality
 
     text_model = {"input_modalities": ["text"]}
     vision_model = {"input_modalities": ["text", "image"]}
@@ -99,7 +99,7 @@ def test_to_decimal():
     """AC6.11.1: Decimal conversion utility handles valid and invalid inputs."""
     from decimal import Decimal
 
-    from src.services.openrouter_models import _to_decimal
+    from src.services.ai_models import _to_decimal
 
     assert _to_decimal("1.5") == Decimal("1.5")
     assert _to_decimal("0") == Decimal("0")
@@ -109,7 +109,7 @@ def test_to_decimal():
 
 def test_openrouter_normalize_model_is_free():
     """AC6.11.1: Free model identification via pricing fields."""
-    from src.services.openrouter_models import normalize_model_entry
+    from src.services.ai_models import normalize_model_entry
 
     free_model = {"id": "free/model", "name": "Free", "pricing": {"prompt": "0", "completion": "0"}}
 
@@ -125,7 +125,7 @@ def test_openrouter_normalize_model_is_free():
 
 def test_openrouter_normalize_model_without_id():
     """AC6.11.1: Model normalization handles missing ID."""
-    from src.services.openrouter_models import normalize_model_entry
+    from src.services.ai_models import normalize_model_entry
 
     model_no_id = {"name": "No ID Model", "pricing": {"prompt": "0", "completion": "0"}}
 

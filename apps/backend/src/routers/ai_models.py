@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query
 from src.config import settings
 from src.logger import get_logger
 from src.schemas.ai_models import AIModel, AIModelCatalogResponse
-from src.services.openrouter_models import (
+from src.services.ai_models import (
     fetch_model_catalog,
     model_matches_modality,
     normalize_model_entry,
