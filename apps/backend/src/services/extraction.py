@@ -704,19 +704,31 @@ class ExtractionService:
         base_seed = settings.ai_json_seed
         best: dict[str, Any] | None = None
         best_diff: Decimal | None = None
+        last_parse: dict[str, Any] | None = None
+        last_error: ExtractionError | None = None
 
         for attempt in range(max_attempts):
             # Attempt 0 uses the configured seed; retries vary it so each is a
             # distinct deterministic sample (None base => provider-side variance).
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
-            extracted = await self.extract_financial_data(
-                file_content=file_content,
-                institution=institution,
-                file_type=file_type,
-                file_url=file_url,
-                force_model=force_model,
-                seed_override=seed_override,
-            )
+            try:
+                extracted = await self.extract_financial_data(
+                    file_content=file_content,
+                    institution=institution,
+                    file_type=file_type,
+                    file_url=file_url,
+                    force_model=force_model,
+                    seed_override=seed_override,
+                )
+            except ExtractionError as exc:
+                # A transient error on one attempt must not fail an upload that
+                # another attempt can satisfy. Skip it and keep trying remaining
+                # attempts (a later one may still reconcile); any earlier parse is
+                # retained as best/last_parse, and only the all-attempts-failed
+                # case re-raises below.
+                last_error = exc
+                continue
+            last_parse = extracted
 
             if looks_like_brokerage_payload(
                 extracted,
@@ -749,13 +761,21 @@ class ExtractionService:
                 if diff is not None and (best is None or diff < best_diff):
                     best, best_diff = extracted, diff
 
-        if max_attempts > 1:
-            logger.info(
-                "Balance did not reconcile after re-extract; keeping best parse",
-                attempts=max_attempts,
-                best_difference=str(best_diff),
-            )
-        return best if best is not None else extracted
+        if best is not None:
+            if max_attempts > 1:
+                logger.info(
+                    "Balance did not reconcile after re-extract; keeping best parse",
+                    attempts=max_attempts,
+                    best_difference=str(best_diff),
+                )
+            return best
+        if last_parse is not None:
+            # No balance-computable parse, but at least one attempt produced a
+            # (structurally-broken) result; return it so parse_document reports the
+            # failure exactly as the single-call path did.
+            return last_parse
+        # Every attempt raised — propagate so the upload fails as before.
+        raise last_error or ExtractionError("Extraction failed after all retries")
 
     @staticmethod
     def _repair_json_object(content: str) -> str | None:
@@ -763,43 +783,64 @@ class ExtractionService:
 
         Models occasionally wrap an otherwise-valid object in a markdown code
         fence or pad it with prose. Rather than rejecting the upload (#982),
-        extract the outermost balanced ``{...}`` object — tracking string
-        literals so braces inside values do not truncate it. Scanning from the
-        first ``{`` to its matching ``}`` naturally ignores any surrounding fence
-        (including single-line ``` ```json {...}``` ``` blocks) or prose. The
-        repair is deterministic and does not invent data; it returns ``None``
-        when no object can be recovered, leaving the original failure path intact.
+        scan every top-level balanced ``{...}`` object — tracking string literals
+        so braces inside values do not truncate one — and return the **largest**.
+        Returning the largest (rather than the first) avoids picking a small
+        inline *example* object that precedes the real, much larger extraction.
+        Any surrounding fence (including single-line ``` ```json {...}``` ``` blocks)
+        or prose is naturally ignored. The repair is deterministic and does not
+        invent data; it returns ``None`` when no balanced object can be recovered,
+        leaving the original failure path intact.
         """
         if not content:
             return None
 
         text = content.strip()
-        start = text.find("{")
-        if start == -1:
-            return None
-
-        depth = 0
-        in_string = False
-        escaped = False
-        for i in range(start, len(text)):
-            char = text[i]
-            if in_string:
-                if escaped:
-                    escaped = False
-                elif char == "\\":
-                    escaped = True
-                elif char == '"':
-                    in_string = False
+        objects: list[str] = []
+        i = 0
+        n = len(text)
+        while i < n:
+            if text[i] != "{":
+                i += 1
                 continue
-            if char == '"':
-                in_string = True
-            elif char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    return text[start : i + 1]
-        return None
+            # Scan one balanced top-level object starting at i.
+            depth = 0
+            in_string = False
+            escaped = False
+            end = None
+            for j in range(i, n):
+                char = text[j]
+                if in_string:
+                    if escaped:
+                        escaped = False
+                    elif char == "\\":
+                        escaped = True
+                    elif char == '"':
+                        in_string = False
+                    continue
+                if char == '"':
+                    in_string = True
+                elif char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = j
+                        break
+            if end is None:
+                # This ``{`` never balances (leading junk like ``note: {oops`` or a
+                # truncated tail). Skip just this brace and keep scanning, so a
+                # complete object appearing later is still recovered. A salvaged
+                # fragment that is not a real statement is caught downstream by
+                # completeness/period validation.
+                i += 1
+                continue
+            objects.append(text[i : end + 1])
+            i = end + 1
+
+        if not objects:
+            return None
+        return max(objects, key=len)
 
     async def _extract_json_with_models(
         self,
