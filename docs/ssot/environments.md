@@ -38,7 +38,7 @@
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
 | **4** | **PR Preview** | `http://localhost:8080` inside GitHub runner<br>**No persistent Dokploy URL** | PR push — synchronous `pull_request`<br>`pr-test.yml` (not async `workflow_run`) | Runner compose stack<br>(local build, no registry push) | GitHub runner containers<br>(Per run) | Ephemeral Postgres/MinIO | `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>` |
-| **5** | **Staging** | `report-staging.zitian.party` | Push to main<br>`staging-deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
+| **5** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`staging-deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
 | **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
 Environment taxonomy is not the delivery pipeline stage count. The CI/CD model
@@ -124,9 +124,9 @@ PR validation is split into two independent things (issue #839):
 
 ### Production Environments (Staging + Production)
 
-**Staging** — Tracks latest `main` branch:
-- **Image deployment**: Built from latest `main` commit after merge
-- Deployed to Dokploy automatically on push to main
+**Staging** — Manually deployed from a chosen commit:
+- **Image deployment**: Built from the dispatched `ref` (defaults to latest `main`)
+- Deployed to Dokploy **manually** via `staging-deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
 - Persistent data, stable environment for QA
 - Uses dedicated DB/Redis + shared Platform (SigNoz, MinIO with bucket isolation)
 
@@ -171,7 +171,7 @@ PR validation is split into two independent things (issue #839):
 |---------------|-------------|---------|---------|
 | `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
 | `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync | Build images, deploy to Dokploy, cleanup on close |
-| `.github/workflows/staging-deploy.yml` | Staging | Push to main | Build images (`:staging` tag), deploy |
+| `.github/workflows/staging-deploy.yml` | Staging | Manual (`workflow_dispatch`) | Build images (`:staging` tag), deploy |
 | `.github/workflows/production-release.yml` | Production | Tag `v*.*.*` or manual | Build release images, deploy on manual trigger |
 
 ---
