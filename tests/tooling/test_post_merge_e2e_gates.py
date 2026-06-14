@@ -786,22 +786,24 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     assert "Step summaries remain human-readable status pages" in ci_cd
 
 
-def test_AC8_13_51_staging_deploy_starts_after_successful_ci_workflow_run() -> None:
-    """AC8.13.51: Staging deploy is triggered by successful main CI workflow_run."""
+def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
+    """AC8.13.51: Staging deploy is manual (`workflow_dispatch`) only; it does not auto-follow main CI."""
     workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "workflow_run:" in workflow
-    assert 'workflows: ["CI"]' in workflow
-    assert "types: [completed]" in workflow
-    assert "branches: [main]" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "github.event.workflow_run.head_branch == 'main'" in workflow
-    assert "ref: ${{ github.event.workflow_run.head_sha || github.sha }}" in workflow
-    assert "Wait for matching CI success" not in workflow
+    parsed = yaml.safe_load(workflow)
+    # PyYAML parses the bare `on:` key as the boolean True.
+    triggers = parsed.get("on", parsed.get(True))
+    assert isinstance(triggers, dict), "staging-deploy.yml must declare an `on:` map"
+    assert "workflow_dispatch" in triggers, "staging deploy must be manually dispatchable"
+    assert "workflow_run" not in triggers, "staging deploy must NOT auto-follow CI (manual-only)"
+    assert "ref" in (triggers["workflow_dispatch"].get("inputs") or {}), (
+        "manual dispatch must accept a `ref` input to deploy any commit"
+    )
+    # The deploy job still must not poll/wait for CI inside the job.
     assert "wait_for_github_ci.py" not in workflow
-    assert "successful `push` `CI` `workflow_run` on `main`" in ci_cd
-    assert "does not poll or wait for CI inside the deploy job" in ci_cd
+    # SSOT reflects the manual staging deploy policy.
+    assert "Staging deploy is manual" in ci_cd
 
 
 def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> None:
