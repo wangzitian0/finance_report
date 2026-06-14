@@ -49,6 +49,8 @@ async def test_handle_parse_failure_persists_failed_document_lineage(db, test_us
     ).scalar_one()
     assert doc.status == DocumentStatus.FAILED
     assert doc.original_filename == "futu-2506.pdf"
+    # The raw file must stay retrievable: the document points at the storage key we uploaded to.
+    assert doc.file_path == f"statements/{statement.id}/abc123.pdf"
 
     refreshed = await db.get(StatementSummary, statement.id)
     assert refreshed.status == BankStatementStatus.REJECTED

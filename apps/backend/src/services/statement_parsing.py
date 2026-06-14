@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 import structlog
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.logger import get_logger
@@ -138,6 +139,22 @@ async def import_brokerage_payload_if_present(
         await db.commit()
 
 
+def _mark_document_failed_unless_completed(document: UploadedDocument) -> None:
+    """Mark a document failed, but never downgrade one a successful parse already completed."""
+    if document.status != DocumentStatus.COMPLETED:
+        document.status = DocumentStatus.FAILED
+
+
+async def _find_document_by_hash(db: AsyncSession, user_id: UUID, file_hash: str) -> UploadedDocument | None:
+    return (
+        await db.execute(
+            select(UploadedDocument)
+            .where(UploadedDocument.user_id == user_id)
+            .where(UploadedDocument.file_hash == file_hash)
+        )
+    ).scalar_one_or_none()
+
+
 async def _ensure_failed_document_lineage(
     db: AsyncSession,
     statement: StatementSummary,
@@ -154,17 +171,12 @@ async def _ensure_failed_document_lineage(
     (#982). The document type is unknown for a failed parse, so it defaults to ``bank_statement``;
     a later successful reparse reconciles the same ``(user_id, file_hash)`` row via dual-write.
     """
-    existing = (
-        await db.execute(
-            select(UploadedDocument)
-            .where(UploadedDocument.user_id == statement.user_id)
-            .where(UploadedDocument.file_hash == file_hash)
-        )
-    ).scalar_one_or_none()
+    existing = await _find_document_by_hash(db, statement.user_id, file_hash)
     if existing is not None:
-        existing.status = DocumentStatus.FAILED
+        _mark_document_failed_unless_completed(existing)
         statement.uploaded_document_id = existing.id
         return
+
     document = UploadedDocument(
         user_id=statement.user_id,
         file_path=storage_key,
@@ -173,8 +185,18 @@ async def _ensure_failed_document_lineage(
         document_type=DocumentType.BANK_STATEMENT,
         status=DocumentStatus.FAILED,
     )
-    db.add(document)
-    await db.flush()
+    try:
+        # Insert inside a savepoint so losing the unique-key race does not poison the outer
+        # transaction (which still needs to commit the statement rejection).
+        async with db.begin_nested():
+            db.add(document)
+            await db.flush()
+    except IntegrityError:
+        raced = await _find_document_by_hash(db, statement.user_id, file_hash)
+        if raced is not None:
+            _mark_document_failed_unless_completed(raced)
+            statement.uploaded_document_id = raced.id
+        return
     statement.uploaded_document_id = document.id
 
 
