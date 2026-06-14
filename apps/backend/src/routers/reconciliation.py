@@ -190,7 +190,6 @@ async def run_reconciliation(
     try:
         matches = await execute_matching(
             db,
-            statement_id=payload.statement_id,
             limit=payload.limit,
             user_id=user_id,
         )
