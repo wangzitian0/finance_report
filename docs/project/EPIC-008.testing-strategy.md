@@ -411,6 +411,14 @@ job inventories or scenario counts into this EPIC.
 | AC8.14.3 | Personal report package critical proof has a deterministic PR mirror covering bank, brokerage, manual valuation, restricted-compensation, CSV, and manual-record source classes | `test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.14.4 | Backend reporting integration acts as a deterministic PR mirror from structured/manual source facts through ledger and core statements | `test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf` | `apps/backend/tests/integration/test_reporting_e2e.py` | P0 |
 
+### AC8.15: Full-Year Statement-to-Report End-to-End Acceptance
+
+Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC8.14.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → auto-posted ledger entries → period reports — ties out across **multiple months**. Deterministic by construction (rule-based CSV parse, no LLM; no AI classification, so counter-accounts fall back to `Income - Uncategorized` / `Expense - Uncategorized`).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.15.1 | Multi-month CSV statements parse, approve under the balance-chain guard, auto-post to the ledger, and the assembled period reports tie out end-to-end (income, expenses, net income, ending cash, total assets, and the accounting equation) | `test_AC8_15_1_full_year_statement_to_report_ties_out` | `apps/backend/tests/integration/test_full_year_statement_to_report_e2e.py` | P0 |
+
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
