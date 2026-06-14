@@ -1009,6 +1009,7 @@ async def _personal_report_package_traceability_payload(
             "review_state": "explicit_manual_input",
             "confidence_tier": "MEDIUM",
             "contribution_basis": "manual_valuation_snapshot_amount",
+            "valuation_basis": (snapshot.valuation_basis.value if snapshot.valuation_basis else "unspecified"),
         }
         for snapshot in manual_snapshots
     ]
@@ -1376,7 +1377,7 @@ async def annualized_income_schedule(
                 compensation_type=snapshot.component_type.value,
                 fair_value=to_money(snapshot.value),
                 currency=snapshot.currency,
-                valuation_basis="manual_valuation_snapshot",
+                valuation_basis=(snapshot.valuation_basis.value if snapshot.valuation_basis else "unspecified"),
                 vesting_schedule=snapshot.notes,
                 unlock_date=snapshot.reminder_date,
                 liquidity_class=snapshot.liquidity_class.value,

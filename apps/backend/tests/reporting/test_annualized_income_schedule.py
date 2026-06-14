@@ -15,7 +15,12 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, ManualValuationSnapshot
+from src.models.layer3 import (
+    ManualValuationBasis,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    ManualValuationSnapshot,
+)
 from src.services.reporting import income_bucket
 
 
@@ -140,12 +145,61 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
         "compensation_type": "rsu",
         "fair_value": "12500.00",
         "currency": "SGD",
-        "valuation_basis": "manual_valuation_snapshot",
+        "valuation_basis": "unspecified",
         "vesting_schedule": "25% annual vesting",
         "unlock_date": "2027-01-01",
         "liquidity_class": "restricted",
         "net_worth_treatment": "excluded_from_liquid_net_worth_by_default",
     }
+
+
+async def test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+):
+    """AC11.11.4: A restricted holding surfaces its structured valuation_basis enum value.
+
+    A snapshot captured with an explicit evidence basis must report that enum
+    value in the schedule (not the hardcoded `manual_valuation_snapshot` literal);
+    a snapshot with no basis must fall back to `unspecified`.
+    """
+    db.add_all(
+        [
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.RSU,
+                liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+                as_of_date=date(2026, 5, 1),
+                value=Decimal("12500.00"),
+                currency="SGD",
+                source="GRANT-RSU",
+                valuation_basis=ManualValuationBasis.EMPLOYER_GRANT_DOCUMENT,
+                notes="25% annual vesting",
+                reminder_date=date(2027, 1, 1),
+            ),
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.ESOP,
+                liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+                as_of_date=date(2026, 4, 15),
+                value=Decimal("85000.00"),
+                currency="SGD",
+                source="LEGACY-ESOP",
+                valuation_basis=None,
+                notes="4-year vesting",
+                reminder_date=date(2028, 4, 15),
+            ),
+        ]
+    )
+    await db.commit()
+
+    response = await client.get("/reports/package/annualized-income-schedule?as_of_date=2026-05-20")
+
+    assert response.status_code == 200
+    holdings = {holding["ticker"]: holding for holding in response.json()["restricted_holdings"]}
+    assert holdings["GRANT-RSU"]["valuation_basis"] == "employer_grant_document"
+    assert holdings["LEGACY-ESOP"]["valuation_basis"] == "unspecified"
 
 
 async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals(

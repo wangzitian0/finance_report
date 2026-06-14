@@ -705,6 +705,9 @@ class AnnualizedIncomeScheduleHolding(BaseModel):
     compensation_type: str
     fair_value: Decimal
     currency: str = Field(min_length=3, max_length=3)
+    # Structured evidence basis (#706): the snapshot's `valuation_basis` enum value
+    # (e.g. `employer_grant_document`, `market_appraisal`), or `unspecified` when no
+    # basis was captured. Surfaces how the manual-trusted value was substantiated.
     valuation_basis: str
     vesting_schedule: str | None = None
     unlock_date: date | None = None

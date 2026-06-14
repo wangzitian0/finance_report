@@ -40,6 +40,7 @@ from src.models.layer2 import AssetType, AtomicPosition, TransactionDirection
 from src.models.layer3 import (
     CostBasisMethod,
     ManagedPosition,
+    ManualValuationBasis,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
@@ -1360,6 +1361,54 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
         for identifier in line[anchor_name]["identifiers"]
     }
     assert f"atomic_transaction:{other_source_id}" not in all_identifiers
+
+
+async def test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC11.9.10: Traceability appendix surfaces each manual snapshot's valuation_basis."""
+    report_date = date(2026, 5, 31)
+
+    with_basis = ManualValuationSnapshot(
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        as_of_date=report_date,
+        value=Decimal("500000.00"),
+        currency="SGD",
+        source="Appraised Property",
+        valuation_basis=ManualValuationBasis.MARKET_APPRAISAL,
+    )
+    without_basis = ManualValuationSnapshot(
+        user_id=test_user.id,
+        component_type=ManualValuationComponentType.LONG_TERM_SAVINGS,
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        as_of_date=report_date,
+        value=Decimal("12000.00"),
+        currency="SGD",
+        source="Legacy Savings",
+        valuation_basis=None,
+    )
+    db.add_all([with_basis, without_basis])
+    await db.commit()
+
+    response = await personal_report_package_traceability(
+        start_date=date(2026, 5, 1),
+        end_date=report_date,
+        as_of_date=report_date,
+        db=db,
+        user_id=test_user.id,
+    )
+    lines = {line["line_id"]: line for line in response.model_dump(mode="json")["lines"]}
+    details = {
+        detail["source_id"]: detail
+        for detail in lines["balance_sheet.total_assets"]["source_anchor"]["details"]
+        if detail["source_kind"] == "manual_valuation_snapshot"
+    }
+
+    assert details[str(with_basis.id)]["valuation_basis"] == "market_appraisal"
+    assert details[str(without_basis.id)]["valuation_basis"] == "unspecified"
 
 
 def test_AC19_10_1_source_anchor_resolver_requires_typed_source_membership():
