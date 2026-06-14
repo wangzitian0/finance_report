@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatProportionPercent,
   hasNoSnapshots,
+  parseProportion,
   summarizeReplay,
   toSparklinePoints,
   trendDelta,
@@ -25,6 +26,17 @@ function snapshot(
 }
 
 describe("confidence helpers (#1003 / #1055 PR4)", () => {
+  describe("parseProportion", () => {
+    it("returns null for null/undefined/blank/non-numeric and parses real values", () => {
+      expect(parseProportion(null)).toBeNull();
+      expect(parseProportion(undefined)).toBeNull();
+      expect(parseProportion("  ")).toBeNull();
+      expect(parseProportion("abc")).toBeNull();
+      expect(parseProportion("0.25")).toBe(0.25);
+      expect(parseProportion(0.5)).toBe(0.5);
+    });
+  });
+
   describe("formatProportionPercent", () => {
     it("formats a Decimal-string proportion as a percentage", () => {
       expect(formatProportionPercent("0.12500")).toBe("12.5%");
