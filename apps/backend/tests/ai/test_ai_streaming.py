@@ -327,6 +327,38 @@ class TestStreamAIJson:
                 assert payload["temperature"] == 0.0
                 assert payload["do_sample"] is False
                 assert payload["thinking"] == {"type": "disabled"}
+                assert "seed" not in payload
+
+    async def test_stream_ai_json_includes_seed_when_provided(self):
+        """AC13.16.1: A provided seed is forwarded in the request payload for
+        deterministic decoding (#989)."""
+        events = [ServerSentEvent(data="[DONE]")]
+
+        mock_event_source = MagicMock()
+        mock_event_source.response.status_code = 200
+        mock_event_source.aiter_sse = MagicMock(return_value=MockAsyncIterator(events))
+
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.__aenter__.return_value = mock_client
+
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
+                mock_aconnect.return_value.__aenter__.return_value = mock_event_source
+
+                async for _ in stream_ai_json(
+                    messages=[{"role": "user", "content": "Hi"}],
+                    model="test-model",
+                    api_key="test-key",
+                    timeout=360.0,
+                    max_tokens=8192,
+                    temperature=0.0,
+                    do_sample=False,
+                    seed=42,
+                ):
+                    pass
+
+                payload = mock_aconnect.call_args.kwargs["json"]
+                assert payload["seed"] == 42
 
 
 class TestStreamErrorHandling:

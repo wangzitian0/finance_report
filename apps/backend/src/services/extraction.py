@@ -741,6 +741,7 @@ class ExtractionService:
                     max_tokens=settings.ai_json_max_tokens,
                     temperature=0.0,
                     do_sample=False,
+                    seed=settings.ai_json_seed,
                     thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
                 )
 

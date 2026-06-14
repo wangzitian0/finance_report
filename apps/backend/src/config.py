@@ -8,7 +8,7 @@ Environment Variable Strategy:
 
 from functools import cached_property
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -377,6 +377,28 @@ class Settings(BaseSettings):
         description="Daily AI spend limit in USD (None to disable).",
         json_schema_extra={"group": "AI Provider"},
     )
+    # Deterministic decoding for OCR/extraction (#989): a fixed seed makes the
+    # provider decode reproducibly so the same statement does not sometimes
+    # reconcile and sometimes not. Set AI_JSON_SEED= (empty) to omit it for
+    # providers that reject the field.
+    ai_json_seed: int | None = Field(
+        default=42,
+        validation_alias="AI_JSON_SEED",
+        description="Fixed decoding seed for reproducible AI extraction (empty to omit).",
+        json_schema_extra={"group": "AI Provider"},
+    )
+
+    @field_validator("ai_json_seed", mode="before")
+    @classmethod
+    def _empty_seed_is_none(cls, value: object) -> object:
+        """Treat an empty/whitespace AI_JSON_SEED as omitted (None).
+
+        Pydantic cannot parse "" as int, so an empty env value would otherwise
+        raise at startup and the seed could never actually be omitted via env.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     # S3 optional settings
     s3_region: str = Field(

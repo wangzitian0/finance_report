@@ -26,6 +26,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_DAILY_LIMIT_USD` | `2` |  |  | AI Provider | Daily AI spend limit in USD (None to disable). |
 | `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Disable provider 'thinking' mode for AI JSON completion calls. |
 | `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
+| `AI_JSON_SEED` | `42` |  |  | AI Provider | Fixed decoding seed for reproducible AI extraction (empty to omit). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
 | `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_MODEL_CATALOG_SOURCE` | `configured` |  |  | AI Provider | Source of the AI model catalog. |
