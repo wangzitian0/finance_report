@@ -251,3 +251,21 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 |----|-----------|---------------|------|----------|
 | AC13.11.1 | Dual-write handles duplicate document hash / IntegrityError without failing. | `test_dual_write_layer2_integrity_error_is_non_fatal` | `extraction/test_extraction_error_paths.py` | P1 |
 | AC13.11.2 | Dedup upsert sanitizes malformed source_documents payloads (transaction). | `test_upsert_atomic_transaction_handles_non_list_source_documents` | `extraction/test_deduplication.py` | P1 |
+
+### AC13.13: Extraction Determinism (#989)
+
+The AI vision model is not bit-reproducible and cannot be pinned in CI, but
+everything *downstream* of the model response must be. Given identical extracted
+model output, `confidence_score`, `status` (routing), `validation_error`, and the
+resulting transaction set must be identical on every parse. These ACs pin that
+seam so a regression that re-introduces non-determinism (dict/set iteration order,
+unstable tie-breaking, unseeded randomness) in the scoring/routing pipeline fails
+CI. Model-level reproducibility (the same PDF re-sent to the provider) is a
+separate concern owned by the extraction-retry / temperature configuration, not
+this gate.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.13.1 | Pure scoring + routing functions return identical results across N runs on the same input. | `test_scoring_and_routing_are_deterministic` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.13.2 | Re-parsing identical model output yields identical confidence/status/validation_error across N parses. | `test_repeated_parse_yields_identical_confidence_status_validation` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.13.3 | Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
