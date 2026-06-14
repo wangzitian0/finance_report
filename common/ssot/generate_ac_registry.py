@@ -23,8 +23,6 @@ EPIC_DIR = "docs/project"
 OUTPUT_FEATURE = "docs/ac_registry.yaml"
 OUTPUT_INFRA = "docs/infra_registry.yaml"
 OVERRIDES = "docs/ac_registry_overrides.yaml"
-# Backward-compat alias used by tests
-OUTPUT = OUTPUT_FEATURE
 
 # EPIC classification: which EPICs are feature vs infra
 FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19, 20, 21, 22}
@@ -208,7 +206,7 @@ def classify_ac(ac_id: str, entry: dict) -> str:
 
 def write_registry(all_acs: dict[str, dict], output_path: str | None = None) -> None:
     if output_path is None:
-        output_path = OUTPUT
+        output_path = OUTPUT_FEATURE
     _require_yaml()
     groups: dict[str, dict[str, list[dict]]] = {}
     for ac_id in sorted(all_acs.keys(), key=sort_key):
