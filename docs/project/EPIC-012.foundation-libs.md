@@ -408,15 +408,20 @@ callers branch on a machine-readable code instead of matching `detail` text.
 
 ### AC12.28: Generated Frontend API Types from OpenAPI ([#1004](https://github.com/wangzitian0/finance_report/issues/1004))
 
-Tier 2 of #1000. The backend OpenAPI schema generates a checked-in TypeScript
-types module, and a staleness gate (`tools/generate_openapi_spec.py --check`)
-fails when the generated types drift from the live schema — enforcing the FE↔BE
-contract at the boundary.
+Tier 2 of #1000. The backend OpenAPI schema is serialized to a checked-in spec
+(`apps/frontend/openapi.json`), and a staleness gate
+(`tools/generate_openapi_spec.py --check`) fails when that committed spec drifts
+from the live FastAPI schema. `api-types.ts` is regenerated from the spec
+(`npm run gen:api-types`), and high-traffic call sites consume the generated
+`Schemas[...]` aliases (via `lib/api-schema.ts`) so a backend response-shape
+change that isn't regenerated is caught at compile time (`npm run build`) —
+enforcing the FE↔BE contract instead of leaving the generated client as dead code.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC12.28.1 | The generator emits the spec from the live OpenAPI schema | `test_AC12_28_1_generator_emits_types_from_openapi` | `tests/tooling/test_generate_openapi_spec.py` | P2 |
 | AC12.28.2 | The `--check` staleness gate fails when the committed spec is stale | `test_AC12_28_2_staleness_gate_detects_drift` | `tests/tooling/test_generate_openapi_spec.py` | P2 |
+| AC12.28.3 | High-traffic call sites type responses against the generated schema | `test_AC12_28_3_types_stage2_batch_responses_against_generated_schema` | `__tests__/apiTypedClient.test.ts` | P2 |
 
 ---
 
