@@ -158,6 +158,9 @@ jobs:
           cd apps/backend
           uv run python ../../tools/generate_db_schema_reference.py
           uv run python ../../tools/generate_db_schema_reference.py --check
+      - name: Generated Vision-to-Proof Matrix Check
+        run: |
+          uv run --with pyyaml python tools/generate_vision_proof_matrix.py --check
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose

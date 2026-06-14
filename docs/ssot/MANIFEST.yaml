@@ -170,6 +170,20 @@ concepts:
       - docs/ssot/extraction.md
       - docs/project/EPIC-013.statement-parsing-v2.md
 
+  vision_proof_matrix:
+    owner: docs/ssot/vision-proof-matrix.yaml
+    family: tdd
+    kind: matrix
+    description: Generated parseable vision-anchor -> EPIC -> AC -> test proof matrix (supersedes #442/#480).
+    proofs:
+      - tests/tooling/test_generate_vision_proof_matrix.py
+      - tools/generate_vision_proof_matrix.py
+    cross_refs:
+      - vision.md
+      - docs/reference/vision-proof-matrix.md
+      - docs/project/EPIC-014.ttd-transformation.md
+      - .github/workflows/ci.yml
+
   pdf_fixtures:
     owner: docs/ssot/pdf-fixtures.md
     description: Synthetic PDF fixture commands, local-only real-PDF handling, committed template policy, and font fallback.
