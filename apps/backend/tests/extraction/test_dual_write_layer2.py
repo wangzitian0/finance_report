@@ -9,8 +9,10 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 
-from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
+from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.models.statement_summary import StatementSummary
 from src.services.extraction import ExtractionService
 
 
@@ -102,6 +104,68 @@ class TestDualWriteLayer2:
         assert uploaded_doc.original_filename == "test_statement.pdf"
         assert uploaded_doc.document_type == DocumentType.BANK_STATEMENT
         assert uploaded_doc.extraction_metadata is None
+
+    async def test_dual_write_marks_document_completed(self, db, test_user, mock_ai_response, sample_file_content):
+        """AC16.22.9: a successfully parsed-and-persisted document advances to status=completed
+        instead of staying stuck at 'uploaded'."""
+        service = ExtractionService()
+
+        with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
+            await service.parse_document(
+                file_path=Path("test_statement.pdf"),
+                institution="DBS",
+                user_id=test_user.id,
+                file_content=sample_file_content,
+                file_hash=hashlib.sha256(sample_file_content).hexdigest(),
+                original_filename="test_statement.pdf",
+                db=db,
+            )
+
+        await db.commit()
+
+        uploaded_doc = (
+            await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
+        ).scalar_one()
+        assert uploaded_doc.status == DocumentStatus.COMPLETED
+
+    async def test_dual_write_persists_pending_review_onto_reused_envelope(
+        self, db, test_user, mock_ai_response, sample_file_content
+    ):
+        """AC16.22.8: in the real flow the upload pre-creates a StatementSummary envelope, so
+        dual_write reconciles onto that reused row. The freshly-computed stage1_status=pending_review
+        must be persisted there, not dropped (the no-db unit path hid this)."""
+        service = ExtractionService()
+        file_hash = hashlib.sha256(sample_file_content).hexdigest()
+
+        # Pre-create the envelope exactly as the upload endpoint does (reused by user_id+file_hash).
+        pre = StatementSummary(
+            user_id=test_user.id,
+            file_hash=file_hash,
+            institution="DBS",
+            currency="SGD",
+            status=BankStatementStatus.UPLOADED,
+            stage1_status=None,
+        )
+        db.add(pre)
+        await db.flush()
+
+        with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
+            await service.parse_document(
+                file_path=Path("test_statement.pdf"),
+                institution="DBS",
+                user_id=test_user.id,
+                file_content=sample_file_content,
+                file_hash=file_hash,
+                original_filename="test_statement.pdf",
+                db=db,
+            )
+        await db.commit()
+
+        persisted = (
+            await db.execute(select(StatementSummary).where(StatementSummary.file_hash == file_hash))
+        ).scalar_one()
+        assert persisted.status == BankStatementStatus.PARSED
+        assert persisted.stage1_status == Stage1Status.PENDING_REVIEW
 
     async def test_dual_write_persists_brokerage_extraction_metadata(
         self, db, test_user, sample_file_content, monkeypatch

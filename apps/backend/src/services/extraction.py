@@ -18,7 +18,7 @@ from src.config import settings
 from src.logger import get_logger
 from src.models import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
-from src.models.statement_enums import BankStatementStatus
+from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.prompts import get_parsing_prompt
 from src.services.brokerage_positions import looks_like_brokerage_payload
@@ -515,6 +515,11 @@ class ExtractionService:
                 statement.validation_error = balance_result["notes"]
             statement.confidence_score = confidence
             statement.status = status
+            # A statement that lands in review must carry an explicit pending_review marker so the
+            # queue does not rely on a NULL fallback. The auto-approve path owns the approved/None
+            # transitions for APPROVED rows, so only set this for review-bound PARSED statements.
+            if status == BankStatementStatus.PARSED:
+                statement.stage1_status = Stage1Status.PENDING_REVIEW
 
             logger.info(
                 "Parsing validation completed",
