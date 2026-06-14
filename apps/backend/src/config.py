@@ -8,8 +8,12 @@ Environment Variable Strategy:
 
 from functools import cached_property
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Environments that are real deployments (infra2 issues the telemetry contract
+# here). Local/CI/preview are exempt from the deployed-env fast-fail below.
+_DEPLOYED_ENVIRONMENTS = frozenset({"staging", "production"})
 
 
 def parse_comma_list(value: str | list[str] | None, default: list[str]) -> list[str]:
@@ -399,6 +403,31 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @model_validator(mode="after")
+    def _require_telemetry_contract_in_deployed_envs(self) -> "Settings":
+        """Fast-fail when a deployed env ships telemetry without the contract.
+
+        In staging/production, if OTEL export is enabled, the resource MUST carry a
+        ``deployment.environment`` tag (issued by infra2 at deploy — see
+        repo/docs/ssot/core.environments.md#telemetry-identity). This catches the
+        "untagged production telemetry" class before it reaches SigNoz. Non-deployed
+        environments (local/CI/preview) and telemetry-off deploys are exempt, so
+        this never trips local, tests, or a SigNoz-less deploy.
+        """
+        if self.environment.strip().lower() not in _DEPLOYED_ENVIRONMENTS:
+            return self
+        if not self.otel_exporter_otlp_endpoint:
+            return self
+        attrs = parse_key_value_pairs(self.otel_resource_attributes)
+        if "deployment.environment" not in attrs:
+            raise ValueError(
+                "Telemetry contract violation: OTEL export is enabled in a deployed "
+                "environment but OTEL_RESOURCE_ATTRIBUTES has no "
+                "deployment.environment tag. infra2 must issue it; see "
+                "repo/docs/ssot/core.environments.md#telemetry-identity."
+            )
+        return self
 
     # S3 optional settings
     s3_region: str = Field(
