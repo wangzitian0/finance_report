@@ -54,6 +54,32 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         expect(onClose).toHaveBeenCalled();
     });
 
+    it("AC2.15.8 sends a custom memo and as-of date entered by the user", async () => {
+        mockedApi.mockResolvedValueOnce({ id: "entry-2" });
+        render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
+
+        fireEvent.change(screen.getByLabelText("As-of date *"), { target: { value: "2025-01-01" } });
+        fireEvent.change(screen.getByLabelText("Memo"), { target: { value: "Year-start positions" } });
+        fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "42.00" } });
+        fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
+
+        await waitFor(() => expect(mockedApi).toHaveBeenCalledTimes(1));
+        expect(JSON.parse(mockedApi.mock.calls[0][1]?.body as string)).toEqual({
+            entry_date: "2025-01-01",
+            balances: { a1: "42.00" },
+            memo: "Year-start positions",
+        });
+    });
+
+    it("AC2.15.8 prompts to create an eligible account when none exist", () => {
+        render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={[]} />);
+
+        expect(
+            screen.getByText("Create an asset, liability, or equity account first, then set its opening balance."),
+        ).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Record opening balances" })).toBeDisabled();
+    });
+
     it("AC2.15.8 blocks submission until at least one positive balance is entered", async () => {
         render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
 

@@ -36,6 +36,17 @@ vi.mock("@/components/accounts/AccountFormModal", () => ({
     ) : null,
 }))
 
+vi.mock("@/components/accounts/OpeningBalanceModal", () => ({
+  default: ({ isOpen, onSuccess, onClose }: { isOpen: boolean; onSuccess?: () => void; onClose?: () => void }) =>
+    isOpen ? (
+      <div>
+        Opening Balance Modal
+        {onSuccess && <button onClick={onSuccess}>Mock Record Balances</button>}
+        {onClose && <button onClick={onClose}>Mock Close Opening</button>}
+      </div>
+    ) : null,
+}))
+
 vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }))
@@ -280,5 +291,24 @@ describe("AccountsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Account Details" })).not.toBeInTheDocument())
+  })
+
+  it("AC2.15.8 opens the guided opening-balance modal and refreshes on success", async () => {
+    mockedApiFetch.mockResolvedValue({
+      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+      total: 1,
+    } satisfies AccountListResponse)
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+    await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole("button", { name: /Set opening balances/i }))
+    expect(screen.getByText("Opening Balance Modal")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Mock Record Balances"))
+    expect(showToastMock).toHaveBeenCalledWith("Opening balances recorded", "success")
+
+    fireEvent.click(screen.getByText("Mock Close Opening"))
+    await waitFor(() => expect(screen.queryByText("Opening Balance Modal")).not.toBeInTheDocument())
   })
 })
