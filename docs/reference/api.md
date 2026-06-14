@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `123`
-- Schema count: `205`
+- Endpoint count: `124`
+- Schema count: `208`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -29,7 +29,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `metrics` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
-| `reports` | 20 |
+| `reports` | 21 |
 | `review` | 7 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -193,6 +193,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
 | `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
 | `GET` | `/reports/income-statement` | yes | `start_date`* (query), `end_date`* (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
+| `GET` | `/reports/net-worth/allocation` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthAllocationResponse` | Net Worth Allocation |
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package/annualized-income-schedule` | yes | `as_of_date` (query) | - | `200` `AnnualizedIncomeScheduleResponse` | Annualized Income Schedule |
 | `GET` | `/reports/package/contract` | no | `framework_id` (query) | - | `200` `PersonalReportPackageContractResponse` | Personal Report Package Contract |
