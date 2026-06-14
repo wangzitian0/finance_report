@@ -65,3 +65,32 @@ async def test_AC2_15_3_unknown_account_is_rejected(client):
         json={"entry_date": "2026-01-01", "balances": {str(uuid4()): "100.00"}},
     )
     assert resp.status_code == 400
+
+
+async def test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists(client):
+    """AC2.15.4: an opening balance establishes a starting position, not a delta,
+    so it is rejected when an affected account already has posted activity before
+    the opening date."""
+    bank = await _account(client, "Bank", "ASSET")
+    first = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {bank: "1000.00"}},
+    )
+    assert first.status_code == 201, first.text
+    # A later opening on the same account now has prior activity before it.
+    second = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-06-01", "balances": {bank: "2000.00"}},
+    )
+    assert second.status_code == 400
+
+
+async def test_AC2_15_5_non_base_currency_is_rejected(client):
+    """AC2.15.5: opening balances are accepted only in the base currency (MVP),
+    with a clear error rather than a confusing FX-rate failure."""
+    bank = await _account(client, "Bank", "ASSET")
+    resp = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {bank: "1000.00"}, "currency": "USD"},
+    )
+    assert resp.status_code == 400

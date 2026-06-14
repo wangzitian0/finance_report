@@ -326,6 +326,30 @@ async def post_opening_balance_entry(
     if missing:
         raise ValidationError(f"Unknown or non-owned account(s): {sorted(missing)}")
 
+    base_currency = settings.base_currency.upper()
+    if normalized_currency != base_currency:
+        raise ValidationError(
+            f"Opening balances are supported only in the base currency ({base_currency}); got {normalized_currency}."
+        )
+
+    # An opening balance establishes a starting position, not a delta: reject when
+    # any affected account already has posted/reconciled activity before entry_date,
+    # otherwise the posted amount would stack on top of an existing balance.
+    prior = await db.execute(
+        select(JournalLine.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(JournalLine.account_id.in_(account_ids))
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(JournalEntry.entry_date < entry_date)
+        .limit(1)
+    )
+    if prior.first() is not None:
+        raise ValidationError(
+            "Opening balances must precede all activity for the affected accounts; "
+            "one or more already have posted entries before the opening date."
+        )
+
     lines_data: list[dict] = []
     total_debit = Decimal("0")
     total_credit = Decimal("0")

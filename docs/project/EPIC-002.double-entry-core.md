@@ -232,6 +232,8 @@ A user with pre-existing assets/liabilities can establish year-start balances vi
 | AC2.15.1 | `POST /api/accounts/opening-balances` posts one balanced entry that increases each account to its opening balance on its normal side and offsets the net into a system Opening Balance Equity account; the as-of balance sheet reflects the starting position with the accounting equation intact | `test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet` | `accounting/test_opening_balance.py` | P0 |
 | AC2.15.2 | A single asset opening balance offsets entirely into Opening Balance Equity, keeping the entry balanced | `test_AC2_15_2_single_asset_opening_balance_offsets_into_equity` | `accounting/test_opening_balance.py` | P0 |
 | AC2.15.3 | An opening balance for a non-owned or unknown account is rejected | `test_AC2_15_3_unknown_account_is_rejected` | `accounting/test_opening_balance.py` | P0 |
+| AC2.15.4 | An opening balance establishes a starting position, not a delta: it is rejected when an affected account already has posted activity before the opening date | `test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists` | `accounting/test_opening_balance.py` | P0 |
+| AC2.15.5 | Opening balances are accepted only in the base currency, with a clear error rather than a confusing FX-rate failure | `test_AC2_15_5_non_base_currency_is_rejected` | `accounting/test_opening_balance.py` | P0 |
 
 ## 📏 Acceptance Criteria
 

@@ -78,7 +78,9 @@ async def get_or_create_opening_balance_equity_account(
             Account.code == "3199",
         )
     )
-    account = result.scalar_one_or_none()
+    # Tolerant fetch: a rare duplicate (e.g. concurrent first-time creates without
+    # a DB uniqueness constraint) must not break opening-balance posting.
+    account = result.scalars().first()
     if not account:
         account = Account(
             user_id=user_id,
