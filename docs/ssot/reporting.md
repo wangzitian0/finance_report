@@ -194,6 +194,10 @@ Row rules:
   property and mortgage components are `real_estate`; ESOP, RSU, and stock
   options are `restricted_comp`; tax refunds are `cash`; tax payable and generic
   liabilities are `liability`; other manual components are `other`.
+- Asset-dashboard allocation surfaces that claim net-worth reconciliation use
+  this report-owned schedule. The portfolio performance schedule remains the
+  source for period return, unrealized market-value gain/loss, price freshness,
+  and portfolio-only performance detail.
 
 ### 2.4 Cash Flow Statement
 

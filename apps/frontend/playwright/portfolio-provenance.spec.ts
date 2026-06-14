@@ -43,6 +43,16 @@ const holdings = [
   },
 ];
 
+const netWorthAllocation = {
+  as_of_date: "2026-06-01",
+  currency: "SGD",
+  include_restricted: true,
+  total_assets: "1775.00",
+  total_liabilities: "0.00",
+  net_worth: "1775.00",
+  rows: [],
+};
+
 async function installPortfolioMocks(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("finance_user_id", "portfolio-provenance-smoke-user");
@@ -83,6 +93,8 @@ async function installPortfolioMocks(page: Page) {
       body = { xirr: "8.00", time_weighted_return: "6.00", money_weighted_return: "7.00" };
     } else if (path.startsWith("/api/portfolio/allocation/")) {
       body = [];
+    } else if (path === "/api/reports/net-worth/allocation") {
+      body = netWorthAllocation;
     } else if (path === "/api/portfolio/performance/report-schedule") {
       body = {
         period_start: "2026-01-01",

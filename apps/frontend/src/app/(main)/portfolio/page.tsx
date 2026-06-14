@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, X } from "lucide-react";
@@ -12,22 +12,22 @@ import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
 import { amountToChartNumber, formatAmount, formatCurrencyLocale, sumAmounts } from "@/lib/currency";
-import type { InvestmentPerformanceAllocationRow, InvestmentPerformanceReportSchedule } from "@/lib/types";
+import type { InvestmentPerformanceReportSchedule, NetWorthAllocationResponse, NetWorthAllocationRow } from "@/lib/types";
 
-function isAssetClassAllocation(row: InvestmentPerformanceAllocationRow): boolean {
-    return row.dimension === "asset_class" || row.dimension === "asset-class";
-}
+const REPORT_CURRENCY = "SGD";
 
-function allocationBarWidth(percentage: string): string {
+function allocationBarWidth(percentage: string | null): string {
+    if (percentage === null) return "0%";
     try {
-        const value = amountToChartNumber(percentage);
+        const value = Math.abs(amountToChartNumber(percentage));
         return `${Math.min(100, Math.max(0, value))}%`;
     } catch {
         return "0%";
     }
 }
 
-function formatAllocationPercent(percentage: string): string {
+function formatAllocationPercent(percentage: string | null): string {
+    if (percentage === null) return "N/A";
     try {
         return `${formatAmount(percentage, 1)}%`;
     } catch {
@@ -35,9 +35,35 @@ function formatAllocationPercent(percentage: string): string {
     }
 }
 
+function formatAllocationLabel(value: string): string {
+    return value
+        .replace(/[_-]+/g, " ")
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function allocationValueClass(row: NetWorthAllocationRow): string {
+    return amountToChartNumber(row.value) < 0 ? "text-[var(--error)]" : "text-[var(--foreground)]";
+}
+
+function allocationBarClass(row: NetWorthAllocationRow): string {
+    return amountToChartNumber(row.value) < 0 ? "bg-[var(--error)]" : "bg-[var(--accent)]";
+}
+
 export default function PortfolioPage() {
     const [showDisposed, setShowDisposed] = useState(false);
     const [asOfDate, setAsOfDate] = useState("");
+    const [includeRestrictedAllocation, setIncludeRestrictedAllocation] = useState(true);
+
+    const netWorthAllocationQueryString = useMemo(() => {
+        const params = new URLSearchParams({
+            currency: REPORT_CURRENCY,
+            include_restricted: includeRestrictedAllocation ? "true" : "false",
+        });
+        if (asOfDate) {
+            params.set("as_of_date", asOfDate);
+        }
+        return params.toString();
+    }, [asOfDate, includeRestrictedAllocation]);
 
     const { data: holdings, isLoading, error, refetch } = useQuery({
         queryKey: ["portfolio-holdings", showDisposed, asOfDate],
@@ -77,21 +103,19 @@ export default function PortfolioPage() {
             return apiFetch<InvestmentPerformanceReportSchedule>(`/api/portfolio/performance/report-schedule?${params}`);
         },
     });
+    const {
+        data: netWorthAllocation,
+        isLoading: isNetWorthAllocationLoading,
+        error: netWorthAllocationError,
+    } = useQuery({
+        queryKey: ["reports-net-worth-allocation", netWorthAllocationQueryString],
+        queryFn: () => apiFetch<NetWorthAllocationResponse>(`/api/reports/net-worth/allocation?${netWorthAllocationQueryString}`),
+    });
 
     const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
     const totalPortfolioValue = sumAmounts(activeHoldings.map((holding) => holding.market_value));
     const primaryCurrency = activeHoldings[0]?.currency ?? "USD";
-    const assetClassAllocationRows = (performanceSchedule?.allocation ?? []).filter(isAssetClassAllocation);
-    const unifiedAllocationSchedule =
-        performanceSchedule &&
-        !isPerformanceScheduleLoading &&
-        !performanceScheduleError &&
-        activeHoldings.length > 0 &&
-        assetClassAllocationRows.length > 0
-            ? performanceSchedule
-            : null;
-    const allocationCurrencyMatchesPortfolio =
-        unifiedAllocationSchedule?.currency.toUpperCase() === primaryCurrency.toUpperCase();
+    const allocationRows = netWorthAllocation?.rows ?? [];
 
     return (
         <div className="p-6">
@@ -135,58 +159,116 @@ export default function PortfolioPage() {
                 </div>
             )}
 
-            {unifiedAllocationSchedule ? (
-                <section className="mb-6 card p-5" aria-labelledby="unified-allocation-title">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                            <p className="text-xs text-muted uppercase tracking-wide">Asset Class</p>
-                            <h2 id="unified-allocation-title" className="mt-1 text-base font-semibold">
-                                Unified Allocation
-                            </h2>
-                            <p className="mt-1 text-sm text-muted">
-                                {allocationCurrencyMatchesPortfolio
-                                    ? `Ties to portfolio value: ${formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}`
-                                    : `Portfolio value shown in ${primaryCurrency}: ${formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}`}
-                            </p>
-                        </div>
-                        <p className="text-xs text-muted md:text-right">
-                            Schedule currency: {unifiedAllocationSchedule.currency}
+            <section className="mb-6 card p-5" aria-labelledby="net-worth-allocation-title" aria-busy={isNetWorthAllocationLoading}>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <p className="text-xs text-muted uppercase tracking-wide">Asset Class x Liquidity x Source Currency</p>
+                        <h2 id="net-worth-allocation-title" className="mt-1 text-base font-semibold">
+                            Net Worth Allocation
+                        </h2>
+                        <p className="mt-1 text-sm text-muted">
+                            {netWorthAllocation
+                                ? `Reconciles to net worth: ${formatCurrencyLocale(netWorthAllocation.net_worth, netWorthAllocation.currency)}`
+                                : "Reconciles allocation rows to net worth"}
                         </p>
+                        {activeHoldings.length > 0 ? (
+                            <p className="mt-1 text-sm text-muted">
+                                Portfolio value shown in {primaryCurrency}: {formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}
+                            </p>
+                        ) : null}
                     </div>
-
-                    <div className="mt-4 overflow-hidden rounded border border-[var(--border)]">
-                        <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(7rem,0.7fr)_minmax(5rem,0.5fr)_minmax(6rem,0.5fr)] gap-3 border-b border-[var(--border)] bg-[var(--background-muted)] px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted md:grid">
-                            <span>Asset class</span>
-                            <span className="text-right">Value</span>
-                            <span className="text-right">Share</span>
-                            <span className="text-right">Holdings</span>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="text-xs text-muted md:text-right">
+                            <p>Report currency: {netWorthAllocation?.currency ?? REPORT_CURRENCY}</p>
+                            <p>As of {netWorthAllocation?.as_of_date ?? (asOfDate || "latest")}</p>
                         </div>
-                        {assetClassAllocationRows.map((row) => (
+                        <label className="flex items-center gap-2 rounded border border-[var(--border)] px-3 py-2 text-sm text-muted cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={includeRestrictedAllocation}
+                                onChange={(event) => setIncludeRestrictedAllocation(event.target.checked)}
+                                className="rounded"
+                            />
+                            <span>Include restricted holdings in allocation</span>
+                        </label>
+                    </div>
+                </div>
+
+                {netWorthAllocation ? (
+                    <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                        <div className="rounded border border-[var(--border)] p-3">
+                            <dt className="text-xs text-muted uppercase">Total assets</dt>
+                            <dd className="mt-1 font-semibold">{formatCurrencyLocale(netWorthAllocation.total_assets, netWorthAllocation.currency)}</dd>
+                        </div>
+                        <div className="rounded border border-[var(--border)] p-3">
+                            <dt className="text-xs text-muted uppercase">Total liabilities</dt>
+                            <dd className="mt-1 font-semibold">{formatCurrencyLocale(netWorthAllocation.total_liabilities, netWorthAllocation.currency)}</dd>
+                        </div>
+                        <div className="rounded border border-[var(--border)] p-3">
+                            <dt className="text-xs text-muted uppercase">Net worth</dt>
+                            <dd className="mt-1 font-semibold">{formatCurrencyLocale(netWorthAllocation.net_worth, netWorthAllocation.currency)}</dd>
+                        </div>
+                    </dl>
+                ) : null}
+
+                <div className="mt-4 overflow-hidden rounded border border-[var(--border)]">
+                    <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(6rem,0.6fr)_minmax(6rem,0.6fr)_minmax(5rem,0.4fr)_minmax(8rem,0.8fr)] gap-3 border-b border-[var(--border)] bg-[var(--background-muted)] px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted md:grid">
+                        <span>Asset class</span>
+                        <span className="text-right">Value</span>
+                        <span className="text-right">Share</span>
+                        <span className="text-right">Source currency</span>
+                        <span>Sources</span>
+                    </div>
+                    {isNetWorthAllocationLoading ? (
+                        <div className="px-3 py-4 text-sm text-muted">Loading net worth allocation...</div>
+                    ) : netWorthAllocationError ? (
+                        <div className="px-3 py-4 text-sm text-muted">Unable to load net worth allocation</div>
+                    ) : allocationRows.length === 0 ? (
+                        <div className="px-3 py-4 text-sm text-muted">No allocation rows available</div>
+                    ) : (
+                        allocationRows.map((row) => (
                             <div
-                                key={`${row.dimension}-${row.category}`}
-                                className="grid gap-2 border-b border-[var(--border)] px-3 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.5fr)_minmax(7rem,0.7fr)_minmax(5rem,0.5fr)_minmax(6rem,0.5fr)] md:items-center"
+                                key={`${row.asset_class}-${row.liquidity_class}-${row.source_currency}`}
+                                className="grid gap-2 border-b border-[var(--border)] px-3 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(6rem,0.6fr)_minmax(6rem,0.6fr)_minmax(5rem,0.4fr)_minmax(8rem,0.8fr)] md:items-center"
                             >
                                 <div className="min-w-0">
-                                    <p className="font-medium text-[var(--foreground)]">{row.category}</p>
+                                    <p className="font-medium text-[var(--foreground)]">{formatAllocationLabel(row.asset_class)}</p>
+                                    <p className="mt-1 text-xs text-muted">{formatAllocationLabel(row.liquidity_class)}</p>
                                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--background-muted)]" aria-hidden="true">
                                         <div
-                                            className="h-full rounded-full bg-[var(--accent)]"
-                                            style={{ width: allocationBarWidth(row.percentage) }}
+                                            className={`h-full rounded-full ${allocationBarClass(row)}`}
+                                            style={{ width: allocationBarWidth(row.percentage_of_net_worth) }}
                                         />
                                     </div>
                                 </div>
-                                <p className="text-sm font-medium md:text-right">
-                                    {formatCurrencyLocale(row.value, unifiedAllocationSchedule.currency)}
+                                <p className={`text-sm font-medium md:text-right ${allocationValueClass(row)}`}>
+                                    {formatCurrencyLocale(row.value, netWorthAllocation?.currency ?? REPORT_CURRENCY)}
                                 </p>
-                                <p className="text-sm text-muted md:text-right">{formatAllocationPercent(row.percentage)}</p>
-                                <p className="text-sm text-muted md:text-right">
-                                    {row.count} holding{row.count === 1 ? "" : "s"}
-                                </p>
+                                <p className="text-sm text-muted md:text-right">{formatAllocationPercent(row.percentage_of_net_worth)}</p>
+                                <p className="text-sm text-muted md:text-right">{row.source_currency}</p>
+                                <div className="min-w-0 text-sm text-muted">
+                                    <p className="font-medium text-[var(--foreground)]">
+                                        {row.source_line_count} source{row.source_line_count === 1 ? "" : "s"}
+                                    </p>
+                                    <ul className="mt-1 space-y-1">
+                                        {row.source_lines.slice(0, 2).map((line) => (
+                                            <li key={`${line.source_type}-${line.source_id ?? line.label}`} className="truncate" title={line.label}>
+                                                {line.href ? (
+                                                    <Link href={line.href} className="hover:text-[var(--foreground)]">
+                                                        {line.label}
+                                                    </Link>
+                                                ) : (
+                                                    line.label
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                </section>
-            ) : null}
+                        ))
+                    )}
+                </div>
+            </section>
 
             <div className="grid gap-4 md:grid-cols-3 mb-6">
                 <PerformanceCard />
