@@ -380,3 +380,39 @@ class TestReportsEndpoints:
         body = response.json()
         assert isinstance(body, list)
         assert any(s["report_type"] == ReportType.BALANCE_SHEET.value for s in body)
+
+    async def test_account_lineage_unknown_account_returns_404(self, client: AsyncClient, db, test_user: User):
+        """Account-lineage drill-down maps a missing account to 404 (ReportError path)."""
+        response = await client.get(f"/reports/account-lineage?account_id={uuid4()}")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_account_lineage_returns_payload_for_known_account(self, client: AsyncClient, db, test_user: User):
+        """Account-lineage returns the lineage payload for an owned account."""
+        account = Account(
+            user_id=test_user.id,
+            name="Lineage Cash",
+            type=AccountType.ASSET,
+            currency="SGD",
+        )
+        db.add(account)
+        await db.commit()
+        await db.refresh(account)
+
+        response = await client.get(f"/reports/account-lineage?account_id={account.id}&currency=SGD")
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.json(), dict)
+
+    async def test_export_cash_flow_missing_dates_returns_400(self, client: AsyncClient, db, test_user: User):
+        """Cash-flow export without start/end dates is a 400."""
+        response = await client.get("/reports/export?report_type=cash-flow&format=csv")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    async def test_generate_personal_report_package_snapshot(self, client: AsyncClient, db, test_user: User):
+        """POST /reports/package/generate builds all section payloads and persists a snapshot."""
+        today = date.today()
+        start = today - timedelta(days=30)
+        response = await client.post(
+            f"/reports/package/generate?start_date={start}&end_date={today}&as_of_date={today}&currency=SGD"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.json(), dict)
