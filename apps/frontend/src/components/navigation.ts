@@ -10,6 +10,7 @@ import {
     MessageSquare,
     ShieldCheck,
     SlidersHorizontal,
+    TrendingDown,
     UploadCloud,
     Wallet,
     Zap,
@@ -42,6 +43,7 @@ export const advancedNavItems: NavItem[] = [
     { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
     { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
     { icon: Clock, label: "Processing", href: "/processing", protected: true },
+    { icon: TrendingDown, label: "Confidence Trend", href: "/confidence", protected: true },
     { icon: SlidersHorizontal, label: "AI Settings", href: "/settings/ai", protected: true },
 ];
 
@@ -71,6 +73,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
     "/reconciliation/review-queue": { label: "Review Queue", Icon: Link2 },
     "/processing": { label: "Processing", Icon: Clock },
+    "/confidence": { label: "Confidence Trend", Icon: TrendingDown },
     "/chat": { label: "Chat", Icon: MessageSquare },
     "/settings/ai": { label: "AI Settings", Icon: SlidersHorizontal },
     "/ping-pong": { label: "Ping-Pong", Icon: Zap },

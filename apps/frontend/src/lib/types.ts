@@ -1038,3 +1038,36 @@ export interface BrokerageImportResponse {
   reconcile_disposed: number;
   skipped: number;
 }
+
+// ── North-Star confidence metric (EPIC-018 AC18.12 / #1003, #1055 PR4) ─────
+//
+// The single measurable expression of Axiom B's loop: the share of posted
+// ledger facts that sit in the LOW confidence tier. Lower is better. Decimal
+// proportions arrive as strings (e.g. "0.12500") to preserve precision.
+
+export interface ConfidenceMetricPoint {
+  total_count: number;
+  low_confidence_count: number;
+  low_confidence_proportion: string;
+  tier_breakdown: Record<string, number>;
+}
+
+export interface ConfidenceMetricSnapshot extends ConfidenceMetricPoint {
+  id: string;
+  captured_at: string;
+}
+
+export interface ConfidenceNorthStarResponse {
+  current: ConfidenceMetricPoint;
+  /** Recorded trend, newest-first. */
+  series: ConfidenceMetricSnapshot[];
+}
+
+export interface CorrectionLoopReplayResponse {
+  holdout_size: number;
+  grounded: number;
+  proportion_before: string;
+  proportion_after: string;
+  /** Whether the correction loop measurably lowered the held-out proportion. */
+  reduced: boolean;
+}
