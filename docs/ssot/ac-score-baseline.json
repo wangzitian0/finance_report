@@ -4,6 +4,11 @@
       "metric": "description_similarity_pct",
       "provenance": "deterministic",
       "score": 1.0
+    },
+    "AC8.16.1": {
+      "metric": "superseded_excluded_corrected_total_match",
+      "provenance": "deterministic",
+      "score": 1.0
     }
   },
   "version": 1
