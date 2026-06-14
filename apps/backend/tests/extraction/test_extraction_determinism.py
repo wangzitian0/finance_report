@@ -93,11 +93,31 @@ _BROKERAGE = {
 }
 
 
+def _txn_identity(t) -> tuple:
+    """Full identity of one AtomicTransaction.
+
+    AC13.13 is about the resulting transaction *set* being identical, so the
+    fingerprint must cover every field that distinguishes one row from another —
+    including ``dedup_hash`` (the system's own uniqueness key) and ``balance_after``.
+    Fingerprinting only amount/description/direction would miss real drift where
+    dates, references, currency, or the dedup key change while those three stay
+    fixed (or where two distinct rows share amount+description+direction).
+    """
+    return (
+        str(t.txn_date),
+        str(t.amount),
+        str(getattr(t, "direction", "")),
+        t.description or "",
+        t.reference or "",
+        t.currency or "",
+        str(t.balance_after) if t.balance_after is not None else "",
+        t.dedup_hash,
+    )
+
+
 def _outcome_signature(statement, transactions) -> tuple:
     """Stable, comparable fingerprint of everything #989 says drifts across uploads."""
-    txn_sig = tuple(
-        sorted((str(t.amount), t.description or "", str(getattr(t, "direction", ""))) for t in transactions)
-    )
+    txn_sig = tuple(sorted(_txn_identity(t) for t in transactions))
     return (
         statement.confidence_score,
         statement.status,
