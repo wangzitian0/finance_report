@@ -14,11 +14,45 @@ Coverage Tier Definition:
 """
 
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 TEST_DATE = date(2024, 6, 15)  # Fixed date constant for deterministic E2E tests
+
+
+async def _create_account(client, name, acct_type, currency="SGD"):
+    """Create an account via the API and return its id."""
+    resp = await client.post("/accounts", json={"name": name, "type": acct_type, "currency": currency})
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def _post_balanced_entry(client, *, debit_id, credit_id, amount, entry_date, memo, currency="SGD"):
+    """Create and POST a balanced two-account journal entry so it lands in reports.
+
+    Drafts do not appear in reports; the Tier-1 report journeys assert real numbers,
+    so the entry must reach POSTED status.
+    """
+    create = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": entry_date.isoformat(),
+            "memo": memo,
+            "lines": [
+                {"account_id": debit_id, "direction": "DEBIT", "amount": amount, "currency": currency},
+                {"account_id": credit_id, "direction": "CREDIT", "amount": amount, "currency": currency},
+            ],
+        },
+    )
+    assert create.status_code == 201, create.text
+    entry_id = create.json()["id"]
+    posted = await client.post(f"/journal-entries/{entry_id}/post")
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["status"] == "posted"
+    return entry_id
+
 
 # ---------------------------------------------------------------------------
 # AC8.1: Smoke Tests (Health Checks)
@@ -494,36 +528,55 @@ async def test_balance_sheet_report(client, test_user):
     """
     EPIC-005 / AC8.6.1: View Balance Sheet
     AC8.8.4: Core journey — reports API
-    GIVEN a user has accounts
+    GIVEN a user posts a known balanced entry (Bank 1000 ← Opening Equity 1000)
     WHEN requesting the balance sheet
-    THEN it should return 200 with assets, liabilities, equity sections
+    THEN the actual numbers are correct and the accounting equation holds — not
+    merely that the keys are present (the report's value is the number, not the shape).
     """
-    # Create account for non-empty report
-    await client.post(
-        "/accounts",
-        json={"name": "Bank", "type": "ASSET", "currency": "SGD"},
+    bank_id = await _create_account(client, "Bank", "ASSET")
+    equity_id = await _create_account(client, "Opening Equity", "EQUITY")
+    await _post_balanced_entry(
+        client,
+        debit_id=bank_id,
+        credit_id=equity_id,
+        amount="1000.00",
+        entry_date=TEST_DATE,
+        memo="Opening balance",
     )
 
     resp = await client.get("/reports/balance-sheet")
     assert resp.status_code == 200
     data = resp.json()
-    assert "assets" in data
-    assert "liabilities" in data
-    assert "equity" in data
-    assert "total_assets" in data
+    assert "assets" in data and "liabilities" in data and "equity" in data
+    assert Decimal(str(data["total_assets"])) == Decimal("1000.00")
+    assert Decimal(str(data["total_liabilities"])) == Decimal("0.00")
+    assert Decimal(str(data["total_equity"])) == Decimal("1000.00")
+    assert Decimal(str(data["equation_delta"])) == Decimal("0.00")
+    assert data["is_balanced"] is True
 
 
 @pytest.mark.e2e
 async def test_income_statement_report(client, test_user):
     """
     EPIC-005 / AC8.6.2: View Income Statement
-    GIVEN a user is authenticated
-    WHEN requesting the income statement for a date range
-    THEN it should return 200 with income and expenses sections
+    GIVEN a user posts a known salary entry (Bank 3000 ← Salary 3000) inside the period
+    WHEN requesting the income statement for that range
+    THEN the actual income/expense/net numbers are correct, not just present.
     """
     today = TEST_DATE
     start = (today - timedelta(days=30)).isoformat()
     end = today.isoformat()
+
+    bank_id = await _create_account(client, "Bank", "ASSET")
+    salary_id = await _create_account(client, "Salary", "INCOME")
+    await _post_balanced_entry(
+        client,
+        debit_id=bank_id,
+        credit_id=salary_id,
+        amount="3000.00",
+        entry_date=today - timedelta(days=2),  # safely inside [start, end]
+        memo="Monthly salary",
+    )
 
     resp = await client.get(
         "/reports/income-statement",
@@ -531,22 +584,34 @@ async def test_income_statement_report(client, test_user):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert "income" in data
-    assert "expenses" in data
-    assert "net_income" in data
+    assert "income" in data and "expenses" in data
+    assert Decimal(str(data["total_income"])) == Decimal("3000.00")
+    assert Decimal(str(data["total_expenses"])) == Decimal("0.00")
+    assert Decimal(str(data["net_income"])) == Decimal("3000.00")
 
 
 @pytest.mark.e2e
 async def test_cash_flow_report(client, test_user):
     """
     EPIC-005 / AC8.6.3: View Cash Flow Report
-    GIVEN a user is authenticated
-    WHEN requesting the cash flow report for a date range
-    THEN it should return 200 with operating, investing, financing sections
+    GIVEN a user posts a known cash inflow (Bank 1000 ← Opening Equity 1000) inside the period
+    WHEN requesting the cash flow report for that range
+    THEN the net cash movement and ending cash reflect the actual posted amount.
     """
     today = TEST_DATE
     start = (today - timedelta(days=30)).isoformat()
     end = today.isoformat()
+
+    bank_id = await _create_account(client, "Bank", "ASSET")
+    equity_id = await _create_account(client, "Opening Equity", "EQUITY")
+    await _post_balanced_entry(
+        client,
+        debit_id=bank_id,
+        credit_id=equity_id,
+        amount="1000.00",
+        entry_date=today - timedelta(days=2),  # safely inside [start, end]
+        memo="Capital injection",
+    )
 
     resp = await client.get(
         "/reports/cash-flow",
@@ -554,7 +619,11 @@ async def test_cash_flow_report(client, test_user):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert "operating" in data or "net_cash_flow" in data
+    assert "operating" in data and "summary" in data
+    # Category split aside, the total cash movement and ending cash are deterministic:
+    # opening 0 + a single 1000 inflow.
+    assert Decimal(str(data["summary"]["net_cash_flow"])) == Decimal("1000.00")
+    assert Decimal(str(data["summary"]["ending_cash"])) == Decimal("1000.00")
 
 
 @pytest.mark.e2e
