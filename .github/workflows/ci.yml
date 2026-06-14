@@ -118,6 +118,9 @@ jobs:
       - name: Detached Owner Shortcut Guard
         run: |
           uv run python tools/check_detached_owner_shortcuts.py
+      - name: Router Contract Maturity Guard
+        run: |
+          uv run python tools/audit_router_contracts.py --check
       - name: Install frontend dependencies
         run: npm ci
         working-directory: apps/frontend
