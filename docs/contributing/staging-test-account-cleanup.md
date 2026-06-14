@@ -57,10 +57,11 @@ Matched 4 test account(s); Would purge 3, blocked 1.
 ## Safety
 
 - **Dry run is the default.** You must pass `--apply` to delete anything.
-- **Environment guard.** `--apply` is refused unless `ENVIRONMENT` is one of
-  `development` / `dev` / `local` / `test` / `testing` / `ci` / `staging`. Running
-  against any other environment (including an unset one) requires an explicit
-  `--force`. **Never** point this at production.
+- **Environment guard.** `--apply` is refused unless `ENVIRONMENT` (or its alias
+  `ENV`) is one of `development` / `dev` / `local` / `test` / `testing` / `ci` /
+  `staging`. The guard reads the raw variable, so an **unset/empty** value is
+  treated as unsafe (not as the `development` default); running against any other
+  environment requires an explicit `--force`. **Never** point this at production.
 - **No force-delete of real ledger data.** The immutable-ledger guard is never
   bypassed; blocked accounts are surfaced, not destroyed.
 

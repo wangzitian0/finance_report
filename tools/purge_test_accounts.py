@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -34,9 +35,8 @@ for _path in (ROOT_DIR, BACKEND_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
-
 from src.config import settings  # noqa: E402
+from src.database import async_session_maker  # noqa: E402
 from src.services.test_account_purge import (  # noqa: E402
     DEFAULT_TEST_EMAIL_PATTERN,
     is_safe_purge_environment,
@@ -46,11 +46,13 @@ from src.services.test_account_purge import (  # noqa: E402
 
 def _redact(database_url: str) -> str:
     """Hide credentials when echoing the target DB back to the operator."""
-    if "@" in database_url:
+    if "://" in database_url and "@" in database_url:
         scheme, _, tail = database_url.partition("://")
         host = tail.split("@", 1)[1]
         return f"{scheme}://***@{host}"
-    return database_url
+    # No recognizable scheme://credentials@host shape — nothing safe to keep, so
+    # don't echo a possibly-credential-bearing string back verbatim.
+    return "***" if "@" in database_url else database_url
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -94,17 +96,22 @@ async def _run(args: argparse.Namespace) -> int:
         )
         return 2
 
-    engine = create_async_engine(settings.database_url)
-    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    # Validate the operator-supplied regex up front so a typo is a clean error,
+    # not a traceback after we have already touched the database.
     try:
-        async with session_maker() as session:
-            report = await purge_test_accounts(
-                session, pattern=args.pattern, apply=args.apply
-            )
-            if args.apply:
-                await session.commit()
-    finally:
-        await engine.dispose()
+        re.compile(args.pattern)
+    except re.error as exc:
+        print(f"Invalid --pattern regex: {exc}", file=sys.stderr)
+        return 2
+
+    # Reuse the application's configured session maker (pool_pre_ping + pool sizes
+    # from src/database.py) rather than spinning up a bare engine.
+    async with async_session_maker() as session:
+        report = await purge_test_accounts(
+            session, pattern=args.pattern, apply=args.apply
+        )
+        if args.apply:
+            await session.commit()
 
     print(report.summary())
     return 0
