@@ -172,6 +172,7 @@ class DeduplicationService:
             description=description,
             reference=reference,
             currency=currency,
+            balance_after=balance_after,
             dedup_hash=dedup_hash,
             source_documents=[source_doc],
         )

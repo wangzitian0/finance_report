@@ -211,6 +211,31 @@ class TestDeduplicationService:
         assert txn.source_documents[0]["doc_id"] == str(doc_id)
         assert txn.source_documents[0]["doc_type"] == DocumentType.BANK_STATEMENT.value
 
+    async def test_upsert_persists_balance_after(self, db, test_user):
+        """AC4.6.8: upsert_atomic_transaction persists the extracted balance_after so the
+        Stage-1 conflict guard can disambiguate distinct-but-identical transactions."""
+        service = DeduplicationService()
+
+        txn = await service.upsert_atomic_transaction(
+            db=db,
+            user_id=test_user.id,
+            txn_date=date(2025, 6, 25),
+            amount=Decimal("1033.50"),
+            direction=TransactionDirection.OUT,
+            description="Buy to Open NIO Inc NIO",
+            currency="USD",
+            source_doc_id=uuid4(),
+            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
+            balance_after=Decimal("3966.50"),
+        )
+        assert txn.balance_after == Decimal("3966.50")
+
+        # Reload from DB to confirm the value is persisted, not just set in memory.
+        reloaded = (
+            await db.execute(select(AtomicTransaction).where(AtomicTransaction.id == txn.id))
+        ).scalar_one()
+        assert reloaded.balance_after == Decimal("3966.50")
+
     async def test_upsert_atomic_transaction_duplicate_appends_source(self, db, test_user):
         """GIVEN: Existing atomic transaction with same hash
         WHEN: Upserting duplicate transaction with different source

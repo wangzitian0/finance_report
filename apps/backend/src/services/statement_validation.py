@@ -160,7 +160,12 @@ def _has_unresolved_statement_conflicts(transactions: list[AtomicTransaction]) -
 
     for txn in transactions:
         direction = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
-        duplicate_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), direction)
+        # Include the running balance in the duplicate key so the guard stays consistent with the
+        # dedup disambiguator (deduplication.calculate_transaction_hash): two rows with different
+        # ``balance_after`` are real distinct transactions the dedup layer deliberately kept apart,
+        # not duplicates. Equal/absent balances remain ambiguous and are still flagged for review.
+        balance_key = None if txn.balance_after is None else txn.balance_after.normalize()
+        duplicate_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), direction, balance_key)
         if duplicate_key in seen:
             return True
         seen[duplicate_key] = txn

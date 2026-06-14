@@ -14,6 +14,7 @@ from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.services.statement_validation import (
     BALANCE_TOLERANCE,
+    _has_unresolved_statement_conflicts,
     approve_statement,
     edit_and_approve,
     get_pending_stage1_review,
@@ -21,6 +22,58 @@ from src.services.statement_validation import (
     set_opening_balance,
     validate_balance_chain,
 )
+
+
+def _conflict_txn(
+    *,
+    balance_after: Decimal | None,
+    description: str = "Buy to Open NIO Inc NIO",
+    amount: Decimal = Decimal("1033.50"),
+    direction: TransactionDirection = TransactionDirection.OUT,
+    txn_date: date = date(2025, 6, 25),
+) -> AtomicTransaction:
+    """Build an in-memory AtomicTransaction for conflict-guard unit tests (not persisted)."""
+    return AtomicTransaction(
+        id=uuid4(),
+        user_id=uuid4(),
+        txn_date=txn_date,
+        amount=amount,
+        direction=direction,
+        description=description,
+        currency="USD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[],
+        balance_after=balance_after,
+    )
+
+
+class TestDuplicateGuardBalanceAfter:
+    """The Stage-1 conflict guard must stay consistent with the dedup disambiguator."""
+
+    def test_duplicate_guard_distinguishes_by_balance_after(self):
+        """AC4.6.6: Two transactions identical in date/description/amount/direction but with
+        different running balances (balance_after) are NOT flagged as duplicate candidates --
+        the dedup layer already deemed them distinct, so the guard must not re-collapse them."""
+        txns = [
+            _conflict_txn(balance_after=Decimal("5000.00")),
+            _conflict_txn(balance_after=Decimal("3966.50")),
+        ]
+        assert _has_unresolved_statement_conflicts(txns) is False
+
+    def test_duplicate_guard_flags_when_balance_after_equal_or_absent(self):
+        """AC4.6.7: Identical transactions with equal or absent balance_after remain flagged
+        as duplicate candidates (genuinely ambiguous -> needs human review)."""
+        equal_balance = [
+            _conflict_txn(balance_after=Decimal("5000.00")),
+            _conflict_txn(balance_after=Decimal("5000.00")),
+        ]
+        assert _has_unresolved_statement_conflicts(equal_balance) is True
+
+        no_balance = [
+            _conflict_txn(balance_after=None),
+            _conflict_txn(balance_after=None),
+        ]
+        assert _has_unresolved_statement_conflicts(no_balance) is True
 
 DEFAULT_ACCOUNT_NAME = "Statement Validation Default Account"
 
