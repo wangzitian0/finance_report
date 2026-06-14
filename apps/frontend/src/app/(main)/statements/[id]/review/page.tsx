@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -62,6 +62,8 @@ interface ConflictCandidate {
 interface ReviewConflicts {
     duplicates: ConflictCandidate[];
     transfer_pairs: ConflictCandidate[];
+    // #962: persisted resolution marker, so the blocked state survives a refresh.
+    resolved?: boolean;
 }
 
 interface Stage1ApprovalResponse {
@@ -83,6 +85,8 @@ export default function StatementReviewPage() {
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
     const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+    const [conflictsResolved, setConflictsResolved] = useState(false);
+    const queryClient = useQueryClient();
 
     // Queries
     const { data, isLoading: loading, error, refetch } = useQuery({
@@ -136,6 +140,25 @@ export default function StatementReviewPage() {
         onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error")
     });
 
+    // #962 / AC16.34.1: resolve the duplicate/transfer-pair candidates so a
+    // legitimately-conflicting statement can be approved instead of being stuck.
+    const resolveConflictsMutation = useMutation({
+        mutationFn: (action: "confirm_distinct" | "link_transfer") =>
+            apiFetch(`/api/review/conflicts/${statementId}/resolve`, {
+                method: "POST",
+                body: JSON.stringify({ action }),
+            }),
+        onSuccess: () => {
+            showToast("Conflicts resolved", "success");
+            setConflictsResolved(true);
+            setConflictDialogOpen(false);
+            // Refetch so the persisted `resolved` marker drives the blocked state
+            // on subsequent renders, not just this session's local flag.
+            queryClient.invalidateQueries({ queryKey: ["statement-conflicts", statementId] });
+        },
+        onError: (err) => showToast(err instanceof Error ? err.message : "Failed to resolve conflicts", "error"),
+    });
+
     // EPIC-022 AC22.5.2: re-parse in place when a balance mismatch blocks approval,
     // instead of forcing a reject -> back-to-detail -> retry detour.
     const reparseMutation = useMutation({
@@ -148,10 +171,12 @@ export default function StatementReviewPage() {
     });
 
     useEffect(() => {
-        if (duplicateCandidates.length || transferPairCandidates.length) {
+        // Don't reopen the dialog for candidates the reviewer already resolved
+        // (persisted marker) — only when there is something still to resolve.
+        if (!conflicts?.resolved && (duplicateCandidates.length || transferPairCandidates.length)) {
             setConflictDialogOpen(true);
         }
-    }, [duplicateCandidates.length, transferPairCandidates.length]);
+    }, [duplicateCandidates.length, transferPairCandidates.length, conflicts?.resolved]);
 
     if (loading) {
         return (
@@ -200,7 +225,12 @@ export default function StatementReviewPage() {
     const balanceValid = Boolean(
         data.balance_validation_result?.opening_match && data.balance_validation_result?.closing_match
     );
-    const hasUnresolvedConflicts = duplicateCandidates.length > 0 || transferPairCandidates.length > 0;
+    // Honor the server-persisted resolution marker so a refresh (or a resolution
+    // from another tab/session) keeps approval unblocked, not just this session's
+    // local flag (#962 review follow-up).
+    const conflictsAreResolved = conflictsResolved || Boolean(conflicts?.resolved);
+    const hasUnresolvedConflicts =
+        !conflictsAreResolved && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
     const approvalBlockedReason = hasUnresolvedConflicts
         ? "Resolve duplicate and transfer-pair candidates before approval"
         : null;
@@ -290,6 +320,8 @@ export default function StatementReviewPage() {
                 onClose={() => setConflictDialogOpen(false)}
                 duplicateCandidates={duplicateCandidates}
                 transferPairCandidates={transferPairCandidates}
+                onResolve={(action) => resolveConflictsMutation.mutate(action)}
+                isResolving={resolveConflictsMutation.isPending}
             />
 
             <ConfirmDialog

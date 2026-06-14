@@ -519,6 +519,20 @@ model.
 | AC16.32.2 | Stage 1 balance validation UI reports opening and closing checks separately so reviewers see the same gate enforced by the backend | `AC16.32.2 shows opening and closing balance validation states separately` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
 | AC16.32.3 | Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size | `AC16.32.3 requests an expanded consistency-check limit for unblockable queues`, `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx`, `apps/backend/tests/api/test_statements_router.py` | P0 |
 
+### AC16.34 — Stage-1 Conflict Resolution ([#962](https://github.com/wangzitian0/finance_report/issues/962))
+
+A statement with an inherent (legitimate) duplicate or transfer-pair candidate
+was permanently stuck in `parsed`: the conflict guard blocked approval and there
+was no way to record the reviewer's decision. These ACs add a resolution path so
+the reviewer can confirm the rows are genuinely distinct (or a real transfer
+pair) and unblock approval.
+
+| AC ID | Description | Tests | Files | Priority |
+|-------|-------------|-------|-------|----------|
+| AC16.34.1 | `POST /api/review/conflicts/{statement_id}/resolve` records the reviewer's resolution; the Stage-1 approval guard honors it so a previously-blocked statement with duplicate/transfer-pair candidates can be approved, and an unknown statement returns 404 | `test_AC16_34_1_resolve_unblocks_stage1_approval`, `test_AC16_34_1_resolve_conflicts_404_for_unknown_statement` | `apps/backend/tests/api/test_statements_router.py` | P0 |
+| AC16.34.2 | A reject/reparse clears a prior conflict resolution so the fresh transaction set must be re-reviewed | `test_AC16_34_2_reject_clears_conflict_resolution` | `apps/backend/tests/api/test_statements_router.py` | P0 |
+| AC16.34.3 | The ConflictResolutionDialog `Resolve` / `Link Pair` buttons call the resolve endpoint with the matching action and disable while a resolution is in flight (previously dead, no-op buttons) | `AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action`, `AC16.34.3 disables the action buttons while a resolution is in flight` | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | P0 |
+
 ### Acceptance Criteria — Feature (group 28, frontend UI system primitives)
 
 Issue [#612](https://github.com/wangzitian0/finance_report/issues/612)

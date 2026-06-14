@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -154,3 +155,26 @@ class ReviewConflictsResponse(BaseModel):
 
     duplicates: list[ReviewConflictCandidate] = Field(default_factory=list)
     transfer_pairs: list[ReviewConflictCandidate] = Field(default_factory=list)
+    # #962: whether the reviewer has already resolved these candidates. Lets the UI
+    # derive the approval-blocked state from the persisted marker instead of
+    # ephemeral client state, so a refresh (or another tab/session) stays correct.
+    resolved: bool = False
+
+
+class ResolveConflictsRequest(BaseModel):
+    """Stage-1 conflict resolution decision (#962).
+
+    ``action`` records the reviewer's intent for audit: ``confirm_distinct`` (the
+    flagged duplicate rows are genuinely distinct) or ``link_transfer`` (the rows
+    are a real transfer pair). Both unblock approval; the distinction is logged.
+    """
+
+    action: Literal["confirm_distinct", "link_transfer"] = "confirm_distinct"
+    note: Annotated[str, Field(max_length=500)] | None = None
+
+
+class ReviewConflictsResolveResponse(BaseModel):
+    """Acknowledgement that Stage-1 conflicts were resolved."""
+
+    resolved: bool
+    resolved_at: datetime | None = None
