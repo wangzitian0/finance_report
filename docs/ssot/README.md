@@ -40,6 +40,26 @@ The migration of code-owned SSOT facts into common packages or generated
 contracts is tracked in
 [issue #453](https://github.com/wangzitian0/finance_report/issues/453).
 
+## SSOT HLS Family Model
+
+The high-level structure (HLS) family model groups the concepts in
+[MANIFEST.yaml](./MANIFEST.yaml) into 6-8 reader-facing families so a domain
+reader starts from a family entry point instead of a flat concept list. The
+family model is a **definition layer only** — it routes readers and feeds the
+`family` field; it does not own or re-own any concept (ownership stays in
+MANIFEST.yaml).
+
+- FR family map, concept/clause boundary, and governance loop:
+  [EPIC-014 — SSOT HLS Family Model](../project/EPIC-014.ttd-transformation.md#ssot-hls-family-model).
+- infra2 family map and boundary:
+  [Infra-006 — SSOT HLS Family Model](../../repo/docs/project/Infra-006.documentation_engineering.md#ssot-hls-family-model).
+
+Family/kind coverage is reported by `python tools/report_ssot_governance.py`
+([#822](https://github.com/wangzitian0/finance_report/issues/822)). This model
+is the foundation for the
+[#824](https://github.com/wangzitian0/finance_report/issues/824) threshold
+cleanup that backfills `family` / `kind` and binds child clauses.
+
 ## Core System Documents
 
 | Document | Key | Current owner role |
