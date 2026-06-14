@@ -1,5 +1,7 @@
 import { getAccessToken, getUserId } from "./auth";
 import type {
+  ConfidenceNorthStarResponse,
+  CorrectionLoopReplayResponse,
   WorkflowEventListResponse,
   WorkflowEventResponse,
   WorkflowEventStatus,
@@ -332,4 +334,16 @@ export async function updateWorkflowEventStatus(
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
+}
+
+// ── North-Star confidence metric (EPIC-018 AC18.12 / #1003, #1055 PR4) ─────
+
+/** The live low-confidence proportion plus its recorded trend (newest first). */
+export async function fetchConfidenceNorthStar(): Promise<ConfidenceNorthStarResponse> {
+  return apiFetch<ConfidenceNorthStarResponse>("/api/metrics/confidence-north-star");
+}
+
+/** The held-out replay of the correction loop — does it lower the proportion? */
+export async function fetchCorrectionLoopReplay(): Promise<CorrectionLoopReplayResponse> {
+  return apiFetch<CorrectionLoopReplayResponse>("/api/metrics/correction-loop/replay");
 }

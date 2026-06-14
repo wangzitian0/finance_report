@@ -34,6 +34,7 @@ describe("navigation metadata", () => {
       "Journal",
       "Reconciliation",
       "Processing",
+      "Confidence Trend",
       "AI Settings",
     ]);
     expect(advancedNavItems.find((item) => item.label === "AI Settings")?.href).toBe("/settings/ai");
