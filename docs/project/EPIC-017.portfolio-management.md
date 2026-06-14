@@ -311,6 +311,28 @@ user (e.g. a report blocker) is tracked as follow-up. Issue #1035.
 | AC17.15.1 | `_looks_like_ticker` accepts real tickers/FX pairs and rejects fund-name free text | `test_looks_like_ticker_accepts_real_tickers_rejects_free_text` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
 | AC17.15.2 | A non-ticker identifier short-circuits the Yahoo stock fetch with no HTTP call | `test_yahoo_stock_fetch_short_circuits_for_non_ticker` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
 
+### AC17.30: List Endpoint Pagination
+
+The portfolio list endpoints (`/holdings`, `/{ticker}/dividends`,
+`/{ticker}/realized`, and the three `/allocation/*` surfaces) returned unbounded
+`list[...]` payloads with no `limit`/`offset` bounds, the lone gap versus the
+statement/journal/account/reconciliation modules (issue #1007). Bounded
+`limit`/`offset` query params now apply a sane default cap
+(`limit` defaults to 100, `ge=1, le=500`; `offset` `ge=0`, matching the accounts
+module). FastAPI rejects out-of-range values with 422. The bare-array response
+shape is preserved so existing frontend consumers keep working without coordinated
+changes; wrapping these responses in `{items, total}` is deferred to a follow-up
+that also migrates the frontend consumers.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.30.1 | GET /portfolio/holdings caps results at the requested limit when paginating | `test_AC17_30_1_holdings_default_cap_applied` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P1 |
+| AC17.30.2 | GET /portfolio/holdings honors limit and offset to page through holdings | `test_AC17_30_2_holdings_limit_offset_honored` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P1 |
+| AC17.30.3 | GET /portfolio/holdings rejects out-of-range limit/offset with 422 | `test_AC17_30_3_holdings_rejects_out_of_range_pagination` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P1 |
+| AC17.30.4 | GET /portfolio/{ticker}/dividends honors limit/offset and rejects out-of-range | `test_AC17_30_4_dividends_limit_offset_honored` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P1 |
+| AC17.30.5 | GET /portfolio/{ticker}/realized honors limit/offset and rejects out-of-range | `test_AC17_30_5_realized_limit_offset_honored` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P1 |
+| AC17.30.6 | GET /portfolio/allocation/* honors limit/offset and rejects out-of-range | `test_AC17_30_6_allocation_limit_offset_honored` | `apps/backend/tests/portfolio/test_portfolio_router.py` | P1 |
+
 ### Brokerage PDF to Asset Report Proof Matrix
 
 This is the detailed EPIC-017 counterpart to the README core proof path. It
