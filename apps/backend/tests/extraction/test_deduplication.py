@@ -211,6 +211,69 @@ class TestDeduplicationService:
         assert txn.source_documents[0]["doc_id"] == str(doc_id)
         assert txn.source_documents[0]["doc_type"] == DocumentType.BANK_STATEMENT.value
 
+    async def test_upsert_persists_balance_after(self, db, test_user):
+        """AC4.6.8: upsert_atomic_transaction persists the extracted balance_after so the
+        Stage-1 conflict guard can disambiguate distinct-but-identical transactions."""
+        service = DeduplicationService()
+
+        txn = await service.upsert_atomic_transaction(
+            db=db,
+            user_id=test_user.id,
+            txn_date=date(2025, 6, 25),
+            amount=Decimal("1033.50"),
+            direction=TransactionDirection.OUT,
+            description="Buy to Open NIO Inc NIO",
+            currency="USD",
+            source_doc_id=uuid4(),
+            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
+            balance_after=Decimal("3966.50"),
+        )
+        assert txn.balance_after == Decimal("3966.50")
+
+        # Reload from DB to confirm the value is persisted, not just set in memory.
+        reloaded = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.id == txn.id))).scalar_one()
+        assert reloaded.balance_after == Decimal("3966.50")
+
+    async def test_upsert_backfills_balance_after_on_legacy_null_row(self, db, test_user):
+        """AC4.6.8: a legacy row whose dedup hash already encoded the running balance but left
+        balance_after NULL (pre-migration) gets it backfilled when the same transaction is
+        re-parsed, so previously-stuck statements benefit from the guard fix."""
+        service = DeduplicationService()
+        user_id = test_user.id
+        balance = Decimal("3966.50")
+        fields = dict(
+            txn_date=date(2025, 6, 25),
+            amount=Decimal("1033.50"),
+            direction=TransactionDirection.OUT,
+            description="Buy to Open NIO Inc NIO",
+            reference=None,
+        )
+        # The hash always factored in balance_after; only the column was missing before the migration.
+        dedup_hash = service.calculate_transaction_hash(user_id, balance_after=balance, **fields)
+        legacy = AtomicTransaction(
+            user_id=user_id,
+            currency="USD",
+            dedup_hash=dedup_hash,
+            balance_after=None,
+            source_documents=[{"doc_id": str(uuid4()), "doc_type": "brokerage_statement"}],
+            **fields,
+        )
+        db.add(legacy)
+        await db.flush()
+
+        result = await service.upsert_atomic_transaction(
+            db=db,
+            user_id=user_id,
+            currency="USD",
+            source_doc_id=uuid4(),
+            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
+            balance_after=balance,
+            **fields,
+        )
+
+        assert result.id == legacy.id  # hit the existing branch, not a new insert
+        assert result.balance_after == balance  # NULL was backfilled
+
     async def test_upsert_atomic_transaction_duplicate_appends_source(self, db, test_user):
         """GIVEN: Existing atomic transaction with same hash
         WHEN: Upserting duplicate transaction with different source

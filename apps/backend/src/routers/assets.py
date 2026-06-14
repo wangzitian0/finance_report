@@ -233,6 +233,8 @@ async def list_restricted_holdings(
         .where(ManualValuationSnapshot.as_of_date <= report_date)
         .where(ManualValuationSnapshot.component_type.in_(restricted_types))
         .where(ManualValuationSnapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED)
+        # Current heads only; superseded corrections must not surface as phantom holdings.
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
         .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
     )
 

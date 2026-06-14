@@ -475,6 +475,8 @@ async def _aggregate_account_provenance(
 
     stmt = (
         select(Account.id.label("account_id"), JournalEntry.source_type)
+        # Distinct (account, source_type): provenance only needs the set, not one row per line.
+        .distinct()
         .join(JournalLine, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
@@ -874,8 +876,15 @@ async def generate_balance_sheet(
     currency: str | None = None,
     include_restricted: bool = True,
     include_allocation_metadata: bool = False,
+    include_trust_signals: bool = True,
 ) -> dict[str, object]:
-    """Generate balance sheet report as of a given date."""
+    """Generate balance sheet report as of a given date.
+
+    ``include_trust_signals`` gates the two extra per-account ledger scans that
+    derive confidence tier and provenance. Callers that do not render per-line
+    trust badges (net-worth time series, the income statement's internal balance
+    sheets) pass False to avoid amplifying those scans.
+    """
     target_currency = _normalize_currency(currency)
     fx_warnings: list[FxWarning] = []
     account_types = (AccountType.ASSET, AccountType.LIABILITY, AccountType.EQUITY)
@@ -906,20 +915,23 @@ async def generate_balance_sheet(
         if account.id not in balances:
             balances[account.id] = Decimal("0")
 
-    tiers = await _aggregate_account_confidence_tiers(
-        db,
-        user_id,
-        account_types,
-        as_of_date,
-        included_currencies=included_ledger_currencies,
-    )
-    provenance_by_account = await _aggregate_account_provenance(
-        db,
-        user_id,
-        account_types,
-        as_of_date,
-        included_currencies=included_ledger_currencies,
-    )
+    tiers: dict[UUID, str] = {}
+    provenance_by_account: dict[UUID, DataProvenance | None] = {}
+    if include_trust_signals:
+        tiers = await _aggregate_account_confidence_tiers(
+            db,
+            user_id,
+            account_types,
+            as_of_date,
+            included_currencies=included_ledger_currencies,
+        )
+        provenance_by_account = await _aggregate_account_provenance(
+            db,
+            user_id,
+            account_types,
+            as_of_date,
+            included_currencies=included_ledger_currencies,
+        )
 
     assets = _build_account_lines(
         accounts,
@@ -1473,9 +1485,11 @@ async def generate_income_statement(
     # Calculate Unrealized FX Gain/Loss for the period
     # This requires balance sheets at both points
     bs_start = await generate_balance_sheet(
-        db, user_id, as_of_date=start_date - timedelta(days=1), currency=target_currency
+        db, user_id, as_of_date=start_date - timedelta(days=1), currency=target_currency, include_trust_signals=False
     )
-    bs_end = await generate_balance_sheet(db, user_id, as_of_date=end_date, currency=target_currency)
+    bs_end = await generate_balance_sheet(
+        db, user_id, as_of_date=end_date, currency=target_currency, include_trust_signals=False
+    )
 
     unrealized_fx_change = _quantize_money(
         Decimal(str(bs_end["unrealized_fx_gain_loss"])) - Decimal(str(bs_start["unrealized_fx_gain_loss"]))
@@ -1685,7 +1699,9 @@ async def get_net_worth_timeseries(
     points: list[dict[str, object]] = []
     for span in spans:
         point_date = span.start if granularity == "daily" else span.end
-        balance_sheet = await generate_balance_sheet(db, user_id, as_of_date=point_date, currency=target_currency)
+        balance_sheet = await generate_balance_sheet(
+            db, user_id, as_of_date=point_date, currency=target_currency, include_trust_signals=False
+        )
         total_assets = _quantize_money(Decimal(str(balance_sheet["total_assets"])))
         total_liabilities = _quantize_money(Decimal(str(balance_sheet["total_liabilities"])))
         points.append(
