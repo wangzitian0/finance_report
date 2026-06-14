@@ -37,12 +37,13 @@ from src.services.accounting import (
     verify_accounting_equation,
     void_journal_entry,
 )
+from tests.factories import UserFactory
 
 
 @pytest.fixture
-async def test_user_id():
-    """Test user ID."""
-    return uuid4()
+async def test_user_id(test_user):
+    """Test user ID — a real persisted users row so production FKs resolve (#991)."""
+    return test_user.id
 
 
 @pytest.fixture
@@ -207,7 +208,7 @@ async def test_AC2_13_1_create_journal_entry_rejects_cross_user_account(
     test_user_id,
 ):
     """AC2.13.1: Manual journal creation rejects lines using another user's account."""
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     other_account = Account(
         user_id=other_user_id,
         name="Other User Cash",
@@ -259,7 +260,7 @@ async def test_AC2_13_2_journal_lines_reject_cross_user_account_at_db_boundary(
     test_user_id,
 ):
     """AC2.13.2: Database invariants reject line accounts outside the entry owner."""
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     other_account = Account(
         user_id=other_user_id,
         name="Other User Asset",
@@ -342,7 +343,7 @@ async def test_AC2_13_3_balance_queries_ignore_cross_user_entry_headers(
     test_user_id,
 ):
     """AC2.13.3: Balance aggregation requires account and entry ownership to match."""
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     other_account = Account(
         user_id=other_user_id,
         name="Other User Cash",

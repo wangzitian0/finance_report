@@ -17,6 +17,7 @@ from src.models import (
     JournalEntryStatus,
     User,
 )
+from tests.factories import UserFactory
 
 pytestmark = pytest.mark.asyncio
 
@@ -89,7 +90,7 @@ async def test_ac18_5_6_get_transaction_audit_scopes_to_current_user(
     """AC18.5.6: audit endpoint does not expose another user's transaction trail."""
     other_entry = JournalEntry(
         id=uuid4(),
-        user_id=uuid4(),
+        user_id=(await UserFactory.create_async(db)).id,
         entry_date=date(2026, 4, 2),
         memo="Other user transaction",
         source_type=JournalEntrySourceType.MANUAL,

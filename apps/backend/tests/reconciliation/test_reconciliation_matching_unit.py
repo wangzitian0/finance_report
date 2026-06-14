@@ -372,11 +372,10 @@ async def test_score_pattern_no_tokens(db: AsyncSession):
     assert await score_pattern(db, txn, DEFAULT_CONFIG, uuid4()) == 0.0
 
 
-async def test_score_pattern_with_history(db: AsyncSession):
-    user_id = uuid4()
-    user = User(id=user_id, email=f"pattern-{uuid4()}@example.com", hashed_password="hashed")
+async def test_score_pattern_with_history(db: AsyncSession, test_user):
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     txn_past = AtomicTransaction(
@@ -464,8 +463,8 @@ async def test_calculate_match_score_overrides(db: AsyncSession):
     assert "many_to_one_bonus" in candidate.breakdown
 
 
-async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession):
-    user_id = uuid4()
+async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession, test_user):
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     db.add(statement)
     await db.flush()
@@ -488,11 +487,10 @@ async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession)
     assert len(matches) == 0
 
 
-async def test_execute_matching_complex_multi_entry(db: AsyncSession):
-    user_id = uuid4()
-    user = User(id=user_id, email=f"complex-{uuid4()}@example.com", hashed_password="hashed")
+async def test_execute_matching_complex_multi_entry(db: AsyncSession, test_user):
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     # Transaction for 100.00
@@ -569,11 +567,10 @@ async def test_execute_matching_complex_multi_entry(db: AsyncSession):
     assert matches[0].score_breakdown.get("multi_entry") == 1
 
 
-async def test_execute_matching_triple_entry(db: AsyncSession):
-    user_id = uuid4()
-    user = User(id=user_id, email=f"triple-{uuid4()}@example.com", hashed_password="hashed")
+async def test_execute_matching_triple_entry(db: AsyncSession, test_user):
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     txn = AtomicTransaction(
@@ -634,12 +631,11 @@ async def test_execute_matching_triple_entry(db: AsyncSession):
     assert matches[0].score_breakdown.get("multi_entry") == 2
 
 
-async def test_execute_matching_many_to_one_batch(db: AsyncSession):
+async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user):
     """AC11.16.2: many-to-one matches on Layer 2 when running balances keep batch txns distinct."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"batch-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     # Distinct running balances keep these two otherwise-identical txns separate in
@@ -708,8 +704,8 @@ async def test_execute_matching_many_to_one_batch(db: AsyncSession):
         assert m.score_breakdown.get("many_to_one_bonus") == 10.0
 
 
-async def test_find_candidates(db: AsyncSession):
-    user_id = uuid4()
+async def test_find_candidates(db: AsyncSession, test_user):
+    user_id = test_user.id
     base_date = date(2024, 1, 1)
     entry = JournalEntry(
         user_id=user_id,
@@ -734,11 +730,10 @@ def test_load_reconciliation_config_malformed_yaml():
         assert config.auto_accept == DEFAULT_CONFIG.auto_accept
 
 
-async def test_execute_matching_skip_unbalanced(db: AsyncSession):
-    user_id = uuid4()
-    user = User(id=user_id, email=f"unbalanced-{uuid4()}@example.com", hashed_password="hashed")
+async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     txn = AtomicTransaction(
@@ -766,11 +761,10 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession):
     assert len(matches) == 0
 
 
-async def test_execute_matching_low_score_unmatched(db: AsyncSession):
-    user_id = uuid4()
-    user = User(id=user_id, email=f"lowscore-{uuid4()}@example.com", hashed_password="hashed")
+async def test_execute_matching_low_score_unmatched(db: AsyncSession, test_user):
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     txn = AtomicTransaction(
@@ -856,10 +850,8 @@ def test_auto_accept_helper():
     assert auto_accept(0, DEFAULT_CONFIG) is False
 
 
-async def test_execute_matching_with_statement_id_filter(db: AsyncSession):
-    user_id = uuid4()
-    user = User(id=user_id, email="test@example.com", hashed_password="test")
-    db.add(user)
+async def test_execute_matching_with_statement_id_filter(db: AsyncSession, test_user):
+    user_id = test_user.id
 
     statement1 = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement2 = _make_statement(owner_id=user_id, base_date=date(2024, 1, 15))
@@ -1020,12 +1012,11 @@ scoring:
     load_reconciliation_config(force_reload=True)
 
 
-async def test_execute_matching_with_limit(db: AsyncSession):
+async def test_execute_matching_with_limit(db: AsyncSession, test_user):
     """Cover line 630: execute_matching with limit parameter."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"limit-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     # Create 3 transactions
@@ -1049,13 +1040,12 @@ async def test_execute_matching_with_limit(db: AsyncSession):
     assert len(matches) == 0
 
 
-async def test_transfer_detection_no_account_id(db: AsyncSession):
+async def test_transfer_detection_no_account_id(db: AsyncSession, test_user):
     """Cover lines 695-701: Transfer detected but statement has no account_id."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"transfer-noacct-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     # Statement has NO account_id (default is None)
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     txn = AtomicTransaction(
@@ -1274,12 +1264,11 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
     assert len(transfer_matches) == 2
 
 
-async def test_many_to_one_no_candidates(db: AsyncSession):
+async def test_many_to_one_no_candidates(db: AsyncSession, test_user):
     """Cover lines 790-791: many-to-one with no journal entry candidates."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"m2o-nocand-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     # Two batch-looking transactions but NO journal entries
@@ -1311,12 +1300,11 @@ async def test_many_to_one_no_candidates(db: AsyncSession):
     assert len(matches) == 0
 
 
-async def test_normal_matching_supersession_same_entries(db: AsyncSession):
+async def test_normal_matching_supersession_same_entries(db: AsyncSession, test_user):
     """Cover lines 949-952: re-match same journal entries → skip (no new match)."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"supersede-same-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     account = Account(
@@ -1450,12 +1438,11 @@ async def test_transfer_pairs_auto_pairing(db: AsyncSession):
     assert len(transfer_in) == 1
 
 
-async def test_final_flush_failure(db: AsyncSession):
+async def test_final_flush_failure(db: AsyncSession, test_user):
     """Cover lines 1015-1024: final db.flush() failure raises."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"flush-fail-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     txn = AtomicTransaction(
@@ -1488,12 +1475,11 @@ async def test_final_flush_failure(db: AsyncSession):
             await execute_matching(db, user_id=user_id)
 
 
-async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession):
+async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession, test_user):
     """Cover lines 1005-1010: find_transfer_pairs exception is non-fatal."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"pair-err-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     txn = AtomicTransaction(
@@ -1614,12 +1600,11 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
                 assert m.status == ReconciliationStatus.PENDING_REVIEW
 
 
-async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession):
+async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, test_user):
     """Cover lines 980-990: auto-accepted match marks entries as RECONCILED."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"auto-recon-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     account = Account(
@@ -1689,12 +1674,11 @@ async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession):
     assert reconciled_entry.status == JournalEntryStatus.RECONCILED
 
 
-async def test_normal_matching_pending_review(db: AsyncSession):
+async def test_normal_matching_pending_review(db: AsyncSession, test_user):
     """Cover lines 991-993: score below auto_accept → PENDING status."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"norm-pending-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     account = Account(
@@ -2017,12 +2001,11 @@ async def test_execute_matching_4_layer_read_pending_review(db: AsyncSession):
         assert matches[0].atomic_txn_id == l2_txn.id
 
 
-async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession):
+async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, test_user):
     """Cover lines 903-904: multi-entry combination where one entry is unbalanced → skip."""
-    user_id = uuid4()
-    user = User(id=user_id, email=f"multi-unbal-{uuid4()}@example.com", hashed_password="hashed")
+    user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([user, statement])
+    db.add_all([statement])
     await db.flush()
 
     account = Account(

@@ -38,9 +38,9 @@ from src.services.accounting import (
 
 
 @pytest.fixture
-def test_user_id():
-    """Test user ID."""
-    return uuid4()
+def test_user_id(test_user):
+    """Test user ID — a real persisted users row so production FKs resolve (#991)."""
+    return test_user.id
 
 
 @pytest.fixture

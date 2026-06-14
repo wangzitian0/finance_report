@@ -54,6 +54,7 @@ from tests.factories import (
     ReconciliationMatchFactory,
     StatementSummaryFactory,
     UploadedDocumentFactory,
+    UserFactory,
 )
 
 
@@ -506,7 +507,7 @@ async def test_create_entry_from_txn_rejects_unowned_preloaded_bank_account(db, 
     txn = await _make_txn(db, user_id, stmt)
     other_account = await AccountFactory.create_async(
         db,
-        user_id=uuid4(),
+        user_id=(await UserFactory.create_async(db)).id,
         name="Other User Preloaded Bank",
         type=AccountType.ASSET,
         currency="SGD",
@@ -588,7 +589,7 @@ async def test_create_entry_from_txn_uses_statement_linked_account(db, test_user
 
 
 async def test_statement_summary_rejects_linked_account_not_owned(db, test_user):
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     other_users_account = await AccountFactory.create_async(
         db,
         user_id=other_user_id,

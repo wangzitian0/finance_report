@@ -36,8 +36,8 @@ from src.services.fx_revaluation import (
 
 
 @pytest.fixture
-async def test_user_id():
-    return uuid4()
+async def test_user_id(test_user):
+    return test_user.id
 
 
 @pytest.fixture

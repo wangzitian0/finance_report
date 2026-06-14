@@ -36,9 +36,9 @@ def _make_atomic(user_id, *, txn_date, description, amount, direction=Transactio
     )
 
 
-async def test_get_reconciliation_stats_basic(db):
+async def test_get_reconciliation_stats_basic(db, test_user):
     """Test basic reconciliation stats with various match states."""
-    user_id = uuid4()
+    user_id = test_user.id
     account = Account(
         user_id=user_id,
         name="Test Account",
@@ -98,14 +98,14 @@ async def test_get_reconciliation_stats_basic(db):
     assert stats.score_distribution is None
 
 
-async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db):
+async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db, test_user):
     """Two accepted matches on the same atomic txn count as one matched txn.
 
     ``matched`` counts DISTINCT atomic transactions, so multiple active accepted
     matches on a single transaction must not inflate the count or push
     ``match_rate`` above 100%.
     """
-    user_id = uuid4()
+    user_id = test_user.id
     account = Account(
         user_id=user_id,
         name="Test Account",
@@ -162,9 +162,9 @@ async def test_get_reconciliation_stats_zero_division(db):
     assert stats.score_distribution is None
 
 
-async def test_get_reconciliation_stats_without_distribution(db):
+async def test_get_reconciliation_stats_without_distribution(db, test_user):
     """Test that stats work correctly without score distribution."""
-    user_id = uuid4()
+    user_id = test_user.id
     account = Account(
         user_id=user_id,
         name="Test Account",
@@ -196,9 +196,9 @@ async def test_get_reconciliation_stats_without_distribution(db):
     assert stats.score_distribution is None
 
 
-async def test_get_reconciliation_stats_with_distribution(db):
+async def test_get_reconciliation_stats_with_distribution(db, test_user):
     """Test score distribution bucketing with various scores."""
-    user_id = uuid4()
+    user_id = test_user.id
     account = Account(
         user_id=user_id,
         name="Test Account",

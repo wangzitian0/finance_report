@@ -31,6 +31,7 @@ from src.schemas.reconciliation import (
     ReconciliationRunRequest,
     ReconciliationStatusEnum,
 )
+from tests.factories import UserFactory
 
 
 async def _create_statement(db: AsyncSession, user_id, account_id=None) -> StatementSummary:
@@ -731,7 +732,7 @@ async def test_create_entry_from_txn_rejects_other_user_transaction(db: AsyncSes
     from src.services.review_queue import create_entry_from_txn
 
     # Create a statement + transaction for a different user
-    other_user_id = uuid4()
+    other_user_id = (await UserFactory.create_async(db)).id
     other_statement = await _create_statement(db, other_user_id)
     txn = await _create_transaction(db, other_statement, amount=Decimal("50.00"), status=None)
     await db.commit()

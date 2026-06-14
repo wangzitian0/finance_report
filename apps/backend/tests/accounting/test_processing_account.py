@@ -19,6 +19,7 @@ from src.models import (
 )
 from src.models.layer2 import TransactionDirection
 from src.services.account_service import get_or_create_processing_account
+from tests.factories import UserFactory
 
 
 class TestProcessingAccountCreation:
@@ -72,8 +73,8 @@ class TestProcessingAccountCreation:
 
     async def test_processing_account_per_user(self, db: AsyncSession):
         """AC15.1.4 · Each user gets their own Processing account."""
-        user1 = uuid4()
-        user2 = uuid4()
+        user1 = (await UserFactory.create_async(db)).id
+        user2 = (await UserFactory.create_async(db)).id
 
         processing1 = await get_or_create_processing_account(db, user1)
         processing2 = await get_or_create_processing_account(db, user2)

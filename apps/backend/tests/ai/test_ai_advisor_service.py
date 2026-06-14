@@ -63,6 +63,7 @@ from src.services.ai_advisor import (
 )
 from src.services.ai_streaming import AIStreamError
 from src.services.reporting import ReportError
+from tests.factories import UserFactory
 
 
 async def _drain_stream(stream: AsyncIterator[str]) -> str:
@@ -745,11 +746,11 @@ async def test_stream_and_store_raises_on_stream_error(
         await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key", None))
 
 
-async def test_get_financial_context_filters_by_user(db: AsyncSession) -> None:
+async def test_get_financial_context_filters_by_user(db: AsyncSession, test_user) -> None:
     """AC6.8.2: Financial context filters data by user ID."""
     service = AIAdvisorService()
-    user_id = uuid4()
-    other_user_id = uuid4()
+    user_id = test_user.id
+    other_user_id = (await UserFactory.create_async(db)).id
     today = date.today()
 
     cash = Account(user_id=user_id, name="Cash", type=AccountType.ASSET, currency="SGD")
