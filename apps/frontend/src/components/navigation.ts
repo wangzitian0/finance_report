@@ -4,6 +4,7 @@ import {
     BookOpen,
     ClipboardCheck,
     Clock,
+    FileText,
     Home,
     Landmark,
     Link2,
@@ -61,6 +62,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/statements": { label: "Statements", Icon: UploadCloud },
     "/review": { label: "Review", Icon: ClipboardCheck },
     "/portfolio": { label: "Portfolio", Icon: Wallet },
+    "/portfolio/evidence": { label: "Guided Evidence", Icon: FileText },
     // Legacy /assets route redirects to /portfolio; keep its label mapping for
     // breadcrumbs and any persisted workspace tabs.
     "/assets": { label: "Portfolio", Icon: Wallet },
