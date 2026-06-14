@@ -96,6 +96,21 @@ describe("PerformanceCard", () => {
     expect(flag).toHaveClass("text-[var(--error)]")
   })
 
+  it("AC17.14.4 colors a negative return as a loss", () => {
+    render(
+      <PerformanceCard
+        schedule={{
+          ...baseSchedule,
+          unrealized_pnl: "-300.00",
+          holdings: [{ ...baseSchedule.holdings[0], cost_basis: "3000.00", unrealized_pnl: "-300.00" }],
+        }}
+      />,
+    )
+    // -300 / 3000 = -10.00%
+    const ret = screen.getByText("-10.00%")
+    expect(ret).toHaveClass("text-[var(--error)]")
+  })
+
   it("AC17.14.4 shows N/A return when cost basis is zero", () => {
     render(
       <PerformanceCard

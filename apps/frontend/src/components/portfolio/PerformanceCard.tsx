@@ -6,24 +6,15 @@ import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
 function formatReturnPercent(value: string | null): string {
     if (value === null) return "N/A";
-    try {
-        const comparison = compareAmounts(value, "0");
-        const sign = comparison > 0 ? "+" : "";
-        return `${sign}${formatAmount(value, 2)}%`;
-    } catch {
-        return "N/A";
-    }
+    const sign = compareAmounts(value, "0") > 0 ? "+" : "";
+    return `${sign}${formatAmount(value, 2)}%`;
 }
 
 function amountClass(value: string | null): string {
     if (value === null) return "text-muted";
-    try {
-        const comparison = compareAmounts(value, "0");
-        if (comparison === 0) return "";
-        return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
-    } catch {
-        return "";
-    }
+    const comparison = compareAmounts(value, "0");
+    if (comparison === 0) return "";
+    return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
 }
 
 interface PerformanceCardProps {
