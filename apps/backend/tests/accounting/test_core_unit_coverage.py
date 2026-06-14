@@ -24,6 +24,8 @@ from src.services.reporting import (
 
 
 class TestReportingHelpers:
+    """AC11.8.1: income classification and amount provenance helpers."""
+
     def test_income_bucket_classifies_known_keywords(self):
         assert income_bucket("Monthly Salary") == "salary"
         assert income_bucket("Annual Bonus") == "bonus"
@@ -33,6 +35,7 @@ class TestReportingHelpers:
         assert income_bucket("grocery refund") is None
 
     def test_quantize_money_coerces_int(self):
+        """AC2.8.1: canonical money rounding accepts int and quantizes to 2dp."""
         result = _quantize_money(5)
         assert result == Decimal("5.00")
 
@@ -56,6 +59,8 @@ class TestReportingHelpers:
 
 
 class TestJournalEntrySchema:
+    """AC2.8.1: multi-currency journal balance validation via fx_rate."""
+
     def test_cross_currency_entry_balances_via_fx_rate(self):
         """Non-base-currency lines convert through fx_rate when checking balance."""
         debit, credit = uuid4(), uuid4()
@@ -105,6 +110,8 @@ class TestJournalEntrySchema:
 
 
 class TestInvestmentValidation:
+    """AC17.1.2: investment transaction amount validation guards."""
+
     def test_validate_positive_rejects_zero(self):
         service = InvestmentAccountingService()
         with pytest.raises(InvestmentAccountingValidationError, match="must be positive"):
