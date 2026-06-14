@@ -21,7 +21,7 @@ from src.schemas import (
     ProcessingPendingListResponse,
     ProcessingSummaryResponse,
 )
-from src.schemas.account import OpeningBalanceRequest
+from src.schemas.account import OpeningBalanceReadinessResponse, OpeningBalanceRequest
 from src.schemas.journal import JournalEntryResponse
 from src.services import (
     AccountNotFoundError,
@@ -30,7 +30,11 @@ from src.services import (
     calculate_account_balances,
 )
 from src.services.account_coverage import DEFAULT_STALE_AFTER_DAYS, get_account_statement_coverage
-from src.services.accounting import ValidationError, post_opening_balance_entry
+from src.services.accounting import (
+    ValidationError,
+    get_opening_balance_readiness,
+    post_opening_balance_entry,
+)
 from src.services.processing_account import (
     find_transfer_pairs,
     get_processing_balance,
@@ -71,6 +75,21 @@ async def post_opening_balances(
         await db.rollback()
         raise_bad_request(str(exc), cause=exc)
     return JournalEntryResponse.model_validate(entry)
+
+
+@router.get("/opening-balance-readiness", response_model=OpeningBalanceReadinessResponse)
+async def get_opening_balance_readiness_status(
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> OpeningBalanceReadinessResponse:
+    """Readiness nudge (#949): is the balance sheet at risk of being incomplete?
+
+    Returns ``needs_opening_balance=True`` when the user has posted activity but no
+    opening-balance entry on or before its earliest date, so the UI can warn before
+    they ship a silently-incomplete balance sheet.
+    """
+    readiness = await get_opening_balance_readiness(db, user_id)
+    return OpeningBalanceReadinessResponse.model_validate(readiness)
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)

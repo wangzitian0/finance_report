@@ -73,13 +73,16 @@ describe("AccountsPage", () => {
   })
 
   it("AC16.15.1 renders loading and error retry states", async () => {
+    const accountsCalls = () =>
+      mockedApiFetch.mock.calls.filter((c) => c[0] === "/api/accounts?include_balance=true").length
     mockedApiFetch.mockRejectedValue(new Error("accounts failed"))
 
     render(<AccountsPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Failed to load accounts")).not.toBeNull())
+    const before = accountsCalls()
     fireEvent.click(screen.getByRole("button", { name: "Retry loading accounts" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(accountsCalls()).toBeGreaterThan(before))
   })
 
   it("AC16.15.2 renders grouped accounts and supports type filters", async () => {
@@ -126,12 +129,14 @@ describe("AccountsPage", () => {
   })
 
   it("AC16.15.4 delete error shows error toast", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
+    mockedApiFetch.mockImplementation((path: string, opts?: RequestInit) => {
+      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
+      if (opts?.method === "DELETE") return Promise.reject(new Error("Cannot delete account with transactions"))
+      return Promise.resolve({
         items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
         total: 1,
       } satisfies AccountListResponse)
-      .mockRejectedValueOnce(new Error("Cannot delete account with transactions"))
+    })
     render(<AccountsPage />, { wrapper: createWrapper() })
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByTitle("Delete Account"))
@@ -158,10 +163,13 @@ describe("AccountsPage", () => {
   })
 
   it("AC16.15.6 cancel delete dialog closes without API call", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
-      total: 1,
-    } satisfies AccountListResponse)
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
+      return Promise.resolve({
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        total: 1,
+      } satisfies AccountListResponse)
+    })
 
     render(<AccountsPage />, { wrapper: createWrapper() })
 
@@ -171,7 +179,8 @@ describe("AccountsPage", () => {
     fireEvent.click(screen.getByText("Cancel Delete"))
 
     await waitFor(() => expect(screen.queryByTestId("confirm-dialog")).toBeNull())
-    expect(mockedApiFetch).toHaveBeenCalledTimes(1)
+    // Cancelling never calls the delete endpoint.
+    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/accounts/a1", { method: "DELETE" })
   })
 
   it("AC16.15.7 edit button opens modal with account data", async () => {
@@ -214,18 +223,18 @@ describe("AccountsPage", () => {
   })
 
   it("AC16.15.9 modal onSuccess triggers account list refresh", async () => {
-    mockedApiFetch
-      .mockResolvedValueOnce({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
-        total: 1,
-      } satisfies AccountListResponse)
-      .mockResolvedValueOnce({
-        items: [
-          { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" },
-          { id: "a2", name: "Savings", type: "ASSET", currency: "SGD", is_active: true, balance: "5000" },
-        ],
-        total: 2,
-      } satisfies AccountListResponse)
+    let accountsCall = 0
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
+      accountsCall += 1
+      const items: Account[] = [
+        { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" },
+      ]
+      if (accountsCall > 1) {
+        items.push({ id: "a2", name: "Savings", type: "ASSET", currency: "SGD", is_active: true, balance: "5000" })
+      }
+      return Promise.resolve({ items, total: items.length } satisfies AccountListResponse)
+    })
 
     render(<AccountsPage />, { wrapper: createWrapper() })
 
@@ -310,5 +319,44 @@ describe("AccountsPage", () => {
 
     fireEvent.click(screen.getByText("Mock Close Opening"))
     await waitFor(() => expect(screen.queryByText("Opening Balance Modal")).not.toBeInTheDocument())
+  })
+
+  it("AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/accounts/opening-balance-readiness") {
+        return Promise.resolve({ needs_opening_balance: true, earliest_activity_date: "2026-01-15" })
+      }
+      return Promise.resolve({
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        total: 1,
+      } satisfies AccountListResponse)
+    })
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText(/Your balance sheet may be incomplete/)).toBeInTheDocument()
+    expect(screen.getByText(/since 2026-01-15/)).toBeInTheDocument()
+
+    // The nudge's CTA opens the guided opening-balance modal.
+    const nudgeButtons = screen.getAllByRole("button", { name: /Set opening balances/i })
+    fireEvent.click(nudgeButtons[0])
+    expect(screen.getByText("Opening Balance Modal")).toBeInTheDocument()
+  })
+
+  it("AC2.16.3 hides the readiness nudge when opening balances are already recorded", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/accounts/opening-balance-readiness") {
+        return Promise.resolve({ needs_opening_balance: false, earliest_activity_date: null })
+      }
+      return Promise.resolve({
+        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        total: 1,
+      } satisfies AccountListResponse)
+    })
+
+    render(<AccountsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
+    expect(screen.queryByText(/Your balance sheet may be incomplete/)).not.toBeInTheDocument()
   })
 })

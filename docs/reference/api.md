@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `129`
-- Schema count: `213`
+- Endpoint count: `130`
+- Schema count: `214`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -14,7 +14,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Group | Endpoints |
 |---|---:|
-| `accounts` | 9 |
+| `accounts` | 10 |
 | `ai` | 1 |
 | `ai-feedback` | 2 |
 | `assets` | 11 |
@@ -46,6 +46,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/accounts` | yes | `account_type` (query), `is_active` (query), `include_balance` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_AccountResponse_` | List Accounts |
 | `POST` | `/accounts` | yes | - | `AccountCreate` | `201` `AccountResponse` | Create Account |
 | `GET` | `/accounts/coverage` | yes | `as_of` (query), `stale_after_days` (query) | - | `200` `AccountCoverageListResponse` | List Account Statement Coverage |
+| `GET` | `/accounts/opening-balance-readiness` | yes | - | - | `200` `OpeningBalanceReadinessResponse` | Get Opening Balance Readiness Status |
 | `POST` | `/accounts/opening-balances` | yes | - | `OpeningBalanceRequest` | `201` `JournalEntryResponse` | Post Opening Balances |
 | `GET` | `/accounts/processing/pending` | yes | - | - | `200` `ListResponse_ProcessingPendingItem_` | List Processing Pending |
 | `GET` | `/accounts/processing/summary` | yes | - | - | `200` `ProcessingSummaryResponse` | Get Processing Summary |
