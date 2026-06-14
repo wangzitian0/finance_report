@@ -333,6 +333,23 @@ same package after later ledger or market-data changes.
 |----|-----------|---------------|------|----------|
 | AC5.20.1 | At a full year's transaction volume (~1000 entries) the balance sheet, income statement, and cash flow tie out and generate within a generous wall-clock backstop — guarding the income-statement aggregation against a silent O(n^2) regression | `test_AC5_20_year_scale_reporting_ties_out_within_budget` | `reporting/test_year_scale_reporting.py` | P1 |
 
+### AC5.32: Income Module Typed Currency + Typed-Intermediate Response ([#1009](https://github.com/wangzitian0/finance_report/issues/1009))
+
+Tech-debt hardening of `apps/backend/src/routers/income.py` (Tier 3 of #1000):
+replace soft `str` currency handling with a shared validated/normalized
+`CurrencyCode` type, build the response from a typed intermediate
+(`AnnualizedIncomeTotals`) instead of a string-keyed dict, and declare an
+explicit FX-failure response model. Monetary values stay `Decimal`.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.32.1 | `AnnualizedIncomeResponse.currency` is the shared typed `CurrencyCode` (validated length + normalized), not a soft `str` | `test_AC5_32_1_currency_code_type_validates_and_normalizes` | `reporting/test_income_typed_currency.py` | P2 |
+| AC5.32.2 | Income totals accumulate in a typed `AnnualizedIncomeTotals` Decimal intermediate, not a string-keyed dict | `test_AC5_32_2_annualized_income_totals_is_typed_intermediate` | `reporting/test_income_typed_currency.py` | P2 |
+| AC5.32.3 | `resolve_line_currency` centralizes the `line\|\|account\|\|base` currency fallback + normalization | `test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain` | `reporting/test_income_typed_currency.py` | P2 |
+| AC5.32.4 | An explicit FX-failure response model (`FxConversionErrorResponse`) is declared for the income endpoint | `test_AC5_32_4_fx_conversion_error_response_model_declared` | `reporting/test_income_typed_currency.py` | P2 |
+| AC5.32.5 | Currency normalization is a single shared helper (`normalize_currency_code`), not duplicated `.strip().upper()` | `test_AC5_32_5_normalize_currency_code_is_shared_helper` | `reporting/test_income_typed_currency.py` | P2 |
+| AC5.32.6 | The endpoint normalizes a soft (lower-case) base-currency setting in its response | `test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_config` | `reporting/test_income_typed_currency.py` | P2 |
+
 ## 📏 Acceptance Criteria
 
 ### 🟢 Must Have
