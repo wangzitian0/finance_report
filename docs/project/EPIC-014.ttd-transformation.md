@@ -110,6 +110,16 @@ To-be:
 - [ ] Run threshold-based SSOT cleanup only after the metrics show enough
   evidence for targeted consolidation in
   [#824](https://github.com/wangzitian0/finance_report/issues/824).
+  - Each cleanup is selected from `python tools/report_ssot_governance.py` (not
+    subjective review) and names the metric threshold it reduces:
+    - AC14.1.14 reduces `finance_report.orphan_ssot_files` to zero.
+    - AC14.1.15 keeps `finance_report.machine_owner_entries_missing_proof` at
+      zero.
+    - AC14.1.23 reduces `finance_report.high_risk_entries_missing_proof` from
+      `2` to zero by binding the flagged high-risk `platform` concepts
+      (`container_naming`, `test_optimization`) to their existing proof tests.
+      Metadata-only backfill (`family` / `kind` / `proofs`); no concept is moved
+      or re-owned and no runtime behavior changes.
 
 ## SSOT HLS Family Model
 
@@ -149,7 +159,7 @@ member column lists the current inferred manifest groupings (the
 | `reporting` | Reports, frameworks, market data, assets, and evidence/workflow read models | `reporting`, `framework`, `market`, `assets`, `evidence`, `workflow` |
 | `extraction` | Statement parsing, AI advisor, and PDF fixtures | `extraction`, `ai`, `pdf` |
 | `schema` | Database schema, data layering, enum naming, and migration risk | `schema`, `migration` |
-| `platform` | Dev workflow, environments, CI/CD, coverage, deployment, and observability | `development`, `environments`, `ci`, `test`, `delivery`, `coverage`, `deployment`, `observability`, `runtime`, `env` |
+| `platform` | Dev workflow, environments, CI/CD, coverage, deployment, and observability | `platform`, `development`, `environments`, `ci`, `test`, `delivery`, `coverage`, `deployment`, `observability`, `runtime`, `env` |
 | `identity` | Auth identity and frontend integration contract | `auth`, `frontend` |
 | `governance` | TDD workflow, critical-proof matrix, agent governance, and branch policy | `tdd`, `critical`, `agents`, `contributing` |
 
@@ -280,3 +290,4 @@ Historical work-progress reports and test-organization audits were removed from 
 | AC14.1.18 | FR (EPIC-014) and infra2 (Infra-006) each document a 6-8 family SSOT HLS model with explicit concept/clause boundaries, the family map covers every MANIFEST.yaml-inferred family, the HLS checklist links #821/#822/#823/#824, and the definition does not move or re-own any SSOT concept | `test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent`, `test_AC14_1_18_infra2_hls_family_model_is_documented_and_consistent`, `test_AC14_1_18_hls_checklist_links_governance_loop_issues`, `test_AC14_1_18_documentation_only_does_not_re_own_concepts` | `tests/tooling/test_ssot_hls_family_model.py` | P1 |
 | AC14.1.20 | Unified coverage aggregation (#414) runs an artifact preflight that fails explicitly and names the offending component LCOV when a CI-critical artifact is missing or empty, instead of silently treating it as 0% and producing a misleading unified number | `test_AC14_1_20_preflight_fails_when_ci_critical_artifact_missing`, `test_AC14_1_20_preflight_fails_when_ci_critical_artifact_empty`, `test_AC14_1_20_main_fails_fast_with_named_missing_artifact` | `tests/tooling/test_coverage_artifact_preflight.py` | P0 |
 | AC14.1.21 | Coverage components (#923) carry an explicit `tier` (`ci-critical` vs `best-effort`); the artifact preflight enforces presence only for `ci-critical` tiers so a missing best-effort `tools` artifact does not hard-fail the aggregation while application and shared-library trees stay strictly gated | `test_AC14_1_21_tools_component_is_best_effort_tier`, `test_AC14_1_21_app_and_common_components_are_ci_critical_tier`, `test_AC14_1_21_preflight_skips_best_effort_missing_artifact` | `tests/tooling/test_coverage_artifact_preflight.py` | P1 |
+| AC14.1.23 | Threshold cleanup for #824 reduces `finance_report.high_risk_entries_missing_proof` to zero by binding the flagged high-risk platform concepts (`container_naming`, `test_optimization`) to existing proof tests under the #821 `platform` family without runtime behavior changes | `test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family` | `tests/tooling/test_ssot_governance_report.py` | P1 |

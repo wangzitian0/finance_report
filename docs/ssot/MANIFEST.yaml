@@ -394,6 +394,10 @@ concepts:
   container_naming:
     owner: docs/ssot/environments.md#container-naming-patterns
     description: Container name patterns per environment (hyphens vs underscores).
+    family: platform
+    kind: concept
+    proofs:
+      - tests/tooling/test_issue_489_deployment_contracts.py
     cross_refs:
       - docs/ssot/deployment.md
       - AGENTS.md
@@ -425,6 +429,11 @@ concepts:
   test_optimization:
     owner: docs/ssot/ci-cd.md#test-optimization
     description: Smart/fast/full test modes and 4-way sharding strategy.
+    family: platform
+    kind: concept
+    proofs:
+      - apps/backend/tests/unit/infra/test_test_lifecycle.py
+      - tests/tooling/test_github_workflow_timing_summary.py
     cross_refs:
       - docs/ssot/development.md
       - docs/ssot/coverage.md
