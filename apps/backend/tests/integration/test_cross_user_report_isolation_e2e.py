@@ -19,7 +19,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Account, AccountType, JournalEntrySourceType, User
+from src.models.layer3 import ManualValuationComponentType
 from src.services.accounting import create_journal_entry, post_journal_entry
+from src.services.assets import AssetService
 from src.services.reporting import generate_balance_sheet, generate_income_statement
 from tests.factories import UserFactory
 
@@ -85,3 +87,31 @@ async def test_AC8_16_2_reports_exclude_other_users_entries(db: AsyncSession, te
     # --- Symmetry: B genuinely has data (so the test isn't vacuously passing) ---
     b_bs = await generate_balance_sheet(db, user_b, as_of_date=period_end, currency="SGD")
     assert b_bs["total_assets"] == Decimal("17776.00")  # B's own 9999 + 7777, not A's
+
+    # --- Net-worth isolation: a manual valuation for each user must not cross into the
+    # other's net worth. Added after the ledger reports above so it does not perturb them. ---
+    service = AssetService()
+    await service.create_valuation_snapshot(
+        db,
+        user_id=user_a,
+        value=Decimal("200000.00"),
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=period_end,
+        currency="SGD",
+        source="A appraisal",
+    )
+    await service.create_valuation_snapshot(
+        db,
+        user_id=user_b,
+        value=Decimal("800000.00"),
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=period_end,
+        currency="SGD",
+        source="B appraisal",
+    )
+    await db.commit()
+
+    a_nw = await service.get_latest_valuation_components(db, user_a, as_of_date=period_end)
+    b_nw = await service.get_latest_valuation_components(db, user_b, as_of_date=period_end)
+    assert a_nw.total_assets == Decimal("200000.00")  # A's appraisal only, not 200000 + 800000
+    assert b_nw.total_assets == Decimal("800000.00")  # B's own, not A's
