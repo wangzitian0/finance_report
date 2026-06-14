@@ -158,6 +158,43 @@ Rules:
 - `monthly` uses the period end date for each returned point.
 - Each point reuses balance sheet FX conversion as of that point's date.
 
+#### 2.3.1 Net Worth Allocation Schedule
+
+Returns a point-in-time allocation schedule for the asset dashboard. The
+schedule is report-owned, not portfolio-owned, because it must reconcile
+ledger accounts, active portfolio market-value adjustments, manual valuation
+snapshots, and liabilities to the same Net Worth total as the balance sheet.
+
+Endpoint:
+`GET /reports/net-worth/allocation?as_of_date=YYYY-MM-DD&currency=SGD&include_restricted=true|false`
+
+Response object:
+
+| Field | Rule |
+|---|---|
+| `as_of_date`, `currency`, `include_restricted` | Echo the valuation date, report currency, and restricted/illiquid inclusion policy |
+| `total_assets`, `total_liabilities`, `net_worth` | Balance-sheet totals in the report currency; `net_worth = total_assets - total_liabilities` |
+| `rows` | Signed allocation rows grouped by `asset_class × liquidity_class × source_currency` |
+
+Row rules:
+
+- `value` is signed in the report currency: asset rows are positive, liability
+  rows are negative, and the sum of all row values must equal `net_worth`.
+- `percentage_of_net_worth` is `value / net_worth * 100`, rounded to two
+  decimal places; it is `null` when net worth is zero.
+- `source_currency` is the original source currency for same-currency source
+  groups; mixed-currency portfolio groups fall back to the report currency
+  after conversion.
+- `source_lines` retains drill-through metadata for the grouped contributors,
+  including source type, source id when available, label, signed value, and an
+  internal href.
+- Portfolio ledger-backed cost basis is grouped with `public_equity`; broker
+  account residual value after cost-basis split remains `cash`.
+- Manual valuation component types map to allocation asset classes:
+  property and mortgage components are `real_estate`; ESOP, RSU, and stock
+  options are `restricted_comp`; tax refunds are `cash`; tax payable and generic
+  liabilities are `liability`; other manual components are `other`.
+
 ### 2.4 Cash Flow Statement
 
 Shows cash movements by category.

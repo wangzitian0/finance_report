@@ -246,6 +246,75 @@ async def test_net_worth_timeseries_endpoint_commits_boundary(
     assert persisted is not None
 
 
+async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC17.14.2: Net-worth allocation endpoint returns the signed allocation contract."""
+
+    async def fake_allocation_schedule(*_args, **kwargs):
+        assert kwargs["as_of_date"] == date(2026, 1, 31)
+        assert kwargs["currency"] == "SGD"
+        assert kwargs["include_restricted"] is True
+        return {
+            "as_of_date": date(2026, 1, 31),
+            "currency": "SGD",
+            "include_restricted": True,
+            "total_assets": Decimal("1500.00"),
+            "total_liabilities": Decimal("500.00"),
+            "net_worth": Decimal("1000.00"),
+            "rows": [
+                {
+                    "asset_class": "cash",
+                    "liquidity_class": "liquid",
+                    "source_currency": "SGD",
+                    "value": Decimal("1500.00"),
+                    "percentage_of_net_worth": Decimal("150.00"),
+                    "source_line_count": 1,
+                    "source_lines": [
+                        {
+                            "source_type": "ledger_account",
+                            "source_id": None,
+                            "label": "Main Bank",
+                            "value": Decimal("1500.00"),
+                            "href": "/reports/account-lineage",
+                        }
+                    ],
+                },
+                {
+                    "asset_class": "liability",
+                    "liquidity_class": "liability",
+                    "source_currency": "SGD",
+                    "value": Decimal("-500.00"),
+                    "percentage_of_net_worth": Decimal("-50.00"),
+                    "source_line_count": 1,
+                    "source_lines": [
+                        {
+                            "source_type": "ledger_account",
+                            "source_id": None,
+                            "label": "Credit Card",
+                            "value": Decimal("-500.00"),
+                            "href": "/reports/account-lineage",
+                        }
+                    ],
+                },
+            ],
+        }
+
+    monkeypatch.setattr(reports_router, "get_net_worth_allocation_schedule", fake_allocation_schedule)
+
+    response = await client.get(
+        "/reports/net-worth/allocation",
+        params={"as_of_date": "2026-01-31", "currency": "SGD", "include_restricted": "true"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["net_worth"] == "1000.00"
+    assert data["rows"][0]["source_currency"] == "SGD"
+    assert data["rows"][1]["value"] == "-500.00"
+
+
 async def test_breakdown_endpoint(client, test_data_setup_reports):
     """Test breakdown endpoint."""
     _, income = await test_data_setup_reports()

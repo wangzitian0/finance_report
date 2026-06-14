@@ -51,6 +51,7 @@ from src.schemas import (
     CategoryBreakdownResponse,
     FrameworkPolicyResult,
     IncomeStatementResponse,
+    NetWorthAllocationResponse,
     NetWorthGranularity,
     NetWorthTimeSeriesResponse,
     PersonalReportingFrameworkId,
@@ -78,6 +79,7 @@ from src.services.reporting import (
     get_account_lineage,
     get_account_trend,
     get_category_breakdown,
+    get_net_worth_allocation_schedule,
     get_net_worth_timeseries,
     income_bucket,
 )
@@ -1982,6 +1984,38 @@ async def net_worth_timeseries(
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
     return NetWorthTimeSeriesResponse(**report)
+
+
+@router.get("/net-worth/allocation", response_model=NetWorthAllocationResponse)
+async def net_worth_allocation(
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=True),
+    db: DbSession = None,
+    user_id: CurrentUserId = None,
+) -> NetWorthAllocationResponse:
+    """Get signed net-worth allocation grouped by asset class, liquidity, and source currency."""
+    report_date = as_of_date or date.today()
+    try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
+        report = await get_net_worth_allocation_schedule(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=currency,
+            include_restricted=include_restricted,
+        )
+    except ReportError as exc:
+        logger.warning(
+            "Net worth allocation generation failed",
+            as_of_date=str(report_date),
+            currency=currency,
+            include_restricted=include_restricted,
+            error=str(exc),
+        )
+        raise_bad_request(str(exc), cause=exc)
+    await db.commit()
+    return NetWorthAllocationResponse(**report)
 
 
 @router.get("/breakdown", response_model=CategoryBreakdownResponse)

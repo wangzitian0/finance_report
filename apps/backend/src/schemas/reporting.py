@@ -143,6 +143,50 @@ class NetWorthTimeSeriesResponse(BaseModel):
     points: list[NetWorthTimeSeriesPoint]
 
 
+class NetWorthAllocationSourceLine(BaseModel):
+    """Source line retained behind one net-worth allocation row."""
+
+    source_type: str = Field(description="Contributor source class for drill-through.")
+    source_id: UUID | None = Field(default=None, description="Source record id when the contributor has one.")
+    label: str = Field(description="Human-readable contributor label.")
+    value: Decimal = Field(description="Signed contributor value in the report currency.")
+    href: str | None = Field(default=None, description="Internal drill-through href for the contributor.")
+
+    @field_validator("href")
+    @classmethod
+    def validate_href(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _validate_internal_action_href(value)
+
+
+class NetWorthAllocationRow(BaseModel):
+    """Signed allocation row grouped by asset class, liquidity, and source currency."""
+
+    asset_class: str = Field(description="Allocation asset class bucket.")
+    liquidity_class: str = Field(description="Allocation liquidity bucket.")
+    source_currency: str = Field(min_length=3, max_length=3, description="Original source currency bucket.")
+    value: Decimal = Field(description="Signed row value in the report currency.")
+    percentage_of_net_worth: Decimal | None = Field(
+        default=None,
+        description="Signed row value divided by net worth, as a percentage.",
+    )
+    source_line_count: int = Field(ge=0, description="Number of source lines included in this row.")
+    source_lines: list[NetWorthAllocationSourceLine] = Field(description="Contributor lines behind this row.")
+
+
+class NetWorthAllocationResponse(BaseModel):
+    """Net-worth allocation schedule response."""
+
+    as_of_date: date = Field(description="Valuation date for the schedule.")
+    currency: str = Field(min_length=3, max_length=3, description="Report presentation currency.")
+    include_restricted: bool = Field(description="Whether restricted and illiquid valuation snapshots are included.")
+    total_assets: Decimal = Field(description="Balance-sheet total assets in the report currency.")
+    total_liabilities: Decimal = Field(description="Balance-sheet total liabilities in the report currency.")
+    net_worth: Decimal = Field(description="Total assets minus total liabilities.")
+    rows: list[NetWorthAllocationRow] = Field(description="Signed allocation rows that sum to net worth.")
+
+
 class AccountTrendPoint(BaseModel):
     """Trend data point for an account."""
 
