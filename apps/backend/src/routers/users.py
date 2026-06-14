@@ -4,11 +4,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from src.deps import CurrentUserId, DbSession
 from src.models import User
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
-from src.utils import raise_bad_request, raise_not_found
+from src.utils import raise_bad_request, raise_conflict, raise_not_found
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -114,4 +115,13 @@ async def delete_user(
         raise_not_found("User")
 
     await db.delete(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # The ledger immutability invariant (posted/reconciled journal entries cannot be
+        # deleted) blocks the cascade. Surface it as a clear 409 instead of leaking a 500.
+        await db.rollback()
+        raise_conflict(
+            "Cannot delete this account while it has posted or reconciled ledger entries. Void those entries first.",
+            cause=exc,
+        )

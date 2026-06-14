@@ -158,6 +158,24 @@ pending review, and expose the guard reason for human correction.
 
 Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/services/brokerage_positions.py`.
 
+### Post-parse routing (intentional difference vs bank statements)
+
+Routing after parsing depends on the document class, on purpose (#981):
+
+- **Bank statements** route via `route_by_threshold(confidence, balance_valid)`: an invalid
+  running-balance chain sends them to `uploaded` (manual entry), and high confidence + valid
+  balance can auto-approve. **Exception:** CSV exports without source statement balances take the
+  inferred-balance path (`has_inferred_csv_balances`), which forces `parsed`/review with
+  `balance_valid = False` rather than routing to `uploaded` — so they remain reviewable instead of
+  demanding manual entry.
+- **Brokerage statements** always route to `parsed` (review) regardless of `balance_valid`,
+  because they reconcile via `AtomicPosition` position snapshots rather than a running-balance
+  chain — `balance_valid` is not a meaningful gating signal for them.
+
+So the same "balance invalid" outcome lands a (non-CSV) bank statement in `uploaded` but a
+brokerage statement in `parsed`. This is by design, not a routing bug. Owner: `ExtractionService`
+status selection (`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
+
 Parsing priority:
 1. Prefer structured `positions`, `holdings`, or `securities` arrays from OCR/LLM output.
 2. For Moomoo, recover money-market fund snapshots from subscription rows when no holdings table is available.

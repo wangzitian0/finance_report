@@ -14,7 +14,11 @@ const navigationState = vi.hoisted(() => ({
 const pushMock = navigationState.push;
 const replaceMock = navigationState.replace;
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api", () => ({
+    apiFetch: vi.fn(),
+    // PdfPreviewPane fetches the document blob on mount (#963 / AC16.33.5).
+    apiDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
+}));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
     useParams: vi.fn(() => ({ id: "s1" })),

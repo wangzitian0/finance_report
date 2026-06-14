@@ -502,6 +502,12 @@ class ExtractionService:
             else:
                 # For confidence score, we use the original extracted dict to maintain logic.
                 confidence = compute_confidence_score(extracted, balance_result)
+                # Routing differs by document class on purpose (#981): brokerage payloads
+                # reconcile via Layer-2 AtomicPosition snapshots, not a running-balance chain, so
+                # `balance_valid` is not their gating signal — they always go to `parsed`/review.
+                # Bank statements route by `route_by_threshold`, where an invalid balance chain
+                # sends them to `uploaded` (manual entry). Same "balance invalid" input, different
+                # destination by design.
                 status = (
                     BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
                 )

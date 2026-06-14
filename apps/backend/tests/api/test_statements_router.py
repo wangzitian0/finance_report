@@ -1587,6 +1587,58 @@ async def test_get_statement_for_review(db, test_user, monkeypatch):
     assert hasattr(result.balance_validation_result, "closing_match")
 
 
+async def test_AC16_33_5_get_statement_document_streams_bytes_same_origin(db, test_user, monkeypatch):
+    """AC16.33.5: the document endpoint streams the original upload, same-origin.
+
+    The Stage 1 PDF preview embeds this authenticated endpoint as a ``blob:``
+    object URL instead of a cross-origin object-storage URL.
+    """
+    statement = build_statement(test_user.id, "hash_doc_stream", 75)
+    db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="statements/doc/preview.pdf", original_filename="moomoo.pdf")
+    await db.commit()
+    await db.refresh(statement)
+
+    monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
+
+    result = await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+
+    assert result.body == b"dummy content"
+    assert result.media_type == "application/pdf"
+    assert result.headers["Content-Disposition"] == "inline"
+
+
+async def test_AC16_33_5_get_statement_document_404_when_no_document(db, test_user):
+    """AC16.33.5: a statement with no uploaded document returns 404, not a blank frame."""
+    statement = build_statement(test_user.id, "hash_doc_missing", 75)
+    db.add(statement)
+    await db.commit()
+    await db.refresh(statement)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_AC16_33_5_get_statement_document_storage_error_maps_to_502(db, test_user, monkeypatch):
+    """AC16.33.5: a storage outage surfaces a 502 instead of a silent empty body."""
+    statement = build_statement(test_user.id, "hash_doc_storage_err", 75)
+    db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="statements/doc/err.pdf")
+    await db.commit()
+    await db.refresh(statement)
+
+    mock_storage = MagicMock()
+    mock_storage.get_object.side_effect = statements_router.StorageError("S3 Down")
+    monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert exc.value.status_code == status.HTTP_502_BAD_GATEWAY
+
+
 async def test_get_statement_for_review_not_found(db, test_user):
     """Given a non-existent statement,
     When get_statement_for_review is called,
