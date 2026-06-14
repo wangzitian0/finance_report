@@ -205,6 +205,8 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.20.1 | DB_POOL_SIZE config field exists with default | `test_db_pool_size_config_default()` | `infra/test_config_contract.py` | P1 |
 | AC12.20.2 | DB_MAX_OVERFLOW config field exists with default | `test_db_max_overflow_config_default()` | `infra/test_config_contract.py` | P1 |
 | AC12.20.3 | Pool config is positive integer | `test_db_pool_config_positive_integer()` | `infra/test_config_contract.py` | P1 |
+| AC12.20.4 | Ensure DB_POOL_SIZE env var actually overrides the setting. | `test_db_pool_size_env_override` | `infra/test_config_contract.py` | P1 |
+| AC12.20.5 | Ensure DB_POOL_MAX_OVERFLOW env var actually overrides the setting. | `test_db_pool_size_env_override` | `infra/test_config_contract.py` | P1 |
 
 ### AC12.21: Exceptions - BaseAppException
 
@@ -214,6 +216,7 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.21.2 | BaseAppException has status_code attribute | `test_base_app_exception_has_status_code()` | `infra/test_exceptions.py` | P1 |
 | AC12.21.3 | BaseAppException is subclass of Exception | `test_base_app_exception_is_exception()` | `infra/test_exceptions.py` | P1 |
 | AC12.21.4 | BaseAppException can be raised and caught | `test_base_app_exception_raise_and_catch()` | `infra/test_exceptions.py` | P1 |
+| AC12.21.5 | BaseAppException handler serializes error_id and status_code into JSON response. | `test_base_app_exception_handler_returns_structured_json` | `infra/test_exceptions.py` | P1 |
 
 ## 📏 Acceptance Criteria
 
