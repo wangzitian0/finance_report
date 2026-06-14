@@ -42,6 +42,12 @@ FAMILY_ROW = re.compile(r"^\|\s*`(?P<family>[a-z0-9_]+)`\s*\|")
 
 
 def _read(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Required SSOT file not found: {path}. If this is an infra2 path "
+            f"under the 'repo/' submodule, the submodule is likely not "
+            f"initialized — run `git submodule update --init --recursive`."
+        )
     return path.read_text(encoding="utf-8")
 
 
@@ -63,7 +69,7 @@ def _declared_families(text: str) -> list[str]:
 
 
 def _manifest_inferred_families(manifest_path: Path, entry_key: str) -> set[str]:
-    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+    data = yaml.safe_load(_read(manifest_path)) or {}
     raw_entries = data.get(entry_key) or {}
     families: set[str] = set()
     for key, raw in raw_entries.items():
@@ -86,15 +92,34 @@ def _backticked_tokens(text: str) -> set[str]:
     return set(re.findall(r"`([a-z0-9_]+)`", text))
 
 
-def _family_map_coverage(section: str, inferred: set[str]) -> set[str]:
-    """Inferred manifest families not listed as a member in the family map.
+def _family_member_counts(section: str) -> dict[str, int]:
+    """Count occurrences of each backticked member token in the family-map table.
 
-    Every inferred family must appear somewhere in the HLS family-model section
-    as a backticked member token, so each manifest grouping is explicitly bound
-    to exactly one declared family (no orphan grouping).
+    Only the *member* column (the last cell of each `| `family` | … |` table
+    row) is parsed, so prose and the scope column cannot create false positives.
+    A token bound under multiple declared families is counted more than once.
     """
-    listed = _backticked_tokens(section)
-    return {fam for fam in inferred if fam not in listed}
+    counts: dict[str, int] = {}
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not FAMILY_ROW.match(stripped):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        member_cell = cells[-1]
+        for token in re.findall(r"`([a-z0-9_]+)`", member_cell):
+            counts[token] = counts.get(token, 0) + 1
+    return counts
+
+
+def _family_map_coverage(section: str, inferred: set[str]) -> set[str]:
+    """Inferred manifest families not bound to exactly one declared family.
+
+    Every inferred family must appear as a member token in exactly one
+    family-map row's member column, so each manifest grouping is bound to
+    exactly one declared family (no orphan grouping and no duplicate binding).
+    """
+    counts = _family_member_counts(section)
+    return {fam for fam in inferred if counts.get(fam, 0) != 1}
 
 
 def test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent() -> None:
@@ -116,7 +141,8 @@ def test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent() -> None:
     inferred = _manifest_inferred_families(FR_MANIFEST, "concepts")
     uncovered = _family_map_coverage(section, inferred)
     assert not uncovered, (
-        f"FR family map does not cover manifest-inferred families: {sorted(uncovered)}"
+        "FR family map must bind each manifest-inferred family to exactly one "
+        f"declared family; offending (missing or duplicated): {sorted(uncovered)}"
     )
 
 
@@ -139,7 +165,8 @@ def test_AC14_1_18_infra2_hls_family_model_is_documented_and_consistent() -> Non
     inferred = _manifest_inferred_families(INFRA_MANIFEST, "entries")
     uncovered = _family_map_coverage(section, inferred)
     assert not uncovered, (
-        f"infra2 family map does not cover manifest-inferred families: "
+        "infra2 family map must bind each manifest-inferred family to exactly "
+        f"one declared family; offending (missing or duplicated): "
         f"{sorted(uncovered)}"
     )
 
