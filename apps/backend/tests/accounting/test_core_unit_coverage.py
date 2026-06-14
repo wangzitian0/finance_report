@@ -9,6 +9,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from src.models.journal import Direction, JournalEntrySourceType
 from src.schemas.journal import JournalEntryCreate, JournalLineCreate
@@ -62,18 +63,22 @@ class TestJournalEntrySchema:
     """AC2.8.1: multi-currency journal balance validation via fx_rate."""
 
     def test_cross_currency_entry_balances_via_fx_rate(self):
-        """Non-base-currency lines convert through fx_rate when checking balance."""
+        """A base-currency debit balances a foreign credit only via fx_rate conversion.
+
+        Base currency is SGD: a 135.00 SGD debit balances a 100.00 USD credit only
+        because 100.00 * 1.35 == 135.00. If the validator ignored fx_rate it would
+        compare 135 vs 100 and reject — so this proves the conversion is applied.
+        """
         debit, credit = uuid4(), uuid4()
         entry = JournalEntryCreate(
             entry_date=date(2026, 1, 1),
-            memo="USD transfer",
+            memo="SGD<->USD transfer",
             lines=[
                 JournalLineCreate(
                     account_id=debit,
                     direction=Direction.DEBIT,
-                    amount=Decimal("100.00"),
-                    currency="USD",
-                    fx_rate=Decimal("1.350000"),
+                    amount=Decimal("135.00"),
+                    currency="SGD",
                 ),
                 JournalLineCreate(
                     account_id=credit,
@@ -88,7 +93,7 @@ class TestJournalEntrySchema:
 
     def test_cross_currency_entry_requires_fx_rate(self):
         """A non-base-currency line without fx_rate fails balance validation."""
-        with pytest.raises(ValueError, match="fx_rate required"):
+        with pytest.raises(PydanticValidationError, match="fx_rate required"):
             JournalEntryCreate(
                 entry_date=date(2026, 1, 1),
                 memo="bad fx",
