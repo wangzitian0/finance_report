@@ -247,12 +247,11 @@ def render_env_reconciliation_diff(
     lines.append(f"requested_key_count: {len(requested)}")
     lines.append(f"effective_key_count: {len(actual)}")
     for key in divergent:
-        if key not in requested:
-            reason = "stale-unrequested-key"
-        elif key not in actual:
-            reason = "missing-from-effective"
-        else:
-            reason = "value-mismatch"
+        # env_reconciliation_divergence only reports keys that are present in the
+        # effective env: either a stale key we never requested, or a requested
+        # key whose effective value differs. It deliberately does not flag keys
+        # absent from the effective env, so those two are the only reasons here.
+        reason = "stale-unrequested-key" if key not in requested else "value-mismatch"
         lines.append(f"divergent_key: {key} ({reason})")
     lines.append(f"result: {'match' if not divergent else 'mismatch'}")
     lines.append("raw_env_printed: false")
