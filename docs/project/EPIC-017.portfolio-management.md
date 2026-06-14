@@ -296,22 +296,20 @@ market-value gain/loss, and price freshness.
 | AC17.14.3 | Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering | `AC17.14.3 renders net-worth allocation from the report schedule`, `AC17.14.3 shows the net-worth allocation loading state`, `AC17.14.3 shows the net-worth allocation error state`, `AC17.14.3 shows the empty net-worth allocation state`, `AC17.14.3 renders invalid net-worth allocation percentages as unavailable`, `AC17.14.3 renders missing net-worth allocation percentages as unavailable`, `AC17.14.3 refetches net-worth allocation when restricted holdings are excluded` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
 | AC17.14.4 | The asset-dashboard performance surface leads with unrealized market-value gain/loss, a simple return on cost valued at the schedule as-of date, and a price-freshness flag; TWR/IRR/MWR are not presented as the asset-dashboard answer and stay on the reporting side as clearly-labelled analytical measures | `AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness`, `AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer`, `AC17.14.4 flags stale prices`, `AC17.14.4 shows N/A return when cost basis is zero` | `apps/frontend/src/__tests__/performanceCard.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx` | P1 |
 
-### AC17.15: Non-Ticker Identifier Guard and Observable Drops
+### AC17.15: Non-Ticker Identifier Guard
 
 Brokerage fund positions (e.g. money-market funds) store the full fund name as
 `asset_identifier`. That free text was sent to Yahoo Finance as a ticker, 404ing
-on every lookup, and when no snapshot price existed the position was silently
-dropped from net worth (understating it). The guard skips guaranteed-404 Yahoo
-requests for non-ticker identifiers (these positions are valued from their
-existing AtomicPosition snapshot), and the unpriced-drop skip is elevated to a
-warning so the omission is observable. Fuller surfacing (e.g. a report blocker)
-is follow-up. Issue #1035.
+on every lookup. The guard skips guaranteed-404 Yahoo requests for non-ticker
+identifiers (these positions are valued from their existing AtomicPosition
+snapshot). The unpriced-drop skip is intentionally kept at `debug` to honor the
+high-volume audit-noise contract (AC10.8.4); surfacing dropped positions to the
+user (e.g. a report blocker) is tracked as follow-up. Issue #1035.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC17.15.1 | `_looks_like_ticker` accepts real tickers/FX pairs and rejects fund-name free text | `test_looks_like_ticker_accepts_real_tickers_rejects_free_text` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
 | AC17.15.2 | A non-ticker identifier short-circuits the Yahoo stock fetch with no HTTP call | `test_yahoo_stock_fetch_short_circuits_for_non_ticker` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
-| AC17.15.3 | An unpriced position omitted from net worth logs a warning instead of a silent debug | `test_portfolio_without_market_price_logs_warning` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py` | P1 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 

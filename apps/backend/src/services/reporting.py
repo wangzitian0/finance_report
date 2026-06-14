@@ -706,15 +706,10 @@ async def _portfolio_market_basis_by_account(
         try:
             latest_price = await portfolio_service._get_latest_price(db, position, portfolio_eval_date, user_id)
         except AssetNotFoundError:
-            # An unpriced position is dropped from net worth, understating it. Surface
-            # this at warning level so the omission is observable rather than silent.
-            # Fuller surfacing (e.g. a report blocker) is follow-up; see #1035.
-            logger.warning(
-                "Skipping portfolio valuation without market price; position omitted from net worth",
+            logger.debug(
+                "Skipping portfolio valuation without market price",
                 position_id=str(position.id),
                 asset_identifier=position.asset_identifier,
-                account_id=str(account.id),
-                account_name=account.name,
                 as_of_date=portfolio_eval_date.isoformat(),
             )
             continue
