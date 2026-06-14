@@ -81,7 +81,7 @@ export default function PortfolioPage() {
     const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
     const totalPortfolioValue = sumAmounts(activeHoldings.map((holding) => holding.market_value));
     const primaryCurrency = activeHoldings[0]?.currency ?? "USD";
-    const assetClassAllocationRows = performanceSchedule?.allocation.filter(isAssetClassAllocation) ?? [];
+    const assetClassAllocationRows = (performanceSchedule?.allocation ?? []).filter(isAssetClassAllocation);
     const unifiedAllocationSchedule =
         performanceSchedule &&
         !isPerformanceScheduleLoading &&
