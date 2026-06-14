@@ -115,6 +115,7 @@ nav:
       - Red Lines: agents/red-lines.md
       - App/Infra Contract Boundary: agents/app-infra-contract-boundary.md
       - Branch Policy: contributing/branch-policy.md
+      - Staging Test-Account Cleanup: contributing/staging-test-account-cleanup.md
   - Development:
       - Project Overview: project/README.md
       - Design Decisions: project/DECISIONS.md
