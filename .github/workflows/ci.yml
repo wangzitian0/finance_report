@@ -84,6 +84,17 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+      - name: Secret Scan (gitleaks)
+        # AC8.13.132 — content-level secret scan. Mirrors the gitleaks pre-commit
+        # hook so the same gate runs locally and in CI (local==CI parity). Scans
+        # the working tree (--no-git) to fail on committed credential material
+        # without being tripped by unrelated git history.
+        run: |
+          GITLEAKS_VERSION=8.18.4
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --no-git --redact --no-banner \
+            --config .gitleaks.toml --exit-code 1
       - name: Toolchain Contract Check
         run: python tools/check_toolchain_contract.py
       - name: Set up Node

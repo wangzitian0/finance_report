@@ -1,0 +1,23 @@
+# gitleaks configuration for finance_report (AC8.13.132).
+# Extends the upstream default ruleset and adds a TIGHTLY-SCOPED allowlist for
+# known non-secret matches. Allowlisting is by value/regex (not blanket path
+# ignores), so a real credential later introduced into the same files is still
+# caught.
+title = "finance_report gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented example tokens and non-secret constant keys"
+regexes = [
+  # Truncated placeholder JWT used throughout the auth docs (ends in `...`,
+  # never a real signed token).
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.\.\.''',
+  # Fuller example JWT in auth.md whose payload encodes the canonical example
+  # UUID 550e8400-... and a fake `.xxx` signature (a documented sample, not a
+  # real token). Scoped to that example payload so real tokens still trip.
+  '''eyJzdWIiOiI1NTBlODQwMC''',
+  # Frontend localStorage key name (a constant identifier, not a credential).
+  '''ai_advisor_disclaimer_v1''',
+]
