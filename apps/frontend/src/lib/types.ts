@@ -826,6 +826,17 @@ export type ManualValuationLiquidityClass =
   | "illiquid"
   | "liability";
 
+// Structured evidence basis for a manual valuation (EPIC-011 AC11.9.5/#706).
+// Mirrors the backend `ManualValuationBasis` enum.
+export type ManualValuationBasis =
+  | "market_appraisal"
+  | "broker_statement"
+  | "employer_grant_document"
+  | "bank_statement"
+  | "government_statement"
+  | "insurer_statement"
+  | "self_estimate";
+
 export type ManualValuationSource =
   | "manual"
   | "broker_portal"
@@ -846,6 +857,7 @@ export interface ManualValuationSnapshot {
   value: string;
   currency: string;
   source: string;
+  valuation_basis?: ManualValuationBasis | null;
   notes?: string | null;
   recurrence_days?: number | null;
   reminder_date?: string | null;

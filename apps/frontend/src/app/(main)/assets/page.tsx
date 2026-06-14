@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/Toast";
@@ -231,7 +232,14 @@ export default function AssetsPage() {
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                     <div className="flex-1">
                         <p className="text-xs text-muted uppercase tracking-wide">Manual Valuations</p>
-                        <h2 className="font-semibold mt-1 mb-4">Property, CPF, tax, insurance, and equity awards</h2>
+                        <h2 className="font-semibold mt-1 mb-2">Property, CPF, tax, insurance, and equity awards</h2>
+                        <p className="text-xs text-muted mb-4">
+                            For ESOP/RSU, property, and liability records, use the{" "}
+                            <Link href="/portfolio/evidence" className="text-[var(--accent)] underline">
+                                guided evidence intake
+                            </Link>{" "}
+                            to capture a structured valuation basis and source anchor.
+                        </p>
                         {valuationSnapshots.length ? (
                             <div className="divide-y divide-[var(--border)]">
                                 {valuationSnapshots.slice(0, 5).map((snapshot) => (
