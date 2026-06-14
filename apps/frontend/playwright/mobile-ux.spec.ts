@@ -267,7 +267,7 @@ test("AC16.26.3 stage 2 run review preserves mobile approval gate and match work
   await expectNoDocumentHorizontalScroll(page);
 });
 
-test("AC2.12.3 mobile accounts avoids document horizontal scroll and overlapping row controls", async ({ page }) => {
+test("AC2.17.1 mobile accounts avoids document horizontal scroll and overlapping row controls", async ({ page }) => {
   await gotoReady(page, "/accounts");
 
   await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });

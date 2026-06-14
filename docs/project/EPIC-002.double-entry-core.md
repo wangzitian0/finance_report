@@ -160,11 +160,14 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.6.3 | Decimal precision loss detection | `test_amount_precision_loss_detection()` | `accounting/test_accounting_equation.py` | P1 |
 | AC2.6.4 | Many-line complex entry (salary breakdown) | `test_many_lines_complex_salary_correct()` | `accounting/test_accounting_equation.py` | P1 |
 
-### AC2.12: Account Management UI Responsiveness
+### AC2.17: Account Management UI Responsiveness
+
+> Renumbered from a second `AC2.12` group that collided with AC2.12 (Multi-Currency
+> Ledger Integrity); the AC IDs are unique, the namespaces were not.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.12.3 | Accounts page mobile filters and account rows avoid document-level horizontal scroll and content overlap | `AC2.12.3 mobile accounts avoids document horizontal scroll and overlapping row controls` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC2.17.1 | Accounts page mobile filters and account rows avoid document-level horizontal scroll and content overlap | `AC2.17.1 mobile accounts avoids document horizontal scroll and overlapping row controls` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 
 ### AC2.7: API Router & Error Handling
 
@@ -429,11 +432,15 @@ inputs to [EPIC-020](EPIC-020.framework-aware-personal-reporting.md). US-like
 or HK-like recognition, measurement, classification, presentation, and
 disclosure decisions must not be embedded into posting logic.
 
-### AC2.13: Framework-Neutral Ledger Boundary
+### AC2.18: Framework-Neutral Ledger Boundary
+
+> Renumbered from a second `AC2.13` group whose `AC2.13.1` collided with AC2.13.1
+> (User-Scoped Ledger Integrity); the registry kept the user-scoped row and
+> silently dropped this framework-neutral one until the IDs were made unique.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.13.1 | Canonical ledger documentation declares that double-entry posting is framework-neutral and that US/HK policy decisions belong to EPIC-020 | `test_AC2_13_1_canonical_ledger_is_framework_neutral` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
+| AC2.18.1 | Canonical ledger documentation declares that double-entry posting is framework-neutral and that US/HK policy decisions belong to EPIC-020 | `test_AC2_18_1_canonical_ledger_is_framework_neutral` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
 ---
 
