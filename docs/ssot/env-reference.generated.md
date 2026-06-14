@@ -27,7 +27,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
 | `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Disable provider 'thinking' mode for AI JSON completion calls. |
 | `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
-| `AI_JSON_SEED` | `42` |  |  | AI Provider | Fixed decoding seed for reproducible AI extraction (empty to omit). |
+| `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
 | `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_MODEL_CATALOG_SOURCE` | `configured` |  |  | AI Provider | Source of the AI model catalog. |

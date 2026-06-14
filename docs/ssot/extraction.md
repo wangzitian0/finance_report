@@ -239,7 +239,9 @@ VISION_FALLBACK_MODELS=glm-4.5v
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
-AI_JSON_SEED=42
+# Optional; off by default. Only set for seed-supporting models (e.g. GLM-5.1) —
+# glm-4.6v rejects `seed` with HTTP 400.
+AI_JSON_SEED=
 AI_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
@@ -254,11 +256,13 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 ## Parsing Resilience
 
 - **Deterministic decoding**: JSON extraction pins `temperature=0` and
-  `do_sample=false`, and forwards a fixed request `seed` (`AI_JSON_SEED`,
-  default `42`) so the same statement decodes reproducibly. This keeps
+  `do_sample=false` so the same statement decodes reproducibly, keeping
   `balance_validated`, `confidence_score`, and Stage-1 routing from flipping
-  between uploads of the same source (#989). Set `AI_JSON_SEED=` (empty) to omit
-  the seed for providers that reject it.
+  between uploads of the same source (#989). An optional fixed request `seed`
+  (`AI_JSON_SEED`) can further pin decoding, but it is **off by default**: Z.AI/GLM
+  validates request params strictly and `seed` is rejected by some models
+  (notably `glm-4.6v`, the default vision/OCR model, returns HTTP 400), so it is
+  only safe to set for seed-supporting models such as GLM-5.1.
 - **Balance-aware self-consistency re-extract**: when a bank statement's
   running-balance chain fails to reconcile, `_extract_with_balance_retry`
   re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed —
