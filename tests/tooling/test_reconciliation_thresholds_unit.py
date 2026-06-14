@@ -202,9 +202,7 @@ async def test_execute_matching_score_thresholds(
             new=AsyncMock(return_value=None),
         ),
     ):
-        matches = await execute_matching(
-            db, user_id=uuid4(), statement_id=txn.statement_id
-        )
+        matches = await execute_matching(db, user_id=uuid4())
 
     assert len(matches) == expected_match_count
     # bank-txn.status is no longer mutated under the Layer-2 read path (Stage 3 removes it)
@@ -263,9 +261,7 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
             new=AsyncMock(return_value=existing_match),
         ),
     ):
-        matches = await execute_matching(
-            db, user_id=uuid4(), statement_id=txn.statement_id
-        )
+        matches = await execute_matching(db, user_id=uuid4())
 
     assert matches == []
     assert existing_match.status == ReconciliationStatus.AUTO_ACCEPTED
