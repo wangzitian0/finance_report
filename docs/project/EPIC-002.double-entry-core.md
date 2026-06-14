@@ -222,7 +222,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.14.3 | PostgreSQL rejects posted/reconciled non-base-currency lines without a positive FX rate | `test_AC2_14_3_non_base_posted_lines_require_positive_fx_rate()` | `accounting/test_ledger_schema_invariants.py` | P0 |
 | AC2.14.4 | PostgreSQL blocks direct update/delete of posted/reconciled entries and lines while draft entries remain editable | `test_AC2_14_4_posted_entries_and_lines_are_immutable_but_drafts_are_editable()` | `accounting/test_ledger_schema_invariants.py` | P0 |
 | AC2.14.5 | Voiding a posted entry preserves a non-null immutable reversal relationship instead of deleting or editing posted lines | `test_AC2_14_5_void_transition_requires_reversal_relationship()` | `accounting/test_ledger_schema_invariants.py` | P0 |
-| AC2.14.6 | Account deletion blocked by the immutability invariant (posted/reconciled entries) returns a clean HTTP 409, not a leaked 500 | `test_delete_user_with_immutable_entries_returns_409` | `apps/backend/tests/api/test_users_router.py` | P1 |
+| AC2.14.6 | Account deletion blocked by the immutability invariant (posted/reconciled entries) returns a clean HTTP 409, not a leaked 500 | `test_delete_user_with_immutable_entries_returns_409()` | `apps/backend/tests/api/test_users_router.py` | P1 |
 
 ## 📏 Acceptance Criteria
 
