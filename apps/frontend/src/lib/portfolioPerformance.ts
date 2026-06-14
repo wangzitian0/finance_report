@@ -25,8 +25,9 @@ export interface MarketValuePerformance {
 export function computeMarketValuePerformance(
     schedule: InvestmentPerformanceReportSchedule,
 ): MarketValuePerformance {
-    const totalCostBasis = sumAmounts(schedule.holdings.map((holding) => holding.cost_basis));
-    const totalMarketValue = sumAmounts(schedule.holdings.map((holding) => holding.market_value));
+    const holdings = schedule.holdings ?? [];
+    const totalCostBasis = sumAmounts(holdings.map((holding) => holding.cost_basis));
+    const totalMarketValue = sumAmounts(holdings.map((holding) => holding.market_value));
 
     let returnOnCostPercent: string | null = null;
     if (compareAmounts(totalCostBasis, "0") !== 0) {
