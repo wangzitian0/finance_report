@@ -42,6 +42,11 @@ class ConfidenceMetricService:
 
         Grouping by source_type (a pure input to tier derivation) keeps this a
         single read with no row-by-row Python tiering.
+
+        Semantics: this is a **cumulative** lifetime ratio over all posted/reconciled
+        entries to date — a stock, not a per-period flow. As history grows the ratio
+        becomes less sensitive to recent improvements; a trailing-window variant is a
+        deliberate future option, not the current contract.
         """
         rows = await db.execute(
             select(JournalEntry.source_type, func.count(JournalEntry.id))

@@ -241,16 +241,16 @@ redacted, and Decimal-safe.
 
 ### AC17.14: Unified Portfolio Allocation Surface
 
-This is the first frontend slice for #914. It uses the existing investment
-performance report schedule allocation rows to expose a single asset-class
-allocation surface on the portfolio page. Cross-asset liquidity, currency, and
-net-worth reconciliation remain separate #914 follow-up slices because they
-need a broader report contract than the current portfolio schedule provides.
+This started as the first frontend slice for #914 and now uses the report-owned
+net-worth allocation schedule for the allocation surface. The investment
+performance schedule remains the source for period return, unrealized
+market-value gain/loss, and price freshness.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.14.1 | Portfolio page renders a unified asset-class allocation panel from the investment performance schedule with value, percentage, holding count, and tie-out to the displayed portfolio value | `AC17.14.1 renders unified asset allocation from performance schedule` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
+| AC17.14.1 | Portfolio page renders a unified allocation panel without claiming a portfolio-value tie-out when report and holdings currencies differ | `AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
 | AC17.14.2 | Reports expose a net-worth allocation schedule grouped by asset class, liquidity class, and source currency, with signed rows that reconcile to net worth and retain source-line drill-through metadata | `test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources`, `test_AC17_14_2_net_worth_allocation_endpoint_returns_contract` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py`, `apps/backend/tests/reporting/test_reports_router.py` | P1 |
+| AC17.14.3 | Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering | `AC17.14.3 renders net-worth allocation from the report schedule`, `AC17.14.3 shows the net-worth allocation loading state`, `AC17.14.3 shows the net-worth allocation error state`, `AC17.14.3 shows the empty net-worth allocation state`, `AC17.14.3 renders invalid net-worth allocation percentages as unavailable`, `AC17.14.3 renders missing net-worth allocation percentages as unavailable`, `AC17.14.3 refetches net-worth allocation when restricted holdings are excluded` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 

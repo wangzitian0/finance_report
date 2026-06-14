@@ -726,6 +726,34 @@ export interface NetWorthTimeSeriesResponse {
   points: NetWorthTimeSeriesPoint[];
 }
 
+export interface NetWorthAllocationSourceLine {
+  source_type: string;
+  source_id: string | null;
+  label: string;
+  value: MoneyValue;
+  href: string | null;
+}
+
+export interface NetWorthAllocationRow {
+  asset_class: string;
+  liquidity_class: string;
+  source_currency: string;
+  value: MoneyValue;
+  percentage_of_net_worth: MoneyValue | null;
+  source_line_count: number;
+  source_lines: NetWorthAllocationSourceLine[];
+}
+
+export interface NetWorthAllocationResponse {
+  as_of_date: string;
+  currency: string;
+  include_restricted: boolean;
+  total_assets: MoneyValue;
+  total_liabilities: MoneyValue;
+  net_worth: MoneyValue;
+  rows: NetWorthAllocationRow[];
+}
+
 export interface ReconciliationMatchResponse {
   id: string;
   bank_txn_id: string;

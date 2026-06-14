@@ -75,10 +75,13 @@ const mockHolding2: PortfolioHolding = {
   sector: "Automotive",
 }
 
+type NetWorthAllocationMode = "default" | "empty" | "error" | "pending"
+
 function mockPortfolioApi(
   holdings: PortfolioHolding[] = [mockHolding],
-  allocationPercentage = "100.00",
+  allocationPercentage: string | null = "100.00",
   scheduleCurrency = "USD",
+  netWorthAllocationMode: NetWorthAllocationMode = "default",
 ) {
   const mockedApiFetch = vi.mocked(apiFetch)
   mockedApiFetch.mockImplementation((path: string) => {
@@ -138,6 +141,82 @@ function mockPortfolioApi(
         },
         source_links: ["brokerage_statement:aapl"],
         notes: ["Cost basis uses FIFO where available."],
+      })
+    }
+    if (path.startsWith("/api/reports/net-worth/allocation")) {
+      if (netWorthAllocationMode === "pending") {
+        return new Promise(() => undefined)
+      }
+      if (netWorthAllocationMode === "error") {
+        return Promise.reject(new Error("allocation unavailable"))
+      }
+      return Promise.resolve({
+        as_of_date: "2026-12-31",
+        currency: "SGD",
+        include_restricted: !path.includes("include_restricted=false"),
+        total_assets: "2100.00",
+        total_liabilities: "100.00",
+        net_worth: "2000.00",
+        rows: netWorthAllocationMode === "empty" ? [] : [
+          {
+            asset_class: "public_equity",
+            liquidity_class: "liquid",
+            source_currency: "USD",
+            value: "1800.00",
+            percentage_of_net_worth: allocationPercentage,
+            source_line_count: 2,
+            source_lines: [
+              {
+                source_type: "portfolio_market_adjustment",
+                source_id: null,
+                label: "AAPL market value",
+                value: "1800.00",
+                href: "/portfolio/holdings",
+              },
+              {
+                source_type: "manual_component",
+                source_id: null,
+                label: "Manual adjustment",
+                value: "0.00",
+                href: null,
+              },
+            ],
+          },
+          {
+            asset_class: "cash",
+            liquidity_class: "liquid",
+            source_currency: "SGD",
+            value: "300.00",
+            percentage_of_net_worth: "15.00",
+            source_line_count: 1,
+            source_lines: [
+              {
+                source_type: "ledger_account",
+                source_id: "acc1",
+                label: "Main Bank",
+                value: "300.00",
+                href: "/reports/account-lineage?account_id=acc1&as_of_date=2026-12-31&currency=SGD",
+              },
+            ],
+          },
+          {
+            asset_class: "liability",
+            liquidity_class: "liability",
+            source_currency: "SGD",
+            value: "-100.00",
+            percentage_of_net_worth: "-5.00",
+            source_line_count: 1,
+            source_lines: [
+              {
+                source_type: "ledger_account",
+                source_id: "loan1",
+                label: "Loan",
+                value: "-100.00",
+                href: "/reports/account-lineage?account_id=loan1&as_of_date=2026-12-31&currency=SGD",
+              },
+            ],
+          },
+        ],
       })
     }
     if (path.startsWith("/api/portfolio/holdings")) {
@@ -221,7 +300,7 @@ describe("PortfolioPage", () => {
 
     await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole("checkbox"))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show disposed" }))
 
     await waitFor(() => expect(screen.getByText("TSLA")).toBeInTheDocument())
     expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?include_disposed=true")
@@ -290,39 +369,99 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Cost basis uses FIFO where available.")).toBeInTheDocument()
   })
 
-  it("AC17.14.1 renders unified asset allocation from performance schedule", async () => {
+  it("AC17.14.3 renders net-worth allocation from the report schedule", async () => {
     mockPortfolioApi()
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
-    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
-    expect(within(panel).getByText("Asset Class")).toBeInTheDocument()
-    expect(within(panel).getByText("Public Equity")).toBeInTheDocument()
-    expect(within(panel).getByText("$1,800.00")).toBeInTheDocument()
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" })
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/net-worth/allocation?currency=SGD&include_restricted=true")
+    expect(within(panel).getByText("Asset Class x Liquidity x Source Currency")).toBeInTheDocument()
+    expect(within(panel).getByText("Source currency")).toBeInTheDocument()
+    expect(await within(panel).findByText("Net worth")).toBeInTheDocument()
+    expect(await within(panel).findByText("Public Equity")).toBeInTheDocument()
+    expect(within(panel).getAllByText("Liquid").length).toBeGreaterThanOrEqual(1)
+    expect(within(panel).getAllByText("USD").length).toBeGreaterThanOrEqual(1)
+    expect(within(panel).getByRole("link", { name: "AAPL market value" })).toHaveAttribute("href", "/portfolio/holdings")
+    expect(within(panel).getByText("Manual adjustment").closest("a")).toBeNull()
+    expect(within(panel).getByText("Manual adjustment").closest("li")).toHaveAttribute("title", "Manual adjustment")
+    expect(within(panel).getByText("Main Bank")).toBeInTheDocument()
     expect(within(panel).getByText("100.0%")).toBeInTheDocument()
-    expect(within(panel).getByText("1 holding")).toBeInTheDocument()
-    expect(within(panel).getByText(/Ties to portfolio value/)).toBeInTheDocument()
+    expect(within(panel).getByText("-5.0%")).toBeInTheDocument()
+    expect(within(panel).getByText("2 sources")).toBeInTheDocument()
+    expect(within(panel).getAllByText("1 source").length).toBeGreaterThanOrEqual(1)
   })
 
-  it("AC17.14.1 labels allocation and portfolio currencies instead of claiming tie-out when they differ", async () => {
+  it("AC17.14.3 shows the net-worth allocation loading state", () => {
+    mockPortfolioApi([mockHolding], "100.00", "USD", "pending")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = screen.getByRole("region", { name: "Net Worth Allocation" })
+    expect(within(panel).getByText("Loading net worth allocation...")).toBeInTheDocument()
+  })
+
+  it("AC17.14.3 shows the net-worth allocation error state", async () => {
+    mockPortfolioApi([mockHolding], "100.00", "USD", "error")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" })
+    expect(await within(panel).findByText("Unable to load net worth allocation")).toBeInTheDocument()
+  })
+
+  it("AC17.14.3 shows the empty net-worth allocation state", async () => {
+    mockPortfolioApi([mockHolding], "100.00", "USD", "empty")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" })
+    expect(await within(panel).findByText("No allocation rows available")).toBeInTheDocument()
+  })
+
+  it("AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out", async () => {
     mockPortfolioApi([mockHolding], "100.00", "SGD")
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
-    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
-    expect(within(panel).getByText("Schedule currency: SGD")).toBeInTheDocument()
-    expect(within(panel).getByText(/Portfolio value shown in USD/)).toBeInTheDocument()
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" })
+    expect(within(panel).getByText("Report currency: SGD")).toBeInTheDocument()
+    expect(await within(panel).findByText("Public Equity")).toBeInTheDocument()
+    expect(panel).toHaveTextContent("Portfolio value shown in USD")
     expect(within(panel).queryByText(/Ties to portfolio value/)).not.toBeInTheDocument()
   })
 
-  it("AC17.14.1 renders invalid allocation percentages as unavailable", async () => {
+  it("AC17.14.3 renders invalid net-worth allocation percentages as unavailable", async () => {
     mockPortfolioApi([mockHolding], "not-a-number")
 
     render(<PortfolioPage />, { wrapper: createWrapper() })
 
-    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
-    expect(within(panel).getByText("Public Equity")).toBeInTheDocument()
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" })
+    expect(await within(panel).findByText("Public Equity")).toBeInTheDocument()
     expect(within(panel).getByText("N/A")).toBeInTheDocument()
+  })
+
+  it("AC17.14.3 renders missing net-worth allocation percentages as unavailable", async () => {
+    mockPortfolioApi([mockHolding], null)
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" })
+    expect(await within(panel).findByText("Public Equity")).toBeInTheDocument()
+    expect(within(panel).getByText("N/A")).toBeInTheDocument()
+  })
+
+  it("AC17.14.3 refetches net-worth allocation when restricted holdings are excluded", async () => {
+    mockPortfolioApi()
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    await screen.findByRole("region", { name: "Net Worth Allocation" })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include restricted holdings in allocation" }))
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/net-worth/allocation?currency=SGD&include_restricted=false"),
+    )
   })
 
   it("AC17.8.4 does not show total portfolio value banner when no active holdings", async () => {

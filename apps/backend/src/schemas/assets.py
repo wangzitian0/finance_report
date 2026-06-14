@@ -7,7 +7,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.models.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass, PositionStatus
+from src.models.layer3 import (
+    ManualValuationBasis,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    PositionStatus,
+)
 from src.schemas.base import BaseResponse, ListResponse
 from src.schemas.provenance import DataProvenance
 
@@ -65,6 +70,7 @@ class ManualValuationSnapshotCreate(BaseModel):
     value: Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))]
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     source: Annotated[str, Field(min_length=1, max_length=120)]
+    valuation_basis: ManualValuationBasis | None = None
     notes: str | None = None
     liquidity_class: ManualValuationLiquidityClass | None = None
     recurrence_days: Annotated[int, Field(ge=1, le=3660)] | None = None
@@ -84,6 +90,7 @@ class ManualValuationSnapshotUpdate(BaseModel):
     value: Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))] | None = None
     currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
     source: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    valuation_basis: ManualValuationBasis | None = None
     notes: str | None = None
     liquidity_class: ManualValuationLiquidityClass | None = None
     recurrence_days: Annotated[int, Field(ge=1, le=3660)] | None = None
@@ -106,6 +113,7 @@ class ManualValuationSnapshotResponse(BaseResponse):
     value: Annotated[Decimal, Field(decimal_places=2)]
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     source: str
+    valuation_basis: ManualValuationBasis | None = None
     notes: str | None = None
     recurrence_days: int | None = None
     reminder_date: date | None = None

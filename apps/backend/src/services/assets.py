@@ -16,6 +16,7 @@ from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import (
     ManagedPosition,
+    ManualValuationBasis,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
@@ -111,6 +112,7 @@ class AssetService:
         value: Decimal,
         currency: str,
         source: str,
+        valuation_basis: ManualValuationBasis | None = None,
         notes: str | None = None,
         liquidity_class: ManualValuationLiquidityClass | None = None,
         recurrence_days: int | None = None,
@@ -141,6 +143,7 @@ class AssetService:
             value=to_money(value),
             currency=normalized_currency,
             source=source,
+            valuation_basis=valuation_basis,
             notes=notes,
             recurrence_days=recurrence_days,
             reminder_date=reminder_date,
@@ -278,10 +281,17 @@ class AssetService:
         *,
         values: dict,
     ) -> ManualValuationSnapshot | None:
-        """Update a manual valuation snapshot."""
+        """Update a manual valuation snapshot.
+
+        Superseded versions are frozen history (vision Axiom A): a recorded fact is
+        never edited in place. Editing one is rejected; corrections re-submit a new
+        version via create_valuation_snapshot.
+        """
         snapshot = await self.get_valuation_snapshot(db, user_id, snapshot_id)
         if not snapshot:
             return None
+        if snapshot.superseded_by_id is not None:
+            raise AssetServiceError("Cannot edit a superseded valuation version; submit a correction instead")
 
         if "component_type" in values and values["component_type"] is not None:
             snapshot.component_type = values["component_type"]
