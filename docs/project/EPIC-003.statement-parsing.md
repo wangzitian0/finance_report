@@ -222,6 +222,9 @@ or HK-like report classification, measurement, presentation, or disclosure.
 | AC3.8.11 | Log runner deletion counts | `test_run_storage_sweep_logs_when_objects_deleted` | `services/test_storage_sweep.py` | P1 |
 | AC3.8.12 | Continue runner after unexpected sweep exception | `test_run_storage_sweep_handles_exception` | `services/test_storage_sweep.py` | P1 |
 | AC3.8.13 | Disable runner by feature flag | `test_run_storage_sweep_disabled_by_feature_flag` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.14 | Grace period + interval config defaults match issue #356 (24h / daily) | `test_grace_period_and_interval_defaults_match_issue_356` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.15 | Sweep grace-period cutoff is config-driven, not a hardcoded constant | `test_sweep_reads_grace_period_from_config` | `services/test_storage_sweep.py` | P1 |
+| AC3.8.16 | Sweep runner wait interval is read from config | `test_run_storage_sweep_reads_interval_from_config` | `services/test_storage_sweep.py` | P1 |
 
 ### AC3.9: Audit-Failed Case Registry
 | ID | Test Case | Test Function | File | Priority |

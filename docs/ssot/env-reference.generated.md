@@ -62,6 +62,8 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `ENABLE_AI_CLASSIFICATION` | `false` |  |  | Feature Flags | EPIC-018: enable AI-assisted transaction classification suggestions (default false, opt-in to avoid API costs). |
 | `ENABLE_AI_RECONCILIATION` | `false` |  |  | Feature Flags | EPIC-018: enable AI-assisted reconciliation scoring (default false, opt-in to avoid API costs). |
 | `ENABLE_STORAGE_SWEEP` | `true` |  |  | Feature Flags | Enable periodic background sweep for orphaned S3 objects. Set to false in test/CI environments to suppress background S3 network calls. |
+| `STORAGE_SWEEP_GRACE_PERIOD_HOURS` | `24` |  |  | Feature Flags | Grace period (hours) before an orphaned S3 object is eligible for the storage sweep. Objects younger than this are never deleted, to avoid racing with in-progress uploads (issue #356, default 24h). |
+| `STORAGE_SWEEP_INTERVAL_SECONDS` | `86400` |  |  | Feature Flags | Interval (seconds) between orphaned-S3-object sweep runs (issue #356, default 86400s = daily). |
 | `GIT_COMMIT_SHA` | `unknown` |  |  | Deployment metadata | Deployment commit SHA (set by CI, not manually). |
 | `API_RATE_LIMIT_REQUESTS` | `300` |  |  | Rate Limiting | Global API rate-limit request count (applies to all endpoints except /health, /ping, /docs). Default 300 allows E2E test suites and power users. |
 | `API_RATE_LIMIT_WINDOW` | `60` |  |  | Rate Limiting | Global API rate-limit window in seconds. |
