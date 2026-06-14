@@ -1,4 +1,4 @@
-"""AC13.18: Balance-aware self-consistency re-extract (#989 Step B).
+"""AC13.19: Balance-aware self-consistency re-extract (#989 Step B).
 
 When the extracted running-balance chain fails to reconcile, re-extract a bounded
 number of times before accepting the result (which would route the statement to
@@ -60,7 +60,7 @@ async def _run(service, attempts_returns, *, max_attempts=3, seed=42):
 
 
 async def test_reconciles_first_attempt_single_call():
-    """AC13.18.1: a reconciling first parse is returned without retry."""
+    """AC13.19.1: a reconciling first parse is returned without retry."""
     service = ExtractionService()
     result, mock = await _run(service, [_bank("0")])
     assert result["closing_balance"] == "100.00"
@@ -68,7 +68,7 @@ async def test_reconciles_first_attempt_single_call():
 
 
 async def test_retries_until_reconciles():
-    """AC13.18.2: a failing parse is retried and the reconciling result wins."""
+    """AC13.19.2: a failing parse is retried and the reconciling result wins."""
     service = ExtractionService()
     good = _bank("0")
     result, mock = await _run(service, [_bank("12.50"), good])
@@ -77,7 +77,7 @@ async def test_retries_until_reconciles():
 
 
 async def test_keeps_best_when_none_reconcile():
-    """AC13.18.3: when no attempt reconciles, the smallest-difference result is kept
+    """AC13.19.3: when no attempt reconciles, the smallest-difference result is kept
     (so routing to `uploaded` is unchanged) and all attempts are used."""
     service = ExtractionService()
     worst, best = _bank("40.00"), _bank("3.00")
@@ -87,7 +87,7 @@ async def test_keeps_best_when_none_reconcile():
 
 
 async def test_brokerage_is_not_retried():
-    """AC13.18.4: brokerage payloads do not reconcile like bank statements and must
+    """AC13.19.4: brokerage payloads do not reconcile like bank statements and must
     not burn retries."""
     service = ExtractionService()
     result, mock = await _run(service, [_brokerage(), _bank("0")])
@@ -96,7 +96,7 @@ async def test_brokerage_is_not_retried():
 
 
 async def test_seed_varies_per_attempt():
-    """AC13.18.5: attempt 0 uses the configured seed; retries use seed+1, seed+2 ..."""
+    """AC13.19.5: attempt 0 uses the configured seed; retries use seed+1, seed+2 ..."""
     service = ExtractionService()
     _, mock = await _run(service, [_bank("5.00"), _bank("5.00"), _bank("5.00")], max_attempts=3, seed=42)
     seeds = [c.kwargs.get("seed_override") for c in mock.await_args_list]
@@ -105,7 +105,7 @@ async def test_seed_varies_per_attempt():
 
 
 async def test_max_attempts_one_disables_retry():
-    """AC13.18.6: max_attempts=1 keeps current single-shot behavior."""
+    """AC13.19.6: max_attempts=1 keeps current single-shot behavior."""
     service = ExtractionService()
     result, mock = await _run(service, [_bank("9.00")], max_attempts=1)
     assert result["closing_balance"] == "100.00"
