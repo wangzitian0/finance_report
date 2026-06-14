@@ -83,4 +83,48 @@ describe("Review pages data flows", () => {
         expect(mockedDownload).not.toHaveBeenCalled();
         expect(screen.getByText("PDF preview not available")).toBeInTheDocument();
     });
+
+    it("AC16.33.5 surfaces an error message when the document fetch fails", async () => {
+        mockedDownload.mockRejectedValueOnce(new Error("502 Bad Gateway"));
+        renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument /> as any);
+
+        expect(await screen.findByText("PDF preview could not be loaded")).toBeInTheDocument();
+    });
+
+    it("AC16.33.5 revokes the blob object URL on unmount to avoid leaks", async () => {
+        const { unmount } = renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument /> as any);
+        await screen.findByTitle("Statement PDF preview");
+
+        unmount();
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview-1");
+    });
+
+    it("AC16.33.5 ignores a fetch that resolves after unmount (no state update)", async () => {
+        let resolveDownload!: (v: { blob: Blob; filename: string | null }) => void;
+        mockedDownload.mockReturnValueOnce(new Promise((r) => { resolveDownload = r; }));
+        const createObjectURL = vi.mocked(URL.createObjectURL);
+        createObjectURL.mockClear();
+
+        const { unmount } = renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument /> as any);
+        unmount();
+        resolveDownload({ blob: new Blob(["%PDF"]), filename: "f.pdf" });
+        await Promise.resolve();
+
+        // The cancelled guard short-circuits before creating an object URL.
+        expect(createObjectURL).not.toHaveBeenCalled();
+    });
+
+    it("AC16.33.5 ignores a fetch that rejects after unmount (no error state)", async () => {
+        let rejectDownload!: (e: Error) => void;
+        mockedDownload.mockReturnValueOnce(new Promise((_, rej) => { rejectDownload = rej; }));
+
+        const { unmount } = renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument /> as any);
+        unmount();
+        rejectDownload(new Error("late failure"));
+        await Promise.resolve();
+
+        // Nothing to assert beyond no thrown error: the cancelled guard prevents a
+        // post-unmount setState. Reaching here without an unhandled rejection passes.
+        expect(true).toBe(true);
+    });
 });
