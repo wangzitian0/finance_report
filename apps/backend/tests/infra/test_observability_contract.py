@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from pydantic import ValidationError
 
 from src import logger as logger_module, observability as observability_module
 from src.config import Settings
@@ -40,6 +41,31 @@ def test_otel_settings_are_explicit_and_environment_backed(monkeypatch) -> None:
     assert settings.otel_exporter_otlp_endpoint == "http://collector:4318"
     assert settings.otel_service_name == "finance-report-worker"
     assert settings.otel_resource_attributes == "deployment.environment=staging"
+
+
+def test_telemetry_contract_fast_fails_in_deployed_env_without_tag(monkeypatch) -> None:
+    """Infra-014 C4: a deployed env exporting OTEL without a deployment.environment
+    tag fails fast at config load; local/CI/preview and telemetry-off are exempt."""
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "service.version=abc123")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+    # Tag present -> loads.
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=production")
+    assert Settings(_env_file=None).environment == "production"
+
+    # Telemetry off in a deployed env is allowed (no endpoint).
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "")
+    assert Settings(_env_file=None).environment == "production"
+
+    # Non-deployed env is exempt even with endpoint set and no tag.
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318")
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "")
+    assert Settings(_env_file=None).environment == "development"
 
 
 def test_observability_ssot_and_env_docs_are_linked() -> None:

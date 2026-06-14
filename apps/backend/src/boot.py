@@ -18,7 +18,7 @@ from enum import Enum
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from src.config import settings
+from src.config import PROTECTED_ENVIRONMENTS, settings
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,7 +28,7 @@ VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS = 3600
 DEVELOPMENT_SECRET_KEY = "dev_secret_key_change_in_prod"
 DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
 DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
-PROTECTED_ENVIRONMENTS = frozenset({"staging", "production"})
+# PROTECTED_ENVIRONMENTS is the single source of truth in src.config (imported above).
 LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
 
 
