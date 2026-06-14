@@ -117,6 +117,45 @@ Total Assets =
   + Net Worth Adjustment Gain/Loss
 ```
 
+#### 2.1.1 Opening Balances (Year-Start Positions)
+
+A balance sheet built only from imported statement activity is incomplete: an
+everyday user who starts tracking mid-life has real assets and liabilities that
+predate their first uploaded statement. The **guided opening-balance flow**
+([#949](https://github.com/wangzitian0/finance_report/issues/949), AC2.15.x)
+establishes those starting positions so the as-of balance sheet is not silently
+understated.
+
+Semantics (the contract the balance sheet relies on):
+
+- **One balanced entry.** `POST /api/accounts/opening-balances` posts a single
+  journal entry that increases each supplied account to its opening balance on
+  its normal side (assets/expenses debited, liabilities/equity/income credited).
+  The net is offset into a **system Opening Balance Equity account** so the entry
+  balances and the accounting equation holds (AC2.15.1, AC2.15.2). Opening Balance
+  Equity surfaces inside the balance sheet's `EQUITY` section, not as an asset or
+  liability.
+- **A starting position, not a delta.** An opening balance is rejected when an
+  affected account already has posted activity *before* the opening date, so the
+  posted amount can never stack on top of an existing balance (AC2.15.4). It
+  establishes where the account *was*, then statement imports take over.
+- **Base currency only.** Opening balances are accepted only in the report base
+  currency, with a clear error instead of a confusing downstream FX-rate failure
+  (AC2.15.5); a referenced account whose currency differs from the request is
+  rejected so journal lines cannot be mis-stamped (AC2.15.6).
+- **User-managed accounts only.** Even though the entry is SYSTEM-typed (it
+  touches the system equity account), the request may only target user-managed
+  accounts — a system account such as Processing cannot be seeded this way
+  (AC2.15.3, AC2.15.7).
+
+Because opening balances are ordinary posted journal entries, every downstream
+report (net-worth time-series, cash-flow opening position) reads them through the
+same ledger path — there is no separate "opening balance" report code path.
+
+> Mechanics of the posting (account resolution, equity offset) are owned by
+> [`accounting.md`](accounting.md); this section owns only how the resulting
+> positions present in the balance sheet.
+
 ### 2.2 Income Statement (Profit & Loss)
 
 Shows income and expenses over a period.

@@ -73,9 +73,14 @@ write path and no dual-write flag.
 - Status tracking: `uploaded` → `processing` → `completed`
 
 **DWD: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
-- Deduplicated via SHA256 hash of core fields. For transactions the hash includes
-  the statement running balance (`balance_after`), so two real but otherwise
-  identical transactions stay distinct while genuine duplicate extractions collapse.
+- Deduplicated via SHA256 hash of core fields
+  (`SHA256(user_id|date|amount|direction|description|reference|disambiguator)`).
+  The disambiguator is the persisted statement running balance (`balance_after`)
+  when the model supplies it, else a per-occurrence `#occurrence_index` fallback
+  (`DeduplicationService.calculate_transaction_hash`). Either way two real but
+  otherwise-identical transactions stay distinct, while a genuine duplicate
+  extraction of the same row collapses onto the existing record. `balance_after`
+  is persisted on the row so the hash is reproducible on re-import.
 - Per-transaction fields (`txn_date`, `amount`, `direction`, `description`,
   `reference`, `currency`, `balance_after`) live on `AtomicTransaction`. Atomic
   rows are source-pure: they carry no per-transaction status, confidence, or
