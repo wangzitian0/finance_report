@@ -21,11 +21,13 @@ const queueData = {
     pending_matches: [
         {
             id: "m1",
-            match_score: 88,
+            // Decimal fields serialize as strings (the MoneyValue decimal-string
+            // contract / generated api-types), so the mock mirrors the wire shape.
+            match_score: "88",
             status: "pending_review",
             created_at: "2024-01-03T00:00:00Z",
             description: "Salary transfer",
-            amount: 20,
+            amount: "20",
             txn_date: "2024-01-03",
             confidence_tier: "HIGH",
         },
