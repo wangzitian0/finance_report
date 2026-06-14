@@ -24,15 +24,34 @@ import os
 import sys
 from pathlib import Path
 
-from common.coverage.policy import COMPONENTS, CoverageComponent, get_component
+from common.coverage.policy import (
+    COMPONENT_BY_NAME,
+    COMPONENTS,
+    CoverageComponent,
+    get_component,
+)
 
 # Configuration
 ROOT_DIR = Path(__file__).resolve().parents[3]
 
-# Components subject to the artifact preflight (#414). Defaults to the full
-# policy set; the preflight only *enforces* presence for CI-critical tiers
-# (#923), so best-effort components (e.g. tools) are skipped automatically.
-PREFLIGHT_COMPONENTS: tuple[CoverageComponent, ...] = COMPONENTS
+# Components subject to the artifact preflight (#414).
+#
+# IMPORTANT (CI parity): the preflight is **opt-in**. The always-run CI
+# "Calculate unified coverage" step deliberately tolerates legitimately-absent
+# artifacts (a PR may not touch every coverage-producing shard), so an
+# unconditional preflight would abort that step. The default is therefore empty
+# (lenient: a missing artifact is reported as 0%, not a hard abort — the
+# historical behavior). Callers opt into the strict gate by naming exactly which
+# components must be present, via ``--require-artifacts`` or the
+# ``COVERAGE_REQUIRED_COMPONENTS`` env var. The preflight then enforces presence
+# only for the named CI-critical tiers (#923); best-effort components (e.g.
+# tools) are skipped even when named.
+PREFLIGHT_COMPONENTS: tuple[CoverageComponent, ...] = ()
+
+# Env var naming the components that MUST have a present, non-empty artifact.
+# Comma-separated component names (e.g. "backend,frontend,common"). Overridden by
+# the ``--require-artifacts`` CLI flag when that is supplied.
+REQUIRED_COMPONENTS_ENV = "COVERAGE_REQUIRED_COMPONENTS"
 
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 FRONTEND_DIR = ROOT_DIR / "apps" / "frontend"
@@ -252,6 +271,38 @@ def required_artifacts_preflight(
     return errors
 
 
+def resolve_required_components(
+    names: str | None,
+) -> tuple[CoverageComponent, ...]:
+    """Resolve a comma-separated component name list into preflight components.
+
+    ``names`` is the raw value from ``--require-artifacts`` or
+    ``COVERAGE_REQUIRED_COMPONENTS``. ``None``/empty -> no enforced components
+    (lenient). ``"all"`` -> the full policy set. Unknown names raise ``ValueError``
+    so a typo fails loudly instead of silently disabling the gate.
+    """
+    if not names:
+        return ()
+    requested = [token.strip() for token in names.split(",") if token.strip()]
+    if not requested:
+        return ()
+    if requested == ["all"]:
+        return COMPONENTS
+    resolved: list[CoverageComponent] = []
+    unknown: list[str] = []
+    for name in requested:
+        if name in COMPONENT_BY_NAME:
+            resolved.append(COMPONENT_BY_NAME[name])
+        else:
+            unknown.append(name)
+    if unknown:
+        valid = ", ".join(sorted(COMPONENT_BY_NAME))
+        raise ValueError(
+            f"unknown coverage component(s) {unknown!r}; valid names: {valid} (or 'all')"
+        )
+    return tuple(resolved)
+
+
 def get_component_coverage(component: CoverageComponent) -> dict:
     lcov_path = component.lcov_path(ROOT_DIR)
     coverage_data = parse_lcov_file(lcov_path)
@@ -447,6 +498,18 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
             "does not affect the coverage gate."
         ),
     )
+    parser.add_argument(
+        "--require-artifacts",
+        default=None,
+        metavar="COMPONENTS",
+        help=(
+            "Opt-in strict artifact preflight (#414): comma-separated component "
+            "names that MUST have a present, non-empty LCOV (e.g. "
+            "'backend,frontend,common', or 'all'). Only CI-critical tiers are "
+            "enforced. Omitted -> lenient (missing artifact reported, not a hard "
+            f"abort); falls back to the {REQUIRED_COMPONENTS_ENV} env var."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -459,9 +522,26 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     print("=" * 60)
 
     # Artifact preflight (#414/#923): fail fast and name the offending artifact
-    # before aggregating or writing unified-coverage.json, so a missing
-    # CI-critical input never collapses to a silent, misleading 0%.
-    preflight_errors = required_artifacts_preflight(PREFLIGHT_COMPONENTS, ROOT_DIR)
+    # before aggregating or writing unified-coverage.json, so a *required* input
+    # never collapses to a silent, misleading 0%. The gate is opt-in (CI parity):
+    # the always-run CI calculate step tolerates legitimately-absent artifacts, so
+    # by default nothing is enforced. A caller names exactly which components are
+    # required via --require-artifacts or COVERAGE_REQUIRED_COMPONENTS; if neither
+    # is given, PREFLIGHT_COMPONENTS (empty by default) is used.
+    required_spec = args.require_artifacts
+    if required_spec is None:
+        required_spec = os.environ.get(REQUIRED_COMPONENTS_ENV, "").strip() or None
+    if required_spec is not None:
+        try:
+            preflight_components = resolve_required_components(required_spec)
+        except ValueError as exc:
+            print(f"\n❌ Invalid --require-artifacts/{REQUIRED_COMPONENTS_ENV}: {exc}",
+                  file=sys.stderr)
+            sys.exit(2)
+    else:
+        preflight_components = PREFLIGHT_COMPONENTS
+
+    preflight_errors = required_artifacts_preflight(preflight_components, ROOT_DIR)
     if preflight_errors:
         print(
             "\n❌ Coverage artifact preflight failed: required component "

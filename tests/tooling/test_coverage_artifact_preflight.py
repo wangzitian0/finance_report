@@ -150,3 +150,77 @@ class TestRequiredArtifactsPreflight:
         assert "coverage/backend.lcov" in combined
         # must fail BEFORE writing a misleading unified-coverage.json
         assert not (tmp_path / "unified-coverage.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# #414 — opt-in strict gate vs lenient default (CI parity)
+# ---------------------------------------------------------------------------
+
+
+class TestPreflightOptIn:
+    """AC14.1.20: the preflight is opt-in so the always-run CI step never aborts
+    on a legitimately-absent artifact, yet still fails loudly when a caller
+    explicitly requires a component that is missing/empty."""
+
+    def test_AC14_1_20_default_preflight_is_lenient(self):
+        # No flag, no env -> nothing enforced -> a real missing artifact must not
+        # be a hard abort. The shipped default component set is empty.
+        assert cuc.PREFLIGHT_COMPONENTS == ()
+
+    def test_AC14_1_20_resolve_required_components_lenient_inputs(self):
+        assert cuc.resolve_required_components(None) == ()
+        assert cuc.resolve_required_components("") == ()
+        assert cuc.resolve_required_components("  ,  ") == ()
+
+    def test_AC14_1_20_resolve_required_components_named(self):
+        resolved = cuc.resolve_required_components("backend, frontend")
+        assert [c.name for c in resolved] == ["backend", "frontend"]
+
+    def test_AC14_1_20_resolve_required_components_all_keyword(self):
+        resolved = cuc.resolve_required_components("all")
+        assert {c.name for c in resolved} == {c.name for c in cuc.COMPONENTS}
+
+    def test_AC14_1_20_resolve_required_components_unknown_raises(self):
+        with pytest.raises(ValueError) as exc:
+            cuc.resolve_required_components("nope")
+        assert "nope" in str(exc.value)
+
+    def _lenient_main_env(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setenv("BASELINE_FILE", "")
+        monkeypatch.delenv(cuc.REQUIRED_COMPONENTS_ENV, raising=False)
+        # Real component LCOVs are absent under tmp_path; with no required list
+        # this must be tolerated (lenient).
+
+    def test_AC14_1_20_main_lenient_default_exits_zero_when_artifacts_missing(
+        self, tmp_path, monkeypatch
+    ):
+        self._lenient_main_env(tmp_path, monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()  # no --require-artifacts, no env
+        assert exc.value.code == 0
+        # lenient path still produces the report (does not abort the always-run step)
+        assert (tmp_path / "unified-coverage.json").exists()
+
+    def test_AC14_1_20_main_require_flag_fails_when_required_component_missing(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        self._lenient_main_env(tmp_path, monkeypatch)
+        with pytest.raises(SystemExit) as exc:
+            cuc.main(["--require-artifacts", "backend"])
+        assert exc.value.code == 1
+        combined = "".join(capsys.readouterr())
+        assert "backend" in combined
+        assert "coverage/backend.lcov" in combined
+        assert not (tmp_path / "unified-coverage.json").exists()
+
+    def test_AC14_1_20_main_require_env_fails_when_required_component_missing(
+        self, tmp_path, monkeypatch
+    ):
+        self._lenient_main_env(tmp_path, monkeypatch)
+        monkeypatch.setenv(cuc.REQUIRED_COMPONENTS_ENV, "common")
+        with pytest.raises(SystemExit) as exc:
+            cuc.main()
+        assert exc.value.code == 1
+        assert not (tmp_path / "unified-coverage.json").exists()
