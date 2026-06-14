@@ -29,7 +29,6 @@ describe("useSessionBootstrap (EPIC-022 AC22.15.3 / #1010)", () => {
       email: "fresh@example.com",
       name: null,
       created_at: "2026-01-01T00:00:00Z",
-      access_token: "tok",
     })
 
     renderHook(() => useSessionBootstrap())
