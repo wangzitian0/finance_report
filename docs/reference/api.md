@@ -156,19 +156,19 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/portfolio/allocation/asset-class` | yes | `as_of_date` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Asset Class Allocation |
-| `GET` | `/portfolio/allocation/geography` | yes | `as_of_date` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Geography Allocation |
-| `GET` | `/portfolio/allocation/sector` | yes | `as_of_date` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Sector Allocation |
+| `GET` | `/portfolio/allocation/asset-class` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Asset Class Allocation |
+| `GET` | `/portfolio/allocation/geography` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Geography Allocation |
+| `GET` | `/portfolio/allocation/sector` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`AllocationBreakdownResponse`] | Get Sector Allocation |
 | `POST` | `/portfolio/brokerage/import` | yes | - | `BrokerageImportRequest` | `200` `BrokerageImportResponse` | Import Brokerage Positions |
-| `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query) | - | `200` array[`HoldingResponse`] | Get Holdings |
+| `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query), `limit` (query), `offset` (query) | - | `200` array[`HoldingResponse`] | Get Holdings |
 | `GET` | `/portfolio/performance` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query) | - | `200` `PerformanceMetricsResponse` | Get Performance |
 | `GET` | `/portfolio/performance/report-schedule` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query), `currency` (query) | - | `200` `InvestmentPerformanceReportScheduleResponse` | Get Investment Performance Report Schedule |
 | `POST` | `/portfolio/prices/update` | yes | - | `PriceUpdateBatchRequest` | `200` object | Update Prices |
 | `GET` | `/portfolio/summary` | yes | `as_of_date` (query) | - | `200` `PortfolioSummaryDashboardResponse` | Get Portfolio Summary |
 | `PATCH` | `/portfolio/{ticker}` | yes | `ticker`* (path) | `CostBasisMethodUpdateRequest` | `200` object | Update Holding Cost Basis Method |
-| `GET` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path) | - | `200` array[`DividendEventResponse`] | Get Holding Dividends |
+| `GET` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path), `limit` (query), `offset` (query) | - | `200` array[`DividendEventResponse`] | Get Holding Dividends |
 | `POST` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path) | `DividendCreateRequest` | `201` `DividendEventResponse` | Create Holding Dividend |
-| `GET` | `/portfolio/{ticker}/realized` | yes | `ticker`* (path) | - | `200` array[`RealizedLotResponse`] | Get Holding Realized Lots |
+| `GET` | `/portfolio/{ticker}/realized` | yes | `ticker`* (path), `limit` (query), `offset` (query) | - | `200` array[`RealizedLotResponse`] | Get Holding Realized Lots |
 
 ### reconciliation
 

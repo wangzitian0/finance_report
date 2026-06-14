@@ -1036,13 +1036,38 @@ async def portfolio_with_many_realized(db: AsyncSession, test_user, portfolio_wi
     return {"count": len(sells), "ticker": "AAPL"}
 
 
+def _override_holdings_default_limit(monkeypatch: pytest.MonkeyPatch, new_default: int) -> None:
+    """Monkeypatch the holdings route's `limit` default so default-cap behaviour
+    can be validated without seeding hundreds of rows.
+
+    FastAPI captures the default in the route's ``field_info`` at import time, so
+    patching the module constant alone has no effect on requests; we patch the
+    bound field default directly and restore it afterwards.
+    """
+    for route in portfolio_router.router.routes:
+        if getattr(route, "path", None) == "/portfolio/holdings" and "GET" in getattr(route, "methods", set()):
+            for query_param in route.dependant.query_params:
+                if query_param.name == "limit":
+                    monkeypatch.setattr(query_param.field_info, "default", new_default)
+                    return
+    raise AssertionError("Could not locate holdings route 'limit' query parameter")
+
+
 async def test_AC17_30_1_holdings_default_cap_applied(
     client: AsyncClient,
     db: AsyncSession,
     test_user,
     investment_account,
+    monkeypatch: pytest.MonkeyPatch,
 ):
-    """AC17.30.1: GET /portfolio/holdings caps results at the default limit when no params are passed."""
+    """AC17.30.1: GET /portfolio/holdings caps results at the *default* limit when
+    no `limit` param is passed.
+
+    The default cap is monkeypatched to 2 and 3 holdings are seeded, so omitting
+    `limit` must genuinely return only the default-capped 2 rows (not all 3).
+    """
+    _override_holdings_default_limit(monkeypatch, 2)
+
     for index in range(3):
         ticker = f"TICK{index}"
         db.add_all(
@@ -1073,7 +1098,8 @@ async def test_AC17_30_1_holdings_default_cap_applied(
         )
     await db.commit()
 
-    response = await client.get("/portfolio/holdings?limit=2")
+    # No `limit` param -> the (patched) default cap of 2 must apply, not all 3.
+    response = await client.get("/portfolio/holdings")
     assert response.status_code == 200
     assert len(response.json()) == 2
 
