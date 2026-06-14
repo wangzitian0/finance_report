@@ -369,6 +369,21 @@ Dependencies: AC18.7 Evidence Graph foundation, AC18.8 source-to-report integrat
 | AC18.11.5 | Blocker semantics | Unresolved legacy source UUIDs remain explicit blockers and are never promoted to trusted source anchors | `test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
 | AC18.11.6 | Migration safety | The audit-anchor migration declares preflights, backfills resolvable legacy anchors, preserves unresolved hints, and is registered in migration-risk metadata | `test_AC18_11_6_migration_preflights_and_risk_contract_are_declared()` | `infra/test_audit_anchor_schema_invariants.py` | P0 |
 
+### AC18.31: Evidence Graph Typed Properties and Fail-Fast Materialization
+
+MECE task frame:
+
+- Typed properties: replace the unconstrained `dict[str, Any]` on Evidence Graph node and edge DTOs with closed, documented Pydantic property models per `node_kind`/edge relation, while preserving the existing JSON response shape and tolerating legacy rows.
+- Fail-fast materialization: a genuine request-time materialization failure (cross-user, write-cap, unsupported provenance) returns a non-2xx HTTP status with a structured error body, instead of a `200 OK` carrying a populated `blockers` list.
+- Backward compatibility: an absent anchor remains a valid `200` empty/blocker result (`graph_node_missing`), so existing navigation flows are unchanged.
+
+Dependencies: AC18.7 Evidence Graph foundation, AC18.9 navigation API, and AC18.10 lazy materialization/blocker taxonomy. Out of scope: changing stored JSONB shapes, graph database adoption, new node kinds, and mutating ledger/report facts.
+
+| AC ID | Phase | Description |
+|-------|-------|-------------|
+| AC18.31.1 | Evidence typed properties | Evidence Graph node and edge DTO `properties` are constrained by closed typed Pydantic models per node kind and edge relation (monetary amounts stay Decimal-as-string, never float), preserving the existing JSON shape and tolerating legacy/partial rows |
+| AC18.31.2 | Evidence fail-fast | A genuine materialization failure (cross-user, write-cap, or unsupported provenance) returns a non-2xx status with a structured `EvidenceLineageError` detail, while an absent anchor stays a 200 empty/blocker result |
+
 ### AC18.6: Framework Measurement and Disclosure Suggestions
 
 | AC ID | Phase | Description |

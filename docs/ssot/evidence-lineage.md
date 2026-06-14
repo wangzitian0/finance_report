@@ -204,6 +204,20 @@ for UI consumption:
 - `blockers`: explicit empty or unsupported states such as `graph_node_missing`;
 - `max_depth`: the effective traversal depth.
 
+Node and edge `properties` in these DTOs are typed, closed audit-metadata
+records — one Pydantic model per `node_kind` and per edge relation — not an
+open `dict[str, Any]`. Models tolerate legacy rows (all fields optional, unknown
+keys preserved) so the JSON shape clients already consume is unchanged. Monetary
+fields are serialized as `Decimal`-derived strings and never as `float`
+(AC18.31.1).
+
+A genuine request-time materialization failure (a blocker such as
+`cross_user_lineage_blocked`, `materialization_write_cap_reached`, or
+`unsupported_provenance`) is surfaced as a non-2xx HTTP status with a structured
+error body, not as a `200 OK` carrying a populated `blockers` list. An absent
+anchor (`graph_node_missing`) remains a valid `200` empty result so existing
+navigation flows are unaffected (AC18.31.2).
+
 UI surfaces may open lineage from report package traceability rows by using
 ledger-line or source-document identifiers already returned by package
 traceability. The UI must show missing lineage as an explicit empty state and
