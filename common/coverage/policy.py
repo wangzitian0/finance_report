@@ -12,6 +12,19 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
+# --- Coverage tiers (#923) ----------------------------------------------------
+#
+# Guiding rule: a tool tree is gated at high coverage *iff* it is CI-critical —
+# its silent failure can false-green the pipeline or break a gate/deploy.
+# Everything else (audits, registry/report generators, dev servers, one-off
+# fixtures) is best-effort: its coverage artifact is still merged when present,
+# but a missing best-effort artifact must not hard-fail the aggregation. The
+# unified no-regression gate continues to apply to whatever LCOV is present.
+CI_CRITICAL = "ci-critical"
+BEST_EFFORT = "best-effort"
+COVERAGE_TIERS = (CI_CRITICAL, BEST_EFFORT)
+
+
 @dataclass(frozen=True)
 class CoverageComponent:
     """A coverage component with one source tree and one LCOV report."""
@@ -23,6 +36,19 @@ class CoverageComponent:
     ci_lcov_path: str
     local_lcov_paths: tuple[str, ...]
     exclude_patterns: tuple[str, ...]
+    # Coverage tier (#923). Defaults to CI_CRITICAL so any new component is
+    # strictly gated until it is explicitly justified as best-effort.
+    tier: str = CI_CRITICAL
+
+    def __post_init__(self) -> None:
+        if self.tier not in COVERAGE_TIERS:
+            raise ValueError(
+                f"{self.name}: tier must be one of {COVERAGE_TIERS}, got {self.tier!r}"
+            )
+
+    @property
+    def is_ci_critical(self) -> bool:
+        return self.tier == CI_CRITICAL
 
     def root_path(self, repo_root: Path = ROOT_DIR) -> Path:
         return repo_root / self.component_root if self.component_root else repo_root
@@ -131,6 +157,11 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "tools/tests/**",
             "tools/wait_for_cheap_ci.py",
         ),
+        # tools/ is largely one-off governance / CI glue (thin shims over
+        # common/). Best-effort tier (#923): its LCOV is merged when present and
+        # still subject to the no-regression gate, but a missing tools artifact
+        # does not hard-fail the aggregation. CI-critical logic lives in common/.
+        tier=BEST_EFFORT,
     ),
     CoverageComponent(
         name="common",

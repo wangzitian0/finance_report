@@ -14,6 +14,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from common.coverage import calculate_unified_coverage as cuc  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _disable_artifact_preflight(monkeypatch):
+    """Neutralize the #414 artifact preflight for legacy aggregation tests.
+
+    These tests mock ``get_*_coverage`` and never write component LCOV files, so
+    they intentionally exercise aggregation/baseline logic only. The artifact
+    preflight (which reads real LCOV from disk) has dedicated coverage in
+    ``test_coverage_artifact_preflight.py``; here it would only assert on absent
+    fixtures, so we disable it by emptying the enforced component set.
+    """
+    monkeypatch.setattr(cuc, "PREFLIGHT_COMPONENTS", ())
+
+
 # ---------------------------------------------------------------------------
 # is_test_file
 # ---------------------------------------------------------------------------

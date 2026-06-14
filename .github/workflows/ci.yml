@@ -841,6 +841,14 @@ jobs:
           uv run python tools/check_coverage_policy.py
 
       - name: Calculate unified coverage
+        # Lenient by design: the merge step above deliberately tolerates a
+        # coverage-producing shard that did not upload an artifact on this PR
+        # (it echoes "No <component> coverage found" instead of failing). The
+        # artifact preflight (#414) is therefore opt-in here — we do NOT pass
+        # --require-artifacts / COVERAGE_REQUIRED_COMPONENTS, so a legitimately
+        # absent artifact is reported (as 0% for the missing component) rather
+        # than hard-aborting this always-run gate. The no-regression check still
+        # applies to whatever LCOV is present.
         run: |
           uv run python tools/calculate_unified_coverage.py
 
