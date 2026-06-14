@@ -20,7 +20,6 @@ from src.models import (
     JournalLine,
 )
 from src.services.source_type_priority import normalize_source_type
-from src.utils.money import to_money
 
 
 class AccountingError(Exception):
@@ -311,7 +310,10 @@ async def post_opening_balance_entry(
     is offset into the system Opening Balance Equity account so the entry
     balances and the accounting equation holds. All amounts are ``Decimal``.
     """
+    # Imported lazily so importing this module stays free of the FastAPI/util
+    # dependency graph (tooling tests import accounting without those installed).
     from src.services.account_service import get_or_create_opening_balance_equity_account
+    from src.utils.money import to_money
 
     if not balances:
         raise ValidationError("At least one opening balance is required")
