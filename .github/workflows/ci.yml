@@ -971,7 +971,9 @@ jobs:
 
   ac-behavioral-ratchet:
     name: AC Behavioral Score Ratchet
-    needs: [changes, backend, backend-integration, backend-e2e-tier1]
+    # Wait for every test stage that emits junit (incl. frontend) so the aggregate is
+    # complete and cannot race an in-flight upload.
+    needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -1068,6 +1070,7 @@ jobs:
         echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
         echo "Lint: ${{ needs.lint.result }}"
         echo "AC Traceability: ${{ needs.ac-traceability.result }}"
+        echo "AC Behavioral Ratchet: ${{ needs.ac-behavioral-ratchet.result }}"
         if [[ "${{ needs.changes.result }}" != "success" ]]; then
           echo "::error::Change classification failed"
           exit 1
@@ -1107,6 +1110,10 @@ jobs:
           fi
           if [[ "${{ needs.unified-coverage.result }}" != "success" ]]; then
             echo "::error::Unified coverage check failed"
+            exit 1
+          fi
+          if [[ "${{ needs.ac-behavioral-ratchet.result }}" != "success" ]]; then
+            echo "::error::AC behavioral-score ratchet failed"
             exit 1
           fi
           if [[ "${{ needs.container-images.result }}" != "success" ]]; then
