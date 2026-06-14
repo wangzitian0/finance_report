@@ -339,6 +339,16 @@ class Settings(BaseSettings):
         description="Comma-separated fallback AI model ids.",
         json_schema_extra={"group": "AI Provider", "example": "glm-5-turbo,glm-5"},
     )
+    vision_fallback_models_str: str | None = Field(
+        default=None,
+        validation_alias="VISION_FALLBACK_MODELS",
+        description=(
+            "Comma-separated fallback AI model ids for the vision/OCR path. These "
+            "must be vision-capable because the vision request carries image "
+            "content; the text-only FALLBACK_MODELS are not reused here (#1034)."
+        ),
+        json_schema_extra={"group": "AI Provider", "example": "glm-4.5v"},
+    )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
     # in-process fallback, no Prefect dependency. See services/statement_pipeline.py.
@@ -541,6 +551,23 @@ class Settings(BaseSettings):
             [
                 "glm-5-turbo",
                 "glm-5",
+            ],
+        )
+
+    @cached_property
+    def vision_fallback_models(self) -> list[str]:
+        """Parse vision-path fallback models from env string or use defaults.
+
+        The vision/OCR path sends image content, so its fallbacks must be
+        vision-capable; the text-only ``FALLBACK_MODELS`` are intentionally not
+        reused here (#1034). The default keeps a single secondary vision model so
+        a non-retryable failure of the primary vision model does not fail the
+        whole upload.
+        """
+        return parse_comma_list(
+            self.vision_fallback_models_str,
+            [
+                "glm-4.5v",
             ],
         )
 

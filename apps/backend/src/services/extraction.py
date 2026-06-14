@@ -62,6 +62,7 @@ class ExtractionService:
         self.vision_model = settings.vision_model
         self.ocr_model = settings.ocr_model
         self.fallback_models = settings.fallback_models
+        self.vision_fallback_models = settings.vision_fallback_models
         self.deduplication_service = DeduplicationService()
 
     def _safe_date(self, value: str | None) -> date:
@@ -603,9 +604,17 @@ class ExtractionService:
         return bool(self.ocr_model and self.ocr_model != self.vision_model)
 
     def _vision_extraction_models(self) -> list[str]:
-        """Return ordered vision/OCR models without duplicate provider calls."""
+        """Return ordered vision/OCR models without duplicate provider calls.
+
+        The primary OCR/vision models are followed by the configured
+        ``VISION_FALLBACK_MODELS`` so a non-retryable failure of the primary
+        vision model (e.g. a provider 400) falls through to a secondary
+        vision-capable model before the upload is rejected (#1034). The list is
+        deduplicated and order-preserving. Text-only ``FALLBACK_MODELS`` are not
+        reused here because the vision request carries image content.
+        """
         models: list[str] = []
-        for model in (self.ocr_model, self.vision_model):
+        for model in (self.ocr_model, self.vision_model, *self.vision_fallback_models):
             if model and model not in models:
                 models.append(model)
         return models

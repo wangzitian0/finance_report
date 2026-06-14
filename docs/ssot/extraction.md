@@ -235,6 +235,7 @@ PRIMARY_MODEL=glm-5.1
 OCR_MODEL=glm-4.6v
 VISION_MODEL=glm-4.6v
 FALLBACK_MODELS=glm-5-turbo,glm-5
+VISION_FALLBACK_MODELS=glm-4.5v
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
@@ -305,7 +306,8 @@ slice is registered.
 - **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/ai/models` returns the configured provider catalog for UI dropdowns (filterable by modality).
-- **Fallback models**: `FALLBACK_MODELS` are used after OCR text extraction when `PRIMARY_MODEL` fails.
+- **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5-turbo,glm-5`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
+- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-4.5v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
 
 ## Data Integrity & Typing
 
