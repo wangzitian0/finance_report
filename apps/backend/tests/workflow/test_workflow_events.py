@@ -24,7 +24,12 @@ from src.models.workflow import (
     WorkflowSession,
     WorkflowSessionStatus,
 )
-from src.schemas.workflow import WorkflowEventCreate, WorkflowEventResponse
+from src.schemas.workflow import (
+    WorkflowEventCreate,
+    WorkflowEventResponse,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessState,
+)
 from src.services.workflow_events import (
     _insert_workflow_event_conflict_safe,
     _workflow_event_from_payload,
@@ -33,6 +38,7 @@ from src.services.workflow_events import (
     get_or_create_active_workflow_session,
     get_workflow_status,
     list_workflow_events,
+    list_workflow_events_response,
     sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
@@ -1134,3 +1140,53 @@ async def test_AC19_14_3_sync_tolerates_concurrent_event_creation(db_engine, tes
             .all()
         )
     assert len(uploaded) == 1
+
+
+async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(
+    db,
+    test_user,
+    monkeypatch,
+) -> None:
+    """AC19.2.7: the /workflow/events session summary must reuse the authoritative
+    status derivation, so a blocked active session never reports primary_state=ready
+    or report_readiness=none while /workflow/status reports blocked."""
+
+    async def fake_readiness(_db, **_kwargs):
+        return {
+            "state": "blocked",
+            "action_href": "/reports/package",
+            "blocking_count": 1,
+            "blockers": [
+                {
+                    "code": "balance_mismatch",
+                    "label": "Balance validation mismatch",
+                    "count": 1,
+                    "reason": "Balance mismatch: expected 52754.77, got 52842.53.",
+                    "action_href": "/review",
+                }
+            ],
+        }
+
+    monkeypatch.setattr("src.services.workflow_events.get_personal_report_package_readiness", fake_readiness)
+
+    # A blocked active session derived from a balance-validation blocker.
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    await db.flush()
+
+    status = await get_workflow_status(db, user_id=test_user.id)
+    events = await list_workflow_events_response(db, user_id=test_user.id, limit=10)
+
+    # Status authoritatively reports blocked for the active session.
+    assert status.primary_state == WorkflowPrimaryState.BLOCKED
+    assert status.report_readiness.state == WorkflowReportReadinessState.BLOCKED
+    assert status.active_session is not None
+
+    # The events session summary for that same active session must agree (no
+    # hardcoded ready/none divergence).
+    active_summaries = [session for session in events.sessions if session.id == status.active_session.id]
+    assert active_summaries, "events response must include the active session summary"
+    active_summary = active_summaries[0]
+    assert active_summary.primary_state == status.active_session.primary_state
+    assert active_summary.report_readiness.state == status.active_session.report_readiness.state
+    assert active_summary.primary_state == WorkflowPrimaryState.BLOCKED
+    assert active_summary.report_readiness.state == WorkflowReportReadinessState.BLOCKED

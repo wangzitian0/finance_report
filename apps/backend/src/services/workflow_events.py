@@ -603,7 +603,10 @@ async def list_workflow_events_response(
     limit: int = 50,
 ) -> WorkflowEventListResponse:
     """Return a bounded event list plus total count for the same filter."""
-    await sync_workflow_events_for_user(db, user_id=user_id)
+    # Reuse get_workflow_status as the single source of truth for the active
+    # session's derived (primary_state, report_readiness). get_workflow_status
+    # already runs sync_workflow_events_for_user, so we do not duplicate it here.
+    workflow_status = await get_workflow_status(db, user_id=user_id)
 
     filters = [WorkflowEvent.user_id == user_id]
     if status is not None:
@@ -628,12 +631,24 @@ async def list_workflow_events_response(
             .where(WorkflowSession.id.in_(session_ids))
             .order_by(WorkflowSession.last_event_at.desc().nullslast(), WorkflowSession.created_at.desc())
         )
+        active_session = workflow_status.active_session
         sessions = [
             await build_workflow_session_summary(
                 db,
                 workflow_session=session,
-                primary_state=WorkflowPrimaryState.READY,
-                report_readiness=None,
+                # The active session must not contradict the authoritative
+                # workflow status (issue #987); other sessions keep the
+                # session-summary default.
+                primary_state=(
+                    active_session.primary_state
+                    if active_session is not None and active_session.id == session.id
+                    else WorkflowPrimaryState.READY
+                ),
+                report_readiness=(
+                    active_session.report_readiness
+                    if active_session is not None and active_session.id == session.id
+                    else None
+                ),
             )
             for session in session_result.scalars().all()
         ]

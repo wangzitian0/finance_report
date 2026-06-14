@@ -309,6 +309,13 @@ archived events by default, supports a `status` filter when archived events are
 explicitly requested, and enforces a bounded `limit`. `items[].session_id`
 links every timeline event to a session summary in `sessions[]` when available.
 
+The `sessions[]` summaries are not an independent state source. The active
+session's `primary_state` and `report_readiness` are derived once by
+`get_workflow_status` (the single source of truth) and reused verbatim for the
+matching `sessions[]` entry. As a result `GET /workflow/events` can never report
+the active session as `ready`/`none` while `GET /workflow/status` reports it as
+`blocked` (or any other authoritative state).
+
 `PATCH /workflow/events/{event_id}` updates only the authenticated user's event
 lifecycle state. Missing or non-owned events return `404`.
 
