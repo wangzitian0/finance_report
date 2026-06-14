@@ -60,7 +60,7 @@ def _run(snippet: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_AC7_13_1_verify_passes_when_effective_env_matches() -> None:
+def test_AC7_14_1_verify_passes_when_effective_env_matches() -> None:
     """AC7.13.1 AC7.13.2: matching effective remote env proceeds (exit 0)."""
     block = _function_block(
         "verify_effective_remote_app_env()", "force_recreate_stateless_app()"
@@ -82,7 +82,7 @@ def test_AC7_13_1_verify_passes_when_effective_env_matches() -> None:
     assert "hvs.secret" not in out
 
 
-def test_AC7_13_2_verify_fails_fast_and_names_stale_values() -> None:
+def test_AC7_14_2_verify_fails_fast_and_names_stale_values() -> None:
     """AC7.13.2 AC7.13.4: stale effective env fails fast naming the stale keys."""
     block = _function_block(
         "verify_effective_remote_app_env()", "force_recreate_stateless_app()"
@@ -108,7 +108,7 @@ def test_AC7_13_2_verify_fails_fast_and_names_stale_values() -> None:
     assert "hvs.secret" not in out
 
 
-def test_AC7_13_3_force_recreate_path_exists_and_is_guarded() -> None:
+def test_AC7_14_3_force_recreate_path_exists_and_is_guarded() -> None:
     """AC7.13.3 AC7.13.4: a guarded force-recreate reconcile path exists.
 
     The reconcile path must (a) be guarded by an explicit opt-in env flag,
@@ -132,7 +132,7 @@ def test_AC7_13_3_force_recreate_path_exists_and_is_guarded() -> None:
     assert "force_recreate_stateless_app" in script
 
 
-def test_AC7_13_6_rollout_baseline_snapshotted_before_force_recreate() -> None:
+def test_AC7_14_6_rollout_baseline_snapshotted_before_force_recreate() -> None:
     """AC7.13.6: the rollout-wait baseline is the PRE-reconcile snapshot.
 
     Regression guard for the Copilot ordering bug: ``previous_deployment_ids`` /
@@ -167,7 +167,7 @@ def test_AC7_13_6_rollout_baseline_snapshotted_before_force_recreate() -> None:
     ), "post-reconcile snapshot must not be used as the rollout baseline"
 
 
-def test_AC7_13_6_fast_redeploy_detected_as_new_with_pre_reconcile_baseline() -> None:
+def test_AC7_14_6_fast_redeploy_detected_as_new_with_pre_reconcile_baseline() -> None:
     """AC7.13.6: a fast redeploy is still recognized as a new deployment.
 
     Behavioral regression test exercising the real
@@ -245,7 +245,7 @@ echo "RECONCILE_ROLLOUT_OK"
     assert "did not create a new deployment" not in out, out
 
 
-def test_AC7_13_5_deployment_doc_describes_stale_env_failure_and_recovery() -> None:
+def test_AC7_14_5_deployment_doc_describes_stale_env_failure_and_recovery() -> None:
     """AC7.13.5: deployment SSOT documents the stale-env failure mode + recovery."""
     doc = (ROOT / "docs" / "ssot" / "deployment.md").read_text(encoding="utf-8")
     lowered = doc.lower()
