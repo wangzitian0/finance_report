@@ -10,7 +10,6 @@ guarded by ``tools/check_ssot_ownership.py``. This test pins two guarantees:
 
 from __future__ import annotations
 
-import re
 import subprocess
 from pathlib import Path
 
@@ -62,14 +61,38 @@ def _iter_nav_md_targets(node: object) -> list[str]:
     return targets
 
 
+class _IgnoreUnknownTagsLoader(yaml.SafeLoader):
+    """SafeLoader that tolerates mkdocs' custom YAML tags.
+
+    mkdocs.yml carries non-standard tags such as
+    ``!!python/name:pymdownx.superfences.fence_code_format`` and
+    ``!!python/object/apply:...`` whose suffixes contain ``:``. Rather than
+    string-stripping the prefix (which corrupts the value into a dangling
+    ``:...`` scalar and breaks YAML parsing), we register a multi-constructor
+    that maps every unknown tag to ``None``. The nav block we care about uses
+    only plain scalars/sequences/maps, so dropping the python tag values is
+    safe for link resolution.
+    """
+
+
+def _ignore_unknown(
+    loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node
+) -> None:
+    return None
+
+
+_IgnoreUnknownTagsLoader.add_multi_constructor("", _ignore_unknown)
+_IgnoreUnknownTagsLoader.add_multi_constructor(
+    "tag:yaml.org,2002:python/", _ignore_unknown
+)
+
+
 def test_AC8_13_134_mkdocs_nav_links_resolve() -> None:
     """AC8.13.134: every mkdocs nav .md target resolves under docs/."""
-    # mkdocs uses non-standard YAML tags (e.g. !!python). Strip the emoji /
-    # plain nav by loading with a permissive loader limited to the nav block.
+    # mkdocs uses non-standard YAML tags (e.g. !!python/name:...). Load with a
+    # loader that maps unknown tags to None so the nav block parses intact.
     raw = MKDOCS.read_text(encoding="utf-8")
-    # Drop any custom python tags that SafeLoader would choke on.
-    raw = re.sub(r"!![\w/.]+", "", raw)
-    config = yaml.safe_load(raw)
+    config = yaml.load(raw, Loader=_IgnoreUnknownTagsLoader)
     nav = config.get("nav", [])
     targets = _iter_nav_md_targets(nav)
     assert targets, "mkdocs nav must declare markdown pages"
