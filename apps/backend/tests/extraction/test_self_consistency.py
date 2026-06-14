@@ -10,8 +10,10 @@ best-by-difference result is kept so routing is unchanged.
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from src.config import settings
-from src.services.extraction import ExtractionService
+from src.services.extraction import ExtractionError, ExtractionService
 
 
 def _bank(diff: str = "0"):
@@ -139,3 +141,43 @@ async def test_all_invalid_returns_last_parse():
     last = _structurally_invalid()
     result, _ = await _run(service, [_structurally_invalid(), last], max_attempts=2)
     assert result is last
+
+
+async def test_transient_retry_error_keeps_earlier_usable_parse():
+    """AC13.17.9: a transient extraction error on a *retry* attempt must not fail an
+    upload that an earlier attempt already produced a routable (balance-failing)
+    parse for — the earlier parse is kept (regression guard vs single-call behavior)."""
+    service = ExtractionService()
+    usable = _bank("5.00")  # balance-failing but routable to `uploaded`
+    result, mock = await _run(service, [usable, ExtractionError("429 rate limited")], max_attempts=2)
+    assert result is usable
+    assert mock.await_count == 2
+
+
+async def test_all_attempts_error_reraises():
+    """AC13.17.10: if every attempt raises (no usable parse ever produced), the error
+    propagates so the upload fails exactly as the old single-call path did."""
+    service = ExtractionService()
+    with pytest.raises(ExtractionError):
+        await _run(service, [ExtractionError("boom"), ExtractionError("boom2")], max_attempts=2)
+
+
+async def test_first_attempt_error_then_success_recovers():
+    """AC13.17.11: a transient error on the FIRST attempt does not abort; a later
+    attempt that reconciles is returned (more resilient than the old single call)."""
+    service = ExtractionService()
+    good = _bank("0")
+    result, mock = await _run(service, [ExtractionError("timeout"), good], max_attempts=2)
+    assert result is good
+    assert mock.await_count == 2
+
+
+async def test_error_mid_run_does_not_skip_remaining_attempts():
+    """AC13.17.12: an error after an earlier usable parse keeps trying the remaining
+    attempts; a later reconciling parse still wins (the retry count stays effective)."""
+    service = ExtractionService()
+    reconciled = _bank("0")
+    # attempt0: balance-failing (usable), attempt1: transient error, attempt2: reconciles
+    result, mock = await _run(service, [_bank("8.00"), ExtractionError("429"), reconciled], max_attempts=3)
+    assert result is reconciled
+    assert mock.await_count == 3
