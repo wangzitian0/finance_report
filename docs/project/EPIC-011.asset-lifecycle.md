@@ -283,6 +283,7 @@ generated from the registry and tests, not from checkboxes in this file.
 - **AC11.9.2 Net Worth Components**: Latest manual snapshots aggregate into asset/liability deltas with `Decimal` arithmetic.
 - **AC11.9.3 Liquidity Separation**: Restricted and illiquid components are tagged separately and can be excluded from liquid net worth views.
 - **AC11.9.4 Frontend Entry**: `/assets` exposes a manual valuation entry form and recent snapshot list using the shared API client.
+- **AC11.9.5 Structured Valuation Basis & Evidence Gate** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): a manual valuation captures an optional structured `valuation_basis` (market appraisal, broker/bank/government/insurer statement, employer grant document, self-estimate); a current manual valuation that carries no structured basis (and no legacy notes) surfaces a `missing_valuation_basis` readiness blocker — replacing the free-text-notes proxy — so an unsubstantiated value cannot silently feed trusted totals. Monetary values remain `Decimal`-safe.
 
 Broader future scope such as depreciation schedules, ESOP grant management,
 automated journal posting, charting, and tax-lot functionality remains product

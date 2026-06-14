@@ -258,6 +258,22 @@ class ManualValuationLiquidityClass(str, Enum):
     LIABILITY = "liability"
 
 
+class ManualValuationBasis(str, Enum):
+    """How a manual valuation's value was determined — the evidence basis.
+
+    Captured for guided evidence intake (#706) so a manual-trusted value carries
+    a structured, auditable basis (not just a free-text source).
+    """
+
+    MARKET_APPRAISAL = "market_appraisal"
+    BROKER_STATEMENT = "broker_statement"
+    EMPLOYER_GRANT_DOCUMENT = "employer_grant_document"
+    BANK_STATEMENT = "bank_statement"
+    GOVERNMENT_STATEMENT = "government_statement"
+    INSURER_STATEMENT = "insurer_statement"
+    SELF_ESTIMATE = "self_estimate"
+
+
 class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """Layer 3 manual valuation snapshot for non-bank net worth components."""
 
@@ -304,6 +320,17 @@ class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     value: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     source: Mapped[str] = mapped_column(String(120), nullable=False)
+    # Structured evidence basis for guided manual-asset intake (#706). Nullable:
+    # legacy rows and non-evidence components may omit it; evidence-bearing
+    # components (ESOP/RSU/property/liability) require it at the API layer.
+    valuation_basis: Mapped[ManualValuationBasis | None] = mapped_column(
+        SQLEnum(
+            ManualValuationBasis,
+            name="manual_valuation_basis_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=True,
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     recurrence_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reminder_date: Mapped[date | None] = mapped_column(Date, nullable=True)
