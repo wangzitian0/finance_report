@@ -154,3 +154,4 @@ class ReviewConflictsResponse(BaseModel):
 
     duplicates: list[ReviewConflictCandidate] = Field(default_factory=list)
     transfer_pairs: list[ReviewConflictCandidate] = Field(default_factory=list)
+    acknowledged_at: datetime | None = None

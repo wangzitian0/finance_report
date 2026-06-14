@@ -1,5 +1,6 @@
 """Stage 2 review endpoints for bank statement reconciliation."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
@@ -41,33 +42,23 @@ router = APIRouter(prefix="/statements", tags=["review"])
 conflicts_router = APIRouter(prefix="/review", tags=["review"])
 
 
-@conflicts_router.get("/conflicts/{statement_id}", response_model=ReviewConflictsResponse)
-async def get_review_conflicts(
-    statement_id: UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> ReviewConflictsResponse:
-    """Return duplicate and transfer-pair candidates for a statement."""
-    statement_result = await db.execute(
-        select(StatementSummary).where(StatementSummary.id == statement_id).where(StatementSummary.user_id == user_id)
+def _conflict_candidate(txn: AtomicTransaction) -> ReviewConflictCandidate:
+    return ReviewConflictCandidate(
+        id=txn.id,
+        txn_date=txn.txn_date,
+        description=txn.description,
+        amount=txn.amount,
+        direction=txn.direction.value if hasattr(txn.direction, "value") else str(txn.direction),
     )
-    statement = statement_result.scalar_one_or_none()
-    if not statement:
-        raise_not_found("Statement")
 
-    transactions = await resolve_statement_transactions(db, statement)
 
-    def _candidate(txn: AtomicTransaction) -> ReviewConflictCandidate:
-        return ReviewConflictCandidate(
-            id=txn.id,
-            txn_date=txn.txn_date,
-            description=txn.description,
-            amount=txn.amount,
-            direction=txn.direction.value if hasattr(txn.direction, "value") else str(txn.direction),
-        )
-
+def _detect_conflicts(
+    transactions: list[AtomicTransaction],
+) -> tuple[list[ReviewConflictCandidate], list[ReviewConflictCandidate]]:
+    """Surface duplicate and transfer-pair candidates, consistent with the approval guard."""
     duplicates: list[ReviewConflictCandidate] = []
     transfer_pairs: list[ReviewConflictCandidate] = []
+
     seen: dict[tuple, AtomicTransaction] = {}
     for txn in transactions:
         # Keep duplicate detection consistent with the approval guard / dedup disambiguator:
@@ -75,7 +66,7 @@ async def get_review_conflicts(
         balance_key = None if txn.balance_after is None else txn.balance_after.normalize()
         key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction, balance_key)
         if key in seen:
-            duplicates.extend([_candidate(seen[key]), _candidate(txn)])
+            duplicates.extend([_conflict_candidate(seen[key]), _conflict_candidate(txn)])
         else:
             seen[key] = txn
 
@@ -84,11 +75,62 @@ async def get_review_conflicts(
         key = (txn.txn_date, txn.amount.copy_abs())
         paired = by_abs_amount.get(key)
         if paired and paired.direction != txn.direction:
-            transfer_pairs.extend([_candidate(paired), _candidate(txn)])
+            transfer_pairs.extend([_conflict_candidate(paired), _conflict_candidate(txn)])
         else:
             by_abs_amount[key] = txn
 
-    return ReviewConflictsResponse(duplicates=duplicates, transfer_pairs=transfer_pairs)
+    return duplicates, transfer_pairs
+
+
+async def _load_statement_or_404(db: DbSession, statement_id: UUID, user_id: UUID) -> StatementSummary:
+    statement = (
+        await db.execute(
+            select(StatementSummary)
+            .where(StatementSummary.id == statement_id)
+            .where(StatementSummary.user_id == user_id)
+        )
+    ).scalar_one_or_none()
+    if not statement:
+        raise_not_found("Statement")
+    return statement
+
+
+@conflicts_router.get("/conflicts/{statement_id}", response_model=ReviewConflictsResponse)
+async def get_review_conflicts(
+    statement_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReviewConflictsResponse:
+    """Return duplicate and transfer-pair candidates for a statement."""
+    statement = await _load_statement_or_404(db, statement_id, user_id)
+    transactions = await resolve_statement_transactions(db, statement)
+    duplicates, transfer_pairs = _detect_conflicts(transactions)
+    return ReviewConflictsResponse(
+        duplicates=duplicates,
+        transfer_pairs=transfer_pairs,
+        acknowledged_at=statement.conflicts_acknowledged_at,
+    )
+
+
+@conflicts_router.post("/conflicts/{statement_id}/acknowledge", response_model=ReviewConflictsResponse)
+async def acknowledge_review_conflicts(
+    statement_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReviewConflictsResponse:
+    """Confirm the surfaced duplicate/transfer-pair candidates are intentional so Stage-1
+    approval no longer blocks on them (#962). Idempotent: the timestamp is refreshed each call.
+    """
+    statement = await _load_statement_or_404(db, statement_id, user_id)
+    statement.conflicts_acknowledged_at = datetime.now(UTC)
+    await db.commit()
+    transactions = await resolve_statement_transactions(db, statement)
+    duplicates, transfer_pairs = _detect_conflicts(transactions)
+    return ReviewConflictsResponse(
+        duplicates=duplicates,
+        transfer_pairs=transfer_pairs,
+        acknowledged_at=statement.conflicts_acknowledged_at,
+    )
 
 
 @router.get("/stage2/queue", response_model=Stage2ReviewQueueResponse)

@@ -239,7 +239,10 @@ async def approve_statement(
     transactions = await resolve_statement_transactions(db, statement)
 
     _raise_if_balance_chain_invalid(validation_result)
-    _raise_if_statement_conflicts_unresolved(transactions)
+    # A reviewer can acknowledge that the surfaced duplicate / transfer-pair candidates are
+    # intentional (#962); once acknowledged, approval no longer blocks on them.
+    if statement.conflicts_acknowledged_at is None:
+        _raise_if_statement_conflicts_unresolved(transactions)
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)

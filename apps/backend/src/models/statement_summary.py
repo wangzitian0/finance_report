@@ -122,4 +122,7 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     balance_validation_result: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
     stage1_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when a reviewer confirms the surfaced duplicate / transfer-pair candidates are
+    # intentional, so Stage-1 approval no longer blocks on them (#962). NULL = unacknowledged.
+    conflicts_acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     extraction_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)

@@ -440,6 +440,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.22.7 | Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | P0 |
 | AC16.22.8 | A statement routed to `parsed`/review carries `stage1_status = pending_review` explicitly (never NULL) | `test_parsed_statement_sets_stage1_pending_review` | `extraction/test_extraction_flow.py` | P1 |
 | AC16.22.9 | `UploadedDocument.status` advances to `completed` once a successful parse is persisted (no longer stuck at `uploaded`) | `test_dual_write_marks_document_completed` | `extraction/test_dual_write_layer2.py` | P1 |
+| AC16.22.11 | A reviewer can acknowledge the surfaced duplicate/transfer-pair candidates (`POST /review/conflicts/{id}/acknowledge`); once acknowledged, Stage-1 approval no longer blocks on them | `test_acknowledge_conflicts_records_and_surfaces_acknowledged_at`; `test_approve_with_acknowledged_conflicts_succeeds` | `review/test_review_conflicts_router.py`; `review/test_statement_validation.py` | P1 |
 
 ### AC16.25 — Mobile Review UX Hardening
 

@@ -1,6 +1,6 @@
 """Stage 1 statement validation transition tests (DWD conform model)."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -669,3 +669,30 @@ class TestEditAndApproveSelectiveFields:
                 user_id,
                 [{"txn_id": str(txn.id), "txn_date": date(2024, 1, 9), "reference": "R-9"}],
             )
+
+
+async def test_approve_with_acknowledged_conflicts_succeeds(db, user_id):
+    """AC16.22.11: acknowledging the surfaced conflict candidates lets approve_statement proceed
+    past the duplicate/transfer-pair guard, while an unacknowledged statement stays blocked (#962).
+    """
+    stmt = await _make_statement(
+        db,
+        user_id,
+        file_hash="ack-conflict-hash",
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1200.00"),
+    )
+    # Two identical deposits (no running balance) are flagged as a duplicate candidate.
+    await _add_txn(db, stmt, amount=Decimal("100.00"), direction=TransactionDirection.IN, description="Deposit")
+    await _add_txn(db, stmt, amount=Decimal("100.00"), direction=TransactionDirection.IN, description="Deposit")
+
+    # Unacknowledged: approval is blocked by the conflict guard.
+    with pytest.raises(ValueError, match="duplicate or transfer-pair"):
+        await approve_statement(db, stmt.id, user_id)
+
+    # Acknowledge, then approval proceeds.
+    stmt.conflicts_acknowledged_at = datetime.now(UTC)
+    await db.flush()
+    approved = await approve_statement(db, stmt.id, user_id)
+    assert approved.status == BankStatementStatus.APPROVED
+    assert approved.stage1_status == Stage1Status.APPROVED
