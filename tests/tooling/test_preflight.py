@@ -53,8 +53,28 @@ class TestSelectChecks:
         ]
         assert "schema-validate" in names
 
+    def test_frontend_edit_selects_frontend_gate(self):
+        names = [
+            c.name
+            for c in preflight.select_checks(["apps/frontend/src/app/layout.tsx"])
+        ]
+        assert names == ["frontend"]
+
+    def test_config_edit_selects_env_reference_and_backend_format(self):
+        names = [
+            c.name for c in preflight.select_checks(["apps/backend/src/config.py"])
+        ]
+        assert "env-reference" in names
+        assert "backend-format" in names
+
+    def test_tooling_edit_selects_tooling_gate(self):
+        names = [
+            c.name for c in preflight.select_checks(["tools/generate_env_reference.py"])
+        ]
+        assert "tooling" in names
+
     def test_unrelated_file_selects_nothing(self):
-        assert preflight.select_checks(["apps/frontend/src/app/page.tsx"]) == []
+        assert preflight.select_checks(["Makefile"]) == []
 
     def test_no_changes_selects_nothing(self):
         assert preflight.select_checks([]) == []
@@ -125,9 +145,7 @@ class TestRunAndMain:
         assert rc == 0
 
     def test_main_no_relevant_gates_is_clean(self):
-        rc = preflight.main(
-            ["--changed", "apps/frontend/src/app/page.tsx"], runner=lambda argv, cwd: 1
-        )
+        rc = preflight.main(["--changed", "Makefile"], runner=lambda argv, cwd: 1)
         assert rc == 0
 
     def test_main_list_does_not_run_anything(self):
