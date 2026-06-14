@@ -73,7 +73,7 @@ describe("PerformanceCard", () => {
     const ret = screen.getByText("+10.00%")
     expect(ret).toHaveClass("text-[var(--success)]")
     expect(screen.getByText("Prices current")).toBeInTheDocument()
-    expect(screen.getByText("2026-01-01 to 2026-04-01")).toBeInTheDocument()
+    expect(screen.getByText("as of 2026-04-01")).toBeInTheDocument()
   })
 
   it("AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer", () => {

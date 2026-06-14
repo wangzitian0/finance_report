@@ -251,8 +251,8 @@ personal financial-report package and is owned by EPIC-017. EPIC-005 consumes it
 as the `investment_performance` report section.
 
 The **asset-dashboard performance answer** is unrealized market-value gain/loss,
-a simple return on cost basis for the schedule period, and a price-freshness
-flag, all derived from this schedule. `xirr`, `time_weighted_return`, and
+a simple return on cost basis valued at the schedule as-of date, and a
+price-freshness flag, all derived from this schedule. `xirr`, `time_weighted_return`, and
 `money_weighted_return` are analytical reporting measures only; surfaces must not
 present them as the asset-dashboard answer (robo-advisor non-goal).
 

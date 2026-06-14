@@ -100,7 +100,7 @@ export function InvestmentPerformanceSchedule({
                     <p className={`mt-1 text-lg font-semibold ${metricClass(performance.returnOnCostPercent)}`}>
                         {formatPercent(performance.returnOnCostPercent)}
                     </p>
-                    <p className="mt-1 text-xs text-muted">{schedule.period_start} to {schedule.as_of_date}</p>
+                    <p className="mt-1 text-xs text-muted">as of {schedule.as_of_date}</p>
                 </div>
                 <div className="rounded border border-[var(--border)] p-3">
                     <p className="text-xs text-muted uppercase">Realized P&L</p>

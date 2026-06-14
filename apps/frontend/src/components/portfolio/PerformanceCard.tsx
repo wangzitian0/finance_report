@@ -78,7 +78,7 @@ export function PerformanceCard({ schedule, isLoading = false, error = null }: P
                     <p className={`text-xl font-semibold mt-0.5 ${amountClass(performance.returnOnCostPercent)}`}>
                         {formatReturnPercent(performance.returnOnCostPercent)}
                     </p>
-                    <p className="text-xs text-muted mt-0.5">{schedule.period_start} to {schedule.as_of_date}</p>
+                    <p className="text-xs text-muted mt-0.5">as of {schedule.as_of_date}</p>
                 </div>
             </div>
         </div>
