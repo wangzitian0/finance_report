@@ -305,8 +305,10 @@ this gate.
 
 Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the
 model response; this AC pins the *request* so the model itself decodes
-reproducibly: temperature 0 / `do_sample` false plus a fixed `seed`
-(`AI_JSON_SEED`, default 42) forwarded to the provider.
+reproducibly: temperature 0 / `do_sample` false, plus an optional fixed `seed`
+(`AI_JSON_SEED`) forwarded to the provider. The seed is **off by default**
+because Z.AI/GLM validates params strictly and some models (e.g. the default
+`glm-4.6v`) reject `seed` with HTTP 400; it is opt-in for seed-supporting models.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
@@ -314,6 +316,7 @@ reproducibly: temperature 0 / `do_sample` false plus a fixed `seed`
 | AC13.16.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |
+| AC13.16.5 | The seed is off (None) by default so it is never sent to providers that reject it (e.g. glm-4.6v) | `test_seed_is_off_by_default()` | `extraction/test_seed_determinism.py` | P1 |
 
 ### AC13.17: Balance-Aware Self-Consistency Re-extract (issue #989 Step B)
 

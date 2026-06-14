@@ -396,18 +396,25 @@ class Settings(BaseSettings):
     # provider decode reproducibly so the same statement does not sometimes
     # reconcile and sometimes not. Set AI_JSON_SEED= (empty) to omit it for
     # providers that reject the field.
+    # Off by default: Z.AI/GLM validates request params strictly and `seed` is
+    # NOT accepted by all models (e.g. glm-4.6v, the default vision/OCR model,
+    # returns HTTP 400 for it) — sending it unconditionally would break vision
+    # extraction. Opt in only for seed-supporting models (e.g. GLM-5.1).
+    # Determinism otherwise rests on temperature=0 / do_sample=false plus the
+    # balance-aware self-consistency retry (#989).
     ai_json_seed: int | None = Field(
-        default=42,
+        default=None,
         validation_alias="AI_JSON_SEED",
-        description="Fixed decoding seed for reproducible AI extraction (empty to omit).",
+        description="Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models).",
         json_schema_extra={"group": "AI Provider"},
     )
 
     # Balance-aware self-consistency (#989 Step B): when a bank statement's
     # running-balance chain fails to reconcile, re-extract up to this many times
-    # (each attempt with a varied seed) and keep the first reconciling result
-    # before routing to `uploaded`. 1 disables retry (single-shot). Only failing
-    # parses retry, so the average cost increase is bounded.
+    # and keep the first reconciling result before routing to `uploaded`. When a
+    # seed is configured (off by default) each attempt varies it; otherwise
+    # retries rely on provider-side variance. 1 disables retry (single-shot).
+    # Only failing parses retry, so the average cost increase is bounded.
     ai_extract_max_attempts: int = Field(
         default=2,
         ge=1,
