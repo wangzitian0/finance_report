@@ -63,10 +63,7 @@ class Settings(BaseSettings):
     # Database
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report",
-        description=(
-            "Async SQLAlchemy database URL. Use postgresql+asyncpg:// for async "
-            "FastAPI compatibility."
-        ),
+        description=("Async SQLAlchemy database URL. Use postgresql+asyncpg:// for async FastAPI compatibility."),
         json_schema_extra={
             "group": "Database",
             "vault": True,
@@ -167,10 +164,7 @@ class Settings(BaseSettings):
     secret_key: str = Field(
         default="dev_secret_key_change_in_prod",
         validation_alias="SECRET_KEY",
-        description=(
-            "Application secret key. CRITICAL: must be set to a secure random value "
-            "in production via Vault."
-        ),
+        description=("Application secret key. CRITICAL: must be set to a secure random value in production via Vault."),
         json_schema_extra={
             "group": "Security",
             "vault": True,
@@ -194,10 +188,7 @@ class Settings(BaseSettings):
     ai_provider: str = Field(
         default="zai",
         validation_alias="AI_PROVIDER",
-        description=(
-            "AI provider id. Required for document extraction and the AI advisor "
-            "(Z.AI/GLM defaults)."
-        ),
+        description=("AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults)."),
         json_schema_extra={"group": "AI Provider", "vault": True},
     )
     ai_api_key: str = Field(
@@ -239,10 +230,7 @@ class Settings(BaseSettings):
     market_data_lazy_fetch_enabled: bool = Field(
         default=True,
         validation_alias="MARKET_DATA_LAZY_FETCH_ENABLED",
-        description=(
-            "Report-side FX lazy resolution. Set to false to prevent outbound "
-            "Yahoo Finance calls."
-        ),
+        description=("Report-side FX lazy resolution. Set to false to prevent outbound Yahoo Finance calls."),
         json_schema_extra={"group": "App Settings"},
     )
     market_data_fx_bridge_currency: str = Field(
@@ -283,10 +271,7 @@ class Settings(BaseSettings):
     cors_origins_str: str | None = Field(
         default=None,
         validation_alias="CORS_ORIGINS",
-        description=(
-            "Comma-separated CORS origins, e.g. "
-            "http://localhost:3000,http://localhost:3001."
-        ),
+        description=("Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001."),
         json_schema_extra={
             "group": "Security",
             "vault": True,
@@ -445,10 +430,7 @@ class Settings(BaseSettings):
     enable_ai_reconciliation: bool = Field(
         default=False,
         validation_alias="ENABLE_AI_RECONCILIATION",
-        description=(
-            "EPIC-018: enable AI-assisted reconciliation scoring "
-            "(default false, opt-in to avoid API costs)."
-        ),
+        description=("EPIC-018: enable AI-assisted reconciliation scoring (default false, opt-in to avoid API costs)."),
         json_schema_extra={"group": "Feature Flags"},
     )
     enable_ai_classification: bool = Field(
