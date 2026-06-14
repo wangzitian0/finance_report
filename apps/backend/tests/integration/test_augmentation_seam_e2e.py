@@ -70,7 +70,7 @@ async def _posted(
 
 
 async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence(
-    db: AsyncSession, test_user: User
+    db: AsyncSession, test_user: User, ac_evidence
 ) -> None:
     """AC8.16.1: low-confidence extracted inputs and a corrected valuation reach the
     report without leaking a superseded row or laundering a low-confidence input."""
@@ -140,3 +140,13 @@ async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confi
     # (3) the superseded valuation is also excluded from net-worth components (#968 class)
     components = await service.get_latest_valuation_components(db, user_id, as_of_date=as_of)
     assert components.total_assets == Decimal("1100000.00")
+
+    # Behavioral evidence: the corrected-only net-worth total (1.1M, not 2.1M) is the
+    # deterministic proof that the seam excludes the superseded row.
+    ac_evidence(
+        ac_id="AC8.16.1",
+        score=1.0,
+        metric="superseded_excluded_corrected_total_match",
+        comment="net-worth components == 1,100,000 (corrected only); a superseded leak would be 2,100,000",
+        provenance="deterministic",
+    )

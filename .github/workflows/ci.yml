@@ -972,8 +972,49 @@ jobs:
             ${{ runner.temp }}/reconciliation-audit/reconciliation-audit.md
           retention-days: 14
 
+  ac-behavioral-ratchet:
+    name: AC Behavioral Score Ratchet
+    # Wait for every test stage that emits junit (incl. frontend) so the aggregate is
+    # complete and cannot race an in-flight upload.
+    needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend]
+    if: needs.changes.outputs.pr_required == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download all test junit artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: junit-artifacts
+
+      - name: Aggregate AC behavioral evidence and ratchet against baseline
+        run: |
+          # Collect every junit-xml emitted by the test stages (shards, integration, tier-1).
+          junit_files=$(find junit-artifacts -name '*.xml' -print)
+          if [ -z "$junit_files" ]; then
+            echo "No junit-xml artifacts found — cannot evaluate AC behavioral evidence." >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2086
+          uv run --with pyyaml python tools/aggregate_ac_evidence.py $junit_files --output ac-evidence-current.json
+          # L2 (pass-required) + L3 (score ratchet) against the checked-in baseline.
+          uv run --with pyyaml python tools/check_ac_score_baseline.py ac-evidence-current.json
+
   finish:
-    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability]
+    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -1032,6 +1073,7 @@ jobs:
         echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
         echo "Lint: ${{ needs.lint.result }}"
         echo "AC Traceability: ${{ needs.ac-traceability.result }}"
+        echo "AC Behavioral Ratchet: ${{ needs.ac-behavioral-ratchet.result }}"
         if [[ "${{ needs.changes.result }}" != "success" ]]; then
           echo "::error::Change classification failed"
           exit 1
@@ -1071,6 +1113,10 @@ jobs:
           fi
           if [[ "${{ needs.unified-coverage.result }}" != "success" ]]; then
             echo "::error::Unified coverage check failed"
+            exit 1
+          fi
+          if [[ "${{ needs.ac-behavioral-ratchet.result }}" != "success" ]]; then
+            echo "::error::AC behavioral-score ratchet failed"
             exit 1
           fi
           if [[ "${{ needs.container-images.result }}" != "success" ]]; then
