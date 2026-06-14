@@ -155,6 +155,10 @@ class ReviewConflictsResponse(BaseModel):
 
     duplicates: list[ReviewConflictCandidate] = Field(default_factory=list)
     transfer_pairs: list[ReviewConflictCandidate] = Field(default_factory=list)
+    # #962: whether the reviewer has already resolved these candidates. Lets the UI
+    # derive the approval-blocked state from the persisted marker instead of
+    # ephemeral client state, so a refresh (or another tab/session) stays correct.
+    resolved: bool = False
 
 
 class ResolveConflictsRequest(BaseModel):

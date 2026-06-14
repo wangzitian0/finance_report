@@ -3083,7 +3083,7 @@ async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
     with pytest.raises(HTTPException) as exc_info:
         await statements_router.approve_statement_stage1(
             statement_id=statement_id,
-            request=Stage1ApprovalRequest(notes=None),
+            request=Stage1ApprovalRequest(),
             db=db,
             user_id=user_id,
         )
@@ -3099,10 +3099,15 @@ async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
     assert resolve_response.resolved is True
     assert resolve_response.resolved_at is not None
 
+    # The conflicts endpoint exposes the persisted marker so the UI can derive the
+    # blocked state from the server rather than ephemeral client state.
+    conflicts_after = await review_router.get_review_conflicts(statement_id=statement_id, db=db, user_id=user_id)
+    assert conflicts_after.resolved is True
+
     # Approval now succeeds despite the duplicate candidate (no HTTP 400 raised).
     approved = await statements_router.approve_statement_stage1(
         statement_id=statement_id,
-        request=Stage1ApprovalRequest(notes=None),
+        request=Stage1ApprovalRequest(),
         db=db,
         user_id=user_id,
     )

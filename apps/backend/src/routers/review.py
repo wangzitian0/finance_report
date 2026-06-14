@@ -93,7 +93,11 @@ async def get_review_conflicts(
         else:
             by_abs_amount[key] = txn
 
-    return ReviewConflictsResponse(duplicates=duplicates, transfer_pairs=transfer_pairs)
+    return ReviewConflictsResponse(
+        duplicates=duplicates,
+        transfer_pairs=transfer_pairs,
+        resolved=statement.stage1_conflicts_resolved_at is not None,
+    )
 
 
 @conflicts_router.post("/conflicts/{statement_id}/resolve", response_model=ReviewConflictsResolveResponse)
@@ -123,6 +127,7 @@ async def resolve_review_conflicts(
         audit_event="stage1.conflicts.resolved",
         statement_id=str(statement_id),
         action=request.action,
+        note=request.note,
     )
     return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)
 
