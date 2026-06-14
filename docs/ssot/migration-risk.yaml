@@ -3,9 +3,22 @@
 # Owner issue: #815
 # Validated by: tools/check_migration_risk.py
 #
+# Risk is AUTO-CLASSIFIED from each migration's upgrade() body:
+#   - destructive drops (drop_table/drop_column/DROP TABLE/DROP COLUMN/TRUNCATE) -> critical
+#   - data mutations (UPDATE/INSERT INTO/DELETE FROM)                            -> high
+#   - compatibility-sensitive schema (alter_column/drop_constraint/drop_index/
+#     ALTER TYPE/ADD VALUE)                                                      -> medium
+#   - otherwise (additive tables/columns, clean-schema DDL)                      -> low
+#
+# Most migrations therefore need NO entry below. List a migration only to:
+#   1. carry release proof for an auto-classified high/critical migration
+#      (required: an entry with proof + the high/critical fields), or
+#   2. raise risk above the auto floor (e.g. medium for an additive change whose
+#      production impact the author judges compatibility-sensitive).
+#
 # This manifest does not guarantee production data migration safety. It records
-# the right-sized proof expected before release and prevents new migrations from
-# bypassing risk classification.
+# the right-sized proof expected before release and prevents destructive or
+# data-mutating migrations from shipping without classified release evidence.
 
 version: 1
 
@@ -21,128 +34,27 @@ high_risk_defaults: &historical_high_risk
   production_preflight: Historical baseline only; future high-risk revisions must define production preflight or rollout controls.
   rollback_strategy: Historical baseline only; future high-risk revisions must define backup, rollback, or expand/contract strategy.
 
+# Only the migrations whose risk is not fully captured by auto-classification are
+# listed here (auto-classified high/critical needing proof, or a human raise
+# above the auto floor). Everything else is classified from its upgrade() body.
 migrations:
-  0001_initial_schema:
-    file: 0001_initial_schema.py
-    risk: low
-    proof: Initial clean-schema baseline; covered by PR Alembic contract.
-  0002_add_chat_tables:
-    file: 0002_add_chat_tables.py
-    risk: low
-    proof: Additive chat tables and indexes; covered by PR Alembic contract.
-  0003_add_users_table:
-    file: 0003_add_users_table.py
-    risk: low
-    proof: Additive users table baseline; covered by PR Alembic contract.
-  0004_add_name_to_users:
-    file: 0004_add_name_to_users.py
-    risk: low
-    proof: Additive nullable user profile column; covered by PR Alembic contract.
-  0005_fix_txn_status_enum:
-    file: 0005_fix_txn_status_enum.py
-    risk: medium
-    proof: Enum type normalization; staging should exercise statement transaction status paths.
-  0006_parse_nullable_fields:
-    file: 0006_parse_nullable_fields.py
-    risk: medium
-    proof: Statement field nullability relaxation; staging should exercise statement parsing paths.
-  0007_normalize_all_enums:
-    file: 0007_normalize_all_enums.py
-    risk: medium
-    proof: Enum normalization across existing tables; staging should exercise core write/read paths.
-  0008_layer12:
-    file: 0008_add_layer1_layer2_tables.py
-    risk: low
-    proof: Additive Layer 1/2 tables; covered by PR Alembic contract.
-  0009_fx_reval:
-    file: 0009_add_fx_revaluation_source_type.py
-    risk: medium
-    proof: Journal source enum expansion; staging should exercise journal source serialization.
-  0010_add_parsing_progress:
-    file: 0010_add_parsing_progress.py
-    risk: low
-    proof: Additive parsing progress column; covered by PR Alembic contract.
-  0010_ai_category:
-    file: 0010_add_ai_category_fields.py
-    risk: low
-    proof: Additive AI category fields; covered by PR Alembic contract.
-  0011_add_txn_currency_balance:
-    file: 0011_add_txn_currency_balance.py
-    risk: low
-    proof: Additive transaction currency/balance fields; covered by PR Alembic contract.
   0012_add_stage1_review:
     file: 0012_add_stage1_review.py
     risk: medium
     proof: Stage-1 enum and statement review columns; staging should exercise statement review paths.
-  0013_add_consistency_checks:
-    file: 0013_add_consistency_checks.py
-    risk: low
-    proof: Additive consistency check table; covered by PR Alembic contract.
-  0014_add_correction_logs:
-    file: 0014_add_correction_logs.py
-    risk: low
-    proof: Additive correction log table; covered by PR Alembic contract.
-  0015_ai_ui_feedback_audit:
-    file: 0015_ai_ui_feedback_audit.py
-    risk: low
-    proof: Additive AI feedback/audit tables and user settings column; covered by PR Alembic contract.
-  0016_manual_valuation_snapshots:
-    file: 0016_manual_valuation_snapshots.py
-    risk: low
-    proof: Additive manual valuation snapshot table; covered by PR Alembic contract.
-  0017_investment_accounting:
-    file: 0017_investment_accounting.py
-    risk: low
-    proof: Additive investment accounting structures; covered by PR Alembic contract.
   0018_source_type_priority:
     <<: *historical_high_risk
     file: 0018_source_type_priority.py
     risk: high
     proof: Forward upgrade rewrites journal_entries.source_type after enum expansion.
-  0019_add_stock_prices:
-    file: 0019_add_stock_prices.py
-    risk: low
-    proof: Additive stock price table and lookup index; covered by PR Alembic contract.
-  0020_add_market_data_sync_state:
-    file: 0020_add_market_data_sync_state.py
-    risk: low
-    proof: Additive market data sync state table; covered by PR Alembic contract.
-  0021_add_workflow_events:
-    file: 0021_add_workflow_events.py
-    risk: low
-    proof: Additive workflow event table; covered by PR Alembic contract.
   0022_harden_workflow_contract:
     file: 0022_harden_workflow_contract.py
     risk: medium
     proof: Workflow event contract hardening; staging should exercise upload-to-report event paths.
-  0023_stmt_extract_metadata:
-    file: 0023_stmt_extract_metadata.py
-    risk: low
-    proof: Additive statement extraction metadata field; covered by PR Alembic contract.
-  0024_add_workflow_sessions:
-    file: 0024_add_workflow_sessions.py
-    risk: low
-    proof: Additive workflow session table and nullable event link; covered by PR Alembic contract.
-  0025_add_evidence_lineage:
-    file: 0025_add_evidence_lineage.py
-    risk: low
-    proof: Additive evidence graph tables and indexes; covered by PR Alembic contract.
   0026_user_email_norm_idx:
     file: 0026_user_email_norm_idx.py
     risk: medium
     proof: Email normalization index; staging should exercise auth/user lookup paths.
-  0026_add_review_run_scope:
-    file: 0026_add_review_run_scope.py
-    risk: low
-    proof: Additive review run scope fields; covered by PR Alembic contract.
-  0027_merge_review_email_heads:
-    file: 0027_merge_review_email_heads.py
-    risk: low
-    proof: Alembic merge revision only; covered by PR Alembic contract.
-  0028_statement_summaries:
-    file: 0028_statement_summaries.py
-    risk: low
-    proof: Additive StatementSummary conform table; covered by PR Alembic contract.
   0029_drop_bank_statement_tables:
     file: 0029_drop_bank_statement_tables.py
     risk: critical
@@ -161,10 +73,6 @@ migrations:
     production_preflight: Production has no real data yet; confirm reconciliation_matches and correction_logs are empty before applying.
     rollback_strategy: Restore from pre-migration snapshot; the column/FK changes are recreatable from the prior schema revision and no production data is affected.
     destructive_confirmation: Confirmed destructive drop of reconciliation_matches.bank_txn_id column and FK repoint; no production data exists.
-  0031_drop_orphan_stage1_enum:
-    file: 0031_drop_orphan_stage1_status_enum.py
-    risk: low
-    proof: "Drops the orphaned stage1_status_enum left after EPIC-011 Stage 3 dropped bank_statements; no column references it."
   0032_ledger_invariants:
     file: 0032_ledger_invariants.py
     risk: medium
@@ -175,24 +83,6 @@ migrations:
     risk: medium
     issue: "#845"
     proof: Adds preflight checks plus database CHECK/UNIQUE/partial-index guards for financial facts, statement envelopes, market prices, managed positions, and latest report snapshots; covered by AC11.18 direct DB invariant tests and the PR Alembic contract.
-  0036_confidence_metric_snapshots:
-    file: 0036_confidence_metric_snapshots.py
-    risk: low
-    proof: Additive append-only North-Star confidence metric table; no backfill or read-path cutover; covered by PR Alembic contract.
-  0037_report_package_snapshots:
-    file: 0037_report_package_snapshots.py
-    risk: medium
-    issue: "#705"
-    proof: Adds a report_type_enum value for package snapshots and relaxes report_snapshots.rule_version_id to nullable for package artifacts; covered by AC5.19 snapshot tests and PR Alembic contract.
-  0038_atomic_txn_balance_after:
-    file: 0038_atomic_txn_balance_after.py
-    risk: low
-    issue: "#962"
-    proof: Additive nullable atomic_transactions.balance_after column plus a dedup_hash comment sync; no backfill, existing rows stay NULL. Covered by AC4.6.6/4.6.8 and the PR Alembic contract.
-  0035_manual_valuation_versioning:
-    file: 0035_manual_valuation_versioning.py
-    risk: medium
-    proof: Adds append-only version columns and converts manual valuation uniqueness to a partial unique index over current heads; staging should exercise manual valuation create/correct and net-worth read paths.
   0034_audit_anchor_ri:
     file: 0034_audit_anchor_referential_integrity.py
     risk: high
@@ -201,48 +91,7 @@ migrations:
     staging_validation: Deploy to staging and exercise upload -> parse -> evidence materialization -> reconciliation accept against normalized anchor links; confirm unresolved legacy anchors produce blockers instead of trusted source nodes.
     production_preflight: Count legacy JSONB audit anchors and cross-tenant/account references before upgrade; abort if any preflight query in revision 0034_audit_anchor_ri returns rows.
     rollback_strategy: Restore from pre-migration snapshot if the tenant-scope constraints reject existing data unexpectedly; normalized links are derived from legacy anchors and can be rebuilt after correcting source data.
-  51aa128d8189:
-    file: 51aa128d8189_remove_report_snapshot_constraint.py
-    risk: medium
-    proof: Constraint compatibility change on report snapshots; staging should exercise report snapshot paths.
-  5e7857c97b74:
-    file: 5e7857c97b74_epic17_add_portfolio_models_and_extend_.py
-    risk: medium
-    proof: Broad portfolio schema extension with index/FK compatibility repairs; staging should exercise portfolio and statement paths.
-  76c3ccfe844b:
-    file: 76c3ccfe844b_add_managed_positions.py
-    risk: low
-    proof: Additive managed positions table; covered by PR Alembic contract.
-  a14bb9204a08:
-    file: a14bb9204a08_add_valuation_basis_to_manual_valuations.py
-    risk: low
-    issue: "#706"
-    proof: Additive nullable manual_valuation_snapshots.valuation_basis column plus a new manual_valuation_basis enum type; no backfill, existing rows stay NULL. Covered by AC11.9.5 and the PR Alembic contract.
-  ba0777d5eb6c:
-    file: ba0777d5eb6c_fix_ensure_bank_statement_status_enum_.py
-    risk: medium
-    proof: Bank statement enum compatibility repair; staging should exercise statement status paths.
-  bb0888e6fc7d:
-    file: bb0888e6fc7d_add_updated_at_to_journal_lines.py
-    risk: low
-    proof: Additive journal line timestamp column; covered by PR Alembic contract.
-  bc9a8105e644:
-    file: bc9a8105e644_restore_cascading_fks.py
-    risk: medium
-    proof: Restores cascading foreign keys; staging should exercise user-owned data deletion and ownership paths.
-  bcd695dcaf71:
-    file: bcd695dcaf71_add_layer4_reporting.py
-    risk: low
-    proof: Additive Layer-4 reporting tables; covered by PR Alembic contract.
   c955c65dcc1f:
     file: c955c65dcc1f_add_is_system_to_accounts.py
     risk: medium
     proof: Adds non-null account flag with server default; staging should exercise account reads and writes.
-  cec0bf343b59:
-    file: cec0bf343b59_add_layer3_tables.py
-    risk: low
-    proof: Additive Layer-3 tables; covered by PR Alembic contract.
-  e40975f66f7f:
-    file: e40975f66f7f_add_atomic_txn_id_to_matches.py
-    risk: low
-    proof: Additive reconciliation match link; covered by PR Alembic contract.
