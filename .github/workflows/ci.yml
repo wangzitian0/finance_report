@@ -179,6 +179,9 @@ jobs:
       - name: CI Metrics Contract Check
         run: |
           uv run python tools/check_ci_metrics_contract.py
+      - name: Workflow Contract Check
+        run: |
+          uv run --with pyyaml python tools/check_workflow_contract.py
 
   schema-migrations:
     name: Schema Migration Contract

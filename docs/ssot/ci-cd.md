@@ -14,7 +14,7 @@ The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job depend
 ```
 standalone: lint ────────────────────────────────────────────────────────────────┐
 standalone: ac-traceability ────────────────────────────────────────────────────┤
-changes (classify-changes) ──→ backend shards ───────┐                          │
+changes (Classify Changes) ──→ backend shards ───────┐                          │
                          ├────→ schema-migrations ──────────────────────────────┤
                          ├────→ frontend ─────────────┼→ unified-coverage ───────┤
                          ├────→ tooling-coverage ─────┘                          │
@@ -55,6 +55,7 @@ changes (classify-changes) ──→ backend shards ───────┐    
 11. **Coveralls Is Main-Only Reporting**: Pull requests do not call Coveralls and therefore do not publish external Coveralls status contexts. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/calculate_unified_coverage.py`) aggregated by `finish`. Main pushes upload only the unified line-only LCOV report to Coveralls for badge and trend reporting after the local coverage gate passes. Backend/frontend per-flag Coveralls uploads are intentionally absent so a single commit has one reporting denominator.
 12. **Single CI Metrics Contract**: `tools/check_ci_metrics_contract.py` is the single CI metrics contract. It runs in `lint` and validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage jobs finish.
 13. **Toolchain Contract**: `tools/check_toolchain_contract.py` runs in lint and fails when Python, Node.js, uv, Docker base images, Compose service images, or frontend engine constraints drift from `toolchain.toml`.
+13a. **Workflow Contract**: `tools/check_workflow_contract.py` runs in lint and is the mechanical guard against CI/deploy prose drift (#531). It parses `.github/workflows/*.yml` and fails when the documented job ids (e.g. the classifier job id `changes`, `lint`, `unified-coverage`, `finish`) or trigger events drift from this SSOT, when `staging-deploy.yml` regains a `push`/`pull_request` trigger (staging is `workflow_dispatch`-only), or when an issue template uses a label outside the live repository taxonomy (e.g. the stale `infra`/`feature` instead of `infrastructure`/`enhancement`). It checks live job ids/triggers/labels, not mutable run status (run ids, timing, conclusions), which stay in CI artifacts.
 14. **PR Image Build Validation**: PR CI dry-runs staging image builds before merge with the same Dockerfiles, contexts, and build arguments used by `main`. Main push CI is the only path that pushes SHA-tagged images to GHCR.
 15. **Coverage Policy Audit**: `tools/check_coverage_policy.py` fails CI if backend, frontend, common, or tools source files drift from their LCOV report.
 16. **No-regression gate**: Zero-tolerance; if ANY component is below baseline, CI fails immediately.

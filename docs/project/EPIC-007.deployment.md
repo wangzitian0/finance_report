@@ -268,6 +268,19 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.14.5 | Production deployment docs describe the stale-env failure mode and the automated recovery path | `test_AC7_14_5_deployment_doc_describes_stale_env_failure_and_recovery` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
 | AC7.14.6 | The post-reconcile rollout-wait baseline (`previous_deployment_ids` / `previous_deployment_signatures`) is snapshotted from the pre-reconcile compose state, *before* `force_recreate_stateless_app` triggers `compose.redeploy`, so a fast redeploy's freshly-created deployment is still detected as new (no spurious "did not create a new deployment" timeout) | `test_AC7_14_6_rollout_baseline_snapshotted_before_force_recreate`, `test_AC7_14_6_fast_redeploy_detected_as_new_with_pre_reconcile_baseline` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
 
+### AC7.15: CI/Deploy Workflow Contract vs SSOT (#531)
+
+> Prose in `docs/ssot/ci-cd.md`, `deployment.md`, and `environments.md`, plus the
+> issue templates, must not drift from the live `.github/workflows/*.yml` job ids,
+> triggers, and the repository label taxonomy. `tools/check_workflow_contract.py`
+> is the mechanical guard; static docs must not duplicate mutable live run status.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.15.1 | The CI/deploy SSOT references the live workflow job ids and triggers through a checked contract (not stale prose), and CI lint runs `tools/check_workflow_contract.py` | `test_AC7_15_1_real_repo_passes_the_workflow_contract`, `test_AC7_15_1_ci_workflow_wires_the_workflow_contract_gate` | `tests/tooling/test_workflow_contract.py` | P0 |
+| AC7.15.2 | Issue templates use only labels that exist in the current repository taxonomy (stale `infra`/`feature` and any unknown label fail) | `test_AC7_15_2_stale_issue_template_label_fails`, `test_AC7_15_2_unknown_issue_template_label_fails` | `tests/tooling/test_workflow_contract.py` | P0 |
+| AC7.15.3 | The contract FAILS when a workflow job id, trigger, or issue-template label drifts from the documented standard (e.g. `classify-changes` prose, a `push` trigger re-added to staging-deploy, or a renamed classifier job) | `test_AC7_15_3_stale_ci_classifier_job_name_fails`, `test_AC7_15_3_stale_staging_push_trigger_prose_fails`, `test_AC7_15_3_staging_push_trigger_in_workflow_fails`, `test_AC7_15_3_renamed_classifier_job_in_workflow_fails`, `test_AC7_15_3_main_cli_returns_contract_result` | `tests/tooling/test_workflow_contract.py` | P0 |
+
 
 ## 📏 Acceptance Criteria
 
