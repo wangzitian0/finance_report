@@ -11,8 +11,8 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 |---|---:|
 | Vision nodes (anchors) | 9 |
 | Vision nodes with an owning EPIC | 9 |
-| Acceptance Criteria mapped | 1839 |
-| ACs with a real test reference | 1836 |
+| Acceptance Criteria mapped | 1840 |
+| ACs with a real test reference | 1837 |
 
 ## Vision nodes
 
@@ -24,7 +24,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | `decision-4-two-stage-review` | Review separates source accuracy from batch consistency. | EPIC-004, EPIC-016, EPIC-022 | 378 | 378 |
 | `decision-5-processing-account` | In-transit funds stay visible. | EPIC-015 | 31 | 31 |
 | `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 203 | 200 |
-| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 428 | 428 |
+| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 429 | 429 |
 | `non-goals-not-budgeting-app` | Becoming a consumer budgeting app | EPIC-005 | 94 | 94 |
 | `non-goals-not-robo-advisor` | Automated trading, portfolio | EPIC-006 | 72 | 72 |
 
@@ -1331,7 +1331,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 
 - **Node**: Decision Filter
 - **Owner EPICs**: EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021
-- **ACs**: 428 (428 with a real test reference)
+- **ACs**: 429 (429 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
@@ -1672,14 +1672,15 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC14.1.11 | EPIC-014 | GitHub issue templates require phenomenon, reproduction, minimal fix, rationale, and acceptance criteria sections with valid repository labels | `tests/tooling/test_issue_template_contract.py` |
 | AC14.1.12 | EPIC-014 | SSOT governance metrics report finance_report and infra2 manifest shape, proof coverage, and future gate candidates without blocking CI | `tests/tooling/test_ssot_governance_report.py` |
 | AC14.1.13 | EPIC-014 | SSOT governance gates block changed-file and changed-manifest-entry debt, explain #823/HLS ownership, and support issue-linked temporary exceptions | `tests/tooling/test_ssot_governance_report.py` |
-| AC14.1.14 | EPIC-014 | Threshold cleanup for #824 reduces finance_report.orphan_ssot_files to zero by binding orphan SSOT files to parent concepts without runtime behavior changes | `tests/tooling/test_ssot_governance_report.py` |
-| AC14.1.15 | EPIC-014 | Threshold cleanup for #824 migrates representative machine-owned FR SSOT entries to explicit family, kind, proofs, and inbound SSOT Markdown links so finance_report.machine_owner_entries_missing_proof stays zero | `tests/tooling/test_ssot_governance_report.py` |
+| AC14.1.14 | EPIC-014 | reduces finance_report.orphan_ssot_files to zero. | `tests/tooling/test_ssot_governance_report.py` |
+| AC14.1.15 | EPIC-014 | keeps finance_report.machine_owner_entries_missing_proof at | `tests/tooling/test_ssot_governance_report.py` |
 | AC14.1.16 | EPIC-014 | SSOT governance gates keep protected per-system governance ratios non-decreasing and protected debt counts non-increasing against the base ref | `tests/tooling/test_ssot_governance_report.py` |
 | AC14.1.17 | EPIC-014 | DB schema inventory is generated from SQLAlchemy metadata, published by the MkDocs build, CI-checked for deterministic generation, gitignored as generated output, and linked from macro SSOT/domain docs instead of hand-maintained table/column/API catalogs | `tests/tooling/test_generate_db_schema_reference.py`<br>`tests/tooling/test_post_merge_e2e_gates.py` |
 | AC14.1.18 | EPIC-014 | FR (EPIC-014) and infra2 (Infra-006) each document a 6-8 family SSOT HLS model with explicit concept/clause boundaries, the family map covers every MANIFEST.yaml-inferred family, the HLS checklist links #821/#822/#823/#824, and the definition does not move or re-own any SSOT concept | `tests/tooling/test_ssot_hls_family_model.py` |
 | AC14.1.19 | EPIC-014 | A single parseable vision-to-proof matrix is mechanically generated from vision.md anchors, EPIC Vision Anchor declarations, the AC registries, and test references (mapping vision anchor -> EPIC -> AC -> test), published as a YAML artifact plus a MkDocs page, and --check fails on drift (supersedes #442, #480) | `tests/tooling/test_generate_vision_proof_matrix.py` |
 | AC14.1.20 | EPIC-014 | Unified coverage aggregation (#414) runs an artifact preflight that fails explicitly and names the offending component LCOV when a CI-critical artifact is missing or empty, instead of silently treating it as 0% and producing a misleading unified number | `tests/tooling/test_coverage_artifact_preflight.py` |
 | AC14.1.21 | EPIC-014 | Coverage components (#923) carry an explicit tier (ci-critical vs best-effort); the artifact preflight enforces presence only for ci-critical tiers so a missing best-effort tools artifact does not hard-fail the aggregation while application and shared-library trees stay strictly gated | `tests/tooling/test_coverage_artifact_preflight.py` |
+| AC14.1.23 | EPIC-014 | reduces finance_report.high_risk_entries_missing_proof from | `tests/tooling/test_ssot_governance_report.py` |
 | AC19.1.1 | EPIC-019 | Workflow event SSOT defines event families, severity/actionability, lifecycle states, dedupe rules, internal action links, indexes, and relationship to audit logs | `apps/backend/tests/workflow/test_workflow_events.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py` |
 | AC19.1.2 | EPIC-019 | Backend model defines a user-scoped workflow_events read model with explicit enum names, lifecycle status, UNIQUE(user_id, dedupe_key), and badge/inbox read indexes | `apps/backend/tests/workflow/test_workflow_events.py` |
 | AC19.1.3 | EPIC-019 | Pydantic schemas validate the workflow event contract and reject external action_href values | `apps/backend/tests/workflow/test_workflow_events.py` |

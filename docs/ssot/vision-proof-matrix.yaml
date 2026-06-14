@@ -7,8 +7,8 @@ description: Generated vision -> AC -> test proof matrix. Maps every vision.md a
 summary:
   vision_nodes: 9
   vision_nodes_with_owner_epic: 9
-  total_acs: 1839
-  acs_with_real_test: 1836
+  total_acs: 1840
+  acs_with_real_test: 1837
 vision_nodes:
   - anchor: decision-1-portfolio-self-developed
     label: Portfolio is native.
@@ -8313,8 +8313,8 @@ vision_nodes:
       - EPIC-019
       - EPIC-020
       - EPIC-021
-    ac_count: 428
-    ac_with_test_count: 428
+    ac_count: 429
+    ac_with_test_count: 429
     acs:
       - id: AC2.1.1
         epic: EPIC-002
@@ -10724,16 +10724,13 @@ vision_nodes:
           - tests/tooling/test_ssot_governance_report.py
       - id: AC14.1.14
         epic: EPIC-014
-        description: 'Threshold cleanup for #824 reduces finance_report.orphan_ssot_files to zero by binding
-          orphan SSOT files to parent concepts without runtime behavior changes'
+        description: reduces finance_report.orphan_ssot_files to zero.
         mandatory: true
         tests:
           - tests/tooling/test_ssot_governance_report.py
       - id: AC14.1.15
         epic: EPIC-014
-        description: 'Threshold cleanup for #824 migrates representative machine-owned FR SSOT entries
-          to explicit family, kind, proofs, and inbound SSOT Markdown links so finance_report.machine_owner_entries_missing_proof
-          stays zero'
+        description: keeps finance_report.machine_owner_entries_missing_proof at
         mandatory: true
         tests:
           - tests/tooling/test_ssot_governance_report.py
@@ -10788,6 +10785,12 @@ vision_nodes:
         mandatory: true
         tests:
           - tests/tooling/test_coverage_artifact_preflight.py
+      - id: AC14.1.23
+        epic: EPIC-014
+        description: reduces finance_report.high_risk_entries_missing_proof from
+        mandatory: true
+        tests:
+          - tests/tooling/test_ssot_governance_report.py
       - id: AC19.1.1
         epic: EPIC-019
         description: Workflow event SSOT defines event families, severity/actionability, lifecycle states,
