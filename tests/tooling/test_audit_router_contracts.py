@@ -80,3 +80,38 @@ def test_findings_doc_is_in_sync() -> None:
     assert doc == expected, (
         "Run: python tools/audit_router_contracts.py --output docs/reference/router-contract-maturity.md"
     )
+
+
+def test_cli_writes_output_and_reports_within_budget(tmp_path: Path, capsys) -> None:
+    """--output writes the findings doc; a within-budget run prints and exits 0."""
+    routers = tmp_path / "routers"
+    routers.mkdir()
+    (routers / "demo.py").write_text(
+        'from fastapi import APIRouter\nrouter = APIRouter()\n\n\n@router.get("/ok", response_model=int)\nasync def ok() -> int:\n    return 1\n',
+        encoding="utf-8",
+    )
+    out = tmp_path / "findings.md"
+    code = audit.main(["--repo-root", str(tmp_path), "--router-dir", str(routers), "--output", str(out)])
+    assert code == 0
+    assert out.exists() and "Untyped Endpoints" in out.read_text(encoding="utf-8")
+    assert "Untyped endpoints: 0" in capsys.readouterr().out
+
+
+def test_route_literal_fallback_and_path_outside_repo(tmp_path: Path) -> None:
+    """A non-literal route falls back to '?'; a file outside repo_root keeps its posix path."""
+    router = tmp_path / "demo.py"
+    router.write_text(
+        "from fastapi import APIRouter\nrouter = APIRouter()\n_p = '/dyn'\n\n\n@router.get(_p)\nasync def dyn():\n    return {}\n",
+        encoding="utf-8",
+    )
+    findings = audit.scan_file(router, repo_root=Path("/some/other/root"))
+    assert len(findings) == 1
+    assert findings[0].route == "?"
+    assert findings[0].relative_path == router.as_posix()
+
+
+def test_tools_wrapper_delegates_to_common() -> None:
+    """The CLI wrapper delegates to the common implementation."""
+    from tools import audit_router_contracts as wrapper
+
+    assert wrapper.main is audit.main
