@@ -83,6 +83,7 @@ nav:
   - Technical Docs:
       - Architecture: ssot/README.md
       - Development Guide: ssot/development.md
+      - Environment Reference: ssot/env-reference.generated.md
       - Environments: ssot/environments.md
       - CI/CD: ssot/ci-cd.md
       - Coverage: ssot/coverage.md
