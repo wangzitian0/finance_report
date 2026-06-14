@@ -435,7 +435,7 @@ async def get_opening_balance_readiness(db: AsyncSession, user_id: UUID) -> dict
         select(func.min(JournalEntry.entry_date)).where(
             JournalEntry.user_id == user_id,
             JournalEntry.status.in_(posted),
-            JournalEntry.id.not_in(opening_entry_ids),
+            JournalEntry.id.notin_(opening_entry_ids),
         )
     )
     earliest_opening = await db.scalar(

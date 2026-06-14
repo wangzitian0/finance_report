@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -334,12 +334,13 @@ describe("AccountsPage", () => {
 
     render(<AccountsPage />, { wrapper: createWrapper() })
 
-    expect(await screen.findByText(/Your balance sheet may be incomplete/)).toBeInTheDocument()
+    const nudgeText = await screen.findByText(/Your balance sheet may be incomplete/)
     expect(screen.getByText(/since 2026-01-15/)).toBeInTheDocument()
 
-    // The nudge's CTA opens the guided opening-balance modal.
-    const nudgeButtons = screen.getAllByRole("button", { name: /Set opening balances/i })
-    fireEvent.click(nudgeButtons[0])
+    // Click the CTA inside the nudge alert (not the header button) — it opens the modal.
+    const nudge = nudgeText.closest('[role="status"]') as HTMLElement
+    expect(nudge).not.toBeNull()
+    fireEvent.click(within(nudge).getByRole("button", { name: /Set opening balances/i }))
     expect(screen.getByText("Opening Balance Modal")).toBeInTheDocument()
   })
 
