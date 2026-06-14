@@ -736,12 +736,18 @@ class ExtractionService:
                     )
                 return extracted
 
-            try:
-                diff = Decimal(str(result.get("difference", "0") or "0"))
-            except (ValueError, TypeError, InvalidOperation):
-                diff = Decimal("0")
-            if best is None or diff < best_diff:
-                best, best_diff = extracted, diff
+            # Only parses whose balance was actually computable compete for "best".
+            # validate_balance sets balance_computable=False when the payload is
+            # structurally broken (missing/non-numeric amount) and its difference
+            # defaults to "0"; such a parse must not win over a numerically-close
+            # one just because its difference is 0.
+            if result.get("balance_computable", True):
+                try:
+                    diff = Decimal(str(result.get("difference", "0") or "0"))
+                except (ValueError, TypeError, InvalidOperation):
+                    diff = None
+                if diff is not None and (best is None or diff < best_diff):
+                    best, best_diff = extracted, diff
 
         if max_attempts > 1:
             logger.info(

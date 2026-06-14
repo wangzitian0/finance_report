@@ -332,3 +332,5 @@ kept so routing is unchanged. Only failing parses retry, so average cost is boun
 | AC13.17.4 | Brokerage payloads are not retried | `test_brokerage_is_not_retried()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.5 | Attempt 0 uses the configured seed; retries vary it (seed+1, seed+2 …) | `test_seed_varies_per_attempt()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.6 | `AI_EXTRACT_MAX_ATTEMPTS=1` keeps single-shot behavior | `test_max_attempts_one_disables_retry()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.7 | A structurally-invalid parse (balance uncomputable, difference 0) does not win "best" over a numerically-close parse | `test_structurally_invalid_parse_does_not_win_as_best()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.17.8 | If every attempt is structurally invalid, the last parse is returned so `parse_document` reports the failure | `test_all_invalid_returns_last_parse()` | `extraction/test_self_consistency.py` | P1 |

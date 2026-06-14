@@ -7,6 +7,7 @@ reproducible* samples; the first attempt that reconciles wins, otherwise the
 best-by-difference result is kept so routing is unchanged.
 """
 
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 from src.config import settings
@@ -15,7 +16,8 @@ from src.services.extraction import ExtractionService
 
 def _bank(diff: str = "0"):
     """A bank payload whose closing balance is off by ``diff`` (0 => reconciles)."""
-    closing = "100.00" if diff == "0" else f"{100 - float(diff):.2f}"
+    # Money math uses Decimal so test data is exact (no float rounding artifacts).
+    txn_amount = Decimal("100.00") - Decimal(diff)
     return {
         "institution": "DBS",
         "period_start": "2025-01-01",
@@ -23,9 +25,17 @@ def _bank(diff: str = "0"):
         "opening_balance": "0.00",
         "closing_balance": "100.00",
         "currency": "SGD",
-        # one IN txn of `closing`; if closing != 100 the chain is off by `diff`
-        "transactions": [{"date": "2025-01-10", "amount": closing, "direction": "IN", "currency": "SGD"}],
+        # one IN txn; opening 0 + txn vs stated closing 100 => off by `diff`
+        "transactions": [{"date": "2025-01-10", "amount": f"{txn_amount:.2f}", "direction": "IN", "currency": "SGD"}],
     }
+
+
+def _structurally_invalid():
+    """A payload whose balance is uncomputable (non-numeric amount); validate_balance
+    returns balance_computable=False with difference '0'."""
+    payload = _bank("0")
+    payload["transactions"] = [{"date": "2025-01-10", "amount": "not-a-number", "direction": "IN"}]
+    return payload
 
 
 def _brokerage():
@@ -110,3 +120,22 @@ async def test_max_attempts_one_disables_retry():
     result, mock = await _run(service, [_bank("9.00")], max_attempts=1)
     assert result["closing_balance"] == "100.00"
     assert mock.await_count == 1
+
+
+async def test_structurally_invalid_parse_does_not_win_as_best():
+    """AC13.17.7: a structurally-invalid parse (balance uncomputable, difference
+    defaults to '0') must not beat a numerically-close parse when none reconcile."""
+    service = ExtractionService()
+    close = _bank("3.00")
+    result, mock = await _run(service, [_structurally_invalid(), close], max_attempts=2)
+    assert result is close
+    assert mock.await_count == 2
+
+
+async def test_all_invalid_returns_last_parse():
+    """AC13.17.8: if every attempt is structurally invalid, the last parse is
+    returned so parse_document's own validation reports the failure (unchanged)."""
+    service = ExtractionService()
+    last = _structurally_invalid()
+    result, _ = await _run(service, [_structurally_invalid(), last], max_attempts=2)
+    assert result is last
