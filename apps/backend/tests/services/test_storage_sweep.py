@@ -12,24 +12,29 @@ import pytest
 from botocore.exceptions import ClientError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.models import UploadedDocument
 from src.models.layer1 import DocumentType
 from src.services import StorageError
 from src.services.storage_sweep import (
-    ORPHAN_MIN_AGE,
     _list_storage_keys,
     run_storage_sweep,
     sweep_orphaned_storage_objects,
 )
 
 
+def _orphan_min_age() -> timedelta:
+    """Configured grace period, read from settings at call time (issue #356)."""
+    return timedelta(hours=settings.storage_sweep_grace_period_hours)
+
+
 def _old_timestamp() -> datetime:
-    """Return a timestamp older than ORPHAN_MIN_AGE."""
-    return datetime.now(UTC) - ORPHAN_MIN_AGE - timedelta(minutes=5)
+    """Return a timestamp older than the configured grace period."""
+    return datetime.now(UTC) - _orphan_min_age() - timedelta(minutes=5)
 
 
 def _recent_timestamp() -> datetime:
-    """Return a timestamp newer than ORPHAN_MIN_AGE (still in flight)."""
+    """Return a timestamp newer than the configured grace period (still in flight)."""
     return datetime.now(UTC) - timedelta(minutes=5)
 
 
@@ -303,14 +308,23 @@ async def test_run_storage_sweep_disabled_by_feature_flag():
     mock_sweep.assert_not_called()
 
 
-def test_grace_period_and_interval_defaults_match_issue_356():
-    """AC3.8.14: Config defaults match issue #356 (24h grace, daily/86400s interval)."""
-    from src.config import settings
+def test_grace_period_and_interval_defaults_match_issue_356(monkeypatch):
+    """AC3.8.14: Config defaults match issue #356 (24h grace, daily/86400s interval).
+
+    Build a fresh ``Settings`` with the relevant env vars cleared and no env file,
+    so this verifies the in-code defaults regardless of the dev/CI environment.
+    """
+    from src.config import Settings
+
+    monkeypatch.delenv("STORAGE_SWEEP_GRACE_PERIOD_HOURS", raising=False)
+    monkeypatch.delenv("STORAGE_SWEEP_INTERVAL_SECONDS", raising=False)
+
+    defaults = Settings(_env_file=None)
 
     # Grace period: 24 hours by default (avoids racing with in-progress uploads).
-    assert settings.storage_sweep_grace_period_hours == 24
+    assert defaults.storage_sweep_grace_period_hours == 24
     # Interval: daily (86400 seconds) by default.
-    assert settings.storage_sweep_interval_seconds == 86400
+    assert defaults.storage_sweep_interval_seconds == 86400
 
 
 async def test_sweep_reads_grace_period_from_config(db: AsyncSession, test_user):

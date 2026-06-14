@@ -25,11 +25,10 @@ logger = get_logger(__name__)
 
 STATEMENT_PREFIX = "statements/"
 
-# Default sweep cadence/grace, derived from config so behavior is config-driven
-# (issue #356). These module-level aliases preserve the historical constant names
-# while the live values are always read from ``settings`` at call time below.
-ORPHAN_MIN_AGE = timedelta(hours=settings.storage_sweep_grace_period_hours)
-SWEEP_INTERVAL_SECONDS = settings.storage_sweep_interval_seconds
+# Sweep cadence and grace period are config-driven (issue #356): the live values
+# are read from ``settings.storage_sweep_*`` at call time (see
+# ``sweep_orphaned_storage_objects`` and ``run_storage_sweep`` below) so that
+# environment changes and test-time patching of ``settings`` take effect.
 
 
 def _list_storage_keys(storage: StorageService) -> list[tuple[str, datetime]]:
