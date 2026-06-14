@@ -7,8 +7,8 @@ not just a single manual-entry period (the gap left by
 
 Deterministic by construction: CSV parsing is rule-based (no LLM/vision call),
 and no AI classification is run, so posted counter-accounts fall back to the
-``Income/Expense - Uncategorized`` accounts. This lets the report values be
-asserted exactly.
+``Income - Uncategorized`` / ``Expense - Uncategorized`` accounts. This lets the
+report values be asserted exactly.
 """
 
 from __future__ import annotations
@@ -26,9 +26,22 @@ from src.services.reporting import generate_balance_sheet, generate_cash_flow, g
 from src.services.statement_posting import auto_create_posted_entries_for_statement
 from src.services.statement_validation import approve_statement
 
-# Three distinct, non-overlapping monthly statement periods (the period-overlap
-# posting guard requires distinct ranges per account).
-MONTHS = ("2026-01", "2026-02", "2026-03")
+# A full year of distinct, non-overlapping monthly statement periods (the
+# period-overlap posting guard requires distinct ranges per account).
+MONTHS = (
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10",
+    "2026-11",
+    "2026-12",
+)
 SALARY = Decimal("5000.00")
 RENT = Decimal("1500.00")
 
@@ -120,16 +133,16 @@ async def test_AC8_15_1_full_year_statement_to_report_ties_out(
     assert total_created == 2 * len(MONTHS)
 
     period_start = date(2026, 1, 1)
-    period_end = date(2026, 3, 31)
+    period_end = date(2026, 12, 31)
     balance_sheet = await generate_balance_sheet(db, user_id, as_of_date=period_end, currency="SGD")
     income_statement = await generate_income_statement(
         db, user_id, start_date=period_start, end_date=period_end, currency="SGD"
     )
     cash_flow = await generate_cash_flow(db, user_id, start_date=period_start, end_date=period_end, currency="SGD")
 
-    expected_income = SALARY * len(MONTHS)  # 15000.00
-    expected_expenses = RENT * len(MONTHS)  # 4500.00
-    expected_net = expected_income - expected_expenses  # 10500.00
+    expected_income = SALARY * len(MONTHS)  # 60000.00 (12 x 5000)
+    expected_expenses = RENT * len(MONTHS)  # 18000.00 (12 x 1500)
+    expected_net = expected_income - expected_expenses  # 42000.00
 
     assert income_statement["total_income"] == expected_income
     assert income_statement["total_expenses"] == expected_expenses

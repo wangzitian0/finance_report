@@ -413,7 +413,7 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.15: Full-Year Statement-to-Report End-to-End Acceptance
 
-Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC8.14.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → auto-posted ledger entries → period reports — ties out across **multiple months**. Deterministic by construction (rule-based CSV parse, no LLM; no AI classification, so counter-accounts fall back to `Income/Expense - Uncategorized`).
+Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC8.14.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → auto-posted ledger entries → period reports — ties out across **multiple months**. Deterministic by construction (rule-based CSV parse, no LLM; no AI classification, so counter-accounts fall back to `Income - Uncategorized` / `Expense - Uncategorized`).
 
 | AC ID | Test Case | Test Function | File | Priority |
 |---|---|---|---|---|
