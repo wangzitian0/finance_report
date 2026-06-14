@@ -131,7 +131,9 @@ def test_AC7_15_3_main_cli_returns_contract_result(tmp_path, capsys) -> None:
 
 def test_AC7_15_1_ci_workflow_wires_the_workflow_contract_gate() -> None:
     """AC7.15.1: CI lint runs the workflow contract checker."""
-    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    assert "tools/check_workflow_contract.py" in workflow
-    lint_block = workflow.split("  lint:", 1)[1].split("  schema-migrations:", 1)[0]
-    assert "tools/check_workflow_contract.py" in lint_block
+    workflow = contract.load_yaml(ROOT, ".github/workflows/ci.yml")
+    lint_job = workflow["jobs"]["lint"]
+    lint_run_commands = "\n".join(
+        str(step.get("run", "")) for step in lint_job.get("steps", [])
+    )
+    assert "tools/check_workflow_contract.py" in lint_run_commands

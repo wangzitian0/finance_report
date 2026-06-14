@@ -177,8 +177,11 @@ def read_text(repo_root: Path, relative_path: str) -> str:
 
 
 def load_yaml(repo_root: Path, relative_path: str) -> dict:
-    with (repo_root / relative_path).open(encoding="utf-8") as handle:
-        loaded = yaml.safe_load(handle)
+    try:
+        with (repo_root / relative_path).open(encoding="utf-8") as handle:
+            loaded = yaml.safe_load(handle)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"{relative_path}: invalid YAML ({exc})") from exc
     if not isinstance(loaded, dict):
         raise ValueError(f"{relative_path}: expected a YAML mapping")
     return loaded
@@ -242,7 +245,11 @@ def check_workflows(repo_root: Path, errors: list[str]) -> None:
 
 def check_ssot_docs(repo_root: Path, errors: list[str]) -> None:
     for path, forbidden in SSOT_FORBIDDEN_PROSE.items():
-        content = read_text(repo_root, path)
+        try:
+            content = read_text(repo_root, path)
+        except OSError as exc:
+            errors.append(f"{path}: governed SSOT doc could not be read ({exc})")
+            continue
         for needle, explanation in forbidden:
             if needle in content:
                 errors.append(
@@ -250,7 +257,11 @@ def check_ssot_docs(repo_root: Path, errors: list[str]) -> None:
                 )
 
     for path, required in SSOT_REQUIRED_PROSE.items():
-        content = read_text(repo_root, path)
+        try:
+            content = read_text(repo_root, path)
+        except OSError as exc:
+            errors.append(f"{path}: governed SSOT doc could not be read ({exc})")
+            continue
         for needle in required:
             if needle not in content:
                 errors.append(
@@ -272,8 +283,12 @@ def check_issue_templates(repo_root: Path, errors: list[str]) -> None:
 
     for template_path in template_paths:
         rel = template_path.relative_to(repo_root)
-        with template_path.open(encoding="utf-8") as handle:
-            template = yaml.safe_load(handle)
+        try:
+            with template_path.open(encoding="utf-8") as handle:
+                template = yaml.safe_load(handle)
+        except (OSError, yaml.YAMLError) as exc:
+            errors.append(f"{rel}: issue template could not be parsed ({exc})")
+            continue
         if not isinstance(template, dict):
             errors.append(f"{rel}: expected a YAML mapping")
             continue
