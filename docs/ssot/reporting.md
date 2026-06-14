@@ -62,6 +62,14 @@ Package snapshot endpoints:
   exports the saved snapshot. JSON and CSV export must be derived from
   `report_data`, not from live report endpoint recalculation.
 
+The export endpoints (`GET /api/reports/export` and the snapshot export above)
+return a bare `StreamingResponse`, so their media type and attachment header are
+declared by the typed contract `ExportStreamEnvelope`
+(`apps/backend/src/schemas/streaming.py`). The envelope constrains the media
+type to `text/csv` or `application/json` and renders
+`Content-Disposition: attachment; filename=...` from a validated filename. This
+describes the existing wire behavior without changing it (EPIC-006 AC6.33).
+
 Readiness gates the generated artifact status. If readiness is `ready`,
 `generated`, or `stale` with zero blockers, the snapshot is `trusted`; blocked,
 processing, or draft readiness can only create a `draft` snapshot. Draft

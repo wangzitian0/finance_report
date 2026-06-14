@@ -529,3 +529,26 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 | AC6.13.3 | ValueError/TypeError in _stream_model raises AIAdvisorError. | `test_stream_openrouter_raises_on_programming_error` | `ai/test_ai_advisor_service.py` | P1 |
 | AC6.13.4 | _stream_model proxies chunks from stream_openrouter_chat. | `test_stream_model_yields_chunks` | `ai/test_ai_advisor_service.py` | P1 |
 | AC6.13.6 | Bank-account detector skips date-like and zero-heavy numbers. | `test_detect_pii_skips_date_like_and_zero_heavy_numbers` | `ai/test_pii_redaction.py` | P1 |
+
+### AC6.33: Typed Streaming Contract (chat + export)
+
+Streaming endpoints (`POST /chat`, `GET /reports/export`,
+`GET /reports/package/snapshots/{id}/export`) return a bare `StreamingResponse`
+that FastAPI cannot describe with a `response_model`. Their out-of-band payload
+(response headers, media type, attachment disposition) is now declared as typed
+Pydantic envelopes (`ChatStreamEnvelope`, `ExportStreamEnvelope`) so the stream's
+structure is validated and testable **without changing the wire bytes** clients
+depend on. `X-Advisor-Metadata` is validated against `ChatResponseMetadata`
+before serialization. See `docs/ssot/ai.md` (chat) and `docs/ssot/reporting.md`
+(export).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.33.1 | Chat envelope with only a session id exposes just X-Session-Id. | `test_AC6_33_1_chat_envelope_minimal_headers` | `ai/test_streaming_contract.py` | P0 |
+| AC6.33.2 | Chat envelope exposes model + grounding metadata headers in CORS order. | `test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers` | `ai/test_streaming_contract.py` | P0 |
+| AC6.33.3 | Chat envelope omits empty advisor metadata (wire output unchanged). | `test_AC6_33_3_chat_envelope_omits_empty_advisor_metadata` | `ai/test_streaming_contract.py` | P0 |
+| AC6.33.4 | Chat envelope rejects advisor metadata that violates the typed model. | `test_AC6_33_4_chat_envelope_rejects_invalid_advisor_metadata` | `ai/test_streaming_contract.py` | P0 |
+| AC6.33.5 | Export envelope declares media type + attachment disposition. | `test_AC6_33_5_export_envelope_builds_attachment_headers` | `ai/test_streaming_contract.py` | P0 |
+| AC6.33.6 | Export envelope rejects unknown media types. | `test_AC6_33_6_export_envelope_rejects_unknown_media_type` | `ai/test_streaming_contract.py` | P0 |
+| AC6.33.7 | chat_message builds its streaming response from the typed envelope. | `test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers` | `ai/test_streaming_contract.py` | P0 |
+| AC6.33.8 | /reports/export wire headers match the typed export envelope. | `test_AC6_33_8_export_response_matches_typed_envelope` | `reporting/test_reports_router.py` | P0 |
