@@ -249,7 +249,7 @@ need a broader report contract than the current portfolio schedule provides.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC17.14.1 | Portfolio page renders a unified asset-class allocation panel from the investment performance schedule with value, percentage, holding count, and tie-out to the displayed portfolio value | `AC17.14.1 renders unified asset allocation from performance schedule` | `frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
+| AC17.14.1 | Portfolio page renders a unified asset-class allocation panel from the investment performance schedule with value, percentage, holding count, and tie-out to the displayed portfolio value | `AC17.14.1 renders unified asset allocation from performance schedule` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 

@@ -75,7 +75,11 @@ const mockHolding2: PortfolioHolding = {
   sector: "Automotive",
 }
 
-function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding], allocationPercentage = "100.00") {
+function mockPortfolioApi(
+  holdings: PortfolioHolding[] = [mockHolding],
+  allocationPercentage = "100.00",
+  scheduleCurrency = "USD",
+) {
   const mockedApiFetch = vi.mocked(apiFetch)
   mockedApiFetch.mockImplementation((path: string) => {
     if (path.startsWith("/api/portfolio/summary")) {
@@ -101,7 +105,7 @@ function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding], allocati
         period_start: "2026-01-01",
         period_end: "2026-12-31",
         as_of_date: "2026-12-31",
-        currency: "USD",
+        currency: scheduleCurrency,
         xirr: "12.50",
         time_weighted_return: "8.30",
         money_weighted_return: "10.10",
@@ -298,6 +302,17 @@ describe("PortfolioPage", () => {
     expect(within(panel).getByText("100.0%")).toBeInTheDocument()
     expect(within(panel).getByText("1 holding")).toBeInTheDocument()
     expect(within(panel).getByText(/Ties to portfolio value/)).toBeInTheDocument()
+  })
+
+  it("AC17.14.1 labels allocation and portfolio currencies instead of claiming tie-out when they differ", async () => {
+    mockPortfolioApi([mockHolding], "100.00", "SGD")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
+    expect(within(panel).getByText("Schedule currency: SGD")).toBeInTheDocument()
+    expect(within(panel).getByText(/Portfolio value shown in USD/)).toBeInTheDocument()
+    expect(within(panel).queryByText(/Ties to portfolio value/)).not.toBeInTheDocument()
   })
 
   it("AC17.14.1 renders invalid allocation percentages as unavailable", async () => {

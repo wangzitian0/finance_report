@@ -90,6 +90,8 @@ export default function PortfolioPage() {
         assetClassAllocationRows.length > 0
             ? performanceSchedule
             : null;
+    const allocationCurrencyMatchesPortfolio =
+        unifiedAllocationSchedule?.currency.toUpperCase() === primaryCurrency.toUpperCase();
 
     return (
         <div className="p-6">
@@ -142,7 +144,9 @@ export default function PortfolioPage() {
                                 Unified Allocation
                             </h2>
                             <p className="mt-1 text-sm text-muted">
-                                Ties to portfolio value: {formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}
+                                {allocationCurrencyMatchesPortfolio
+                                    ? `Ties to portfolio value: ${formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}`
+                                    : `Portfolio value shown in ${primaryCurrency}: ${formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}`}
                             </p>
                         </div>
                         <p className="text-xs text-muted md:text-right">
