@@ -388,6 +388,20 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "AI Provider"},
     )
 
+    # Balance-aware self-consistency (#989 Step B): when a bank statement's
+    # running-balance chain fails to reconcile, re-extract up to this many times
+    # (each attempt with a varied seed) and keep the first reconciling result
+    # before routing to `uploaded`. 1 disables retry (single-shot). Only failing
+    # parses retry, so the average cost increase is bounded.
+    ai_extract_max_attempts: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        validation_alias="AI_EXTRACT_MAX_ATTEMPTS",
+        description="Max balance-aware re-extract attempts for bank statements (1 disables retry).",
+        json_schema_extra={"group": "AI Provider"},
+    )
+
     @field_validator("ai_json_seed", mode="before")
     @classmethod
     def _empty_seed_is_none(cls, value: object) -> object:
