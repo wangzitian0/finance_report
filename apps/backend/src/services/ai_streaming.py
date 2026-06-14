@@ -18,7 +18,7 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-class OpenRouterStreamError(Exception):
+class AIStreamError(Exception):
     """Raised when AI provider streaming fails."""
 
     def __init__(self, message: str, retryable: bool = False):
@@ -35,7 +35,7 @@ class OpenRouterStreamError(Exception):
         self.retryable = retryable
 
 
-async def _stream_openrouter_base(
+async def _stream_ai_base(
     messages: list[dict[str, Any]],
     model: str,
     *,
@@ -58,12 +58,12 @@ async def _stream_openrouter_base(
     if not api_key:
         api_key = getattr(settings, "ai_api_key", None)
     if not isinstance(api_key, str) or not api_key:
-        raise OpenRouterStreamError("AI provider API key not configured", retryable=False)
+        raise AIStreamError("AI provider API key not configured", retryable=False)
 
     if not base_url:
         base_url = getattr(settings, "ai_base_url", None)
     if not isinstance(base_url, str) or not base_url:
-        raise OpenRouterStreamError("AI provider base URL not configured", retryable=False)
+        raise AIStreamError("AI provider base URL not configured", retryable=False)
 
     chat_path = getattr(settings, "ai_chat_completions_path", "/chat/completions")
     if not isinstance(chat_path, str) or not chat_path:
@@ -134,7 +134,7 @@ async def _stream_openrouter_base(
                 headers=dict(event_source.response.headers),
             )
 
-            raise OpenRouterStreamError(error_message, retryable=retryable)
+            raise AIStreamError(error_message, retryable=retryable)
 
         chunk_count = 0
         content_count = 0
@@ -165,7 +165,7 @@ async def _stream_openrouter_base(
                         error_message=error_msg,
                         model=model,
                     )
-                    raise OpenRouterStreamError(
+                    raise AIStreamError(
                         f"Mid-stream error: {error_msg}", retryable=error_code in ("server_error", "timeout")
                     )
 
@@ -184,7 +184,7 @@ async def _stream_openrouter_base(
                         model=model,
                         chunk_data_preview=str(chunk_data)[:500],
                     )
-                    raise OpenRouterStreamError("Stream terminated with error", retryable=True)
+                    raise AIStreamError("Stream terminated with error", retryable=True)
 
                 delta = choice.get("delta", {})
                 content = delta.get("content", "")
@@ -229,7 +229,7 @@ async def _stream_openrouter_base(
     )
 
 
-async def stream_openrouter_json(
+async def stream_ai_json(
     messages: list[dict[str, Any]],
     model: str,
     *,
@@ -252,7 +252,7 @@ async def stream_openrouter_json(
     this parameter with multimodal/PDF inputs, returning HTTP 400 "Value error".
     The prompt already instructs the AI to return valid JSON.
     """
-    async for chunk in _stream_openrouter_base(
+    async for chunk in _stream_ai_base(
         messages=messages,
         model=model,
         api_key=api_key,
@@ -269,7 +269,7 @@ async def stream_openrouter_json(
         yield chunk
 
 
-async def stream_openrouter_chat(
+async def stream_ai_chat(
     messages: list[dict[str, Any]],
     model: str,
     *,
@@ -285,7 +285,7 @@ async def stream_openrouter_chat(
     Note: timeout increased to 120s to handle AI model cold starts and
     complex financial context processing which can take longer than typical API calls.
     """
-    async for chunk in _stream_openrouter_base(
+    async for chunk in _stream_ai_base(
         messages=messages,
         model=model,
         api_key=api_key,

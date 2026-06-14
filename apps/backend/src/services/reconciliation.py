@@ -529,10 +529,10 @@ async def ai_semantic_score(
     import json
 
     from src.prompts.reconciliation import build_reconciliation_prompt
-    from src.services.openrouter_streaming import (
-        OpenRouterStreamError,
+    from src.services.ai_streaming import (
+        AIStreamError,
         accumulate_stream,
-        stream_openrouter_json,
+        stream_ai_json,
     )
 
     if not settings.ai_api_key:
@@ -549,7 +549,7 @@ async def ai_semantic_score(
     messages = [{"role": "user", "content": prompt}]
 
     try:
-        stream = stream_openrouter_json(
+        stream = stream_ai_json(
             messages=messages,
             model=settings.primary_model,
             api_key=settings.ai_api_key,
@@ -573,7 +573,7 @@ async def ai_semantic_score(
 
         return max(0, min(100, score))
 
-    except (OpenRouterStreamError, json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
+    except (AIStreamError, json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
         logger.warning(
             "AI semantic score failed, using fallback",
             error=str(e),

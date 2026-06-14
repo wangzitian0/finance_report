@@ -1300,7 +1300,7 @@ async def test_upload_statement_catalog_unavailable(db, test_user, storage_stub,
     upload_file = make_upload_file("statement.pdf", content)
 
     async def fake_get_model_info_fail(model_id: str):
-        from src.services.openrouter_models import ModelCatalogError
+        from src.services.ai_models import ModelCatalogError
 
         raise ModelCatalogError("Catalog down")
 
@@ -1328,7 +1328,7 @@ async def test_retry_statement_catalog_unavailable(db, test_user, monkeypatch, s
     await db.commit()
 
     async def fake_get_model_info_fail(model_id: str):
-        from src.services.openrouter_models import ModelCatalogError
+        from src.services.ai_models import ModelCatalogError
 
         raise ModelCatalogError("Catalog down")
 

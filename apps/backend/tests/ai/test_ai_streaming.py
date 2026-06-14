@@ -1,4 +1,4 @@
-"""Tests for OpenRouter streaming utilities."""
+"""Tests for the provider-neutral AI streaming utilities."""
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,12 +7,12 @@ import httpx
 import pytest
 from httpx_sse import ServerSentEvent
 
-from src.services.openrouter_streaming import (
-    OpenRouterStreamError,
-    _stream_openrouter_base,
+from src.services.ai_streaming import (
+    AIStreamError,
+    _stream_ai_base,
     accumulate_stream,
-    stream_openrouter_chat,
-    stream_openrouter_json,
+    stream_ai_chat,
+    stream_ai_json,
 )
 
 
@@ -57,16 +57,16 @@ class TestStreamApiKeyFallback:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
-                with patch("src.services.openrouter_streaming.settings") as mock_settings:
+                with patch("src.services.ai_streaming.settings") as mock_settings:
                     mock_settings.ai_api_key = "settings-api-key"
                     mock_settings.ai_base_url = "https://test.openrouter.ai/api/v1"
 
                     chunks = []
-                    async for chunk in stream_openrouter_chat(
+                    async for chunk in stream_ai_chat(
                         messages=[{"role": "user", "content": "Hi"}],
                         model="test-model",
                     ):
@@ -76,11 +76,11 @@ class TestStreamApiKeyFallback:
 
     async def test_stream_raises_when_no_api_key_available(self):
         """AC6.7.3: Stream raises error when no API key available."""
-        with patch("src.services.openrouter_streaming.settings") as mock_settings:
+        with patch("src.services.ai_streaming.settings") as mock_settings:
             mock_settings.ai_api_key = None
 
-            with pytest.raises(OpenRouterStreamError) as exc_info:
-                async for _ in stream_openrouter_chat(
+            with pytest.raises(AIStreamError) as exc_info:
+                async for _ in stream_ai_chat(
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                 ):
@@ -90,10 +90,10 @@ class TestStreamApiKeyFallback:
             assert exc_info.value.retryable is False
 
 
-class TestStreamOpenRouterChat:
-    """Tests for stream_openrouter_chat function."""
+class TestStreamAIChat:
+    """Tests for stream_ai_chat function."""
 
-    async def test_stream_openrouter_chat_success(self):
+    async def test_stream_ai_chat_success(self):
         """AC6.7.1: Successful streaming chat completion."""
         # Mock SSE events
         events = [
@@ -109,12 +109,12 @@ class TestStreamOpenRouterChat:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
                 chunks = []
-                async for chunk in stream_openrouter_chat(
+                async for chunk in stream_ai_chat(
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                     api_key="test-key",
@@ -138,16 +138,16 @@ class TestStreamOpenRouterChat:
         mock_client.__aenter__.return_value = mock_client
 
         with (
-            patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client),
-            patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect,
-            patch("src.services.openrouter_streaming.settings") as mock_settings,
+            patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client),
+            patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect,
+            patch("src.services.ai_streaming.settings") as mock_settings,
         ):
             mock_settings.ai_provider = "openrouter"
             mock_settings.ai_chat_completions_path = "/chat/completions"
             mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
             chunks = []
-            async for chunk in stream_openrouter_chat(
+            async for chunk in stream_ai_chat(
                 messages=[{"role": "user", "content": "Hi"}],
                 model="test-model",
                 api_key="test-key",
@@ -175,16 +175,16 @@ class TestStreamOpenRouterChat:
         mock_client.__aenter__.return_value = mock_client
 
         with (
-            patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client),
-            patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect,
-            patch("src.services.openrouter_streaming.settings") as mock_settings,
+            patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client),
+            patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect,
+            patch("src.services.ai_streaming.settings") as mock_settings,
         ):
             mock_settings.ai_provider = "zai"
             mock_settings.ai_chat_completions_path = "/chat/completions"
             mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
             chunks = []
-            async for chunk in stream_openrouter_chat(
+            async for chunk in stream_ai_chat(
                 messages=[{"role": "user", "content": "Hi"}],
                 model="glm-5.1",
                 api_key="test-key",
@@ -197,7 +197,7 @@ class TestStreamOpenRouterChat:
             assert "HTTP-Referer" not in headers
             assert "X-Title" not in headers
 
-    async def test_stream_openrouter_chat_handles_http_error(self):
+    async def test_stream_ai_chat_handles_http_error(self):
         """AC6.7.2: Stream handles HTTP errors."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 500
@@ -210,12 +210,12 @@ class TestStreamOpenRouterChat:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
-                with pytest.raises(OpenRouterStreamError) as exc_info:
-                    async for _ in stream_openrouter_chat(
+                with pytest.raises(AIStreamError) as exc_info:
+                    async for _ in stream_ai_chat(
                         messages=[{"role": "user", "content": "Hi"}],
                         model="test-model",
                         api_key="test-key",
@@ -225,7 +225,7 @@ class TestStreamOpenRouterChat:
                 assert "HTTP 500" in str(exc_info.value)
                 assert "Internal Server Error" in str(exc_info.value)
 
-    async def test_stream_openrouter_chat_handles_done_signal(self):
+    async def test_stream_ai_chat_handles_done_signal(self):
         """AC6.7.1: Stream stops on [DONE] signal."""
         events = [
             ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"}}]}'),
@@ -239,12 +239,12 @@ class TestStreamOpenRouterChat:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
                 chunks = []
-                async for chunk in stream_openrouter_chat(
+                async for chunk in stream_ai_chat(
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                     api_key="test-key",
@@ -254,7 +254,7 @@ class TestStreamOpenRouterChat:
                 assert chunks == ["Hello"]
                 assert "Should not appear" not in "".join(chunks)
 
-    async def test_stream_openrouter_chat_handles_malformed_json(self):
+    async def test_stream_ai_chat_handles_malformed_json(self):
         """AC6.7.1: Stream skips malformed JSON and continues."""
         events = [
             ServerSentEvent(data='{"choices":[{"delta":{"content":"Hello"}}]}'),
@@ -270,12 +270,12 @@ class TestStreamOpenRouterChat:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
                 chunks = []
-                async for chunk in stream_openrouter_chat(
+                async for chunk in stream_ai_chat(
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                     api_key="test-key",
@@ -286,10 +286,10 @@ class TestStreamOpenRouterChat:
                 assert chunks == ["Hello", " world"]
 
 
-class TestStreamOpenRouterJson:
-    """Tests for stream_openrouter_json function."""
+class TestStreamAIJson:
+    """Tests for stream_ai_json function."""
 
-    async def test_stream_openrouter_json_success(self):
+    async def test_stream_ai_json_success(self):
         """AC6.7.1: Successful JSON mode streaming."""
         events = [
             ServerSentEvent(data='{"choices":[{"delta":{"content":"{\\"result\\":"}}]}'),
@@ -304,12 +304,12 @@ class TestStreamOpenRouterJson:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
                 chunks = []
-                async for chunk in stream_openrouter_json(
+                async for chunk in stream_ai_json(
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                     api_key="test-key",
@@ -346,13 +346,13 @@ class TestStreamErrorHandling:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
-                with pytest.raises(OpenRouterStreamError) as exc_info:
+                with pytest.raises(AIStreamError) as exc_info:
                     chunks = []
-                    async for chunk in stream_openrouter_chat(
+                    async for chunk in stream_ai_chat(
                         messages=[{"role": "user", "content": "Hi"}],
                         model="test-model",
                         api_key="test-key",
@@ -375,12 +375,12 @@ class TestStreamErrorHandling:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
-                with pytest.raises(OpenRouterStreamError) as exc_info:
-                    async for _ in stream_openrouter_chat(
+                with pytest.raises(AIStreamError) as exc_info:
+                    async for _ in stream_ai_chat(
                         messages=[{"role": "user", "content": "Hi"}],
                         model="test-model",
                         api_key="test-key",
@@ -402,12 +402,12 @@ class TestStreamErrorHandling:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
-                with pytest.raises(OpenRouterStreamError) as exc_info:
-                    async for _ in stream_openrouter_chat(
+                with pytest.raises(AIStreamError) as exc_info:
+                    async for _ in stream_ai_chat(
                         messages=[{"role": "user", "content": "Hi"}],
                         model="test-model",
                         api_key="test-key",
@@ -434,12 +434,12 @@ class TestStreamErrorHandling:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
                 chunks = []
-                async for chunk in stream_openrouter_chat(
+                async for chunk in stream_ai_chat(
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                     api_key="test-key",
@@ -465,13 +465,13 @@ class TestStreamErrorHandling:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
-                with patch("src.services.openrouter_streaming.logger") as mock_logger:
+                with patch("src.services.ai_streaming.logger") as mock_logger:
                     chunks = []
-                    async for chunk in stream_openrouter_chat(
+                    async for chunk in stream_ai_chat(
                         messages=[{"role": "user", "content": "Hi"}],
                         model="test-model",
                         api_key="test-key",
@@ -497,13 +497,13 @@ class TestStreamErrorHandling:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
-                with patch("src.services.openrouter_streaming.logger") as mock_logger:
+                with patch("src.services.ai_streaming.logger") as mock_logger:
                     chunks = []
-                    async for chunk in stream_openrouter_chat(
+                    async for chunk in stream_ai_chat(
                         messages=[{"role": "user", "content": "Hi"}],
                         model="test-model",
                         api_key="test-key",
@@ -532,12 +532,12 @@ class TestStreamErrorHandling:
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.__aenter__.return_value = mock_client
 
-        with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-            with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+        with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+            with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
                 mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
                 chunks = []
-                async for chunk in stream_openrouter_chat(
+                async for chunk in stream_ai_chat(
                     messages=[{"role": "user", "content": "Hi"}],
                     model="test-model",
                     api_key="test-key",
@@ -572,12 +572,12 @@ async def test_stream_base_includes_response_format_payload() -> None:
     mock_client = AsyncMock(spec=httpx.AsyncClient)
     mock_client.__aenter__.return_value = mock_client
 
-    with patch("src.services.openrouter_streaming.httpx.AsyncClient", return_value=mock_client):
-        with patch("src.services.openrouter_streaming.aconnect_sse") as mock_aconnect:
+    with patch("src.services.ai_streaming.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.ai_streaming.aconnect_sse") as mock_aconnect:
             mock_aconnect.return_value.__aenter__.return_value = mock_event_source
 
             chunks = []
-            async for chunk in _stream_openrouter_base(
+            async for chunk in _stream_ai_base(
                 messages=[{"role": "user", "content": "json"}],
                 model="test-model",
                 api_key="test-key",

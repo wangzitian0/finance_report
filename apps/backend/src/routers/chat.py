@@ -25,7 +25,7 @@ from src.schemas.chat import (
     ChatSuggestionsResponse,
 )
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
-from src.services.openrouter_models import is_model_known
+from src.services.ai_models import is_model_known
 from src.utils import raise_bad_request, raise_not_found, raise_service_unavailable
 
 router = APIRouter(prefix="/chat", tags=["chat"])

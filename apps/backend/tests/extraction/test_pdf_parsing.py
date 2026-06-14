@@ -334,10 +334,10 @@ class TestParsingTimeout:
         """
         service.api_key = "test-key"
 
-        from src.services.openrouter_streaming import OpenRouterStreamError
+        from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
-            mock_stream.side_effect = OpenRouterStreamError("Connection timed out")
+        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+            mock_stream.side_effect = AIStreamError("Connection timed out")
 
             with pytest.raises(ExtractionError):
                 await service.extract_financial_data(
@@ -366,10 +366,10 @@ class TestGeminiRetry:
         """
         service.api_key = "test-key"
 
-        from src.services.openrouter_streaming import OpenRouterStreamError
+        from src.services.ai_streaming import AIStreamError
 
-        with patch("src.services.extraction.stream_openrouter_json") as mock_stream:
-            mock_stream.side_effect = OpenRouterStreamError("HTTP 429: Rate limit exceeded")
+        with patch("src.services.extraction.stream_ai_json") as mock_stream:
+            mock_stream.side_effect = AIStreamError("HTTP 429: Rate limit exceeded")
 
             with pytest.raises(ExtractionError, match="429"):
                 await service.extract_financial_data(

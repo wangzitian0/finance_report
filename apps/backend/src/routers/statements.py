@@ -44,8 +44,8 @@ from src.schemas.review import (
     StatementReviewResponse,
 )
 from src.services import StorageError, StorageService
+from src.services.ai_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.brokerage_positions import BrokeragePositionImportService
-from src.services.openrouter_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.statement_pipeline import submit_parse_pipeline
 from src.services.statement_posting import auto_create_posted_entries_for_statement, resolve_statement_posting_account
 from src.services.statement_validation import (
