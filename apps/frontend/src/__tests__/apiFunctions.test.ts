@@ -395,6 +395,76 @@ describe('apiUpload', () => {
   });
 });
 
+describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('localStorage', localStorageMock);
+  });
+
+  it('AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch', async () => {
+    const fetchMock = makeFetchMock(200, {
+      enable_ai_reconciliation: true,
+      enable_ai_classification: false,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchUserSettings } = await import('../lib/api');
+    const result = await fetchUserSettings();
+
+    expect(result).toEqual({ enable_ai_reconciliation: true, enable_ai_classification: false });
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/users\/me\/settings/);
+    expect(fetchMock.mock.calls[0][1]?.method ?? 'GET').toBe('GET');
+  });
+
+  it('AC22.15.1 patchUserSettings PATCHes the edited flags via apiFetch', async () => {
+    const fetchMock = makeFetchMock(200, {
+      enable_ai_reconciliation: false,
+      enable_ai_classification: true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { patchUserSettings } = await import('../lib/api');
+    const result = await patchUserSettings({ enable_ai_classification: true });
+
+    expect(result).toEqual({ enable_ai_reconciliation: false, enable_ai_classification: true });
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+    expect(calledUrl).toMatch(/\/api\/users\/me\/settings/);
+    expect(calledInit.method).toBe('PATCH');
+    expect(JSON.parse(calledInit.body as string)).toEqual({ enable_ai_classification: true });
+  });
+
+  it('AC22.15.1 patchUserSettings surfaces backend error detail', async () => {
+    const fetchMock = makeFetchMock(400, { detail: 'Invalid setting' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { patchUserSettings } = await import('../lib/api');
+    await expect(patchUserSettings({ enable_ai_reconciliation: true })).rejects.toThrow('Invalid setting');
+  });
+
+  it('AC22.15.3 fetchCurrentUser GETs /api/auth/me via apiFetch', async () => {
+    const fetchMock = makeFetchMock(200, {
+      id: 'user-1',
+      email: 'a@example.com',
+      name: null,
+      created_at: '2026-01-01T00:00:00Z',
+      access_token: 'tok',
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchCurrentUser } = await import('../lib/api');
+    const result = await fetchCurrentUser();
+
+    expect(result.email).toBe('a@example.com');
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/auth\/me/);
+  });
+});
+
 describe('apiDownload', () => {
   beforeEach(() => {
     localStorageMock.clear();

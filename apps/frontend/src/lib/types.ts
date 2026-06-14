@@ -1071,3 +1071,24 @@ export interface CorrectionLoopReplayResponse {
   /** Whether the correction loop measurably lowered the held-out proportion. */
   reduced: boolean;
 }
+
+// ── User AI settings & session identity (EPIC-022 AC22.15 / #1010) ──────────
+//
+// Mirrors backend `UserAiSettingsResponse` / `UserAiSettingsUpdate`
+// (apps/backend/src/schemas/user.py) and `AuthResponse`
+// (apps/backend/src/schemas/auth.py).
+
+export interface UserAiSettings {
+  enable_ai_reconciliation: boolean;
+  enable_ai_classification: boolean;
+}
+
+export type UserAiSettingsUpdate = Partial<UserAiSettings>;
+
+export interface CurrentUser {
+  id: string;
+  email: string;
+  name: string | null;
+  created_at: string;
+  access_token: string;
+}
