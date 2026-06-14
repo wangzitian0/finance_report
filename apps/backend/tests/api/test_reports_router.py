@@ -400,7 +400,12 @@ class TestReportsEndpoints:
 
         response = await client.get(f"/reports/account-lineage?account_id={account.id}&currency=SGD")
         assert response.status_code == status.HTTP_200_OK
-        assert isinstance(response.json(), dict)
+        body = response.json()
+        assert body["account_id"] == str(account.id)
+        assert body["account_name"] == "Lineage Cash"
+        assert body["currency"] == "SGD"
+        assert isinstance(body["lines"], list)
+        assert "total" in body
 
     async def test_export_cash_flow_missing_dates_returns_400(self, client: AsyncClient, db, test_user: User):
         """Cash-flow export without start/end dates is a 400."""
@@ -415,4 +420,13 @@ class TestReportsEndpoints:
             f"/reports/package/generate?start_date={start}&end_date={today}&as_of_date={today}&currency=SGD"
         )
         assert response.status_code == status.HTTP_200_OK
-        assert isinstance(response.json(), dict)
+        body = response.json()
+        # Persisted snapshot metadata + frozen payload with all generated sections.
+        assert body["id"]
+        assert body["currency"] == "SGD"
+        assert body["status"]
+        payload = body["payload"]
+        assert isinstance(payload, dict)
+        section_payloads = payload["section_payloads"]
+        for section in ("balance_sheet", "income_statement", "cash_flow"):
+            assert section in section_payloads
