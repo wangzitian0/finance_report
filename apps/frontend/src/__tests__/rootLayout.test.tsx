@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import RootLayout, { metadata, viewport } from "@/app/layout"
+import RootLayout, { analyticsClientIdMissingInDeployedEnv, metadata, viewport } from "@/app/layout"
 
 vi.mock("next/font/google", () => ({
   Inter: () => ({ variable: "--font-inter" }),
@@ -31,6 +31,18 @@ describe("RootLayout", () => {
     expect(screen.getByTestId("providers")).toBeInTheDocument()
     expect(screen.getByTestId("auth-guard")).toBeInTheDocument()
     expect(screen.getByText("Root Child")).toBeInTheDocument()
+  })
+
+  it("Infra-014 C5: flags a missing OpenPanel client id only in deployed non-preview envs", () => {
+    // Deployed (staging/production https hosts) without a client id -> surfaced.
+    expect(analyticsClientIdMissingInDeployedEnv(undefined, "https://report.zitian.party")).toBe(true)
+    expect(analyticsClientIdMissingInDeployedEnv("", "https://report-staging.zitian.party")).toBe(true)
+    // Preview and local are intentionally OpenPanel-less -> silent.
+    expect(analyticsClientIdMissingInDeployedEnv(undefined, "https://report-pr-7.zitian.party")).toBe(false)
+    expect(analyticsClientIdMissingInDeployedEnv(undefined, "http://localhost:3000")).toBe(false)
+    expect(analyticsClientIdMissingInDeployedEnv(undefined, undefined)).toBe(false)
+    // A configured client id is never flagged.
+    expect(analyticsClientIdMissingInDeployedEnv("abc-123", "https://report.zitian.party")).toBe(false)
   })
 
   it("AC16.25.4 root layout metadata keeps viewport-only theme color", () => {
