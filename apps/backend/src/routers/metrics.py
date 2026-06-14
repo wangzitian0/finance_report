@@ -12,11 +12,14 @@ from src.schemas.metrics import (
     ConfidenceMetricPoint,
     ConfidenceMetricSnapshotResponse,
     ConfidenceNorthStarResponse,
+    CorrectionLoopReplayResponse,
 )
 from src.services.confidence_metric import ConfidenceMetricService
+from src.services.correction_loop import CorrectionLoopService
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 _service = ConfidenceMetricService()
+_correction_loop = CorrectionLoopService()
 
 
 def _snapshot_response(snapshot: ConfidenceMetricSnapshot) -> ConfidenceMetricSnapshotResponse:
@@ -62,3 +65,22 @@ async def record_confidence_north_star_snapshot(
     snapshot = await _service.record_snapshot(db, user_id)
     await db.commit()
     return _snapshot_response(snapshot)
+
+
+@router.get("/correction-loop/replay", response_model=CorrectionLoopReplayResponse)
+async def get_correction_loop_replay(user_id: CurrentUserId, db: DbSession) -> CorrectionLoopReplayResponse:
+    """Surface the held-out replay of the live correction corpus (read-only).
+
+    Makes the feedback loop's effect on the North-Star proportion auditable: how
+    much recurring-correction priors lower the held-out low-confidence proportion.
+    Records nothing and grounds no live generation — the corpus stays a projection
+    of `CorrectionLog`.
+    """
+    result = await _correction_loop.replay(db, user_id)
+    return CorrectionLoopReplayResponse(
+        holdout_size=result.holdout_size,
+        grounded=result.grounded,
+        proportion_before=result.proportion_before,
+        proportion_after=result.proportion_after,
+        reduced=result.reduced,
+    )

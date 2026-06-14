@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_TEST_ROOTS = (Path("apps/backend/tests"),)
-# Counts only persisted (db.add'd) detached owners — the real foreign-key risk.
+# Counts only persisted (session-written) detached owners — the real foreign-key risk.
 # The two remaining are intentional cross-user isolation tests that must own a
 # different user's row; transient in-memory / service-argument uses do not count.
 DEFAULT_MAX_DETACHED_OWNER_SHORTCUTS = 2
@@ -88,7 +88,7 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
     construction_ids: set[int] = set()
 
     def _collect_added(node: ast.expr) -> None:
-        """From an add/add_all argument: record variable names and mark constructions."""
+        """From a session-write argument: record variable names and mark constructions."""
         if isinstance(node, ast.Name):
             added_var_names.add(node.id)
         elif isinstance(node, ast.Call):
@@ -105,9 +105,9 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
             for element in node.elts:
                 _mark_constructions(element)
 
-    # db.add(x) / db.add_all([...] | var). A Name argument (or Name list element)
-    # records the variable so rows collected into a list and bulk-added later are
-    # still treated as persisted.
+    # Any session write in _PERSIST_METHODS (db.add / db.add_all / db.merge /
+    # db.bulk_save_objects). A Name argument (or Name list element) records the
+    # variable so rows collected into a list and bulk-added later are still persisted.
     for node in ast.walk(scope):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _PERSIST_METHODS:
             for arg in node.args:
@@ -138,9 +138,10 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
 def scan_file(path: Path, *, repo_root: Path) -> list[DetachedOwnerFinding]:
     """Return persisted detached-owner shortcuts found in one Python file.
 
-    A finding is counted only when its enclosing model construction is added to a
-    session (``db.add`` / ``db.add_all``) — the real foreign-key risk. Transient
-    in-memory constructions and bare service arguments are not counted.
+    A finding is counted only when its enclosing model construction is written to a
+    session (``db.add`` / ``db.add_all`` / ``db.merge`` / ``db.bulk_save_objects``) —
+    the real foreign-key risk. Transient in-memory constructions and bare service
+    arguments are not counted.
     """
     source_text = path.read_text(encoding="utf-8")
     tree = ast.parse(source_text, filename=str(path))
