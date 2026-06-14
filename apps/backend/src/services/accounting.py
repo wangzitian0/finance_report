@@ -326,6 +326,13 @@ async def post_opening_balance_entry(
     if missing:
         raise ValidationError(f"Unknown or non-owned account(s): {sorted(missing)}")
 
+    # The posted entry is SYSTEM-typed (it offsets into the system equity account),
+    # which would otherwise let a caller target any system account (e.g. Processing).
+    # Opening balances may only target user-managed accounts.
+    system_targets = sorted(str(account.id) for account in accounts.values() if account.is_system)
+    if system_targets:
+        raise ValidationError(f"Opening balances cannot target system accounts: {system_targets}")
+
     base_currency = settings.base_currency.upper()
     if normalized_currency != base_currency:
         raise ValidationError(

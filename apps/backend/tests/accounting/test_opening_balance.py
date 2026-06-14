@@ -9,14 +9,16 @@ sheet is complete and the accounting equation holds.
 from decimal import Decimal
 from uuid import uuid4
 
+from httpx import AsyncClient
 
-async def _account(client, name: str, account_type: str) -> str:
+
+async def _account(client: AsyncClient, name: str, account_type: str) -> str:
     resp = await client.post("/accounts", json={"name": name, "type": account_type, "currency": "SGD"})
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
 
-async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet(client):
+async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet(client: AsyncClient) -> None:
     """AC2.15.1: a guided opening-balance request posts a balanced entry and the
     as-of balance sheet reflects the starting position with the equation intact."""
     bank = await _account(client, "Bank", "ASSET")
@@ -42,7 +44,7 @@ async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sh
     assert Decimal(bs["total_equity"]) == Decimal("5000.00")
 
 
-async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client):
+async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client: AsyncClient) -> None:
     """AC2.15.2: a single asset opening balance is offset entirely into Opening
     Balance Equity, keeping the entry balanced."""
     savings = await _account(client, "Savings", "ASSET")
@@ -58,7 +60,7 @@ async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client)
     assert Decimal(bs["total_equity"]) == Decimal("8000.00")
 
 
-async def test_AC2_15_3_unknown_account_is_rejected(client):
+async def test_AC2_15_3_unknown_account_is_rejected(client: AsyncClient) -> None:
     """AC2.15.3: an opening balance for a non-owned/unknown account is rejected."""
     resp = await client.post(
         "/accounts/opening-balances",
@@ -67,7 +69,7 @@ async def test_AC2_15_3_unknown_account_is_rejected(client):
     assert resp.status_code == 400
 
 
-async def test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists(client):
+async def test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists(client: AsyncClient) -> None:
     """AC2.15.4: an opening balance establishes a starting position, not a delta,
     so it is rejected when an affected account already has posted activity before
     the opening date."""
@@ -85,7 +87,7 @@ async def test_AC2_15_4_opening_balance_rejected_when_prior_activity_exists(clie
     assert second.status_code == 400
 
 
-async def test_AC2_15_5_non_base_currency_is_rejected(client):
+async def test_AC2_15_5_non_base_currency_is_rejected(client: AsyncClient) -> None:
     """AC2.15.5: opening balances are accepted only in the base currency (MVP),
     with a clear error rather than a confusing FX-rate failure."""
     bank = await _account(client, "Bank", "ASSET")
@@ -96,7 +98,7 @@ async def test_AC2_15_5_non_base_currency_is_rejected(client):
     assert resp.status_code == 400
 
 
-async def test_AC2_15_6_account_currency_mismatch_is_rejected(client):
+async def test_AC2_15_6_account_currency_mismatch_is_rejected(client: AsyncClient) -> None:
     """AC2.15.6: an opening balance into an account whose currency differs from the
     request (base) currency is rejected, so journal lines cannot be mis-stamped."""
     resp_acc = await client.post("/accounts", json={"name": "USD Bank", "type": "ASSET", "currency": "USD"})
@@ -106,5 +108,28 @@ async def test_AC2_15_6_account_currency_mismatch_is_rejected(client):
     resp = await client.post(
         "/accounts/opening-balances",
         json={"entry_date": "2026-01-01", "balances": {usd_bank: "1000.00"}},
+    )
+    assert resp.status_code == 400
+
+
+async def test_AC2_15_7_system_account_target_is_rejected(client: AsyncClient, db, test_user) -> None:
+    """AC2.15.7: opening balances may only target user-managed accounts; a system
+    account (e.g. Processing) cannot be set via this endpoint."""
+    from src.models import Account, AccountType
+
+    system_account = Account(
+        user_id=test_user.id,
+        name="Processing",
+        code="1199",
+        type=AccountType.ASSET,
+        currency="SGD",
+        is_system=True,
+    )
+    db.add(system_account)
+    await db.commit()
+
+    resp = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {str(system_account.id): "100.00"}},
     )
     assert resp.status_code == 400
