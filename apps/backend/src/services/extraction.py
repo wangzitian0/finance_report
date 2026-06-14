@@ -661,6 +661,50 @@ class ExtractionService:
         )
         return markdown
 
+    @staticmethod
+    def _repair_json_object(content: str) -> str | None:
+        """Best-effort recovery of a JSON object from a malformed model response.
+
+        Models occasionally wrap an otherwise-valid object in a markdown code
+        fence or pad it with prose. Rather than rejecting the upload (#982),
+        extract the outermost balanced ``{...}`` object — tracking string
+        literals so braces inside values do not truncate it. Scanning from the
+        first ``{`` to its matching ``}`` naturally ignores any surrounding fence
+        (including single-line ``` ```json {...}``` ``` blocks) or prose. The
+        repair is deterministic and does not invent data; it returns ``None``
+        when no object can be recovered, leaving the original failure path intact.
+        """
+        if not content:
+            return None
+
+        text = content.strip()
+        start = text.find("{")
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escaped = False
+        for i in range(start, len(text)):
+            char = text[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+        return None
+
     async def _extract_json_with_models(
         self,
         messages: list[dict[str, Any]],
@@ -733,6 +777,18 @@ class ExtractionService:
                     return parsed
                 except json.JSONDecodeError as e:
                     from src.constants.error_ids import ErrorIds
+
+                    # A single malformed-but-recoverable response (markdown fence or
+                    # prose around a valid object) should not reject the upload (#982).
+                    repaired = self._repair_json_object(content)
+                    if repaired is not None:
+                        try:
+                            parsed = json.loads(repaired)
+                            if isinstance(parsed, dict):
+                                logger.info("AI extraction recovered via JSON repair", model=model)
+                                return parsed
+                        except json.JSONDecodeError:
+                            pass
 
                     logger.error(
                         "Failed to parse AI JSON",

@@ -161,20 +161,19 @@ class TestExtractionServiceFlow:
             assert result == {"test": "data"}
 
     async def test_extract_financial_data_markdown_json(self, service):
-        """Test extract_financial_data rejects markdown wrapped JSON."""
+        """AC13.14.5: markdown-fenced JSON is salvaged, not rejected (#982)."""
         service.api_key = "test-key"
 
-        # Current code rejects markdown-wrapped JSON
         content = 'Here is json:\n```json\n{"test": "markdown"}\n```'
 
         with patch("src.services.extraction.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
-            with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
-                await service.extract_financial_data(b"content", "DBS", "png")
+            result = await service.extract_financial_data(b"content", "DBS", "png")
+            assert result == {"test": "markdown"}
 
-    async def test_extract_financial_data_rejects_extra_text(self, service):
-        """Test extract_financial_data rejects extra non-JSON text."""
+    async def test_extract_financial_data_salvages_extra_text(self, service):
+        """AC13.14.2: a valid object padded with prose is salvaged (#982)."""
         service.api_key = "test-key"
 
         content = 'Sure! {"test": "value"}\nThanks!'
@@ -182,8 +181,8 @@ class TestExtractionServiceFlow:
         with patch("src.services.extraction.stream_ai_json") as mock_stream:
             mock_stream.return_value = mock_stream_generator(content)
 
-            with pytest.raises(ExtractionError, match="strict JSON object"):
-                await service.extract_financial_data(b"content", "DBS", "png")
+            result = await service.extract_financial_data(b"content", "DBS", "png")
+            assert result == {"test": "value"}
 
     async def test_extract_financial_data_rejects_array(self, service):
         """Test extract_financial_data rejects JSON arrays."""

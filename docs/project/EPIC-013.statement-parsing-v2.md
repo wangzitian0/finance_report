@@ -193,6 +193,17 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.9.1 | Test full score with all factors | `test_full_score_with_all_factors()` | `extraction/test_extraction.py` | P0 |
 | AC13.9.2 | Test no new factors caps at 85 | `test_no_new_factors_caps_at_85()` | `extraction/test_extraction.py` | P0 |
 
+### AC13.14: JSON-Repair Retry (issue #982)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.14.1 | A markdown json-fenced object (multi-line and single-line) is recovered | `test_strips_json_code_fence()`, `test_strips_single_line_fence()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.2 | Surrounding prose and a bare fence reduce to the outermost balanced object | `test_strips_bare_code_fence_and_prose()`, `test_extract_financial_data_salvages_extra_text()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py` | P1 |
+| AC13.14.3 | An already-clean object round-trips unchanged | `test_clean_object_is_preserved()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.4 | Content with no recoverable JSON object returns None; braces inside strings do not truncate | `test_unrecoverable_returns_none()`, `test_does_not_misread_braces_in_strings()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.5 | The extraction loop salvages a fenced response instead of rejecting the upload | `test_fenced_response_is_salvaged()`, `test_extract_financial_data_markdown_json()`, `test_extract_financial_data_json_markdown_fallback()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py`, `extraction/test_extraction_error_paths.py` | P1 |
+| AC13.14.6 | A response with no recoverable JSON still fails through the model-chain path | `test_unrecoverable_response_still_fails()` | `extraction/test_json_repair.py` | P1 |
+
 ### AC13.10: Source Type Priority & Conflict Resolution
 
 | ID | Test Case | Test Function | File | Priority |

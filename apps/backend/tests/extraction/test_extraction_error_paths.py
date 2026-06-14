@@ -393,23 +393,23 @@ async def test_extract_financial_data_all_models_fail():
 
 
 async def test_extract_financial_data_json_markdown_fallback():
+    """AC13.14.5: a markdown-fenced but otherwise-valid response is salvaged (#982)."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
 
-    # Current code rejects markdown wrapping - test that it properly rejects
     content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
 
     with patch("src.services.extraction.stream_ai_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
-            await service.extract_financial_data(
-                b"content",
-                "DBS",
-                "pdf",
-                file_url="https://example.com/file.pdf",
-            )
+        result = await service.extract_financial_data(
+            b"content",
+            "DBS",
+            "pdf",
+            file_url="https://example.com/file.pdf",
+        )
+        assert result == {"account_last4": "1234"}
 
 
 async def test_extract_financial_data_invalid_json_all_attempts():
