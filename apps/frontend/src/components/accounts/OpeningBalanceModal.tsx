@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { apiFetch } from "@/lib/api";
+import { compareAmounts } from "@/lib/currency";
 import { Account } from "@/lib/types";
 
 interface OpeningBalanceModalProps {
@@ -13,7 +14,7 @@ interface OpeningBalanceModalProps {
     accounts: Account[];
 }
 
-/** Two decimal places, positive — mirrors the backend `balances` validator (#949). */
+/** At most two decimal places — a format check; positivity is checked decimal-safe. */
 const AMOUNT_RE = /^\d+(\.\d{1,2})?$/;
 
 function defaultEntryDate(): string {
@@ -65,11 +66,19 @@ export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accoun
         event.preventDefault();
         setError(null);
 
+        if (!entryDate.trim()) {
+            setError("Enter the as-of date for these opening balances.");
+            return;
+        }
         if (filledEntries.length === 0) {
             setError("Enter a starting balance for at least one account.");
             return;
         }
-        const invalid = filledEntries.find(([, value]) => !AMOUNT_RE.test(value.trim()) || Number(value) <= 0);
+        // Positivity is checked decimal-safe (decimal.js) rather than with Number()
+        // to honor the repo's monetary-amount rules; the regex only bounds the format.
+        const invalid = filledEntries.find(
+            ([, value]) => !AMOUNT_RE.test(value.trim()) || compareAmounts(value.trim(), "0") <= 0,
+        );
         if (invalid) {
             setError("Balances must be positive amounts with at most two decimal places.");
             return;

@@ -89,6 +89,19 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         expect(mockedApi).not.toHaveBeenCalled();
     });
 
+    it("AC2.15.8 blocks submission when the as-of date is cleared", async () => {
+        render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
+
+        fireEvent.change(screen.getByLabelText("As-of date *"), { target: { value: "" } });
+        fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "100" } });
+        fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
+
+        expect(
+            await screen.findByText("Enter the as-of date for these opening balances."),
+        ).toBeInTheDocument();
+        expect(mockedApi).not.toHaveBeenCalled();
+    });
+
     it("AC2.15.8 rejects non-positive or over-precise amounts before calling the API", async () => {
         render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
 
