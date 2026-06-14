@@ -179,7 +179,7 @@ async def test_net_worth_timeseries_monthly_uses_period_end_and_normalizes_curre
     captured_dates: list[date] = []
     captured_currencies: list[str] = []
 
-    async def fake_balance_sheet(db, requested_user_id, *, as_of_date, currency):
+    async def fake_balance_sheet(db, requested_user_id, *, as_of_date, currency, include_trust_signals=True):
         assert requested_user_id == user_id
         captured_dates.append(as_of_date)
         captured_currencies.append(currency)

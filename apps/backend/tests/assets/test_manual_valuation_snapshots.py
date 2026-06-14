@@ -349,6 +349,28 @@ async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(
     assert snapshots[0].value == Decimal("1100000.00")
 
 
+@pytest.mark.asyncio
+async def test_restricted_holdings_exclude_superseded_currency_correction(client):
+    """Audit review: a currency-changing correction must not surface as a phantom restricted holding."""
+    base = {
+        "component_type": "rsu",
+        "as_of_date": "2026-05-18",
+        "source": "Acme RSU",
+        "value": "1000.00",
+    }
+    assert (await client.post("/assets/valuation-snapshots", json={**base, "currency": "USD"})).status_code == 201
+    # Correct it, changing currency — supersedes the prior version (same component/source/as_of_date).
+    assert (
+        await client.post("/assets/valuation-snapshots", json={**base, "currency": "SGD", "value": "1100.00"})
+    ).status_code == 201
+
+    response = await client.get("/assets/restricted")
+    assert response.status_code == 200
+    holdings = response.json()
+    assert len(holdings) == 1, "superseded version must not appear as a second holding"
+    assert holdings[0]["ticker"] == "Acme RSU"
+
+
 def test_manual_valuation_snapshot_schema_normalizes_currency():
     """AC11.9.1: Manual valuation schemas normalize currency codes before service use."""
     create_payload = ManualValuationSnapshotCreate(
