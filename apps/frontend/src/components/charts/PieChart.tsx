@@ -80,8 +80,8 @@ export function PieChart({
           </tr>
         </thead>
         <tbody>
-          {filtered.map((item, i) => (
-            <tr key={`${item.label}-${i}`}>
+          {filtered.map((item) => (
+            <tr key={item.label}>
               <td>{item.label}</td>
               <td>{item.value}</td>
             </tr>

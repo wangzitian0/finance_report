@@ -54,6 +54,7 @@ interface StatementReview {
 }
 
 interface ConflictCandidate {
+    id: string;
     description: string;
     txn_date: string;
     amount: MoneyValue;

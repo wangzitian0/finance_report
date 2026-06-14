@@ -35,8 +35,8 @@ describe("ConflictResolutionDialog", () => {
     });
 
     it("renders duplicate and transfer candidates with action buttons", () => {
-        const dup = [{ description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }];
-        const transfer = [{ description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }];
+        const dup = [{ id: "txn-dup-1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }];
+        const transfer = [{ id: "txn-transfer-1", description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }];
 
         render(
             <ConflictResolutionDialog
@@ -63,8 +63,8 @@ describe("ConflictResolutionDialog", () => {
             <ConflictResolutionDialog
                 isOpen={true}
                 onClose={onClose}
-                duplicateCandidates={[{ description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
-                transferPairCandidates={[{ description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }]}
+                duplicateCandidates={[{ id: "txn-dup-1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
+                transferPairCandidates={[{ id: "txn-transfer-1", description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }]}
                 onResolve={onResolve}
             />
         );
@@ -82,7 +82,7 @@ describe("ConflictResolutionDialog", () => {
             <ConflictResolutionDialog
                 isOpen={true}
                 onClose={onClose}
-                duplicateCandidates={[{ description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
+                duplicateCandidates={[{ id: "txn-dup-1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
                 transferPairCandidates={[]}
                 onResolve={onResolve}
                 isResolving
