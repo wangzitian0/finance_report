@@ -263,6 +263,7 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC18.2.2 | 2 | Corrections API records and retrieves correction stats |
 | AC18.2.3 | 2 | Few-shot examples from corrections injected into extraction prompt |
 | AC18.2.4 | 2 | Correction cache with 1-hour TTL |
+| AC18.2.5 | 2 | `top_corrections` typed as a `TopCorrection` Pydantic model in the corrections stats response |
 | AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs |
 | AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only |
 | AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring |
