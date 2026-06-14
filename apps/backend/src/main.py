@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.boot import Bootloader, BootMode
 from src.config import settings
@@ -52,6 +53,12 @@ from src.routers import (
 )
 from src.routers.reconciliation import router as reconciliation_router
 from src.schemas import PingStateResponse
+from src.schemas.errors import (
+    COMMON_ERROR_RESPONSES,
+    ErrorCode,
+    ErrorResponse,
+    error_code_for_status,
+)
 from src.services.market_data_scheduler import run_market_data_scheduler
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
 from src.services.storage_sweep import run_storage_sweep
@@ -232,10 +239,14 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
     return await call_next(request)
 
 
+def _current_request_id() -> str | None:
+    return structlog.contextvars.get_contextvars().get("request_id")
+
+
 @app.exception_handler(BaseAppException)
 async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
     """Handle BaseAppException: return structured JSON with error_id and correct HTTP status."""
-    request_id = structlog.contextvars.get_contextvars().get("request_id")
+    request_id = _current_request_id()
     logger.warning(
         "Application exception",
         error_id=exc.error_id,
@@ -243,19 +254,39 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
         message=exc.message,
         request_id=request_id,
     )
+    body = ErrorResponse(error_id=exc.error_id, detail=exc.message, request_id=request_id)
+    return JSONResponse(status_code=exc.status_code, content=body.model_dump())
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Emit the structured ``ErrorResponse`` shape for plain ``HTTPException``\\ s (#1005).
+
+    Routers that still raise ``HTTPException(detail="...")`` get a stable,
+    machine-readable ``error_id`` derived from the status code, so the frontend can
+    branch on a code instead of parsing ``detail`` text. ``detail`` is preserved as
+    a human-readable string for display and back-compat with existing callers.
+    """
+    request_id = _current_request_id()
+    # Preserve the original ``detail`` verbatim: most call sites pass a string, but a
+    # few raise ``HTTPException(detail={...})`` with a structured body. We add
+    # ``error_id``/``request_id`` around it rather than coercing it to a string, so
+    # those structured-detail endpoints keep working.
+    content = {
+        "error_id": error_code_for_status(exc.status_code).value,
+        "detail": exc.detail,
+        "request_id": request_id,
+    }
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error_id": exc.error_id,
-            "detail": exc.message,
-            "request_id": request_id,
-        },
+        content=content,
+        headers=getattr(exc, "headers", None),
     )
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Global exception handler to ensure JSON response."""
+    """Global exception handler to ensure a consistent structured JSON response."""
     # Log is already handled by middleware or logger.exception
 
     # Only show exception details in DEBUG mode
@@ -266,14 +297,15 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         detail = "An internal server error occurred. Please try again later."
         trace = None
 
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": detail,
-            "trace": trace if settings.debug else None,
-            "request_id": structlog.contextvars.get_contextvars().get("request_id"),
-        },
-    )
+    request_id = _current_request_id()
+    content: dict[str, Any] = ErrorResponse(
+        error_id=ErrorCode.INTERNAL_ERROR.value,
+        detail=detail,
+        request_id=request_id,
+    ).model_dump()
+    if settings.debug:
+        content["trace"] = trace
+    return JSONResponse(status_code=500, content=content)
 
 
 # CORS for frontend
@@ -286,29 +318,32 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-# Include routers
-app.include_router(auth.router)
-app.include_router(accounts.router)
-app.include_router(ai_feedback.router)
-app.include_router(ai_models.router)
-app.include_router(audit.router)
-app.include_router(assets.router)
-app.include_router(chat.router)
-app.include_router(corrections.router)
-app.include_router(evidence.router)
-app.include_router(journal.router)
-app.include_router(market_data.router)
-app.include_router(metrics.router)
-app.include_router(income.router)
-app.include_router(reports.router)
-app.include_router(statements.router)
-app.include_router(review.router)
-app.include_router(review.conflicts_router)
-app.include_router(reconciliation_router)
-app.include_router(users.router)
-app.include_router(user_settings.router)
-app.include_router(portfolio.router)
-app.include_router(workflow.router)
+# Include routers. Every router declares the shared 4xx/5xx ErrorResponse contract
+# (#1005) so the structured-error shape is visible in the OpenAPI schema and the
+# generated frontend client.
+_router_kwargs = {"responses": COMMON_ERROR_RESPONSES}
+app.include_router(auth.router, **_router_kwargs)
+app.include_router(accounts.router, **_router_kwargs)
+app.include_router(ai_feedback.router, **_router_kwargs)
+app.include_router(ai_models.router, **_router_kwargs)
+app.include_router(audit.router, **_router_kwargs)
+app.include_router(assets.router, **_router_kwargs)
+app.include_router(chat.router, **_router_kwargs)
+app.include_router(corrections.router, **_router_kwargs)
+app.include_router(evidence.router, **_router_kwargs)
+app.include_router(journal.router, **_router_kwargs)
+app.include_router(market_data.router, **_router_kwargs)
+app.include_router(metrics.router, **_router_kwargs)
+app.include_router(income.router, **_router_kwargs)
+app.include_router(reports.router, **_router_kwargs)
+app.include_router(statements.router, **_router_kwargs)
+app.include_router(review.router, **_router_kwargs)
+app.include_router(review.conflicts_router, **_router_kwargs)
+app.include_router(reconciliation_router, **_router_kwargs)
+app.include_router(users.router, **_router_kwargs)
+app.include_router(user_settings.router, **_router_kwargs)
+app.include_router(portfolio.router, **_router_kwargs)
+app.include_router(workflow.router, **_router_kwargs)
 
 
 # --- Health & Demo Endpoints ---

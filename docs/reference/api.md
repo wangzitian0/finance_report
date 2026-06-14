@@ -6,7 +6,7 @@
 - API title: `Finance Report API`
 - API version: `0.1.0`
 - Endpoint count: `130`
-- Schema count: `221`
+- Schema count: `231`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -163,9 +163,9 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query), `limit` (query), `offset` (query) | - | `200` array[`HoldingResponse`] | Get Holdings |
 | `GET` | `/portfolio/performance` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query) | - | `200` `PerformanceMetricsResponse` | Get Performance |
 | `GET` | `/portfolio/performance/report-schedule` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query), `currency` (query) | - | `200` `InvestmentPerformanceReportScheduleResponse` | Get Investment Performance Report Schedule |
-| `POST` | `/portfolio/prices/update` | yes | - | `PriceUpdateBatchRequest` | `200` object | Update Prices |
+| `POST` | `/portfolio/prices/update` | yes | - | `PriceUpdateBatchRequest` | `200` `PriceUpdateBatchResponse` | Update Prices |
 | `GET` | `/portfolio/summary` | yes | `as_of_date` (query) | - | `200` `PortfolioSummaryDashboardResponse` | Get Portfolio Summary |
-| `PATCH` | `/portfolio/{ticker}` | yes | `ticker`* (path) | `CostBasisMethodUpdateRequest` | `200` object | Update Holding Cost Basis Method |
+| `PATCH` | `/portfolio/{ticker}` | yes | `ticker`* (path) | `CostBasisMethodUpdateRequest` | `200` `CostBasisMethodUpdateResponse` | Update Holding Cost Basis Method |
 | `GET` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path), `limit` (query), `offset` (query) | - | `200` array[`DividendEventResponse`] | Get Holding Dividends |
 | `POST` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path) | `DividendCreateRequest` | `201` `DividendEventResponse` | Create Holding Dividend |
 | `GET` | `/portfolio/{ticker}/realized` | yes | `ticker`* (path), `limit` (query), `offset` (query) | - | `200` array[`RealizedLotResponse`] | Get Holding Realized Lots |
@@ -210,7 +210,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/package/snapshots/{snapshot_id}/export` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |
 | `GET` | `/reports/package/traceability` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageTraceabilityResponse` | Personal Report Package Traceability |
 | `GET` | `/reports/trend` | yes | `account_id`* (query), `period` (query), `currency` (query) | - | `200` `AccountTrendResponse` | Account Trend |
-| `GET` | `/reports/{report_type}/snapshots` | yes | `report_type`* (path) | - | `200` array[object] | List Report Snapshots |
+| `GET` | `/reports/{report_type}/snapshots` | yes | `report_type`* (path) | - | `200` array[`ReportSnapshotSummary`] | List Report Snapshots |
 
 ### review
 
@@ -218,8 +218,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `GET` | `/review/conflicts/{statement_id}` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
 | `POST` | `/review/conflicts/{statement_id}/resolve` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
-| `POST` | `/statements/batch-approve-matches` | yes | - | `BatchApproveRequest` | `200` object | Batch Approve Matches |
-| `POST` | `/statements/batch-reject-matches` | yes | - | `BatchRejectRequest` | `200` object | Batch Reject Matches |
+| `POST` | `/statements/batch-approve-matches` | yes | - | `BatchApproveRequest` | `200` `BatchApproveResponse` | Batch Approve Matches |
+| `POST` | `/statements/batch-reject-matches` | yes | - | `BatchRejectRequest` | `200` `BatchRejectResponse` | Batch Reject Matches |
 | `GET` | `/statements/consistency-checks/list` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
 | `POST` | `/statements/consistency-checks/{check_id}/resolve` | yes | `check_id`* (path) | `ResolveCheckRequest` | `200` `ConsistencyCheckResponse` | Resolve Consistency Check |
 | `GET` | `/statements/stage2/queue` | yes | `run_id` (query) | - | `200` `Stage2ReviewQueueResponse` | Get Stage2 Review Queue |

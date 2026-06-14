@@ -393,4 +393,31 @@ consolidated here. The removed inventory is retained in
 
 ---
 
+### AC12.27: Structured API Error Contract ([#1005](https://github.com/wangzitian0/finance_report/issues/1005))
+
+Tier 2 of #1000. Every exception handler emits the shared `ErrorResponse`
+(`error_id` + `detail` + `request_id`), the common 4xx/5xx contract is declared in
+OpenAPI, and the frontend `apiFetch` throws a typed `ApiError` carrying `errorId` so
+callers branch on a machine-readable code instead of matching `detail` text.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.27.1 | An HTTPException-derived 404 returns a structured body with `error_id` | `test_AC12_27_1_http_error_has_structured_error_id` | `api/test_typed_contract_sweep.py` | P1 |
+| AC12.27.2 | OpenAPI declares `ErrorResponse` and references it for common 4xx | `test_AC12_27_2_openapi_declares_error_response_contract` | `api/test_typed_contract_sweep.py` | P1 |
+| AC12.27.3 | Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId` | `test_AC12_27_3_api_error_carries_error_id` | `__tests__/apiErrorStructured.test.ts` | P1 |
+
+### AC12.28: Generated Frontend API Types from OpenAPI ([#1004](https://github.com/wangzitian0/finance_report/issues/1004))
+
+Tier 2 of #1000. The backend OpenAPI schema generates a checked-in TypeScript
+types module, and a staleness gate (`tools/generate_openapi_spec.py --check`)
+fails when the generated types drift from the live schema — enforcing the FE↔BE
+contract at the boundary.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.28.1 | The generator emits the spec from the live OpenAPI schema | `test_AC12_28_1_generator_emits_types_from_openapi` | `tests/tooling/test_generate_openapi_spec.py` | P2 |
+| AC12.28.2 | The `--check` staleness gate fails when the committed spec is stale | `test_AC12_28_2_staleness_gate_detects_drift` | `tests/tooling/test_generate_openapi_spec.py` | P2 |
+
+---
+
 *Planning snapshot captured: January 2026*

@@ -24,10 +24,11 @@ DEFAULT_ROUTER_DIR = Path("apps/backend/src/routers")
 _HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
 
 # Non-growth ceiling. Lower this as endpoints gain a response_model; never raise it.
-# Today's 12 are a mix of legitimately-bodiless handlers (204 DELETEs, file/stream
-# exports) and a few real gaps (e.g. list_report_snapshots, update_prices) — see the
-# generated findings doc. The gate stops the count growing; it ratchets down as gaps close.
-DEFAULT_MAX_UNTYPED_ENDPOINTS = 12
+# The remaining 10 are legitimately-bodiless handlers (204 DELETEs, file/stream
+# exports) — see the generated findings doc. #1008 typed the last two real gaps
+# (list_report_snapshots, update_prices), ratcheting this from 12 down to 10.
+# The gate stops the count growing; it ratchets down as gaps close.
+DEFAULT_MAX_UNTYPED_ENDPOINTS = 10
 
 
 @dataclass(frozen=True, order=True)

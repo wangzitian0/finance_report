@@ -18,6 +18,12 @@ vi.mock("@/lib/auth", () => ({
   isAuthenticated: () => isAuthenticatedMock(),
 }))
 
+// Session bootstrap (EPIC-022 AC22.15.3) has its own dedicated test; the shell
+// layout tests stub it so they stay focused on layout/auth-guard behavior.
+vi.mock("@/hooks/useSessionBootstrap", () => ({
+  useSessionBootstrap: vi.fn(),
+}))
+
 vi.mock("@/hooks/useWorkspace", () => ({
   WorkspaceProvider: ({ children }: { children: ReactNode }) => <div data-testid="workspace-provider">{children}</div>,
   useWorkspace: () => ({ isCollapsed: true }),

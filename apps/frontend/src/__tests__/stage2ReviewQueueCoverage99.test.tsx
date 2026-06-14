@@ -370,7 +370,9 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
         return Promise.resolve({ items: [] } as never)
       }
       if (path === "/api/statements/batch-approve-matches") {
-        return Promise.resolve({ success: false, error: "approval rejected by server" } as never)
+        // #1001: server-side failure now surfaces as a thrown ApiError (e.g. 409),
+        // not a 200 body with {success:false}.
+        return Promise.reject(new Error("approval rejected by server"))
       }
       if (path === "/api/statements/batch-reject-matches") {
         return Promise.reject(new Error("batch reject failed"))

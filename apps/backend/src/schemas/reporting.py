@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.models import AccountType, Direction
+from src.models import AccountType, Direction, ReportType
 from src.schemas.provenance import DataProvenance
 
 
@@ -560,6 +560,29 @@ class PersonalReportPackageSnapshotSummary(BaseModel):
     currency: str = Field(description="Snapshot presentation currency", min_length=3, max_length=3)
     readiness_state: str = Field(description="Readiness state captured when the snapshot was generated")
     is_latest: bool = Field(description="Whether this is the latest snapshot for the same package period")
+    created_at: datetime | None = Field(default=None, description="Snapshot creation timestamp")
+
+
+class ReportSnapshotSummary(BaseModel):
+    """Typed metadata for a Layer-4 ``ReportSnapshot`` (#1008, AC18.4.2).
+
+    Replaces the model-less ``list[dict]`` returned by
+    ``GET /reports/{report_type}/snapshots`` so the contract is declared in
+    OpenAPI and built from the ORM via ``from_attributes`` instead of a
+    hand-rolled dict.
+    """
+
+    model_config = {"from_attributes": True}
+
+    id: UUID = Field(description="Report snapshot identifier")
+    report_type: ReportType = Field(description="Report type this snapshot was generated for")
+    as_of_date: date | None = Field(default=None, description="Point-in-time report date")
+    start_date: date | None = Field(default=None, description="Period start date (None for point-in-time reports)")
+    rule_version_id: UUID | None = Field(
+        default=None,
+        description="Rule version used to generate the snapshot (None for package snapshots)",
+    )
+    is_latest: bool = Field(description="Whether this is the latest snapshot for the same type/period")
     created_at: datetime | None = Field(default=None, description="Snapshot creation timestamp")
 
 
