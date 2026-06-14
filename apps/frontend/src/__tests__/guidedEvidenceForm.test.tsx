@@ -153,6 +153,47 @@ describe("GuidedEvidenceForm", () => {
       expect(blockers).toContain("missing_value")
     })
 
+    it("AC11.9.6 non-positive and non-finite values are rejected as blockers", () => {
+      const base = {
+        source_class: "property_statement" as const,
+        currency: "SGD",
+        as_of_date: "2026-01-01",
+        valuation_basis: "market_appraisal" as const,
+        source_label: "Condo appraisal",
+        source_anchor: "",
+        notes: "",
+      }
+      // Zero and negative amounts are not valid positive evidence.
+      for (const value of ["0", "0.00", "-5", "-12500.50"]) {
+        const { errors, blockers } = validateEvidenceForm({ ...base, value })
+        expect(errors.value).toBeTruthy()
+        expect(blockers).toContain("missing_value")
+      }
+      // Non-decimal strings (including JS number literals like Infinity/NaN)
+      // are rejected by the string-format check, never via Number()/parseFloat().
+      for (const value of ["Infinity", "NaN", "1e3", "1,000", "  ", "12.34.56"]) {
+        const { errors, blockers } = validateEvidenceForm({ ...base, value })
+        expect(errors.value).toBeTruthy()
+        expect(blockers).toContain("missing_value")
+      }
+    })
+
+    it("AC11.9.6 well-formed positive decimal strings pass validation", () => {
+      const base = {
+        source_class: "property_statement" as const,
+        currency: "SGD",
+        as_of_date: "2026-01-01",
+        valuation_basis: "market_appraisal" as const,
+        source_label: "Condo appraisal",
+        source_anchor: "",
+        notes: "",
+      }
+      for (const value of ["1", "0.01", "12500", "12500.50", " 300000 "]) {
+        const { blockers } = validateEvidenceForm({ ...base, value })
+        expect(blockers).not.toContain("missing_value")
+      }
+    })
+
     it("AC11.9.6 a fully valid record has no blockers", () => {
       const { errors, blockers } = validateEvidenceForm({
         source_class: "liability_statement",

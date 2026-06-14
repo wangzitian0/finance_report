@@ -124,6 +124,33 @@ interface FieldErrors {
 }
 
 /**
+ * Decimal string-format check for the monetary value. Validated as a string,
+ * never via JS number conversion (`Number()`/`parseFloat()`), per the frontend
+ * monetary rule in docs/ssot/frontend-patterns.md §7. Accepts an optional
+ * leading minus, digits, and an optional fractional part; rejects empty,
+ * non-numeric, and `Infinity`/`NaN` inputs.
+ */
+const DECIMAL_STRING_PATTERN = /^-?\d+(\.\d+)?$/;
+
+/**
+ * A positive monetary amount must match the decimal format and be strictly
+ * greater than zero. Zero and negative values are rejected as readiness
+ * blockers. The "greater than zero" check is performed on the string form
+ * (sign + all-zero digits) so no float conversion is involved.
+ */
+function isPositiveDecimalString(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!DECIMAL_STRING_PATTERN.test(trimmed)) {
+    return false;
+  }
+  if (trimmed.startsWith("-")) {
+    return false;
+  }
+  // Reject all-zero amounts (e.g. "0", "0.00") without numeric conversion.
+  return /[1-9]/.test(trimmed);
+}
+
+/**
  * Validate the guided evidence form. Returns per-field errors plus a flat list
  * of readiness blockers; the form refuses to call the API while any blocker is
  * present (AC11.9.6).
@@ -135,9 +162,8 @@ export function validateEvidenceForm(state: EvidenceFormState): {
   const errors: FieldErrors = {};
   const blockers: string[] = [];
 
-  const trimmedValue = state.value.trim();
-  if (trimmedValue === "" || Number.isNaN(Number(trimmedValue))) {
-    errors.value = "Enter a numeric amount";
+  if (!isPositiveDecimalString(state.value)) {
+    errors.value = "Enter a positive numeric amount";
     blockers.push("missing_value");
   }
 
@@ -296,7 +322,7 @@ export default function GuidedEvidenceForm({
           <p className="text-xs text-muted">{activeConfig.hint}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="grid gap-1">
             <label htmlFor="evidence-value" className="text-xs font-medium text-muted">
               Value / amount
@@ -336,7 +362,7 @@ export default function GuidedEvidenceForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="grid gap-1">
             <label htmlFor="evidence-as-of" className="text-xs font-medium text-muted">
               As-of date
