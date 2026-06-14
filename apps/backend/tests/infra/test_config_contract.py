@@ -133,17 +133,3 @@ class TestConfigContract:
 
         s = Settings()
         assert s.db_pool_max_overflow == 25
-
-    def test_legacy_openrouter_alias_setters(self, monkeypatch):
-        """Legacy OpenRouter config aliases remain writable for old call sites."""
-        monkeypatch.setenv("AI_API_KEY", "initial-key")
-        from src.config import Settings
-
-        s = Settings()
-        s.openrouter_api_key = "updated-key"
-        s.openrouter_base_url = "https://example.test/api"
-        s.openrouter_daily_limit_usd = 12
-
-        assert s.ai_api_key == "updated-key"
-        assert s.ai_base_url == "https://example.test/api"
-        assert s.ai_daily_limit_usd == 12
