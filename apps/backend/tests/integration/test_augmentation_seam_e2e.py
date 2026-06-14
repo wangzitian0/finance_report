@@ -10,10 +10,12 @@ This test stands up the *combined* state production actually has — a low-confi
 extracted ledger input AND a corrected (superseded) valuation present at once — and
 asserts the report is right on every axis simultaneously:
 
-1. the ledger numbers are correct and the equation holds,
+1. the ledger numbers are correct and the equation still holds with the valuation folded in,
 2. the low-confidence input is **not laundered**: its line carries the worst tier (Axiom B),
-3. the **superseded** valuation is excluded from net-worth components (the #968 class),
-4. the manual valuation does **not** silently contaminate the ledger balance sheet.
+3. the **corrected** valuation reaches the balance sheet while the **superseded** one is
+   excluded (the total carries 1,100,000, not 2,100,000) — the #968 class, proven at the
+   balance-sheet level and again in net-worth components,
+4. the ledger Cash line itself is unchanged by the valuation (it stays 1,500).
 
 Existing tests cover (2) and (3) each in isolation; none exercises them composed,
 which is where seam bugs hide.
@@ -101,17 +103,20 @@ async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confi
     balance_sheet = await generate_balance_sheet(db, user_id, as_of_date=as_of, currency="SGD")
     asset_lines = {line["name"]: line for line in balance_sheet["assets"]}
 
-    # (1) ledger numbers correct + equation holds (assets 1500 = equity 1000 + net income 500)
-    assert balance_sheet["total_assets"] == Decimal("1500.00")
+    # (1) the ledger AND the corrected manual valuation both reach the report, and the
+    # SUPERSEDED valuation is excluded: total carries ledger cash 1500 + the corrected
+    # property 1,100,000 = 1,101,500. A superseded leak (the #968 class) would make this
+    # 2,101,500; a missing valuation would make it 1,500.
+    assert balance_sheet["total_assets"] == Decimal("1101500.00")
+    # the equation still holds: the valuation is offset by the net-worth adjustment.
     assert balance_sheet["equation_delta"] == Decimal("0.00")
     assert balance_sheet["is_balanced"] is True
 
-    # (2) the low-confidence extracted input is not laundered to trusted
+    # (2) the low-confidence extracted input is not laundered to trusted — the ledger
+    # Cash line carries the worst-input tier, and its own amount is unchanged by the valuation.
     assert asset_lines["Cash"]["confidence_tier"] == "LOW"
+    assert Decimal(str(asset_lines["Cash"]["amount"])) == Decimal("1500.00")
 
-    # (4) the manual property valuation must not silently inflate the ledger balance sheet
-    assert "Cash" in asset_lines and Decimal(str(asset_lines["Cash"]["amount"])) == Decimal("1500.00")
-
-    # (3) the superseded valuation is excluded from net-worth components (#968 class)
+    # (3) the superseded valuation is also excluded from net-worth components (#968 class)
     components = await service.get_latest_valuation_components(db, user_id, as_of_date=as_of)
     assert components.total_assets == Decimal("1100000.00")
