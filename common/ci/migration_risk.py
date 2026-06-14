@@ -41,6 +41,13 @@ DATA_MUTATION_UPGRADE_PATTERNS = (
     r"\bINSERT\s+INTO\b",
     r"\bDELETE\s+FROM\b",
 )
+SCHEMA_SENSITIVE_UPGRADE_PATTERNS = (
+    r"\bop\.alter_column\s*\(",
+    r"\bop\.drop_constraint\s*\(",
+    r"\bop\.drop_index\s*\(",
+    r"\bALTER\s+TYPE\b",
+    r"\bADD\s+VALUE\b",
+)
 
 
 @dataclass(frozen=True)
@@ -143,6 +150,23 @@ def _matches_any(source: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, source, flags=re.IGNORECASE) for pattern in patterns)
 
 
+def classify_risk(upgrade_source: str) -> str:
+    """Auto-classify migration risk from the ``upgrade()`` source.
+
+    Destructive drops set a critical floor, data mutations a high floor, and
+    compatibility-sensitive schema changes default to medium; anything else
+    (additive tables/columns, clean-schema DDL) is low. The manifest only needs
+    to carry entries that raise risk above this floor or attach release proof.
+    """
+    if _matches_any(upgrade_source, DESTRUCTIVE_UPGRADE_PATTERNS):
+        return "critical"
+    if _matches_any(upgrade_source, DATA_MUTATION_UPGRADE_PATTERNS):
+        return "high"
+    if _matches_any(upgrade_source, SCHEMA_SENSITIVE_UPGRADE_PATTERNS):
+        return "medium"
+    return "low"
+
+
 def _entry_text(entry: dict[str, Any], field: str) -> str:
     value = entry.get(field)
     return value.strip() if isinstance(value, str) else ""
@@ -242,8 +266,23 @@ def validate(*, manifest_path: Path, migrations_dir: Path) -> ValidationResult:
 
     records: dict[str, MigrationRecord] = {}
     for revision, parsed in parsed_by_revision.items():
+        auto_risk = classify_risk(parsed.upgrade_source)
         if revision not in manifest_entries:
-            errors.append(f"{revision}: missing migration risk manifest entry")
+            if auto_risk in {"high", "critical"}:
+                errors.append(
+                    f"{revision}: auto-classified {auto_risk} migration requires a "
+                    f"manifest entry with release proof in {manifest_path.name}"
+                )
+                continue
+            records[revision] = MigrationRecord(
+                revision=revision,
+                file_name=parsed.file_name,
+                risk=auto_risk,
+                proof=(
+                    f"Auto-classified {auto_risk} from upgrade operations; "
+                    "covered by the PR Alembic contract."
+                ),
+            )
             continue
         record, entry_errors = _validate_entry(
             revision, parsed, manifest_entries[revision]

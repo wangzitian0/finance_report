@@ -174,6 +174,9 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC ID | Description | Status |
 |-------|-------------|--------|
 | AC16.6.1 | `formatDateInput` formats `Date` as `YYYY-MM-DD` with zero-padded month and day | ⏳ |
+| AC16.6.2 | formats a Date object to en-US short date", () => { | `date.test` | `__tests__/date.test.ts` | P1 |
+| AC16.6.3 | formats a Date object with date and time", () => { | `date.test` | `__tests__/date.test.ts` | P1 |
+| AC16.6.4 | returns short month name from date string", () => { | `date.test` | `__tests__/date.test.ts` | P1 |
 
 ### AC16.7 — Frontend Theme Utility (`lib/theme`)
 
@@ -218,6 +221,11 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.10.12 | `apiUpload` returns `undefined` on `204 No Content` | ⏳ |
 | AC16.10.13 | `apiFetch` normalizes path without leading slash | ⏳ |
 | AC16.10.14 | `apiFetch` includes `Authorization` header when token is present | ⏳ |
+| AC16.10.15 | handles 401 redirect in apiDelete', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.16 | includes Authorization header when token present', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.17 | handles 401 redirect in apiUpload', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.18 | throws with detail message on JSON error response', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.19 | throws with raw text on non-JSON error response', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
 
 ### AC16.11 — Dev Tooling / Infra Commands (Infra)
 
@@ -276,6 +284,10 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.12.10 | Ping-pong page renders retry flow when initial load fails | ⏳ |
 | AC16.12.11 | Reports page renders all report cards with links for available reports | ⏳ |
 | AC16.12.12 | Reports page displays accounting equation section content | ⏳ |
+| AC16.12.13 | toggles password visibility", () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
+| AC16.12.14 | shows error with alert role and aria-live", async () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
+| AC16.12.15 | shows mode toggle links", () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
+| AC16.12.16 | shows loading spinner during submission", async () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
 
 ### AC16.13 — Test Lifecycle Infrastructure (Infra)
 
@@ -379,6 +391,12 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.19.9 | Toast provider shows, dismisses, and auto-expires notifications | ⏳ |
 | AC16.19.10 | Bar and pie chart components render semantic labels and filtered data | ⏳ |
 | AC16.19.11 | Trend chart renders line/area paths and point labels for provided series | ⏳ |
+| AC16.19.12 | sidebar nav shows Portfolio label for /assets route", async () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.13 | WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.14 | WorkspaceTabs section header is Open Tabs in both empty and active states", () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.15 | navigates workspace pages with ArrowRight keyboard", () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.16 | renders dialog with ARIA attributes", () => { | `confirmDialogComponent.test` | `__tests__/confirmDialogComponent.test.tsx` | P1 |
+| AC16.19.17 | traps focus with Tab and Shift+Tab", () => { | `confirmDialogComponent.test` | `__tests__/confirmDialogComponent.test.tsx` | P1 |
 
 ### AC16.20 — Reconciliation Workbench and Chat Panel Components
 
@@ -389,6 +407,8 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.20.3 | Unmatched board loads transactions and creates journal entry for selected item | ⏳ |
 | AC16.20.4 | Unmatched board flag and ignore actions update list and local state | ⏳ |
 | AC16.20.5 | Chat panel sends streaming responses, loads suggestions/history, and clears session | ⏳ |
+| AC16.20.6 | score distribution renders 0% height for buckets with value 0", async () => { | `reconciliationWorkbenchComponent.test` | `__tests__/reconciliationWorkbenchComponent.test.tsx` | P1 |
+| AC16.20.7 | handles missing stream reader", async () => { | `chatPanelComponent.test` | `__tests__/chatPanelComponent.test.tsx` | P1 |
 
 ### AC16.21 — Account Form, Journal Entry Form, Sankey Chart, Workspace Provider
 

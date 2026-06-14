@@ -201,6 +201,9 @@ Clearly labeled "for reference only"
 | AC6.11.1 | Model catalog integration | `TestModelCatalogIntegration` class | `ai/test_ai_models_integration.py` | P1 |
 | AC6.11.2 | Model validation integration | `TestModelValidationIntegration` class | `ai/test_ai_models_integration.py` | P1 |
 | AC6.11.3 | Model catalog caching | `TestModelCatalogCaching` class | `ai/test_ai_models_integration.py` | P1 |
+| AC6.11.4 | Test filtering models with both modality and free_only filters. | `test_list_models_with_both_filters` | `api/test_ai_models_router.py` | P1 |
+| AC6.11.5 | Test error handling when model catalog is unavailable. | `test_list_models_error_handling` | `api/test_ai_models_router.py` | P1 |
+| AC6.11.6 | Entries with no id are skipped (covers id-filter branch in routers/ai_models.py L44). | `test_list_models_filters_out_entries_without_id` | `api/test_ai_models_router.py` | P1 |
 
 ### AC6.12: Must-Have Acceptance Criteria Traceability
 
@@ -516,3 +519,13 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 | Week 2 | Frontend interface + Security testing + Optimization | 16h |
 
 **Total Estimate**: 32 hours (2 weeks)
+
+### AC6.13: Recovered Coverage
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC6.13.1 | Record message logs warning when db.refresh raises. | `test_record_message_refresh_exception_logs_warning` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.13.2 | preferred_model is prepended to the model list. | `test_stream_openrouter_with_preferred_model` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.13.3 | ValueError/TypeError in _stream_model raises AIAdvisorError. | `test_stream_openrouter_raises_on_programming_error` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.13.4 | _stream_model proxies chunks from stream_openrouter_chat. | `test_stream_model_yields_chunks` | `ai/test_ai_advisor_service.py` | P1 |
+| AC6.13.6 | Bank-account detector skips date-like and zero-heavy numbers. | `test_detect_pii_skips_date_like_and_zero_heavy_numbers` | `ai/test_pii_redaction.py` | P1 |

@@ -125,6 +125,12 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.3.3 | Posted entry cannot be reposted | `test_posted_entry_cannot_be_reposted()` | `accounting/test_accounting_equation.py` | P0 |
 | AC2.3.4 | Posted entry status immutable | `test_posted_entry_status_immutable_via_direct_update()` | `accounting/test_accounting_equation.py` | P0 |
 | AC2.3.5 | Void entry creates reversal | `test_void_journal_entry_creates_reversal()` | `accounting/test_accounting_integration.py` | P0 |
+| AC2.3.6 | Error handling for non-existent entries | `test_journal_service` | `accounting/test_journal_service.py` | P1 |
+| AC2.3.7 | create_entry ValidationError catch (unbalanced, single-line) | `test_journal_delete_and_validation` | `accounting/test_journal_delete_and_validation.py` | P1 |
+| AC2.3.8 | post_journal_entry error handling (not found, wrong user, inactive account) | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
+| AC2.3.9 | void_journal_entry error handling (not found, wrong user, non-posted) | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
+| AC2.3.10 | post_journal_entry success path | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
+| AC2.3.11 | void_journal_entry success path with reversal | `test_accounting_service_errors` | `accounting/test_accounting_service_errors.py` | P1 |
 
 ### AC2.4: Balance Calculation
 
@@ -135,6 +141,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.4.3 | Draft entries excluded from balance | `test_draft_entries_not_included_in_balance()` | `accounting/test_accounting_integration.py` | P0 |
 | AC2.4.4 | Calculate balances by account type | `test_calculate_account_balances_by_type()` | `accounting/test_accounting_balances.py` | P1 |
 | AC2.4.5 | Empty account list returns empty balances | `test_calculate_account_balances_empty_list()` | `accounting/test_accounting_balances.py` | P1 |
+| AC2.4.6 | Account Balance Calculation Tests | `test_accounting_balances` | `accounting/test_accounting_balances.py` | P1 |
 
 ### AC2.5: Accounting Equation Validation
 
@@ -166,6 +173,10 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.7.1 | Router uses flush not commit | `test_create_journal_entry_uses_flush_not_commit()` | `accounting/test_accounting_integration.py` | P0 |
 | AC2.7.2 | Journal router error paths | Multiple tests | `accounting/test_journal_router_errors.py` | P1 |
 | AC2.7.3 | Journal router additional scenarios | Multiple tests | `accounting/test_journal_router_additional.py` | P1 |
+| AC2.7.4 | Validation error (422) for malformed request | `test_journal_router_additional` | `accounting/test_journal_router_additional.py` | P1 |
+| AC2.7.5 | DELETE /{entry_id} endpoint (success, not-found, non-draft) | `test_journal_delete_and_validation` | `accounting/test_journal_delete_and_validation.py` | P1 |
+| AC2.7.6 | Test voiding a journal entry. | `test_void_journal_entry` | `api/test_journal_router.py` | P1 |
+| AC2.7.7 | Test deleting a journal entry (only drafts can be deleted). | `test_delete_journal_entry` | `api/test_journal_router.py` | P1 |
 
 ### AC2.8: Decimal Safety
 
@@ -173,6 +184,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 |----|-----------|---------------|------|----------|
 | AC2.8.1 | Never use float for monetary amounts | `test_float_injection_safety()` | `accounting/test_decimal_safety.py` | P0 |
 | AC2.8.2 | Decimal precision maintained in arithmetic | `test_decimal_precision()`, `test_amount_precision_loss_detection()` | `accounting/test_accounting.py`, `accounting/test_accounting_equation.py` | P0 |
+| AC2.8.3 | Scientific notation handling | `test_decimal_safety` | `accounting/test_decimal_safety.py` | P1 |
 
 ### AC2.9: Data Model Checklist Coverage
 
@@ -191,6 +203,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.10.2 | `POST /journal-entries`, `GET /journal-entries`, `GET /journal-entries/{id}` | `test_journal_entry_endpoints()` | `api/test_api_endpoints.py` | P0 |
 | AC2.10.3 | `POST /journal-entries/{id}/post`, `POST /journal-entries/{id}/void` | `test_journal_entry_endpoints()` | `api/test_api_endpoints.py` | P0 |
 | AC2.10.4 | API error behavior for missing/invalid resources | `test_journal_router_errors.py` suite | `accounting/test_journal_router_errors.py` | P1 |
+| AC2.10.5 | DELETE /statements/{id} success | `test_delete_endpoints` | `accounting/test_delete_endpoints.py` | P1 |
 
 ### AC2.11: Must-Have Acceptance Criteria Traceability
 | ID | Requirement | Test Function | File | Priority |
@@ -204,6 +217,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.12.1 | Journal entry balance validation uses base-currency converted amounts when line currencies differ | `test_AC2_12_1_multicurrency_entry_balances_in_base_currency()` | `accounting/test_multicurrency_integrity.py` | P0 |
 | AC2.12.2 | Accounting equation verification uses base-currency converted account balances | `test_AC2_12_2_accounting_equation_uses_base_currency_balances()` | `accounting/test_multicurrency_integrity.py` | P0 |
 | AC2.12.6 | Statement validation logic rejects invalid statement balance and transaction states | `test_validation.py` suite | `accounting/test_validation.py` | P0 |
+| AC2.12.5 | Stream redactor accumulates small chunks in buffer | `test_stream_redactor_small_chunks` | `infra/test_infra_edge_cases.py` | P1 |
 
 ### AC2.13: User-Scoped Ledger Integrity
 
