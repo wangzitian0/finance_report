@@ -38,7 +38,13 @@ from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.routers import review as review_router, statements as statements_router
 from src.schemas import StatementDecisionRequest
-from src.schemas.review import BatchApproveRequest, BatchRejectRequest, ResolveCheckRequest, Stage1ApprovalRequest
+from src.schemas.review import (
+    BatchApproveRequest,
+    BatchRejectRequest,
+    ResolveCheckRequest,
+    ResolveConflictsRequest,
+    Stage1ApprovalRequest,
+)
 from src.services import (
     ExtractionError,
     StorageError,
@@ -1581,6 +1587,58 @@ async def test_get_statement_for_review(db, test_user, monkeypatch):
     assert hasattr(result.balance_validation_result, "closing_match")
 
 
+async def test_AC16_33_5_get_statement_document_streams_bytes_same_origin(db, test_user, monkeypatch):
+    """AC16.33.5: the document endpoint streams the original upload, same-origin.
+
+    The Stage 1 PDF preview embeds this authenticated endpoint as a ``blob:``
+    object URL instead of a cross-origin object-storage URL.
+    """
+    statement = build_statement(test_user.id, "hash_doc_stream", 75)
+    db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="statements/doc/preview.pdf", original_filename="moomoo.pdf")
+    await db.commit()
+    await db.refresh(statement)
+
+    monkeypatch.setattr(statements_router, "StorageService", DummyStorage)
+
+    result = await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+
+    assert result.body == b"dummy content"
+    assert result.media_type == "application/pdf"
+    assert result.headers["Content-Disposition"] == "inline"
+
+
+async def test_AC16_33_5_get_statement_document_404_when_no_document(db, test_user):
+    """AC16.33.5: a statement with no uploaded document returns 404, not a blank frame."""
+    statement = build_statement(test_user.id, "hash_doc_missing", 75)
+    db.add(statement)
+    await db.commit()
+    await db.refresh(statement)
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_AC16_33_5_get_statement_document_storage_error_maps_to_502(db, test_user, monkeypatch):
+    """AC16.33.5: a storage outage surfaces a 502 instead of a silent empty body."""
+    statement = build_statement(test_user.id, "hash_doc_storage_err", 75)
+    db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="statements/doc/err.pdf")
+    await db.commit()
+    await db.refresh(statement)
+
+    mock_storage = MagicMock()
+    mock_storage.get_object.side_effect = statements_router.StorageError("S3 Down")
+    monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.get_statement_document(statement_id=statement.id, db=db, user_id=test_user.id)
+    assert exc.value.status_code == status.HTTP_502_BAD_GATEWAY
+
+
 async def test_get_statement_for_review_not_found(db, test_user):
     """Given a non-existent statement,
     When get_statement_for_review is called,
@@ -2990,6 +3048,107 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_transfer_pairs(db, te
 
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "unresolved duplicate or transfer-pair" in exc_info.value.detail
+
+
+async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
+    """AC16.34.1: resolving the conflict candidates unblocks Stage 1 approval.
+
+    A statement with an inherent duplicate is no longer permanently stuck in
+    ``parsed`` once the reviewer confirms the rows are genuinely distinct.
+    """
+    user_id = test_user.id  # capture before any rollback expires the fixture object
+    account = await create_statement_account(db, test_user.id, "Resolve Conflict Account")
+    statement = build_statement(test_user.id, "hash_stage1_resolve", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.stage1_status = Stage1Status.PENDING_REVIEW
+    statement.account_id = account.id
+    statement.opening_balance = Decimal("100.00")
+    statement.closing_balance = Decimal("140.00")
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id  # capture before commits/rollbacks expire the object
+
+    for _ in range(2):
+        await add_txn(
+            db,
+            statement,
+            txn_date=date(2025, 1, 15),
+            description="Duplicate deposit",
+            amount=Decimal("20.00"),
+            direction="IN",
+        )
+    await db.commit()
+
+    # Before resolving, approval is blocked.
+    with pytest.raises(HTTPException) as exc_info:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement_id,
+            request=Stage1ApprovalRequest(),
+            db=db,
+            user_id=user_id,
+        )
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+
+    # Resolve the candidates via the Stage-1 conflict-resolution endpoint.
+    resolve_response = await review_router.resolve_review_conflicts(
+        statement_id=statement_id,
+        request=ResolveConflictsRequest(action="confirm_distinct"),
+        db=db,
+        user_id=user_id,
+    )
+    assert resolve_response.resolved is True
+    assert resolve_response.resolved_at is not None
+
+    # The conflicts endpoint exposes the persisted marker so the UI can derive the
+    # blocked state from the server rather than ephemeral client state.
+    conflicts_after = await review_router.get_review_conflicts(statement_id=statement_id, db=db, user_id=user_id)
+    assert conflicts_after.resolved is True
+
+    # Approval now succeeds despite the duplicate candidate (no HTTP 400 raised).
+    approved = await statements_router.approve_statement_stage1(
+        statement_id=statement_id,
+        request=Stage1ApprovalRequest(),
+        db=db,
+        user_id=user_id,
+    )
+    assert approved.id == statement_id
+    assert approved.status == BankStatementStatus.APPROVED
+
+
+async def test_AC16_34_1_resolve_conflicts_404_for_unknown_statement(db, test_user):
+    """AC16.34.1: resolving conflicts for a missing statement returns 404."""
+    with pytest.raises(HTTPException) as exc_info:
+        await review_router.resolve_review_conflicts(
+            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
+            request=ResolveConflictsRequest(action="confirm_distinct"),
+            db=db,
+            user_id=test_user.id,
+        )
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_AC16_34_2_reject_clears_conflict_resolution(db, test_user):
+    """AC16.34.2: a reject/reparse clears a prior conflict resolution so the
+    fresh transaction set must be re-reviewed."""
+    statement = build_statement(test_user.id, "hash_stage1_resolve_reset", 90)
+    statement.status = BankStatementStatus.PARSED
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id  # capture before commit expires the object
+
+    await review_router.resolve_review_conflicts(
+        statement_id=statement_id,
+        request=ResolveConflictsRequest(action="confirm_distinct"),
+        db=db,
+        user_id=test_user.id,
+    )
+    await db.refresh(statement)
+    assert statement.stage1_conflicts_resolved_at is not None
+
+    await statements_router.reject_statement_svc(db, statement_id, test_user.id, reason="reparse")
+    await db.commit()
+    await db.refresh(statement)
+    assert statement.stage1_conflicts_resolved_at is None
 
 
 async def test_AC16_32_3_stage2_queue_returns_all_pending_checks(db, test_user):

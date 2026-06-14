@@ -62,6 +62,41 @@ async def get_or_create_processing_account(db: AsyncSession, user_id: UUID, curr
     return account
 
 
+async def get_or_create_opening_balance_equity_account(
+    db: AsyncSession, user_id: UUID, currency: str = "SGD"
+) -> Account:
+    """Get or create the Opening Balance Equity account for a user (#949).
+
+    Guided opening balances offset into this system-managed equity account so a
+    user's starting position is captured as a balanced journal entry and the
+    accounting equation holds (Assets = Liabilities + Equity) from day one.
+    """
+    result = await db.execute(
+        select(Account).where(
+            Account.user_id == user_id,
+            Account.is_system == True,  # noqa: E712
+            Account.code == "3199",
+        )
+    )
+    # Tolerant fetch: a rare duplicate (e.g. concurrent first-time creates without
+    # a DB uniqueness constraint) must not break opening-balance posting.
+    account = result.scalars().first()
+    if not account:
+        account = Account(
+            user_id=user_id,
+            name="Opening Balance Equity",
+            code="3199",
+            type=AccountType.EQUITY,
+            currency=currency,
+            is_system=True,
+            description="System-managed equity account for year-start opening balance entries",
+        )
+        db.add(account)
+        await db.flush()
+        await db.refresh(account)
+    return account
+
+
 async def list_accounts(
     db: AsyncSession,
     user_id: UUID,

@@ -6,6 +6,15 @@ Validates consistency between:
 1. secrets.ctmpl (Vault SSOT) vs config.py (Backend Code)
 2. config.py (Backend Code) vs .env.example (Documentation)
 
+Note (Infra-014 C3): the backend block of ``.env.example`` and
+``docs/ssot/env-reference.generated.md`` are now GENERATED from the
+``apps/backend/src/config.py`` pydantic Settings metadata by
+``tools/generate_env_reference.py``. The .env.example <-> config.py leg below is
+therefore guaranteed by generation (the generated block contains every backend
+key); ``tools/generate_env_reference.py --check`` is the authoritative drift
+guard for that file. This validator still owns the secrets.ctmpl <-> config.py
+leg.
+
 Usage:
     python tools/check_env_keys.py           # Check consistency
     python tools/check_env_keys.py --diff    # Show detailed diff

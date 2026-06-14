@@ -14,7 +14,11 @@ const navigationState = vi.hoisted(() => ({
 const pushMock = navigationState.push;
 const replaceMock = navigationState.replace;
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api", () => ({
+    apiFetch: vi.fn(),
+    // PdfPreviewPane fetches the document blob on mount (#963 / AC16.33.5).
+    apiDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
+}));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
     useParams: vi.fn(() => ({ id: "s1" })),
@@ -179,6 +183,72 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         await waitFor(() => {
             expect(pushMock).toHaveBeenCalledWith("/statements/s1?approved=1&entriesCreated=2");
         });
+    });
+
+    it("AC16.34.3 resolves Stage-1 conflicts and unblocks approval", async () => {
+        const duplicate = {
+            id: "t1",
+            txn_date: "2025-01-15",
+            description: "Duplicate deposit",
+            amount: "20.00",
+            direction: "IN",
+        };
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(baseStatement);
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve({ duplicates: [duplicate, duplicate], transfer_pairs: [] });
+            }
+            if (path === "/api/review/conflicts/s1/resolve") {
+                expect(options).toMatchObject({ method: "POST" });
+                expect(JSON.parse(options?.body as string)).toEqual({ action: "confirm_distinct" });
+                return Promise.resolve({ resolved: true, resolved_at: "2026-06-14T00:00:00Z" });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        // The conflict dialog auto-opens; resolve the duplicate candidates.
+        const resolveButtons = await screen.findAllByRole("button", { name: "Resolve" });
+        fireEvent.click(resolveButtons[0]);
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "/api/review/conflicts/s1/resolve",
+                expect.objectContaining({ method: "POST" }),
+            );
+        });
+    });
+
+    it("AC16.34.3 keeps approval unblocked when the server marks conflicts resolved", async () => {
+        const duplicate = {
+            id: "t1",
+            txn_date: "2025-01-15",
+            description: "Duplicate deposit",
+            amount: "20.00",
+            direction: "IN",
+        };
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(baseStatement);
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                // Persisted resolution marker from a prior session/tab.
+                return Promise.resolve({ duplicates: [duplicate, duplicate], transfer_pairs: [], resolved: true });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        // Approve stays enabled and the conflict dialog does not force itself open.
+        const approveButton = await screen.findByRole("button", { name: "Approve" });
+        expect(approveButton).not.toBeDisabled();
+        expect(screen.queryByText("Resolve Conflicts")).not.toBeInTheDocument();
     });
 
     it("AC16.18.6 rejects the statement with notes and routes back to statements", async () => {

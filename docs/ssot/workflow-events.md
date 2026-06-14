@@ -224,6 +224,17 @@ bank_statement:4ab1...:review.required
 Rerunning derivation updates mutable display fields, but it must not create
 duplicates or reset lifecycle status.
 
+The `UNIQUE(user_id, dedupe_key)` constraint is the authoritative dedupe guard.
+Because the same user-visible event can be derived concurrently (overlapping
+requests and background parse tasks), the `select`-then-`insert` upsert is
+inherently racy: both callers can miss the pre-insert read and both insert.
+Every workflow-event insert therefore runs inside a SAVEPOINT
+(`db.begin_nested()`); on the resulting `IntegrityError`, only the nested
+transaction rolls back (the outer request transaction stays usable) and the
+caller re-fetches and updates the now-existing row. This mirrors the
+`uq_workflow_sessions_user_dedupe_key` guard and prevents a duplicate insert
+from poisoning the outer transaction and cascading 500s.
+
 ---
 
 ## 8. Action Links

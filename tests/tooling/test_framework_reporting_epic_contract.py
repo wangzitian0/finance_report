@@ -19,7 +19,10 @@ def test_AC20_1_1_framework_registry_defines_us_hk_personal_targets() -> None:
     for text in (ssot, epic):
         assert "personal_us_gaap_like" in text
         assert "personal_hkfrs_like" in text
-        assert "not a statutory filing" in text.lower() or "does not claim statutory" in text.lower()
+        assert (
+            "not a statutory filing" in text.lower()
+            or "does not claim statutory" in text.lower()
+        )
     assert "CN/CAS framework output" in ssot
     assert "Explicitly out of scope for v1" in ssot
 
@@ -129,8 +132,8 @@ def test_AC20_7_1_same_fixture_must_drive_framework_differentiated_reports() -> 
     assert "readiness blockers" in epic
 
 
-def test_AC2_13_1_canonical_ledger_is_framework_neutral() -> None:
-    """AC2.13.1: Canonical ledger remains framework-neutral."""
+def test_AC2_18_1_canonical_ledger_is_framework_neutral() -> None:
+    """AC2.18.1: Canonical ledger remains framework-neutral."""
     epic = read("docs/project/EPIC-002.double-entry-core.md")
 
     assert "Framework Boundary" in epic

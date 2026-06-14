@@ -208,7 +208,14 @@ def _has_unresolved_statement_conflicts(transactions: list[AtomicTransaction]) -
     return False
 
 
-def _raise_if_statement_conflicts_unresolved(transactions: list[AtomicTransaction]) -> None:
+def _raise_if_statement_conflicts_unresolved(
+    statement: StatementSummary, transactions: list[AtomicTransaction]
+) -> None:
+    # #962: a reviewer can explicitly resolve the duplicate / transfer-pair
+    # candidates (confirming they are distinct or a real transfer). Once resolved,
+    # the statement is approvable instead of permanently stuck in ``parsed``.
+    if statement.stage1_conflicts_resolved_at is not None:
+        return
     if _has_unresolved_statement_conflicts(transactions):
         raise ValueError("Cannot approve statement while unresolved duplicate or transfer-pair candidates remain")
 
@@ -239,7 +246,7 @@ async def approve_statement(
     transactions = await resolve_statement_transactions(db, statement)
 
     _raise_if_balance_chain_invalid(validation_result)
-    _raise_if_statement_conflicts_unresolved(transactions)
+    _raise_if_statement_conflicts_unresolved(statement, transactions)
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
@@ -260,9 +267,29 @@ async def reject_statement(
     statement.stage1_status = Stage1Status.REJECTED
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.status = BankStatementStatus.REJECTED
+    # A reject triggers a reparse: the next transaction set must be re-reviewed,
+    # so a prior conflict resolution (#962) must not carry over.
+    statement.stage1_conflicts_resolved_at = None
     if reason:
         statement.validation_error = reason
 
+    await db.flush()
+    return statement
+
+
+async def resolve_statement_conflicts(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+) -> StatementSummary:
+    """Mark a statement's Stage-1 duplicate/transfer-pair candidates as resolved (#962).
+
+    The reviewer has confirmed the flagged rows are genuinely distinct (or a real
+    transfer pair), so the approval guard should stop blocking. Idempotent: the
+    timestamp simply records that a resolution decision was made.
+    """
+    statement = await _get_statement_for_update(db, statement_id, user_id)
+    statement.stage1_conflicts_resolved_at = datetime.now(UTC)
     await db.flush()
     return statement
 

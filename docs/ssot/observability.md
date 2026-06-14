@@ -1,7 +1,33 @@
 # Observability SSOT
 
 > **SSOT Key**: `observability`
-> **Core Definition**: How application logs are structured and shipped to SigNoz via OTLP, with safe local fallbacks.
+> **Core Definition**: How the **App-side backend** *consumes* the observability
+> contract — which `OTEL_*` env vars `config.py` reads, the redacted
+> `/health.observability` runtime snapshot, and fast-fail behavior.
+
+!!! warning "Contract is owned by infra2 — this App doc covers consumption only"
+    The canonical **env/observability contract** is **owned and issued by
+    infra2** (runtime), not by this App doc (software). infra2 owns:
+
+    - the single no-suffix **OTLP collector** endpoint,
+    - the `deployment.environment` surface alias and its allowed values,
+    - the layered **telemetry identity** (underlying short-commit-SHA
+      `service.version` + surface `deployment.environment`),
+    - the environment **taxonomy**.
+
+    Canonical sources (infra2, vendored at `repo/`):
+
+    - [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+      — OTLP single no-suffix collector, signal types, OTLP env vars.
+    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity)
+      — telemetry identity (`service.version` / `deployment.environment`) and
+      environment taxonomy.
+
+    **The App must NOT re-define environments or the observability contract.**
+    It only *consumes* the contract via `config.py` and **fast-fails** if a
+    required value is missing. Per-environment collector endpoints and
+    `deployment.environment` value enumerations live in infra2 — see the
+    boundary in Infra-014 / `AGENTS.md`. Do not restate them here.
 
 ---
 
@@ -37,41 +63,21 @@ flowchart LR
 
 ---
 
-## 3. SigNoz Access
+## 3. SigNoz Access (infra2-owned)
 
-### 3.1 Web UI
+SigNoz access, the single global instance model, environment **attribute-based
+filtering**, and the allowed `deployment.environment` values are part of the
+**infra2-owned contract**. Do not restate the endpoints or per-env values here.
 
-| Environment | URL |
-|-------------|-----|
-| All (Production, Staging, PR) | https://signoz.zitian.party |
+- Platform, collector, single-instance model, OTLP env vars →
+  [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md).
+- Environment taxonomy + telemetry identity (`deployment.environment` values,
+  `service.version`) →
+  [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
 
-!!! info "Single Instance, Multi-Environment"
-    SigNoz runs as a **single global instance**. All environments share the same SigNoz deployment. Use `deployment.environment` attribute filter in the UI to view specific environment logs (e.g., `deployment.environment=production`).
-    
-    See [Six Environments (SSOT)](development.md#six-environments) for complete environment details.
-
-### 3.2 Credentials
-
-Stored in 1Password (`Infra2` vault):
-- **Item**: `platform/signoz/admin`
-- **Email**: `admin@zitian.party`
-
-### 3.3 Environment Separation
-
-SigNoz uses **attribute-based filtering** to separate environments:
-
-```bash
-# Production backend
-OTEL_RESOURCE_ATTRIBUTES="deployment.environment=production"
-
-# Staging backend  
-OTEL_RESOURCE_ATTRIBUTES="deployment.environment=staging"
-
-# PR environment
-OTEL_RESOURCE_ATTRIBUTES="deployment.environment=pr-47"
-```
-
-In SigNoz UI, filter by `deployment.environment` to view specific environments.
+Credentials for the SigNoz UI are stored in 1Password (`Infra2` vault), item
+`platform/signoz/admin`. To view App logs, filter the SigNoz UI by the
+`deployment.environment` value that infra2 assigned to the target environment.
 
 ---
 
@@ -92,35 +98,26 @@ In SigNoz UI, filter by `deployment.environment` to view specific environments.
 
 ---
 
-## 5. Configuration Playbook
+## 5. App-Side Consumption (what `config.py` reads)
 
-### 5.1 Local Development (No SigNoz)
-Set nothing; logs render to stdout:
-```bash
-DEBUG=true
-```
+The App does **not** define collector endpoints or per-environment
+`deployment.environment` values — those are **issued by infra2** (see the banner
+at the top of this doc and
+[`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)).
+The App only *reads* the values infra2 injects.
 
-### 5.2 Production (SigNoz Enabled)
-Set OTEL variables via Vault/environment:
-```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318
-OTEL_SERVICE_NAME=finance-report-backend
-OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
-```
+`apps/backend/src/config.py` reads these `OTEL_*` env vars (via pydantic
+`validation_alias`):
 
-### 5.3 Staging
-```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318
-OTEL_SERVICE_NAME=finance-report-backend
-OTEL_RESOURCE_ATTRIBUTES=deployment.environment=staging
-```
+| Env var | `config.py` field | App-side behavior |
+|---------|-------------------|-------------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `otel_exporter_otlp_endpoint` | When set, the backend exports logs/traces to the infra2-issued collector; when unset, the App degrades safely to stdout (local dev). |
+| `OTEL_SERVICE_NAME` | `otel_service_name` | App service identity used by the shared alert rule. |
+| `OTEL_RESOURCE_ATTRIBUTES` | `otel_resource_attributes` | Carries the infra2-issued `deployment.environment` (surface alias) and `service.version` (underlying short-commit-SHA). The App parses, never enumerates, these values. |
 
-### 5.4 PR Environments
-```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318
-OTEL_SERVICE_NAME=finance-report-backend
-OTEL_RESOURCE_ATTRIBUTES=deployment.environment=pr-${PR_NUMBER}
-```
+Local development needs nothing set; logs render to stdout (e.g. `DEBUG=true`).
+The concrete endpoint string and the allowed `deployment.environment` values are
+infra2's to define — find them in the infra2 contract, not here.
 
 ---
 
@@ -141,30 +138,16 @@ opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
 ```
 
-### 6.2 Vault Configuration
+### 6.2 Vault Configuration (infra2-owned)
 
-Set OTEL variables in Vault for each environment:
-
-```bash
-# Using infra2 env tool
-cd repo  # infra2 directory
-
-# Production
-uv run invoke env.set OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318 \
-  --project=finance_report --env=production --service=app
-uv run invoke env.set OTEL_SERVICE_NAME=finance-report-backend \
-  --project=finance_report --env=production --service=app
-uv run invoke env.set OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production \
-  --project=finance_report --env=production --service=app
-
-# Staging
-uv run invoke env.set OTEL_EXPORTER_OTLP_ENDPOINT=http://platform-signoz-otel-collector:4318 \
-  --project=finance_report --env=staging --service=app
-uv run invoke env.set OTEL_SERVICE_NAME=finance-report-backend \
-  --project=finance_report --env=staging --service=app
-uv run invoke env.set OTEL_RESOURCE_ATTRIBUTES=deployment.environment=staging \
-  --project=finance_report --env=staging --service=app
-```
+The `OTEL_*` values are **issued by infra2** into Vault per environment. The
+concrete endpoint, `service.version`, and `deployment.environment` values, plus
+the `invoke env.set` procedure, live in the infra2 contract — see
+[`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+and
+[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
+The App must not hardcode or restate these per-environment values; it consumes
+whatever infra2 injects and fast-fails if a required value is absent.
 
 ---
 

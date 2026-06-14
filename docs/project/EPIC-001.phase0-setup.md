@@ -116,6 +116,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
 | AC1.6.1 | Pre-commit hooks configuration present | `test_epic_001_pre_commit_config_exists()` | `infra/test_epic_001_contracts.py` |
+| AC1.6.2 | get_pending_stage1_review returns empty when no pending statements. | `test_returns_empty_when_none_pending` | `review/test_statement_validation.py` | P1 |
 
 ### AC1.7: Auth Endpoint Behavioral Coverage
 
@@ -124,6 +125,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 | AC1.7.1 | Register endpoint accepts valid user payload | `test_register_success()` | `auth/test_auth_router.py` |
 | AC1.7.2 | Register endpoint rejects duplicate email | `test_register_duplicate_email()` | `auth/test_auth_router.py` |
 | AC1.7.3 | Login endpoint accepts valid credentials | `test_login_success()` | `auth/test_auth_router.py` |
+| AC1.7.4 | Register endpoint handles IntegrityError race on duplicate email. | `test_register_integrity_error_race_condition` | `auth/test_auth_router.py` | P1 |
 
 ### AC1.8: User Management Endpoint Coverage
 

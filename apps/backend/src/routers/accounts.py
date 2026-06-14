@@ -21,6 +21,8 @@ from src.schemas import (
     ProcessingPendingListResponse,
     ProcessingSummaryResponse,
 )
+from src.schemas.account import OpeningBalanceReadinessResponse, OpeningBalanceRequest
+from src.schemas.journal import JournalEntryResponse
 from src.services import (
     AccountNotFoundError,
     account_service,
@@ -28,6 +30,11 @@ from src.services import (
     calculate_account_balances,
 )
 from src.services.account_coverage import DEFAULT_STALE_AFTER_DAYS, get_account_statement_coverage
+from src.services.accounting import (
+    ValidationError,
+    get_opening_balance_readiness,
+    post_opening_balance_entry,
+)
 from src.services.processing_account import (
     find_transfer_pairs,
     get_processing_balance,
@@ -39,6 +46,50 @@ from src.utils.money import to_money
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 logger = get_logger(__name__)
+
+
+@router.post("/opening-balances", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
+async def post_opening_balances(
+    payload: OpeningBalanceRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> JournalEntryResponse:
+    """Guided opening-balance flow (#949): establish year-start account balances.
+
+    Posts one balanced journal entry that increases each supplied account to its
+    opening balance and offsets the net into the system Opening Balance Equity
+    account, so a cross-year balance sheet is complete from the start.
+    """
+    try:
+        entry = await post_opening_balance_entry(
+            db,
+            user_id,
+            entry_date=payload.entry_date,
+            balances=payload.balances,
+            currency=(payload.currency or settings.base_currency),
+            memo=payload.memo,
+        )
+        await db.commit()
+        await db.refresh(entry, ["lines"])
+    except ValidationError as exc:
+        await db.rollback()
+        raise_bad_request(str(exc), cause=exc)
+    return JournalEntryResponse.model_validate(entry)
+
+
+@router.get("/opening-balance-readiness", response_model=OpeningBalanceReadinessResponse)
+async def get_opening_balance_readiness_status(
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> OpeningBalanceReadinessResponse:
+    """Readiness nudge (#949): is the balance sheet at risk of being incomplete?
+
+    Returns ``needs_opening_balance=True`` when the user has posted activity but no
+    opening-balance entry on or before its earliest date, so the UI can warn before
+    they ship a silently-incomplete balance sheet.
+    """
+    readiness = await get_opening_balance_readiness(db, user_id)
+    return OpeningBalanceReadinessResponse.model_validate(readiness)
 
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)

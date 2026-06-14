@@ -266,6 +266,11 @@ job inventories or scenario counts into this EPIC.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC8.12.6 | OCR/vision provider fallback, timeout, and empty-response errors are deterministic | `test_extract_financial_data_shared_ocr_vision_skips_layout_parser`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision` | `apps/backend/tests/extraction/test_extraction_error_paths.py` | P1 |
+| AC8.12.1 | Liability accounts return -net_balance so coverage hits else branch. | `test_returns_negated_balance_for_liability_account` | `reporting/test_fx_revaluation.py` | P1 |
+| AC8.12.2 | SQLAlchemyError on flush is wrapped in RevaluationError. | `test_flush_error_raises_revaluation_error` | `reporting/test_fx_revaluation.py` | P1 |
+| AC8.12.3 | Accounts that return None from calculate_unrealized_fx_for_account are skipped. | `test_none_revaluation_skipped` | `reporting/test_fx_revaluation.py` | P1 |
+| AC8.12.4 | PDF with private URL logs warning and raises ExtractionError (lines 393->403, 416->426). | `test_extract_financial_data_pdf_private_url_raises` | `extraction/test_extraction_error_paths.py` | P1 |
+| AC8.12.5 | Image with private URL logs warning and raises ExtractionError (else branch 416->426). | `test_extract_financial_data_image_private_url_raises` | `extraction/test_extraction_error_paths.py` | P1 |
 
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
 
@@ -352,7 +357,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.79 | Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E | `test_AC8_13_79_*` | `tests/tooling/test_cli_and_dev_servers.py` | P0 |
 | AC8.13.80 | AC coverage analysis supports no-write and stale-report check modes for local verification | `test_AC8_13_80_*` | `tests/tooling/test_analyze_test_ac_coverage.py` | P0 |
 | AC8.13.81 | Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values | `test_AC8_13_81_*` | `tests/tooling/test_lint_doc_consistency.py` | P1 |
-| AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.12.3`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
+| AC8.13.82 | Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping | `AC2.17.1`, `AC16.27.2`, `AC16.27.3` | `apps/frontend/playwright/mobile-ux.spec.ts` | P0 |
 | AC8.13.83 | Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs | `test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.84 | Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline | `test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
 | AC8.13.85 | Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix | `test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract` | `tests/tooling/test_personal_report_package_fixture_contract.py` | P0 |
@@ -419,6 +424,21 @@ Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wa
 |---|---|---|---|---|
 | AC8.15.1 | Multi-month CSV statements parse, approve under the balance-chain guard, auto-post to the ledger, and the assembled period reports tie out end-to-end (income, expenses, net income, ending cash, total assets, and the accounting equation) | `test_AC8_15_1_full_year_statement_to_report_ties_out` | `apps/backend/tests/integration/test_full_year_statement_to_report_e2e.py` | P0 |
 
+### AC8.16: Augmentation-Layer Report Integrity
+
+AC8.14/AC8.15 pin the *core accounting arithmetic*. This group pins the newer
+**augmentation layer** — confidence-tagged extracted/reconciled inputs and
+append-only manual-valuation versioning — where the recent audit bugs lived
+([#968](https://github.com/wangzitian0/finance_report/issues/968) superseded
+valuation leaked into holdings; a missing `.distinct()` inflated provenance).
+It stands up the *combined* state production actually has (a low-confidence ledger
+input AND a corrected/superseded valuation present at once) and asserts the report
+is right on every axis simultaneously. Part of [#990](https://github.com/wangzitian0/finance_report/issues/990) (report-input integrity).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.16.1 | A low-confidence extracted ledger input and a corrected (superseded) manual valuation both reach the report correctly: ledger numbers and the accounting equation hold, the low-confidence line carries the worst-input tier (not laundered), the superseded valuation is excluded from net-worth components, and the manual valuation does not contaminate the ledger balance sheet | `test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence` | `apps/backend/tests/integration/test_augmentation_seam_e2e.py` | P1 |
+
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
@@ -434,6 +454,29 @@ Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wa
   `docs/ssot/critical-proof-matrix.yaml` and
   `python tools/check_critical_proof_matrix.py`.
 - Do not copy generated AC totals or per-group percentages into this EPIC.
+
+---
+
+### AC8.17: Test-Account Cleanup Tooling
+
+Shared/staging databases accumulate throwaway accounts from QA and E2E runs
+(`qa.*@example.com`, `e2e-*@test.example.com`, ...). This group covers the purge
+library that reclaims them ([#997](https://github.com/wangzitian0/finance_report/issues/997)
+item 4). The purge is **safe by construction**: each account is removed inside
+its own savepoint (all-or-nothing), and an account still holding immutable
+posted/reconciled ledger entries is *reported and skipped*, never force-deleted —
+the same contract the API enforces with a 409 ([#988](https://github.com/wangzitian0/finance_report/issues/988)).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.17.1 | Only disposable test accounts (qa/e2e/load-test prefixes on example.com / test.example.com) are selected; real accounts and plain local fixtures are excluded | `test_selection_matches_test_accounts_and_excludes_real_ones`, `test_owned_tables_cover_core_user_data_and_exclude_users` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.2 | Applying the purge removes a clean test account and every row it owns, while leaving non-test accounts untouched | `test_apply_purges_clean_account_and_leaves_others` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.3 | An account owning a posted (immutable) ledger entry is reported blocked and fully preserved, not force-deleted | `test_account_with_posted_ledger_entry_is_blocked_not_deleted` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.4 | A dry run names the accounts it would purge but persists no deletions | `test_dry_run_reports_but_persists_nothing` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+| AC8.17.5 | The CLI `--apply` environment guard allows dev/staging/CI and refuses production (or an unset environment) without an explicit override | `test_environment_guard_allows_dev_staging_and_refuses_production` | `apps/backend/tests/services/test_test_account_purge.py` | P1 |
+
+The operator entry point is `tools/purge_test_accounts.py` (dry-run by default;
+`--apply` to delete; runbook in `docs/contributing/staging-test-account-cleanup.md`).
 
 ---
 

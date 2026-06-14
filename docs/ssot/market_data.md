@@ -70,6 +70,7 @@ async def get_fx_rate(base: str, quote: str, date: date) -> Decimal:
 - **Symbols**: Active holdings, or explicit symbols from API callers.
 - **History**: Long-lived daily history is retained. Incremental sync starts after the latest stored date so decade-scale datasets do not require full refreshes.
 - **Status**: Implemented. Portfolio valuation prefers synced daily prices over stale brokerage snapshots.
+- **Non-ticker guard**: The Yahoo stock fetch is skipped (returns no observation, logged at debug) for identifiers that are not plausibly a ticker — those with whitespace, excessive length, or otherwise free text such as brokerage fund names (`CSOP USD MONEY MARKET FUND SGX296797238`). Real tickers (`AAPL`, `BRK.B`, `0700.HK`) and FX pairs (`USDSGD`) still pass. This removes guaranteed-404 noise and latency; such fund positions are valued from their existing brokerage (AtomicPosition) snapshot.
 
 ### Sync Workflow
 - The backend starts `run_market_data_scheduler()` in FastAPI lifespan and runs FX plus stock sync once per day at 22:00 Asia/Singapore.

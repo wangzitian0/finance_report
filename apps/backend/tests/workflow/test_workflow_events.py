@@ -26,6 +26,9 @@ from src.models.workflow import (
 )
 from src.schemas.workflow import WorkflowEventCreate, WorkflowEventResponse
 from src.services.workflow_events import (
+    _insert_workflow_event_conflict_safe,
+    _workflow_event_from_payload,
+    build_uploaded_statement_event_payload,
     derive_uploaded_statement_event,
     get_or_create_active_workflow_session,
     get_workflow_status,
@@ -1020,3 +1023,114 @@ async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_even
     recon_again = [e for e in events_again if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
     assert len(recon_again) == 1
     assert recon_again[0].id == original_event_id
+
+
+async def test_AC19_14_1_concurrent_upsert_same_dedupe_key_does_not_500(db_engine, test_user) -> None:
+    """AC19.14.1: Two concurrent upserts of the same (user_id, dedupe_key) workflow event both
+    succeed without a duplicate-key 500; exactly one row exists and both calls return it."""
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+    source_id = uuid4()
+    payload = build_uploaded_statement_event_payload(
+        SimpleNamespace(id=source_id, created_at=datetime.now(UTC)),
+        "concurrent.pdf",
+    )
+
+    async with sessionmaker() as first_session, sessionmaker() as second_session:
+        first = await upsert_workflow_event(first_session, user_id=test_user.id, payload=payload)
+
+        second_task = asyncio.create_task(upsert_workflow_event(second_session, user_id=test_user.id, payload=payload))
+        await asyncio.sleep(0.2)
+        await first_session.commit()
+
+        second = await asyncio.wait_for(second_task, timeout=5)
+        await second_session.commit()
+
+    async with sessionmaker() as verify_session:
+        events = (
+            (
+                await verify_session.execute(
+                    select(WorkflowEvent)
+                    .where(WorkflowEvent.user_id == test_user.id)
+                    .where(WorkflowEvent.dedupe_key == payload.dedupe_key)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert len(events) == 1
+    assert first.dedupe_key == payload.dedupe_key
+    assert second.dedupe_key == payload.dedupe_key
+
+
+async def test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction(db, test_user) -> None:
+    """AC19.14.2: When the same (user_id, dedupe_key) is inserted twice within one session, the
+    second insert recovers via savepoint, returns the existing row, and the outer transaction stays
+    usable for subsequent reads/flushes (no 'transaction has been rolled back')."""
+    source_id = uuid4()
+    payload = build_uploaded_statement_event_payload(
+        SimpleNamespace(id=source_id, created_at=datetime.now(UTC)),
+        "duplicate.pdf",
+    )
+
+    workflow_session = await get_or_create_active_workflow_session(db, user_id=test_user.id)
+
+    # Pre-existing row with the same dedupe key, committed so it is visible to the next insert.
+    existing = _workflow_event_from_payload(user_id=test_user.id, payload=payload, session_id=workflow_session.id)
+    db.add(existing)
+    await db.commit()
+
+    # Force the racing path: a fresh ORM object inserted directly via the conflict-safe helper.
+    recovered = await _insert_workflow_event_conflict_safe(
+        db, user_id=test_user.id, payload=payload, session_id=workflow_session.id
+    )
+    assert recovered.id == existing.id
+
+    # The outer transaction must still be alive: this flush/read would raise if it were poisoned.
+    await db.flush()
+    count = await db.scalar(
+        select(func.count(WorkflowEvent.id))
+        .where(WorkflowEvent.user_id == test_user.id)
+        .where(WorkflowEvent.dedupe_key == payload.dedupe_key)
+    )
+    assert count == 1
+
+
+async def test_AC19_14_3_sync_tolerates_concurrent_event_creation(db_engine, test_user) -> None:
+    """AC19.14.3: Concurrent sync_workflow_events_for_user runs over the same source state do not
+    500 on the workflow-event dedupe key; the derived uploaded event is created exactly once."""
+    sessionmaker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+    file_hash = uuid4().hex
+    async with sessionmaker() as setup_session:
+        await _make_statement(
+            setup_session,
+            test_user.id,
+            original_filename="race.pdf",
+            file_hash=file_hash,
+            status=BankStatementStatus.UPLOADED,
+        )
+        await setup_session.commit()
+
+    async with sessionmaker() as first_session, sessionmaker() as second_session:
+        await sync_workflow_events_for_user(first_session, user_id=test_user.id)
+        second_task = asyncio.create_task(sync_workflow_events_for_user(second_session, user_id=test_user.id))
+        await asyncio.sleep(0.2)
+        await first_session.commit()
+        await asyncio.wait_for(second_task, timeout=5)
+        await second_session.commit()
+
+    async with sessionmaker() as verify_session:
+        uploaded = (
+            (
+                await verify_session.execute(
+                    select(WorkflowEvent)
+                    .where(WorkflowEvent.user_id == test_user.id)
+                    .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert len(uploaded) == 1

@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `126`
-- Schema count: `210`
+- Endpoint count: `130`
+- Schema count: `214`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -14,7 +14,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Group | Endpoints |
 |---|---:|
-| `accounts` | 8 |
+| `accounts` | 10 |
 | `ai` | 1 |
 | `ai-feedback` | 2 |
 | `assets` | 11 |
@@ -30,8 +30,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
 | `reports` | 21 |
-| `review` | 7 |
-| `statements` | 15 |
+| `review` | 8 |
+| `statements` | 16 |
 | `untagged` | 3 |
 | `user-settings` | 2 |
 | `users` | 5 |
@@ -46,6 +46,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/accounts` | yes | `account_type` (query), `is_active` (query), `include_balance` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_AccountResponse_` | List Accounts |
 | `POST` | `/accounts` | yes | - | `AccountCreate` | `201` `AccountResponse` | Create Account |
 | `GET` | `/accounts/coverage` | yes | `as_of` (query), `stale_after_days` (query) | - | `200` `AccountCoverageListResponse` | List Account Statement Coverage |
+| `GET` | `/accounts/opening-balance-readiness` | yes | - | - | `200` `OpeningBalanceReadinessResponse` | Get Opening Balance Readiness Status |
+| `POST` | `/accounts/opening-balances` | yes | - | `OpeningBalanceRequest` | `201` `JournalEntryResponse` | Post Opening Balances |
 | `GET` | `/accounts/processing/pending` | yes | - | - | `200` `ListResponse_ProcessingPendingItem_` | List Processing Pending |
 | `GET` | `/accounts/processing/summary` | yes | - | - | `200` `ProcessingSummaryResponse` | Get Processing Summary |
 | `GET` | `/accounts/{account_id}` | yes | `account_id`* (path) | - | `200` `AccountResponse` | Get Account |
@@ -215,6 +217,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/review/conflicts/{statement_id}` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
+| `POST` | `/review/conflicts/{statement_id}/resolve` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
 | `POST` | `/statements/batch-approve-matches` | yes | - | `BatchApproveRequest` | `200` object | Batch Approve Matches |
 | `POST` | `/statements/batch-reject-matches` | yes | - | `BatchRejectRequest` | `200` object | Batch Reject Matches |
 | `GET` | `/statements/consistency-checks/list` | yes | `status` (query), `check_type` (query), `run_id` (query), `limit` (query), `offset` (query) | - | `200` `ConsistencyCheckListResponse` | List Consistency Checks |
@@ -233,6 +236,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |
 | `POST` | `/statements/{statement_id}/approve` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Approve Statement |
 | `POST` | `/statements/{statement_id}/brokerage/import` | yes | `statement_id`* (path) | - | `200` `BrokerageImportResponse` | Import Brokerage Statement Positions |
+| `GET` | `/statements/{statement_id}/document` | yes | `statement_id`* (path) | - | `200` - | Get Statement Document |
 | `POST` | `/statements/{statement_id}/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement |
 | `POST` | `/statements/{statement_id}/retry` | yes | `statement_id`* (path) | `RetryParsingRequest` \| null | `200` `BankStatementResponse` | Retry Statement Parsing |
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |

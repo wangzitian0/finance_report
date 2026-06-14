@@ -193,6 +193,34 @@ Expected routing behavior remains threshold-based (See: `docs/ssot/reconciliatio
 | AC13.9.1 | Test full score with all factors | `test_full_score_with_all_factors()` | `extraction/test_extraction.py` | P0 |
 | AC13.9.2 | Test no new factors caps at 85 | `test_no_new_factors_caps_at_85()` | `extraction/test_extraction.py` | P0 |
 
+### AC13.15: Under-Extraction Penalty (issue #967)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.15.1 | Brokerage statement with a single transaction is penalized below the review/auto-approve band | `test_brokerage_single_txn_penalized()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.2 | Brokerage statement with a plausible transaction count is not penalized | `test_brokerage_sufficient_txns_not_penalized()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.3 | Non-brokerage (bank) statement with one transaction keeps its existing score | `test_bank_single_txn_not_penalized()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.4 | `is_brokerage` defaults to False so existing callers are unaffected | `test_default_is_not_brokerage()` | `extraction/test_extraction.py` | P1 |
+| AC13.15.5 | The cap uses the persisted transaction count (after skipped rows), not the raw extracted count | `test_effective_count_uses_persisted_not_extracted()` | `extraction/test_extraction.py` | P1 |
+
+### AC13.18: Vision Extraction Falls Back to Secondary Models (issue #1034)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.18.1 | The vision model list appends `VISION_FALLBACK_MODELS` after the primary OCR/vision model, deduplicated and order-preserving, so more than one model is attempted on the vision path | `test_ocr_model_selection_helpers_deduplicate_vision_models()`, `test_vision_extraction_models_dedupes_fallback_against_primary()`, `test_vision_extraction_models_without_fallbacks_returns_primary_only()`, `test_extract_financial_data_shared_ocr_vision_skips_layout_parser()`, `test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision()` | `extraction/test_extraction_error_paths.py` | P1 |
+| AC13.18.2 | When the primary vision model raises a non-retryable provider error (e.g. a 400), the vision path attempts the configured vision fallback model and succeeds instead of failing the upload | `test_vision_path_falls_back_to_secondary_model_on_non_retryable_error()` | `extraction/test_extraction_error_paths.py` | P1 |
+
+### AC13.14: JSON-Repair Retry (issue #982)
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.14.1 | A markdown json-fenced object (multi-line and single-line) is recovered | `test_strips_json_code_fence()`, `test_strips_single_line_fence()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.2 | Surrounding prose and a bare fence reduce to the outermost balanced object | `test_strips_bare_code_fence_and_prose()`, `test_extract_financial_data_salvages_extra_text()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py` | P1 |
+| AC13.14.3 | An already-clean object round-trips unchanged | `test_clean_object_is_preserved()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.4 | Content with no recoverable JSON object returns None; braces inside strings do not truncate | `test_unrecoverable_returns_none()`, `test_does_not_misread_braces_in_strings()` | `extraction/test_json_repair.py` | P1 |
+| AC13.14.5 | The extraction loop salvages a fenced response instead of rejecting the upload | `test_fenced_response_is_salvaged()`, `test_extract_financial_data_markdown_json()`, `test_extract_financial_data_json_markdown_fallback()` | `extraction/test_json_repair.py`, `extraction/test_extraction_flow.py`, `extraction/test_extraction_error_paths.py` | P1 |
+| AC13.14.6 | A response with no recoverable JSON still fails through the model-chain path | `test_unrecoverable_response_still_fails()` | `extraction/test_json_repair.py` | P1 |
+
 ### AC13.10: Source Type Priority & Conflict Resolution
 
 | ID | Test Case | Test Function | File | Priority |
@@ -244,3 +272,63 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 - All extraction tests pass
 - Lint/type checks pass
 - PR is ready for review with SSOT + project docs updated
+
+### AC13.11: Recovered Coverage
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.11.1 | Dual-write handles duplicate document hash / IntegrityError without failing. | `test_dual_write_layer2_integrity_error_is_non_fatal` | `extraction/test_extraction_error_paths.py` | P1 |
+| AC13.11.2 | Dedup upsert sanitizes malformed source_documents payloads (transaction). | `test_upsert_atomic_transaction_handles_non_list_source_documents` | `extraction/test_deduplication.py` | P1 |
+
+### AC13.13: Extraction Determinism (#989)
+
+The AI vision model is not bit-reproducible and cannot be pinned in CI, but
+everything *downstream* of the model response must be. Given identical extracted
+model output, `confidence_score`, `status` (routing), `validation_error`, and the
+resulting transaction set must be identical on every parse. These ACs pin that
+seam so a regression that re-introduces non-determinism (dict/set iteration order,
+unstable tie-breaking, unseeded randomness) in the scoring/routing pipeline fails
+CI. Model-level reproducibility (the same PDF re-sent to the provider) is a
+separate concern owned by the extraction-retry / temperature configuration, not
+this gate.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.13.1 | Pure scoring + routing functions return identical results across N runs on the same input. | `test_scoring_and_routing_are_deterministic` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.13.2 | Re-parsing identical model output yields identical confidence/status/validation_error across N parses. | `test_repeated_parse_yields_identical_confidence_status_validation` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.13.3 | Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
+
+### AC13.16: Deterministic Decoding — Request Seed (issue #989)
+
+Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the
+model response; this AC pins the *request* so the model itself decodes
+reproducibly: temperature 0 / `do_sample` false plus a fixed `seed`
+(`AI_JSON_SEED`, default 42) forwarded to the provider.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.16.1 | A provided seed is forwarded in the streaming request payload | `test_stream_ai_json_includes_seed_when_provided()` | `ai/test_ai_streaming.py` | P1 |
+| AC13.16.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
+| AC13.16.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
+| AC13.16.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |
+
+### AC13.18: Balance-Aware Self-Consistency Re-extract (issue #989 Step B)
+
+Step A (AC13.16) makes a single decode reproducible; this AC adds the
+**self-consistency** half. When a bank statement's running-balance chain fails to
+reconcile, `_extract_with_balance_retry` re-extracts up to
+`AI_EXTRACT_MAX_ATTEMPTS` times — each attempt with a *varied* seed (configured
+seed, then +1, +2 …) so retries are different-but-reproducible samples — and keeps
+the first parse that reconciles before the statement would route to `uploaded`.
+Brokerage payloads are never retried (they reconcile via Layer-2 positions, not a
+running-balance chain); if no attempt reconciles, the smallest-difference result is
+kept so routing is unchanged. Only failing parses retry, so average cost is bounded.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.18.1 | A reconciling first parse is returned without retry | `test_reconciles_first_attempt_single_call()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.18.2 | A failing parse is retried and the reconciling result wins | `test_retries_until_reconciles()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.18.3 | When no attempt reconciles, the smallest-difference result is kept | `test_keeps_best_when_none_reconcile()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.18.4 | Brokerage payloads are not retried | `test_brokerage_is_not_retried()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.18.5 | Attempt 0 uses the configured seed; retries vary it (seed+1, seed+2 …) | `test_seed_varies_per_attempt()` | `extraction/test_self_consistency.py` | P1 |
+| AC13.18.6 | `AI_EXTRACT_MAX_ATTEMPTS=1` keeps single-shot behavior | `test_max_attempts_one_disables_retry()` | `extraction/test_self_consistency.py` | P1 |

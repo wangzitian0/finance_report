@@ -1,10 +1,12 @@
 """API tests for user management endpoints."""
 
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import User
@@ -47,3 +49,25 @@ async def test_delete_user_does_not_allow_cross_user_deletion(
 
     assert response.status_code == 404
     assert await db.scalar(select(User.id).where(User.id == other_user.id)) == other_user.id
+
+
+async def test_delete_user_with_immutable_entries_returns_409(
+    client: AsyncClient,
+    test_user: User,
+) -> None:
+    """AC2.14.6: when the cascade is blocked by the ledger immutability invariant
+    (posted/reconciled entries), account deletion returns a clean 409, not a leaked 500.
+
+    The invariant is a DB trigger present only on the migrated database, not the
+    metadata-built test schema, so we inject the IntegrityError it raises and assert the
+    endpoint surfaces it as a 409 (see #988: the same condition leaks a 500 on staging).
+    """
+    immutable_violation = IntegrityError(
+        "DELETE FROM users WHERE users.id = $1::UUID",
+        {},
+        Exception("cannot delete immutable journal entry ... with status reconciled"),
+    )
+    with patch.object(AsyncSession, "commit", new_callable=AsyncMock, side_effect=immutable_violation):
+        response = await client.delete(f"/users/{test_user.id}")
+
+    assert response.status_code == 409

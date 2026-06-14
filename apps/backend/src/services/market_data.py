@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, time, timedelta
@@ -36,6 +37,13 @@ _YAHOO_FX_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol
 _YAHOO_STOCK_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 _YAHOO_CHART_URL = _YAHOO_FX_CHART_URL
 _STOOQ_DAILY_URL = "https://stooq.com/q/d/l/"
+# A plausible Yahoo ticker is short, alphanumeric, and may carry an exchange/class
+# suffix (e.g. AAPL, MSFT, BRK.B, 0700.HK) or be an FX pair (e.g. USDSGD). It never
+# contains whitespace and is not free text. Brokerage fund positions store the full
+# fund name (e.g. "CSOP USD MONEY MARKET FUND SGX296797238") as the asset identifier,
+# which is not a ticker and would 404 against Yahoo on every lookup.
+_TICKER_MAX_LENGTH = 15
+_TICKER_PATTERN = re.compile(r"^\^?[A-Za-z0-9]+([.\-=][A-Za-z0-9]+)*$")
 
 
 @dataclass(frozen=True)
@@ -197,6 +205,20 @@ def _normalize_currency(code: str) -> str:
 
 def _normalize_symbol(symbol: str) -> str:
     return symbol.strip().upper()
+
+
+def _looks_like_ticker(symbol: str) -> bool:
+    """Return True when ``symbol`` is plausibly a Yahoo ticker rather than free text.
+
+    Brokerage fund positions store the full fund name (with spaces and identifier
+    codes) as the asset identifier. Those are never valid tickers and 404 against
+    Yahoo on every lookup, so callers should skip the provider request for them.
+    Real tickers (AAPL, MSFT, BRK.B, 0700.HK) and FX pairs (USDSGD) still pass.
+    """
+    candidate = symbol.strip()
+    if not candidate or len(candidate) > _TICKER_MAX_LENGTH:
+        return False
+    return _TICKER_PATTERN.fullmatch(candidate) is not None
 
 
 def _quantize_rate(rate: Decimal) -> Decimal:
@@ -1424,6 +1446,16 @@ async def _fetch_yahoo_stock_price_series(
 ) -> list[StockPriceObservation] | None:
     """Fetch Yahoo Finance stock closes for a bounded date range."""
     normalized = _normalize_symbol(symbol)
+    if not _looks_like_ticker(normalized):
+        # Free-text identifiers (e.g. brokerage fund names) are guaranteed Yahoo 404s.
+        # Skip the request; these positions are valued from their AtomicPosition snapshot.
+        logger.debug(
+            "Skipping Yahoo stock fetch for non-ticker identifier",
+            symbol=normalized,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+        )
+        return None
     url = _YAHOO_STOCK_CHART_URL.format(symbol=quote(normalized, safe=".-"))
     response = await _fetch_provider_response(
         url,

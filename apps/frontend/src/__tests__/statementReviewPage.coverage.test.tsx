@@ -8,7 +8,11 @@ const navigationState = vi.hoisted(() => ({
     searchParams: new URLSearchParams(),
 }));
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api", () => ({
+    apiFetch: vi.fn(),
+    // PdfPreviewPane fetches the document blob on mount (#963 / AC16.33.5).
+    apiDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
+}));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
     useParams: vi.fn(() => ({ id: "s1" })),

@@ -1,9 +1,30 @@
 # Six Environments SSOT
 
 > **SSOT Key**: `environments`
-> **Source of Truth** for all deployment environments, naming conventions, and isolation mechanisms.
+> **App-side view** of how this software *consumes* deployment environments —
+> naming conventions and isolation mechanisms the backend relies on.
 
 *Extracted from [development.md](./development.md) — see that file for Moon commands and local setup.*
+
+!!! warning "Environment taxonomy & telemetry identity are owned by infra2"
+    The canonical **environment taxonomy** and the **observability contract**
+    (OTLP collector endpoint, `deployment.environment` surface alias and its
+    allowed values, and the underlying short-commit-SHA `service.version`
+    telemetry identity) are **owned and issued by infra2** (runtime), not by this
+    App doc (software):
+
+    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity)
+      — environment taxonomy + telemetry identity.
+    - [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+      — single no-suffix OTLP collector and OTLP env vars.
+
+    This App doc describes only how the App **consumes** those environments
+    (which image/data runs where, container/DB/bucket naming the backend connects
+    to). The **App must NOT re-define environments or the observability
+    contract**; it consumes the infra2-issued values via `config.py` and
+    fast-fails on missing required values. Do not restate per-environment
+    collector endpoints or `deployment.environment` values here — see Infra-014 /
+    `AGENTS.md` for the boundary.
 
 ---
 
@@ -161,10 +182,18 @@ The production Platform layer (SigNoz, MinIO, Traefik) runs as **Singleton** ser
 
 | Service | Scope | Isolation Method | Example |
 |---------|-------|------------------|---------|
-| **SigNoz** | Singleton | `deployment.environment` tag | `staging`, `production`, `pr-47` |
+| **SigNoz** | Singleton | infra2-owned telemetry identity (see below) | — |
 | **MinIO** (Prod) | Singleton | Separate buckets | `finance-report-staging`, `finance-report-production` |
 | **Postgres** | Dedicated | Separate containers/instances | One per environment |
 | **Redis** | Dedicated | Separate containers/instances | One per environment |
+
+SigNoz is a single global instance shared across environments; how App logs are
+separated (the `deployment.environment` surface alias and its allowed values) is
+part of the **infra2-owned** observability contract —
+[`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+and
+[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
+This App doc does not enumerate those values.
 
 **Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared SigNoz.
 

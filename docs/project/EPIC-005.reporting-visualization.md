@@ -127,6 +127,9 @@ Accounting Equation Verification: Reports must comply with accounting equation
 |----|-----------|---------------|------|----------|
 | AC5.3.1 | Statement Generation | `test_cash_flow_statement` | `reporting/test_reporting.py` | P0 |
 | AC5.3.2 | Empty Period Handling | `test_cash_flow_empty_period` | `reporting/test_reporting.py` | P1 |
+| AC5.3.3 | Test getting account trend with different period. | `test_account_trend_with_period` | `api/test_reports_router.py` | P1 |
+| AC5.3.4 | Test getting category breakdown. | `test_category_breakdown_success` | `api/test_reports_router.py` | P1 |
+| AC5.3.5 | Test getting category breakdown with different period. | `test_category_breakdown_with_period` | `api/test_reports_router.py` | P1 |
 
 ### AC5.4: FX & Multi-Currency
 
@@ -143,6 +146,9 @@ Accounting Equation Verification: Reports must comply with accounting equation
 |----|-----------|---------------|------|----------|
 | AC5.5.1 | Report Generation Error | `test_reports_router_errors_extended` | `reporting/test_reports_errors.py` | P1 |
 | AC5.5.2 | Router Error Handling | `TestReportsRouterErrors` | `reporting/test_reports_router_errors.py` | P1 |
+| AC5.5.3 | Test that unauthenticated clients cannot access reports endpoints. | `test_unauthenticated_access` | `api/test_reports_router.py` | P1 |
+| AC5.5.4 | Reports Router Tests | `test_reports_router` | `reporting/test_reports_router.py` | P1 |
+| AC5.5.5 | GET /reports/{type}/snapshots returns persisted snapshots. | `test_list_report_snapshots_returns_created_snapshots` | `api/test_reports_router.py` | P1 |
 
 ### AC5.6: Investment & Portfolio KPIs
 
@@ -154,6 +160,11 @@ Accounting Equation Verification: Reports must comply with accounting equation
 | AC5.6.4 | Annualized income KPI is surfaced through the dashboard/reporting path and delegates calculation ownership to AC11.8.1 | `test_annualized_income_endpoint_groups_last_12_month_income`, `AC11.8.2/AC11.8.6 renders Annualized Income card with the four metric labels` | `reporting/test_income_annualized_router.py`, `frontend/src/__tests__/dashboardPage.test.tsx` | P0 |
 | AC5.6.5 | Unrealized P&L reflected in balance sheet equity | `test_reporting_dashboard_fixture_exact_totals` | `reporting/test_reporting.py` | P0 |
 | AC5.6.6 | MWR (money-weighted return) matches XIRR for single cashflow | `test_AC5_6_6_money_weighted_return_matches_xirr_for_single_cashflow` | `portfolio/test_performance_service.py` | P1 |
+| AC5.6.7 | Report output lists currencies that used average-rate spot fallback. | `test_income_statement_includes_average_rate_fallback_warning` | `reporting/test_reporting_fx_revaluation_integration.py` | P1 |
+| AC5.6.8 | Account trend raises when prefetched non-base FX rate is missing. | `test_account_trend_raises_when_prefetched_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
+| AC5.6.9 | Category breakdown raises when prefetched non-base FX rate is missing. | `test_category_breakdown_raises_when_prefetched_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
+| AC5.6.10 | Cash flow raises when start-date non-base FX rate is missing. | `test_cash_flow_raises_when_start_date_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
+| AC5.6.11 | Cash flow raises when end-date rate missing; FxRateError propagated. | `test_cash_flow_raises_when_end_date_rate_missing` | `reporting/test_reporting_extreme_fallbacks.py` | P1 |
 
 ### AC5.8: Personal Report Package Investment Performance Consumption
 
@@ -315,6 +326,12 @@ same package after later ledger or market-data changes.
 | AC5.19.2 | `GET /api/reports/package/snapshots` and `GET /api/reports/package/snapshots/{snapshot_id}` list and reopen only the current user's saved package snapshots, and reopening returns the original payload after live report inputs change | `test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.19.3 | Package JSON and CSV downloads are derived from a saved snapshot rather than recalculating live data | `test_AC5_19_3_package_snapshot_exports_are_snapshot_derived` | `api/test_personal_report_package_contract.py` | P0 |
 | AC5.19.4 | The package page shows recent snapshots, can generate a new snapshot, and downloads JSON/CSV from the saved snapshot artifact | `AC5.19.4 generates and downloads package snapshots` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 |
+
+### AC5.20: Year-Scale Reporting Validation ([#951](https://github.com/wangzitian0/finance_report/issues/951))
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.20.1 | At a full year's transaction volume (~1000 entries) the balance sheet, income statement, and cash flow tie out and generate within a generous wall-clock backstop — guarding the income-statement aggregation against a silent O(n^2) regression | `test_AC5_20_year_scale_reporting_ties_out_within_budget` | `reporting/test_year_scale_reporting.py` | P1 |
 
 ## 📏 Acceptance Criteria
 

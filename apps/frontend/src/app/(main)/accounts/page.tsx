@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Scale, Trash2 } from "lucide-react";
 
 import AccountFormModal from "@/components/accounts/AccountFormModal";
+import OpeningBalanceModal from "@/components/accounts/OpeningBalanceModal";
 import AccountDetailsSidebar from "@/components/accounts/AccountDetailsSidebar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -20,6 +21,7 @@ export default function AccountsPage() {
     const queryClient = useQueryClient();
     const [activeFilter, setActiveFilter] = useState<string>("All");
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isOpeningBalanceOpen, setIsOpeningBalanceOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
@@ -28,6 +30,16 @@ export default function AccountsPage() {
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["accounts"],
         queryFn: () => apiFetch<AccountListResponse>("/api/accounts?include_balance=true"),
+    });
+
+    // #949: nudge the user if they have activity but no recorded opening balances,
+    // so they don't silently ship an incomplete balance sheet.
+    const { data: readiness } = useQuery({
+        queryKey: ["opening-balance-readiness"],
+        queryFn: () =>
+            apiFetch<{ needs_opening_balance: boolean; earliest_activity_date: string | null }>(
+                "/api/accounts/opening-balance-readiness",
+            ),
     });
 
     const deleteMutation = useMutation({
@@ -80,12 +92,42 @@ export default function AccountsPage() {
                 title="Accounts"
                 description="Manage your chart of accounts"
                 actions={(
-                    <Button onClick={() => { setEditingAccount(null); setIsModalOpen(true); }} className="flex items-center gap-2">
-                        <Plus className="h-4 w-4" aria-hidden="true" />
-                        Add Account
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            variant="secondary"
+                            onClick={() => setIsOpeningBalanceOpen(true)}
+                            className="flex items-center gap-2"
+                        >
+                            <Scale className="h-4 w-4" aria-hidden="true" />
+                            Set opening balances
+                        </Button>
+                        <Button onClick={() => { setEditingAccount(null); setIsModalOpen(true); }} className="flex items-center gap-2">
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            Add Account
+                        </Button>
+                    </div>
                 )}
             />
+
+            {/* #949 readiness nudge: warn before shipping a silently-incomplete balance sheet. */}
+            {readiness?.needs_opening_balance && (
+                <Alert variant="warning" className="mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                            Your balance sheet may be incomplete — you have activity
+                            {readiness.earliest_activity_date ? ` since ${readiness.earliest_activity_date}` : ""} but
+                            no opening balances recorded. Set your starting balances so reports tie out from day one.
+                        </span>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setIsOpeningBalanceOpen(true)}
+                            className="shrink-0"
+                        >
+                            Set opening balances
+                        </Button>
+                    </div>
+                </Alert>
+            )}
 
             {/* Tabs */}
             <div className="mb-6 flex w-full flex-wrap gap-1 rounded-lg bg-[var(--background-muted)] p-1 sm:w-fit">
@@ -144,8 +186,8 @@ export default function AccountsPage() {
                             </div>
                             <div className="divide-y divide-[var(--border)]">
                                 {typeAccounts.map((account) => (
-                                    <div 
-                                        key={account.id} 
+                                    <div
+                                        key={account.id}
                                         data-testid={`account-row-${account.id}`}
                                         className="flex cursor-pointer flex-col gap-3 px-4 py-4 transition-colors hover:bg-[var(--background-muted)]/50 sm:flex-row sm:items-center sm:justify-between sm:px-6"
                                         onClick={() => setSelectedAccount(account)}
@@ -191,6 +233,17 @@ export default function AccountsPage() {
                 onClose={() => { setIsModalOpen(false); setEditingAccount(null); }}
                 onSuccess={handleModalSuccess}
                 editAccount={editingAccount}
+            />
+
+            <OpeningBalanceModal
+                isOpen={isOpeningBalanceOpen}
+                onClose={() => setIsOpeningBalanceOpen(false)}
+                onSuccess={() => {
+                    showToast("Opening balances recorded", "success");
+                    queryClient.invalidateQueries({ queryKey: ["accounts"] });
+                    queryClient.invalidateQueries({ queryKey: ["opening-balance-readiness"] });
+                }}
+                accounts={accounts}
             />
 
             <ConfirmDialog

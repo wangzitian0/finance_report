@@ -174,6 +174,9 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC ID | Description | Status |
 |-------|-------------|--------|
 | AC16.6.1 | `formatDateInput` formats `Date` as `YYYY-MM-DD` with zero-padded month and day | ⏳ |
+| AC16.6.2 | formats a Date object to en-US short date", () => { | `date.test` | `__tests__/date.test.ts` | P1 |
+| AC16.6.3 | formats a Date object with date and time", () => { | `date.test` | `__tests__/date.test.ts` | P1 |
+| AC16.6.4 | returns short month name from date string", () => { | `date.test` | `__tests__/date.test.ts` | P1 |
 
 ### AC16.7 — Frontend Theme Utility (`lib/theme`)
 
@@ -218,6 +221,11 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.10.12 | `apiUpload` returns `undefined` on `204 No Content` | ⏳ |
 | AC16.10.13 | `apiFetch` normalizes path without leading slash | ⏳ |
 | AC16.10.14 | `apiFetch` includes `Authorization` header when token is present | ⏳ |
+| AC16.10.15 | handles 401 redirect in apiDelete', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.16 | includes Authorization header when token present', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.17 | handles 401 redirect in apiUpload', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.18 | throws with detail message on JSON error response', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
+| AC16.10.19 | throws with raw text on non-JSON error response', async () => { | `apiFunctions.test` | `__tests__/apiFunctions.test.ts` | P1 |
 
 ### AC16.11 — Dev Tooling / Infra Commands (Infra)
 
@@ -276,6 +284,10 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.12.10 | Ping-pong page renders retry flow when initial load fails | ⏳ |
 | AC16.12.11 | Reports page renders all report cards with links for available reports | ⏳ |
 | AC16.12.12 | Reports page displays accounting equation section content | ⏳ |
+| AC16.12.13 | toggles password visibility", () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
+| AC16.12.14 | shows error with alert role and aria-live", async () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
+| AC16.12.15 | shows mode toggle links", () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
+| AC16.12.16 | shows loading spinner during submission", async () => { | `loginPage.test` | `__tests__/loginPage.test.tsx` | P1 |
 
 ### AC16.13 — Test Lifecycle Infrastructure (Infra)
 
@@ -379,6 +391,12 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.19.9 | Toast provider shows, dismisses, and auto-expires notifications | ⏳ |
 | AC16.19.10 | Bar and pie chart components render semantic labels and filtered data | ⏳ |
 | AC16.19.11 | Trend chart renders line/area paths and point labels for provided series | ⏳ |
+| AC16.19.12 | sidebar nav shows Portfolio label for /assets route", async () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.13 | WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.14 | WorkspaceTabs section header is Open Tabs in both empty and active states", () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.15 | navigates workspace pages with ArrowRight keyboard", () => { | `sidebarAndTabs.test` | `__tests__/sidebarAndTabs.test.tsx` | P1 |
+| AC16.19.16 | renders dialog with ARIA attributes", () => { | `confirmDialogComponent.test` | `__tests__/confirmDialogComponent.test.tsx` | P1 |
+| AC16.19.17 | traps focus with Tab and Shift+Tab", () => { | `confirmDialogComponent.test` | `__tests__/confirmDialogComponent.test.tsx` | P1 |
 
 ### AC16.20 — Reconciliation Workbench and Chat Panel Components
 
@@ -389,6 +407,8 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.20.3 | Unmatched board loads transactions and creates journal entry for selected item | ⏳ |
 | AC16.20.4 | Unmatched board flag and ignore actions update list and local state | ⏳ |
 | AC16.20.5 | Chat panel sends streaming responses, loads suggestions/history, and clears session | ⏳ |
+| AC16.20.6 | score distribution renders 0% height for buckets with value 0", async () => { | `reconciliationWorkbenchComponent.test` | `__tests__/reconciliationWorkbenchComponent.test.tsx` | P1 |
+| AC16.20.7 | handles missing stream reader", async () => { | `chatPanelComponent.test` | `__tests__/chatPanelComponent.test.tsx` | P1 |
 
 ### AC16.21 — Account Form, Journal Entry Form, Sankey Chart, Workspace Provider
 
@@ -420,6 +440,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.22.7 | Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | P0 |
 | AC16.22.8 | A statement routed to `parsed`/review carries `stage1_status = pending_review` explicitly (never NULL) | `test_parsed_statement_sets_stage1_pending_review` | `extraction/test_extraction_flow.py` | P1 |
 | AC16.22.9 | `UploadedDocument.status` advances to `completed` once a successful parse is persisted (no longer stuck at `uploaded`) | `test_dual_write_marks_document_completed` | `extraction/test_dual_write_layer2.py` | P1 |
+| AC16.22.10 | A hard parse failure persists an `UploadedDocument` (status `failed`) so the uploaded raw file stays traceable from the rejected statement | `test_handle_parse_failure_persists_failed_document_lineage` | `extraction/test_extraction_error_paths.py` | P1 |
 
 ### AC16.25 — Mobile Review UX Hardening
 
@@ -488,7 +509,8 @@ model.
 | AC16.31.2 | Stage 1 approval is disabled unless both opening and closing balance validation match | `AC16.31.2 disables approval when opening balance validation fails` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
 | AC16.31.3 | Stage 2 run review page states that it uses the shared Stage 2 queue endpoint when no run-scoped queue API exists | `AC16.24.1 and AC16.24.2 summarizes unresolved run checks and blocks approval` | `apps/frontend/src/__tests__/reviewRunPage.test.tsx` | P0 |
 | AC16.31.4 | Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation | `AC16.20.4 supports flag and ignore actions` / `creates all entries with batch action` | `apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx` | P0 |
-| AC16.33.4 | Stage 1 statement review PDF previews use short-lived presigned URLs and sandboxed iframe embedding | `test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl` / `AC16.33.4 sandboxes PDF preview URLs` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/reviewPages.test.tsx` | P0 |
+| AC16.33.4 | Stage 1 statement review PDF previews use short-lived presigned URLs and sandboxed iframe embedding (backend presign contract; frontend embedding superseded by AC16.33.5) | `test_AC16_33_4_get_statement_for_review_uses_short_presign_ttl` | `apps/backend/tests/api/test_statements_router.py` | P0 |
+| AC16.33.5 | Stage 1 PDF preview embeds the statement document via an authenticated same-origin `GET /api/statements/{id}/document` endpoint rendered as a sandboxed `blob:` object URL (CSP `frame-src 'self' blob:`), fixing the cross-origin/blocked iframe (#963) | `test_AC16_33_5_get_statement_document_streams_bytes_same_origin`, `test_AC16_33_5_get_statement_document_404_when_no_document`, `test_AC16_33_5_get_statement_document_storage_error_maps_to_502` / `AC16.33.5 embeds the document as a same-origin sandboxed blob URL`, `AC16.33.5 shows a fallback and skips the fetch when no document exists` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/reviewPages.test.tsx` | P0 |
 
 ### AC16.32 — Review Workflow Hardening
 
@@ -497,6 +519,20 @@ model.
 | AC16.32.1 | Stage 1 approval and edit-approval are blocked while duplicate or transfer-pair conflict candidates remain unresolved | `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts`, `AC16.32.1 disables approval while conflict candidates are unresolved` | `apps/backend/tests/api/test_statements_router.py`, `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
 | AC16.32.2 | Stage 1 balance validation UI reports opening and closing checks separately so reviewers see the same gate enforced by the backend | `AC16.32.2 shows opening and closing balance validation states separately` | `apps/frontend/src/__tests__/statementReviewPage.test.tsx` | P0 |
 | AC16.32.3 | Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size | `AC16.32.3 requests an expanded consistency-check limit for unblockable queues`, `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `apps/frontend/src/__tests__/reviewQueuePage.test.tsx`, `apps/backend/tests/api/test_statements_router.py` | P0 |
+
+### AC16.34 — Stage-1 Conflict Resolution ([#962](https://github.com/wangzitian0/finance_report/issues/962))
+
+A statement with an inherent (legitimate) duplicate or transfer-pair candidate
+was permanently stuck in `parsed`: the conflict guard blocked approval and there
+was no way to record the reviewer's decision. These ACs add a resolution path so
+the reviewer can confirm the rows are genuinely distinct (or a real transfer
+pair) and unblock approval.
+
+| AC ID | Description | Tests | Files | Priority |
+|-------|-------------|-------|-------|----------|
+| AC16.34.1 | `POST /api/review/conflicts/{statement_id}/resolve` records the reviewer's resolution; the Stage-1 approval guard honors it so a previously-blocked statement with duplicate/transfer-pair candidates can be approved, and an unknown statement returns 404 | `test_AC16_34_1_resolve_unblocks_stage1_approval`, `test_AC16_34_1_resolve_conflicts_404_for_unknown_statement` | `apps/backend/tests/api/test_statements_router.py` | P0 |
+| AC16.34.2 | A reject/reparse clears a prior conflict resolution so the fresh transaction set must be re-reviewed | `test_AC16_34_2_reject_clears_conflict_resolution` | `apps/backend/tests/api/test_statements_router.py` | P0 |
+| AC16.34.3 | The ConflictResolutionDialog `Resolve` / `Link Pair` buttons call the resolve endpoint with the matching action and disable while a resolution is in flight (previously dead, no-op buttons) | `AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action`, `AC16.34.3 disables the action buttons while a resolution is in flight` | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | P0 |
 
 ### Acceptance Criteria — Feature (group 28, frontend UI system primitives)
 

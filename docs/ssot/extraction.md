@@ -73,9 +73,14 @@ write path and no dual-write flag.
 - Status tracking: `uploaded` → `processing` → `completed`
 
 **DWD: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
-- Deduplicated via SHA256 hash of core fields. For transactions the hash includes
-  the statement running balance (`balance_after`), so two real but otherwise
-  identical transactions stay distinct while genuine duplicate extractions collapse.
+- Deduplicated via SHA256 hash of core fields
+  (`SHA256(user_id|date|amount|direction|description|reference|disambiguator)`).
+  The disambiguator is the persisted statement running balance (`balance_after`)
+  when the model supplies it, else a per-occurrence `#occurrence_index` fallback
+  (`DeduplicationService.calculate_transaction_hash`). Either way two real but
+  otherwise-identical transactions stay distinct, while a genuine duplicate
+  extraction of the same row collapses onto the existing record. `balance_after`
+  is persisted on the row so the hash is reproducible on re-import.
 - Per-transaction fields (`txn_date`, `amount`, `direction`, `description`,
   `reference`, `currency`, `balance_after`) live on `AtomicTransaction`. Atomic
   rows are source-pure: they carry no per-transaction status, confidence, or
@@ -119,9 +124,30 @@ no source statement balances were provided.
 - 60-84: Review queue
 - <60: Manual entry required
 
+**The ~90 ceiling.** The Balance Progression component (10%) is only awarded
+when transactions carry a per-line running `balance_after` chain. Statements
+that omit per-line balances (most bank/brokerage PDFs) therefore top out near 90
+even when every other factor is perfect. This is an inherent ceiling of the
+weighting, not a scoring defect — a higher score requires source data that
+exposes the running balance per row.
+
+**Under-extraction guard.** A brokerage statement that yields fewer than
+`BROKERAGE_MIN_PLAUSIBLE_TXNS` (2) transactions is a strong under-capture signal
+— comparable brokerage statements extract ~10 rows. `compute_confidence_score`
+caps such parses at `UNDER_EXTRACTION_SCORE_CAP` (60) so under-capture never
+presents as high confidence.
+
 If a high-confidence statement fails any Stage 1 posting guard, the parser must
 preserve the extracted statement and transactions, set the statement to parsed
 pending review, and expose the guard reason for human correction.
+
+**CSV without source balances never auto-approves.** A CSV export that carries
+no source statement opening/closing balances is parsed with
+`balance_source = inferred_from_csv_transactions`; the parser forces the
+statement to `parsed` (review) with `balance_validated = false`, and the
+confidence score excludes the balance-validation component
+(`balance_proof_available = false`). Inferred `0 + transactions = closing` is
+not balance proof and must not satisfy the auto-approve precondition.
 
 ## API Endpoints
 
@@ -158,6 +184,24 @@ pending review, and expose the guard reason for human correction.
 
 Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/services/brokerage_positions.py`.
 
+### Post-parse routing (intentional difference vs bank statements)
+
+Routing after parsing depends on the document class, on purpose (#981):
+
+- **Bank statements** route via `route_by_threshold(confidence, balance_valid)`: an invalid
+  running-balance chain sends them to `uploaded` (manual entry), and high confidence + valid
+  balance can auto-approve. **Exception:** CSV exports without source statement balances take the
+  inferred-balance path (`has_inferred_csv_balances`), which forces `parsed`/review with
+  `balance_valid = False` rather than routing to `uploaded` — so they remain reviewable instead of
+  demanding manual entry.
+- **Brokerage statements** always route to `parsed` (review) regardless of `balance_valid`,
+  because they reconcile via `AtomicPosition` position snapshots rather than a running-balance
+  chain — `balance_valid` is not a meaningful gating signal for them.
+
+So the same "balance invalid" outcome lands a (non-CSV) bank statement in `uploaded` but a
+brokerage statement in `parsed`. This is by design, not a routing bug. Owner: `ExtractionService`
+status selection (`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
+
 Parsing priority:
 1. Prefer structured `positions`, `holdings`, or `securities` arrays from OCR/LLM output.
 2. For Moomoo, recover money-market fund snapshots from subscription rows when no holdings table is available.
@@ -191,9 +235,11 @@ PRIMARY_MODEL=glm-5.1
 OCR_MODEL=glm-4.6v
 VISION_MODEL=glm-4.6v
 FALLBACK_MODELS=glm-5-turbo,glm-5
+VISION_FALLBACK_MODELS=glm-4.5v
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
+AI_JSON_SEED=42
 AI_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
@@ -207,10 +253,31 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 
 ## Parsing Resilience
 
+- **Deterministic decoding**: JSON extraction pins `temperature=0` and
+  `do_sample=false`, and forwards a fixed request `seed` (`AI_JSON_SEED`,
+  default `42`) so the same statement decodes reproducibly. This keeps
+  `balance_validated`, `confidence_score`, and Stage-1 routing from flipping
+  between uploads of the same source (#989). Set `AI_JSON_SEED=` (empty) to omit
+  the seed for providers that reject it.
+- **Balance-aware self-consistency re-extract**: when a bank statement's
+  running-balance chain fails to reconcile, `_extract_with_balance_retry`
+  re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed —
+  configured seed, then +1, +2 …) and keeps the first parse that reconciles before
+  routing to `uploaded` (#989 Step B). Brokerage payloads are never retried; if no
+  attempt reconciles, the smallest-difference result is kept so routing is
+  unchanged. Only failing parses retry, so average cost is bounded; set
+  `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
   `src/services/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests.
+- **JSON-repair retry**: when a model returns an otherwise-valid object wrapped in
+  a markdown code fence or padded with prose, `_extract_json_with_models` performs
+  one deterministic repair pass (strip the fence, extract the outermost balanced
+  `{...}` object, tracking string literals) before counting a `json_parse` failure.
+  This keeps a single malformed-but-recoverable response from rejecting an
+  otherwise-valid upload (#982). The repair never invents data and falls back to the
+  existing model-chain failure path when no object can be recovered.
 - **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
   with a validation error so users can retry.
 - **Error handler rollback-first**: `_handle_parse_failure` calls `db.rollback()` before re-fetching
@@ -247,7 +314,8 @@ slice is registered.
 - **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/ai/models` returns the configured provider catalog for UI dropdowns (filterable by modality).
-- **Fallback models**: `FALLBACK_MODELS` are used after OCR text extraction when `PRIMARY_MODEL` fails.
+- **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5-turbo,glm-5`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
+- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-4.5v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
 
 ## Data Integrity & Typing
 

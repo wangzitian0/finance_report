@@ -83,6 +83,7 @@ nav:
   - Technical Docs:
       - Architecture: ssot/README.md
       - Development Guide: ssot/development.md
+      - Environment Reference: ssot/env-reference.generated.md
       - Environments: ssot/environments.md
       - CI/CD: ssot/ci-cd.md
       - Coverage: ssot/coverage.md
@@ -112,7 +113,9 @@ nav:
   - Governance:
       - Agent Orchestration: agents/orchestration.md
       - Red Lines: agents/red-lines.md
+      - App/Infra Contract Boundary: agents/app-infra-contract-boundary.md
       - Branch Policy: contributing/branch-policy.md
+      - Staging Test-Account Cleanup: contributing/staging-test-account-cleanup.md
   - Development:
       - Project Overview: project/README.md
       - Design Decisions: project/DECISIONS.md

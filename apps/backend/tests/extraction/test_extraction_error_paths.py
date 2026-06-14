@@ -6,17 +6,55 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from src.models.layer1 import DocumentStatus, UploadedDocument
 from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.services.deduplication import dual_write_layer2
 from src.services.extraction import ExtractionError, ExtractionService
+from src.services.statement_parsing import handle_parse_failure
 from tests.factories import StatementSummaryFactory
 
 
 async def mock_stream_generator(content: str):
     """Helper to create async generator for streaming mock."""
     yield content
+
+
+async def test_handle_parse_failure_persists_failed_document_lineage(db, test_user):
+    """AC16.22.10: a hard parse failure persists an UploadedDocument(failed) so the uploaded raw
+    file stays traceable from the rejected statement (#982). The document is normally created on
+    success in dual_write; a failure happens before that, so without this the raw file is orphaned.
+    """
+    statement = await StatementSummaryFactory.create_async(db, user_id=test_user.id, status=BankStatementStatus.PARSING)
+    await db.commit()
+
+    await handle_parse_failure(
+        statement,
+        db,
+        message="All 1 models failed. Breakdown: 1 json_parse.",
+        file_hash=statement.file_hash,
+        storage_key=f"statements/{statement.id}/abc123.pdf",
+        original_filename="futu-2506.pdf",
+    )
+
+    doc = (
+        await db.execute(
+            select(UploadedDocument)
+            .where(UploadedDocument.user_id == test_user.id)
+            .where(UploadedDocument.file_hash == statement.file_hash)
+        )
+    ).scalar_one()
+    assert doc.status == DocumentStatus.FAILED
+    assert doc.original_filename == "futu-2506.pdf"
+    # The raw file must stay retrievable: the document points at the storage key we uploaded to.
+    assert doc.file_path == f"statements/{statement.id}/abc123.pdf"
+
+    refreshed = await db.get(StatementSummary, statement.id)
+    assert refreshed.status == BankStatementStatus.REJECTED
+    assert refreshed.uploaded_document_id == doc.id
 
 
 async def test_parse_document_csv_no_content():
@@ -183,11 +221,16 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
 
 
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
-    """AC8.12.6: Shared OCR/vision model uses one vision call and skips layout parsing."""
+    """AC8.12.6: Shared OCR/vision model uses one vision call and skips layout parsing.
+
+    AC13.18.1: the configured vision fallback model is appended after the primary
+    so more than one model is attempted on the vision path (#1034).
+    """
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = "glm-4.6v"
     service.vision_model = "glm-4.6v"
+    service.vision_fallback_models = ["glm-4.5v"]
 
     mock_ocr = AsyncMock()
     mock_extract = AsyncMock(return_value={"transactions": []})
@@ -204,27 +247,99 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     assert result == {"transactions": []}
     mock_ocr.assert_not_awaited()
     call = mock_extract.await_args.kwargs
-    assert call["models"] == ["glm-4.6v"]
+    assert call["models"] == ["glm-4.6v", "glm-4.5v"]
     assert call["messages"][0]["content"][1] == image_payload
 
 
-def test_ocr_model_selection_helpers_deduplicate_vision_models():
-    """AC8.12.6: OCR/vision helper rules avoid duplicate provider calls."""
+async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error():
+    """AC13.18.2: when the primary vision model raises a non-retryable provider
+    error (e.g. a 400), the vision path attempts the configured vision fallback
+    model and succeeds instead of failing the upload (#1034)."""
+    from src.services.ai_streaming import AIStreamError
+
     service = ExtractionService()
+    service.api_key = "test-key"
+    service.ocr_model = "glm-4.6v"
+    service.vision_model = "glm-4.6v"
+    service.vision_fallback_models = ["glm-4.5v"]
+
+    attempted_models: list[str] = []
+
+    def fake_stream_ai_json(*, model, **kwargs):
+        attempted_models.append(model)
+        if model == "glm-4.6v":
+            raise AIStreamError(
+                'provider=zai model=glm-4.6v status_code=400 {"code":"1210","message":"Invalid API parameter"}',
+                retryable=False,
+            )
+        return f"stream:{model}"
+
+    async def fake_accumulate_stream(stream):
+        assert stream == "stream:glm-4.5v"
+        return '{"transactions": []}'
+
+    image_payload = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+    }
+
+    with (
+        patch.object(service, "_build_vision_media_payloads", return_value=[image_payload]),
+        patch("src.services.extraction.stream_ai_json", side_effect=fake_stream_ai_json),
+        patch("src.services.extraction.accumulate_stream", side_effect=fake_accumulate_stream),
+    ):
+        result = await service.extract_financial_data(b"content", "DBS", "pdf")
+
+    assert result == {"transactions": []}
+    # The primary vision model is attempted first, then the configured fallback.
+    assert attempted_models == ["glm-4.6v", "glm-4.5v"]
+
+
+def test_ocr_model_selection_helpers_deduplicate_vision_models():
+    """AC8.12.6: OCR/vision helper rules avoid duplicate provider calls.
+
+    AC13.18.1: configured vision fallbacks are appended to the vision model list,
+    deduplicated and order-preserving, so more than one model is attempted on the
+    vision path (#1034).
+    """
+    service = ExtractionService()
+    service.vision_fallback_models = ["glm-4.5v"]
 
     service.ocr_model = "glm-4.6v"
     service.vision_model = "glm-4.6v"
     assert service._uses_dedicated_layout_ocr() is False
-    assert service._vision_extraction_models() == ["glm-4.6v"]
+    assert service._vision_extraction_models() == ["glm-4.6v", "glm-4.5v"]
 
     service.ocr_model = "layout-ocr-model"
     service.vision_model = "glm-4.6v"
     assert service._uses_dedicated_layout_ocr() is True
-    assert service._vision_extraction_models() == ["layout-ocr-model", "glm-4.6v"]
+    assert service._vision_extraction_models() == ["layout-ocr-model", "glm-4.6v", "glm-4.5v"]
 
     service.ocr_model = ""
     service.vision_model = "glm-4.6v"
     assert service._uses_dedicated_layout_ocr() is False
+    assert service._vision_extraction_models() == ["glm-4.6v", "glm-4.5v"]
+
+
+def test_vision_extraction_models_dedupes_fallback_against_primary():
+    """AC13.18.1: a vision fallback equal to the primary vision/OCR model is not
+    attempted twice; ordering of the remaining fallbacks is preserved (#1034)."""
+    service = ExtractionService()
+    service.ocr_model = "glm-4.6v"
+    service.vision_model = "glm-4.6v"
+    service.vision_fallback_models = ["glm-4.6v", "glm-4.5v", "glm-4.5v"]
+
+    assert service._vision_extraction_models() == ["glm-4.6v", "glm-4.5v"]
+
+
+def test_vision_extraction_models_without_fallbacks_returns_primary_only():
+    """AC13.18.1: with no configured vision fallbacks the list is unchanged, so
+    deployments that opt out keep the prior single-model behavior (#1034)."""
+    service = ExtractionService()
+    service.ocr_model = "glm-4.6v"
+    service.vision_model = "glm-4.6v"
+    service.vision_fallback_models = []
+
     assert service._vision_extraction_models() == ["glm-4.6v"]
 
 
@@ -353,6 +468,7 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
     service.api_key = "test-key"
     service.ocr_model = "layout-ocr-model"
     service.vision_model = "glm-4.6v"
+    service.vision_fallback_models = ["glm-4.5v"]
 
     mock_ocr = AsyncMock(side_effect=ExtractionError("layout parser unavailable"))
     mock_extract = AsyncMock(return_value={"transactions": []})
@@ -369,7 +485,8 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
     assert result == {"transactions": []}
     mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
     call = mock_extract.await_args.kwargs
-    assert call["models"] == ["layout-ocr-model", "glm-4.6v"]
+    # AC13.18.1: the vision fallback model is appended after the primary vision model.
+    assert call["models"] == ["layout-ocr-model", "glm-4.6v", "glm-4.5v"]
     assert call["messages"][0]["content"][1] == image_payload
 
 
@@ -393,29 +510,30 @@ async def test_extract_financial_data_all_models_fail():
 
 
 async def test_extract_financial_data_json_markdown_fallback():
+    """AC13.14.5: a markdown-fenced but otherwise-valid response is salvaged (#982)."""
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
 
-    # Current code rejects markdown wrapping - test that it properly rejects
     content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
 
     with patch("src.services.extraction.stream_ai_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        with pytest.raises(ExtractionError, match="strict JSON object.*no markdown"):
-            await service.extract_financial_data(
-                b"content",
-                "DBS",
-                "pdf",
-                file_url="https://example.com/file.pdf",
-            )
+        result = await service.extract_financial_data(
+            b"content",
+            "DBS",
+            "pdf",
+            file_url="https://example.com/file.pdf",
+        )
+        assert result == {"account_last4": "1234"}
 
 
 async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
+    service.vision_fallback_models = []  # isolate single-model JSON-parse behavior
 
     # Invalid JSON - should fail with JSON parse error immediately
     content = "Invalid JSON without markdown that is clearly not empty"
@@ -919,6 +1037,7 @@ async def test_extract_empty_model_in_list_skipped():
     service.primary_model = ""  # Empty string model
     service.ocr_model = ""
     service.vision_model = ""
+    service.vision_fallback_models = []  # no fallbacks -> empty model list
 
     # With empty primary_model, the only model is "", which should be skipped
     # Then we fall to line 604: raise last_error or ExtractionError(...)
@@ -935,6 +1054,7 @@ async def test_extract_empty_ai_response():
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = None
+    service.vision_fallback_models = []  # isolate single-model empty-response behavior
 
     with (
         patch("src.services.extraction.stream_ai_json"),
@@ -1001,6 +1121,7 @@ async def test_extract_no_models_tried_fallback_error():
     service.primary_model = ""
     service.ocr_model = ""
     service.vision_model = ""
+    service.vision_fallback_models = []  # no fallbacks -> empty model list
 
     with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
         await service.extract_financial_data(

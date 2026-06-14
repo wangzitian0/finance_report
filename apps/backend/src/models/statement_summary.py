@@ -122,4 +122,14 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     balance_validation_result: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
     stage1_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # #962: set when the reviewer explicitly resolves the Stage-1 duplicate /
+    # transfer-pair candidates (confirming they are distinct or a real transfer).
+    # The approval guard honors this so a legitimately-conflicting statement is
+    # no longer permanently stuck in ``parsed``. Cleared on reject/reparse since
+    # a fresh transaction set must be re-reviewed.
+    stage1_conflicts_resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When the reviewer resolved Stage-1 duplicate/transfer-pair candidates (#962)",
+    )
     extraction_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)

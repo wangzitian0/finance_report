@@ -257,11 +257,13 @@ def test_AC7_11_3_migration_file_parse_errors_are_reported(
     write(
         migrations_dir / "missing_manifest.py",
         """
+        from alembic import op
+
         revision = "missing_manifest"
         down_revision = None
 
         def upgrade():
-            pass
+            op.drop_table("legacy_rows")
         """,
     )
 
@@ -307,7 +309,8 @@ def test_AC7_11_3_migration_file_parse_errors_are_reported(
     )
     assert any("duplicate Alembic revision" in error for error in result.errors)
     assert any(
-        "missing_manifest: missing migration risk manifest entry" in error
+        "missing_manifest: auto-classified critical migration requires a manifest entry"
+        in error
         for error in result.errors
     )
     assert any(
@@ -530,3 +533,75 @@ def test_AC7_11_4_ci_and_release_dry_run_execute_migration_risk_contract() -> No
     assert "python tools/check_migration_risk.py" in ci
     assert "Validate Migration Risk Contract" in release
     assert "production-migration-risk-context.md" in release
+
+
+def test_AC7_11_5_low_and_medium_migrations_are_auto_classified(tmp_path: Path) -> None:
+    """AC7.11.5: Risk is auto-classified from upgrade(); low/medium need no manifest entry while high/critical still require explicit release proof."""
+
+    assert migration_risk.classify_risk('op.create_table("t")') == "low"
+    assert migration_risk.classify_risk("op.add_column('t', c)") == "low"
+    assert migration_risk.classify_risk('op.alter_column("t", "c")') == "medium"
+    assert (
+        migration_risk.classify_risk('op.execute("ALTER TYPE e ADD VALUE x")')
+        == "medium"
+    )
+    assert migration_risk.classify_risk('op.execute("UPDATE t SET c = 1")') == "high"
+    assert migration_risk.classify_risk('op.drop_table("t")') == "critical"
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    write(
+        migrations_dir / "additive.py",
+        """
+        from alembic import op
+
+        revision = "additive"
+        down_revision = None
+
+        def upgrade():
+            op.create_table("widgets")
+        """,
+    )
+    write(
+        migrations_dir / "altered.py",
+        """
+        from alembic import op
+
+        revision = "altered"
+        down_revision = "additive"
+
+        def upgrade():
+            op.alter_column("widgets", "name")
+        """,
+    )
+    write(
+        migrations_dir / "mutated.py",
+        """
+        from alembic import op
+
+        revision = "mutated"
+        down_revision = "altered"
+
+        def upgrade():
+            op.execute("UPDATE widgets SET name = name")
+        """,
+    )
+    manifest = tmp_path / "migration-risk.yaml"
+    write_manifest(manifest, {})
+
+    result = migration_risk.validate(
+        manifest_path=manifest, migrations_dir=migrations_dir
+    )
+
+    # Additive and compatibility-sensitive migrations are auto-classified, no entry needed.
+    assert result.migrations["additive"].risk == "low"
+    assert result.migrations["altered"].risk == "medium"
+    assert all("additive" not in error for error in result.errors)
+    assert all("altered" not in error for error in result.errors)
+
+    # A data-mutating migration without an entry is rejected until proof is declared.
+    assert "mutated" not in result.migrations
+    assert any(
+        "mutated: auto-classified high migration requires a manifest entry" in error
+        for error in result.errors
+    )

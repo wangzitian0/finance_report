@@ -5,6 +5,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -182,6 +183,46 @@ def _workflow_event_from_payload(
     return event
 
 
+async def _get_workflow_event_by_dedupe_key(
+    db: AsyncSession, *, user_id: UUID, dedupe_key: str
+) -> WorkflowEvent | None:
+    result = await db.execute(
+        select(WorkflowEvent).where(WorkflowEvent.user_id == user_id).where(WorkflowEvent.dedupe_key == dedupe_key)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _insert_workflow_event_conflict_safe(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    payload: WorkflowEventCreate,
+    session_id: UUID | None,
+) -> WorkflowEvent:
+    """Insert a new workflow event without letting a dedupe-key race poison the outer transaction.
+
+    Concurrent requests/background tasks for the same ``(user_id, dedupe_key)`` can both miss the
+    pre-insert SELECT and both attempt the insert; the loser raises a ``UniqueViolationError`` on
+    ``uq_workflow_events_user_dedupe_key``. Running the insert + flush inside a SAVEPOINT means that
+    on conflict only the nested transaction rolls back (the outer request transaction stays usable),
+    after which we re-fetch and update the now-existing row — mirroring the session guard above.
+    """
+    event = _workflow_event_from_payload(user_id=user_id, payload=payload, session_id=session_id)
+    try:
+        async with db.begin_nested():
+            db.add(event)
+            await db.flush()
+    except IntegrityError:
+        existing = await _get_workflow_event_by_dedupe_key(db, user_id=user_id, dedupe_key=payload.dedupe_key)
+        if existing is None:
+            raise
+        _apply_workflow_event_payload(existing, payload)
+        if existing.session_id is None:
+            existing.session_id = session_id
+        return existing
+    return event
+
+
 def build_uploaded_statement_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the deterministic uploaded-statement workflow event payload."""
     family = WorkflowEventFamily.SOURCE_UPLOADED
@@ -336,15 +377,9 @@ async def upsert_workflow_event(
         workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
         session_id = workflow_session.id
 
-    result = await db.execute(
-        select(WorkflowEvent)
-        .where(WorkflowEvent.user_id == user_id)
-        .where(WorkflowEvent.dedupe_key == payload.dedupe_key)
-    )
-    event = result.scalar_one_or_none()
+    event = await _get_workflow_event_by_dedupe_key(db, user_id=user_id, dedupe_key=payload.dedupe_key)
     if event is None:
-        event = _workflow_event_from_payload(user_id=user_id, payload=payload, session_id=session_id)
-        db.add(event)
+        event = await _insert_workflow_event_conflict_safe(db, user_id=user_id, payload=payload, session_id=session_id)
     else:
         _apply_workflow_event_payload(event, payload)
         if event.session_id is None:
@@ -414,7 +449,9 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
         filename = ods_filename or statement.file_hash
         payload = build_uploaded_statement_event_payload(statement, filename)
         if event is None:
-            db.add(_workflow_event_from_payload(user_id=user_id, payload=payload, session_id=workflow_session.id))
+            await _insert_workflow_event_conflict_safe(
+                db, user_id=user_id, payload=payload, session_id=workflow_session.id
+            )
         else:
             _apply_workflow_event_payload(event, payload)
             if event.session_id is None:
@@ -468,7 +505,9 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> N
         for payload in derived_payloads:
             event = event_by_dedupe_key.get(payload.dedupe_key)
             if event is None:
-                db.add(_workflow_event_from_payload(user_id=user_id, payload=payload, session_id=workflow_session.id))
+                await _insert_workflow_event_conflict_safe(
+                    db, user_id=user_id, payload=payload, session_id=workflow_session.id
+                )
             else:
                 _apply_workflow_event_payload(event, payload)
                 if event.session_id is None:

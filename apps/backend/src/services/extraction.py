@@ -34,6 +34,7 @@ from src.services.validation import (
     compute_confidence_score,
     normalize_amount_direction,
     route_by_threshold,
+    validate_balance,
     validate_balance_explicit,
 )
 
@@ -62,6 +63,7 @@ class ExtractionService:
         self.vision_model = settings.vision_model
         self.ocr_model = settings.ocr_model
         self.fallback_models = settings.fallback_models
+        self.vision_fallback_models = settings.vision_fallback_models
         self.deduplication_service = DeduplicationService()
 
     def _safe_date(self, value: str | None) -> date:
@@ -321,12 +323,13 @@ class ExtractionService:
                     raise ExtractionError("Institution is required for CSV parsing")
                 extracted = await self._parse_csv_content(file_content, institution)
             elif file_type in ("pdf", "png", "jpg", "jpeg"):
-                extracted = await self.extract_financial_data(
+                extracted = await self._extract_with_balance_retry(
                     file_content=file_content,
                     institution=institution,
                     file_type=file_type,
                     file_url=file_url,
                     force_model=force_model,
+                    filename=original_filename or (file_path.name if file_path else None),
                 )
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
@@ -496,12 +499,25 @@ class ExtractionService:
                         "balance_proof_available": False,
                         "notes": CSV_INFERRED_BALANCE_REVIEW_NOTE,
                     },
+                    is_brokerage=is_brokerage_payload,
+                    effective_txn_count=len(transactions),
                 )
                 status = BankStatementStatus.PARSED
                 is_valid = False
             else:
                 # For confidence score, we use the original extracted dict to maintain logic.
-                confidence = compute_confidence_score(extracted, balance_result)
+                confidence = compute_confidence_score(
+                    extracted,
+                    balance_result,
+                    is_brokerage=is_brokerage_payload,
+                    effective_txn_count=len(transactions),
+                )
+                # Routing differs by document class on purpose (#981): brokerage payloads
+                # reconcile via Layer-2 AtomicPosition snapshots, not a running-balance chain, so
+                # `balance_valid` is not their gating signal — they always go to `parsed`/review.
+                # Bank statements route by `route_by_threshold`, where an invalid balance chain
+                # sends them to `uploaded` (manual entry). Same "balance invalid" input, different
+                # destination by design.
                 status = (
                     BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
                 )
@@ -590,9 +606,17 @@ class ExtractionService:
         return bool(self.ocr_model and self.ocr_model != self.vision_model)
 
     def _vision_extraction_models(self) -> list[str]:
-        """Return ordered vision/OCR models without duplicate provider calls."""
+        """Return ordered vision/OCR models without duplicate provider calls.
+
+        The primary OCR/vision models are followed by the configured
+        ``VISION_FALLBACK_MODELS`` so a non-retryable failure of the primary
+        vision model (e.g. a provider 400) falls through to a secondary
+        vision-capable model before the upload is rejected (#1034). The list is
+        deduplicated and order-preserving. Text-only ``FALLBACK_MODELS`` are not
+        reused here because the vision request carries image content.
+        """
         models: list[str] = []
-        for model in (self.ocr_model, self.vision_model):
+        for model in (self.ocr_model, self.vision_model, *self.vision_fallback_models):
             if model and model not in models:
                 models.append(model)
         return models
@@ -655,6 +679,122 @@ class ExtractionService:
         )
         return markdown
 
+    async def _extract_with_balance_retry(
+        self,
+        *,
+        file_content: bytes | None,
+        institution: str | None,
+        file_type: str,
+        file_url: str | None,
+        force_model: str | None,
+        filename: str | None,
+    ) -> dict[str, Any]:
+        """Re-extract until the running-balance chain reconciles (#989 Step B).
+
+        A non-deterministic model can drop/misread a transaction so the same PDF
+        sometimes reconciles and sometimes does not. When a bank statement fails
+        balance validation, re-extract up to ``ai_extract_max_attempts`` times,
+        each with a *different but reproducible* seed, and keep the first parse
+        that reconciles. Brokerage payloads do not reconcile like bank statements
+        (they import via Layer-2 positions), so they are never retried. If no
+        attempt reconciles, the smallest-difference result is returned so routing
+        to ``uploaded`` is unchanged.
+        """
+        max_attempts = max(1, settings.ai_extract_max_attempts)
+        base_seed = settings.ai_json_seed
+        best: dict[str, Any] | None = None
+        best_diff: Decimal | None = None
+
+        for attempt in range(max_attempts):
+            # Attempt 0 uses the configured seed; retries vary it so each is a
+            # distinct deterministic sample (None base => provider-side variance).
+            seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
+            extracted = await self.extract_financial_data(
+                file_content=file_content,
+                institution=institution,
+                file_type=file_type,
+                file_url=file_url,
+                force_model=force_model,
+                seed_override=seed_override,
+            )
+
+            if looks_like_brokerage_payload(
+                extracted,
+                filename=filename,
+                institution=institution or extracted.get("institution"),
+            ):
+                return extracted
+
+            result = validate_balance(extracted)
+            if result.get("balance_valid"):
+                if attempt > 0:
+                    logger.info(
+                        "Balance reconciled on re-extract",
+                        attempt=attempt + 1,
+                        max_attempts=max_attempts,
+                        institution=institution or extracted.get("institution"),
+                    )
+                return extracted
+
+            try:
+                diff = Decimal(str(result.get("difference", "0") or "0"))
+            except (ValueError, TypeError, InvalidOperation):
+                diff = Decimal("0")
+            if best is None or diff < best_diff:
+                best, best_diff = extracted, diff
+
+        if max_attempts > 1:
+            logger.info(
+                "Balance did not reconcile after re-extract; keeping best parse",
+                attempts=max_attempts,
+                best_difference=str(best_diff),
+            )
+        return best if best is not None else extracted
+
+    @staticmethod
+    def _repair_json_object(content: str) -> str | None:
+        """Best-effort recovery of a JSON object from a malformed model response.
+
+        Models occasionally wrap an otherwise-valid object in a markdown code
+        fence or pad it with prose. Rather than rejecting the upload (#982),
+        extract the outermost balanced ``{...}`` object — tracking string
+        literals so braces inside values do not truncate it. Scanning from the
+        first ``{`` to its matching ``}`` naturally ignores any surrounding fence
+        (including single-line ``` ```json {...}``` ``` blocks) or prose. The
+        repair is deterministic and does not invent data; it returns ``None``
+        when no object can be recovered, leaving the original failure path intact.
+        """
+        if not content:
+            return None
+
+        text = content.strip()
+        start = text.find("{")
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escaped = False
+        for i in range(start, len(text)):
+            char = text[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+        return None
+
     async def _extract_json_with_models(
         self,
         messages: list[dict[str, Any]],
@@ -665,6 +805,7 @@ class ExtractionService:
         return_raw: bool,
         has_content: bool,
         has_url: bool,
+        seed_override: int | None = None,
     ) -> dict[str, Any]:
         """Stream JSON extraction through the configured chat models."""
         last_error: ExtractionError | None = None
@@ -691,6 +832,7 @@ class ExtractionService:
                     max_tokens=settings.ai_json_max_tokens,
                     temperature=0.0,
                     do_sample=False,
+                    seed=seed_override if seed_override is not None else settings.ai_json_seed,
                     thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
                 )
 
@@ -727,6 +869,18 @@ class ExtractionService:
                     return parsed
                 except json.JSONDecodeError as e:
                     from src.constants.error_ids import ErrorIds
+
+                    # A single malformed-but-recoverable response (markdown fence or
+                    # prose around a valid object) should not reject the upload (#982).
+                    repaired = self._repair_json_object(content)
+                    if repaired is not None:
+                        try:
+                            parsed = json.loads(repaired)
+                            if isinstance(parsed, dict):
+                                logger.info("AI extraction recovered via JSON repair", model=model)
+                                return parsed
+                        except json.JSONDecodeError:
+                            pass
 
                     logger.error(
                         "Failed to parse AI JSON",
@@ -831,6 +985,7 @@ class ExtractionService:
         return_raw: bool = False,
         file_url: str | None = None,
         force_model: str | None = None,
+        seed_override: int | None = None,
     ) -> dict[str, Any]:
         """Extract structured statement data using OCR + chat models."""
         if file_content is None and not file_url:
@@ -887,6 +1042,7 @@ class ExtractionService:
                 return_raw=return_raw,
                 has_content=bool(file_content),
                 has_url=bool(file_url),
+                seed_override=seed_override,
             )
 
         if self._uses_dedicated_layout_ocr():
@@ -907,6 +1063,7 @@ class ExtractionService:
                     return_raw=return_raw,
                     has_content=bool(file_content),
                     has_url=bool(file_url),
+                    seed_override=seed_override,
                 )
             except ExtractionError as ocr_error:
                 logger.warning(
@@ -951,6 +1108,7 @@ class ExtractionService:
             return_raw=return_raw,
             has_content=bool(file_content),
             has_url=bool(file_url),
+            seed_override=seed_override,
         )
 
     async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:

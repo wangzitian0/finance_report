@@ -104,6 +104,9 @@ be treated as current work.
 | AC17.1.4 | Average Cost Basis | `test_sell_transaction_uses_average_cost_for_realized_pnl` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.1.5 | Unrealized P&L Calculation | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P0 |
 | AC17.1.6 | Manual Price Update | `test_update_prices_happy` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.1.7 | Portfolio summary happy path returns correct counts and totals. | `test_portfolio_summary_happy` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.1.8 | Summary includes both active and disposed positions. | `test_portfolio_summary_with_disposed` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.1.9 | Zero total cost -> net_pnl_percent = 0. | `test_portfolio_summary_zero_cost` | `portfolio/test_portfolio_service.py` | P1 |
 
 ### AC17.2: Performance Metrics
 
@@ -112,6 +115,12 @@ be treated as current work.
 | AC17.2.1 | XIRR Accuracy (within 0.01% of Excel) | `test_xirr_with_realistic_data` | `portfolio/test_performance_service.py` | P0 |
 | AC17.2.2 | Time-Weighted Return | `test_time_weighted_return_with_period` | `portfolio/test_performance_service.py` | P0 |
 | AC17.2.3 | Money-Weighted Return | `test_money_weighted_return_with_data` | `portfolio/test_performance_service.py` | P1 |
+| AC17.2.4 | Zero cost -> realized_pnl_percent = 0. | `test_realized_pnl_zero_cost` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.2.5 | Disposed position in non-base currency triggers FX conversion. | `test_realized_pnl_fx_conversion` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.2.6 | Unrealized PnL happy path returns correct totals. | `test_unrealized_pnl_happy_path` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.2.7 | Unrealized PnL on empty portfolio raises PortfolioNotFoundError. | `test_unrealized_pnl_no_positions` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.2.8 | Zero cost -> unrealized_pnl_percent in details = 0. | `test_unrealized_pnl_zero_cost` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.2.9 | FX conversion for unrealized PnL. | `test_unrealized_pnl_fx_conversion` | `portfolio/test_portfolio_service.py` | P1 |
 
 ### AC17.3: Asset Allocation
 
@@ -120,6 +129,17 @@ be treated as current work.
 | AC17.3.1 | Sector Allocation Breakdown | `test_sector_allocation_with_positions` | `portfolio/test_allocation_service.py` | P1 |
 | AC17.3.2 | Geography Allocation Breakdown | `test_geography_allocation_with_positions` | `portfolio/test_allocation_service.py` | P1 |
 | AC17.3.3 | Asset Class Allocation Breakdown | `test_asset_class_allocation_with_positions` | `portfolio/test_allocation_service.py` | P1 |
+| AC17.3.4 | TWR calculates period return within reasonable bounds. | `test_time_weighted_return_with_period` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.5 | MWR raises InsufficientDataError on empty portfolio. | `test_money_weighted_return_insufficient_data` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.6 | MWR calculates money-weighted return for loss scenario. | `test_money_weighted_return_with_data` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.7 | XIRR respects as_of_date parameter. | `test_xirr_with_as_of_date` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.8 | TWR returns zero for same-day period. | `test_time_weighted_return_same_day` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.9 | Performance metrics handle cash-only portfolios. | `test_performance_metrics_with_zero_positions` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.10 | XIRR handles extreme convergence edge cases. | `test_xirr_convergence_edge_case` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.11 | _xirr_bisection raises ValueError when no root exists. | `test_xirr_bisection_no_root_raises` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.12 | _xirr_bisection returns Decimal estimate after max_iter exhaustion. | `test_xirr_bisection_max_iter_returns` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.13 | _xirr_newton falls back to bisection on non-convergence. | `test_xirr_newton_fallthrough_to_bisection` | `portfolio/test_performance_service.py` | P1 |
+| AC17.3.14 | XIRRCalculationError raised when Newton and bisection both fail. | `test_xirr_calculation_error_raised` | `portfolio/test_performance_service.py` | P1 |
 
 ### AC17.4: Brokerage Statement Parsing
 
@@ -142,6 +162,10 @@ be treated as current work.
 | AC17.5.2 | Sell Transaction → Journal Entry + Realized P&L | `test_sell_transaction_uses_fifo_and_records_realized_gain`, `test_sell_transaction_uses_average_cost_for_realized_pnl` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.5.3 | Dividend → Journal Entry → Income Statement | `test_dividend_transaction_posts_income_and_dividend_record` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.5.4 | Unrealized P&L → Balance Sheet | `test_unrealized_pnl_happy_path`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_portfolio_service.py`, `portfolio/test_brokerage_position_parsing.py` | P0 |
+| AC17.5.5 | Quantity == 0 -> return market_value directly. | `test_get_latest_price_zero_quantity` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.5.6 | No price data -> AssetNotFoundError. | `test_get_latest_price_no_data` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.5.7 | _get_latest_atomic returns the most recent snapshot. | `test_get_latest_atomic_returns_latest` | `portfolio/test_portfolio_service.py` | P1 |
+| AC17.5.8 | _get_latest_atomic returns None when no snapshots exist. | `test_get_latest_atomic_none` | `portfolio/test_portfolio_service.py` | P1 |
 
 ### AC17.6: Integration & End-to-End
 
@@ -149,6 +173,25 @@ be treated as current work.
 |----|-----------|---------------|------|----------|
 | AC17.6.1 | Full Buy/Sell Cycle | `test_sell_transaction_uses_fifo_and_records_realized_gain` | `portfolio/test_investment_accounting.py` | P0 |
 | AC17.6.2 | Dividend Accrual to Income | `test_dividend_transaction_posts_income_and_dividend_record` | `portfolio/test_investment_accounting.py` | P0 |
+| AC17.6.3 | GET /portfolio/holdings with as_of_date filter returns 200. | `test_get_holdings_with_date_filter` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.4 | GET /portfolio/holdings with include_disposed=true returns 200. | `test_get_holdings_include_disposed` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.5 | GET /portfolio/performance without period returns metrics. | `test_get_performance_without_period` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.6 | GET /portfolio/performance with period params returns metrics. | `test_get_performance_with_period` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.7 | GET /portfolio/allocation/sector on empty portfolio returns []. | `test_get_sector_allocation_empty` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.8 | GET /portfolio/allocation/sector with data returns breakdown. | `test_get_sector_allocation_with_data` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.9 | GET /portfolio/allocation/geography on empty portfolio returns []. | `test_get_geography_allocation_empty` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.10 | GET /portfolio/allocation/geography with data returns breakdown. | `test_get_geography_allocation_with_data` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.11 | GET /portfolio/allocation/asset-class on empty portfolio returns []. | `test_get_asset_class_allocation_empty` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.12 | GET /portfolio/allocation/asset-class with data returns breakdown. | `test_get_asset_class_allocation_with_data` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.13 | POST /portfolio/prices/update with single asset returns success. | `test_update_prices_single` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.14 | POST /portfolio/prices/update with batch returns success. | `test_update_prices_batch` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.15 | POST /portfolio/prices/update with invalid payload returns 422. | `test_update_prices_invalid_payload` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.16 | All portfolio endpoints require authentication. | `test_portfolio_endpoints_require_auth` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.17 | GET /portfolio/allocation/sector with as_of_date returns 200. | `test_allocation_with_as_of_date` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.18 | GET /portfolio/performance returns string-formatted metrics. | `test_performance_metrics_response_format` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.19 | InsufficientDataError on empty portfolio -> xirr/mwr default to 0. | `test_get_performance_insufficient_data` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.20 | PerformanceError (non-InsufficientData) on XIRR -> 422. | `test_get_performance_xirr_calculation_error` | `portfolio/test_portfolio_router.py` | P1 |
+| AC17.6.21 | PerformanceError (non-InsufficientData) on MWR -> 422. | `test_get_performance_mwr_calculation_error` | `portfolio/test_portfolio_router.py` | P1 |
 
 ### AC17.8: Brokerage Import Completion UI
 
@@ -252,6 +295,21 @@ market-value gain/loss, and price freshness.
 | AC17.14.2 | Reports expose a net-worth allocation schedule grouped by asset class, liquidity class, and source currency, with signed rows that reconcile to net worth and retain source-line drill-through metadata | `test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources`, `test_AC17_14_2_net_worth_allocation_endpoint_returns_contract` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py`, `apps/backend/tests/reporting/test_reports_router.py` | P1 |
 | AC17.14.3 | Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering | `AC17.14.3 renders net-worth allocation from the report schedule`, `AC17.14.3 shows the net-worth allocation loading state`, `AC17.14.3 shows the net-worth allocation error state`, `AC17.14.3 shows the empty net-worth allocation state`, `AC17.14.3 renders invalid net-worth allocation percentages as unavailable`, `AC17.14.3 renders missing net-worth allocation percentages as unavailable`, `AC17.14.3 refetches net-worth allocation when restricted holdings are excluded` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
 | AC17.14.4 | The asset-dashboard performance surface leads with unrealized market-value gain/loss, a simple return on cost valued at the schedule as-of date, and a price-freshness flag; TWR/IRR/MWR are not presented as the asset-dashboard answer and stay on the reporting side as clearly-labelled analytical measures | `AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness`, `AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer`, `AC17.14.4 flags stale prices`, `AC17.14.4 shows N/A return when cost basis is zero` | `apps/frontend/src/__tests__/performanceCard.test.tsx`, `apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx` | P1 |
+
+### AC17.15: Non-Ticker Identifier Guard
+
+Brokerage fund positions (e.g. money-market funds) store the full fund name as
+`asset_identifier`. That free text was sent to Yahoo Finance as a ticker, 404ing
+on every lookup. The guard skips guaranteed-404 Yahoo requests for non-ticker
+identifiers (these positions are valued from their existing AtomicPosition
+snapshot). The unpriced-drop skip is intentionally kept at `debug` to honor the
+high-volume audit-noise contract (AC10.8.4); surfacing dropped positions to the
+user (e.g. a report blocker) is tracked as follow-up. Issue #1035.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.15.1 | `_looks_like_ticker` accepts real tickers/FX pairs and rejects fund-name free text | `test_looks_like_ticker_accepts_real_tickers_rejects_free_text` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
+| AC17.15.2 | A non-ticker identifier short-circuits the Yahoo stock fetch with no HTTP call | `test_yahoo_stock_fetch_short_circuits_for_non_ticker` | `apps/backend/tests/market_data/test_provider_parsers.py` | P1 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 

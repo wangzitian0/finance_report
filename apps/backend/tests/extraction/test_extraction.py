@@ -627,3 +627,106 @@ class TestConfidenceScoringV2:
 
         score = compute_confidence_score(extracted, balance_result)
         assert score == 85
+
+
+class TestUnderExtractionPenalty:
+    """AC13.15: Penalize implausibly-low transaction counts (issue #967)."""
+
+    @staticmethod
+    def _brokerage_extracted(transactions):
+        return {
+            "institution": "Futu",
+            "period_start": "2025-06-01",
+            "period_end": "2025-06-30",
+            "opening_balance": "0.00",
+            "closing_balance": "100.00",
+            "currency": "HKD",
+            "transactions": transactions,
+        }
+
+    def test_brokerage_single_txn_penalized(self):
+        """AC13.15.1: A brokerage statement yielding a single transaction is an
+        under-capture signal and must not present as high confidence."""
+        extracted = self._brokerage_extracted(
+            [
+                {
+                    "date": "2025-06-15",
+                    "description": "Aggregate",
+                    "amount": "100.00",
+                    "direction": "IN",
+                    "currency": "HKD",
+                }
+            ]
+        )
+        balance_result = {"balance_valid": True, "difference": "0.00"}
+
+        unpenalized = compute_confidence_score(extracted, balance_result, is_brokerage=False)
+        penalized = compute_confidence_score(extracted, balance_result, is_brokerage=True)
+
+        assert penalized < unpenalized, "Under-capture should lower confidence vs the un-penalized score"
+        assert penalized <= 60, f"1-txn brokerage should stay in review band, got {penalized}"
+
+    def test_brokerage_sufficient_txns_not_penalized(self):
+        """AC13.15.2: A brokerage statement with a plausible transaction count is
+        not penalized."""
+        txns = [
+            {"date": "2025-06-10", "description": "Buy", "amount": "40.00", "direction": "OUT", "currency": "HKD"},
+            {"date": "2025-06-20", "description": "Sell", "amount": "140.00", "direction": "IN", "currency": "HKD"},
+        ]
+        extracted = self._brokerage_extracted(txns)
+        balance_result = {"balance_valid": True, "difference": "0.00"}
+
+        score = compute_confidence_score(extracted, balance_result, is_brokerage=True)
+        assert score > 60, f"Plausible brokerage parse should not be penalized, got {score}"
+
+    def test_bank_single_txn_not_penalized(self):
+        """AC13.15.3: A non-brokerage (bank) statement with one transaction keeps
+        its existing score — a single-transaction bank month is legitimate."""
+        extracted = {
+            "institution": "DBS",
+            "period_start": "2025-01-01",
+            "period_end": "2025-01-31",
+            "opening_balance": "0.00",
+            "closing_balance": "100.00",
+            "transactions": [
+                {"date": "2025-01-01", "description": "A", "amount": "100.00", "direction": "IN"},
+            ],
+        }
+        balance_result = {"balance_valid": True, "difference": "0.00"}
+
+        assert compute_confidence_score(extracted, balance_result, is_brokerage=False) == 85
+
+    def test_default_is_not_brokerage(self):
+        """AC13.15.4: is_brokerage defaults to False so existing callers are
+        unaffected."""
+        extracted = self._brokerage_extracted(
+            [
+                {
+                    "date": "2025-06-15",
+                    "description": "Aggregate",
+                    "amount": "100.00",
+                    "direction": "IN",
+                    "currency": "HKD",
+                }
+            ]
+        )
+        balance_result = {"balance_valid": True, "difference": "0.00"}
+
+        assert compute_confidence_score(extracted, balance_result) == compute_confidence_score(
+            extracted, balance_result, is_brokerage=False
+        )
+
+    def test_effective_count_uses_persisted_not_extracted(self):
+        """AC13.15.5: the cap uses the persisted count, so a payload that extracts
+        2 rows but persists only 1 (a row skipped) still trips the cap."""
+        txns = [
+            {"date": "2025-06-10", "description": "Buy", "amount": "40.00", "direction": "OUT", "currency": "HKD"},
+            {"date": "2025-06-20", "description": "Sell", "amount": "140.00", "direction": "IN", "currency": "HKD"},
+        ]
+        extracted = self._brokerage_extracted(txns)
+        balance_result = {"balance_valid": True, "difference": "0.00"}
+
+        # Raw extracted count is 2 -> not capped; persisted count is 1 -> capped.
+        not_capped = compute_confidence_score(extracted, balance_result, is_brokerage=True)
+        capped = compute_confidence_score(extracted, balance_result, is_brokerage=True, effective_txn_count=1)
+        assert capped <= 60 < not_capped

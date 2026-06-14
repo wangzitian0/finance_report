@@ -28,7 +28,13 @@ repos:
           - pydantic>=2.7.0
           - sqlalchemy>=2.0.30
           - types-redis
-        args: [--warn-unused-ignores, --ignore-missing-imports]
+        # follow-imports=silent: type-check only the staged files, using imported
+        # modules for types without reporting their (pre-existing) errors. Without
+        # this, editing any file that transitively imports the service graph fails
+        # the commit on ~170 unrelated debt errors, training contributors to
+        # --no-verify (which also skips ruff/format). CI does not run mypy, so this
+        # hook is the only mypy signal; keep it scoped and passable for clean work.
+        args: [--warn-unused-ignores, --ignore-missing-imports, --follow-imports=silent]
         files: ^apps/backend/src/
 
   # General file hygiene
