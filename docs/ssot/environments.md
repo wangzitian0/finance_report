@@ -124,9 +124,9 @@ PR validation is split into two independent things (issue #839):
 
 ### Production Environments (Staging + Production)
 
-**Staging** — Tracks latest `main` branch:
-- **Image deployment**: Built from latest `main` commit after merge
-- Deployed to Dokploy automatically on push to main
+**Staging** — Manually deployed from a chosen commit:
+- **Image deployment**: Built from the dispatched `ref` (defaults to latest `main`)
+- Deployed to Dokploy **manually** via `staging-deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
 - Persistent data, stable environment for QA
 - Uses dedicated DB/Redis + shared Platform (SigNoz, MinIO with bucket isolation)
 

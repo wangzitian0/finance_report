@@ -520,9 +520,11 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "cancel-in-progress: false" in workflow
     assert "post-merge-train-turn:" not in workflow
     assert "classify-staging:" not in workflow
-    assert "name: Wait for FIFO post-merge train turn" in workflow
-    assert "python tools/wait_post_merge_train_turn.py" in workflow
-    assert '--timeout-seconds "$TIMEOUT_SECONDS"' in workflow
+    # Manual-only staging is serialized by the workflow-level concurrency group;
+    # the in-job FIFO post-merge train wait (which only applied to the retired
+    # workflow_run auto-deploy) is removed.
+    assert "name: Wait for FIFO post-merge train turn" not in workflow
+    assert "wait_post_merge_train_turn.py" not in workflow
     assert "name: Classify staging and AI/OCR relevance" in workflow
     assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
     assert "provider_gate_required" in workflow
@@ -538,9 +540,10 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert "duration=%ss" in workflow
     assert 'run_timed_phase "Phase 1: Smoke Check (Shell)"' in workflow
     assert 'run_timed_phase "Phase 2: Core Flow Validation (Python)"' in workflow
-    assert "in-job FIFO guard" in ci_cd
+    assert "in-job FIFO" not in ci_cd
     assert "workflow-level singleton concurrency" in ci_cd
-    assert "No two `Deploy Staging` workflow runs mutate staging concurrently" in ci_cd
+    assert "No two `Deploy Staging` workflow runs mutate staging concurrently" not in ci_cd
+    assert "only one `Deploy Staging` run mutates staging at a time" in ci_cd
     assert "75-minute deploy-health job timeout" in ci_cd
     assert "22-minute E2E step timeout" in ci_cd
 
@@ -810,84 +813,6 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
     assert "Staging deploy is manual" in ci_cd
 
 
-def test_AC8_13_91_post_merge_staging_failure_opens_rolling_alert_issue() -> None:
-    """AC8.13.91: Main post-merge staging failures create a persistent GitHub issue alert."""
-    workflow = read(".github/workflows/staging-deploy.yml")
-    ci_cd = read("docs/ssot/ci-cd.md")
-    epic = read("docs/project/EPIC-008.testing-strategy.md")
-
-    assert "staging-deploy-alert:" in workflow
-    assert "name: Staging Deploy Alert" in workflow
-    assert "issues: write" in workflow
-    assert "GH_REPO: ${{ github.repository }}" in workflow
-    assert (
-        'STAGING_ALERT_TITLE: "[staging-alert] Post-merge staging deploy failing"'
-        in workflow
-    )
-    assert "github.event_name == 'workflow_run'" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "github.event.workflow_run.head_branch == 'main'" in workflow
-    assert (
-        'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"'
-        in workflow
-    )
-    assert (
-        'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"'
-        in workflow
-    )
-    assert '[ "$ai_ocr_required" = "true" ]' in workflow
-    assert "needs.build-and-deploy.result" in workflow
-    assert "needs.provider-gate.result" in workflow
-    assert "needs.ai-ocr-gate.result" in workflow
-    assert "gh issue list" in workflow
-    assert "gh issue create" in workflow
-    assert "gh issue comment" in workflow
-    assert "gh issue close" in workflow
-    assert "Staging deploy failed" in workflow
-    assert "Staging deploy recovered" in workflow
-    assert (
-        'run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"'
-        in workflow
-    )
-    assert "Run URL: ${run_url}" in workflow
-    assert "Target SHA: ${TARGET_SHA}" in workflow
-    assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
-    assert 'provider_result="${{ needs.provider-gate.result }}"' in workflow
-    assert (
-        'provider_status="${{ needs.provider-gate.outputs.provider_status }}"'
-        in workflow
-    )
-    assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
-    assert (
-        'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"'
-        in workflow
-    )
-    assert 'failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"' in workflow
-    assert (
-        'failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"'
-        in workflow
-    )
-    assert "Build/deploy result: ${build_result}" in workflow
-    assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
-    assert "Build/deploy failed step: ${failed_step:-unknown}" in workflow
-    assert "Build/deploy failure summary: ${failure_summary:-unknown}" in workflow
-    assert "Provider connectivity result: ${provider_result}" in workflow
-    assert "Provider connectivity status: ${provider_status:-not-run}" in workflow
-    assert "AI/OCR result: ${ai_ocr_result}" in workflow
-    assert "AI/OCR required: ${ai_ocr_required:-unknown}" in workflow
-    assert "STAGING_APP_URL: https://report-staging.zitian.party" in workflow
-    assert "App URL: ${STAGING_APP_URL}" in workflow
-    assert "DOKPLOY_API_KEY" not in workflow.split("staging-deploy-alert:", 1)[1]
-    assert (
-        "actions/checkout"
-        not in workflow.split("staging-deploy-alert:", 1)[1].split(
-            "post-merge-summary:", 1
-        )[0]
-    )
-    assert "persistent GitHub Issue alert" in ci_cd
-    assert "AC8.13.91" in epic
-
-
 def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates() -> (
     None
 ):
@@ -898,9 +823,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
 
     assert "post-merge-delivery:" in workflow
     assert "name: Post-merge Delivery" in workflow
-    assert (
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, staging-deploy-alert]"
-    ) in workflow
+    assert ("needs: [build-and-deploy, provider-gate, ai-ocr-gate]") in workflow
     assert "Aggregate post-merge delivery result" in workflow
     assert (
         'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"'
@@ -917,7 +840,9 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         in workflow
     )
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
-    assert 'alert_result="${{ needs.staging-deploy-alert.result }}"' in workflow
+    # The retired post-merge auto-deploy alert job is no longer a delivery input.
+    assert "staging-deploy-alert" not in workflow
+    assert "alert_result" not in workflow
     assert (
         'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"'
         in workflow
@@ -935,7 +860,6 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     assert 'failure_reason="build/deploy gate failed"' in workflow
     assert 'failure_reason="provider connectivity gate failed"' in workflow
     assert 'failure_reason="staging AI/OCR gate failed"' in workflow
-    assert 'failure_reason="staging alert job failed"' in workflow
     assert 'delivery_status="degraded-provider"' in workflow
     assert "## Post-merge Delivery" in workflow
     assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
@@ -949,8 +873,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         ]
     )
     assert (
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, "
-        "staging-deploy-alert, post-merge-delivery]"
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]"
     ) in workflow
     assert "dedicated `Post-merge Delivery` check" in ci_cd
     assert "A green `CI` workflow alone is not sufficient evidence" in ci_cd
@@ -967,8 +890,11 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     assert "classify-staging:" not in workflow
     assert "name: Classify staging and AI/OCR relevance" in workflow
     assert "fetch-depth: 0" in workflow
-    assert "git diff --name-only" in workflow
-    assert "tools/ci_change_classifier.py" in workflow
+    # Manual-only staging no longer scopes by changed paths inside the deploy
+    # workflow: a manual dispatch always classifies staging (and the AI/OCR gate)
+    # as required. The diff-based change classifier remains for CI/PR scoping only.
+    assert "git diff --name-only" not in workflow
+    assert "tools/ci_change_classifier.py" not in workflow
     assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
     assert "staging_reason: ${{ steps.gates.outputs.staging_reason }}" in workflow
     assert "if: steps.gates.outputs.staging_required == 'true'" in workflow
@@ -976,7 +902,6 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
         "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
         in workflow
     )
-    assert "Report staging deploy skip" in workflow
     assert "manual-dispatch" in workflow
 
     assert "STAGING_EXACT" in classifier
@@ -990,12 +915,9 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     )
     assert "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md" in classifier_tests
     assert "common/ssot/check_ssot_ownership.py" in classifier_tests
+    assert "Staging deploy is manual (`workflow_dispatch`) only" in ci_cd
     assert (
-        "Automatic staging deploys are scoped to runtime app, deploy, root E2E, dependency, Dockerfile/config, staging workflow, toolchain, or infra-submodule changes"
-        in ci_cd
-    )
-    assert (
-        "App test-only changes, documentation, project archive, AC traceability, and other tooling-only changes keep CI/AC gates but do not consume the staging singleton"
+        "The diff-based change classifier no longer scopes the staging deploy by changed paths"
         in ci_cd
     )
 
@@ -1369,7 +1291,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
 
     assert "post-merge-train-turn:" not in workflow
-    assert "python tools/wait_post_merge_train_turn.py" in workflow
+    assert "wait_post_merge_train_turn.py" not in workflow
     assert "workflow_dispatch:" in workflow
     assert "STAGING_E2E_PRIMARY_MODEL: glm-5.1" in workflow
     assert "STAGING_E2E_OCR_MODEL: glm-4.6v" in workflow
@@ -1397,7 +1319,8 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert 'update_env_var "$new_env" "IAC_CONFIG_HASH"' in deploy_script
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    # Staging is manual-only; no workflow_run auto-trigger remains.
+    assert "workflow_run" not in workflow
     contract = staging_ai_ocr_contract_shell()
     assert "test_brokerage_upload_to_portfolio_value.py" in contract
     assert "test_four_asset_net_worth_golden_path.py" in contract
@@ -1438,8 +1361,10 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
     assert "ai-ocr-gate:" in workflow
     assert "name: Staging AI/OCR Gate" in workflow
     assert "Run Staging AI/OCR Gate" in workflow
-    # The gate job is reached on a manual dispatch (build-and-deploy gates on it).
-    assert "if: ${{ github.event_name == 'workflow_dispatch' }}" in workflow
+    # workflow_dispatch is the sole trigger, so every job (build-and-deploy and the
+    # gate it gates on) runs only on a manual dispatch; a redundant job-level
+    # `if: github.event_name == 'workflow_dispatch'` would always be true.
+    assert list(triggers.keys()) == ["workflow_dispatch"]
 
     # An on-demand recovery entry point also runs the gate via workflow_dispatch.
     on_demand_parsed = yaml.safe_load(on_demand_gate)
@@ -1540,8 +1465,9 @@ def test_AC8_13_22_staging_deploy_builds_from_dispatched_ref() -> None:
     assert "actions: read" in workflow
     assert "contents: read" in workflow
     assert "packages: write" in workflow
-    # The build-and-deploy job runs on a manual dispatch, not a CI workflow_run.
-    assert "if: ${{ github.event_name == 'workflow_dispatch' }}" in workflow
+    # workflow_dispatch is the sole trigger, so the build-and-deploy job runs only
+    # on a manual dispatch without a redundant (always-true) job-level `if`.
+    assert list(triggers.keys()) == ["workflow_dispatch"]
     assert "Wait for matching CI success" not in workflow
     # Checkout uses the dispatched ref (falling back to the triggering SHA), and
     # that checkout happens before any build or deploy.
@@ -1777,12 +1703,12 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
         in deploy_workflow
     )
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
-    assert "same serialized post-merge workflow unit" in ci_cd
-    assert "in-job FIFO guard" in ci_cd
+    assert "serialized deploy workflow unit" in ci_cd
+    assert "in-job FIFO" not in ci_cd
     assert (
         "test code, audit context, and deployed image under validation aligned" in ci_cd
     )
-    assert "No two `Deploy Staging` workflow runs mutate staging concurrently" in ci_cd
+    assert "only one `Deploy Staging` run mutates staging at a time" in ci_cd
 
 
 def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate() -> (
@@ -2100,8 +2026,10 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
     assert "name: CI Workflow Run Ignored" not in workflow
 
     # The build-and-deploy job, image promotion, and Dokploy mutation only run on
-    # a manual dispatch.
-    assert "if: ${{ github.event_name == 'workflow_dispatch' }}" in workflow
+    # a manual dispatch. Because workflow_dispatch is the sole `on:` trigger, a
+    # job-level `if: github.event_name == 'workflow_dispatch'` would be redundant
+    # (always true) and is intentionally absent.
+    assert "if: ${{ github.event_name == 'workflow_dispatch' }}" not in workflow
 
     # The structured deploy failure-context classification is preserved.
     failure_context = workflow.split("Classify staging deploy failure context", 1)[
@@ -2398,7 +2326,6 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
     for step_id in [
         "checkout",
         "get_sha",
-        "wait_train",
         "classify",
         "install_moon",
         "install_uv",
@@ -2901,8 +2828,8 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
     assert "post-merge-summary:" in deploy_workflow
     assert (
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, "
-        "staging-deploy-alert, post-merge-delivery]" in deploy_workflow
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]"
+        in deploy_workflow
     )
     assert "Write post-merge timing summary" in deploy_workflow
     assert '--title "Post-merge Timing Summary"' in deploy_workflow
@@ -2973,22 +2900,12 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
     )
 
 
-def test_AC8_13_117_parameterized_staging_fifo_timeout() -> None:
-    """AC8.13.117: Staging FIFO worst-case wait is bounded/parameterized and documented."""
-    workflow = read(".github/workflows/staging-deploy.yml")
-    assert 'STAGING_FIFO_TIMEOUT_SECONDS: "7200"' in workflow
-    assert (
-        "TIMEOUT_SECONDS: ${{ env.STAGING_FIFO_TIMEOUT_SECONDS || '21600' }}"
-        in workflow
-    )
-    assert '--timeout-seconds "$TIMEOUT_SECONDS"' in workflow
-
-
 def test_AC8_13_118_timeouts_and_retries_documented() -> None:
     """AC8.13.118: Critical-path timeouts and retries are documented in docs/ssot/ci-cd.md."""
     ci_cd = read("docs/ssot/ci-cd.md")
-    assert "STAGING_FIFO_TIMEOUT_SECONDS" in ci_cd
-    assert "7200 seconds" in ci_cd
+    # The staging FIFO train wait is retired with the manual-only model; staging is
+    # serialized by the workflow concurrency group, so no FIFO timeout is documented.
+    assert "STAGING_FIFO_TIMEOUT_SECONDS" not in ci_cd
     assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
     assert "caps readiness at 300 seconds" in ci_cd
     assert "docker compose down --volumes" in ci_cd

@@ -1,8 +1,8 @@
 # Staging Deployment Workflow
 #
 # Trigger: MANUAL ONLY (workflow_dispatch). Staging no longer auto-follows main.
-# Per docs/ssot/environments.md, staging/prod/preview are all deployed manually;
-# CI is the quality gate for development, not auto-deploy.
+# Per docs/ssot/environments.md, staging and prod are deployed manually;
+# CI is the quality gate for development, not an auto-deploy trigger.
 # Actions: Build images → Deploy to staging → Smoke/E2E → AI/OCR gate
 # Data is persisted between deployments.
 
@@ -27,7 +27,6 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
   DOKPLOY_API_URL: https://cloud.zitian.party/api
   STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
-  STAGING_FIFO_TIMEOUT_SECONDS: "7200"
   STAGING_E2E_PRIMARY_MODEL: glm-5.1
   STAGING_E2E_OCR_MODEL: glm-4.6v
   STAGING_E2E_VISION_MODEL: glm-4.6v
@@ -37,7 +36,6 @@ env:
 jobs:
   build-and-deploy:
     name: Build and Deploy
-    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -74,66 +72,30 @@ jobs:
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"
 
-      - name: Wait for FIFO post-merge train turn
-        id: wait_train
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TIMEOUT_SECONDS: ${{ env.STAGING_FIFO_TIMEOUT_SECONDS || '21600' }}
-        run: |
-          python tools/wait_post_merge_train_turn.py \
-            --timeout-seconds "$TIMEOUT_SECONDS" \
-            --poll-seconds 30
-
-      - name: Report no train wait required
-        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.event != 'push' || github.event.workflow_run.conclusion != 'success' || github.event.workflow_run.head_branch != 'main' }}
-        run: |
-          {
-            echo "## Post-merge Train Turn"
-            echo ""
-            echo "No FIFO wait required for event \`${{ github.event_name }}\`."
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Classify staging and AI/OCR relevance
         id: classify
-        env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            {
-              echo 'env_stage_required={"staging":true}'
-              echo 'env_stage_reasons={"staging":"manual-dispatch"}'
-              echo 'provider_gate_required={"staging":true}'
-              echo 'provider_gate_reasons={"staging":"manual-dispatch"}'
-              echo 'staging_ai_ocr_required=true'
-              echo 'staging_ai_ocr_reason=manual-dispatch'
-            } >> "$GITHUB_OUTPUT"
-            {
-              echo "## Staging Change Classification"
-              echo ""
-              echo "- Staging deploy required: \`true\`"
-              echo "- Staging reason: \`manual-dispatch\`"
-              echo "- Staging AI/OCR required: \`true\`"
-              echo "- Staging AI/OCR reason: \`manual-dispatch\`"
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          head_sha="${HEAD_SHA:-$(git rev-parse HEAD)}"
-          base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || true)"
-          if [ -z "$base_sha" ]; then
-            echo "::warning::Could not resolve parent for $head_sha; failing closed into staging deploy and AI/OCR."
-            : > changed-files.txt
-          else
-            git diff --name-only "$base_sha" "$head_sha" > changed-files.txt
-          fi
-
-          python tools/ci_change_classifier.py \
-            --changed-files changed-files.txt \
-            --github-output "$GITHUB_OUTPUT" \
-            --github-summary "$GITHUB_STEP_SUMMARY"
+          # Manual dispatch always deploys staging and runs the provider/AI-OCR
+          # gates; the workflow-level `concurrency: staging-deploy` group serializes
+          # concurrent manual runs, so no in-job FIFO wait is needed.
+          {
+            echo 'env_stage_required={"staging":true}'
+            echo 'env_stage_reasons={"staging":"manual-dispatch"}'
+            echo 'provider_gate_required={"staging":true}'
+            echo 'provider_gate_reasons={"staging":"manual-dispatch"}'
+            echo 'staging_ai_ocr_required=true'
+            echo 'staging_ai_ocr_reason=manual-dispatch'
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Staging Change Classification"
+            echo ""
+            echo "- Staging deploy required: \`true\`"
+            echo "- Staging reason: \`manual-dispatch\`"
+            echo "- Staging AI/OCR required: \`true\`"
+            echo "- Staging AI/OCR reason: \`manual-dispatch\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Normalize staging gates
         id: gates
@@ -467,11 +429,6 @@ jobs:
               "get_sha" \
               "git-sha-resolution" \
               "Target SHA resolution failed before staging deploy classification."
-          elif [ "${{ steps.wait_train.outcome }}" = "failure" ]; then
-            classify_failure \
-              "wait_train" \
-              "post-merge-train-wait" \
-              "FIFO post-merge train wait failed before staging deploy mutation."
           elif [ "${{ steps.classify.outcome }}" = "failure" ]; then
             classify_failure \
               "classification" \
@@ -592,13 +549,8 @@ jobs:
             echo "sha=${{ github.sha }}"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
-            echo "triggering_ci_run_id=${{ github.event.workflow_run.id }}"
-            echo "triggering_ci_run_attempt=${{ github.event.workflow_run.run_attempt }}"
-            echo "triggering_ci_event=${{ github.event.workflow_run.event }}"
-            echo "triggering_ci_head_sha=${{ github.event.workflow_run.head_sha }}"
-            echo "triggering_ci_created_at=${{ github.event.workflow_run.created_at }}"
-            echo "triggering_ci_conclusion=${{ github.event.workflow_run.conclusion }}"
-            echo "triggering_ci_url=${{ github.event.workflow_run.html_url }}"
+            echo "deploy_input_ref=${{ inputs.ref }}"
+            echo "deployed_full_sha=${{ steps.get_sha.outputs.full_sha }}"
             echo "target_short_sha=${{ steps.get_sha.outputs.short_sha }}"
             echo "app_url=${APP_URL}"
             echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
@@ -915,166 +867,11 @@ jobs:
             ci-context/staging-ai-ocr-context.txt
           retention-days: 14
 
-  staging-deploy-alert:
-    name: Staging Deploy Alert
-    runs-on: ubuntu-latest
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
-    if: ${{ always() && github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
-    permissions:
-      contents: read
-      issues: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      STAGING_ALERT_TITLE: "[staging-alert] Post-merge staging deploy failing"
-      STAGING_HEALTH_URL: https://report-staging.zitian.party/api/health
-      STAGING_APP_URL: https://report-staging.zitian.party
-    steps:
-      - name: Open or resolve staging failure alert
-        run: |
-          set -euo pipefail
-
-          staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"
-          staging_reason="${{ needs.build-and-deploy.outputs.staging_reason }}"
-          ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"
-          ai_ocr_reason="${{ needs.build-and-deploy.outputs.ai_ocr_reason }}"
-          provider_gate_required="${{ needs.build-and-deploy.outputs.provider_gate_required }}"
-          provider_gate_reason="${{ needs.build-and-deploy.outputs.provider_gate_reason }}"
-          failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"
-          failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"
-          failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"
-          build_result="${{ needs.build-and-deploy.result }}"
-          provider_result="${{ needs.provider-gate.result }}"
-          provider_status="${{ needs.provider-gate.outputs.provider_status }}"
-          ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
-          TARGET_SHA="${{ github.event.workflow_run.head_sha }}"
-          target_short="${TARGET_SHA:0:7}"
-          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          if [ "$build_result" = "success" ] && [ "$staging_required" != "true" ]; then
-            echo "No staging alert needed: staging_required=${staging_required} staging_reason=${staging_reason}."
-            exit 0
-          fi
-
-          current_response="$(curl -fsS --max-time 15 "$STAGING_HEALTH_URL" || true)"
-          current_staging_sha="$(
-            RESPONSE="$current_response" python - <<'PY'
-          import json
-          import os
-
-          payload = os.environ.get("RESPONSE", "")
-          try:
-              data = json.loads(payload) if payload else {}
-          except json.JSONDecodeError:
-              data = {}
-          print(data.get("git_sha") or data.get("version") or "unknown")
-          PY
-          )"
-
-          issue_number="$(
-            gh issue list \
-              --state open \
-              --search "$STAGING_ALERT_TITLE in:title" \
-              --json number,title \
-              --jq ".[] | select(.title == \"$STAGING_ALERT_TITLE\") | .number" \
-              | head -n 1
-          )"
-
-          failed=false
-          degraded_provider=false
-          if [ "$build_result" != "success" ]; then
-            failed=true
-          elif [ "$provider_gate_required" = "true" ] && [ "$provider_result" != "success" ]; then
-            failed=true
-            failure_domain="provider-connectivity"
-            failed_step="provider-gate"
-            failure_summary="Staging AI provider connectivity smoke returned a client/config (4xx) or unknown hard error after retries."
-          elif [ "$provider_gate_required" = "true" ] && [ "$provider_status" = "degraded" ]; then
-            degraded_provider=true
-          elif [ "$staging_required" = "true" ] && [ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]; then
-            failed=true
-          fi
-
-          if [ "$failed" = "true" ] || [ "$degraded_provider" = "true" ]; then
-            if [ "$degraded_provider" = "true" ]; then
-              headline="Staging deploy degraded."
-              tail="This issue stays open while post-merge staging is degraded by transient provider connectivity. Later failures or degradations append comments; the next fully successful post-merge staging run closes it."
-            else
-              headline="Staging deploy failed."
-              tail="This issue stays open while post-merge staging is failing. Later failures append comments; the next successful post-merge staging run closes it."
-            fi
-            {
-              echo "$headline"
-              echo ""
-              echo "- Target SHA: ${TARGET_SHA}"
-              echo "- Target short SHA: ${target_short}"
-              echo "- Run URL: ${run_url}"
-              echo "- App URL: ${STAGING_APP_URL}"
-              echo "- Staging required: ${staging_required:-unknown}"
-              echo "- Staging reason: ${staging_reason:-unknown}"
-              echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
-              echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
-              echo "- Provider gate required: ${provider_gate_required:-unknown}"
-              echo "- Provider gate reason: ${provider_gate_reason:-unknown}"
-              echo "- Build/deploy result: ${build_result}"
-              echo "- Build/deploy failure domain: ${failure_domain:-unknown}"
-              echo "- Build/deploy failed step: ${failed_step:-unknown}"
-              echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
-              echo "- Provider connectivity result: ${provider_result}"
-              echo "- Provider connectivity status: ${provider_status:-not-run}"
-              echo "- AI/OCR result: ${ai_ocr_result}"
-              echo "- Current staging SHA: ${current_staging_sha}"
-              echo ""
-              echo "$tail"
-            } > staging-alert.md
-
-            if [ -n "$issue_number" ]; then
-              gh issue comment "$issue_number" --body-file staging-alert.md
-              echo "Updated staging alert issue #${issue_number}."
-            else
-              gh issue create \
-                --title "$STAGING_ALERT_TITLE" \
-                --body-file staging-alert.md
-              echo "Created staging alert issue."
-            fi
-            exit 0
-          fi
-
-          if [ -n "$issue_number" ]; then
-            {
-              echo "Staging deploy recovered."
-              echo ""
-              echo "- Target SHA: ${TARGET_SHA}"
-              echo "- Target short SHA: ${target_short}"
-              echo "- Run URL: ${run_url}"
-              echo "- App URL: ${STAGING_APP_URL}"
-              echo "- Staging required: ${staging_required:-unknown}"
-              echo "- Staging reason: ${staging_reason:-unknown}"
-              echo "- AI/OCR required: ${ai_ocr_required:-unknown}"
-              echo "- AI/OCR reason: ${ai_ocr_reason:-unknown}"
-              echo "- Provider gate required: ${provider_gate_required:-unknown}"
-              echo "- Provider gate reason: ${provider_gate_reason:-unknown}"
-              echo "- Build/deploy result: ${build_result}"
-              echo "- Build/deploy failure domain: ${failure_domain:-unknown}"
-              echo "- Build/deploy failed step: ${failed_step:-unknown}"
-              echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
-              echo "- Provider connectivity result: ${provider_result}"
-              echo "- Provider connectivity status: ${provider_status:-not-run}"
-              echo "- AI/OCR result: ${ai_ocr_result}"
-              echo "- Current staging SHA: ${current_staging_sha}"
-            } > staging-recovery.md
-            gh issue comment "$issue_number" --body-file staging-recovery.md
-            gh issue close "$issue_number" --reason completed
-            echo "Closed recovered staging alert issue #${issue_number}."
-          else
-            echo "No open staging alert issue to close."
-          fi
-
   post-merge-delivery:
     name: Post-merge Delivery
     runs-on: ubuntu-latest
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate, staging-deploy-alert]
-    if: ${{ always() && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
+    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
+    if: ${{ always() }}
     steps:
       - name: Aggregate post-merge delivery result
         run: |
@@ -1093,9 +890,8 @@ jobs:
           provider_result="${{ needs.provider-gate.result }}"
           provider_status="${{ needs.provider-gate.outputs.provider_status }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
-          alert_result="${{ needs.staging-deploy-alert.result }}"
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          target_sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          target_sha="${{ needs.build-and-deploy.outputs.commit_full_sha || github.sha }}"
           target_short="${target_sha:0:7}"
           failed=false
           delivery_status="passed"
@@ -1117,10 +913,6 @@ jobs:
             failed=true
             delivery_status="failed"
             failure_reason="staging AI/OCR gate failed"
-          elif [ "${{ github.event_name }}" = "workflow_run" ] && [ "$alert_result" != "success" ]; then
-            failed=true
-            delivery_status="failed"
-            failure_reason="staging alert job failed"
           fi
 
           {
@@ -1144,7 +936,6 @@ jobs:
             echo "- Build/deploy failed step: ${failed_step:-unknown}"
             echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
             echo "- AI/OCR result: ${ai_ocr_result}"
-            echo "- Alert result: ${alert_result}"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$failed" = "true" ]; then
@@ -1155,7 +946,7 @@ jobs:
   post-merge-summary:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate, staging-deploy-alert, post-merge-delivery]
+    needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]
     if: ${{ always() }}
     permissions:
       actions: read
