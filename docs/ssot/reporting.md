@@ -250,6 +250,12 @@ The investment performance schedule is the report-ready portfolio input for the
 personal financial-report package and is owned by EPIC-017. EPIC-005 consumes it
 as the `investment_performance` report section.
 
+The **asset-dashboard performance answer** is unrealized market-value gain/loss,
+a simple return on cost basis for the schedule period, and a price-freshness
+flag, all derived from this schedule. `xirr`, `time_weighted_return`, and
+`money_weighted_return` are analytical reporting measures only; surfaces must not
+present them as the asset-dashboard answer (robo-advisor non-goal).
+
 Endpoint:
 `GET /api/portfolio/performance/report-schedule?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD&as_of_date=YYYY-MM-DD&currency=SGD`
 

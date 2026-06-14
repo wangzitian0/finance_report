@@ -1,113 +1,107 @@
 import "@testing-library/jest-dom/vitest"
-import { render, screen, waitFor } from "@testing-library/react"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import type { ReactNode } from "react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { render, screen } from "@testing-library/react"
+import { describe, expect, it } from "vitest"
 
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard"
-import { apiFetch } from "@/lib/api"
-import type { PerformanceMetrics } from "@/lib/types"
+import type { InvestmentPerformanceReportSchedule } from "@/lib/types"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-}))
-
-function createWrapper() {
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
+const baseSchedule: InvestmentPerformanceReportSchedule = {
+  period_start: "2026-01-01",
+  period_end: "2026-03-31",
+  as_of_date: "2026-04-01",
+  currency: "SGD",
+  xirr: "8.25",
+  time_weighted_return: "5.00",
+  money_weighted_return: "4.00",
+  dividend_yield: "1.50",
+  realized_pnl: "1200.00",
+  unrealized_pnl: "300.00",
+  dividend_income: "88.00",
+  holdings: [
+    {
+      asset_identifier: "AAPL",
+      quantity: "10",
+      cost_basis: "1000.00",
+      market_value: "1200.00",
+      unrealized_pnl: "200.00",
+      realized_pnl: "0.00",
+      dividend_income: "0.00",
+      currency: "SGD",
     },
-  })
-  const TestWrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  )
-  TestWrapper.displayName = "PerformanceTestWrapper"
-  return TestWrapper
-}
-
-const mockPerformance: PerformanceMetrics = {
-  xirr: "12.50",
-  time_weighted_return: "8.30",
-  money_weighted_return: "-2.10",
+    {
+      asset_identifier: "MSFT",
+      quantity: "5",
+      cost_basis: "2000.00",
+      market_value: "2100.00",
+      unrealized_pnl: "100.00",
+      realized_pnl: "0.00",
+      dividend_income: "0.00",
+      currency: "SGD",
+    },
+  ],
+  allocation: [],
+  data_freshness: {
+    latest_price_date: "2026-04-01",
+    market_data_provider: "IBKR",
+    stale: false,
+    stale_holdings: [],
+    manual_override_basis: null,
+  },
+  source_links: [],
+  notes: [],
 }
 
 describe("PerformanceCard", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
-
-  beforeEach(() => {
-    mockedApiFetch.mockReset()
-  })
-
-  it("renders loading spinner while fetching", () => {
-    mockedApiFetch.mockReturnValue(new Promise(() => {}))
-
-    render(<PerformanceCard />, { wrapper: createWrapper() })
-
+  it("renders loading spinner", () => {
+    render(<PerformanceCard isLoading />)
     expect(screen.getByText("Performance")).toBeInTheDocument()
-    const spinner = document.querySelector(".animate-spin")
-    expect(spinner).toBeTruthy()
+    expect(document.querySelector(".animate-spin")).toBeTruthy()
   })
 
-  it("renders error state when fetch fails", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("network error"))
+  it("renders error state", () => {
+    render(<PerformanceCard error={new Error("network error")} />)
+    expect(screen.getByText("Unable to load performance metrics")).toBeInTheDocument()
+  })
 
-    render(<PerformanceCard />, { wrapper: createWrapper() })
+  it("AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness", () => {
+    render(<PerformanceCard schedule={baseSchedule} />)
 
-    await waitFor(() =>
-      expect(screen.getByText("Unable to load performance metrics")).toBeInTheDocument(),
+    expect(screen.getByText("Market-Value Performance")).toBeInTheDocument()
+    expect(screen.getByText("Unrealized gain/loss")).toBeInTheDocument()
+    expect(screen.getByText("Return on cost")).toBeInTheDocument()
+    // 300 unrealized / 3000 cost basis = +10.00%
+    const ret = screen.getByText("+10.00%")
+    expect(ret).toHaveClass("text-[var(--success)]")
+    expect(screen.getByText("Prices current")).toBeInTheDocument()
+    expect(screen.getByText("2026-01-01 to 2026-04-01")).toBeInTheDocument()
+  })
+
+  it("AC17.14.4 does not present TWR/IRR/MWR as the asset-dashboard answer", () => {
+    render(<PerformanceCard schedule={baseSchedule} />)
+    expect(screen.queryByText("XIRR")).not.toBeInTheDocument()
+    expect(screen.queryByText("TWR")).not.toBeInTheDocument()
+    expect(screen.queryByText("MWR")).not.toBeInTheDocument()
+  })
+
+  it("AC17.14.4 flags stale prices", () => {
+    render(
+      <PerformanceCard
+        schedule={{
+          ...baseSchedule,
+          data_freshness: { ...baseSchedule.data_freshness, stale: true, stale_holdings: ["AAPL"] },
+        }}
+      />,
     )
+    const flag = screen.getByText("Prices stale")
+    expect(flag).toHaveClass("text-[var(--error)]")
   })
 
-  it("renders three metrics with correct labels and formatted values", async () => {
-    mockedApiFetch.mockResolvedValue(mockPerformance)
-
-    render(<PerformanceCard />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getByText("XIRR")).toBeInTheDocument())
-    expect(screen.getByText("TWR")).toBeInTheDocument()
-    expect(screen.getByText("MWR")).toBeInTheDocument()
-
-    expect(screen.getByText("+12.50%")).toBeInTheDocument()
-    expect(screen.getByText("+8.30%")).toBeInTheDocument()
-    expect(screen.getByText("-2.10%")).toBeInTheDocument()
-  })
-
-  it("applies success color to positive values and error color to negative values", async () => {
-    mockedApiFetch.mockResolvedValue(mockPerformance)
-
-    render(<PerformanceCard />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getByText("+12.50%")).toBeInTheDocument())
-
-    const positiveEl = screen.getByText("+12.50%")
-    expect(positiveEl.className).toContain("text-[var(--success)]")
-
-    const negativeEl = screen.getByText("-2.10%")
-    expect(negativeEl.className).toContain("text-[var(--error)]")
-  })
-
-  it("renders Performance Metrics header when data is loaded", async () => {
-    mockedApiFetch.mockResolvedValue(mockPerformance)
-
-    render(<PerformanceCard />, { wrapper: createWrapper() })
-
-    await waitFor(() =>
-      expect(screen.getByText("Performance Metrics")).toBeInTheDocument(),
+  it("AC17.14.4 shows N/A return when cost basis is zero", () => {
+    render(
+      <PerformanceCard
+        schedule={{ ...baseSchedule, unrealized_pnl: "0.00", holdings: [] }}
+      />,
     )
-  })
-
-  it("renders dash for NaN values", async () => {
-    mockedApiFetch.mockResolvedValue({
-      xirr: "not_a_number",
-      time_weighted_return: "8.30",
-      money_weighted_return: "0.00",
-    })
-
-    render(<PerformanceCard />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getByText("\u2014")).toBeInTheDocument())
-    expect(screen.getByText("+8.30%")).toBeInTheDocument()
-    expect(screen.getByText("0.00%")).toBeInTheDocument()
+    expect(screen.getByText("N/A")).toBeInTheDocument()
   })
 })

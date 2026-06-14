@@ -271,7 +271,11 @@ export default function PortfolioPage() {
             </section>
 
             <div className="grid gap-4 md:grid-cols-3 mb-6">
-                <PerformanceCard />
+                <PerformanceCard
+                    schedule={performanceSchedule}
+                    isLoading={isPerformanceScheduleLoading}
+                    error={performanceScheduleError}
+                />
                 <AllocationChart type="sector" title="Sector Allocation" />
                 <AllocationChart type="geography" title="Geography Allocation" />
             </div>

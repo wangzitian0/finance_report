@@ -3,6 +3,7 @@
 import { FileText, Link2 } from "lucide-react";
 
 import { compareAmounts, formatCurrencyLocale, formatAmount } from "@/lib/currency";
+import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
 function formatPercent(value: string | null): string {
@@ -56,12 +57,13 @@ export function InvestmentPerformanceSchedule({
         );
     }
 
-    const metrics = [
+    const analyticalMeasures = [
         { label: "XIRR", value: schedule.xirr },
         { label: "TWR", value: schedule.time_weighted_return },
         { label: "MWR", value: schedule.money_weighted_return },
         { label: "Dividend Yield", value: schedule.dividend_yield },
     ];
+    const performance = computeMarketValuePerformance(schedule);
     const staleHoldings = schedule.data_freshness.stale_holdings ?? [];
 
     return (
@@ -84,8 +86,35 @@ export function InvestmentPerformanceSchedule({
                 </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {metrics.map((metric) => (
+            <p className="mt-5 text-xs text-muted uppercase">Market-value performance</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded border border-[var(--border)] p-3">
+                    <p className="text-xs text-muted uppercase">Unrealized Gain/Loss</p>
+                    <p className={`mt-1 text-lg font-semibold ${metricClass(performance.unrealizedPnl)}`}>
+                        {formatCurrencyLocale(performance.unrealizedPnl, schedule.currency)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">vs cost {formatCurrencyLocale(performance.totalCostBasis, schedule.currency)}</p>
+                </div>
+                <div className="rounded border border-[var(--border)] p-3">
+                    <p className="text-xs text-muted uppercase">Return on Cost</p>
+                    <p className={`mt-1 text-lg font-semibold ${metricClass(performance.returnOnCostPercent)}`}>
+                        {formatPercent(performance.returnOnCostPercent)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">{schedule.period_start} to {schedule.as_of_date}</p>
+                </div>
+                <div className="rounded border border-[var(--border)] p-3">
+                    <p className="text-xs text-muted uppercase">Realized P&L</p>
+                    <p className="mt-1 font-semibold">{formatCurrencyLocale(schedule.realized_pnl, schedule.currency)}</p>
+                </div>
+                <div className="rounded border border-[var(--border)] p-3">
+                    <p className="text-xs text-muted uppercase">Dividend Income</p>
+                    <p className="mt-1 font-semibold">{formatCurrencyLocale(schedule.dividend_income, schedule.currency)}</p>
+                </div>
+            </div>
+
+            <p className="mt-4 text-xs text-muted uppercase">Analytical return measures (reporting only)</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {analyticalMeasures.map((metric) => (
                     <div key={metric.label} className="rounded border border-[var(--border)] p-3">
                         <p className="text-xs text-muted uppercase">{metric.label}</p>
                         <p className={`mt-1 text-lg font-semibold ${metricClass(metric.value)}`}>
@@ -93,21 +122,6 @@ export function InvestmentPerformanceSchedule({
                         </p>
                     </div>
                 ))}
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded border border-[var(--border)] p-3">
-                    <p className="text-xs text-muted uppercase">Realized P&L</p>
-                    <p className="mt-1 font-semibold">{formatCurrencyLocale(schedule.realized_pnl, schedule.currency)}</p>
-                </div>
-                <div className="rounded border border-[var(--border)] p-3">
-                    <p className="text-xs text-muted uppercase">Unrealized P&L</p>
-                    <p className="mt-1 font-semibold">{formatCurrencyLocale(schedule.unrealized_pnl, schedule.currency)}</p>
-                </div>
-                <div className="rounded border border-[var(--border)] p-3">
-                    <p className="text-xs text-muted uppercase">Dividend Income</p>
-                    <p className="mt-1 font-semibold">{formatCurrencyLocale(schedule.dividend_income, schedule.currency)}</p>
-                </div>
             </div>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
