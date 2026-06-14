@@ -14,12 +14,6 @@ import type {
 } from "@/lib/types";
 
 /**
- * Format a Decimal proportion string (e.g. "0.12500") as a percentage label
- * (e.g. "12.5%"). Proportions arrive as strings to preserve precision, so we
- * parse with Number only at the display boundary. A non-finite or missing
- * value renders as an em dash rather than "NaN%".
- */
-/**
  * Parse a proportion to a finite number, or `null` for a missing/blank/non-finite
  * value. `Number("")` and `Number("  ")` coerce to 0, so blank strings must be
  * rejected explicitly rather than silently treated as 0.
@@ -31,6 +25,12 @@ export function parseProportion(value: string | number | null | undefined): numb
   return Number.isFinite(proportion) ? proportion : null;
 }
 
+/**
+ * Format a Decimal proportion string (e.g. "0.12500") as a percentage label
+ * (e.g. "12.5%"). Proportions arrive as strings to preserve precision, so we
+ * parse with Number only at the display boundary. A non-finite or missing
+ * value renders as an em dash rather than "NaN%".
+ */
 export function formatProportionPercent(value: string | number, decimals = 1): string {
   const proportion = parseProportion(value);
   if (proportion === null) return "—";

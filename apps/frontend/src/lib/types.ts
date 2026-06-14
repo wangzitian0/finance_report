@@ -1048,7 +1048,7 @@ export interface BrokerageImportResponse {
 export interface ConfidenceMetricPoint {
   total_count: number;
   low_confidence_count: number;
-  low_confidence_proportion: string;
+  low_confidence_proportion: DecimalValue;
   tier_breakdown: Record<string, number>;
 }
 
@@ -1066,8 +1066,8 @@ export interface ConfidenceNorthStarResponse {
 export interface CorrectionLoopReplayResponse {
   holdout_size: number;
   grounded: number;
-  proportion_before: string;
-  proportion_after: string;
+  proportion_before: DecimalValue;
+  proportion_after: DecimalValue;
   /** Whether the correction loop measurably lowered the held-out proportion. */
   reduced: boolean;
 }

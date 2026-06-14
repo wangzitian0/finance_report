@@ -86,6 +86,24 @@ describe("Confidence Trend page (#1003 / #1055 PR4)", () => {
     expect(screen.getByText(/Reduces low confidence/i)).toBeInTheDocument();
   });
 
+  it("shows the empty-trend state when every snapshot proportion is blank (no chartable points)", async () => {
+    // Series is non-empty but all proportions are blank, so toSparklinePoints drops
+    // them all — the chart must not be rendered with an empty (invalid-SVG) series.
+    mockedNorthStar.mockResolvedValue(
+      northStar({
+        series: [
+          { id: "b2", captured_at: "2026-06-10T00:00:00Z", total_count: 0, low_confidence_count: 0, low_confidence_proportion: "", tier_breakdown: {} },
+          { id: "b1", captured_at: "2026-06-01T00:00:00Z", total_count: 0, low_confidence_count: 0, low_confidence_proportion: "  ", tier_breakdown: {} },
+        ],
+      }),
+    );
+    mockedReplay.mockResolvedValue(replay({ holdout_size: 0, reduced: false }));
+
+    render(<ConfidenceTrendPage />);
+
+    await waitFor(() => expect(screen.getByText("No trend recorded yet")).toBeInTheDocument());
+  });
+
   it("shows an empty-trend state when no snapshots have been recorded yet", async () => {
     mockedNorthStar.mockResolvedValue(northStar({ series: [] }));
     mockedReplay.mockResolvedValue(replay({ holdout_size: 0, reduced: false }));

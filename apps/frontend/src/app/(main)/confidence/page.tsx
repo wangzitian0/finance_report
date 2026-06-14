@@ -143,7 +143,7 @@ function NorthStarCard({ data }: { data: ConfidenceNorthStarResponse }) {
         </div>
       </div>
 
-      {hasNoSnapshots(data) ? (
+      {hasNoSnapshots(data) || points.length === 0 ? (
         <EmptyState
           framed={false}
           className="mt-4"
