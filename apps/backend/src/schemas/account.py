@@ -12,6 +12,19 @@ from src.models.account import AccountType
 from src.schemas.base import BaseResponse, ListResponse
 
 
+class OpeningBalanceRequest(BaseModel):
+    """Guided opening-balance request (#949): map accounts to year-start balances.
+
+    Each account is increased to its balance on its normal side; the net offsets
+    into the system Opening Balance Equity account so the entry stays balanced.
+    """
+
+    entry_date: date
+    balances: dict[UUID, Annotated[Decimal, Field(gt=Decimal("0"), decimal_places=2)]]
+    currency: str | None = None
+    memo: Annotated[str, Field(min_length=1, max_length=500)] = "Opening balances"
+
+
 class AccountBase(BaseModel):
     """Base account schema."""
 

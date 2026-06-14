@@ -20,6 +20,7 @@ from src.models import (
     JournalLine,
 )
 from src.services.source_type_priority import normalize_source_type
+from src.utils.money import to_money
 
 
 class AccountingError(Exception):
@@ -292,6 +293,78 @@ async def validate_line_account_ownership(
         raise ValidationError("Account does not belong to user")
 
     return accounts
+
+
+async def post_opening_balance_entry(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    entry_date: date,
+    balances: dict[UUID, Decimal],
+    currency: str,
+    memo: str = "Opening balances",
+) -> JournalEntry:
+    """Post a balanced opening-balance entry establishing year-start positions (#949).
+
+    Each supplied account is increased to its opening balance per its normal
+    side (assets/expenses debited, liabilities/equity/income credited); the net
+    is offset into the system Opening Balance Equity account so the entry
+    balances and the accounting equation holds. All amounts are ``Decimal``.
+    """
+    from src.services.account_service import get_or_create_opening_balance_equity_account
+
+    if not balances:
+        raise ValidationError("At least one opening balance is required")
+
+    normalized_currency = currency.upper()
+    account_ids = list(balances.keys())
+    result = await db.execute(select(Account).where(Account.id.in_(account_ids), Account.user_id == user_id))
+    accounts = {account.id: account for account in result.scalars().all()}
+    missing = [str(account_id) for account_id in account_ids if account_id not in accounts]
+    if missing:
+        raise ValidationError(f"Unknown or non-owned account(s): {sorted(missing)}")
+
+    lines_data: list[dict] = []
+    total_debit = Decimal("0")
+    total_credit = Decimal("0")
+    for account_id, raw_amount in balances.items():
+        amount = to_money(raw_amount)
+        if amount <= Decimal("0"):
+            raise ValidationError("Opening balance amounts must be positive")
+        account = accounts[account_id]
+        if account.type in (AccountType.ASSET, AccountType.EXPENSE):
+            direction = Direction.DEBIT
+            total_debit += amount
+        else:
+            direction = Direction.CREDIT
+            total_credit += amount
+        lines_data.append(
+            {"account_id": account_id, "direction": direction, "amount": amount, "currency": normalized_currency}
+        )
+
+    net = total_debit - total_credit
+    if net != Decimal("0"):
+        equity_account = await get_or_create_opening_balance_equity_account(db, user_id, normalized_currency)
+        lines_data.append(
+            {
+                "account_id": equity_account.id,
+                "direction": Direction.CREDIT if net > 0 else Direction.DEBIT,
+                "amount": abs(net),
+                "currency": normalized_currency,
+            }
+        )
+
+    # SYSTEM-typed: the guided flow orchestrates this entry and it offsets into
+    # the system Opening Balance Equity account, which manual entries may not touch.
+    entry = await create_journal_entry(
+        db,
+        user_id,
+        entry_date=entry_date,
+        memo=memo,
+        lines_data=lines_data,
+        source_type=JournalEntrySourceType.SYSTEM,
+    )
+    return await post_journal_entry(db, entry.id, user_id)
 
 
 async def create_journal_entry(

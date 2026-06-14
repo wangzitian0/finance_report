@@ -223,6 +223,16 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 | AC2.14.4 | PostgreSQL blocks direct update/delete of posted/reconciled entries and lines while draft entries remain editable | `test_AC2_14_4_posted_entries_and_lines_are_immutable_but_drafts_are_editable()` | `accounting/test_ledger_schema_invariants.py` | P0 |
 | AC2.14.5 | Voiding a posted entry preserves a non-null immutable reversal relationship instead of deleting or editing posted lines | `test_AC2_14_5_void_transition_requires_reversal_relationship()` | `accounting/test_ledger_schema_invariants.py` | P0 |
 
+### AC2.15: Guided Opening Balances ([#949](https://github.com/wangzitian0/finance_report/issues/949))
+
+A user with pre-existing assets/liabilities can establish year-start balances via one guided request, so a cross-year balance sheet is complete from the start instead of silently omitting the opening position.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.15.1 | `POST /api/accounts/opening-balances` posts one balanced entry that increases each account to its opening balance on its normal side and offsets the net into a system Opening Balance Equity account; the as-of balance sheet reflects the starting position with the accounting equation intact | `test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet` | `accounting/test_opening_balance.py` | P0 |
+| AC2.15.2 | A single asset opening balance offsets entirely into Opening Balance Equity, keeping the entry balanced | `test_AC2_15_2_single_asset_opening_balance_offsets_into_equity` | `accounting/test_opening_balance.py` | P0 |
+| AC2.15.3 | An opening balance for a non-owned or unknown account is rejected | `test_AC2_15_3_unknown_account_is_rejected` | `accounting/test_opening_balance.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC2.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
