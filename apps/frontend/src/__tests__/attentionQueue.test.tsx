@@ -52,7 +52,7 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
     // Unmatched (confidence 0) comes before the parsed statement (40) before pending review (80).
     expect(rows[0]).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
     expect(rows[1]).toHaveAttribute("href", "/statements/bad/review?from=attention");
-    expect(rows[2]).toHaveAttribute("href", "/reconciliation/review-queue?from=attention");
+    expect(rows[2]).toHaveAttribute("href", "/review?from=attention");
 
     expect(within(rows[1]).getByText("bad.pdf")).toBeInTheDocument();
     expect(within(rows[0]).getByText("0% confidence")).toBeInTheDocument();

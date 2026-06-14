@@ -605,6 +605,20 @@ is a typed `Stage2PendingMatch`, not `list[dict]`.
 | AC16.35.1 | An empty batch approve returns the typed counters with no `success` field | `test_AC16_35_1_batch_approve_empty_returns_typed_response` | `api/test_typed_contract_sweep.py` | P1 |
 | AC16.35.2 | Unresolved consistency checks block batch approve with a 409 structured error | `test_AC16_35_2_batch_approve_blocked_returns_409` | `api/test_typed_contract_sweep.py` | P1 |
 
+### AC16.36: Dedicated Stage-2 Review Surface ([#1001](https://github.com/wangzitian0/finance_report/issues/1001))
+
+Tier 1 of #1000. Stage-2 review gets a first-class `/review` route instead of being
+reachable only via `/reconciliation/review-queue` (nested under the reconciliation
+workbench — "parasitic on statements"). The Attention center and the home Risk-radar
+deep-link to `/review`; the run-scoped variant stays at `/review/run/[runId]`. Per the
+EPIC-022 IA (AC22.2.4) review stays out of the sidebar — it is reached from the
+attention/notification flow, not a standalone nav peer.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC16.36.1 | The dedicated `/review` route renders the Stage-2 review queue standalone | `AC16.36.1 renders the Stage-2 review queue as a standalone page` | `__tests__/reviewLandingPage.test.tsx` | P1 |
+| AC16.36.2 | The dedicated route loads the global queue (no run filter) | `AC16.36.2 loads the global queue (no run filter) on the dedicated route` | `__tests__/reviewLandingPage.test.tsx` | P2 |
+
 ---
 
 ## Historical Implementation Notes

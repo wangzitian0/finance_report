@@ -61,7 +61,7 @@ describe("attention model (EPIC-022 AC22.6)", () => {
   it("AC22.6.1 every item deep-links to the surface where the user can act", () => {
     const byId = Object.fromEntries(buildAttentionItems(sources).map((i) => [i.id, i.href]));
     expect(byId["statement:bad"]).toBe("/statements/bad/review");
-    expect(byId["reconciliation:pending"]).toBe("/reconciliation/review-queue");
+    expect(byId["reconciliation:pending"]).toBe("/review");
     expect(byId["reconciliation:unmatched"]).toBe("/reconciliation/unmatched");
     expect(byId["processing:stalled"]).toBe("/processing");
   });
