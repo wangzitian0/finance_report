@@ -211,6 +211,13 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
   `src/services/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests.
+- **JSON-repair retry**: when a model returns an otherwise-valid object wrapped in
+  a markdown code fence or padded with prose, `_extract_json_with_models` performs
+  one deterministic repair pass (strip the fence, extract the outermost balanced
+  `{...}` object, tracking string literals) before counting a `json_parse` failure.
+  This keeps a single malformed-but-recoverable response from rejecting an
+  otherwise-valid upload (#982). The repair never invents data and falls back to the
+  existing model-chain failure path when no object can be recovered.
 - **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
   with a validation error so users can retry.
 - **Error handler rollback-first**: `_handle_parse_failure` calls `db.rollback()` before re-fetching

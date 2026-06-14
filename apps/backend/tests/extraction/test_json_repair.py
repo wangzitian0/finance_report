@@ -1,0 +1,98 @@
+"""AC13.14: JSON-repair retry for recoverable malformed model responses (#982).
+
+A single model response wrapped in markdown fences or padded with prose should
+not reject an otherwise-valid upload. The extraction loop attempts a bounded,
+deterministic repair before counting the response as a ``json_parse`` failure.
+"""
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.services.extraction import ExtractionError, ExtractionService
+
+
+class TestRepairJsonObject:
+    def test_strips_json_code_fence(self):
+        """AC13.14.1: A ```json fenced object is recovered."""
+        content = '```json\n{"institution": "DBS", "transactions": []}\n```'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"institution": "DBS", "transactions": []}
+
+    def test_strips_bare_code_fence_and_prose(self):
+        """AC13.14.2: Surrounding prose and a bare ``` fence are stripped to the
+        outermost balanced object."""
+        content = 'Here is the result:\n```\n{"a": 1, "nested": {"b": 2}}\n```\nDone.'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"a": 1, "nested": {"b": 2}}
+
+    def test_clean_object_is_preserved(self):
+        """AC13.14.3: An already-clean object round-trips unchanged."""
+        content = '{"x": "y"}'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"x": "y"}
+
+    def test_unrecoverable_returns_none(self):
+        """AC13.14.4: Content with no JSON object is unrecoverable."""
+        assert ExtractionService._repair_json_object("totally not json") is None
+        assert ExtractionService._repair_json_object("") is None
+
+    def test_does_not_misread_braces_in_strings(self):
+        """AC13.14.4b: Braces inside string values do not truncate the object."""
+        content = '```json\n{"note": "balance {pending}", "ok": true}\n```'
+        repaired = ExtractionService._repair_json_object(content)
+        assert repaired is not None
+        assert json.loads(repaired) == {"note": "balance {pending}", "ok": True}
+
+
+class TestExtractionSalvagesFencedResponse:
+    async def test_fenced_response_is_salvaged(self):
+        """AC13.14.5: A fenced (otherwise-valid) model response is salvaged by the
+        extraction loop instead of rejecting the upload."""
+        service = ExtractionService()
+        fenced = '```json\n{"institution": "DBS", "transactions": []}\n```'
+
+        with (
+            patch.object(service, "api_key", "test-key"),
+            patch.object(service, "base_url", "https://test.api"),
+            patch("src.services.extraction.stream_ai_json", return_value=MagicMock()),
+            patch("src.services.extraction.accumulate_stream", AsyncMock(return_value=fenced)),
+        ):
+            result = await service._extract_json_with_models(
+                messages=[{"role": "user", "content": "x"}],
+                models=["test-model"],
+                prompt="p",
+                institution="DBS",
+                file_type="pdf",
+                return_raw=False,
+                has_content=True,
+                has_url=False,
+            )
+
+        assert result == {"institution": "DBS", "transactions": []}
+
+    async def test_unrecoverable_response_still_fails(self):
+        """AC13.14.6: A response with no recoverable JSON still fails as before."""
+        service = ExtractionService()
+
+        with (
+            patch.object(service, "api_key", "test-key"),
+            patch.object(service, "base_url", "https://test.api"),
+            patch("src.services.extraction.stream_ai_json", return_value=MagicMock()),
+            patch("src.services.extraction.accumulate_stream", AsyncMock(return_value="not json at all")),
+        ):
+            with pytest.raises(ExtractionError):
+                await service._extract_json_with_models(
+                    messages=[{"role": "user", "content": "x"}],
+                    models=["test-model"],
+                    prompt="p",
+                    institution="DBS",
+                    file_type="pdf",
+                    return_raw=False,
+                    has_content=True,
+                    has_url=False,
+                )
