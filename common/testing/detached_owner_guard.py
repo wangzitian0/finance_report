@@ -65,13 +65,24 @@ def _relative_path(path: Path, repo_root: Path) -> str:
         return path.as_posix()
 
 
+_PERSIST_METHODS = ("add", "add_all", "merge", "bulk_save_objects")
+
+
 def _persisted_construction_ids(scope: ast.AST) -> set[int]:
-    """Return ids of model-construction Call nodes persisted via db.add / db.add_all.
+    """Return ids of model-construction Call nodes persisted via a session write.
 
     Only persisted rows carry the production foreign key, so only they can hide the
     ownership / cascade / cross-user bugs this guard exists to catch. A
     ``user_id=uuid4()`` on a transient in-memory object or a bare service argument
     is not a detached-owner shortcut — it never reaches the database.
+
+    Persistence is detected for ``add`` / ``add_all`` / ``merge`` /
+    ``bulk_save_objects`` calls, including rows collected into a list variable and
+    bulk-added later. This is a deliberate **lower bound**: a row persisted only
+    through a cross-function helper or factory (``db.add(make_row())``) is not
+    counted, so the budget bounds the *directly-visible* detached owners, not the
+    total. The durable fix is keeping the test ``users`` foreign key and owning
+    rows with the ``test_user`` fixture.
     """
     added_var_names: set[str] = set()
     construction_ids: set[int] = set()
@@ -98,7 +109,7 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
     # records the variable so rows collected into a list and bulk-added later are
     # still treated as persisted.
     for node in ast.walk(scope):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("add", "add_all"):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _PERSIST_METHODS:
             for arg in node.args:
                 _collect_added(arg)
 

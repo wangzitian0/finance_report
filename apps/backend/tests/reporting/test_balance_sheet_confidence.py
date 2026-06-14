@@ -142,3 +142,36 @@ async def test_include_trust_signals_false_skips_tier_and_provenance(db, test_us
 
     assert report["confidence_tier"] is None
     assert all(line["confidence_tier"] is None and line["provenance"] is None for line in report["assets"])
+
+
+@pytest.mark.asyncio
+async def test_balance_sheet_aggregate_provenance_is_populated(db, test_user):
+    """Audit review: the aggregate provenance is exposed on the payload, not always None (#938 gap)."""
+    cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
+    salary = Account(user_id=test_user.id, name="Salary", type=AccountType.INCOME, currency="SGD")
+    db.add_all([cash, salary])
+    await db.flush()
+    await _post(
+        db,
+        test_user.id,
+        debit=cash,
+        credit=salary,
+        amount=Decimal("100.00"),
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+    )
+    single = await generate_balance_sheet(db, test_user.id, as_of_date=date(2026, 12, 31))
+    assert single["provenance"] == "imported"
+
+    wallet = Account(user_id=test_user.id, name="Wallet", type=AccountType.ASSET, currency="SGD")
+    db.add(wallet)
+    await db.flush()
+    await _post(
+        db,
+        test_user.id,
+        debit=wallet,
+        credit=salary,
+        amount=Decimal("50.00"),
+        source_type=JournalEntrySourceType.MANUAL,
+    )
+    mixed = await generate_balance_sheet(db, test_user.id, as_of_date=date(2026, 12, 31))
+    assert mixed["provenance"] == "derived"

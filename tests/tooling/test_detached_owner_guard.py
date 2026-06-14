@@ -139,6 +139,35 @@ def test_add_all_via_append(db):
     assert any("Appended" in name for name in names)
 
 
+def test_AC8_13_130_counts_merge_and_bulk_save_persisted_owners(tmp_path: Path) -> None:
+    """AC8.13.130: persistence via merge / bulk_save_objects is also counted, not just add/add_all."""
+    test_file = tmp_path / "apps" / "backend" / "tests" / "test_persist.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        """
+from uuid import uuid4
+
+from src.models import Account
+
+
+def test_merge(db):
+    db.merge(Account(user_id=uuid4(), name="Merged", type="ASSET", currency="SGD"))
+
+
+def test_bulk(db):
+    db.bulk_save_objects([Account(user_id=uuid4(), name="Bulk", type="ASSET", currency="SGD")])
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    findings = detached_owner_guard.scan_paths([tmp_path / "apps" / "backend" / "tests"], repo_root=tmp_path)
+
+    names = {finding.source for finding in findings}
+    assert len(findings) == 2
+    assert any("Merged" in name for name in names)
+    assert any("Bulk" in name for name in names)
+
+
 def test_AC8_13_128_ignores_non_uuid4_user_ids(tmp_path: Path) -> None:
     """AC8.13.128: only direct uuid4 owner shortcuts count against the budget."""
     test_file = tmp_path / "apps" / "backend" / "tests" / "test_safe.py"
