@@ -75,7 +75,7 @@ const mockHolding2: PortfolioHolding = {
   sector: "Automotive",
 }
 
-function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
+function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding], allocationPercentage = "100.00") {
   const mockedApiFetch = vi.mocked(apiFetch)
   mockedApiFetch.mockImplementation((path: string) => {
     if (path.startsWith("/api/portfolio/summary")) {
@@ -122,7 +122,7 @@ function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
           },
         ],
         allocation: [
-          { dimension: "asset_class", category: "Public Equity", value: "1800.00", percentage: "100.00", count: 1 },
+          { dimension: "asset_class", category: "Public Equity", value: "1800.00", percentage: allocationPercentage, count: 1 },
           { dimension: "sector", category: "Technology", value: "1800.00", percentage: "100.00", count: 1 },
         ],
         data_freshness: {
@@ -298,6 +298,16 @@ describe("PortfolioPage", () => {
     expect(within(panel).getByText("100.0%")).toBeInTheDocument()
     expect(within(panel).getByText("1 holding")).toBeInTheDocument()
     expect(within(panel).getByText(/Ties to portfolio value/)).toBeInTheDocument()
+  })
+
+  it("AC17.14.1 renders invalid allocation percentages as unavailable", async () => {
+    mockPortfolioApi([mockHolding], "not-a-number")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
+    expect(within(panel).getByText("Public Equity")).toBeInTheDocument()
+    expect(within(panel).getByText("N/A")).toBeInTheDocument()
   })
 
   it("AC17.8.4 does not show total portfolio value banner when no active holdings", async () => {
