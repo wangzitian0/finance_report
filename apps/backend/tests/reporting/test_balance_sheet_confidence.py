@@ -121,3 +121,24 @@ async def test_AC5_18_2_net_worth_rolls_up_to_worst_input_tier(db, test_user):
 
     report = await generate_balance_sheet(db, test_user.id, as_of_date=date(2026, 12, 31))
     assert report["confidence_tier"] == "LOW"
+
+
+@pytest.mark.asyncio
+async def test_include_trust_signals_false_skips_tier_and_provenance(db, test_user):
+    """Audit review (perf): callers that don't render badges can skip the two extra scans.
+
+    The net-worth time series and the income statement's internal balance sheets pass
+    include_trust_signals=False so they don't amplify the per-account ledger scans.
+    """
+    cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
+    salary = Account(user_id=test_user.id, name="Salary", type=AccountType.INCOME, currency="SGD")
+    db.add_all([cash, salary])
+    await db.flush()
+    await _post(
+        db, test_user.id, debit=cash, credit=salary, amount=Decimal("100.00"), source_type=JournalEntrySourceType.MANUAL
+    )
+
+    report = await generate_balance_sheet(db, test_user.id, as_of_date=date(2026, 12, 31), include_trust_signals=False)
+
+    assert report["confidence_tier"] is None
+    assert all(line["confidence_tier"] is None and line["provenance"] is None for line in report["assets"])
