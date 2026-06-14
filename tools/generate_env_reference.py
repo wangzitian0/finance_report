@@ -24,18 +24,25 @@ import difflib
 import sys
 from pathlib import Path
 
-from pydantic import AliasChoices
-from pydantic.fields import FieldInfo
-
 ROOT_DIR = Path(__file__).resolve().parents[1]
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 
-# Make ``from src.config import Settings`` importable.
-for _path in (str(BACKEND_DIR), str(BACKEND_DIR / "src")):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
+# Repo root on sys.path[0] when run directly (tool-wrapper contract AC8.13.56).
+# Backend imports (pydantic, src.config) are loaded lazily in ``_settings_model``
+# so importing this module never perturbs sys.path[0] or requires backend deps.
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-from src.config import Settings  # noqa: E402
+
+def _settings_model():
+    """Import the backend ``Settings`` class lazily (needs the backend env)."""
+    for path in (str(BACKEND_DIR), str(BACKEND_DIR / "src")):
+        if path not in sys.path:
+            sys.path.append(path)
+    from src.config import Settings
+
+    return Settings
+
 
 ENV_EXAMPLE_PATH = ROOT_DIR / ".env.example"
 ENV_REFERENCE_DOC_PATH = ROOT_DIR / "docs" / "ssot" / "env-reference.generated.md"
@@ -62,8 +69,10 @@ GROUP_ORDER = [
 ]
 
 
-def _canonical_key(name: str, field: FieldInfo) -> str:
+def _canonical_key(name: str, field) -> str:
     """Derive the canonical env key for a field."""
+    from pydantic import AliasChoices
+
     alias = field.validation_alias
     if isinstance(alias, str):
         return alias
@@ -85,7 +94,7 @@ def _render_value(value: object) -> str:
     return str(value)
 
 
-def _shown_value(field: FieldInfo) -> str:
+def _shown_value(field) -> str:
     """The value to show in .env.example (json_schema_extra ``example`` wins)."""
     extra = field.json_schema_extra
     if isinstance(extra, dict) and "example" in extra:
@@ -100,8 +109,9 @@ def collect_backend_fields() -> list[dict]:
     fields; ``cached_property`` helpers (cors_origins, fallback_models) are not
     ``model_fields`` and are therefore excluded automatically.
     """
+    settings_cls = _settings_model()
     fields: list[dict] = []
-    for name, field in Settings.model_fields.items():
+    for name, field in settings_cls.model_fields.items():
         extra = field.json_schema_extra
         if not isinstance(extra, dict) or "group" not in extra:
             continue
