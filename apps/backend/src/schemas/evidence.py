@@ -14,10 +14,11 @@ partially-materialized rows backward-compatible while still documenting the
 canonical fields.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
+from pydantic_core.core_schema import SerializerFunctionWrapHandler
 
 EvidenceLineageDirection = Literal["upstream", "downstream", "both"]
 
@@ -27,9 +28,22 @@ class _EvidenceProperties(BaseModel):
 
     Unknown keys are preserved so historical rows round-trip unchanged, and all
     declared fields are optional so partially-materialized rows stay valid.
+
+    Backward-compat serialization: declared fields are all optional and default
+    to ``None``, so a legacy/partial row that omits a field would otherwise emit
+    an explicit ``null`` key (e.g. ``document_type: null``) once typed, changing
+    the historical JSON shape. The serializer below drops ``None``-valued keys so
+    absent fields stay absent, while populated fields and preserved extra keys
+    (``extra="allow"``) still serialize. This holds for both direct
+    ``model_dump()`` and FastAPI ``response_model`` serialization (which
+    re-validates and would otherwise mark defaults as "set").
     """
 
     model_config = ConfigDict(extra="allow")
+
+    @model_serializer(mode="wrap")
+    def _omit_none_fields(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        return {key: value for key, value in handler(self).items() if value is not None}
 
 
 class SourceDocumentProperties(_EvidenceProperties):

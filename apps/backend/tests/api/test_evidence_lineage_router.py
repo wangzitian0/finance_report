@@ -349,15 +349,25 @@ def test_AC18_31_1_node_properties_are_typed_and_round_trip() -> None:
 
 
 def test_AC18_31_1_node_properties_preserve_unknown_and_partial_keys() -> None:
-    """AC18.31.1: typed properties stay backward-compatible with legacy/partial rows."""
-    partial = build_node_properties("source_document", {"original_filename": "may.csv", "legacy_key": "kept"})
-    dumped = partial.model_dump()
+    """AC18.31.1: typed properties stay backward-compatible with legacy/partial rows.
 
-    assert dumped["original_filename"] == "may.csv"
-    # Unknown keys from historical rows are preserved (extra="allow").
-    assert dumped["legacy_key"] == "kept"
+    Typing the properties must not change the legacy JSON shape: a partial row
+    must serialize to EXACTLY the keys it had, with no new ``null`` keys for the
+    declared-but-unset optional fields (e.g. no ``document_type: null``). Asserts
+    exact equality with both ``model_dump()`` and ``model_dump(exclude_unset=True)``
+    so a regression that re-adds default keys is caught.
+    """
+    legacy_row = {"original_filename": "may.csv", "legacy_key": "kept"}
+    partial = build_node_properties("source_document", legacy_row)
+
+    # Exact legacy shape: populated + preserved extra keys only, no null defaults.
+    assert partial.model_dump() == legacy_row
+    assert partial.model_dump(exclude_unset=True) == legacy_row
+    # No declared-but-unset optional field leaks in as a null key.
+    assert "document_type" not in partial.model_dump()
+    assert "file_hash" not in partial.model_dump()
     # Unknown node kinds still coerce (generic fallback) instead of raising.
-    assert build_node_properties("future_kind", {"anything": "ok"}).model_dump()["anything"] == "ok"
+    assert build_node_properties("future_kind", {"anything": "ok"}).model_dump() == {"anything": "ok"}
 
 
 def test_AC18_31_1_edge_properties_are_typed() -> None:
