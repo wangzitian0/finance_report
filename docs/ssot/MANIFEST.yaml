@@ -139,6 +139,8 @@ concepts:
 
   extraction_confidence_tiers:
     owner: docs/ssot/extraction.md#confidence-scoring
+    family: extraction
+    kind: concept
     description: Extraction confidence score weighting and ≥85 / 60-84 / <60 routing tiers.
     cross_refs:
       - docs/ssot/reconciliation.md#thresholds
@@ -237,12 +239,16 @@ concepts:
 
   confirmation_workflow_states:
     owner: docs/ssot/confirmation-workflow.md#state-machine
+    family: reconciliation
+    kind: concept
     description: Stage 1 & Stage 2 confirmation state transitions (the cross-cutting state machine).
     cross_refs:
       - docs/ssot/reconciliation.md#state-machine
 
   confidence_tier_rollup:
     owner: docs/ssot/confirmation-workflow.md#confidence-tier-rollup
+    family: extraction
+    kind: concept
     description: Confidence-tier rollup that makes extraction confidence load-bearing for promotion.
     cross_refs:
       - docs/ssot/extraction.md#confidence-scoring
