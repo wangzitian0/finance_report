@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Analytics } from "@/components/Analytics";
 import { AuthGuard } from "@/components/AuthGuard";
+import { analyticsClientIdMissingInDeployedEnv } from "@/lib/analytics-env";
 import { Inter } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -45,20 +46,6 @@ export const viewport: Viewport = {
 // read per request rather than captured at build (the finance app is auth-gated
 // and already effectively dynamic).
 export const dynamic = "force-dynamic";
-
-// C5 (Infra-014): page-view analytics MUST be configured in deployed, non-preview
-// environments (staging/production). A missing client id there means analytics is
-// silently off — a misconfiguration we surface (server log → SigNoz) instead of
-// failing silently, but never by throwing (that would break SSR). Preview
-// (report-pr-N) and local intentionally have no OpenPanel, so they stay silent.
-export function analyticsClientIdMissingInDeployedEnv(
-  clientId: string | undefined,
-  appUrl: string | undefined,
-): boolean {
-  if (clientId && clientId.trim()) return false;
-  const url = (appUrl ?? "").trim();
-  return url.startsWith("https://") && !url.includes("-pr-") && !url.includes("localhost");
-}
 
 export default function RootLayout({
   children,

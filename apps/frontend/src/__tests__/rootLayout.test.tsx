@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import RootLayout, { analyticsClientIdMissingInDeployedEnv, metadata, viewport } from "@/app/layout"
+import RootLayout, { metadata, viewport } from "@/app/layout"
+import { analyticsClientIdMissingInDeployedEnv } from "@/lib/analytics-env"
 
 vi.mock("next/font/google", () => ({
   Inter: () => ({ variable: "--font-inter" }),
