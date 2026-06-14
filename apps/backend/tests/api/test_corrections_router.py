@@ -44,7 +44,7 @@ def test_AC18_2_5_top_corrections_is_typed_pydantic_model():
 
     The stats response schema must declare ``top_corrections`` as a list of
     ``TopCorrection`` models (count: int, original_category: str | None,
-    corrected_category: str | None), not an untyped ``list[dict]``.
+    corrected_category: str), not an untyped ``list[dict]``.
     """
     # The model exists and carries the exact keys the service emits.
     item = corrections.TopCorrection(
