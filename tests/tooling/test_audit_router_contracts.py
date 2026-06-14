@@ -40,6 +40,35 @@ async def untyped():
     assert findings[0].route == "/untyped"
 
 
+def test_response_model_none_counts_as_untyped(tmp_path: Path) -> None:
+    """response_model=None is an untyped contract — it must not silence the gate."""
+    router = tmp_path / "demo.py"
+    router.write_text(
+        "from fastapi import APIRouter\n"
+        "router = APIRouter()\n\n\n"
+        '@router.get("/none", response_model=None)\n'
+        "async def none_handler():\n    return {}\n",
+        encoding="utf-8",
+    )
+    findings = audit.scan_file(router, repo_root=tmp_path)
+    assert len(findings) == 1 and findings[0].handler == "none_handler"
+
+
+def test_detects_endpoints_on_any_apirouter_variable(tmp_path: Path) -> None:
+    """An untyped endpoint on a second APIRouter (not named 'router') is still caught."""
+    router = tmp_path / "demo.py"
+    router.write_text(
+        "from fastapi import APIRouter\n"
+        "router = APIRouter()\n"
+        'conflicts_router = APIRouter(prefix="/review")\n\n\n'
+        '@conflicts_router.delete("/{conflict_id}")\n'
+        "async def drop_conflict():\n    return None\n",
+        encoding="utf-8",
+    )
+    findings = audit.scan_file(router, repo_root=tmp_path)
+    assert len(findings) == 1 and findings[0].handler == "drop_conflict"
+
+
 def test_budget_gate_fails_on_growth(tmp_path: Path) -> None:
     """The CLI exits nonzero when untyped endpoints exceed the budget."""
     router = tmp_path / "apps" / "backend" / "src" / "routers" / "demo.py"

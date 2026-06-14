@@ -41,8 +41,25 @@ class UntypedEndpoint:
     handler: str
 
 
-def _route_decorators(node: ast.AST) -> Iterable[tuple[str, ast.Call]]:
-    """Yield (http_method, call) for each @router.<method>(...) decorator on a function."""
+def _router_names(tree: ast.AST) -> set[str]:
+    """Names bound to an ``APIRouter()`` in this module (plus the conventional ``app``).
+
+    A module may declare more than one router (e.g. ``router`` and ``conflicts_router``
+    in review.py); hardcoding ``{"router", "app"}`` would let endpoints on any other
+    router bypass the gate, so the set is derived from the actual assignments.
+    """
+    names = {"app"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            func = node.value.func
+            callee = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            if callee == "APIRouter":
+                names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    return names
+
+
+def _route_decorators(node: ast.AST, router_names: set[str]) -> Iterable[tuple[str, ast.Call]]:
+    """Yield (http_method, call) for each @<router>.<method>(...) decorator on a function."""
     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return
     for deco in node.decorator_list:
@@ -51,13 +68,21 @@ def _route_decorators(node: ast.AST) -> Iterable[tuple[str, ast.Call]]:
             and isinstance(deco.func, ast.Attribute)
             and deco.func.attr in _HTTP_METHODS
             and isinstance(deco.func.value, ast.Name)
-            and deco.func.value.id in {"router", "app"}
+            and deco.func.value.id in router_names
         ):
             yield deco.func.attr, deco
 
 
 def _has_response_model(call: ast.Call) -> bool:
-    return any(kw.arg == "response_model" for kw in call.keywords)
+    """True only if a *non-None* response_model is declared.
+
+    ``response_model=None`` is an untyped/undocumented contract — counting it as
+    typed would let the gate be silenced without actually adding a schema.
+    """
+    for kw in call.keywords:
+        if kw.arg == "response_model":
+            return not (isinstance(kw.value, ast.Constant) and kw.value.value is None)
+    return False
 
 
 def _route_literal(call: ast.Call) -> str:
@@ -73,9 +98,10 @@ def scan_file(path: Path, *, repo_root: Path) -> list[UntypedEndpoint]:
     except ValueError:
         rel = path.as_posix()
 
+    router_names = _router_names(tree)
     findings: list[UntypedEndpoint] = []
     for node in ast.walk(tree):
-        for method, call in _route_decorators(node):
+        for method, call in _route_decorators(node, router_names):
             if not _has_response_model(call):
                 # Status-only / 204 handlers are legitimately bodiless, but they should
                 # still be explicit; we surface them so the decision is recorded, not hidden.
@@ -105,14 +131,18 @@ def render_markdown(findings: Sequence[UntypedEndpoint]) -> str:
         "# Router Contract Maturity — Untyped Endpoints",
         "",
         "Kickoff of [#1000](https://github.com/wangzitian0/finance_report/issues/1000). "
-        "Endpoints below declare no `response_model`, so their response contract is "
-        "absent from the OpenAPI schema. Type them (or document why a status-only "
-        "handler is intentional) and lower the budget in `audit_router_contracts.py`.",
+        "Endpoints below declare no (non-`None`) `response_model`, so their response "
+        "contract is absent from the OpenAPI schema. Type them (or document why a "
+        "status-only handler is intentional) and lower the budget "
+        "(`DEFAULT_MAX_UNTYPED_ENDPOINTS` in `common/ssot/audit_router_contracts.py`).",
         "",
         f"**Untyped endpoints: {len(findings)}**",
         "",
-        "| Method | Route | Handler | File:line |",
-        "|--------|-------|---------|-----------|",
+        "The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=...)` "
+        "(e.g. `/accounts`), so combine it with the router's prefix to get the full path.",
+        "",
+        "| Method | Route (router-relative) | Handler | File:line |",
+        "|--------|-------------------------|---------|-----------|",
     ]
     for f in findings:
         lines.append(f"| `{f.method}` | `{f.route}` | `{f.handler}` | {f.relative_path}:{f.line} |")
