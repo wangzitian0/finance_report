@@ -250,6 +250,7 @@ need a broader report contract than the current portfolio schedule provides.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC17.14.1 | Portfolio page renders a unified asset-class allocation panel from the investment performance schedule with value, percentage, holding count, and tie-out to the displayed portfolio value | `AC17.14.1 renders unified asset allocation from performance schedule` | `apps/frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
+| AC17.14.2 | Reports expose a net-worth allocation schedule grouped by asset class, liquidity class, and source currency, with signed rows that reconcile to net worth and retain source-line drill-through metadata | `test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources`, `test_AC17_14_2_net_worth_allocation_endpoint_returns_contract` | `apps/backend/tests/reporting/test_reporting_net_worth_components.py`, `apps/backend/tests/reporting/test_reports_router.py` | P1 |
 
 ### Brokerage PDF to Asset Report Proof Matrix
 

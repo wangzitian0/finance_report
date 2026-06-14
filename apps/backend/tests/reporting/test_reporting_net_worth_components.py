@@ -33,7 +33,12 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
-from src.services.reporting import ReportError, generate_balance_sheet, generate_income_statement
+from src.services.reporting import (
+    ReportError,
+    generate_balance_sheet,
+    generate_income_statement,
+    get_net_worth_allocation_schedule,
+)
 
 
 async def _create_account(
@@ -582,6 +587,106 @@ async def test_manual_valuation_missing_fx_rate_raises_report_error(db: AsyncSes
 
     with pytest.raises(ReportError, match="No FX rate available"):
         await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
+
+
+async def test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources(
+    db: AsyncSession,
+    test_user,
+):
+    """AC17.14.2: Net-worth allocation rows group balance-sheet sources and reconcile to net worth."""
+    report_date = date(2025, 3, 31)
+    bank = await _create_account(db, test_user.id, name="Main Bank", account_type=AccountType.ASSET)
+    brokerage = await _create_account(db, test_user.id, name="Moomoo", account_type=AccountType.ASSET)
+    equity = await _create_account(db, test_user.id, name="Owner Equity", account_type=AccountType.EQUITY)
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.35"),
+            rate_date=report_date,
+            source="test",
+        )
+    )
+    await _post_balanced_entry(
+        db,
+        test_user.id,
+        entry_date=report_date,
+        debit_account=bank,
+        credit_account=equity,
+        amount=Decimal("5000.00"),
+    )
+    await _post_balanced_entry(
+        db,
+        test_user.id,
+        entry_date=report_date,
+        debit_account=brokerage,
+        credit_account=equity,
+        amount=Decimal("1200.00"),
+    )
+    await _create_position_snapshot(
+        db,
+        test_user.id,
+        brokerage,
+        asset_identifier="AAPL",
+        quantity=Decimal("10"),
+        cost_basis=Decimal("1000.00"),
+        market_value=Decimal("1500.00"),
+        as_of_date=report_date,
+    )
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        component_name="Singapore Condo",
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        value=Decimal("10000.00"),
+        currency="SGD",
+        as_of_date=report_date,
+    )
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
+        component_name="Singapore Condo Mortgage",
+        liquidity_class=ManualValuationLiquidityClass.LIABILITY,
+        value=Decimal("4000.00"),
+        currency="SGD",
+        as_of_date=report_date,
+    )
+    await _create_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.RSU,
+        component_name="Employer RSU",
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        value=Decimal("1000.00"),
+        currency="USD",
+        as_of_date=report_date,
+    )
+    await db.commit()
+
+    schedule = await get_net_worth_allocation_schedule(
+        db,
+        test_user.id,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=True,
+    )
+
+    rows = {(row["asset_class"], row["liquidity_class"], row["source_currency"]): row for row in schedule["rows"]}
+    assert schedule["total_assets"] == Decimal("18050.00")
+    assert schedule["total_liabilities"] == Decimal("4000.00")
+    assert schedule["net_worth"] == Decimal("14050.00")
+    assert sum((row["value"] for row in schedule["rows"]), Decimal("0.00")) == schedule["net_worth"]
+    assert rows[("cash", "liquid", "SGD")]["value"] == Decimal("5200.00")
+    assert rows[("public_equity", "liquid", "SGD")]["value"] == Decimal("1500.00")
+    assert rows[("restricted_comp", "restricted", "USD")]["value"] == Decimal("1350.00")
+    assert rows[("real_estate", "illiquid", "SGD")]["value"] == Decimal("10000.00")
+    assert rows[("real_estate", "liability", "SGD")]["value"] == Decimal("-4000.00")
+    assert rows[("public_equity", "liquid", "SGD")]["percentage_of_net_worth"] == Decimal("10.68")
+    assert rows[("cash", "liquid", "SGD")]["source_line_count"] == 2
+    assert rows[("public_equity", "liquid", "SGD")]["source_line_count"] == 2
+    assert all(row["source_lines"] for row in schedule["rows"])
 
 
 async def test_income_statement_includes_applied_classification_breakdown(db: AsyncSession, test_user):

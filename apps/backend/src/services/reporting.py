@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import case, func, literal, select
@@ -25,7 +25,12 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.models.layer3 import ManagedPosition, ManualValuationLiquidityClass, PositionStatus
+from src.models.layer3 import (
+    ManagedPosition,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    PositionStatus,
+)
 from src.schemas.provenance import DataProvenance
 from src.services import fx
 from src.services.assets import AssetService
@@ -53,6 +58,12 @@ _IMPORTED_SOURCE_TYPES = {
 }
 _MANUAL_SOURCE_TYPES = {JournalEntrySourceType.MANUAL}
 _DERIVED_SOURCE_TYPES = {JournalEntrySourceType.SYSTEM, JournalEntrySourceType.FX_REVALUATION}
+_ALLOCATION_METADATA_KEYS = {
+    "source_currency",
+    "allocation_asset_class",
+    "allocation_liquidity_class",
+    "allocation_source_type",
+}
 
 
 class ReportError(Exception):
@@ -210,6 +221,10 @@ def _build_account_lines(
             "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
             "confidence_tier": tiers.get(account.id),
             "provenance": provenance_by_account.get(account.id) if provenance_by_account is not None else None,
+            "source_currency": account.currency.upper(),
+            "allocation_asset_class": _ledger_allocation_asset_class(account),
+            "allocation_liquidity_class": _ledger_allocation_liquidity_class(account),
+            "allocation_source_type": "ledger_account",
         }
         for account in items
     ]
@@ -256,9 +271,55 @@ def _line_total(lines: Sequence[dict[str, Any]]) -> Decimal:
     return _quantize_money(sum((Decimal(str(line["amount"])) for line in lines), Decimal("0")))
 
 
+def _strip_allocation_metadata(lines: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{key: value for key, value in line.items() if key not in _ALLOCATION_METADATA_KEYS} for line in lines]
+
+
 def _valuation_line_name(component_name: str, component_type: str) -> str:
     label = component_type.replace("_", " ")
     return f"Valuation: {component_name} ({label})"
+
+
+def _ledger_allocation_asset_class(account: Account) -> str:
+    if account.type == AccountType.LIABILITY:
+        return "liability"
+    if account.type == AccountType.ASSET:
+        return "cash"
+    return "other"
+
+
+def _ledger_allocation_liquidity_class(account: Account) -> str:
+    if account.type == AccountType.LIABILITY:
+        return ManualValuationLiquidityClass.LIABILITY.value
+    return ManualValuationLiquidityClass.LIQUID.value
+
+
+def _manual_valuation_allocation_asset_class(component_type: str) -> str:
+    if component_type in {
+        ManualValuationComponentType.PROPERTY_VALUE.value,
+        ManualValuationComponentType.MORTGAGE_BALANCE.value,
+    }:
+        return "real_estate"
+    if component_type in {
+        ManualValuationComponentType.ESOP.value,
+        ManualValuationComponentType.RSU.value,
+        ManualValuationComponentType.STOCK_OPTIONS.value,
+    }:
+        return "restricted_comp"
+    if component_type == ManualValuationComponentType.TAX_REFUND.value:
+        return "cash"
+    if component_type in {
+        ManualValuationComponentType.TAX_PAYABLE.value,
+        ManualValuationComponentType.OTHER_LIABILITY.value,
+    }:
+        return "liability"
+    return "other"
+
+
+def _single_source_currency(source_currencies: set[str], target_currency: str) -> str:
+    if len(source_currencies) == 1:
+        return next(iter(source_currencies))
+    return target_currency
 
 
 async def _load_accounts(db: AsyncSession, user_id: UUID, account_types: tuple[AccountType, ...]) -> list[Account]:
@@ -615,23 +676,14 @@ async def _aggregate_net_income_sql(
     return net_income
 
 
-async def _build_portfolio_market_adjustment_lines(
+async def _portfolio_market_basis_by_account(
     db: AsyncSession,
     user_id: UUID,
     *,
     as_of_date: date,
     target_currency: str,
-    asset_lines: Sequence[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Build market-value adjustment lines for active portfolio positions.
-
-    Ledger journal lines often carry investment purchases at cost, while the
-    same brokerage account can also hold cash. Portfolio snapshots carry
-    current market value. Reporting includes market value minus the position
-    cost basis only when that cost basis is already represented in the ledger,
-    so cash balances are not accidentally netted out.
-    """
-    ledger_by_account = {line["account_id"]: Decimal(str(line["amount"])) for line in asset_lines}
+) -> dict[UUID, dict[str, Any]]:
+    """Return converted portfolio market/cost-basis totals by broker account."""
     portfolio_service = PortfolioService()
     portfolio_eval_date = as_of_date
     if as_of_date == date.today():
@@ -646,9 +698,7 @@ async def _build_portfolio_market_adjustment_lines(
         .where(Account.is_active.is_(True))
     )
 
-    market_value_by_account: dict[UUID, Decimal] = {}
-    cost_basis_by_account: dict[UUID, Decimal] = {}
-    account_by_id: dict[UUID, Account] = {}
+    basis_by_account: dict[UUID, dict[str, Any]] = {}
 
     for position, account in result.all():
         try:
@@ -686,24 +736,57 @@ async def _build_portfolio_market_adjustment_lines(
             except FxRateError as exc:
                 raise ReportError(str(exc)) from exc
 
-        market_value_by_account[position.account_id] = (
-            market_value_by_account.get(position.account_id, Decimal("0")) + market_value
+        basis = basis_by_account.setdefault(
+            position.account_id,
+            {
+                "account": account,
+                "market_value": Decimal("0"),
+                "cost_basis": Decimal("0"),
+                "source_currencies": set(),
+            },
         )
-        cost_basis_by_account[position.account_id] = (
-            cost_basis_by_account.get(position.account_id, Decimal("0")) + cost_basis
-        )
-        account_by_id[position.account_id] = account
+        basis["market_value"] = Decimal(str(basis["market_value"])) + market_value
+        basis["cost_basis"] = Decimal(str(basis["cost_basis"])) + cost_basis
+        basis["source_currencies"].add(source_currency)
+
+    return basis_by_account
+
+
+async def _build_portfolio_market_adjustment_lines(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_date: date,
+    target_currency: str,
+    asset_lines: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build market-value adjustment lines for active portfolio positions.
+
+    Ledger journal lines often carry investment purchases at cost, while the
+    same brokerage account can also hold cash. Portfolio snapshots carry
+    current market value. Reporting includes market value minus the position
+    cost basis only when that cost basis is already represented in the ledger,
+    so cash balances are not accidentally netted out.
+    """
+    ledger_by_account = {line["account_id"]: Decimal(str(line["amount"])) for line in asset_lines}
+    basis_by_account = await _portfolio_market_basis_by_account(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        target_currency=target_currency,
+    )
 
     adjustment_lines: list[dict[str, Any]] = []
-    for account_id, market_value in market_value_by_account.items():
+    for account_id, basis in basis_by_account.items():
+        market_value = Decimal(str(basis["market_value"]))
         ledger_value = ledger_by_account.get(account_id, Decimal("0"))
-        cost_basis = cost_basis_by_account.get(account_id, Decimal("0"))
+        cost_basis = Decimal(str(basis["cost_basis"]))
         ledger_cost_basis = cost_basis if ledger_value >= cost_basis else Decimal("0")
         adjustment = _quantize_money(market_value - ledger_cost_basis)
         if adjustment == Decimal("0.00"):
             continue
 
-        account = account_by_id[account_id]
+        account = basis["account"]
         adjustment_lines.append(
             {
                 "account_id": account_id,
@@ -712,6 +795,10 @@ async def _build_portfolio_market_adjustment_lines(
                 "parent_id": account.parent_id,
                 "amount": adjustment,
                 "provenance": "derived",
+                "source_currency": _single_source_currency(basis["source_currencies"], target_currency),
+                "allocation_asset_class": "public_equity",
+                "allocation_liquidity_class": ManualValuationLiquidityClass.LIQUID.value,
+                "allocation_source_type": "portfolio_market_adjustment",
             }
         )
 
@@ -764,6 +851,10 @@ async def _build_manual_valuation_lines(
             # "manual data is explicitly trusted"), mirroring source_type=manual.
             "confidence_tier": "TRUSTED",
             "provenance": "manual",
+            "source_currency": source_currency,
+            "allocation_asset_class": _manual_valuation_allocation_asset_class(component.component_type),
+            "allocation_liquidity_class": component.liquidity_class,
+            "allocation_source_type": "manual_valuation",
         }
         if is_liability:
             liability_lines.append(line)
@@ -782,6 +873,7 @@ async def generate_balance_sheet(
     as_of_date: date,
     currency: str | None = None,
     include_restricted: bool = True,
+    include_allocation_metadata: bool = False,
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date."""
     target_currency = _normalize_currency(currency)
@@ -924,13 +1016,16 @@ async def generate_balance_sheet(
     # rated line. Lines with no derivable tier (e.g. market-derived adjustments)
     # are excluded rather than counted as trusted.
     aggregate_tier = _worst_confidence_tier(line.get("confidence_tier") for line in (*assets, *liabilities, *equity))
+    response_assets = assets if include_allocation_metadata else _strip_allocation_metadata(assets)
+    response_liabilities = liabilities if include_allocation_metadata else _strip_allocation_metadata(liabilities)
+    response_equity = equity if include_allocation_metadata else _strip_allocation_metadata(equity)
 
     return {
         "as_of_date": as_of_date,
         "currency": target_currency,
-        "assets": assets,
-        "liabilities": liabilities,
-        "equity": equity,
+        "assets": response_assets,
+        "liabilities": response_liabilities,
+        "equity": response_equity,
         "confidence_tier": aggregate_tier,
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
@@ -941,6 +1036,252 @@ async def generate_balance_sheet(
         "fx_warnings": fx_warnings,
         "equation_delta": equation_delta,
         "is_balanced": abs(equation_delta) < Decimal("0.01"),
+    }
+
+
+def _allocation_source_href(
+    source_type: str,
+    source_id: UUID | None,
+    *,
+    as_of_date: date,
+    currency: str,
+) -> str | None:
+    if source_type == "ledger_account" and source_id is not None:
+        return (
+            f"/reports/account-lineage?account_id={source_id}&as_of_date={as_of_date.isoformat()}&currency={currency}"
+        )
+    if source_type == "manual_valuation":
+        return "/assets/valuation-components"
+    if source_type == "portfolio_market_adjustment":
+        return "/portfolio/holdings"
+    return None
+
+
+def _allocation_source_line(
+    line: dict[str, Any],
+    *,
+    value: Decimal,
+    label: str,
+    source_type: str,
+    as_of_date: date,
+    currency: str,
+) -> dict[str, Any]:
+    source_id = line.get("account_id")
+    return {
+        "source_type": source_type,
+        "source_id": source_id,
+        "label": label,
+        "value": _quantize_money(value),
+        "href": _allocation_source_href(
+            source_type,
+            source_id if isinstance(source_id, UUID) else None,
+            as_of_date=as_of_date,
+            currency=currency,
+        ),
+    }
+
+
+def _add_allocation_component(
+    grouped: dict[tuple[str, str, str], dict[str, Any]],
+    *,
+    asset_class: str,
+    liquidity_class: str,
+    source_currency: str,
+    value: Decimal,
+    source_line: dict[str, Any],
+) -> None:
+    value = _quantize_money(value)
+    if value == Decimal("0.00"):
+        return
+    key = (asset_class, liquidity_class, source_currency)
+    row = grouped.setdefault(
+        key,
+        {
+            "asset_class": asset_class,
+            "liquidity_class": liquidity_class,
+            "source_currency": source_currency,
+            "value": Decimal("0.00"),
+            "source_lines": [],
+        },
+    )
+    row["value"] = _quantize_money(Decimal(str(row["value"])) + value)
+    row["source_lines"].append(source_line)
+
+
+def _add_asset_allocation_line(
+    grouped: dict[tuple[str, str, str], dict[str, Any]],
+    line: dict[str, Any],
+    *,
+    portfolio_basis_by_account: dict[UUID, dict[str, Any]],
+    as_of_date: date,
+    currency: str,
+) -> None:
+    amount = _quantize_money(Decimal(str(line["amount"])))
+    source_type = str(line.get("allocation_source_type") or "ledger_account")
+    account_id = line.get("account_id")
+    basis = portfolio_basis_by_account.get(account_id) if isinstance(account_id, UUID) else None
+
+    if (
+        line.get("type") == AccountType.ASSET
+        and source_type == "ledger_account"
+        and basis is not None
+        and amount >= Decimal(str(basis["cost_basis"]))
+        and Decimal(str(basis["cost_basis"])) > Decimal("0.00")
+    ):
+        cost_basis = _quantize_money(Decimal(str(basis["cost_basis"])))
+        portfolio_currency = _single_source_currency(basis["source_currencies"], currency)
+        _add_allocation_component(
+            grouped,
+            asset_class="public_equity",
+            liquidity_class=ManualValuationLiquidityClass.LIQUID.value,
+            source_currency=portfolio_currency,
+            value=cost_basis,
+            source_line=_allocation_source_line(
+                line,
+                value=cost_basis,
+                label=f"{line['name']} ledger cost basis",
+                source_type=source_type,
+                as_of_date=as_of_date,
+                currency=currency,
+            ),
+        )
+        residual = _quantize_money(amount - cost_basis)
+        _add_allocation_component(
+            grouped,
+            asset_class="cash",
+            liquidity_class=ManualValuationLiquidityClass.LIQUID.value,
+            source_currency=str(line.get("source_currency") or currency),
+            value=residual,
+            source_line=_allocation_source_line(
+                line,
+                value=residual,
+                label=f"{line['name']} residual cash",
+                source_type=source_type,
+                as_of_date=as_of_date,
+                currency=currency,
+            ),
+        )
+        return
+
+    _add_allocation_component(
+        grouped,
+        asset_class=str(line.get("allocation_asset_class") or "other"),
+        liquidity_class=str(line.get("allocation_liquidity_class") or ManualValuationLiquidityClass.LIQUID.value),
+        source_currency=str(line.get("source_currency") or currency),
+        value=amount,
+        source_line=_allocation_source_line(
+            line,
+            value=amount,
+            label=str(line["name"]),
+            source_type=source_type,
+            as_of_date=as_of_date,
+            currency=currency,
+        ),
+    )
+
+
+def _add_liability_allocation_line(
+    grouped: dict[tuple[str, str, str], dict[str, Any]],
+    line: dict[str, Any],
+    *,
+    as_of_date: date,
+    currency: str,
+) -> None:
+    value = -_quantize_money(Decimal(str(line["amount"])))
+    source_type = str(line.get("allocation_source_type") or "ledger_account")
+    _add_allocation_component(
+        grouped,
+        asset_class=str(line.get("allocation_asset_class") or "liability"),
+        liquidity_class=str(line.get("allocation_liquidity_class") or ManualValuationLiquidityClass.LIABILITY.value),
+        source_currency=str(line.get("source_currency") or currency),
+        value=value,
+        source_line=_allocation_source_line(
+            line,
+            value=value,
+            label=str(line["name"]),
+            source_type=source_type,
+            as_of_date=as_of_date,
+            currency=currency,
+        ),
+    )
+
+
+def _allocation_percentage(value: Decimal, net_worth: Decimal) -> Decimal | None:
+    if net_worth == Decimal("0.00"):
+        return None
+    return (value / net_worth * Decimal("100")).quantize(Decimal("0.01"))
+
+
+async def get_net_worth_allocation_schedule(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_date: date,
+    currency: str | None = None,
+    include_restricted: bool = True,
+) -> dict[str, object]:
+    """Return signed net-worth allocation rows grouped by asset/liquidity/currency."""
+    target_currency = _normalize_currency(currency)
+    balance_sheet = await generate_balance_sheet(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        currency=target_currency,
+        include_restricted=include_restricted,
+        include_allocation_metadata=True,
+    )
+    portfolio_basis_by_account = await _portfolio_market_basis_by_account(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        target_currency=target_currency,
+    )
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    asset_lines = cast(list[dict[str, Any]], balance_sheet["assets"])
+    liability_lines = cast(list[dict[str, Any]], balance_sheet["liabilities"])
+    for line in asset_lines:
+        _add_asset_allocation_line(
+            grouped,
+            line,
+            portfolio_basis_by_account=portfolio_basis_by_account,
+            as_of_date=as_of_date,
+            currency=target_currency,
+        )
+    for line in liability_lines:
+        _add_liability_allocation_line(
+            grouped,
+            line,
+            as_of_date=as_of_date,
+            currency=target_currency,
+        )
+
+    total_assets = _quantize_money(Decimal(str(balance_sheet["total_assets"])))
+    total_liabilities = _quantize_money(Decimal(str(balance_sheet["total_liabilities"])))
+    net_worth = _quantize_money(total_assets - total_liabilities)
+    rows = []
+    for row in grouped.values():
+        value = _quantize_money(Decimal(str(row["value"])))
+        rows.append(
+            {
+                "asset_class": row["asset_class"],
+                "liquidity_class": row["liquidity_class"],
+                "source_currency": row["source_currency"],
+                "value": value,
+                "percentage_of_net_worth": _allocation_percentage(value, net_worth),
+                "source_line_count": len(row["source_lines"]),
+                "source_lines": row["source_lines"],
+            }
+        )
+    rows.sort(key=lambda row: (row["asset_class"], row["liquidity_class"], row["source_currency"]))
+
+    return {
+        "as_of_date": as_of_date,
+        "currency": target_currency,
+        "include_restricted": include_restricted,
+        "total_assets": total_assets,
+        "total_liabilities": total_liabilities,
+        "net_worth": net_worth,
+        "rows": rows,
     }
 
 
