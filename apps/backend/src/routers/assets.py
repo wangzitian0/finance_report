@@ -91,6 +91,7 @@ async def create_valuation_snapshot(
             value=payload.value,
             currency=payload.currency,
             source=payload.source,
+            valuation_basis=payload.valuation_basis,
             notes=payload.notes,
             liquidity_class=payload.liquidity_class,
             recurrence_days=payload.recurrence_days,

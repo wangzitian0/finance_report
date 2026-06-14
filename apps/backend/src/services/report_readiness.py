@@ -264,12 +264,18 @@ def framework_policy_readiness_blockers(
 
 async def _missing_valuation_basis_count(db: AsyncSession, user_id: UUID, *, as_of_date: date) -> int:
     rows = await db.execute(
-        select(ManualValuationSnapshot.notes)
+        select(ManualValuationSnapshot.valuation_basis, ManualValuationSnapshot.notes)
         .where(ManualValuationSnapshot.user_id == user_id)
         .where(ManualValuationSnapshot.as_of_date <= as_of_date)
         .where(ManualValuationSnapshot.superseded_by_id.is_(None))
     )
-    return sum(1 for notes in rows.scalars().all() if notes is None or not notes.strip())
+    # A manual valuation carries its basis via the structured ``valuation_basis``
+    # field (guided evidence intake, #706). A non-empty legacy ``notes`` string
+    # still counts as a basis so pre-existing records do not regress into
+    # blockers during the transition to the structured field.
+    return sum(
+        1 for valuation_basis, notes in rows.all() if valuation_basis is None and (notes is None or not notes.strip())
+    )
 
 
 async def _stale_market_data_count(db: AsyncSession, user_id: UUID, *, as_of_date: date) -> int:

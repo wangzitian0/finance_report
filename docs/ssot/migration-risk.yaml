@@ -213,6 +213,11 @@ migrations:
     file: 76c3ccfe844b_add_managed_positions.py
     risk: low
     proof: Additive managed positions table; covered by PR Alembic contract.
+  a14bb9204a08:
+    file: a14bb9204a08_add_valuation_basis_to_manual_valuations.py
+    risk: low
+    issue: "#706"
+    proof: Additive nullable manual_valuation_snapshots.valuation_basis column plus a new manual_valuation_basis enum type; no backfill, existing rows stay NULL. Covered by AC11.9.5 and the PR Alembic contract.
   ba0777d5eb6c:
     file: ba0777d5eb6c_fix_ensure_bank_statement_status_enum_.py
     risk: medium

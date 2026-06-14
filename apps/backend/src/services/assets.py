@@ -16,6 +16,7 @@ from src.models.account import Account, AccountType
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import (
     ManagedPosition,
+    ManualValuationBasis,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
@@ -111,6 +112,7 @@ class AssetService:
         value: Decimal,
         currency: str,
         source: str,
+        valuation_basis: ManualValuationBasis | None = None,
         notes: str | None = None,
         liquidity_class: ManualValuationLiquidityClass | None = None,
         recurrence_days: int | None = None,
@@ -141,6 +143,7 @@ class AssetService:
             value=to_money(value),
             currency=normalized_currency,
             source=source,
+            valuation_basis=valuation_basis,
             notes=notes,
             recurrence_days=recurrence_days,
             reminder_date=reminder_date,
