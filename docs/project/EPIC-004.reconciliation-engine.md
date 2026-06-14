@@ -151,6 +151,9 @@ Automatically match bank transactions with journal entries, implementing intelli
 | AC4.6.3 | source_type=manual wins over auto_matched in conflict | `test_manual_source_wins_reconciliation` | `reconciliation/test_source_type.py` | P0 |
 | AC4.6.4 | Stage 2 batch approve blocked when duplicate flags unresolved | `test_batch_approve_blocked_by_duplicate` | `reconciliation/test_review_workflow.py` | P1 |
 | AC4.6.5 | Reconciliation score considers source_type weight (manual > auto) | `test_source_type_weight_in_scoring` | `reconciliation/test_reconciliation_scoring.py` | P1 |
+| AC4.6.6 | Duplicate guard respects running balance: same date/description/amount/direction with different `balance_after` are NOT flagged as duplicate candidates | `test_duplicate_guard_distinguishes_by_balance_after` | `review/test_statement_validation.py` | P1 |
+| AC4.6.7 | Duplicate guard still flags same date/description/amount/direction when `balance_after` is equal or absent (ambiguous, needs review) | `test_duplicate_guard_flags_when_balance_after_equal_or_absent` | `review/test_statement_validation.py` | P1 |
+| AC4.6.8 | `AtomicTransaction` persists the extracted `balance_after` so the conflict guard can disambiguate distinct-but-identical transactions | `test_upsert_persists_balance_after` | `extraction/test_deduplication.py` | P1 |
 
 ### AC4.8: Archive Baseline Benchmark Ownership
 

@@ -70,7 +70,10 @@ async def get_review_conflicts(
     transfer_pairs: list[ReviewConflictCandidate] = []
     seen: dict[tuple, AtomicTransaction] = {}
     for txn in transactions:
-        key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction)
+        # Keep duplicate detection consistent with the approval guard / dedup disambiguator:
+        # a different running balance means the dedup layer kept these as distinct transactions.
+        balance_key = None if txn.balance_after is None else txn.balance_after.normalize()
+        key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction, balance_key)
         if key in seen:
             duplicates.extend([_candidate(seen[key]), _candidate(txn)])
         else:
