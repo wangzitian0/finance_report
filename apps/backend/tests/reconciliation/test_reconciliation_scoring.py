@@ -230,37 +230,75 @@ def test_build_many_to_one_groups_skips_empty_descriptions() -> None:
     assert len(groups[0]) == 2
 
 
-def test_score_amount_branches() -> None:
+def test_score_amount_branches(ac_evidence) -> None:
     """[AC4.1.1] [AC4.1.3] Test score_amount logic."""
     config = DEFAULT_CONFIG
     # Exact Match [AC4.1.1]
-    assert score_amount(Decimal("100.00"), Decimal("100.00"), config) == 100.0
+    exact = score_amount(Decimal("100.00"), Decimal("100.00"), config)
+    assert exact == 100.0
     # Tolerance match [AC4.1.3]
-    assert score_amount(Decimal("100.00"), Decimal("100.40"), config) == 90.0
+    tolerance = score_amount(Decimal("100.00"), Decimal("100.40"), config)
+    assert tolerance == 90.0
     assert score_amount(Decimal("100.00"), Decimal("104.00"), config) == 70.0
     assert score_amount(Decimal("1000.00"), Decimal("994.00"), config, is_multi=True) == 70.0
     assert score_amount(Decimal("0"), Decimal("10.00"), config) == 0.0
     assert score_amount(Decimal("100.00"), Decimal("160.00"), config) == 40.0
+    # Measured evidence: exact-match amount score (100/100) normalised to [0,1].
+    ac_evidence(
+        ac_id="AC4.1.1",
+        score=exact / 100.0,
+        metric="amount_score_pct",
+        comment=f"score_amount(100.00, 100.00)={exact:.1f}/100 (exact match)",
+        provenance="deterministic",
+    )
+    # Measured evidence: in-tolerance amount score (0.40 delta -> 90/100).
+    ac_evidence(
+        ac_id="AC4.1.3",
+        score=tolerance / 100.0,
+        metric="amount_score_pct",
+        comment=f"score_amount(100.00, 100.40)={tolerance:.1f}/100 (within tolerance)",
+        provenance="deterministic",
+    )
 
 
-def test_amount_tolerance_0_10_boundary() -> None:
+def test_amount_tolerance_0_10_boundary(ac_evidence) -> None:
     """AC4.6.1: Absolute amount delta of 0.10 passes, but 0.11 fails."""
     config = DEFAULT_CONFIG
 
-    assert score_amount(Decimal("10.00"), Decimal("10.10"), config) == 90.0
-    assert score_amount(Decimal("10.00"), Decimal("10.11"), config) < 90.0
+    inside = score_amount(Decimal("10.00"), Decimal("10.10"), config)
+    outside = score_amount(Decimal("10.00"), Decimal("10.11"), config)
+    assert inside == 90.0
+    assert outside < 90.0
+    # Measured evidence: the boundary holds (delta 0.10 scores 90, delta 0.11
+    # drops below). Score is 1.0 iff both sides of the boundary behave.
+    ac_evidence(
+        ac_id="AC4.6.1",
+        score=1.0 if (inside == 90.0 and outside < 90.0) else 0.0,
+        metric="amount_tolerance_boundary_holds",
+        comment=f"delta 0.10 -> {inside:.1f}/100, delta 0.11 -> {outside:.1f}/100",
+        provenance="deterministic",
+    )
 
 
-def test_score_date_branches() -> None:
+def test_score_date_branches(ac_evidence) -> None:
     """[AC4.1.2] Test score_date logic."""
     config = DEFAULT_CONFIG
     # Exact Date
     assert score_date(date(2024, 1, 1), date(2024, 1, 1), config) == 100.0
     # Fuzzy Date [AC4.1.2]
-    assert score_date(date(2024, 1, 1), date(2024, 1, 3), config) == 90.0
+    fuzzy = score_date(date(2024, 1, 1), date(2024, 1, 3), config)
+    assert fuzzy == 90.0
     # Cross-month within date_days gets bonus (75 vs 70)
     assert score_date(date(2024, 1, 30), date(2024, 2, 4), config) == 75.0
     assert score_date(date(2024, 1, 1), date(2024, 2, 1), config) == 0.0
+    # Measured evidence: a 2-day gap scores 90/100 on the fuzzy-date curve.
+    ac_evidence(
+        ac_id="AC4.1.2",
+        score=fuzzy / 100.0,
+        metric="date_score_pct",
+        comment=f"score_date(2024-01-01, 2024-01-03)={fuzzy:.1f}/100 (2-day gap)",
+        provenance="deterministic",
+    )
 
 
 @pytest.mark.parametrize(

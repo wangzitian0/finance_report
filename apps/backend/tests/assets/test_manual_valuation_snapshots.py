@@ -281,7 +281,7 @@ async def test_manual_valuation_snapshot_service_updates_optional_fields_and_mis
 
 
 @pytest.mark.asyncio
-async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history(db, test_user):
+async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history(db, test_user, ac_evidence):
     """AC11.19.1: Correcting a manual valuation appends a new version and never edits the prior fact in place.
 
     Vision Axiom A: a recorded fact is never changed in place; a later correction
@@ -325,9 +325,30 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
         (1, Decimal("1000000.00")),
     ]
 
+    # Measured evidence: the append-only correction chain matches its golden
+    # shape exactly (prior fact frozen at v1, head at v2, forward link set).
+    chain_correct = (
+        first.value == Decimal("1000000.00")
+        and first.version == 1
+        and first.superseded_by_id == corrected.id
+        and corrected.value == Decimal("1100000.00")
+        and corrected.version == 2
+        and corrected.superseded_by_id is None
+    )
+    ac_evidence(
+        ac_id="AC11.19.1",
+        score=1.0 if chain_correct else 0.0,
+        metric="append_only_version_chain_matches_golden",
+        comment=(
+            "v1=1000000.00 frozen & superseded_by=head; "
+            "head v2=1100000.00 with superseded_by=None"
+        ),
+        provenance="deterministic",
+    )
+
 
 @pytest.mark.asyncio
-async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user):
+async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(db, test_user, ac_evidence):
     """AC11.19.2: Heads-only reads use the current version, so a correction never double-counts."""
     service = AssetService()
     key = dict(
@@ -347,6 +368,21 @@ async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(
     snapshots, total = await service.list_valuation_snapshots(db, test_user.id)
     assert total == 1, "list returns only current heads"
     assert snapshots[0].value == Decimal("1100000.00")
+
+    # Measured evidence: net-worth aggregate counts only the corrected head
+    # (1,100,000) — the superseded 1,000,000 is neither added nor double-counted.
+    expected_total = Decimal("1100000.00")
+    counted_once = components.total_assets == expected_total and total == 1
+    ac_evidence(
+        ac_id="AC11.19.2",
+        score=1.0 if counted_once else 0.0,
+        metric="heads_only_total_assets_match",
+        comment=(
+            f"total_assets={components.total_assets} == golden {expected_total}; "
+            f"heads listed={total} (superseded excluded)"
+        ),
+        provenance="deterministic",
+    )
 
 
 @pytest.mark.asyncio

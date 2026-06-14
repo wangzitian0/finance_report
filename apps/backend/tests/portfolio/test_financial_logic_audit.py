@@ -39,7 +39,7 @@ def test_AC17_11_4_source_document_links_ignore_non_structured_payloads():
     assert _source_document_links("legacy-import") == []
 
 
-async def test_AC17_11_1_xirr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user):
+async def test_AC17_11_1_xirr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user, ac_evidence):
     """AC17.11.1: XIRR/MWR use investment transactions, not unrelated bank atomic transactions."""
     position = await _investment_position(db, test_user, asset_identifier="XIRRAUDIT")
     start = date.today() - timedelta(days=365)
@@ -88,11 +88,23 @@ async def test_AC17_11_1_xirr_excludes_unrelated_bank_transactions(db: AsyncSess
     xirr = await calculate_xirr(db, test_user.id)
     mwr = await calculate_money_weighted_return(db, test_user.id)
 
-    assert abs(xirr - Decimal("10.00")) <= Decimal("0.01")
+    expected_xirr = Decimal("10.00")
+    assert abs(xirr - expected_xirr) <= Decimal("0.01")
     assert mwr == xirr
 
+    # Measured evidence: the unrelated 50k salary deposit is excluded, so XIRR
+    # converges on the golden 10.00% (10k -> 11k over one year) within 0.01.
+    on_target = abs(xirr - expected_xirr) <= Decimal("0.01") and mwr == xirr
+    ac_evidence(
+        ac_id="AC17.11.1",
+        score=1.0 if on_target else 0.0,
+        metric="xirr_pct_within_tolerance_of_golden",
+        comment=f"xirr={xirr} vs golden {expected_xirr} (tol 0.01); mwr==xirr={mwr == xirr}",
+        provenance="deterministic",
+    )
 
-async def test_AC17_11_3_twr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user):
+
+async def test_AC17_11_3_twr_excludes_unrelated_bank_transactions(db: AsyncSession, test_user, ac_evidence):
     """AC17.11.3: TWR excludes unrelated bank transactions from cash-flow adjustment."""
     position = await _investment_position(db, test_user, asset_identifier="TWRAUDIT")
     start = date.today() - timedelta(days=30)
@@ -137,13 +149,25 @@ async def test_AC17_11_3_twr_excludes_unrelated_bank_transactions(db: AsyncSessi
 
     twr = await calculate_time_weighted_return(db, test_user.id, start, end)
 
-    assert twr == Decimal("10.0")
+    expected_twr = Decimal("10.0")
+    assert twr == expected_twr
+
+    # Measured evidence: with the unrelated 5k deposit excluded, TWR is the pure
+    # 10k -> 11k market move = exactly the golden 10.0%.
+    ac_evidence(
+        ac_id="AC17.11.3",
+        score=1.0 if twr == expected_twr else 0.0,
+        metric="twr_pct_equals_golden",
+        comment=f"twr={twr} == golden {expected_twr} (unrelated bank deposit excluded)",
+        provenance="deterministic",
+    )
 
 
 async def test_AC17_11_2_summary_ytd_amounts_convert_to_presentation_currency(
     client: AsyncClient,
     db: AsyncSession,
     test_user,
+    ac_evidence,
 ):
     """AC17.11.2: Summary YTD realized/dividend amounts are converted before aggregation."""
     position = await _investment_position(db, test_user, asset_identifier="USDAUDIT")
@@ -218,3 +242,17 @@ async def test_AC17_11_2_summary_ytd_amounts_convert_to_presentation_currency(
     assert data["currency"] == "SGD"
     assert data["realized_pnl_ytd"] == "135.00"
     assert data["dividend_income_ytd"] == "13.50"
+
+    # Measured evidence: USD amounts are converted at 1.35 before aggregation
+    # (100 USD -> 135.00 SGD realized; 10 USD -> 13.50 SGD dividend).
+    converted = data["realized_pnl_ytd"] == "135.00" and data["dividend_income_ytd"] == "13.50"
+    ac_evidence(
+        ac_id="AC17.11.2",
+        score=1.0 if converted else 0.0,
+        metric="ytd_amounts_fx_converted_to_presentation_ccy",
+        comment=(
+            f"realized_pnl_ytd={data['realized_pnl_ytd']} (golden 135.00), "
+            f"dividend_income_ytd={data['dividend_income_ytd']} (golden 13.50) @ USD->SGD 1.35"
+        ),
+        provenance="deterministic",
+    )
