@@ -277,7 +277,7 @@ export default function StatementReviewPage() {
             />
 
             <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
-                <PdfPreviewPane pdfUrl={data.pdf_url} />
+                <PdfPreviewPane statementId={statementId} hasDocument={Boolean(data.original_filename)} />
 
                 <TransactionTable
                     transactions={data.transactions}

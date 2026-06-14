@@ -10,6 +10,12 @@ const securityHeaders = [
             "base-uri 'self'",
             "object-src 'none'",
             "frame-ancestors 'none'",
+            // #963 / AC16.33.5: the Stage 1 review embeds the statement document
+            // as a same-origin `blob:` object URL (fetched with auth), so the
+            // iframe needs an explicit frame-src. Without it the iframe falls
+            // back to `default-src 'self'`, which excludes `blob:` and renders
+            // the browser "This content is blocked" message.
+            "frame-src 'self' blob:",
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
             "style-src 'self' 'unsafe-inline'",
