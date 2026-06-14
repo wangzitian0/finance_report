@@ -49,11 +49,13 @@ gates:
   - id: staging-deploy
     workflow: .github/workflows/staging-deploy.yml
     job: build-and-deploy
-    trigger: workflow_run          # after a successful main CI run
+    trigger: workflow_dispatch      # manual only — staging no longer auto-follows main
     blocking: false
     image_free: false
     description: >
-      Post-merge micro-soak on staging before prod. Promotes the main-CI :<sha> image.
+      Manual staging deploy. Builds/promotes the :<sha> image for the dispatched ref
+      and rolls staging. Staging is a pre-prod canary (≈ prod, slightly ahead); deploys
+      are manual (CI is the dev quality gate, not auto-deploy).
 
   - id: production-release
     workflow: .github/workflows/production-release.yml
