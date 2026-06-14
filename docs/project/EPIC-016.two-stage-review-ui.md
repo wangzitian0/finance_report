@@ -418,6 +418,8 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 | AC16.22.5 | Stage 1 tolerance is 0.001 USD (not 0.10 USD from Stage 2) | `test_validate_balance_chain_within_tolerance` | `review/test_statement_validation.py` | P0 |
 | AC16.22.6 | All service methods mutating `pending_review` enforce `user_id` ownership | `test_get_statement_for_update_wrong_user_raises` | `review/test_statement_validation.py` | P1 |
 | AC16.22.7 | Stage 1 approval tolerance and extraction/reconciliation scoring tolerance remain separate documented policies | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | P0 |
+| AC16.22.8 | A statement routed to `parsed`/review carries `stage1_status = pending_review` explicitly (never NULL) | `test_parsed_statement_sets_stage1_pending_review` | `extraction/test_extraction_flow.py` | P1 |
+| AC16.22.9 | `UploadedDocument.status` advances to `completed` once a successful parse is persisted (no longer stuck at `uploaded`) | `test_dual_write_marks_document_completed` | `extraction/test_dual_write_layer2.py` | P1 |
 
 ### AC16.25 — Mobile Review UX Hardening
 

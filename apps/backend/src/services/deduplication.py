@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.logger import get_logger
-from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import (
     AtomicPosition,
     AtomicPositionSourceDocument,
@@ -570,6 +570,11 @@ async def dual_write_layer2(
         else:
             statement.uploaded_document_id = uploaded_doc.id
             db.add(statement)
+        # Reaching here means the parse succeeded and its facts are persisted, so the ODS document
+        # advances out of 'uploaded'. Without this the status never progresses and every document
+        # appears perpetually un-processed.
+        uploaded_doc.status = DocumentStatus.COMPLETED
+        db.add(uploaded_doc)
         await db.flush()
 
         logger.info(

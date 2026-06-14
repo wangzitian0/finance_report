@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 
-from src.models.layer1 import DocumentType, UploadedDocument
+from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.services.extraction import ExtractionService
 
@@ -102,6 +102,29 @@ class TestDualWriteLayer2:
         assert uploaded_doc.original_filename == "test_statement.pdf"
         assert uploaded_doc.document_type == DocumentType.BANK_STATEMENT
         assert uploaded_doc.extraction_metadata is None
+
+    async def test_dual_write_marks_document_completed(self, db, test_user, mock_ai_response, sample_file_content):
+        """AC16.22.9: a successfully parsed-and-persisted document advances to status=completed
+        instead of staying stuck at 'uploaded'."""
+        service = ExtractionService()
+
+        with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
+            await service.parse_document(
+                file_path=Path("test_statement.pdf"),
+                institution="DBS",
+                user_id=test_user.id,
+                file_content=sample_file_content,
+                file_hash=hashlib.sha256(sample_file_content).hexdigest(),
+                original_filename="test_statement.pdf",
+                db=db,
+            )
+
+        await db.commit()
+
+        uploaded_doc = (
+            await db.execute(select(UploadedDocument).where(UploadedDocument.user_id == test_user.id))
+        ).scalar_one()
+        assert uploaded_doc.status == DocumentStatus.COMPLETED
 
     async def test_dual_write_persists_brokerage_extraction_metadata(
         self, db, test_user, sample_file_content, monkeypatch
