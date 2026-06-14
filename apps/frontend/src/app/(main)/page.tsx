@@ -362,7 +362,7 @@ export default function HomePage() {
             <Link href="/reconciliation" className="flex justify-between p-3 rounded-md bg-[var(--success-muted)] text-sm hover:ring-1 hover:ring-[var(--success)] transition-all">
               <span>Auto accepted</span><span className="font-semibold">{stats?.auto_accepted ?? 0}</span>
             </Link>
-            <Link href="/reconciliation/review-queue" className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm hover:ring-1 hover:ring-[var(--warning)] transition-all">
+            <Link href="/review" className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm hover:ring-1 hover:ring-[var(--warning)] transition-all">
               <span>Pending review</span><span className="font-semibold">{stats?.pending_review ?? 0}</span>
             </Link>
             <Link href="/reconciliation/unmatched" className="flex justify-between p-3 rounded-md bg-[var(--error-muted)] text-sm hover:ring-1 hover:ring-[var(--error)] transition-all">

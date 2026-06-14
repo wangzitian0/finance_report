@@ -94,7 +94,9 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
       detail: "Reconciliation review",
       reason: "Auto-matched to ledger entries but below the confidence bar to post without a human check — confirm or correct each match.",
       confidence: clampConfidence(stats.match_rate ?? 0),
-      href: "/reconciliation/review-queue",
+      // #1001: the dedicated Stage-2 review surface, decoupled from the
+      // reconciliation workbench.
+      href: "/review",
     });
   }
 
