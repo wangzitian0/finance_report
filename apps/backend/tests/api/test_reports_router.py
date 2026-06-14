@@ -433,10 +433,10 @@ class TestReportsEndpoints:
         for section in ("balance_sheet", "income_statement", "cash_flow"):
             assert section in section_payloads
 
-        # AC18.12.4: generating a report package records a North-Star confidence snapshot.
+        # AC18.12.4: generating a report package records exactly one North-Star snapshot.
         metric_rows = (
             (await db.execute(select(ConfidenceMetricSnapshot).where(ConfidenceMetricSnapshot.user_id == test_user.id)))
             .scalars()
             .all()
         )
-        assert len(metric_rows) >= 1
+        assert len(metric_rows) == 1
