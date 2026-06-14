@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 import structlog
 from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -529,6 +530,53 @@ async def get_statement(
     """Get a statement with all its transactions."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
     return await _compose_statement_response(db, statement, user_id)
+
+
+@router.get("/{statement_id}/document")
+async def get_statement_document(
+    statement_id: UUID,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> Response:
+    """Stream the original uploaded document for a statement, same-origin.
+
+    AC16.33.5: the Stage 1 review PDF preview embeds this authenticated,
+    same-origin endpoint as a ``blob:`` object URL instead of a cross-origin
+    object-storage URL the CSP cannot frame. Auth is the standard Bearer
+    dependency; the frontend fetches the bytes via ``apiDownload`` (which
+    carries the token) and never points an iframe directly at storage.
+    """
+    statement = await _get_statement_or_404(db, statement_id, user_id)
+    uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
+    if uploaded_document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No uploaded document is associated with this statement",
+        )
+
+    try:
+        storage = StorageService()
+        content = await asyncio.to_thread(storage.get_object, uploaded_document.file_path)
+    except StorageError as exc:
+        logger.warning(
+            "Could not fetch statement document",
+            error=str(exc),
+            statement_id=str(statement_id),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Statement document is temporarily unavailable",
+        ) from exc
+
+    media_type = mimetypes.guess_type(uploaded_document.original_filename)[0] or "application/pdf"
+    # Inline so the browser renders the document in the review iframe rather
+    # than forcing a download; ``frame-ancestors 'none'`` still blocks framing
+    # from foreign origins.
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": "inline", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("/{statement_id}/transactions", response_model=BankStatementTransactionListResponse)

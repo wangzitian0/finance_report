@@ -17,8 +17,10 @@ vi.mock("next/navigation", () => ({
 
 describe("EPIC-016 Componentization Tests", () => {
     it("mounts PdfPreviewPane and asserts primary affordance (AC16.23.6)", () => {
-        renderReviewComponent(<PdfPreviewPane pdfUrl="https://example.com/test.pdf" />);
-        expect(screen.getByTitle("Statement PDF preview")).toBeInTheDocument();
+        // statementId=null keeps the pane idle (no document fetch); the panel
+        // header is the stable affordance across all preview states.
+        renderReviewComponent(<PdfPreviewPane statementId={null} />);
+        expect(screen.getByText("PDF Preview")).toBeInTheDocument();
     });
 
     it("mounts TransactionTable and asserts primary affordance (AC16.23.6)", () => {
