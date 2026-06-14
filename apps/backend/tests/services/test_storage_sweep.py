@@ -240,6 +240,7 @@ async def test_run_storage_sweep_exits_on_stop_event():
         patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep),
     ):
         mock_settings.enable_storage_sweep = True
+        mock_settings.storage_sweep_interval_seconds = 86400
         await run_storage_sweep(stop_event)
 
 
@@ -259,6 +260,7 @@ async def test_run_storage_sweep_logs_when_objects_deleted():
         ),
     ):
         mock_settings.enable_storage_sweep = True
+        mock_settings.storage_sweep_interval_seconds = 86400
         await run_storage_sweep(stop_event)
 
 
@@ -277,9 +279,9 @@ async def test_run_storage_sweep_handles_exception():
     with (
         patch("src.services.storage_sweep.settings") as mock_settings,
         patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=maybe_raise),
-        patch("src.services.storage_sweep.SWEEP_INTERVAL_SECONDS", 0.001),
     ):
         mock_settings.enable_storage_sweep = True
+        mock_settings.storage_sweep_interval_seconds = 0.001
         await run_storage_sweep(stop_event)
 
     assert call_count[0] == 2
@@ -299,3 +301,79 @@ async def test_run_storage_sweep_disabled_by_feature_flag():
     # Should have returned without running any sweep (stop_event not set, sweep not called)
     assert not stop_event.is_set()
     mock_sweep.assert_not_called()
+
+
+def test_grace_period_and_interval_defaults_match_issue_356():
+    """AC3.8.14: Config defaults match issue #356 (24h grace, daily/86400s interval)."""
+    from src.config import settings
+
+    # Grace period: 24 hours by default (avoids racing with in-progress uploads).
+    assert settings.storage_sweep_grace_period_hours == 24
+    # Interval: daily (86400 seconds) by default.
+    assert settings.storage_sweep_interval_seconds == 86400
+
+
+async def test_sweep_reads_grace_period_from_config(db: AsyncSession, test_user):
+    """AC3.8.15: Sweep grace-period cutoff is read from config, not a hardcoded constant.
+
+    An object older than the configured grace period must be swept; the same object
+    is preserved when the configured grace period is widened past its age.
+    """
+    orphan_key = "statements/user-1/cfg-grace/orphan.pdf"
+    # Object is ~2h old.
+    obj_age_hours = 2
+    mock_keys = [(orphan_key, datetime.now(UTC) - timedelta(hours=obj_age_hours, minutes=5))]
+
+    # With a 1h grace period the 2h-old orphan is out of grace -> deleted.
+    with (
+        patch("src.services.storage_sweep.StorageService") as MockStorage,
+        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.services.storage_sweep.settings") as mock_settings,
+    ):
+        mock_settings.s3_bucket = "test-bucket"
+        mock_settings.storage_sweep_grace_period_hours = 1
+        mock_storage_instance = MagicMock()
+        MockStorage.return_value = mock_storage_instance
+        deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db))
+    assert deleted == 1
+
+    # With a 24h grace period the same 2h-old orphan is within grace -> preserved.
+    with (
+        patch("src.services.storage_sweep.StorageService") as MockStorage,
+        patch("src.services.storage_sweep._list_storage_keys", return_value=mock_keys),
+        patch("src.services.storage_sweep.settings") as mock_settings,
+    ):
+        mock_settings.s3_bucket = "test-bucket"
+        mock_settings.storage_sweep_grace_period_hours = 24
+        mock_storage_instance = MagicMock()
+        MockStorage.return_value = mock_storage_instance
+        deleted = await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db))
+    assert deleted == 0
+    mock_storage_instance.delete_object.assert_not_called()
+
+
+async def test_run_storage_sweep_reads_interval_from_config():
+    """AC3.8.16: The sweep runner reads its wait interval from config."""
+    stop_event = asyncio.Event()
+    observed: dict[str, float] = {}
+
+    async def fake_wait_for(_awaitable, timeout):
+        observed["timeout"] = timeout
+        stop_event.set()
+        # Cancel the pending stop_event.wait() coroutine to avoid a warning.
+        _awaitable.close()
+        raise TimeoutError
+
+    async def mock_sweep(*args, **kwargs):
+        return 0
+
+    with (
+        patch("src.services.storage_sweep.settings") as mock_settings,
+        patch("src.services.storage_sweep.sweep_orphaned_storage_objects", side_effect=mock_sweep),
+        patch("src.services.storage_sweep.asyncio.wait_for", side_effect=fake_wait_for),
+    ):
+        mock_settings.enable_storage_sweep = True
+        mock_settings.storage_sweep_interval_seconds = 12345
+        await run_storage_sweep(stop_event)
+
+    assert observed["timeout"] == 12345

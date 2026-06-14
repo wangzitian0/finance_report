@@ -270,7 +270,10 @@ S3_PRESIGN_EXPIRY_SECONDS=300
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
-  `src/services/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests.
+  `src/services/storage_sweep.py`; EPIC-003 AC3.8 owns the behavior tests. The grace period
+  (`STORAGE_SWEEP_GRACE_PERIOD_HOURS`, default 24h) and run interval
+  (`STORAGE_SWEEP_INTERVAL_SECONDS`, default 86400s = daily) are config-driven (issue #356);
+  objects younger than the grace period are never deleted.
 - **JSON-repair retry**: when a model returns an otherwise-valid object wrapped in
   a markdown code fence or padded with prose, `_extract_json_with_models` performs
   one deterministic repair pass (strip the fence, extract the outermost balanced

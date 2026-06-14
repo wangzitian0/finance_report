@@ -529,6 +529,24 @@ class Settings(BaseSettings):
         validation_alias="ENABLE_STORAGE_SWEEP",
         json_schema_extra={"group": "Feature Flags"},
     )
+    storage_sweep_grace_period_hours: int = Field(
+        default=24,
+        ge=1,
+        description=(
+            "Grace period (hours) before an orphaned S3 object is eligible for the "
+            "storage sweep. Objects younger than this are never deleted, to avoid "
+            "racing with in-progress uploads (issue #356, default 24h)."
+        ),
+        validation_alias="STORAGE_SWEEP_GRACE_PERIOD_HOURS",
+        json_schema_extra={"group": "Feature Flags"},
+    )
+    storage_sweep_interval_seconds: int = Field(
+        default=86400,
+        ge=1,
+        description=("Interval (seconds) between orphaned-S3-object sweep runs (issue #356, default 86400s = daily)."),
+        validation_alias="STORAGE_SWEEP_INTERVAL_SECONDS",
+        json_schema_extra={"group": "Feature Flags"},
+    )
 
     # Deployment metadata
     git_commit_sha: str = Field(

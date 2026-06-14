@@ -23,10 +23,13 @@ from src.services import StorageError, StorageService
 
 logger = get_logger(__name__)
 
-# Only sweep objects older than this threshold to avoid racing with uploads in progress
-ORPHAN_MIN_AGE = timedelta(hours=1)
-SWEEP_INTERVAL_SECONDS = 3600  # Run once per hour
 STATEMENT_PREFIX = "statements/"
+
+# Default sweep cadence/grace, derived from config so behavior is config-driven
+# (issue #356). These module-level aliases preserve the historical constant names
+# while the live values are always read from ``settings`` at call time below.
+ORPHAN_MIN_AGE = timedelta(hours=settings.storage_sweep_grace_period_hours)
+SWEEP_INTERVAL_SECONDS = settings.storage_sweep_interval_seconds
 
 
 def _list_storage_keys(storage: StorageService) -> list[tuple[str, datetime]]:
@@ -52,7 +55,8 @@ async def sweep_orphaned_storage_objects(
 ) -> int:
     """Identify and delete S3 objects that have no corresponding DB record.
 
-    Only objects older than ORPHAN_MIN_AGE are considered to avoid deleting
+    Only objects older than the configured grace period
+    (``settings.storage_sweep_grace_period_hours``) are considered, to avoid deleting
     objects that are still being uploaded or whose DB record is being committed.
 
     Returns:
@@ -72,7 +76,8 @@ async def sweep_orphaned_storage_objects(
     if not storage_keys:
         return 0
 
-    cutoff = datetime.now(UTC) - ORPHAN_MIN_AGE
+    grace_period = timedelta(hours=settings.storage_sweep_grace_period_hours)
+    cutoff = datetime.now(UTC) - grace_period
     candidate_keys = [key for key, modified in storage_keys if modified < cutoff]
 
     if not candidate_keys:
@@ -128,6 +133,6 @@ async def run_storage_sweep(stop_event: asyncio.Event) -> None:
             logger.exception("Storage sweep encountered an unexpected error")
 
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=SWEEP_INTERVAL_SECONDS)
+            await asyncio.wait_for(stop_event.wait(), timeout=settings.storage_sweep_interval_seconds)
         except TimeoutError:
             continue
