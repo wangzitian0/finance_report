@@ -1,31 +1,33 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
-import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { ReportPageSkeleton } from "@/components/reports/ReportPageSkeleton";
+import { ReportPageShell } from "@/components/reports/ReportPageShell";
+import { ReportToolbar } from "@/components/reports/ReportToolbar";
+import { CurrencyFilterControl, DateFilterControl } from "@/components/reports/ReportFilters";
 import { formatDateInput } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
+import { useReportFilters } from "@/hooks/useReportFilters";
 import type { CashFlowItem, CashFlowResponse } from "@/lib/types";
 
+const defaultStartDate = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return formatDateInput(d);
+};
+
 export default function CashFlowPage() {
-  const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return formatDateInput(d); });
-  const [endDate, setEndDate] = useState(() => formatDateInput(new Date()));
-  const [currency, setCurrency] = useState("SGD");
+  const { startDate, setStartDate, endDate, setEndDate, currency, setCurrency, queryString, exportPath } =
+    useReportFilters({ reportType: "cash-flow", initialStartDate: defaultStartDate() });
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
 
-  const queryString = useMemo(() => {
-    const params = new URLSearchParams({ start_date: startDate, end_date: endDate, currency });
-    return params.toString();
-  }, [currency, endDate, startDate]);
   const reportQuery = useApiQuery<CashFlowResponse>(
     ["report", "cash-flow", queryString],
     `/api/reports/cash-flow?${queryString}`,
@@ -34,8 +36,7 @@ export default function CashFlowPage() {
   const report = reportQuery.data ?? null;
 
   const summary = useMemo(() => report?.summary, [report]);
-  const exportPath = `/api/reports/export?report_type=cash-flow&format=csv&${queryString}`;
-  const aiPrompt = useMemo(() => encodeURIComponent(`Analyze my cash flow from ${startDate} to ${endDate} in ${currency}. What are the main sources and uses of cash?`), [currency, endDate, startDate]);
+  const aiPrompt = useMemo(() => `Analyze my cash flow from ${startDate} to ${endDate} in ${currency}. What are the main sources and uses of cash?`, [currency, endDate, startDate]);
 
   const renderSection = (title: string, items: CashFlowItem[], colorClass: string) => (
     <div className="card p-5">
@@ -75,27 +76,21 @@ export default function CashFlowPage() {
     </div>
   );
 
-  if (reportQuery.isLoading) return <ReportPageSkeleton label="Loading cash flow" />;
-  if (reportQuery.isError) return <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>;
-
   return (
-    <div className="p-6">
-      <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-        <div>
-          <h1 className="page-title">Cash Flow Statement</h1>
-          <p className="page-description">Operating, Investing, and Financing activities</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
-          <Link href="/" className="btn-secondary text-sm">Home</Link>
-          <ExportCsvButton path={exportPath} />
-        </div>
-      </div>
-
+    <ReportPageShell
+      title="Cash Flow Statement"
+      description="Operating, Investing, and Financing activities"
+      loadingLabel="Loading cash flow"
+      isLoading={reportQuery.isLoading}
+      isError={reportQuery.isError}
+      errorMessage={reportQuery.error?.message}
+      onRetry={() => void reportQuery.refetch()}
+      toolbar={<ReportToolbar aiPrompt={aiPrompt} exportPath={exportPath} />}
+    >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Start date</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input w-auto" /></label>
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">End date</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input w-auto" /></label>
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto">{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+        <DateFilterControl label="Start date" value={startDate} onChange={setStartDate} />
+        <DateFilterControl label="End date" value={endDate} onChange={setEndDate} />
+        <CurrencyFilterControl value={currency} currencies={currencies} onChange={setCurrency} />
       </div>
 
       <FxWarningBanner warnings={report?.fx_warnings} />
@@ -205,6 +200,6 @@ export default function CashFlowPage() {
       )}
 
       <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
-    </div>
+    </ReportPageShell>
   );
 }

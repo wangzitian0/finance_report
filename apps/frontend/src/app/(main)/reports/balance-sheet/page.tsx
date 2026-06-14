@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
-import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
-import { formatDateInput } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
+import { useReportFilters } from "@/hooks/useReportFilters";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { ReportPageSkeleton } from "@/components/reports/ReportPageSkeleton";
+import { ReportPageShell } from "@/components/reports/ReportPageShell";
+import { ReportToolbar } from "@/components/reports/ReportToolbar";
+import { CurrencyFilterControl, DateFilterControl } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
 import type { BalanceSheetResponse, ReportLine } from "@/lib/types";
@@ -32,13 +33,16 @@ const buildTree = (lines: ReportLine[]): AccountNode[] => {
 };
 
 export default function BalanceSheetPage() {
-  const [asOfDate, setAsOfDate] = useState(() => formatDateInput(new Date()));
-  const [currency, setCurrency] = useState("SGD");
+  const { asOfDate, setAsOfDate, currency, setCurrency } = useReportFilters({
+    reportType: "balance-sheet",
+  });
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
 
+  // Balance sheet adds the restricted-holdings toggle on top of the shared
+  // date/currency filters, so it builds its own request query string here.
   const queryString = useMemo(() => {
     const params = new URLSearchParams({
       as_of_date: asOfDate,
@@ -68,7 +72,7 @@ export default function BalanceSheetPage() {
   const equityTree = useMemo(() => report ? buildTree(report.equity) : [], [report]);
 
   const exportPath = `/api/reports/export?report_type=balance-sheet&format=csv&${queryString}`;
-  const aiPrompt = useMemo(() => encodeURIComponent(`Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`), [asOfDate, currency]);
+  const aiPrompt = useMemo(() => `Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`, [asOfDate, currency]);
 
   const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
@@ -101,28 +105,20 @@ export default function BalanceSheetPage() {
     );
   };
 
-  if (reportQuery.isLoading) return <ReportPageSkeleton label="Loading balance sheet" />;
-  if (reportQuery.isError) return (
-    <div className="p-6"><div className="card p-8 text-center max-w-md mx-auto"><p className="text-muted mb-4">{reportQuery.error.message}</p><button onClick={() => void reportQuery.refetch()} className="btn-secondary">Retry</button></div></div>
-  );
-
   return (
-    <div className="p-6">
-      <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-        <div>
-          <h1 className="page-title">Balance Sheet</h1>
-          <p className="page-description">Assets = Liabilities + Equity</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary text-sm">AI Interpretation</Link>
-          <Link href="/" className="btn-secondary text-sm">Home</Link>
-          <ExportCsvButton path={exportPath} />
-        </div>
-      </div>
-
+    <ReportPageShell
+      title="Balance Sheet"
+      description="Assets = Liabilities + Equity"
+      loadingLabel="Loading balance sheet"
+      isLoading={reportQuery.isLoading}
+      isError={reportQuery.isError}
+      errorMessage={reportQuery.error?.message}
+      onRetry={() => void reportQuery.refetch()}
+      toolbar={<ReportToolbar aiPrompt={aiPrompt} exportPath={exportPath} />}
+    >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">As of date</span><input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="input w-auto" /></label>
-        <label className="flex flex-col gap-1"><span className="text-xs text-muted uppercase">Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input w-auto">{currencies.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+        <DateFilterControl label="As of date" value={asOfDate} onChange={setAsOfDate} />
+        <CurrencyFilterControl value={currency} currencies={currencies} onChange={setCurrency} />
         <label className="self-end flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2">
           <input type="checkbox" checked={includeRestricted} onChange={(e) => setIncludeRestricted(e.target.checked)} />
           <span>Include restricted holdings</span>
@@ -187,6 +183,6 @@ export default function BalanceSheetPage() {
       </div>
 
       <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
-    </div>
+    </ReportPageShell>
   );
 }
