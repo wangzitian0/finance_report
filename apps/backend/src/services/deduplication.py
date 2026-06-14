@@ -565,6 +565,12 @@ async def dual_write_layer2(
             existing.balance_validated = statement.balance_validated
             existing.validation_error = statement.validation_error
             existing.status = statement.status
+            # parse_document builds a fresh StatementSummary and sets stage1_status there, but this
+            # reused envelope is the row that gets persisted. Mirror the freshly-computed
+            # pending-review marker onto it, without clobbering a state that was already reviewed
+            # (approved/rejected) on a re-parse.
+            if existing.stage1_status is None:
+                existing.stage1_status = statement.stage1_status
             existing.uploaded_document_id = uploaded_doc.id
             db.add(existing)
         else:
