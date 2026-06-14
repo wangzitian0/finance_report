@@ -424,6 +424,21 @@ Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wa
 |---|---|---|---|---|
 | AC8.15.1 | Multi-month CSV statements parse, approve under the balance-chain guard, auto-post to the ledger, and the assembled period reports tie out end-to-end (income, expenses, net income, ending cash, total assets, and the accounting equation) | `test_AC8_15_1_full_year_statement_to_report_ties_out` | `apps/backend/tests/integration/test_full_year_statement_to_report_e2e.py` | P0 |
 
+### AC8.16: Augmentation-Layer Report Integrity
+
+AC8.14/AC8.15 pin the *core accounting arithmetic*. This group pins the newer
+**augmentation layer** — confidence-tagged extracted/reconciled inputs and
+append-only manual-valuation versioning — where the recent audit bugs lived
+([#968](https://github.com/wangzitian0/finance_report/issues/968) superseded
+valuation leaked into holdings; a missing `.distinct()` inflated provenance).
+It stands up the *combined* state production actually has (a low-confidence ledger
+input AND a corrected/superseded valuation present at once) and asserts the report
+is right on every axis simultaneously. Part of [#990](https://github.com/wangzitian0/finance_report/issues/990) (report-input integrity).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.16.1 | A low-confidence extracted ledger input and a corrected (superseded) manual valuation both reach the report correctly: ledger numbers and the accounting equation hold, the low-confidence line carries the worst-input tier (not laundered), the superseded valuation is excluded from net-worth components, and the manual valuation does not contaminate the ledger balance sheet | `test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence` | `apps/backend/tests/integration/test_augmentation_seam_e2e.py` | P1 |
+
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
