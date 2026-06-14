@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 
 revision = 'a14bb9204a08'
-down_revision = '0037_report_package_snapshots'
+down_revision = '0038_atomic_txn_balance_after'
 branch_labels = None
 depends_on = None
 
