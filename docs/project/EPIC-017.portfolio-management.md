@@ -239,6 +239,18 @@ redacted, and Decimal-safe.
 |----|-----------|---------------|------|----------|
 | AC17.13.1 | Portfolio management owns holdings, lots, dividends, fees, prices, freshness, and source links as framework policy inputs, but does not own final US/HK report presentation decisions | `test_AC17_13_1_portfolio_supplies_facts_not_framework_conclusions` | `tests/tooling/test_framework_reporting_epic_contract.py` | P0 |
 
+### AC17.14: Unified Portfolio Allocation Surface
+
+This is the first frontend slice for #914. It uses the existing investment
+performance report schedule allocation rows to expose a single asset-class
+allocation surface on the portfolio page. Cross-asset liquidity, currency, and
+net-worth reconciliation remain separate #914 follow-up slices because they
+need a broader report contract than the current portfolio schedule provides.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.14.1 | Portfolio page renders a unified asset-class allocation panel from the investment performance schedule with value, percentage, holding count, and tie-out to the displayed portfolio value | `AC17.14.1 renders unified asset allocation from performance schedule` | `frontend/src/__tests__/portfolioPage.test.tsx` | P1 |
+
 ### Brokerage PDF to Asset Report Proof Matrix
 
 This is the detailed EPIC-017 counterpart to the README core proof path. It

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -121,7 +121,10 @@ function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
             currency: "SGD",
           },
         ],
-        allocation: [{ dimension: "sector", category: "Technology", value: "1800.00", percentage: "100.00", count: 1 }],
+        allocation: [
+          { dimension: "asset_class", category: "Public Equity", value: "1800.00", percentage: "100.00", count: 1 },
+          { dimension: "sector", category: "Technology", value: "1800.00", percentage: "100.00", count: 1 },
+        ],
         data_freshness: {
           latest_price_date: "2026-12-31",
           market_data_provider: "Test Broker",
@@ -281,6 +284,20 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Source Links")).toBeInTheDocument()
     expect(screen.getByText("brokerage_statement:aapl")).toBeInTheDocument()
     expect(screen.getByText("Cost basis uses FIFO where available.")).toBeInTheDocument()
+  })
+
+  it("AC17.14.1 renders unified asset allocation from performance schedule", async () => {
+    mockPortfolioApi()
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
+    expect(within(panel).getByText("Asset Class")).toBeInTheDocument()
+    expect(within(panel).getByText("Public Equity")).toBeInTheDocument()
+    expect(within(panel).getByText("$1,800.00")).toBeInTheDocument()
+    expect(within(panel).getByText("100.0%")).toBeInTheDocument()
+    expect(within(panel).getByText("1 holding")).toBeInTheDocument()
+    expect(within(panel).getByText(/Ties to portfolio value/)).toBeInTheDocument()
   })
 
   it("AC17.8.4 does not show total portfolio value banner when no active holdings", async () => {
