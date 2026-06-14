@@ -31,6 +31,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     PositionStatus,
 )
+from src.schemas.base import normalize_currency_code
 from src.schemas.provenance import DataProvenance
 from src.services import fx
 from src.services.assets import AssetService
@@ -80,8 +81,18 @@ class PeriodSpan:
 
 def _normalize_currency(code: str | None) -> str:
     if not code:
-        return settings.base_currency.upper()
-    return code.strip().upper()
+        return normalize_currency_code(settings.base_currency)
+    return normalize_currency_code(code)
+
+
+def resolve_line_currency(line: JournalLine, account: Account, *, base_currency: str) -> str:
+    """Resolve a journal line's effective currency via the canonical fallback chain.
+
+    Centralizes the previously inline ``line.currency || account.currency ||
+    base_currency`` resolution so callers no longer re-implement (and re-normalize)
+    it. The returned code is normalized through :func:`normalize_currency_code`.
+    """
+    return _normalize_currency(line.currency or account.currency or base_currency)
 
 
 def _signed_amount(account_type: AccountType, direction: Direction, amount: Decimal) -> Decimal:
@@ -99,6 +110,27 @@ def income_bucket(account_name: str) -> str | None:
     if "dividend" in normalized:
         return "dividend"
     return None
+
+
+@dataclass
+class AnnualizedIncomeTotals:
+    """Typed intermediate accumulator for annualized income aggregation.
+
+    Replaces the string-keyed ``dict[str, Decimal]`` so the response model can be
+    constructed directly from typed attributes instead of a manual dict hop. All
+    amounts are ``Decimal`` (never ``float`` — see the money decimal rule).
+    """
+
+    salary: Decimal = Decimal("0.00")
+    bonus: Decimal = Decimal("0.00")
+    dividend: Decimal = Decimal("0.00")
+    total: Decimal = Decimal("0.00")
+
+    def add(self, bucket: str | None, signed_amount: Decimal) -> None:
+        """Accumulate a signed line amount into its bucket and the running total."""
+        if bucket is not None:
+            setattr(self, bucket, getattr(self, bucket) + signed_amount)
+        self.total += signed_amount
 
 
 def _quantize_money(amount: Decimal | int) -> Decimal:

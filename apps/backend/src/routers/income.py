@@ -1,7 +1,7 @@
 """Income analytics API router."""
 
 from datetime import date, timedelta
-from decimal import Decimal
+from http import HTTPStatus
 
 from fastapi import APIRouter, Query
 from sqlalchemy import select
@@ -9,16 +9,21 @@ from sqlalchemy import select
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.schemas.income import AnnualizedIncomeResponse
+from src.schemas.base import normalize_currency_code
+from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse
 from src.services.fx import FxRateError, convert_amount
-from src.services.reporting import income_bucket
+from src.services.reporting import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.utils import raise_bad_request
 from src.utils.money import to_money
 
 router = APIRouter(prefix="/income", tags=["income"])
 
 
-@router.get("/annualized", response_model=AnnualizedIncomeResponse)
+@router.get(
+    "/annualized",
+    response_model=AnnualizedIncomeResponse,
+    responses={HTTPStatus.BAD_REQUEST: {"model": FxConversionErrorResponse}},
+)
 async def get_annualized_income(
     db: DbSession,
     user_id: CurrentUserId,
@@ -38,16 +43,11 @@ async def get_annualized_income(
         .where(Account.type == AccountType.INCOME)
     )
 
-    totals = {
-        "salary": Decimal("0.00"),
-        "bonus": Decimal("0.00"),
-        "dividend": Decimal("0.00"),
-        "total": Decimal("0.00"),
-    }
-    currency = settings.base_currency.strip().upper()
+    currency = normalize_currency_code(settings.base_currency)
+    totals = AnnualizedIncomeTotals()
     for line, account in result.all():
         signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
-        source_currency = (line.currency or account.currency or currency).strip().upper()
+        source_currency = resolve_line_currency(line, account, base_currency=currency)
         try:
             signed_amount = await convert_amount(
                 db,
@@ -61,16 +61,13 @@ async def get_annualized_income(
             )
         except FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
-        bucket = income_bucket(account.name)
-        if bucket:
-            totals[bucket] += signed_amount
-        totals["total"] += signed_amount
+        totals.add(income_bucket(account.name), signed_amount)
 
     return AnnualizedIncomeResponse(
-        annualized_salary=to_money(totals["salary"]),
-        annualized_bonus=to_money(totals["bonus"]),
-        annualized_dividend=to_money(totals["dividend"]),
-        annualized_total=to_money(totals["total"]),
+        annualized_salary=to_money(totals.salary),
+        annualized_bonus=to_money(totals.bonus),
+        annualized_dividend=to_money(totals.dividend),
+        annualized_total=to_money(totals.total),
         currency=currency,
         as_of=report_date,
     )
