@@ -34,6 +34,21 @@ moon run :lint -- --fix           # Format/auto-fix
 moon run :build                   # Build all
 ```
 
+## Before You Commit / Push
+
+Run the **diff-aware gates** so CI-style failures surface locally, not after a
+push. See the **preflight** skill:
+
+```bash
+apps/backend/.venv/bin/python tools/preflight.py          # run gates for your diff
+apps/backend/.venv/bin/python tools/preflight.py --list   # preview what would run
+```
+
+It maps changed paths to the right gate (AC traceability, SSOT ownership, doc
+consistency, schema, migration risk, env keys, ruff, transaction-boundary). For
+EPIC/AC changes specifically, follow the **ac-workflow** skill (EPIC → AC → Test →
+Code → Doc) — it's what the `ac-traceability` gate verifies.
+
 ## Database Lifecycle
 
 ### Reference Counting

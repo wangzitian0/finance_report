@@ -6,6 +6,8 @@
       "skills": [
         "agents-rules",
         "tools-index",
+        "domain/preflight",
+        "domain/ac-workflow",
         "domain/development",
         "domain/schema",
         "domain/accounting",
@@ -44,6 +46,8 @@
       "skills": [
         "agents-rules",
         "tools-index",
+        "domain/preflight",
+        "domain/ac-workflow",
         "domain/development",
         "domain/schema",
         "domain/accounting",

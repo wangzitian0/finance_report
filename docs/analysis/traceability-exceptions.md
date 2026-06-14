@@ -124,6 +124,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_generate_fixtures.py` | `docs/ssot/extraction.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_merge_lcov.py` | `docs/ssot/coverage.md` |
+| `tests/tooling/test_preflight.py` | `docs/ssot/ci-cd.md` |
 | `tests/tooling/test_sanitize_fixtures.py` | `docs/agents/red-lines.md` |
 | `tests/tooling/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
 | `tests/tooling/test_validate_schemas.py` | `docs/ssot/schema.md` |
