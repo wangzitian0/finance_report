@@ -251,12 +251,12 @@ class TestModels:
         assert hasattr(StatementSummary, "status")
 
     def test_atomic_transaction_columns(self):
-        """Test AtomicTransaction exposes dedup and source columns."""
+        """AC4.6.8: AtomicTransaction exposes dedup, source, and balance_after columns."""
         from src.models.layer2 import AtomicTransaction
 
         assert hasattr(AtomicTransaction, "dedup_hash")
         assert hasattr(AtomicTransaction, "source_documents")
-        assert not hasattr(AtomicTransaction, "balance_after")
+        assert hasattr(AtomicTransaction, "balance_after")
 
 
 class TestConfig:

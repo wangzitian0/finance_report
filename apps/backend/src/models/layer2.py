@@ -51,7 +51,10 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     source_documents can be appended (never modified). This ensures data
     integrity and simplifies debugging.
 
-    Deduplication: SHA256(user_id|date|amount|direction|description|reference)
+    Deduplication: SHA256(user_id|date|amount|direction|description|reference|disambiguator)
+    where disambiguator is the running ``balance_after`` when present, else ``#occurrence_index``
+    (see ``DeduplicationService.calculate_transaction_hash``). ``balance_after`` is persisted so
+    the Stage-1 conflict guard can tell two real-but-identical transactions apart.
     Upsert Behavior:
     - If dedup_hash exists → Append to source_documents array
     - If dedup_hash new → Insert new record
@@ -76,11 +79,16 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, comment="ISO currency code")
+    balance_after: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+        comment="Statement running balance after this transaction; disambiguates real-but-identical rows",
+    )
 
     dedup_hash: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
-        comment="SHA256(user_id|date|amount|dir|desc|ref)",
+        comment="SHA256(user_id|date|amount|dir|desc|ref|disambiguator); disambiguator=balance_after or #occurrence",
     )
 
     source_documents: Mapped[dict] = mapped_column(
