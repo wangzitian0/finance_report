@@ -18,9 +18,11 @@ Design constraints that shape this module:
   either fully removed or, on any error, fully rolled back and reported — never
   left half-deleted. Safety therefore does not depend on perfect delete ordering.
 - **Explicit ordered deletes, not user-FK cascade.** We delete each owned table
-  by ``user_id`` in reverse-dependency order rather than relying on
-  ``ON DELETE CASCADE`` from ``users`` (which is intentionally absent in the test
-  schema), so the same code path is exercised in tests and production.
+  by ``user_id`` in reverse-dependency order rather than relying on the
+  ``ON DELETE CASCADE`` that ``UserOwnedMixin`` puts on ``user_id``. That cascade
+  exists in the production schema but is stripped from the test schema (conftest's
+  ``_strip_user_fks``), so deleting explicitly keeps one code path exercised in
+  both — and makes the purge robust even where the cascade is missing.
 
 The dry-run path executes the deletes inside the savepoint and then rolls back,
 so a dry run reports exactly which accounts *would* be purged and which are
