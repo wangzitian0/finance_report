@@ -65,6 +65,7 @@ from src.schemas import (
     PersonalReportPackageTraceabilityResponse,
     TrendPeriod,
 )
+from src.services.confidence_metric import ConfidenceMetricService
 from src.services.confidence_tier import derive_confidence_tier
 from src.services.evidence_lineage import EvidenceLineageService
 from src.services.framework_policy import derive_user_framework_policy_result
@@ -1729,6 +1730,9 @@ async def generate_personal_report_package_snapshot(
         report_data=snapshot_data,
         ttl_seconds=0,
     )
+    # Record a North-Star confidence point per report-package generation (the
+    # vision's cadence), so the low-confidence-proportion trend accumulates.
+    await ConfidenceMetricService().record_snapshot(db, user_id)
     await db.commit()
     return _package_snapshot_response(snapshot)
 

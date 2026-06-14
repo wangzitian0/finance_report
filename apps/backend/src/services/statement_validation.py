@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
-from src.services.promotion_gate import STATEMENT_BALANCE_TOLERANCE
+from src.services.promotion_gate import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 
 # Single-owned by the promotion gate (#930); kept as a local alias for readability.
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
@@ -139,19 +139,43 @@ async def _get_statement_for_update(
 
 
 def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: bool = False) -> None:
-    if not validation_result["opening_match"]:
+    # Route the Stage-1 approval decision through the promotion gate: the
+    # balance-chain checks are the deterministic invariants, with no confidence
+    # term (min_confidence=0). The gate disposes; a failed invariant blocks
+    # approval. Behavior is identical to the prior inline checks.
+    verdict = evaluate_promotion(
+        [
+            InvariantResult(
+                name="opening_balance_chain",
+                passed=validation_result["opening_match"],
+                delta=Decimal(validation_result["opening_delta"]),
+                tolerance=BALANCE_TOLERANCE,
+            ),
+            InvariantResult(
+                name="closing_balance_chain",
+                passed=validation_result["closing_match"],
+                delta=Decimal(validation_result["closing_delta"]),
+                tolerance=BALANCE_TOLERANCE,
+            ),
+        ],
+        confidence_rank=0,
+        min_confidence=0,
+    )
+    if verdict.is_authoritative:
+        return
+
+    if verdict.failed_invariant == "opening_balance_chain":
         suffix = " after edits" if after_edits else ""
         raise ValueError(
             f"Opening balance mismatch{suffix}: delta={validation_result['opening_delta']} exceeds tolerance "
             f"{BALANCE_TOLERANCE}"
         )
 
-    if not validation_result["closing_match"]:
-        if after_edits:
-            raise ValueError(f"Balance still invalid after edits: delta={validation_result['closing_delta']}")
-        raise ValueError(
-            f"Balance mismatch: delta={validation_result['closing_delta']} exceeds tolerance {BALANCE_TOLERANCE}"
-        )
+    if after_edits:
+        raise ValueError(f"Balance still invalid after edits: delta={validation_result['closing_delta']}")
+    raise ValueError(
+        f"Balance mismatch: delta={validation_result['closing_delta']} exceeds tolerance {BALANCE_TOLERANCE}"
+    )
 
 
 def _has_unresolved_statement_conflicts(transactions: list[AtomicTransaction]) -> bool:
