@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -75,7 +75,11 @@ const mockHolding2: PortfolioHolding = {
   sector: "Automotive",
 }
 
-function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
+function mockPortfolioApi(
+  holdings: PortfolioHolding[] = [mockHolding],
+  allocationPercentage = "100.00",
+  scheduleCurrency = "USD",
+) {
   const mockedApiFetch = vi.mocked(apiFetch)
   mockedApiFetch.mockImplementation((path: string) => {
     if (path.startsWith("/api/portfolio/summary")) {
@@ -101,7 +105,7 @@ function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
         period_start: "2026-01-01",
         period_end: "2026-12-31",
         as_of_date: "2026-12-31",
-        currency: "USD",
+        currency: scheduleCurrency,
         xirr: "12.50",
         time_weighted_return: "8.30",
         money_weighted_return: "10.10",
@@ -121,7 +125,10 @@ function mockPortfolioApi(holdings: PortfolioHolding[] = [mockHolding]) {
             currency: "SGD",
           },
         ],
-        allocation: [{ dimension: "sector", category: "Technology", value: "1800.00", percentage: "100.00", count: 1 }],
+        allocation: [
+          { dimension: "asset_class", category: "Public Equity", value: "1800.00", percentage: allocationPercentage, count: 1 },
+          { dimension: "sector", category: "Technology", value: "1800.00", percentage: "100.00", count: 1 },
+        ],
         data_freshness: {
           latest_price_date: "2026-12-31",
           market_data_provider: "Test Broker",
@@ -281,6 +288,41 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Source Links")).toBeInTheDocument()
     expect(screen.getByText("brokerage_statement:aapl")).toBeInTheDocument()
     expect(screen.getByText("Cost basis uses FIFO where available.")).toBeInTheDocument()
+  })
+
+  it("AC17.14.1 renders unified asset allocation from performance schedule", async () => {
+    mockPortfolioApi()
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
+    expect(within(panel).getByText("Asset Class")).toBeInTheDocument()
+    expect(within(panel).getByText("Public Equity")).toBeInTheDocument()
+    expect(within(panel).getByText("$1,800.00")).toBeInTheDocument()
+    expect(within(panel).getByText("100.0%")).toBeInTheDocument()
+    expect(within(panel).getByText("1 holding")).toBeInTheDocument()
+    expect(within(panel).getByText(/Ties to portfolio value/)).toBeInTheDocument()
+  })
+
+  it("AC17.14.1 labels allocation and portfolio currencies instead of claiming tie-out when they differ", async () => {
+    mockPortfolioApi([mockHolding], "100.00", "SGD")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
+    expect(within(panel).getByText("Schedule currency: SGD")).toBeInTheDocument()
+    expect(within(panel).getByText(/Portfolio value shown in USD/)).toBeInTheDocument()
+    expect(within(panel).queryByText(/Ties to portfolio value/)).not.toBeInTheDocument()
+  })
+
+  it("AC17.14.1 renders invalid allocation percentages as unavailable", async () => {
+    mockPortfolioApi([mockHolding], "not-a-number")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Unified Allocation" })
+    expect(within(panel).getByText("Public Equity")).toBeInTheDocument()
+    expect(within(panel).getByText("N/A")).toBeInTheDocument()
   })
 
   it("AC17.8.4 does not show total portfolio value banner when no active holdings", async () => {

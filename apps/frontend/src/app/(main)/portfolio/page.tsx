@@ -11,8 +11,29 @@ import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
-import { formatCurrencyLocale, sumAmounts } from "@/lib/currency";
-import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
+import { amountToChartNumber, formatAmount, formatCurrencyLocale, sumAmounts } from "@/lib/currency";
+import type { InvestmentPerformanceAllocationRow, InvestmentPerformanceReportSchedule } from "@/lib/types";
+
+function isAssetClassAllocation(row: InvestmentPerformanceAllocationRow): boolean {
+    return row.dimension === "asset_class" || row.dimension === "asset-class";
+}
+
+function allocationBarWidth(percentage: string): string {
+    try {
+        const value = amountToChartNumber(percentage);
+        return `${Math.min(100, Math.max(0, value))}%`;
+    } catch {
+        return "0%";
+    }
+}
+
+function formatAllocationPercent(percentage: string): string {
+    try {
+        return `${formatAmount(percentage, 1)}%`;
+    } catch {
+        return "N/A";
+    }
+}
 
 export default function PortfolioPage() {
     const [showDisposed, setShowDisposed] = useState(false);
@@ -60,6 +81,17 @@ export default function PortfolioPage() {
     const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
     const totalPortfolioValue = sumAmounts(activeHoldings.map((holding) => holding.market_value));
     const primaryCurrency = activeHoldings[0]?.currency ?? "USD";
+    const assetClassAllocationRows = (performanceSchedule?.allocation ?? []).filter(isAssetClassAllocation);
+    const unifiedAllocationSchedule =
+        performanceSchedule &&
+        !isPerformanceScheduleLoading &&
+        !performanceScheduleError &&
+        activeHoldings.length > 0 &&
+        assetClassAllocationRows.length > 0
+            ? performanceSchedule
+            : null;
+    const allocationCurrencyMatchesPortfolio =
+        unifiedAllocationSchedule?.currency.toUpperCase() === primaryCurrency.toUpperCase();
 
     return (
         <div className="p-6">
@@ -102,6 +134,59 @@ export default function PortfolioPage() {
                     )}
                 </div>
             )}
+
+            {unifiedAllocationSchedule ? (
+                <section className="mb-6 card p-5" aria-labelledby="unified-allocation-title">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <p className="text-xs text-muted uppercase tracking-wide">Asset Class</p>
+                            <h2 id="unified-allocation-title" className="mt-1 text-base font-semibold">
+                                Unified Allocation
+                            </h2>
+                            <p className="mt-1 text-sm text-muted">
+                                {allocationCurrencyMatchesPortfolio
+                                    ? `Ties to portfolio value: ${formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}`
+                                    : `Portfolio value shown in ${primaryCurrency}: ${formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}`}
+                            </p>
+                        </div>
+                        <p className="text-xs text-muted md:text-right">
+                            Schedule currency: {unifiedAllocationSchedule.currency}
+                        </p>
+                    </div>
+
+                    <div className="mt-4 overflow-hidden rounded border border-[var(--border)]">
+                        <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(7rem,0.7fr)_minmax(5rem,0.5fr)_minmax(6rem,0.5fr)] gap-3 border-b border-[var(--border)] bg-[var(--background-muted)] px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted md:grid">
+                            <span>Asset class</span>
+                            <span className="text-right">Value</span>
+                            <span className="text-right">Share</span>
+                            <span className="text-right">Holdings</span>
+                        </div>
+                        {assetClassAllocationRows.map((row) => (
+                            <div
+                                key={`${row.dimension}-${row.category}`}
+                                className="grid gap-2 border-b border-[var(--border)] px-3 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.5fr)_minmax(7rem,0.7fr)_minmax(5rem,0.5fr)_minmax(6rem,0.5fr)] md:items-center"
+                            >
+                                <div className="min-w-0">
+                                    <p className="font-medium text-[var(--foreground)]">{row.category}</p>
+                                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--background-muted)]" aria-hidden="true">
+                                        <div
+                                            className="h-full rounded-full bg-[var(--accent)]"
+                                            style={{ width: allocationBarWidth(row.percentage) }}
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-sm font-medium md:text-right">
+                                    {formatCurrencyLocale(row.value, unifiedAllocationSchedule.currency)}
+                                </p>
+                                <p className="text-sm text-muted md:text-right">{formatAllocationPercent(row.percentage)}</p>
+                                <p className="text-sm text-muted md:text-right">
+                                    {row.count} holding{row.count === 1 ? "" : "s"}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-3 mb-6">
                 <PerformanceCard />
