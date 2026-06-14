@@ -1,19 +1,28 @@
 """Base schema classes and generic types."""
 
-from typing import Annotated, Generic, TypeVar
+from typing import Annotated, Any, Generic, TypeVar, overload
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 T = TypeVar("T")
 
 
-def normalize_currency_code(value: str) -> str:
+@overload
+def normalize_currency_code(value: str) -> str: ...
+
+
+@overload
+def normalize_currency_code(value: Any) -> Any: ...
+
+
+def normalize_currency_code(value: Any) -> Any:
     """Normalize an ISO-4217 currency code to its canonical upper-case form.
 
     Single source of truth for the soft ``.strip().upper()`` currency
     normalization that was previously duplicated across routers/services.
-    Non-``str`` input is passed through unchanged so Pydantic raises its own
-    type error.
+    Used as a Pydantic ``BeforeValidator``, so it must accept arbitrary input:
+    non-``str`` values are passed through unchanged so Pydantic raises its own
+    type error. The ``str`` overload keeps direct callers typed as ``str``.
     """
     return value.strip().upper() if isinstance(value, str) else value
 

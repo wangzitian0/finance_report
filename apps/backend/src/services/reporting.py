@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 from uuid import UUID
 
 from sqlalchemy import case, func, literal, select
@@ -126,9 +126,21 @@ class AnnualizedIncomeTotals:
     dividend: Decimal = Decimal("0.00")
     total: Decimal = Decimal("0.00")
 
+    # Per-line buckets that may be accumulated individually. ``total`` is the
+    # running sum maintained by ``add()`` itself and is deliberately excluded so
+    # passing ``bucket="total"`` cannot double-count.
+    _BUCKETS: ClassVar[frozenset[str]] = frozenset({"salary", "bonus", "dividend"})
+
     def add(self, bucket: str | None, signed_amount: Decimal) -> None:
-        """Accumulate a signed line amount into its bucket and the running total."""
+        """Accumulate a signed line amount into its bucket and the running total.
+
+        ``bucket`` must be one of the per-line buckets (or ``None`` for amounts
+        that only affect the running total). Unknown bucket names — including
+        ``"total"`` — raise ``ValueError`` rather than silently double-counting.
+        """
         if bucket is not None:
+            if bucket not in self._BUCKETS:
+                raise ValueError(f"Unknown income bucket {bucket!r}; expected one of {sorted(self._BUCKETS)} or None")
             setattr(self, bucket, getattr(self, bucket) + signed_amount)
         self.total += signed_amount
 

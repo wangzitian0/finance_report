@@ -75,6 +75,15 @@ def test_AC5_32_2_annualized_income_totals_is_typed_intermediate():
     # Decimal throughout — never float.
     assert all(isinstance(v, Decimal) for v in (totals.salary, totals.bonus, totals.dividend, totals.total))
 
+    # AC5.32.2: add() guards bucket names so "total" (or any unknown bucket)
+    # cannot silently double-count via setattr + the running-total update.
+    with pytest.raises(ValueError, match="Unknown income bucket"):
+        totals.add("total", Decimal("1.00"))
+    with pytest.raises(ValueError, match="Unknown income bucket"):
+        totals.add("not_a_bucket", Decimal("1.00"))
+    # The running total is unchanged by the rejected calls.
+    assert totals.total == Decimal("135300.00")
+
 
 def test_AC5_32_3_resolve_line_currency_uses_canonical_fallback_chain():
     """AC5.32.3: resolve_line_currency centralizes line||account||base resolution + normalization."""
