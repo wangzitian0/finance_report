@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -77,17 +78,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 async def _run(args: argparse.Namespace) -> int:
     target = _redact(settings.database_url)
     mode = "APPLY" if args.apply else "dry-run"
+    # Read the RAW environment variable rather than settings.environment, which
+    # defaults to "development" when ENVIRONMENT/ENV is unset — an unset variable
+    # in a production shell must read as unsafe, not as a safe default (AC8.17.5).
+    raw_environment = os.environ.get("ENVIRONMENT") or os.environ.get("ENV")
     print(
-        f"[purge-test-accounts] target={target} environment={settings.environment!r} mode={mode}"
+        f"[purge-test-accounts] target={target} environment={raw_environment!r} mode={mode}"
     )
 
-    if (
-        args.apply
-        and not is_safe_purge_environment(settings.environment)
-        and not args.force
-    ):
+    if args.apply and not is_safe_purge_environment(raw_environment) and not args.force:
         print(
-            f"Refusing to --apply in environment {settings.environment!r}. "
+            f"Refusing to --apply in environment {raw_environment!r}. "
             "Re-run with --force only if you are certain this is not production.",
             file=sys.stderr,
         )
