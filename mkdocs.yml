@@ -112,6 +112,7 @@ nav:
   - Governance:
       - Agent Orchestration: agents/orchestration.md
       - Red Lines: agents/red-lines.md
+      - App/Infra Contract Boundary: agents/app-infra-contract-boundary.md
       - Branch Policy: contributing/branch-policy.md
   - Development:
       - Project Overview: project/README.md
