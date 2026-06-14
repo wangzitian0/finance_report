@@ -72,7 +72,7 @@ class TestJournalRouterErrors:
         }
         response = await client.post("/journal-entries", json=entry_data)
         assert response.status_code == 400
-        assert "not found" in str(response.json()).lower()
+        assert "not found" in response.json()["detail"].lower()
 
     async def test_post_entry_validation_error(self, client, db, test_user):
         """
