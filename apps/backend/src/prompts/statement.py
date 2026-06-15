@@ -42,7 +42,10 @@ Output format (JSON object - NOT an array):
 Important Rules:
 1. Output MUST be a single JSON object starting with `{`, NOT an array `[`, and no markdown
 2. All amounts as non-negative strings with 2 decimal places, no commas (e.g., "10000.00")
-3. Dates in YYYY-MM-DD format
+3. Normalize EVERY date to ISO YYYY-MM-DD, converting from whatever format the
+   source uses — e.g. 2025年01月15日 -> 2025-01-15, 15/01/2025 -> 2025-01-15,
+   2025/1/5 -> 2025-01-05, 15 Jan 2025 -> 2025-01-15. Do the conversion yourself;
+   never echo a non-ISO source format.
 4. direction: "IN" for credits/deposits, "OUT" for debits/withdrawals
 5. Include ALL transactions visible in the document
 6. Preserve raw_text exactly as shown (for audit trail)

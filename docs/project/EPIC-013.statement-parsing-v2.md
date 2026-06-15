@@ -223,6 +223,7 @@ of fatal.
 | AC13.19.1 | Common non-ISO date formats parse; empty/garbage return None | `test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats` | `extraction/test_tolerant_date_parsing.py` | P1 |
 | AC13.19.2 | A Chinese-format statement parses instead of being rejected | `test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting` | `extraction/test_tolerant_date_parsing.py` | P1 |
 | AC13.19.3 | One unparseable row date is non-fatal — the row is skipped, the rest parse | `test_AC13_19_3_one_bad_row_date_is_non_fatal` | `extraction/test_tolerant_date_parsing.py` | P1 |
+| AC13.19.4 | The model is the primary date normalizer: the prompt instructs converting any source format to ISO YYYY-MM-DD (parser is only a fallback) | `test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization` | `extraction/test_tolerant_date_parsing.py` | P1 |
 
 ### AC13.14: JSON-Repair Retry (issue #982)
 
