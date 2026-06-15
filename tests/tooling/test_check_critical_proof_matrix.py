@@ -1,8 +1,11 @@
-"""Tests for tools/check_critical_proof_matrix.py."""
+"""Tests for the common.ssot.check_critical_proof_matrix validation library.
+
+The library is consumed by the single gate ``tools/check_ac_index.py`` (via
+``check_ac_index.check_repo_contracts`` -> ``validate_matrix_contract``).
+"""
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
@@ -214,12 +217,6 @@ proofs:
         "manual",
     ]
     assert not [error for result in results for error in result.errors]
-
-    report = matrix.render_report(results)
-    assert "Behavioral proof | 1" in report
-    assert "Static/doc check | 1" in report
-    assert "Manual-only gate | 1" in report
-    assert "Trust mode" in report
 
 
 def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(
@@ -1043,26 +1040,6 @@ def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
     assert any("macro outcomes missing required ids:" in error for error in errors)
 
 
-def test_render_report_omits_internal_success_outcomes() -> None:
-    """AC8.13.54: Successful internal validation rows stay out of rendered reports."""
-    report = matrix.render_report(
-        [],
-        [
-            matrix.OutcomeResult(
-                outcome_id="__readme_contract__",
-                status="contract",
-                owner_epics=[],
-                proof_ids=[],
-                issue="",
-                errors=[],
-            )
-        ],
-    )
-
-    assert "__readme_contract__" not in report
-    assert "No critical proof matrix errors found." in report
-
-
 def test_stub_path_unknown_suffix_and_external_relative_helpers(tmp_path: Path) -> None:
     """AC8.13.41: Critical proof cannot be delegated to stubs or unknown anchors."""
     _write_registry(tmp_path)
@@ -1088,85 +1065,3 @@ proofs:
     assert "stub-proof: critical proof cannot point at _ac_stubs" in result.errors
     assert "stub-proof: test anchor not found: AC8.13.1 proof" in result.errors
     assert matrix._rel(Path("/outside/file.py"), tmp_path) == "/outside/file.py"
-
-
-def test_main_writes_success_report_and_prints_failures(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC8.13.41: CLI behavior is covered for success and failure paths."""
-    _write_registry(tmp_path)
-    test_dir = tmp_path / "tests" / "e2e"
-    test_dir.mkdir(parents=True)
-    (test_dir / "test_core.py").write_text(
-        """
-def test_core_flow():
-    \"\"\"AC8.13.1: core path proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-    success_matrix = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: core-flow
-    scope: behavioral
-    ci_tier: pr_ci
-    file: tests/e2e/test_core.py
-    test: test_core_flow
-    ac_ids: [AC8.13.1]
-""",
-    )
-    output_path = tmp_path / "reports" / "critical.md"
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "check_critical_proof_matrix.py",
-            "--repo-root",
-            str(tmp_path),
-            "--output",
-            str(output_path),
-        ],
-    )
-    monkeypatch.setattr(matrix, "build_matrix_payload", lambda repo_root: _payload(success_matrix))
-
-    assert matrix.main() == 0
-    stdout = capsys.readouterr().out
-    assert "Wrote critical proof matrix report" in stdout
-    assert "Critical proof matrix passed: 1 proof path(s), 6 macro outcome(s) validated." in stdout
-    assert "| `core-flow` | behavioral | pr_ci |" in output_path.read_text(encoding="utf-8")
-
-    failure_matrix = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: missing-anchor
-    scope: behavioral
-    ci_tier: pr_ci
-    file: tests/e2e/test_core.py
-    test: test_missing_flow
-    ac_ids: [AC8.13.1]
-""",
-    )
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "check_critical_proof_matrix.py",
-            "--repo-root",
-            str(tmp_path),
-        ],
-    )
-    monkeypatch.setattr(matrix, "build_matrix_payload", lambda repo_root: _payload(failure_matrix))
-
-    assert matrix.main() == 1
-    captured = capsys.readouterr()
-    assert "# Critical Proof Matrix Report" in captured.out
-    assert "Missing or reference-only | 1" in captured.out
-    assert "::error title=Critical proof matrix::missing-anchor" in captured.err

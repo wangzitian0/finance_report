@@ -8,9 +8,11 @@ committed-materialized, and the gate over that graph is exactly TWO gates:
 * **Gate A — INTEGRITY (hard).** Every AC is managed (enumerated with a
   protection record — an all-empty record is valid) and there is no dangling
   reference: every ``@ac_proof`` resolves to a real test + real AC, every vision
-  item with an owner EPIC backs an AC, every macro outcome's proof_ids resolve,
-  every mandatory active AC has a real test reference. The per-edge-type error
-  wording is preserved verbatim from the four legacy checks.
+  item with an owner EPIC backs an AC, every macro outcome's proof_ids resolve.
+  The mandatory-AC traceability obligation is enforced by the folded CI-stage
+  traceability check Gate A calls (``check_ac_traceability``), strictly stronger
+  than a graph-level mirror. The per-edge-type error wording is preserved
+  verbatim from the legacy checks.
 * **Gate B — PROTECTION RATCHET (soft, monotonic, per type).** Part 1 is the
   per-AC behavioural-score floor (``ac-score-baseline.jsonl``, unchanged); part 2
   is the per-type COUNT floor (``protection-floor.json``): current count of
@@ -140,29 +142,54 @@ def test_AC8_13_139_gate_fails_on_proof_missing_test_or_ac() -> None:
     assert any("does not resolve to a real test" in e for e in errors2), errors2
 
 
-def test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof() -> None:
-    """AC8.13.139: a mandatory, active AC with no real test reference fails."""
-    graph = _consistent_graph()
-    graph.nodes["AC8.13.140"] = _ac("AC8.13.140", mandatory=True, has_test=False)
-    errors = gate.check_integrity(graph)
-    assert any("AC8.13.140" in e and "no real test reference" in e for e in errors), errors
+def test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof(tmp_path) -> None:
+    """AC8.13.139: a mandatory, active AC with no real test reference fails.
 
-    # A deprecated (strikethrough) AC with no test is excluded, not a failure.
-    # (Synthetic id AC8.13.900 — not a real registry id — so it never collides
-    # with a registered AC.)
-    graph2 = _consistent_graph()
-    deprecated = AcNode(
-        id="AC8.13.900",
-        epic=8,
-        epic_name="testing-strategy",
-        description="~~retired criterion~~",
-        mandatory=True,
-        real_test_files=(),
-        proof_ids=(),
-        score=None,
+    This failure mode is owned by the folded CI-stage traceability check that
+    Gate A calls (``check_ac_traceability.run_traceability`` +
+    ``traceability_failure_messages``) — strictly stronger than the retired
+    graph-level mirror — not by a graph obligation in ``check_integrity``. A
+    deprecated (strikethrough) AC with no test is excluded, not a failure.
+    """
+    from common.ssot import check_ac_traceability as traceability
+
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "ac_registry.yaml").write_text(
+        "\n".join(
+            [
+                "version: '1.0'",
+                "groups:",
+                "  AC8:",
+                "    AC8.13:",
+                "      - id: AC8.13.140",
+                "        epic: 8",
+                "        epic_name: testing-strategy",
+                "        description: active mandatory behavior",
+                "        mandatory: true",
+                "      - id: AC8.13.900",
+                "        epic: 8",
+                "        epic_name: testing-strategy",
+                "        description: ~~retired criterion~~",
+                "        mandatory: true",
+                "",
+            ]
+        ),
+        encoding="utf-8",
     )
-    graph2.nodes["AC8.13.900"] = deprecated
-    assert all("AC8.13.900" not in e for e in gate.check_integrity(graph2))
+    (docs / "infra_registry.yaml").write_text(
+        "version: '1.0'\ngroups: {}\n", encoding="utf-8"
+    )
+
+    result = traceability.run_traceability(tmp_path)
+    # The active mandatory AC with no reference is flagged missing...
+    assert "AC8.13.140" in result.missing
+    assert any(
+        "have no test reference" in message
+        for message in traceability.traceability_failure_messages(result)
+    )
+    # ...but the deprecated (strikethrough) one is excluded, not a failure.
+    assert "AC8.13.900" not in result.missing
 
 
 def test_AC8_13_139_gate_fails_on_macro_outcome_missing_proof() -> None:
@@ -403,3 +430,30 @@ def test_AC8_13_139_no_committed_materialized_index_files() -> None:
 def test_AC8_13_139_real_repo_graph_passes_the_gate() -> None:
     """AC8.13.139: the gate passes on the real repository graph."""
     assert gate.main(["--repo-root", str(REPO_ROOT)]) == 0
+
+
+def test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral(
+    capsys,
+) -> None:
+    """AC8.13.135: the gate's PROTECTION dashboard reports per-type counts
+    (has_real_ref vs has_proof/has_score), never conflating L1 reference
+    presence with behavioral proof, so a passing gate cannot be misread as
+    behavioral assurance. (Re-anchored from the retired standalone traceability
+    report; the honest disclosure now lives in the two-gate dashboard.)"""
+    import re
+
+    assert gate.main(["--repo-root", str(REPO_ROOT)]) == 0
+    out = capsys.readouterr().out
+    assert "PROTECTION dashboard" in out
+    # Each protection type is reported on its own line — L1 reference presence
+    # is NOT merged into a single behavioral-coverage number.
+    for ptype in ("has_real_ref", "has_proof", "has_score", "has_mirror"):
+        assert ptype in out
+
+    def _count(t: str) -> int:
+        m = re.search(rf"{t}: current (\d+)", out)
+        return int(m.group(1)) if m else -1
+
+    # L1 reference count is reported separately from — and far exceeds — the
+    # behavioral has_proof count: the disclosure that prevents the misread.
+    assert _count("has_real_ref") > _count("has_proof")

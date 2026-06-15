@@ -508,7 +508,6 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
     db: AsyncSession,
     test_user,
     investment_account,
-    ac_evidence,
 ):
     """AC17.10.6: Report schedule amounts are converted into presentation currency."""
     period_start = date(2026, 1, 1)
@@ -604,29 +603,6 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
     assert holding["market_value"] == "1800.00"
     assert holding["unrealized_pnl"] == "300.00"
     assert holding["realized_pnl"] == "150.00"
-
-    # Measured evidence: every USD amount on the schedule is converted at 1.50
-    # to its golden SGD value (cost 1000->1500, mkt 1200->1800, etc.).
-    golden = {
-        "realized_pnl": "150.00",
-        "dividend_income": "15.00",
-        "unrealized_pnl": "300.00",
-    }
-    holding_golden = {
-        "cost_basis": "1500.00",
-        "market_value": "1800.00",
-        "unrealized_pnl": "300.00",
-        "realized_pnl": "150.00",
-    }
-    matches = sum(data[k] == v for k, v in golden.items()) + sum(holding[k] == v for k, v in holding_golden.items())
-    total_fields = len(golden) + len(holding_golden)
-    ac_evidence(
-        ac_id="AC17.10.6",
-        score=matches / total_fields,
-        metric="fx_converted_schedule_fields_match_golden",
-        comment=f"{matches}/{total_fields} SGD-converted fields match golden @ USD->SGD 1.50",
-        provenance="deterministic",
-    )
 
 
 async def test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency(

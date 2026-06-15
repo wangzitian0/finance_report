@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command wrapper for critical proof matrix generation."""
+"""Command wrapper for on-demand critical proof matrix rendering."""
 
 from __future__ import annotations
 

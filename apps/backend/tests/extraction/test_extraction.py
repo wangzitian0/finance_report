@@ -213,6 +213,16 @@ class TestPromptGeneration:
         assert "transactions" in prompt
         assert "suggested_category" in prompt
         assert "category_confidence" in prompt
+        # Multi-section extraction + per-currency completeness self-check (#1086/#1123)
+        assert "MULTI-SECTION" in prompt
+        assert "EVERY section" in prompt
+        assert "COMPLETENESS SELF-CHECK" in prompt
+        assert "reconcile EACH currency separately" in prompt
+        assert "Never add amounts across different currencies" in prompt
+        # Guardrails: no double-counting of mirrored legs, no fabrication (CR #1124)
+        assert "EXACTLY ONCE" in prompt
+        assert "do NOT double-count" in prompt
+        assert "NEVER invent, fabricate" in prompt
 
     def test_get_parsing_prompt_dbs(self):
         """AC13.4.2: Test DBS-specific prompt."""
@@ -258,6 +268,9 @@ class TestPromptGeneration:
 
         prompt = get_parsing_prompt("MariBank")
         assert "MariBank" in prompt
+        # MariBank hint must name the savings<->Mari Invest transfer legs (#1086)
+        assert "Buy - Mari Invest" in prompt
+        assert "Sell - Mari Invest" in prompt
 
 
 class TestMediaPayloadBuilder:

@@ -18,7 +18,9 @@ async def _account(client: AsyncClient, name: str, account_type: str) -> str:
     return resp.json()["id"]
 
 
-async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet(client: AsyncClient) -> None:
+async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sheet(
+    client: AsyncClient, ac_evidence
+) -> None:
     """AC2.15.1: a guided opening-balance request posts a balanced entry and the
     as-of balance sheet reflects the starting position with the equation intact."""
     bank = await _account(client, "Bank", "ASSET")
@@ -43,8 +45,18 @@ async def test_AC2_15_1_opening_balances_post_balanced_and_reflect_in_balance_sh
     # Net worth (assets - liabilities) is captured as Opening Balance Equity.
     assert Decimal(bs["total_equity"]) == Decimal("5000.00")
 
+    # Behavioral evidence: 10000 asset offset by 5000 liability nets 5000 into equity,
+    # the entry balances at 10000.00, and the equation delta is exactly 0.00.
+    ac_evidence(
+        ac_id="AC2.15.1",
+        score=1.0,
+        metric="opening_balance_golden_totals_match",
+        comment="balanced 10000.00; total_assets 10000.00, total_equity 5000.00, equation_delta 0.00",
+        provenance="deterministic",
+    )
 
-async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client: AsyncClient) -> None:
+
+async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client: AsyncClient, ac_evidence) -> None:
     """AC2.15.2: a single asset opening balance is offset entirely into Opening
     Balance Equity, keeping the entry balanced."""
     savings = await _account(client, "Savings", "ASSET")
@@ -58,6 +70,16 @@ async def test_AC2_15_2_single_asset_opening_balance_offsets_into_equity(client:
     assert bs["is_balanced"] is True
     assert Decimal(bs["total_assets"]) == Decimal("8000.00")
     assert Decimal(bs["total_equity"]) == Decimal("8000.00")
+
+    # Behavioral evidence: a single 8000 asset is offset entirely into equity, so
+    # total_assets == total_equity == 8000.00 with the equation kept intact.
+    ac_evidence(
+        ac_id="AC2.15.2",
+        score=1.0,
+        metric="single_asset_opening_offsets_into_equity",
+        comment="total_assets 8000.00 == total_equity 8000.00 (single asset offset to equity)",
+        provenance="deterministic",
+    )
 
 
 async def test_AC2_15_3_unknown_account_is_rejected(client: AsyncClient) -> None:

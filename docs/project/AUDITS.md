@@ -14,7 +14,7 @@ Current generated AC snapshot values are owned by:
 
 - `python tools/audit_ac_epic_mismatches.py`
 - `python tools/analyze_test_ac_coverage.py --no-write --stdout`
-- `python tools/check_ac_traceability.py`
+- `python tools/check_ac_index.py`
 
 Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced
 by the AC traceability gate before the generated audit artifact is uploaded.

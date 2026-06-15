@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Validate the critical product proof matrix.
+"""Pure validation library for the critical product proof matrix.
 
 This is intentionally smaller than full AC traceability. It protects the core
 product journeys from being "covered" only by broad AC string references while
-leaving broad registry hygiene to tools/check_ac_traceability.py.
+broad registry hygiene stays with ``check_ac_traceability.run_traceability``.
+
+This module is a LIBRARY, not a CLI gate. ``validate_matrix_contract`` /
+``validate_matrix`` / ``validate_outcomes`` (and the ``build_matrix_payload``
+helper) are imported by the single consolidated gate
+(:mod:`common.ssot.check_ac_index`, Gate A) and by the matrix unit tests. There
+is no ``main()`` / argument parser / markdown report renderer here any more: the
+one gate entry point is ``tools/check_ac_index.py``.
 """
 
 from __future__ import annotations
 
-import argparse
 import ast
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -22,7 +27,6 @@ from common.ssot.ac_registry_format import load_registry_entries
 from common.ssot.ac_traceability_refs import AC_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_REPORT = REPO_ROOT / "docs" / "analysis" / "critical-proof-matrix-report.md"
 REGISTRY_PATHS = (
     REPO_ROOT / "docs" / "ac_registry.yaml",
     REPO_ROOT / "docs" / "infra_registry.yaml",
@@ -645,125 +649,3 @@ def validate_matrix_contract(repo_root: Path, matrix_payload: dict[str, Any] | N
     proofs = validate_matrix(repo_root, matrix_payload)
     outcomes = validate_outcomes(repo_root, matrix_payload, proofs)
     return MatrixValidation(proofs=proofs, outcomes=outcomes)
-
-
-def render_report(
-    results: list[ProofResult],
-    outcomes: list[OutcomeResult] | None = None,
-) -> str:
-    counts = {scope: 0 for scope in sorted(VALID_SCOPES)}
-    failed = 0
-    for result in results:
-        if result.errors:
-            failed += 1
-        elif result.scope in counts:
-            counts[result.scope] += 1
-
-    lines = [
-        "# Critical Proof Matrix Report",
-        "",
-        "This report validates only core product proof paths. Full AC string",
-        "traceability remains a separate hygiene gate.",
-        "",
-        "## Summary",
-        "",
-        "| Status | Count |",
-        "|---|---:|",
-        f"| Behavioral proof | {counts['behavioral']} |",
-        f"| Static/doc check | {counts['static_contract']} |",
-        f"| Manual-only gate | {counts['manual_gate']} |",
-        f"| Missing or reference-only | {failed} |",
-        "",
-        "## Proofs",
-        "",
-        "| ID | Scope | CI tier | Trust mode | Source classes | AC IDs | Test anchor | Status |",
-        "|---|---|---|---|---|---|---|---|",
-    ]
-    for result in results:
-        ac_cell = ", ".join(f"`{ac_id}`" for ac_id in result.ac_ids)
-        anchor = f"`{result.file}::{result.test}`" if result.file else "_manual_"
-        status = "fail" if result.errors else result.scope
-        source_cell = ", ".join(f"`{source_class}`" for source_class in result.source_classes) or "-"
-        trust_cell = result.trust_mode or "-"
-        lines.append(
-            f"| `{result.proof_id}` | {result.scope} | {result.ci_tier} | "
-            f"{trust_cell} | {source_cell} | {ac_cell} | {anchor} | {status} |"
-        )
-
-    if outcomes is not None:
-        lines.extend(
-            [
-                "",
-                "## Macro Outcomes",
-                "",
-                "| Outcome | Status | Owner EPICs | Proof IDs | Issue | Validation |",
-                "|---|---|---|---|---|---|",
-            ]
-        )
-        for outcome in outcomes:
-            if outcome.outcome_id.startswith("__") and not outcome.errors:
-                continue
-            owners = ", ".join(f"`{epic}`" for epic in outcome.owner_epics) or "-"
-            proofs = ", ".join(f"`{proof_id}`" for proof_id in outcome.proof_ids) or "-"
-            issue = outcome.issue or "-"
-            validation = "fail" if outcome.errors else "ok"
-            lines.append(
-                f"| `{outcome.outcome_id}` | {outcome.status} | {owners} | {proofs} | {issue} | {validation} |"
-            )
-
-    errors = [error for result in [*results, *(outcomes or [])] for error in result.errors]
-    lines.extend(["", "## Errors", ""])
-    if errors:
-        lines.extend(f"- {error}" for error in errors)
-    else:
-        lines.append("No critical proof matrix errors found.")
-    return "\n".join(lines) + "\n"
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Validate critical proof matrix.")
-    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--output", type=Path, default=None)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help=(
-            "Accepted for compatibility. The matrix is a derived (not committed) "
-            "view of the AC graph, so there is no byte-compare; validation runs "
-            "regardless of this flag."
-        ),
-    )
-    return parser.parse_args()
-
-
-def main() -> int:
-    args = parse_args()
-    repo_root = args.repo_root.resolve()
-    validation = validate_matrix_contract(repo_root)
-    report = render_report(validation.proofs, validation.outcomes)
-
-    output_path = args.output
-    if output_path is not None:
-        output_path = output_path if output_path.is_absolute() else repo_root / output_path
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(report, encoding="utf-8")
-        print(f"Wrote critical proof matrix report: {output_path}")
-    else:
-        print(report)
-
-    errors = list(validation.errors)
-    if errors:
-        for error in errors:
-            print(f"::error title=Critical proof matrix::{error}", file=sys.stderr)
-        return 1
-    print(
-        "Critical proof matrix passed: "
-        f"{len(validation.proofs)} proof path(s), "
-        f"{len([outcome for outcome in validation.outcomes if not outcome.outcome_id.startswith('__')])} "
-        "macro outcome(s) validated."
-    )
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

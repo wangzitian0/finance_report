@@ -260,7 +260,7 @@ Adjusted based on decision complexity:
 
 - **SSOT Hardening 2026-Q2** — extract 5 cross-cutting concepts (trust hierarchy, confidence thresholds, tolerance constants, stage-1/2 review state machine, AI gating flag) into `docs/ssot/` modules. Existing SSOTs `source-type-priority.md` and `confirmation-workflow.md` already cover 2 of the 5; remaining 3 to be authored.
 - **Vision T1 + T6 integration tests** — Trust & Governance (T1) and Reliability & Observability (T6) themes currently lack end-to-end integration tests; gap documented in audit §5.
-- **Generated traceability audit review** — current mapping comes from `tools/check_ac_traceability.py`, generated analysis reports, and the CI `ac-test-traceability-audit` artifact rather than a checked-in snapshot.
+- **Generated traceability audit review** — current mapping comes from `tools/check_ac_index.py`, generated analysis reports, and the CI `ac-test-traceability-audit` artifact rather than a checked-in snapshot.
 
 ### Authority
 

@@ -10,7 +10,22 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+from src.prompts import get_parsing_prompt
 from src.services.extraction import ExtractionService, _tolerant_parse_date
+
+
+def test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization():
+    """AC13.19.4: the extraction prompt makes the model the primary date normalizer.
+
+    Asserts the specific rule text and a concrete conversion example so the test fails
+    if the prompt drops or weakens the ISO-normalization requirement (the tolerant
+    parser is only a defensive fallback)."""
+    prompt = get_parsing_prompt("DBS")
+    # The explicit instruction to convert every source format to ISO.
+    assert "Normalize EVERY date to ISO YYYY-MM-DD" in prompt
+    assert "never echo a non-ISO source format" in prompt
+    # At least one concrete conversion example, incl. the Chinese format that broke #1086.
+    assert "2025年01月15日 -> 2025-01-15" in prompt
 
 
 def test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats():

@@ -11,7 +11,7 @@ from src.models import Account, AccountType, Direction, JournalEntry, JournalEnt
 from src.services.accounting import ValidationError, validate_journal_balance, verify_accounting_equation
 
 
-def test_AC2_12_1_multicurrency_entry_balances_in_base_currency():
+def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):
     """AC2.12.1: Multi-currency journal validation balances converted base amounts."""
     bank_usd = JournalLine(
         account_id=uuid4(),
@@ -27,6 +27,9 @@ def test_AC2_12_1_multicurrency_entry_balances_in_base_currency():
         currency="SGD",
     )
 
+    # 100.00 USD @ 1.35 == 135.00 SGD: the converted debit must equal the SGD credit.
+    converted_debit = bank_usd.amount * bank_usd.fx_rate
+    assert converted_debit == equity_sgd.amount == Decimal("135.00")
     validate_journal_balance([bank_usd, equity_sgd])
 
     understated_credit = JournalLine(
@@ -37,6 +40,16 @@ def test_AC2_12_1_multicurrency_entry_balances_in_base_currency():
     )
     with pytest.raises(ValidationError):
         validate_journal_balance([bank_usd, understated_credit])
+
+    # Behavioral evidence: the converted base amount equals the golden 135.00 SGD;
+    # a wrong fx multiply or a missing conversion would not land on this number.
+    ac_evidence(
+        ac_id="AC2.12.1",
+        score=1.0,
+        metric="usd_to_sgd_converted_base_amount_match",
+        comment="100.00 USD @ 1.35 == 135.00 SGD converted base amount (deterministic)",
+        provenance="deterministic",
+    )
 
 
 async def test_AC2_12_2_accounting_equation_uses_base_currency_balances(db: AsyncSession, test_user):

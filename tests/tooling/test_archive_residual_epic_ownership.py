@@ -85,7 +85,7 @@ def test_AC4_8_1_reconciliation_benchmark_residual_is_epic_owned() -> None:
     assert "Done (AC4.6.1)" in epic
     assert "tests/tooling/test_archive_residual_epic_ownership.py" in epic
     assert "python tools/analyze_test_ac_coverage.py --stdout" in epic
-    assert "python tools/check_ac_traceability.py" in epic
+    assert "python tools/check_ac_index.py" in epic
     assert "scripts/tests/test_archive_residual_epic_ownership.py" not in epic
     assert "python scripts/" not in epic
     assert "AC4.8.1" in registry

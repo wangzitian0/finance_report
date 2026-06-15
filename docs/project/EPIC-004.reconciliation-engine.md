@@ -273,7 +273,7 @@ See: docs/ssot/accounting.md#decimal-rule
       benchmark evidence, and fails CI when the `>=95%`, `<0.5%`, `<2%`, or
       `<10s` targets are missed. Current traceability review also uses
       `python tools/analyze_test_ac_coverage.py --stdout` and
-      `python tools/check_ac_traceability.py`.
+      `python tools/check_ac_index.py`.
 
 ## 🗄️ Archive Integration Notes
 

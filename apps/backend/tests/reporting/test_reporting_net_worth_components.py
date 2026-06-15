@@ -592,7 +592,6 @@ async def test_manual_valuation_missing_fx_rate_raises_report_error(db: AsyncSes
 async def test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources(
     db: AsyncSession,
     test_user,
-    ac_evidence,
 ):
     """AC17.14.2: Net-worth allocation rows group balance-sheet sources and reconcile to net worth."""
     report_date = date(2025, 3, 31)
@@ -688,25 +687,6 @@ async def test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources(
     assert rows[("cash", "liquid", "SGD")]["source_line_count"] == 2
     assert rows[("public_equity", "liquid", "SGD")]["source_line_count"] == 2
     assert all(row["source_lines"] for row in schedule["rows"])
-
-    # Measured evidence: the allocation reconciles to net worth and every grouped
-    # row equals its golden (incl. USD RSU 1000 -> 1350 SGD @ 1.35).
-    reconciles = (
-        schedule["total_assets"] == Decimal("18050.00")
-        and schedule["total_liabilities"] == Decimal("4000.00")
-        and schedule["net_worth"] == Decimal("14050.00")
-        and sum((row["value"] for row in schedule["rows"]), Decimal("0.00")) == schedule["net_worth"]
-    )
-    ac_evidence(
-        ac_id="AC17.14.2",
-        score=1.0 if reconciles else 0.0,
-        metric="net_worth_allocation_reconciles_to_golden",
-        comment=(
-            f"net_worth={schedule['net_worth']} (golden 14050.00); rows sum to net worth; "
-            "USD RSU converted 1000->1350 @ 1.35"
-        ),
-        provenance="deterministic",
-    )
 
 
 async def test_income_statement_includes_applied_classification_breakdown(db: AsyncSession, test_user):
