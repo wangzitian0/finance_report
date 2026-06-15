@@ -42,8 +42,9 @@ export function ResolveCheckDialog({ check, actionLoading, onClose, onResolve }:
                         {(check.details.message as string | undefined) || JSON.stringify(check.details)}
                     </p>
                     <div>
-                        <label className="block text-sm font-medium mb-1.5">Note (optional)</label>
+                        <label htmlFor={`${resolveTitleId}-note`} className="block text-sm font-medium mb-1.5">Note (optional)</label>
                         <input
+                            id={`${resolveTitleId}-note`}
                             type="text"
                             value={resolveNote}
                             onChange={(e) => setResolveNote(e.target.value)}

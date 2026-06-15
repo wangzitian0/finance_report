@@ -29,6 +29,7 @@ export function Stage2Filters({
                     {["high", "medium", "low"].map(s => (
                         <button
                             key={s}
+                            type="button"
                             onClick={() => onToggleSeverity(s)}
                             className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                                 severityFilter.includes(s)

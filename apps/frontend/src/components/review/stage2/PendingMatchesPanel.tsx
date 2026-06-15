@@ -111,6 +111,7 @@ export function PendingMatchesPanel({
                                     <th className="text-left px-4 py-2 w-8">
                                         <input
                                             type="checkbox"
+                                            aria-label="Select all matches"
                                             checked={selectedMatches.size === matches.length && matches.length > 0}
                                             onChange={onToggleAll}
                                             className="rounded"
@@ -134,6 +135,7 @@ export function PendingMatchesPanel({
                                             <input
                                                 onClick={(e) => e.stopPropagation()}
                                                 type="checkbox"
+                                                aria-label={`Select match ${match.description || match.id}`}
                                                 checked={selectedMatches.has(match.id)}
                                                 onChange={(e) => {
                                                     e.stopPropagation();

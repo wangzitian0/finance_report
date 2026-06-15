@@ -19,7 +19,7 @@ export function formatScheduleCurrency(
 ): string {
   return formatCurrencyLocale(value, currency, "en-US", {
     maximumFractionDigits: 0,
-  }).replace(/ /g, " ");
+  }).replace(/\u00a0/g, " ");
 }
 
 export function renderCsv(values?: string[]): string {
