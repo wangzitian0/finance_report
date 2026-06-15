@@ -39,13 +39,13 @@ from project intent to executable proof without reading archive fragments.
 
 | Layer | Owner | What It Shows | Proof / Guard |
 |---|---|---|---|
-| Project entry | `README.md` | EPIC map, tracker entry points, and proof commands | `tools/check_ac_traceability.py` |
+| Project entry | `README.md` | EPIC map, tracker entry points, and proof commands | `tools/check_ac_index.py` |
 | Goal & culture | `vision.md` | North-star goal, axioms, trade-off rules, and direction for ambiguous choices | Referenced by EPIC vision anchors |
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
 | EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
 | AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, `docs/ac_registry_overrides.yaml` | Generated acceptance criteria inventory and explicit non-derived overrides | `tools/generate_ac_registry.py --check` |
 | SSOT index | `docs/ssot/README.md`, `docs/ssot/MANIFEST.yaml` | Technical truth ownership map | `tools/check_ssot_ownership.py` |
-| Testing proof | CI traceability artifact, `unified-coverage.json` | AC-to-test proof and coverage baseline | `tools/check_ac_traceability.py`, `tools/check_coverage_policy.py` |
+| Testing proof | CI traceability artifact, `unified-coverage.json` | AC-to-test proof and coverage baseline | `tools/check_ac_index.py`, `tools/check_coverage_policy.py` |
 
 Implementation facts should be code-owned where possible. Prose SSOT documents
 explain rationale and link to code, tests, generated registries, or issues
@@ -61,7 +61,7 @@ Use these sources instead:
 
 - Live local AC coverage: `python tools/analyze_test_ac_coverage.py --no-write --stdout`
 - Optional regenerated AC coverage snapshot: `python tools/analyze_test_ac_coverage.py`
-- Traceability gate: `python tools/check_ac_traceability.py`
+- Traceability gate: `python tools/check_ac_index.py`
 - E2E EPIC closure gate: `python tools/check_e2e_epic_traceability.py`
 - Coverage baseline data: `unified-coverage.json`
 - Coverage policy owner: `common/coverage/policy.py`
@@ -175,7 +175,7 @@ outcome source is
 (macro outcome -> owner EPICs + proof_ids); the proof paths come from the
 co-located `@ac_proof` decorators. The matrix is rendered on demand by
 `python tools/generate_critical_proof_matrix.py` (never committed) and validated
-by `python tools/check_critical_proof_matrix.py`; the single internal-consistency
+by `python tools/check_ac_index.py`; the single internal-consistency
 gate `python tools/check_ac_index.py` fails on any dangling/missing link. This is
 the README -> EPIC -> E2E contract. The EPIC -> AC -> test contract remains owned
 by the generated AC registries and AC traceability reports.

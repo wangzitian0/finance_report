@@ -78,7 +78,7 @@ now better managed by code, SSOT files, and generated proof.
 | Asset and atomic-position model rationale | [assets.md](../ssot/assets.md), [schema.md](../ssot/schema.md) |
 | Portfolio API surface | `apps/backend/src/routers/portfolio.py`, API contract tests |
 | Portfolio UI surfaces | `apps/frontend/src/app/(main)/portfolio`, frontend tests |
-| Current proof and execution stage | AC registries, `tools/check_ac_traceability.py`, [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
+| Current proof and execution stage | AC registries, `tools/check_ac_index.py`, [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
 
 Framework boundary: EPIC-017 supplies portfolio facts, not final framework
 accounting conclusions. Holdings, lots, cost basis, dividends, fees, prices,

@@ -18,9 +18,12 @@ target exists. It catches:
   exist in the registry;
 * every macro outcome's ``proof_ids`` resolve to a declared proof;
 * every vision item that owns at least one EPIC backs at least one AC (no
-  dangling vision promise);
-* every mandatory, non-deprecated AC resolves to >=1 real test reference (the
-  graph-level traceability mirror).
+  dangling vision promise).
+
+The mandatory-AC traceability obligation is enforced by the folded CI-stage
+traceability check below (``check_ac_traceability.run_traceability``), not by a
+separate graph-level mirror: the imported check is strictly stronger, so a mirror
+would be pure redundancy.
 
 INTEGRITY additionally folds in the two checks that used to run as SEPARATE CI
 gate steps, by CALLING those modules as libraries (not reimplementing them), so
@@ -30,10 +33,11 @@ the SAME code runs and no protection is weakened:
   ``traceability_failure_messages``): a mandatory AC's test reference must land
   in a CI-REQUIRED execution stage (per ``docs/ssot/test-execution-matrix.yaml``),
   with the placeholder-only / stub-only / unexecuted-only / missing
-  classifications and their verbatim ``TRACEABILITY GATE FAILED`` wording. This
-  is strictly stronger than the graph-level mirror above (it also fails an AC
+  classifications and their verbatim ``TRACEABILITY GATE FAILED`` wording. It
+  catches every mandatory active AC with no real CI-stage test reference (the
+  job the former graph-level mirror did) and strictly more: it also fails an AC
   whose only real reference sits in a non-CI stage, and distinguishes
-  placeholder/stub references).
+  placeholder/stub references.
 * **Critical-proof contract** (``check_critical_proof_matrix.validate_matrix_contract``):
   the per-proof contract — valid ``trust_mode``, ``mirror_proof_id`` required for
   ``llm_ocr_post_merge`` proofs (mirror must exist + be deterministic_pr in
@@ -118,11 +122,6 @@ def _real_test(repo_root: Path, file_rel: str, test_name: str) -> bool:
     return False
 
 
-def _is_deprecated(description: str) -> bool:
-    text = description.strip()
-    return text.startswith("~~") and text.endswith("~~") and len(text) > 4
-
-
 # ---------------------------------------------------------------------------
 # Gate A — INTEGRITY
 # ---------------------------------------------------------------------------
@@ -203,29 +202,6 @@ def _vision_obligations(graph: AcGraph) -> list[Obligation]:
     return out
 
 
-def _mandatory_traceability_obligations(graph: AcGraph) -> list[Obligation]:
-    """Every mandatory, non-deprecated AC must resolve to >=1 real test ref.
-
-    This is the traceability invariant, kept a HARD integrity rule (behaviour
-    identical to before). The graph carries ``real_test_files`` per AC from the
-    single shared test-tree scan; an empty list for a mandatory, active AC is a
-    missing-proof failure. The authoritative CI gate remains
-    ``tools/check_ac_traceability.py``; this is the graph-level mirror so the one
-    consistency gate covers it too.
-    """
-    out: list[Obligation] = []
-    for node in graph.nodes.values():
-        if not node.mandatory or _is_deprecated(node.description):
-            continue
-        out.append(
-            Obligation(
-                bool(node.real_test_files),
-                f"AC {node.id}: mandatory, active AC has no real test reference",
-            )
-        )
-    return out
-
-
 def _managed_obligations(graph: AcGraph) -> list[Obligation]:
     """Every AC in the registry must be enumerated with a protection record.
 
@@ -251,7 +227,6 @@ def _integrity_obligations(graph: AcGraph) -> list[Obligation]:
         *_proof_obligations(graph),
         *_macro_outcome_obligations(graph),
         *_vision_obligations(graph),
-        *_mandatory_traceability_obligations(graph),
     ]
 
 
