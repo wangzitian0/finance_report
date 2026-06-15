@@ -423,6 +423,22 @@ enforcing the FE↔BE contract instead of leaving the generated client as dead c
 | AC12.28.2 | The `--check` staleness gate fails when the committed spec is stale | `test_AC12_28_2_staleness_gate_detects_drift` | `tests/tooling/test_generate_openapi_spec.py` | P2 |
 | AC12.28.3 | High-traffic call sites type responses against the generated schema | `test_AC12_28_3_types_stage2_batch_responses_against_generated_schema` | `__tests__/apiTypedClient.test.ts` | P2 |
 
+### AC12.29: API-Surface Consistency Sweep ([#1099](https://github.com/wangzitian0/finance_report/issues/1099))
+
+Tier-2 follow-up of #1000/#1074: the audit found the API surface mostly good
+(centralized error model, all-`UUID` path params, ~120/125 `response_model`
+coverage) but with consistency gaps that would leak into the generated FE client
+(#1004/AC12.28). This sweep flattens those gaps **without breaking the live
+frontend**. Pure URL renames (verbs-in-path like `/reconciliation/run`,
+`/market-data/sync/*`, `journal /post`/`/void`) are **explicitly out of scope** and
+captured as a deferred, FE-coordinated follow-up. Landed as three stacked PRs:
+tags+deprecations, then pagination, then status codes.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.29.4 | No two API operations collide on (method, path); every router maps to exactly one OpenAPI tag (the deliberately shared `/statements` and `/ai` prefixes carry distinct tags and are documented) | `test_AC12_29_4_no_route_or_tag_collisions` | `api/test_api_surface_consistency.py` | P1 |
+| AC12.29.5 | The deprecated `POST /statements/{id}/approve` and `/reject` are removed (return 404/405); the `/statements/{id}/review/*` variants remain the supported path | `test_AC12_29_5_deprecated_statement_decision_endpoints_removed` | `api/test_api_surface_consistency.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

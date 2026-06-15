@@ -728,27 +728,17 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     assert pending.total == 2
     assert {item.id for item in pending.items} == set(created_ids)
 
-    # Test approve
+    # Test approve. The legacy POST /statements/{id}/approve endpoint was removed
+    # in #1099 (AC12.29.5); drive the same state transition via the service layer.
     statement_id = created_ids[0]
 
-    approved = await statements_router.approve_statement(
-        statement_id=statement_id,
-        decision=StatementDecisionRequest(notes="Looks good"),
-        db=db,
-        user_id=test_user.id,
-    )
+    approved = await statements_router.approve_statement_svc(db, statement_id, test_user.id)
+    await db.commit()
     assert approved.status == BankStatementStatus.APPROVED
 
-    # Test reject
-    # Reuse statement_id for simplicity or create another one if needed.
-    # Here we reject the same one after changing status back if needed,
-    # or just test with a fresh one. The current router allows state transitions.
-    rejected = await statements_router.reject_statement(
-        statement_id=statement_id,
-        decision=StatementDecisionRequest(notes="Incorrect data"),
-        db=db,
-        user_id=test_user.id,
-    )
+    # Test reject (state transitions are allowed on the same statement).
+    rejected = await statements_router.reject_statement_svc(db, statement_id, test_user.id, reason="Incorrect data")
+    await db.commit()
     assert rejected.status == BankStatementStatus.REJECTED
 
 
@@ -812,78 +802,6 @@ async def test_list_statement_transactions_not_found(db, test_user):
         )
 
     assert exc.value.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_legacy_approve_statement_not_found(db, test_user):
-    """AC16.18.1: Legacy approval must not expose statements outside the user scope."""
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.approve_statement(
-            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            decision=StatementDecisionRequest(notes="Looks good"),
-            db=db,
-            user_id=test_user.id,
-        )
-
-    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_legacy_approve_statement_service_error(db, test_user, monkeypatch):
-    """AC16.18.1: Legacy approval returns service validation errors as 400."""
-    statement = build_statement(test_user.id, "hash_legacy_approve_error", 80)
-    db.add(statement)
-    await db.commit()
-
-    async def reject_approval(*_args, **_kwargs):
-        raise ValueError("Balance mismatch")
-
-    monkeypatch.setattr(statements_router, "approve_statement_svc", reject_approval)
-
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.approve_statement(
-            statement_id=statement.id,
-            decision=StatementDecisionRequest(notes="Looks good"),
-            db=db,
-            user_id=test_user.id,
-        )
-
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert exc.value.detail == "Balance mismatch"
-
-
-async def test_legacy_reject_statement_not_found(db, test_user):
-    """AC16.18.1: Legacy rejection must not expose statements outside the user scope."""
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.reject_statement(
-            statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"),
-            decision=StatementDecisionRequest(notes="Incorrect data"),
-            db=db,
-            user_id=test_user.id,
-        )
-
-    assert exc.value.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_legacy_reject_statement_service_error(db, test_user, monkeypatch):
-    """AC16.18.1: Legacy rejection returns service validation errors as 400."""
-    statement = build_statement(test_user.id, "hash_legacy_reject_error", 80)
-    db.add(statement)
-    await db.commit()
-
-    async def reject_rejection(*_args, **_kwargs):
-        raise ValueError("Invalid transition")
-
-    monkeypatch.setattr(statements_router, "reject_statement_svc", reject_rejection)
-
-    with pytest.raises(HTTPException) as exc:
-        await statements_router.reject_statement(
-            statement_id=statement.id,
-            decision=StatementDecisionRequest(notes="Incorrect data"),
-            db=db,
-            user_id=test_user.id,
-        )
-
-    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert exc.value.detail == "Invalid transition"
 
 
 async def test_upload_file_too_large(db, model_catalog_stub, test_user):
@@ -1167,12 +1085,8 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
     await upload_file.close()
     await wait_for_background_tasks()
 
-    rejected = await statements_router.reject_statement(
-        statement_id=created.id,
-        decision=StatementDecisionRequest(notes="Low confidence"),
-        db=db,
-        user_id=test_user.id,
-    )
+    rejected = await statements_router.reject_statement_svc(db, created.id, test_user.id, reason="Low confidence")
+    await db.commit()
     assert rejected.status == BankStatementStatus.REJECTED
 
     mock_parse = AsyncMock()
@@ -1237,12 +1151,8 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     await upload_file.close()
     await wait_for_background_tasks()
 
-    rejected = await statements_router.reject_statement(
-        statement_id=created.id,
-        decision=StatementDecisionRequest(notes="Low confidence"),
-        db=db,
-        user_id=test_user.id,
-    )
+    rejected = await statements_router.reject_statement_svc(db, created.id, test_user.id, reason="Low confidence")
+    await db.commit()
     assert rejected.status == BankStatementStatus.REJECTED
 
     async def fake_retry_fail(
