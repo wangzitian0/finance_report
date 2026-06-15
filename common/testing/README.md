@@ -36,6 +36,26 @@ test  --record_ac_evidence(record_property, ...)-->  junit-xml <property>
 - **New ACs** are informational until adopted — each AC matures from soft to
   enforced on its own schedule. No big-bang migration of the ~1200 ACs.
 
+### CI wiring (blocking, not a follow-up)
+
+The ratchet is a **hard, only-goes-up CI gate** today, not a deferred spike:
+
+- The dedicated `ac-behavioral-ratchet` job in `.github/workflows/ci.yml` waits
+  on every test stage that emits junit (`backend`, `backend-integration`,
+  `backend-e2e-tier1`, `frontend`), downloads their junit artifacts, runs
+  `tools/aggregate_ac_evidence.py` to reduce them per AC, then runs
+  `tools/check_ac_score_baseline.py` against the checked-in
+  `docs/ssot/ac-score-baseline.json`. It is a **separate** job — not part of
+  `ac-traceability`.
+- The `finish` aggregation job **requires** `ac-behavioral-ratchet` to succeed
+  (both via `needs:` and an explicit `result != "success"` failure check) on the
+  PR test path, so a baselined AC that regresses below its score, goes missing,
+  or reports a non-`pass` `code` blocks the merge gate — exactly like the
+  line-coverage ratchet.
+- If no junit evidence reaches the job, the aggregate is empty and every
+  baselined AC is reported as `missing`, which fails the gate: a lost or
+  un-uploaded artifact cannot pass vacuously.
+
 ## Two consumers, one emission
 
 The same emitted record feeds both a deterministic PR gate (stable subset) and a
@@ -44,20 +64,29 @@ split already modelled by `trust_mode` in `docs/ssot/critical-proof-matrix.yaml`
 This is why a separate evaluation engine is unnecessary: the test harness *is*
 the eval emitter.
 
-## Scope of this spike
+## Anchored ACs (real end-to-end)
 
-- Wired exactly one real AC end-to-end: **AC4.1.4** (reconciliation description
-  similarity) emits its measured similarity in
-  `apps/backend/tests/reconciliation/test_reconciliation_scoring.py`.
-- Seeded baseline: `docs/ssot/ac-score-baseline.json`.
-- Hermetic proof of the whole chain: `tests/tooling/test_ac_evidence_pipeline.py`.
+Each AC below emits a deterministic, measured score that the blocking ratchet
+enforces:
+
+- **AC4.1.4** (reconciliation description similarity) emits its measured
+  similarity in `apps/backend/tests/reconciliation/test_reconciliation_scoring.py`.
+- **AC8.16.1** (augmentation seam excludes superseded valuations) emits the
+  corrected-only net-worth match in
+  `apps/backend/tests/integration/test_augmentation_seam_e2e.py`.
+- **AC2.6.4** (double-entry posting balances debits == credits) emits the
+  measured debit/credit imbalance of a multi-line salary entry posted through the
+  real `post_journal_entry` path in
+  `apps/backend/tests/accounting/test_accounting_equation.py`. This is the
+  reference pattern for anchoring a flagship money journey to L2 + L3.
+
+Seeded baseline: `docs/ssot/ac-score-baseline.json`. Hermetic proof of the whole
+chain: `tests/tooling/test_ac_evidence_pipeline.py`.
 
 ## Deliberately **out of scope** (follow-ups)
 
-1. Wiring `tools/check_ac_score_baseline.py` into the blocking CI `ac-traceability`
-   job (needs backend-junit → aggregator artifact plumbing across CI jobs).
-2. Deriving `code` from the actual test report via a `pytest_runtest_makereport`
+1. Deriving `code` from the actual test report via a `pytest_runtest_makereport`
    hook instead of trusting the in-body default.
-3. A periodic mutation / golden-swap audit that verifies scores actually drop
+2. A periodic mutation / golden-swap audit that verifies scores actually drop
    when behavior breaks (the real L3 proof).
-4. Migrating additional ACs and front-end (vitest) emission.
+3. Migrating additional ACs and front-end (vitest) emission.

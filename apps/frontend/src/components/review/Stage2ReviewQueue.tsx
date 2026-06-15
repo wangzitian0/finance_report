@@ -14,6 +14,7 @@ import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
 import { formatAmount } from "@/lib/currency";
 import { ATTENTION_SOURCE_PARAM, ATTENTION_SOURCE_VALUE, isAttentionOrigin } from "@/lib/attentionNavigation";
 import type { MoneyValue } from "@/lib/types";
+import type { Schemas } from "@/lib/api-schema";
 
 interface ConsistencyCheck {
     id: string;
@@ -210,7 +211,7 @@ export function Stage2ReviewQueue() {
 
         setActionLoading(true);
         try {
-            const result = await apiFetch<{ approved_count: number }>(
+            const result = await apiFetch<Schemas["BatchApproveResponse"]>(
                 "/api/statements/batch-approve-matches",
                 {
                     method: "POST",
@@ -235,7 +236,7 @@ export function Stage2ReviewQueue() {
 
         setActionLoading(true);
         try {
-            const result = await apiFetch<{ rejected_count: number }>(
+            const result = await apiFetch<Schemas["BatchRejectResponse"]>(
                 "/api/statements/batch-reject-matches",
                 {
                     method: "POST",
@@ -274,7 +275,7 @@ export function Stage2ReviewQueue() {
 
         setActionLoading(true);
         try {
-            const result = await apiFetch<{ approved_count: number }>(
+            const result = await apiFetch<Schemas["BatchApproveResponse"]>(
                 "/api/statements/batch-approve-matches",
                 {
                     method: "POST",

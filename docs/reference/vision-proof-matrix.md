@@ -11,8 +11,8 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 |---|---:|
 | Vision nodes (anchors) | 9 |
 | Vision nodes with an owning EPIC | 9 |
-| Acceptance Criteria mapped | 1844 |
-| ACs with a real test reference | 1841 |
+| Acceptance Criteria mapped | 1846 |
+| ACs with a real test reference | 1843 |
 
 ## Vision nodes
 
@@ -23,8 +23,8 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | `decision-3-record-layer` | Uploaded sources become reviewed records before ledger knowledge. | EPIC-011, EPIC-019 | 149 | 149 |
 | `decision-4-two-stage-review` | Review separates source accuracy from batch consistency. | EPIC-004, EPIC-016, EPIC-022 | 378 | 378 |
 | `decision-5-processing-account` | In-transit funds stay visible. | EPIC-015 | 31 | 31 |
-| `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 203 | 200 |
-| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 430 | 430 |
+| `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 204 | 201 |
+| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 431 | 431 |
 | `non-goals-not-budgeting-app` | Becoming a consumer budgeting app | EPIC-005 | 94 | 94 |
 | `non-goals-not-robo-advisor` | Automated trading, portfolio | EPIC-006 | 72 | 72 |
 
@@ -1122,14 +1122,14 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 
 - **Node**: The stack stays self-hostable.
 - **Owner EPICs**: EPIC-001, EPIC-007, EPIC-010, EPIC-012
-- **ACs**: 203 (200 with a real test reference)
+- **ACs**: 204 (201 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
-| AC1.1.1 | EPIC-001 | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_ac_evidence_pipeline.py`<br>`tests/tooling/test_ac_registry_format.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py`<br>`tests/tooling/test_audit_ac_epic_mismatches.py`<br>`tests/tooling/test_build_ac_traceability.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_ac_registry.py`<br>`tests/tooling/test_issue_459_traceability_gate.py`<br>`tests/tooling/test_issue_493_foundation_ttd_behavior.py`<br>`tests/tooling/test_lint_doc_consistency.py` |
-| AC1.1.2 | EPIC-001 | apps/backend/moon.yml exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py`<br>`tests/tooling/test_audit_ac_epic_mismatches.py`<br>`tests/tooling/test_build_ac_traceability.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_lint_doc_consistency.py` |
-| AC1.1.3 | EPIC-001 | apps/frontend/moon.yml exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_check_ac_traceability.py` |
-| AC1.1.4 | EPIC-001 | tools/infra.sh local infrastructure command exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py` |
+| AC1.1.1 | EPIC-001 | Root moon.yml exists | `apps/backend/tests/auth/test_auth_edge_cases.py`<br>`apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_ac_evidence_pipeline.py`<br>`tests/tooling/test_ac_registry_format.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py`<br>`tests/tooling/test_audit_ac_epic_mismatches.py`<br>`tests/tooling/test_build_ac_traceability.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_ac_registry.py`<br>`tests/tooling/test_generate_epic_status.py`<br>`tests/tooling/test_issue_459_traceability_gate.py`<br>`tests/tooling/test_issue_493_foundation_ttd_behavior.py`<br>`tests/tooling/test_lint_doc_consistency.py` |
+| AC1.1.2 | EPIC-001 | apps/backend/moon.yml exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py`<br>`tests/tooling/test_audit_ac_epic_mismatches.py`<br>`tests/tooling/test_build_ac_traceability.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_epic_status.py`<br>`tests/tooling/test_lint_doc_consistency.py` |
+| AC1.1.3 | EPIC-001 | apps/frontend/moon.yml exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_check_ac_traceability.py`<br>`tests/tooling/test_generate_epic_status.py` |
+| AC1.1.4 | EPIC-001 | tools/infra.sh local infrastructure command exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_generate_epic_status.py` |
 | AC1.2.1 | EPIC-001 | FastAPI project structure exists | `apps/backend/tests/infra/test_epic_001_contracts.py`<br>`apps/backend/tests/review/test_statement_validation.py`<br>`tests/tooling/test_ac_registry_format.py` |
 | AC1.2.2 | EPIC-001 | Auth integration works (register/login/JWT) | `apps/backend/tests/review/test_statement_validation.py` |
 | AC1.2.3 | EPIC-001 | SQLAlchemy + Alembic config valid | `apps/backend/tests/infra/test_migrations.py`<br>`tests/tooling/test_generate_ac_registry.py` |
@@ -1329,12 +1329,13 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC12.27.3 | EPIC-012 | Frontend apiFetch throws ApiError carrying the parsed errorId | `apps/frontend/src/__tests__/apiErrorStructured.test.ts` |
 | AC12.28.1 | EPIC-012 | The generator emits the spec from the live OpenAPI schema | `tests/tooling/test_generate_openapi_spec.py` |
 | AC12.28.2 | EPIC-012 | The --check staleness gate fails when the committed spec is stale | `tests/tooling/test_generate_openapi_spec.py` |
+| AC12.28.3 | EPIC-012 | High-traffic call sites type responses against the generated schema | `apps/frontend/src/__tests__/apiTypedClient.test.ts` |
 
 ### `decision-filter-accuracy-auditability`
 
 - **Node**: Decision Filter
 - **Owner EPICs**: EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021
-- **ACs**: 430 (430 with a real test reference)
+- **ACs**: 431 (431 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
@@ -1684,6 +1685,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC14.1.19 | EPIC-014 | A single parseable vision-to-proof matrix is mechanically generated from vision.md anchors, EPIC Vision Anchor declarations, the AC registries, and test references (mapping vision anchor -> EPIC -> AC -> test), published as a YAML artifact plus a MkDocs page, and --check fails on drift (supersedes #442, #480) | `tests/tooling/test_generate_vision_proof_matrix.py` |
 | AC14.1.20 | EPIC-014 | Unified coverage aggregation (#414) runs an artifact preflight that fails explicitly and names the offending component LCOV when a CI-critical artifact is missing or empty, instead of silently treating it as 0% and producing a misleading unified number | `tests/tooling/test_coverage_artifact_preflight.py` |
 | AC14.1.21 | EPIC-014 | Coverage components (#923) carry an explicit tier (ci-critical vs best-effort); the artifact preflight enforces presence only for ci-critical tiers so a missing best-effort tools artifact does not hard-fail the aggregation while application and shared-library trees stay strictly gated | `tests/tooling/test_coverage_artifact_preflight.py` |
+| AC14.1.22 | EPIC-014 | README EPIC status/completion is generated from the AC registries and test reports (not hand-written) into a delimited block, reports automated AC coverage, placeholder/stub debt, manual-gate debt, and blockers as separate categories, omits mutable live CI/deploy run status, tolerates an absent unified-coverage.json, and is guarded by a generate-with---check drift gate | `tests/tooling/test_generate_epic_status.py` |
 | AC14.1.23 | EPIC-014 | reduces finance_report.high_risk_entries_missing_proof from | `tests/tooling/test_ssot_governance_report.py` |
 | AC19.1.1 | EPIC-019 | Workflow event SSOT defines event families, severity/actionability, lifecycle states, dedupe rules, internal action links, indexes, and relationship to audit logs | `apps/backend/tests/workflow/test_workflow_events.py`<br>`tests/tooling/test_analyze_test_ac_coverage.py` |
 | AC19.1.2 | EPIC-019 | Backend model defines a user-scoped workflow_events read model with explicit enum names, lifecycle status, UNIQUE(user_id, dedupe_key), and badge/inbox read indexes | `apps/backend/tests/workflow/test_workflow_events.py` |

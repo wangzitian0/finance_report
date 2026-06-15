@@ -153,6 +153,9 @@ jobs:
         run: |
           cd apps/backend
           uv run python ../../tools/generate_api_reference.py --check
+      - name: Generated EPIC Status Check
+        run: |
+          uv run --with pyyaml python tools/generate_epic_status.py --check
       - name: Generated DB Schema Reference Check
         run: |
           cd apps/backend
