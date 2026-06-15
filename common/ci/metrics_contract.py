@@ -156,7 +156,10 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "Download tooling coverage",
             "Upload tooling coverage context",
             "tools/generate_ac_registry.py --check",
-            "tools/check_ac_traceability.py",
+            # The AC-index gate is the single index gate; its INTEGRITY gate folds
+            # in the former standalone check_ac_traceability + check_critical_proof_matrix
+            # contracts (those are no longer separate CI steps).
+            "tools/check_ac_index.py",
             "tools/check_e2e_epic_traceability.py",
             'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
             "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md",
@@ -200,15 +203,6 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         ):
             errors.append("CI metrics contract must run before coverage policy audit")
         if (
-            "tools/check_ac_traceability.py" in workflow_text
-            and "tools/check_e2e_epic_traceability.py" in workflow_text
-            and workflow_text.index("tools/check_ac_traceability.py")
-            > workflow_text.index("tools/check_e2e_epic_traceability.py")
-        ):
-            errors.append(
-                "AC traceability gate must run before E2E EPIC traceability"
-            )
-        if (
             "tools/check_e2e_epic_traceability.py" in workflow_text
             and "tools/build_ac_traceability.py --output" in workflow_text
             and workflow_text.index("tools/check_e2e_epic_traceability.py")
@@ -216,15 +210,6 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
         ):
             errors.append(
                 "E2E EPIC traceability gate must run before audit artifact generation"
-            )
-        if (
-            "tools/check_ac_traceability.py" in workflow_text
-            and "tools/build_ac_traceability.py --output" in workflow_text
-            and workflow_text.index("tools/check_ac_traceability.py")
-            > workflow_text.index("tools/build_ac_traceability.py --output")
-        ):
-            errors.append(
-                "AC traceability gate must run before audit artifact generation"
             )
 
     if ci_cd.exists():

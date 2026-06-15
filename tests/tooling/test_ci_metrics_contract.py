@@ -163,14 +163,16 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "statuses: write" not in unified_coverage_block
     assert "Mark Coveralls statuses reporting-only" not in workflow
     assert "tools/mark_coveralls_reporting_status.py" not in workflow
-    assert "tools/check_ac_traceability.py" in workflow
+    # The standalone check_ac_traceability / check_critical_proof_matrix gate
+    # STEPS are retired (AC8.13.141): their contracts are folded into the single
+    # check_ac_index gate, which is what CI must now require.
+    assert "tools/check_ac_traceability.py" not in workflow
+    assert "tools/check_critical_proof_matrix.py" not in workflow
+    assert "tools/check_ac_index.py" in workflow
     assert "--cov=common" in workflow
     assert "--cov=tools" in workflow
     assert "coverage/common.lcov" in workflow
     assert "coverage/tools.lcov" in workflow
-    assert workflow.index("tools/check_ac_traceability.py") < workflow.index(
-        "tools/build_ac_traceability.py --output"
-    )
     assert "single CI metrics contract" in ci_cd
     assert "AC traceability is a reference metric, not behavioral coverage" in ci_cd
     assert "README EPIC map drift" in ci_cd
@@ -257,7 +259,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     errors = _validate_repo_contract_files(tmp_path)
 
     assert any("tools/calculate_unified_coverage.py" in error for error in errors)
-    assert any("tools/check_ac_traceability.py" in error for error in errors)
+    assert any("tools/check_ac_index.py" in error for error in errors)
     assert any("--cov=common" in error for error in errors)
     assert any("--cov=tools" in error for error in errors)
     assert any("coverage/common.lcov" in error for error in errors)
@@ -279,8 +281,14 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("not behavioral coverage" in error for error in errors)
 
 
-def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
-    """AC8.13.68: CI must run AC traceability before E2E EPIC traceability."""
+def test_AC8_13_68_repo_contract_requires_e2e_before_audit_artifact(tmp_path):
+    """AC8.13.68 AC8.13.141: CI must run E2E EPIC traceability before the audit.
+
+    The former "AC traceability gate must run before E2E" ordering rule is gone:
+    the standalone check_ac_traceability gate STEP is retired (its contract is
+    folded into the single check_ac_index gate). The surviving structural rule is
+    that the E2E EPIC traceability gate runs before the audit-artifact build.
+    """
     _write(
         tmp_path,
         ".github/workflows/ci.yml",
@@ -304,9 +312,9 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
                 "--cov=tools",
                 "coverage/common.lcov",
                 "coverage/tools.lcov",
+                # E2E traceability AFTER the audit build => ordering violation.
+                'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
                 "tools/check_e2e_epic_traceability.py",
-                "tools/check_ac_traceability.py",
-                "tools/build_ac_traceability.py --output",
                 "Build Backend SHA image",
                 "Build Frontend SHA image",
                 "push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}",
@@ -337,7 +345,7 @@ def test_AC8_13_68_repo_contract_requires_ac_before_e2e_traceability(tmp_path):
     errors = _validate_repo_contract_files(tmp_path)
 
     assert (
-        "AC traceability gate must run before E2E EPIC traceability"
+        "E2E EPIC traceability gate must run before audit artifact generation"
         in errors
     )
 
