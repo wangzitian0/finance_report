@@ -127,7 +127,7 @@ describe("useDashboardData", () => {
       routeResponder(
         {
           "/api/reports/balance-sheet": {
-            assets: [{ account_id: "a1", name: "Cash", type: "asset", amount: "5000" }],
+            assets: [{ account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" }],
             liabilities: [],
             equity: [],
             total_assets: "5000",
