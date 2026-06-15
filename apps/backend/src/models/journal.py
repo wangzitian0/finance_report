@@ -35,9 +35,10 @@ class JournalEntrySourceType(str, enum.Enum):
     USER_CONFIRMED = "user_confirmed"
     AUTO_MATCHED = "auto_matched"
     AUTO_PARSED = "auto_parsed"
-    # Deprecated legacy value. New statement-derived entries should use
-    # AUTO_PARSED, USER_CONFIRMED, or AUTO_MATCHED.
-    BANK_STATEMENT = "bank_statement"
+    # NOTE: the legacy ``bank_statement`` value was retired in migration 0040
+    # (#896). Data was migrated to ``auto_parsed`` in 0018 and no write path
+    # emits it. The raw string is still tolerated defensively by
+    # ``normalize_source_type`` and the immutability trigger's text guards.
     SYSTEM = "system"
     FX_REVALUATION = "fx_revaluation"
 

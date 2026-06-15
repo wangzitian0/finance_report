@@ -1,6 +1,7 @@
 import { formatCurrencyLocale } from "@/lib/currency";
 import { anchorFromIdentifiers, type LineageAnchor } from "@/lib/lineage";
 import type {
+  EvidenceLineageResponse,
   FrameworkPolicyResult,
   MoneyValue,
   PersonalReportPackageContractResponse,
@@ -13,32 +14,12 @@ export const FRAMEWORK_LABELS: Record<string, string> = {
   personal_hkfrs_like: "HK-like",
 };
 
-export function formatScheduleCurrency(
-  value: MoneyValue,
-  currency: string,
-): string {
-  return formatCurrencyLocale(value, currency, "en-US", {
-    maximumFractionDigits: 0,
-  }).replace(/\u00a0/g, " ");
-}
-
-export function renderCsv(values?: string[]): string {
-  return values && values.length ? values.join(", ") : "none";
-}
-
-export function evidenceBundleReferences(
-  policyResult: FrameworkPolicyResult,
-): string[] {
-  const anchors = [
-    ...policyResult.decisions.flatMap((decision) => decision.evidence_anchors),
-    ...policyResult.gaps.flatMap((gap) => gap.evidence_anchors),
-  ];
-  return Array.from(
-    new Set(
-      anchors.map((anchor) => `${anchor.anchor_type}:${anchor.source_id}`),
-    ),
-  ).sort();
-}
+export type LineagePanelState = {
+  line: PersonalReportPackageTraceabilityLine;
+  response: EvidenceLineageResponse | null;
+  isLoading: boolean;
+  error: string | null;
+};
 
 export type PackageTocLink = {
   id: string;
@@ -77,6 +58,46 @@ export function packageTocLinks(
   return links;
 }
 
+export function formatScheduleCurrency(
+  value: MoneyValue,
+  currency: string,
+): string {
+  return formatCurrencyLocale(value, currency, "en-US", {
+    maximumFractionDigits: 0,
+  }).replace(/\u00a0/g, " ");
+}
+
+export function renderCsv(values?: string[]): string {
+  return values && values.length ? values.join(", ") : "none";
+}
+
+export function renderAnchorDetail(primary: string, identifiers?: string[]) {
+  return (
+    <>
+      <p className="mt-1 text-xs text-muted">{primary}</p>
+      {identifiers?.length ? (
+        <p className="mt-1 max-w-xs break-words font-mono text-[11px] text-muted">
+          {identifiers.join(", ")}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+export function evidenceBundleReferences(
+  policyResult: FrameworkPolicyResult,
+): string[] {
+  const anchors = [
+    ...policyResult.decisions.flatMap((decision) => decision.evidence_anchors),
+    ...policyResult.gaps.flatMap((gap) => gap.evidence_anchors),
+  ];
+  return Array.from(
+    new Set(
+      anchors.map((anchor) => `${anchor.anchor_type}:${anchor.source_id}`),
+    ),
+  ).sort();
+}
+
 export function formatSnapshotTimestamp(value?: string | null): string {
   if (!value) return "Not recorded";
   const parsed = new Date(value);
@@ -94,7 +115,8 @@ export function snapshotDownloadLabel(
   snapshot: PersonalReportPackageSnapshotSummary,
   format: "JSON" | "CSV",
 ): string {
-  const framework = FRAMEWORK_LABELS[snapshot.framework_id] ?? snapshot.framework_id;
+  const framework =
+    FRAMEWORK_LABELS[snapshot.framework_id] ?? snapshot.framework_id;
   return `Download ${format} snapshot ${snapshot.id} for ${framework} ${snapshot.start_date} to ${snapshot.end_date}`;
 }
 

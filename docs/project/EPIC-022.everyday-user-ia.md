@@ -366,18 +366,37 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.15.2 | The AI Settings page renders an editable form with explicit Save and Reset controls that submits the edited flags via `patchUserSettings`, surfacing loading, submitting, success, and error states using shared UI primitives | `aiSettingsPage.test.tsx` | P1 |
 | AC22.15.3 | A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid | `apiFunctions.test.ts`, `appShellSessionBootstrap.test.tsx` | P1 |
 
+### AC22.16 — Home Stops Leaking Internal Pipeline; Composable Dashboard Hooks
+
+> #1116 + #1119 follow-up slice. The shipped Home still leaked internal
+> accounting/pipeline plumbing as first-class destinations, competing with the
+> Trust Meter → `/attention` signal (Axiom B asks for one confidence-ranked
+> queue): the getting-started guide opened the accounting-jargon `/accounts`
+> route, and the analytics "Risk radar" card plus the unmatched-alerts CTA linked
+> straight into Advanced reconciliation internals. This slice routes every Home
+> "needs attention" affordance through the single `/attention` queue and retargets
+> onboarding to everyday surfaces. It also pays down the paired FE structural
+> debt: the ~294-line `useDashboardData` god-hook is decomposed into composable,
+> independently-usable hooks with the aggregate contract preserved (behavior-
+> preserving, no backend or schema change).
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.16.1 | The Home getting-started steps link only to everyday surfaces — the first step targets `/upload` and no step links to the accounting-jargon `/accounts` route | `dashboardPage.test.tsx` | P1 |
+| AC22.16.2 | The Home presents a single confidence-ranked attention entry point: the analytics reconciliation ("Risk radar") card and the unmatched-alerts call-to-action link to the unified `/attention` queue instead of parallel Advanced reconciliation internals (`/reconciliation`, `/reconciliation/unmatched`, `/review`) | `dashboardPage.test.tsx` | P1 |
+| AC22.16.3 | `useDashboardData` is composed from independently-usable hooks (`useDashboardSnapshot` for the financial/reconciliation aggregate and `useAssetTrend` for the per-account trend), each callable on its own through the shared `apiFetch` transport, while the aggregate hook preserves its existing public result contract | `useDashboardData.test.ts`, `useAssetTrend.test.ts` | P1 |
+
 ### AC22.17 — God-Component Decomposition (FE Structural Hygiene)
 
 > #1117 follow-up slice. The FE audit flagged several oversized pages/components
 > that mix data orchestration, layout, and many sub-sections in one function,
-> making them hard to test and reason about: the report package page (~1298
-> lines), the Stage 2 review queue (~851 lines), and the statement detail page
-> (~521 lines). This slice decomposes the worst offenders into co-located,
-> independently-testable sub-components while preserving the rendered surface and
-> behavior exactly — no backend, schema, or UX change.
+> making them hard to test and reason about. This slice decomposes the worst
+> offenders into co-located, independently-testable sub-components while
+> preserving the rendered surface and behavior exactly — no backend, schema, or
+> UX change. (The report package page, also flagged at ~1298 lines, was
+> decomposed separately by #1132, so it is out of scope here.)
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
-| AC22.17.1 | The report package page is composed from extracted, independently-testable section components (cover/table-of-contents, readiness, and schedule/section blocks) instead of one monolithic page function, with the rendered package surface unchanged | `personalReportPackagePage.test.tsx`, `reportPackageSections.test.tsx` | P1 |
 | AC22.17.2 | The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior | `reviewQueuePage.test.tsx`, `stage2ReviewQueueParts.test.tsx` | P1 |
 | AC22.17.3 | The statement detail page is composed from extracted sub-components (header/summary and the transactions/section blocks) with unchanged behavior | `statementDetailPage.test.tsx`, `statementDetailParts.test.tsx` | P1 |

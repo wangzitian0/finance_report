@@ -76,3 +76,26 @@ def test_AC13_10_4_source_type_migration_handles_missing_legacy_enum_label():
     assert "ADD VALUE IF NOT EXISTS 'bank_statement'" in source
     assert "source_type::text = 'bank_statement'" in source
     assert "WHERE source_type = 'bank_statement'" not in source
+
+
+def test_AC13_10_4_retire_bank_statement_value_is_drift_tolerant():
+    """AC13.10.4: dropping the legacy bank_statement enum value must tolerate drift.
+
+    0040 (#896) removes 'bank_statement' from journal_source_type_enum. It must
+    (a) re-run the defensive data collapse first so the type rebuild cannot fail
+    on a stray row, (b) only rebuild when the label is actually present, and
+    (c) never compare with a raw enum literal that would error if the label is
+    absent.
+    """
+    migration = SCRIPT_LOCATION / "versions" / "0040_retire_bank_stmt_source.py"
+    source = migration.read_text()
+
+    # Defensive, text-cast data collapse before any type surgery.
+    assert "UPDATE journal_entries SET source_type = 'auto_parsed'" in source
+    assert "WHERE source_type::text = 'bank_statement'" in source
+    # Rebuild is guarded on the label actually existing (no-op otherwise).
+    assert "e.enumlabel = 'bank_statement'" in source
+    # Reversible: the label can be re-added without assuming its absence.
+    assert "ADD VALUE IF NOT EXISTS 'bank_statement'" in source
+    # Never a naive enum-literal comparison that errors when the label is gone.
+    assert "WHERE source_type = 'bank_statement'" not in source

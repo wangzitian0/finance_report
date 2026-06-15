@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Landmark, FileText, BookOpen } from "lucide-react";
+import { FileText, BookOpen, BarChart3 } from "lucide-react";
 import ProcessingSummaryCard from "@/components/ProcessingSummaryCard";
 import { UploadToReportHomePanel } from "@/components/workflow/WorkflowNotifications";
 import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
@@ -60,14 +60,15 @@ export default function HomePage() {
   }, [balanceSheet]);
   const isCoreFlowComplete = (onboardingStatus?.approvedStatementCount ?? 0) > 0 && (onboardingStatus?.postedEntryCount ?? 0) > 0;
   const showOnboarding = onboardingStatus !== null && !isCoreFlowComplete;
+  // EPIC-022 AC22.16.1 (#1116): onboarding points only at everyday surfaces —
+  // the first step is Upload, not the accounting-jargon "/accounts" route.
   const onboardingSteps = useMemo(() => {
-    const hasAccount = (onboardingStatus?.accountCount ?? 0) > 0;
     const hasStatement = (onboardingStatus?.statementCount ?? 0) > 0;
     const hasApprovedOutput = isCoreFlowComplete;
     return [
-      { label: "Add your first account", href: "/accounts", done: hasAccount, Icon: Landmark },
       { label: "Upload a bank statement", href: "/upload", done: hasStatement, Icon: FileText },
       { label: "Review and approve", href: "/notifications", done: hasApprovedOutput, Icon: BookOpen },
+      { label: "Read your reports", href: "/reports", done: hasApprovedOutput, Icon: BarChart3 },
     ];
   }, [isCoreFlowComplete, onboardingStatus]);
 
@@ -355,21 +356,26 @@ export default function HomePage() {
             </>
           ) : <p className="text-sm text-muted">No income data available.</p>}
         </div>
-        <div className="card p-5">
+        {/* EPIC-022 AC22.16.2 (#1116): the risk radar is an expansion of the
+            single confidence-ranked attention queue, not a parallel set of links
+            into Advanced reconciliation internals. The whole card routes to
+            /attention; the counts stay as read-only context. */}
+        <Link href="/attention" className="card p-5 block hover:border-[var(--accent)] transition-colors">
           <p className="text-xs text-muted uppercase tracking-wide">Reconciliation</p>
           <h3 className="font-semibold mt-1 mb-4">Risk radar</h3>
           <div className="space-y-2">
-            <Link href="/reconciliation" className="flex justify-between p-3 rounded-md bg-[var(--success-muted)] text-sm hover:ring-1 hover:ring-[var(--success)] transition-all">
+            <div className="flex justify-between p-3 rounded-md bg-[var(--success-muted)] text-sm">
               <span>Auto accepted</span><span className="font-semibold">{stats?.auto_accepted ?? 0}</span>
-            </Link>
-            <Link href="/review" className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm hover:ring-1 hover:ring-[var(--warning)] transition-all">
+            </div>
+            <div className="flex justify-between p-3 rounded-md bg-[var(--warning-muted)] text-sm">
               <span>Pending review</span><span className="font-semibold">{stats?.pending_review ?? 0}</span>
-            </Link>
-            <Link href="/reconciliation/unmatched" className="flex justify-between p-3 rounded-md bg-[var(--error-muted)] text-sm hover:ring-1 hover:ring-[var(--error)] transition-all">
+            </div>
+            <div className="flex justify-between p-3 rounded-md bg-[var(--error-muted)] text-sm">
               <span>Unmatched</span><span className="font-semibold">{stats?.unmatched_transactions ?? 0}</span>
-            </Link>
+            </div>
           </div>
-        </div>
+          <span className="mt-3 inline-flex items-center gap-1 text-sm text-[var(--accent)]">Review in attention queue →</span>
+        </Link>
       </div>
 
       {/* Recent Activity */}
@@ -394,7 +400,9 @@ export default function HomePage() {
                 <span className="font-semibold">{balanceSheet ? formatCurrencyLocale(t.amount, balanceSheet.currency, "en-US", { maximumFractionDigits: 0 }) : t.amount}</span>
               </div>
             )) : <p className="text-sm text-muted">No unmatched transactions.</p>}
-            <Link href="/reconciliation/unmatched" className="text-sm text-[var(--warning)] hover:underline inline-flex items-center gap-1">
+            {/* EPIC-022 AC22.16.2 (#1116): route to the unified attention queue
+                rather than the Advanced reconciliation/unmatched surface. */}
+            <Link href="/attention" className="text-sm text-[var(--warning)] hover:underline inline-flex items-center gap-1">
               Review unmatched →
             </Link>
           </div>

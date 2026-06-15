@@ -2,50 +2,49 @@
 
 import { useState } from "react";
 
-import { apiDownload, apiFetch } from "@/lib/api";
-import { formatDateInput } from "@/lib/date";
-import { lineageUrl } from "@/lib/lineage";
 import {
-  generatePackageSnapshot,
-  isValidReportDate,
-  usePersonalReportPackage,
-} from "@/hooks/usePersonalReportPackage";
-import type {
-  EvidenceLineageResponse,
-  PersonalReportPackageSnapshotSummary,
-  PersonalReportPackageTraceabilityLine,
-} from "@/lib/types";
-
-import {
-  EvidenceLineagePanel,
-  PackageAnnualizedScheduleSection,
-  PackageContractSections,
   PackageCover,
-  PackageExportContractSection,
-  PackageFrameworkPolicySection,
   PackageFrameworkSelection,
   PackageLoadingSkeleton,
-  PackageNotesSection,
-  PackageReadinessSection,
   PackageSetupGuidance,
-  PackageSnapshotsSection,
-  PackageSourceTrustSection,
   PackageTableOfContents,
-  PackageTraceabilityAppendixSection,
-} from "./_components/PackageSections";
+} from "@/components/reports/package/PackageChrome";
+import {
+  PackageFrameworkPolicySection,
+  PackageReadinessSection,
+  PackageSourceTrustSection,
+} from "@/components/reports/package/PackageReadinessSections";
+import {
+  PackageAnnualizedScheduleSection,
+  PackageExportContractSection,
+  PackageNotesSection,
+  PackageSectionCards,
+} from "@/components/reports/package/PackageScheduleSections";
+import { PackageSnapshotsCard } from "@/components/reports/package/PackageSnapshotsCard";
+import {
+  LineagePanelModal,
+  PackageTraceabilitySection,
+} from "@/components/reports/package/PackageTraceability";
 import {
   FRAMEWORK_LABELS,
   evidenceBundleReferences,
   lineageAnchorForLine,
   packageTocLinks,
-} from "./_components/helpers";
-
-type LineagePanelState = {
-  line: PersonalReportPackageTraceabilityLine;
-  response: EvidenceLineageResponse | null;
-  isLoading: boolean;
-  error: string | null;
-};
+  type LineagePanelState,
+} from "@/components/reports/package/shared";
+import {
+  generatePackageSnapshot,
+  isValidReportDate,
+  usePersonalReportPackage,
+} from "@/hooks/usePersonalReportPackage";
+import { apiDownload, apiFetch } from "@/lib/api";
+import { formatDateInput } from "@/lib/date";
+import { lineageUrl } from "@/lib/lineage";
+import type {
+  EvidenceLineageResponse,
+  PersonalReportPackageSnapshotSummary,
+  PersonalReportPackageTraceabilityLine,
+} from "@/lib/types";
 
 export default function PersonalReportPackagePage() {
   const [selectedFrameworkId, setSelectedFrameworkId] = useState<string | null>(
@@ -72,10 +71,6 @@ export default function PersonalReportPackagePage() {
     isPackageLoading,
     error,
   } = usePersonalReportPackage(selectedFrameworkId, reportDate);
-
-  function handleReportDateChange(nextReportDate: string) {
-    setReportDate(nextReportDate);
-  }
 
   async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
     setLineagePanel({ line, response: null, isLoading: true, error: null });
@@ -168,21 +163,6 @@ export default function PersonalReportPackagePage() {
     return <div className="p-6 text-muted">Loading package contract...</div>;
   }
 
-  const frameworkButtons = contract.supported_frameworks.map((frameworkId) => {
-    const isSelected = selectedFrameworkId === frameworkId;
-    return (
-      <button
-        key={frameworkId}
-        type="button"
-        className={`${isSelected ? "btn-primary" : "btn-secondary"} text-sm`}
-        aria-pressed={isSelected}
-        onClick={() => setSelectedFrameworkId(frameworkId)}
-      >
-        {FRAMEWORK_LABELS[frameworkId] ?? frameworkId}
-      </button>
-    );
-  });
-
   const selectedFrameworkLabel = selectedFrameworkId
     ? (FRAMEWORK_LABELS[selectedFrameworkId] ?? selectedFrameworkId)
     : null;
@@ -190,16 +170,15 @@ export default function PersonalReportPackagePage() {
   const frameworkSelection = (
     <PackageFrameworkSelection
       contract={contract}
-      reportDate={reportDate}
       selectedFrameworkId={selectedFrameworkId}
       selectedFrameworkLabel={selectedFrameworkLabel}
-      frameworkButtons={frameworkButtons}
-      onReportDateChange={handleReportDateChange}
+      reportDate={reportDate}
+      onSelectFramework={setSelectedFrameworkId}
+      onReportDateChange={setReportDate}
     />
   );
 
   if (!selectedFrameworkId) {
-    const setupTocLinks = packageTocLinks(contract, false);
     return (
       <div className="p-6">
         <div className="page-header">
@@ -212,7 +191,7 @@ export default function PersonalReportPackagePage() {
           selectedFrameworkLabel={selectedFrameworkLabel}
         />
         {frameworkSelection}
-        <PackageTableOfContents links={setupTocLinks} />
+        <PackageTableOfContents links={packageTocLinks(contract, false)} />
         <PackageSetupGuidance />
       </div>
     );
@@ -268,45 +247,44 @@ export default function PersonalReportPackagePage() {
 
       <PackageTableOfContents links={outputTocLinks} />
 
-      <PackageSnapshotsSection
-        packageSnapshots={packageSnapshots}
+      <PackageSnapshotsCard
+        snapshots={packageSnapshots}
         snapshotError={snapshotError}
-        generatingSnapshot={generatingSnapshot}
-        canGenerateSnapshot={canGenerateSnapshot}
-        downloadingSnapshot={downloadingSnapshot}
-        onGenerateSnapshot={createPackageSnapshot}
-        onPrint={() => window.print()}
-        onDownloadSnapshot={downloadPackageSnapshot}
+        canGenerate={canGenerateSnapshot}
+        generating={generatingSnapshot}
+        downloading={downloadingSnapshot}
+        onGenerate={createPackageSnapshot}
+        onDownload={downloadPackageSnapshot}
       />
 
       <PackageReadinessSection readiness={readiness} />
 
-      <PackageSourceTrustSection readiness={readiness} />
+      {readiness.source_trust_summary ? (
+        <PackageSourceTrustSection summary={readiness.source_trust_summary} />
+      ) : null}
 
-      <PackageFrameworkPolicySection frameworkPolicy={frameworkPolicy} />
+      <PackageFrameworkPolicySection policy={frameworkPolicy} />
 
-      <PackageContractSections contract={contract} />
+      <PackageSectionCards sections={contract.sections} />
 
-      <PackageAnnualizedScheduleSection annualizedSchedule={annualizedSchedule} />
+      <PackageAnnualizedScheduleSection schedule={annualizedSchedule} />
 
-      <PackageNotesSection packageNotes={packageNotes} />
+      <PackageNotesSection notes={packageNotes} />
 
-      <PackageTraceabilityAppendixSection
-        traceabilityAppendix={traceabilityAppendix}
-        onOpenLineagePanel={(line) => void openLineagePanel(line)}
+      <PackageTraceabilitySection
+        appendix={traceabilityAppendix}
+        onTrace={(line) => void openLineagePanel(line)}
       />
 
       <PackageExportContractSection
         contract={contract}
-        frameworkPolicy={frameworkPolicy}
+        policy={frameworkPolicy}
         evidenceReferences={evidenceReferences}
       />
+
       {lineagePanel ? (
-        <EvidenceLineagePanel
-          line={lineagePanel.line}
-          response={lineagePanel.response}
-          isLoading={lineagePanel.isLoading}
-          error={lineagePanel.error}
+        <LineagePanelModal
+          panel={lineagePanel}
           onClose={() => setLineagePanel(null)}
         />
       ) : null}
