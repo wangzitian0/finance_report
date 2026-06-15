@@ -83,4 +83,28 @@ describe("useAssetTrend (EPIC-022 AC22.16.3)", () => {
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalled());
     expect(result.current.trend).toBeNull();
   });
+
+  it("AC22.16.3 clears a stale selection when the chosen account leaves the balance sheet", async () => {
+    mockedApiFetch.mockResolvedValue({ points: [] });
+    const initial = balanceWith([
+      { account_id: "a1", name: "Cash", type: "asset", amount: "5000" },
+      { account_id: "a2", name: "Brokerage", type: "asset", amount: "9000" },
+    ]);
+    const { result, rerender } = renderHook(({ bs }) => useAssetTrend(bs), {
+      initialProps: { bs: initial },
+    });
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalled());
+    act(() => result.current.setTrendAccountId("a2"));
+    await waitFor(() => expect(result.current.trendAccountId).toBe("a2"));
+
+    // Refreshed balance sheet no longer contains a2 (e.g. restricted toggled
+    // off): the stale selection is dropped so the <select> can't show a missing
+    // value, and the trend falls back to the top remaining asset.
+    const refreshed = balanceWith([{ account_id: "a1", name: "Cash", type: "asset", amount: "5000" }]);
+    rerender({ bs: refreshed });
+
+    await waitFor(() => expect(result.current.trendAccountId).toBeNull());
+    expect(result.current.trendAccountName).toBe("Cash");
+  });
 });

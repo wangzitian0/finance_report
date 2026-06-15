@@ -30,9 +30,18 @@ export function useAssetTrend(balanceSheet: BalanceSheetResponse | null): AssetT
   const fetchTrend = useCallback(async () => {
     if (!balanceSheet || !balanceSheet.assets) return;
     const sortedAssets = [...balanceSheet.assets].sort((a, b) => compareAmounts(b.amount, a.amount));
-    const target = trendAccountId
-      ? sortedAssets.find((a) => a.account_id === trendAccountId) ?? sortedAssets[0]
-      : sortedAssets[0];
+    const selected = trendAccountId
+      ? sortedAssets.find((a) => a.account_id === trendAccountId)
+      : undefined;
+    // If the previously selected account is no longer in the refreshed balance
+    // sheet (e.g. toggling "Include restricted holdings"), drop the stale
+    // selection so the consumer <select> never shows a value missing from its
+    // options. Clearing it re-runs this effect against the top asset.
+    if (trendAccountId && !selected) {
+      setTrendAccountId(null);
+      return;
+    }
+    const target = selected ?? sortedAssets[0];
     if (!target) return;
     setTrendAccountName(target.name);
     try {
