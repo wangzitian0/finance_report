@@ -322,6 +322,22 @@ def test_AC8_13_141_critical_proof_manual_gate_without_evidence_caught(
     assert "manual-only: evidence is required for manual_gate" in errors
 
 
+def test_AC8_13_141_workflow_error_annotation_escapes_newlines() -> None:
+    """AC8.13.141: multi-line folded messages survive the ::error annotation.
+
+    The folded traceability messages embed newlines; a GitHub Actions workflow
+    command truncates at the first newline, so the gate must escape %/CR/LF before
+    emitting ``::error::`` or the annotation loses the actionable second line.
+    """
+    raw = "TRACEABILITY GATE FAILED: x\n  Move a proof into a CI-required stage. 50%"
+    escaped = gate._escape_workflow_command(raw)
+    assert "\n" not in escaped
+    assert "%0A" in escaped  # newline preserved as an escape
+    assert "%25" in escaped  # literal percent escaped
+    # The human-readable content is still recoverable from the escapes.
+    assert "Move a proof into a CI-required stage" in escaped
+
+
 def test_AC8_13_141_consolidated_gate_surfaces_critical_proof_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

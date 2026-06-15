@@ -87,6 +87,18 @@ from common.ssot.protection import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _escape_workflow_command(message: str) -> str:
+    """Escape a message for a GitHub Actions ``::error::`` workflow command.
+
+    Workflow-command data truncates at the first newline and misparses bare
+    ``%``/``\\r``/``\\n``; the folded traceability messages are multi-line, so
+    escape them per the Actions spec (``%`` first, then CR/LF) so the full,
+    actionable message survives in the annotation. Order matters: escape ``%``
+    before introducing ``%``-prefixed escapes.
+    """
+    return message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
 def _ac_exists(graph: AcGraph, ac_id: str) -> bool:
     return ac_id in graph.nodes
 
@@ -369,7 +381,10 @@ def main(argv: list[str] | None = None) -> int:
     integrity_errors = check_integrity(graph) + check_repo_contracts(repo_root)
     if integrity_errors:
         for error in integrity_errors:
-            print(f"::error title=AC index INTEGRITY::{error}", file=sys.stderr)
+            print(
+                f"::error title=AC index INTEGRITY::{_escape_workflow_command(error)}",
+                file=sys.stderr,
+            )
         print(
             f"[INTEGRITY] FAILED: {len(integrity_errors)} dangling/missing link(s) "
             "or folded traceability/critical-proof contract violation(s).",
@@ -391,7 +406,10 @@ def main(argv: list[str] | None = None) -> int:
     print(_render_protection_dashboard(floor_result.counts, floor_result.floor))
     if floor_result.errors:
         for error in floor_result.errors:
-            print(f"::error title=AC index PROTECTION::{error}", file=sys.stderr)
+            print(
+                f"::error title=AC index PROTECTION::{_escape_workflow_command(error)}",
+                file=sys.stderr,
+            )
         print(
             f"[PROTECTION] FAILED: {len(floor_result.errors)} per-type count "
             "regression(s). Restore the protection that was removed (adding it back "
