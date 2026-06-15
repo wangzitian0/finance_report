@@ -436,6 +436,8 @@ tags+deprecations, then pagination, then status codes.
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
+| AC12.29.1 | Router status codes use `status.HTTP_*` constants (zero raw-integer `status_code=` literals); the async upload endpoint advertises `202`, and synchronous long operations document their `200` | `test_AC12_29_1_status_codes_use_constants_and_async_uses_202` | `api/test_api_surface_consistency.py` | P1 |
+| AC12.29.6 | No unintended breaking change: the deliberately deferred verb-in-path URL renames (`/reconciliation/run`, `/market-data/sync/*`) are NOT performed — their original URLs still exist | `test_AC12_29_6_deferred_url_renames_were_not_performed` | `api/test_api_surface_consistency.py` | P1 |
 | AC12.29.2 | The three named unbounded list endpoints (`/assets/restricted`, `/reconciliation/transactions/{txn_id}/anomalies`, `/reports/package/snapshots`) accept bounded `limit`/`offset` with an enforced `le=MAX_PAGE_LIMIT` | `test_AC12_29_2_named_unbounded_endpoints_are_bounded` | `api/test_api_surface_consistency.py` | P1 |
 | AC12.29.3 | A single documented pagination convention exists (`deps.DEFAULT_PAGE_LIMIT`/`MAX_PAGE_LIMIT` via the shared `PaginationParams`); an over-max `limit` is rejected with 422 | `test_AC12_29_3_pagination_convention_is_enforced` | `api/test_api_surface_consistency.py` | P1 |
 | AC12.29.4 | No two API operations collide on (method, path); every router maps to exactly one OpenAPI tag (the deliberately shared `/statements` and `/ai` prefixes carry distinct tags and are documented) | `test_AC12_29_4_no_route_or_tag_collisions` | `api/test_api_surface_consistency.py` | P1 |

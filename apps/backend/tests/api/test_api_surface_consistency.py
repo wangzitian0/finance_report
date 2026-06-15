@@ -16,14 +16,20 @@ PR1 of the sweep (this file's AC12.29.4/.5):
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import status
 from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
+import src.routers as _routers_pkg
 from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from src.main import app
+
+_ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent
+_RAW_STATUS_CODE = re.compile(r"status_code\s*=\s*\d")
 
 # The list endpoints #1099 named as unbounded; each must now accept bounded
 # limit/offset (AC12.29.2).
@@ -102,6 +108,30 @@ def test_AC12_29_4_no_route_or_tag_collisions() -> None:
 
     assert {"statements", "review"} <= _tags_under_prefix("/statements")
     assert {"ai", "ai-feedback"} <= _tags_under_prefix("/ai")
+
+
+def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:
+    """AC12.29.1: routers use ``status.HTTP_*`` constants (no raw-integer
+    ``status_code=`` literals), and the async upload endpoint advertises ``202``."""
+    offenders: list[str] = []
+    for py in sorted(_ROUTER_DIR.glob("*.py")):
+        for lineno, line in enumerate(py.read_text().splitlines(), start=1):
+            if _RAW_STATUS_CODE.search(line):
+                offenders.append(f"{py.name}:{lineno}: {line.strip()}")
+    assert not offenders, f"raw-integer status_code literals (use status.HTTP_*): {offenders}"
+
+    # The async/background upload endpoint advertises 202 Accepted (the parse runs
+    # in a background task). Synchronous long operations keep a documented 200.
+    upload = app.openapi()["paths"]["/statements/upload"]["post"]
+    assert "202" in upload["responses"]
+
+
+def test_AC12_29_6_deferred_url_renames_were_not_performed() -> None:
+    """AC12.29.6: the breaking verb-in-path URL renames are explicitly OUT OF SCOPE
+    for #1099; this guard fails if one slipped in (original URLs must still exist)."""
+    paths = set(app.openapi()["paths"])
+    for deferred in ("/reconciliation/run", "/market-data/sync/fx", "/market-data/sync/stocks"):
+        assert deferred in paths, f"{deferred} was renamed — URL renames are out of scope for #1099"
 
 
 def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:

@@ -4,7 +4,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import structlog
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -157,7 +157,10 @@ async def _load_entry_summaries(
     return {str(entry.id): _build_entry_summary(entry) for entry in result.scalars().all()}
 
 
-@router.post("/run", response_model=ReconciliationRunResponse)
+# Synchronous 200: matching runs inline and the response carries the completed run
+# result (matches_created/auto_accepted/pending_review/unmatched), so this is a
+# finished operation, not a 202 background job (cf. #1099 AC12.29.1).
+@router.post("/run", response_model=ReconciliationRunResponse, status_code=status.HTTP_200_OK)
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
     db: DbSession = None,
