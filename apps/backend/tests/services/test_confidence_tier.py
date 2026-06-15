@@ -11,7 +11,8 @@ from src.services.confidence_tier import derive_confidence_tier, derive_reconcil
         (JournalEntrySourceType.USER_CONFIRMED, "HIGH"),
         (JournalEntrySourceType.AUTO_MATCHED, "MEDIUM"),
         (JournalEntrySourceType.AUTO_PARSED, "LOW"),
-        (JournalEntrySourceType.BANK_STATEMENT, "LOW"),
+        # bank_statement was retired from the enum in 0040 (#896); the raw-string
+        # case is still covered by the string-parametrized test below.
         (JournalEntrySourceType.SYSTEM, "LOW"),
         (JournalEntrySourceType.FX_REVALUATION, "LOW"),
     ],

@@ -18,10 +18,11 @@ from src.services.source_type_priority import (
 
 
 def test_normalize_source_type_defaults_and_legacy_values() -> None:
-    """Legacy bank_statement values normalize to auto_parsed."""
+    """The retired bank_statement raw value still normalizes to auto_parsed."""
     assert normalize_source_type(None) == JournalEntrySourceType.MANUAL
+    # 'bank_statement' was retired from the enum in 0040 (#896); the raw string
+    # must still be tolerated and folded into auto_parsed.
     assert normalize_source_type("bank_statement") == JournalEntrySourceType.AUTO_PARSED
-    assert normalize_source_type(JournalEntrySourceType.BANK_STATEMENT) == JournalEntrySourceType.AUTO_PARSED
 
 
 def test_invalid_and_non_user_source_types_are_not_ranked() -> None:
@@ -31,7 +32,6 @@ def test_invalid_and_non_user_source_types_are_not_ranked() -> None:
     assert not is_user_data_source_type(JournalEntrySourceType.SYSTEM)
     assert statement_source_values() == [
         "auto_parsed",
-        "bank_statement",
         "auto_matched",
         "user_confirmed",
     ]
@@ -48,8 +48,8 @@ def test_promote_entry_source_type_preserves_higher_trust_values() -> None:
 
 
 def test_promote_entry_source_type_normalizes_legacy_value_when_preserving() -> None:
-    """Legacy bank_statement is normalized even when no rank promotion occurs."""
-    entry = JournalEntry(source_type=JournalEntrySourceType.BANK_STATEMENT)
+    """A retired bank_statement raw value is normalized even without rank promotion."""
+    entry = JournalEntry(source_type="bank_statement")
 
     changed = promote_entry_source_type(entry, JournalEntrySourceType.AUTO_PARSED)
 

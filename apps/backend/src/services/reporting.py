@@ -46,6 +46,7 @@ from src.services.fx import (
 )
 from src.services.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
 from src.services.portfolio import AssetNotFoundError, PortfolioService
+from src.services.source_type_priority import normalize_source_type
 from src.utils.money import to_money
 
 logger = get_logger(__name__)
@@ -55,7 +56,6 @@ _IMPORTED_SOURCE_TYPES = {
     JournalEntrySourceType.AUTO_PARSED,
     JournalEntrySourceType.AUTO_MATCHED,
     JournalEntrySourceType.USER_CONFIRMED,
-    JournalEntrySourceType.BANK_STATEMENT,
 }
 _MANUAL_SOURCE_TYPES = {JournalEntrySourceType.MANUAL}
 _DERIVED_SOURCE_TYPES = {JournalEntrySourceType.SYSTEM, JournalEntrySourceType.FX_REVALUATION}
@@ -155,9 +155,9 @@ def _provenance_from_source_type(source_type: JournalEntrySourceType | str | Non
     if source_type is None:
         return None
     try:
-        normalized = (
-            source_type if isinstance(source_type, JournalEntrySourceType) else JournalEntrySourceType(source_type)
-        )
+        # normalize_source_type folds retired legacy values (e.g. the
+        # bank_statement text retired in 0040) back into the live hierarchy.
+        normalized = normalize_source_type(source_type)
     except ValueError:
         return None
     if normalized in _MANUAL_SOURCE_TYPES:

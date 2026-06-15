@@ -37,7 +37,7 @@ async def audited_entry(db: AsyncSession, test_user: User) -> JournalEntry:
         user_id=test_user.id,
         entry_date=date(2026, 4, 1),
         memo="Audited transaction",
-        source_type=JournalEntrySourceType.BANK_STATEMENT,
+        source_type=JournalEntrySourceType.AUTO_PARSED,
         status=JournalEntryStatus.DRAFT,
     )
     db.add_all([account, entry])

@@ -47,7 +47,9 @@ class TestReportingHelpers:
         ("source_type", "expected"),
         [
             (JournalEntrySourceType.MANUAL, "manual"),
-            (JournalEntrySourceType.BANK_STATEMENT, "imported"),
+            # bank_statement was retired from the enum in 0040 (#896); the raw
+            # string still classifies as imported via normalize_source_type.
+            ("bank_statement", "imported"),
             (JournalEntrySourceType.SYSTEM, "derived"),
             (JournalEntrySourceType.FX_REVALUATION, "derived"),
             ("manual", "manual"),

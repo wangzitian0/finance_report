@@ -681,7 +681,9 @@ async def test_create_journal_entry_custom_source_type(db: AsyncSession, bank_ac
         entry_date=date.today(),
         memo="Bank statement entry",
         lines_data=lines_data,
-        source_type=JournalEntrySourceType.BANK_STATEMENT,
+        # Legacy raw 'bank_statement' (retired from the enum in 0040, #896) is
+        # still accepted on write and normalized to auto_parsed.
+        source_type="bank_statement",
         source_id=source_id,
     )
 
