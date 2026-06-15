@@ -16,6 +16,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from common.testing.ac_proof import ac_proof
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -518,6 +519,15 @@ async def test_amount_precision_loss_detection():
 # =============================================================================
 
 
+@ac_proof(
+    "double-entry-posting-balances-pr",
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["manual_record"],
+    issue="#896",
+    ac_ids=["AC2.6.4"],
+)
 async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id, ac_evidence):
     """
     AC2.6.4: Multi-line complex entry (salary breakdown) - CORRECT version.

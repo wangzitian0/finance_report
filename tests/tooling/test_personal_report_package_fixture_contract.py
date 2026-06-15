@@ -1,8 +1,6 @@
 from decimal import Decimal
 from pathlib import Path
 
-import yaml
-
 from tools._lib.fixtures.personal_report_package import REPRESENTATIVE_PACKAGE_FIXTURE
 from tools._lib.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
 
@@ -11,6 +9,18 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def _matrix() -> dict:
+    """Build the critical-proof matrix payload in-memory.
+
+    The matrix is a derived (not committed) view of the one AC-keyed graph, so
+    tests read the freshly-built payload instead of a checked-in YAML file.
+    """
+    from common.ssot.ac_graph import build_ac_graph
+    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+
+    return build_matrix_from_graph(build_ac_graph(ROOT))
 
 
 def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs() -> (
@@ -83,7 +93,7 @@ def test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contra
     None
 ):
     """AC8.13.85: Package macro proof is covered by the representative fixture ACs."""
-    matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    matrix = _matrix()
     outcomes = {outcome["id"]: outcome for outcome in matrix["outcomes"]}
     proofs = {proof["id"]: proof for proof in matrix["proofs"]}
 
@@ -144,7 +154,7 @@ def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() 
 
 def test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror() -> None:
     """AC8.14.3: Package LLM/OCR critical proof has a deterministic source-trust mirror."""
-    matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    matrix = _matrix()
     proofs = {proof["id"]: proof for proof in matrix["proofs"]}
 
     post_merge = proofs["personal-financial-report-package-post-merge"]

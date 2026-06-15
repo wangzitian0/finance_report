@@ -23,8 +23,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from common.ssot.ac_score_baseline_format import load_jsonl, write_jsonl
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.json"
+# The baseline is stored as conflict-free sorted JSONL (one AC per line) so two
+# PRs adopting *different* ACs auto-merge via `merge=union` instead of colliding
+# on one central JSON object. See common/ssot/ac_score_baseline_format.py. This
+# is a STORAGE change only — the baseline is still a persisted ratchet floor and
+# is never regenerated from current scores.
+DEFAULT_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
 
 # Floating-point slack so an identical re-measurement never trips the gate.
 EPSILON = 1e-6
@@ -35,6 +42,13 @@ def _load_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def _load_baseline(path: Path) -> dict[str, Any]:
+    """Load the persisted ratchet baseline from sorted JSONL."""
+    if not path.exists():
+        return {"version": 1, "acs": {}}
+    return load_jsonl(path)
 
 
 def _acs(payload: dict[str, Any]) -> dict[str, Any]:
@@ -125,11 +139,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(list(sys.argv[1:] if argv is None else argv))
     current = _load_json(args.current)
-    baseline = (
-        _load_json(args.baseline)
-        if args.baseline.exists()
-        else {"version": 1, "acs": {}}
-    )
+    baseline = _load_baseline(args.baseline)
 
     findings = evaluate(baseline, current)
 
@@ -145,10 +155,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 1
         updated = ratcheted_baseline(baseline, current)
-        args.baseline.parent.mkdir(parents=True, exist_ok=True)
-        args.baseline.write_text(
-            json.dumps(updated, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        write_jsonl(args.baseline, updated)
         print(f"Updated baseline: {args.baseline} ({len(updated['acs'])} AC(s))")
         return 0
 

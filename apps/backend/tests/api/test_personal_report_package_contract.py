@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from common.testing.ac_proof import ac_proof
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -995,6 +996,23 @@ async def test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness(
     assert response.model_dump(mode="json")["stale_since"] == _json_datetime(datetime(2026, 5, 3, tzinfo=UTC))
 
 
+@ac_proof(
+    "personal-package-source-trust-pr",
+    ac_ids=["AC19.9.1", "AC8.14.3"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=[
+        "bank_statement",
+        "brokerage_statement",
+        "property_statement",
+        "liability_statement",
+        "esop_rsu_plan",
+        "csv_export",
+        "manual_record",
+    ],
+    issue="#696",
+)
 async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
     db: AsyncSession,
     test_user: User,

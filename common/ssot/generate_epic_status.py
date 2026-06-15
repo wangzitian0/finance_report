@@ -43,12 +43,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from common.ssot.ac_registry_format import load_registry_entries
 from common.ssot.analyze_test_ac_coverage import (
     AnalysisResult,
     _is_deprecated_description,
     analyze_repo,
 )
-from common.ssot.ac_registry_format import load_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = REPO_ROOT / "README.md"
@@ -188,9 +188,7 @@ def render_block(
     overall_pct = (total_covered / total_active * 100.0) if total_active else 100.0
 
     coverage_cell = (
-        f"`{coverage_percent:.1f}%`"
-        if coverage_percent is not None
-        else "`n/a` (unified-coverage.json absent)"
+        f"`{coverage_percent:.1f}%`" if coverage_percent is not None else "`n/a` (unified-coverage.json absent)"
     )
 
     lines: list[str] = [
@@ -236,11 +234,54 @@ def render_block(
     return "\n".join(lines)
 
 
+def render_pointer_block() -> str:
+    """Render the STABLE committed EPIC-status block (markers + on-demand pointer).
+
+    The per-EPIC completion numbers are a DERIVED view of the one AC-keyed graph
+    and are NOT committed: a committed snapshot churns on every AC change and was
+    a merge-train false-sharing hotspot. The committed README therefore carries
+    only this fixed pointer; the live numbers are rendered on demand by
+    ``--stdout``. Because this block is constant, ``--check`` never fails on a
+    shifted AC total — only on a malformed/missing marker.
+    """
+    return "\n".join(
+        [
+            BEGIN_MARKER,
+            "",
+            "> EPIC status is a DERIVED view of the one AC-keyed graph (see",
+            '> [`docs/ssot/tdd.md`](docs/ssot/tdd.md) "Cross-Cutting Index Artifacts"). The',
+            "> per-EPIC completion numbers are **not committed** here, because a committed",
+            "> snapshot churns on every AC change and is the merge-train false-sharing",
+            "> hotspot this model removes.",
+            ">",
+            "> Render the live table on demand:",
+            ">",
+            "> ```bash",
+            "> python tools/generate_epic_status.py --stdout",
+            "> ```",
+            ">",
+            "> It reports four **separate** completion categories — automated AC coverage,",
+            "> placeholder/stub debt, manual-gate debt, and blockers — never a single",
+            "> percent, derived from `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, the",
+            "> AC coverage report, and `unified-coverage.json`. Consistency (no dangling /",
+            "> missing proof) is gated by `python tools/check_ac_index.py`; live CI and",
+            "> deploy run status are intentionally excluded.",
+            "",
+            END_MARKER,
+        ]
+    )
+
+
 def generate_block(
     repo_root: Path = REPO_ROOT,
     coverage_json: Path | None = None,
 ) -> str:
-    """Compute and render the EPIC-status block from live sources."""
+    """Compute and render the LIVE EPIC-status block from the AC-graph sources.
+
+    Used for the on-demand ``--stdout`` rendering, never committed. It is a thin
+    projection of the one AC-keyed graph: completion is computed from the same AC
+    registries (graph nodes) and the test references the graph already models.
+    """
     repo_root = repo_root.resolve()
     result = analyze_repo(repo_root=repo_root)
     manual_gate_ids = _manual_gate_ids(repo_root)
@@ -259,10 +300,7 @@ def splice_block(document: str, block: str) -> str:
     start = document.find(BEGIN_MARKER)
     end = document.find(END_MARKER)
     if start == -1 or end == -1 or end < start:
-        raise ValueError(
-            "EPIC status markers not found or malformed; expected "
-            f"{BEGIN_MARKER!r} ... {END_MARKER!r}"
-        )
+        raise ValueError(f"EPIC status markers not found or malformed; expected {BEGIN_MARKER!r} ... {END_MARKER!r}")
     end += len(END_MARKER)
     return document[:start] + block + document[end:]
 
@@ -288,14 +326,28 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to unified-coverage.json (default: <repo-root>/unified-coverage.json).",
     )
     parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Print the LIVE per-EPIC completion table to stdout (never committed).",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
-        help="Fail if the committed generated block differs from the regenerated one.",
+        help=(
+            "Fail only if the committed README EPIC-status pointer block is "
+            "missing or malformed. The block is a stable on-demand pointer, so "
+            "this never fails on a shifted AC total."
+        ),
     )
     args = parser.parse_args(argv)
 
-    block = generate_block(repo_root=args.repo_root, coverage_json=args.coverage_json)
+    # The live numeric table is a derived view, rendered on demand only.
+    if args.stdout:
+        print(generate_block(repo_root=args.repo_root, coverage_json=args.coverage_json))
+        return 0
+
     output = args.output
+    pointer = render_pointer_block()
 
     try:
         document = output.read_text(encoding="utf-8")
@@ -304,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        updated = splice_block(document, block)
+        updated = splice_block(document, pointer)
     except ValueError as exc:
         print(f"ERROR: {exc} in {output}", file=sys.stderr)
         return 1
@@ -318,18 +370,18 @@ def main(argv: list[str] | None = None) -> int:
                 tofile="generated",
                 lineterm="",
             )
-            print("ERROR: generated EPIC status block is stale.", file=sys.stderr)
-            print("\n".join(diff), file=sys.stderr)
             print(
-                "  Run: python tools/generate_epic_status.py",
+                "ERROR: README EPIC-status pointer block is missing or malformed.",
                 file=sys.stderr,
             )
+            print("\n".join(diff), file=sys.stderr)
+            print("  Run: python tools/generate_epic_status.py", file=sys.stderr)
             return 1
-        print(f"OK: EPIC status block is current: {output}")
+        print(f"OK: EPIC status pointer block is current: {output}")
         return 0
 
     output.write_text(updated, encoding="utf-8")
-    print(f"Wrote generated EPIC status block: {output}")
+    print(f"Wrote EPIC status pointer block: {output}")
     return 0
 
 

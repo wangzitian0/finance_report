@@ -170,17 +170,34 @@ concepts:
       - docs/ssot/extraction.md
       - docs/project/EPIC-013.statement-parsing-v2.md
 
+  ac_graph:
+    owner: common/ssot/ac_graph.py
+    family: tdd
+    kind: model
+    description: The one AC-keyed graph (EPIC -> AC -> Proof -> score -> vision). All cross-cutting proof/vision/status indexes are DERIVED views of this single model, rendered on demand and never committed-materialized; consistency is gated by tools/check_ac_index.py.
+    proofs:
+      - tests/tooling/test_ac_index_consistency.py
+      - tools/check_ac_index.py
+    cross_refs:
+      - docs/ssot/tdd.md
+      - docs/ssot/critical-proof-outcomes.yaml
+      - docs/ssot/ac-score-baseline.jsonl
+      - common/testing/ac_proof.py
+      - vision.md
+      - .github/workflows/ci.yml
+
   vision_proof_matrix:
-    owner: docs/ssot/vision-proof-matrix.yaml
+    owner: common/ssot/generate_vision_proof_matrix.py
     family: tdd
     kind: matrix
-    description: Generated parseable vision-anchor -> EPIC -> AC -> test proof matrix (supersedes #442/#480).
+    parent: ac_graph
+    description: Vision-anchor -> EPIC -> AC -> test proof matrix, a DERIVED (not committed) view of the one AC-keyed graph, rendered on demand and gated by tools/check_ac_index.py (supersedes #442/#480).
     proofs:
       - tests/tooling/test_generate_vision_proof_matrix.py
       - tools/generate_vision_proof_matrix.py
     cross_refs:
       - vision.md
-      - docs/reference/vision-proof-matrix.md
+      - common/ssot/ac_graph.py
       - docs/project/EPIC-014.ttd-transformation.md
       - .github/workflows/ci.yml
 
@@ -493,8 +510,8 @@ concepts:
       - tools/check_e2e_epic_traceability.py
 
   ac_score_ratchet_baseline:
-    owner: docs/ssot/ac-score-baseline.json
-    description: Machine-readable AC score ratchet baseline for AC evidence metrics.
+    owner: docs/ssot/ac-score-baseline.jsonl
+    description: Persisted AC score ratchet baseline, stored as conflict-free sorted JSONL (merge=union).
     family: tdd
     kind: baseline
     parent: tdd_workflow
@@ -504,19 +521,40 @@ concepts:
       - common/testing/README.md
       - common/testing/ac_evidence.py
       - common/ssot/ac_evidence_aggregate.py
+      - common/ssot/ac_score_baseline_format.py
       - common/ssot/check_ac_score_baseline.py
       - tools/check_ac_score_baseline.py
+      - tools/migrate_proof_index_storage.py
       - tests/tooling/test_ac_evidence_pipeline.py
 
   critical_proof_matrix:
-    owner: docs/ssot/critical-proof-matrix.yaml
-    description: Bidirectional README -> EPIC -> E2E macro outcome guard and core proof-path matrix.
+    owner: common/ssot/generate_critical_proof_matrix.py
+    family: tdd
+    kind: matrix
+    parent: ac_graph
+    description: README -> EPIC -> E2E macro outcome guard and core proof-path matrix, a DERIVED (not committed) view of the one AC-keyed graph; proofs come from co-located @ac_proof decorators and macro outcomes from critical-proof-outcomes.yaml.
     cross_refs:
       - README.md
       - docs/ssot/tdd.md
       - docs/ssot/ci-cd.md
+      - docs/ssot/critical-proof-outcomes.yaml
+      - common/ssot/ac_graph.py
       - .github/workflows/ci.yml
+      - common/testing/ac_proof.py
+      - tools/generate_critical_proof_matrix.py
       - tools/check_critical_proof_matrix.py
+
+  critical_proof_outcomes:
+    owner: docs/ssot/critical-proof-outcomes.yaml
+    description: Hand-maintained macro-outcome contract source (outcome -> owner EPICs + proof_ids) merged into the derived critical proof matrix view.
+    family: tdd
+    kind: registry
+    parent: critical_proof_matrix
+    authority: human_curated
+    cross_refs:
+      - common/ssot/ac_graph.py
+      - common/ssot/generate_critical_proof_matrix.py
+      - tools/generate_critical_proof_matrix.py
 
   ssot_governance_metrics:
     owner: docs/ssot/tdd.md#ssot-governance-metrics

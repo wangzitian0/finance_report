@@ -1,5 +1,34 @@
 version: 1
-exceptions: []
+exceptions:
+  # Storage migration: the AC-score ratchet baseline moved from a central JSON
+  # object to conflict-free sorted JSONL (docs/ssot/ac-score-baseline.jsonl,
+  # merge=union). The deleted .json shows up as a changed SSOT file with no
+  # owner; this temporary exception covers only the deletion churn in this PR.
+  - target: finance_report:docs/ssot/ac-score-baseline.json
+    issue: https://github.com/wangzitian0/finance_report/issues/1103
+    reason: >-
+      ac-score-baseline.json was replaced by ac-score-baseline.jsonl (sorted,
+      merge=union) to remove merge-train false sharing; remove this exception
+      once the deletion is merged.
+
+  # De-materialization: the critical-proof and vision-proof matrices are no
+  # longer committed — they are derived on-demand views of the one AC-keyed
+  # graph (common/ssot/ac_graph.py), gated by tools/check_ac_index.py. Their
+  # deletion shows up as a changed SSOT file with no owner; these temporary
+  # exceptions cover only the deletion churn in this PR. The matrices' concepts
+  # remain registered in MANIFEST.yaml, now owned by their generators.
+  - target: finance_report:docs/ssot/critical-proof-matrix.yaml
+    issue: https://github.com/wangzitian0/finance_report/issues/1103
+    reason: >-
+      critical-proof-matrix.yaml is no longer committed; it is a derived
+      on-demand view of the AC graph (gated by tools/check_ac_index.py). Remove
+      this exception once the deletion is merged.
+  - target: finance_report:docs/ssot/vision-proof-matrix.yaml
+    issue: https://github.com/wangzitian0/finance_report/issues/1103
+    reason: >-
+      vision-proof-matrix.yaml is no longer committed; it is a derived on-demand
+      view of the AC graph (gated by tools/check_ac_index.py). Remove this
+      exception once the deletion is merged.
 
 # ---------------------------------------------------------------------------
 # Temporary SSOT governance gate exceptions live in `exceptions` above.

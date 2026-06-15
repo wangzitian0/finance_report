@@ -1066,7 +1066,7 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
         "observability_logging"
     )
     assert concepts["ac_score_ratchet_baseline"]["owner"] == (
-        "docs/ssot/ac-score-baseline.json"
+        "docs/ssot/ac-score-baseline.jsonl"
     )
     assert concepts["ac_score_ratchet_baseline"]["parent"] == "tdd_workflow"
 

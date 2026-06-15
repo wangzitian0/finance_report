@@ -23,6 +23,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page, expect
 
@@ -260,6 +261,31 @@ def _line_total_by_name(lines: list[dict], token: str) -> Decimal:
     return _line_total(matches)
 
 
+@ac_proof(
+    "four-asset-as-of-net-worth",
+    ac_ids=[
+        "AC8.13.42",
+        "AC8.13.10",
+        "AC5.7.3",
+        "AC11.9.1",
+        "AC11.9.2",
+        "AC11.9.3",
+        "AC17.5.4",
+    ],
+    scope="behavioral",
+    ci_tier="post_merge_environment",
+    trust_mode="llm_ocr_post_merge",
+    source_classes=[
+        "bank_statement",
+        "brokerage_statement",
+        "property_statement",
+        "liability_statement",
+        "manual_record",
+    ],
+    mirror_proof_id="personal-package-source-trust-pr",
+    issue="#444",
+    required_markers=["e2e", "tier3", "critical", "llm"],
+)
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical

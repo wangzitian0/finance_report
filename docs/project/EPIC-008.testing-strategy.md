@@ -126,7 +126,7 @@ proof is managed by:
 | Proof layer | Owner |
 |---|---|
 | README macro outcomes and owner EPIC declarations | `README.md`, EPIC `Macro Proof Ownership` sections |
-| Critical E2E proof paths | [critical-proof-matrix.yaml](../ssot/critical-proof-matrix.yaml) |
+| Critical E2E proof paths | `tools/check_critical_proof_matrix.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
 | Product E2E function ownership | `tools/check_e2e_epic_traceability.py` |
 | AC proof and placeholder/stub exclusion | `tools/check_ac_traceability.py`, CI traceability artifact |
 
@@ -410,6 +410,8 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.135 | The AC traceability report labels its mandatory-coverage number as L1 reference hygiene (reference exists), never as behavioral coverage, and its pass message names the separate L2 critical-proof-matrix and L3 behavioral-score-ratchet gates as the behavioral authorities — so a passing traceability gate cannot be read as misleading behavioral assurance | `test_AC8_13_135_report_labels_l1_hygiene_not_behavioral`, `test_AC8_13_135_pass_message_points_to_behavioral_gates` | `tests/tooling/test_check_ac_traceability.py` | P0 |
 | AC8.13.136 | A content-level secret scan (gitleaks) runs in both the pre-commit hooks and the CI `lint` job (local==CI parity), blocking credential material by content rather than by filename so `.gitignore` is not the only line of defense | `test_AC8_13_136_gitleaks_runs_in_precommit_and_ci` | `tests/tooling/test_secret_scan_gate.py` | P0 |
 | AC8.13.137 | The staging AI/OCR gate summarizes its JUnit output into real pass/fail counts and names the failing corpus docs (instead of a binary "Failures observed: 1+" with verified counts "unknown"), so a red gate is diagnosable ([#1089](https://github.com/wangzitian0/finance_report/issues/1089)) | `test_AC8_13_137_summarize_junit_reports_per_doc_failures`; `test_AC8_13_137_render_junit_summary_lists_failed_tests`; `test_AC8_13_137_summarize_junit_tolerates_missing_xml` | `tests/tooling/test_staging_ai_ocr_gate_contract.py` | P1 |
+| AC8.13.138 | The AC-score ratchet baseline is a PERSISTED ratchet stored conflict-free as sorted, one-AC-per-line JSONL with a `merge=union` gitattribute, loading into the same in-memory shape the ratchet uses — and the ratchet still fails on regression, missing evidence, or non-pass code (the derived aggregate views it once sat beside are now covered by AC8.13.139) | `test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge`, `test_AC8_13_138_baseline_loads_to_legacy_shape`, `test_AC8_13_138_ratchet_still_fails_on_regression_and_missing_ac` | `tests/tooling/test_proof_index_architecture.py` | P1 |
+| AC8.13.139 | The cross-cutting proof/vision/status indexes are unified onto ONE AC-keyed graph (`common/ssot/ac_graph.py`) built from sharded sources (EPIC docs, `@ac_proof` decorators, `vision.md`, `critical-proof-outcomes.yaml`, the JSONL ratchet); the critical-proof matrix, vision-proof matrix, and README EPIC-status table are DERIVED on demand and never committed-materialized; and ONE internal-consistency gate `tools/check_ac_index.py` enforces no dangling/missing link (every `@ac_proof` resolves to a real test + real AC, every vision item with an owner EPIC backs an AC, every macro outcome's proof_ids resolve, every mandatory active AC has a real test reference) instead of N byte-compares | `test_AC8_13_139_gate_passes_on_consistent_tree`, `test_AC8_13_139_gate_fails_on_dangling_vision_item`, `test_AC8_13_139_gate_fails_on_proof_missing_test_or_ac`, `test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof`, `test_AC8_13_139_gate_fails_on_ratchet_regression`, `test_AC8_13_139_no_committed_materialized_index_files` | `tests/tooling/test_ac_index_consistency.py` | P1 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -456,7 +458,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
   `common/ssot/test_surface.py` and consumed by both the fail-closed gate and
   generated audit builder.
 - Critical product proof-path anchoring is owned by
-  `docs/ssot/critical-proof-matrix.yaml` and
+  the derived critical-proof matrix (macro outcome source `docs/ssot/critical-proof-outcomes.yaml`) and
   `python tools/check_critical_proof_matrix.py`.
 - Do not copy generated AC totals or per-group percentages into this EPIC.
 
@@ -532,7 +534,7 @@ by tooling instead of being copied into this EPIC:
 | Test path -> execution stage mapping | [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
 | Product E2E function -> EPIC ownership | `tools/check_e2e_epic_traceability.py` |
 | Mandatory AC proof eligibility | `tools/check_ac_traceability.py` |
-| Critical macro outcome proof | [critical-proof-matrix.yaml](../ssot/critical-proof-matrix.yaml) |
+| Critical macro outcome proof | `tools/check_critical_proof_matrix.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
 
 Product E2E ownership index:
 
@@ -675,7 +677,7 @@ these owners instead:
 
 | Gap type | Owner |
 |---|---|
-| Personal report package proof contract | [critical-proof-matrix.yaml](../ssot/critical-proof-matrix.yaml), #573/#649, `tests/tooling/test_personal_report_package_fixture_contract.py` |
+| Personal report package proof contract | `tools/check_critical_proof_matrix.py` (derived view; macro outcome source [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)), #573/#649, `tests/tooling/test_personal_report_package_fixture_contract.py` |
 | Provider-backed staging AI/OCR gates | [ci-cd.md](../ssot/ci-cd.md), staging workflow artifacts |
 | Manual-verification treatment | [issue #454](https://github.com/wangzitian0/finance_report/issues/454) |
 | Generated README/project metrics | [issue #455](https://github.com/wangzitian0/finance_report/issues/455) |

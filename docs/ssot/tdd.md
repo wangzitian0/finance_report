@@ -86,12 +86,24 @@ root README EPIC map against `docs/project/EPIC-*.md` and fails unclassified
 E2E-like assets outside declared product or non-product roots.
 `tools/check_e2e_epic_traceability.py` enforces this closure in CI.
 
-Core product journeys have one extra guard:
-`docs/ssot/critical-proof-matrix.yaml`. It owns the macro README -> EPIC -> E2E
-contract for the closed set of core vision outcomes. The checker keeps the
-README outcome table, matrix rows, owner EPIC reverse declarations, and explicit
-E2E proof anchors in sync. It is not a general-purpose semantic parser for all
-tests.
+Core product journeys have one extra guard: the **critical-proof matrix**, a
+DERIVED (not committed) view of the one AC-keyed graph. It owns the macro
+README -> EPIC -> E2E contract for the closed set of core vision outcomes.
+`tools/check_critical_proof_matrix.py` keeps the README outcome table, matrix
+rows, owner EPIC reverse declarations, and explicit E2E proof anchors in sync.
+It is not a general-purpose semantic parser for all tests.
+
+The matrix `proofs` section comes from the co-located `@ac_proof(...)` decorator
+on each critical-proof test (`common/testing/ac_proof.py`), statically scanned
+into the one AC graph (`common/ssot/ac_graph.py`). The macro `outcomes` section —
+the README/EPIC outcome contract — stays hand-maintained in
+`docs/ssot/critical-proof-outcomes.yaml`. The checker builds the matrix
+**in-memory** from those two sharded sources and validates it; the matrix is
+never committed-materialized, so a PR anchoring a new AC edits only its own test
+file (adds the decorator), and two such PRs touching different tests never
+collide on a central YAML. Render the matrix on demand with
+`tools/generate_critical_proof_matrix.py` (stdout); consistency is gated by
+`tools/check_ac_index.py`.
 
 ## Proof Semantics
 
@@ -113,11 +125,65 @@ behavioral row.
 
 Macro and micro proof are intentionally separate:
 
-- **Macro**: README -> EPIC -> E2E, owned by
-  `docs/ssot/critical-proof-matrix.yaml` and enforced bidirectionally by
+- **Macro**: README -> EPIC -> E2E, a derived view of the AC graph (macro
+  outcome source `docs/ssot/critical-proof-outcomes.yaml` + `@ac_proof`
+  decorators) enforced bidirectionally by
   `tools/check_critical_proof_matrix.py`.
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
   and AC traceability gates.
+
+## Cross-Cutting Index Artifacts: One Graph, Derived Views, One Gate
+
+The critical-proof matrix, the vision-proof matrix, and the README EPIC-status
+table are all PROJECTIONS of the SAME underlying graph:
+
+```text
+EPIC -> AC -> Proof (-> behavioral score, -> vision item)
+```
+
+They were each previously committed-materialized and CI byte-compared, so EVERY
+PR that touched ANY AC rewrote them — the repo's worst merge-conflict hotspot,
+and the same "committed file + generator + byte-check" wheel reinvented three
+times. The final model removes that:
+
+- **One model.** `common/ssot/ac_graph.py` exposes `build_ac_graph()`, the single
+  AC-keyed graph. Every concern is just additional FIELDS on the one AC key.
+- **Sharded sources only.** The graph is built from sources that no two
+  independent PRs share: AC nodes from the EPIC docs (via the registry loader),
+  proof edges from the co-located `@ac_proof(...)` decorators
+  (`common/testing/ac_proof.py`), score floors from `ac-score-baseline.jsonl`,
+  vision items from `vision.md`, and macro outcomes from
+  `docs/ssot/critical-proof-outcomes.yaml`.
+- **Derived views, never committed.** The critical-proof matrix, the vision-proof
+  matrix, and the EPIC-status table are rendered ON DEMAND from the graph
+  (`tools/generate_critical_proof_matrix.py`,
+  `tools/generate_vision_proof_matrix.py`,
+  `tools/generate_epic_status.py --stdout`, all to stdout). None is
+  committed-materialized, so there is nothing for two unrelated PRs to collide
+  on. The consumers that used to read the committed YAML (the critical-proof
+  checker and the staging AI/OCR gate) build the matrix in-memory from the graph
+  instead.
+- **One persisted artifact, conflict-free.** The only on-disk index is the
+  behavioral-score ratchet floor, `docs/ssot/ac-score-baseline.jsonl`: a floor
+  that must survive across runs and must NOT be regenerated from current state.
+  It is stored as sorted, one-AC-per-line JSONL with `merge=union` in
+  `.gitattributes`, so PRs adopting *different* ACs auto-merge and only same-AC
+  edits conflict.
+- **One consistency gate.** `tools/check_ac_index.py` builds the graph and
+  asserts the invariants that matter, failing ONLY on dangling/missing — NEVER on
+  a shifted total: every mandatory non-deprecated AC resolves to >=1 real test
+  reference; every `@ac_proof` points at a real test and real AC ids; every
+  vision item with an owning EPIC backs >=1 AC; every macro outcome's `proof_ids`
+  resolve; and (when fed a current-evidence aggregate) the ratchet is not
+  regressed. This replaces the three per-view byte-compares.
+
+The distinction that still matters: a *derived view* is rebuilt from the sharded
+sources on every read and is never committed; the *persisted ratchet* is kept on
+disk because regenerating it from current scores would erase the floor it exists
+to protect. The two protection layers — the L2 critical-proof semantic gate
+(`tools/check_critical_proof_matrix.py`) and the L3 behavioral-score ratchet
+(`tools/check_ac_score_baseline.py`) — are unchanged; only the storage of the
+aggregate views moved from committed-materialized to derived-on-demand.
 
 ## SSOT Governance Metrics
 
@@ -198,7 +264,7 @@ file into an independent HLS concept:
 
 - `docs/ssot/observability-logging.md` is a child playbook of
   `observability_logging`.
-- `docs/ssot/ac-score-baseline.json` is a machine baseline artifact of
+- `docs/ssot/ac-score-baseline.jsonl` is a machine baseline artifact of
   `tdd_workflow`.
 
 The second cleanup threshold is
@@ -254,6 +320,7 @@ Use these before claiming a documentation or implementation change is aligned:
 python tools/generate_ac_registry.py --check
 python tools/analyze_test_ac_coverage.py --no-write --stdout
 python tools/check_e2e_epic_traceability.py
+python tools/check_ac_index.py
 python tools/check_critical_proof_matrix.py
 python tools/check_manifest.py
 python tools/check_ssot_ownership.py

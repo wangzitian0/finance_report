@@ -29,7 +29,6 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import difflib
 import functools
 import os
 import re
@@ -54,8 +53,6 @@ VISION_PATH = REPO_ROOT / "vision.md"
 EPIC_DIR = REPO_ROOT / "docs" / "project"
 FEATURE_REGISTRY = REPO_ROOT / "docs" / "ac_registry.yaml"
 INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
-YAML_OUTPUT_PATH = REPO_ROOT / "docs" / "ssot" / "vision-proof-matrix.yaml"
-MD_OUTPUT_PATH = REPO_ROOT / "docs" / "reference" / "vision-proof-matrix.md"
 
 VERSION = "1.0"
 
@@ -74,6 +71,21 @@ _BLOCKQUOTE_LINE_RE = re.compile(r"^\s*>")
 # A blockquote line that opens a *new* labelled field (``> **Phase**: ...``)
 # ends the wrapped "Vision Anchor" declaration; such a line is not a continuation.
 _NEW_LABEL_LINE_RE = re.compile(r"^\s*>\s*\*\*")
+
+
+def _vision_path(repo_root: Path) -> Path:
+    return repo_root / "vision.md"
+
+
+def _epic_dir(repo_root: Path) -> Path:
+    return repo_root / "docs" / "project"
+
+
+def _registry_paths(repo_root: Path) -> tuple[Path, Path]:
+    return (
+        repo_root / "docs" / "ac_registry.yaml",
+        repo_root / "docs" / "infra_registry.yaml",
+    )
 
 
 def load_vision_anchors(vision_path: Path = VISION_PATH) -> dict[str, str]:
@@ -103,9 +115,7 @@ def load_vision_anchors(vision_path: Path = VISION_PATH) -> dict[str, str]:
     return anchors
 
 
-def _anchor_label(
-    line: str, anchor_end: int, lines: list[str], idx: int, last_heading: str
-) -> str:
+def _anchor_label(line: str, anchor_end: int, lines: list[str], idx: int, last_heading: str) -> str:
     """Derive a short human label for an anchor."""
     # Text immediately following the anchor on the same line wins.
     tail = re.sub(r"<[^>]+>", "", line[anchor_end:]).strip()
@@ -130,17 +140,15 @@ def _anchor_label(
     return last_heading
 
 
-def _epic_files() -> list[Path]:
+def _epic_files(epic_dir: Path = EPIC_DIR) -> list[Path]:
     return sorted(
-        EPIC_DIR / fname
-        for fname in os.listdir(EPIC_DIR)
-        if re.match(r"EPIC-\d+.*\.md", fname)
-        and "IMPLEMENTATION" not in fname
-        and "ENCODING" not in fname
+        epic_dir / fname
+        for fname in os.listdir(epic_dir)
+        if re.match(r"EPIC-\d+.*\.md", fname) and "IMPLEMENTATION" not in fname and "ENCODING" not in fname
     )
 
 
-def load_epic_anchor_map() -> dict[str, list[str]]:
+def load_epic_anchor_map(epic_dir: Path = EPIC_DIR) -> dict[str, list[str]]:
     """Return ``{anchor_id: [EPIC-001, ...]}`` from EPIC ``Vision Anchor`` lines.
 
     A "Vision Anchor" declaration may wrap its anchor list across several
@@ -150,7 +158,7 @@ def load_epic_anchor_map() -> dict[str, list[str]]:
     until one opens a new ``**Label**`` field or the blockquote ends.
     """
     mapping: dict[str, set[str]] = defaultdict(set)
-    for path in _epic_files():
+    for path in _epic_files(epic_dir):
         epic_match = _EPIC_FILE_RE.match(path.name)
         if not epic_match:
             continue
@@ -179,10 +187,10 @@ def load_epic_anchor_map() -> dict[str, list[str]]:
     return {anchor: sorted(epics) for anchor, epics in mapping.items()}
 
 
-def _load_registry_acs() -> dict[str, dict[str, Any]]:
+def _load_registry_acs(registry_paths: tuple[Path, Path] = (FEATURE_REGISTRY, INFRA_REGISTRY)) -> dict[str, dict[str, Any]]:
     """Return ``{ac_id: {epic, epic_name, description, mandatory}}`` for both registries."""
     acs: dict[str, dict[str, Any]] = {}
-    for path in (FEATURE_REGISTRY, INFRA_REGISTRY):
+    for path in registry_paths:
         for entry in load_registry_entries(path):
             ac_id = str(entry["id"])
             acs.setdefault(
@@ -197,9 +205,9 @@ def _load_registry_acs() -> dict[str, dict[str, Any]]:
     return acs
 
 
-def _find_test_files() -> list[Path]:
+def _find_test_files(repo_root: Path = REPO_ROOT) -> list[Path]:
     found: list[Path] = []
-    for base in default_ac_test_dirs(REPO_ROOT):
+    for base in default_ac_test_dirs(repo_root):
         if not base.exists():
             continue
         for root, dirs, files in os.walk(base):
@@ -210,17 +218,17 @@ def _find_test_files() -> list[Path]:
     return sorted(found)
 
 
-def collect_real_test_refs() -> dict[str, list[str]]:
+def collect_real_test_refs(repo_root: Path = REPO_ROOT) -> dict[str, list[str]]:
     """Return ``{ac_id: [test_file, ...]}`` for real (non-stub/placeholder) refs."""
     refs: dict[str, set[str]] = defaultdict(set)
-    for fpath in _find_test_files():
+    for fpath in _find_test_files(repo_root):
         try:
             content = fpath.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         if classify_reference_file(fpath, content) != "real":
             continue
-        rel = fpath.relative_to(REPO_ROOT).as_posix()
+        rel = fpath.relative_to(repo_root).as_posix()
         for match in AC_PATTERN.finditer(content):
             refs[match.group(0)].add(rel)
     return {ac_id: sorted(files) for ac_id, files in refs.items()}
@@ -230,20 +238,25 @@ def _epic_num(epic_id: str) -> int:
     return int(epic_id.split("-")[1])
 
 
-@functools.lru_cache(maxsize=1)
-def build_matrix() -> dict[str, Any]:
+@functools.lru_cache(maxsize=4)
+def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """Build the vision -> AC -> test matrix as a plain, serializable mapping.
 
     Building scans vision.md, every EPIC doc, both AC registries, and the AC
-    test directories, so it is memoized: repeated calls (the CLI plus several
-    tests) reuse one scan within a process. The returned mapping is treated as
-    read-only by all callers; do not mutate it, or call ``build_matrix.cache_clear()``
-    if the underlying files change mid-process.
+    test directories under ``repo_root``, so it is memoized per ``repo_root``:
+    repeated calls (the CLI plus several tests) reuse one scan within a process.
+    Threading ``repo_root`` through keeps the whole matrix sourced from ONE
+    consistent checkout, so callers like ``ac_graph.build_ac_graph(repo_root=...)``
+    (temp worktrees, tests) never mix this checkout's vision.md with another
+    root's registries. The returned mapping is treated as read-only by all
+    callers; do not mutate it, or call ``build_matrix.cache_clear()`` if the
+    underlying files change mid-process.
     """
-    anchors = load_vision_anchors()
-    epic_map = load_epic_anchor_map()
-    acs = _load_registry_acs()
-    test_refs = collect_real_test_refs()
+    repo_root = repo_root.resolve()
+    anchors = load_vision_anchors(_vision_path(repo_root))
+    epic_map = load_epic_anchor_map(_epic_dir(repo_root))
+    acs = _load_registry_acs(_registry_paths(repo_root))
+    test_refs = collect_real_test_refs(repo_root)
 
     # Index ACs by EPIC number for fast EPIC -> AC lookup.
     acs_by_epic: dict[int, list[str]] = defaultdict(list)
@@ -290,9 +303,7 @@ def build_matrix() -> dict[str, Any]:
         ),
         "summary": {
             "vision_nodes": len(nodes),
-            "vision_nodes_with_owner_epic": sum(
-                1 for node in nodes if node["owner_epics"]
-            ),
+            "vision_nodes_with_owner_epic": sum(1 for node in nodes if node["owner_epics"]),
             "total_acs": total_acs,
             "acs_with_real_test": total_proven,
         },
@@ -363,10 +374,7 @@ def render_markdown(matrix: dict[str, Any]) -> str:
         lines.append("")
         lines.append(f"- **Node**: {_md_escape(node['label'])}")
         lines.append(f"- **Owner EPICs**: {', '.join(node['owner_epics']) or '_none_'}")
-        lines.append(
-            f"- **ACs**: {node['ac_count']} "
-            f"({node['ac_with_test_count']} with a real test reference)"
-        )
+        lines.append(f"- **ACs**: {node['ac_count']} ({node['ac_with_test_count']} with a real test reference)")
         lines.append("")
         if not node["acs"]:
             lines.append("_No Acceptance Criteria are anchored to this node yet._")
@@ -375,15 +383,8 @@ def render_markdown(matrix: dict[str, Any]) -> str:
         lines.append("| AC | EPIC | Description | Tests |")
         lines.append("|---|---|---|---|")
         for ac in node["acs"]:
-            tests = (
-                "<br>".join(f"`{path}`" for path in ac["tests"])
-                if ac["tests"]
-                else "_none_"
-            )
-            lines.append(
-                f"| {ac['id']} | {ac['epic']} | "
-                f"{_md_escape(ac['description'])} | {tests} |"
-            )
+            tests = "<br>".join(f"`{path}`" for path in ac["tests"]) if ac["tests"] else "_none_"
+            lines.append(f"| {ac['id']} | {ac['epic']} | {_md_escape(ac['description'])} | {tests} |")
         lines.append("")
 
     # This page reproduces AC descriptions verbatim, so it can incidentally
@@ -414,34 +415,28 @@ def _md_escape(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ").strip()
 
 
-def _check_one(output: Path, rendered: str, label: str) -> int:
-    try:
-        current = output.read_text(encoding="utf-8")
-    except OSError:
-        print(f"ERROR: generated {label} is missing: {output}", file=sys.stderr)
-        return 1
-    if current != rendered:
-        diff = difflib.unified_diff(
-            current.splitlines(),
-            rendered.splitlines(),
-            fromfile=str(output),
-            tofile="generated",
-            lineterm="",
-        )
-        print(f"ERROR: generated {label} is stale.", file=sys.stderr)
-        print("\n".join(diff), file=sys.stderr)
-        return 1
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--yaml-output", type=Path, default=YAML_OUTPUT_PATH)
-    parser.add_argument("--md-output", type=Path, default=MD_OUTPUT_PATH)
+    parser.add_argument(
+        "--yaml-output",
+        type=Path,
+        default=None,
+        help="Write the parseable YAML matrix to a file (default: stdout, never committed).",
+    )
+    parser.add_argument(
+        "--md-output",
+        type=Path,
+        default=None,
+        help="Write the MkDocs page to a file (default: not written).",
+    )
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Fail if either generated artifact differs from the checked-in file.",
+        help=(
+            "Build the matrix and exit 0 if it builds. The vision matrix is a "
+            "derived (not committed) view of the AC graph; dangling vision items "
+            "are gated by tools/check_ac_index.py, not by a byte-compare."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -450,21 +445,33 @@ def main(argv: list[str] | None = None) -> int:
     md_text = render_markdown(matrix)
 
     if args.check:
-        rc = _check_one(args.yaml_output, yaml_text, "vision-proof matrix YAML")
-        rc |= _check_one(args.md_output, md_text, "vision-proof matrix page")
-        if rc == 0:
-            print("OK: vision-proof matrix artifacts are up to date.")
-        return rc
+        print(
+            "OK: vision-proof matrix builds from vision.md anchors + AC registries "
+            f"({matrix['summary']['vision_nodes']} vision nodes, "
+            f"{matrix['summary']['total_acs']} ACs). The matrix is a derived view "
+            "and is not committed; dangling vision items are gated by "
+            "tools/check_ac_index.py."
+        )
+        return 0
 
-    args.yaml_output.parent.mkdir(parents=True, exist_ok=True)
-    args.md_output.parent.mkdir(parents=True, exist_ok=True)
-    args.yaml_output.write_text(yaml_text, encoding="utf-8")
-    args.md_output.write_text(md_text, encoding="utf-8")
-    print(
-        f"Wrote {args.yaml_output} and {args.md_output} "
-        f"({matrix['summary']['vision_nodes']} vision nodes, "
-        f"{matrix['summary']['total_acs']} ACs)."
-    )
+    wrote_file = False
+    if args.yaml_output is not None:
+        args.yaml_output.parent.mkdir(parents=True, exist_ok=True)
+        args.yaml_output.write_text(yaml_text, encoding="utf-8")
+        wrote_file = True
+    if args.md_output is not None:
+        args.md_output.parent.mkdir(parents=True, exist_ok=True)
+        args.md_output.write_text(md_text, encoding="utf-8")
+        wrote_file = True
+
+    if wrote_file:
+        print(
+            "Wrote vision-proof matrix view(s) "
+            f"({matrix['summary']['vision_nodes']} vision nodes, "
+            f"{matrix['summary']['total_acs']} ACs)."
+        )
+    else:
+        sys.stdout.write(yaml_text)
     return 0
 
 

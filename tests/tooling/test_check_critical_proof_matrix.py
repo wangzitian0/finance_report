@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-
+import yaml
 from common.ssot import check_critical_proof_matrix as matrix
 
 
@@ -39,8 +39,8 @@ This EPIC owns the following macro outcomes from `docs/ssot/critical-proof-matri
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-matrix.yaml
-Checker: tools/check_critical_proof_matrix.py
+Source: docs/ssot/critical-proof-outcomes.yaml
+Checker: tools/check_ac_index.py
 
 | Outcome ID | Purpose |
 |---|---|
@@ -144,6 +144,10 @@ outcomes:
     return matrix_path
 
 
+def _payload(matrix_path: Path) -> dict:
+    return yaml.safe_load(matrix_path.read_text(encoding="utf-8"))
+
+
 def test_valid_behavioral_static_and_manual_entries_pass(tmp_path: Path) -> None:
     """AC8.13.41: Critical proof matrix accepts explicit proof classes."""
     _write_registry(tmp_path)
@@ -203,7 +207,7 @@ proofs:
 """,
     )
 
-    results = matrix.validate_matrix(tmp_path, matrix_path)
+    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     assert [result.status for result in results] == [
         "behavioral",
         "static_contract",
@@ -256,7 +260,7 @@ proofs:
 """,
     )
 
-    results = matrix.validate_matrix(tmp_path, matrix_path)
+    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     errors = [error for result in results for error in result.errors]
     assert "llm-flow: llm_ocr_post_merge proof requires mirror_proof_id" in errors
 
@@ -315,7 +319,7 @@ proofs:
 """,
     )
 
-    results = matrix.validate_matrix(tmp_path, matrix_path)
+    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     assert [error for result in results for error in result.errors] == []
 
 
@@ -363,7 +367,7 @@ proofs:
 """,
     )
 
-    results = matrix.validate_matrix(tmp_path, matrix_path)
+    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     errors = [error for result in results for error in result.errors]
 
     assert "critical proof matrix duplicate proof ids: duplicate-proof" in errors
@@ -402,7 +406,7 @@ proofs:
 """,
     )
 
-    [result] = matrix.validate_matrix(tmp_path, matrix_path)
+    [result] = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     assert result.status == "fail"
     assert any("only a file/body reference" in error for error in result.errors)
 
@@ -435,16 +439,10 @@ proofs:
 """,
     )
 
-    [result] = matrix.validate_matrix(tmp_path, matrix_path)
+    [result] = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     assert result.status == "fail"
-    assert any(
-        "broad contract tests cannot satisfy critical proof" in error
-        for error in result.errors
-    )
-    assert any(
-        "behavioral proof must live under product test roots" in error
-        for error in result.errors
-    )
+    assert any("broad contract tests cannot satisfy critical proof" in error for error in result.errors)
+    assert any("behavioral proof must live under product test roots" in error for error in result.errors)
 
 
 def test_unknown_ac_missing_file_and_missing_marker_fail(tmp_path: Path) -> None:
@@ -485,7 +483,7 @@ proofs:
 """,
     )
 
-    results = matrix.validate_matrix(tmp_path, matrix_path)
+    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     errors = [error for result in results for error in result.errors]
     assert any("unknown AC id AC8.13.99" in error for error in errors)
     assert any("missing pytest markers" in error for error in errors)
@@ -530,13 +528,11 @@ proofs:
 """,
     )
 
-    valid, invalid = matrix.validate_matrix(tmp_path, matrix_path)
+    valid, invalid = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     assert valid.status == "behavioral"
     assert not valid.errors
     assert invalid.status == "fail"
-    assert invalid.errors == [
-        "missing-anchor: test anchor not found: AC8.13.1 missing title"
-    ]
+    assert invalid.errors == ["missing-anchor: test anchor not found: AC8.13.1 missing title"]
 
 
 def test_shape_errors_are_reported_before_file_validation(tmp_path: Path) -> None:
@@ -561,7 +557,7 @@ proofs:
 """,
     )
 
-    results = matrix.validate_matrix(tmp_path, matrix_path)
+    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     errors = [error for result in results for error in result.errors]
     assert "bad-shape: invalid scope 'behaviorish'" in errors
     assert "bad-shape: invalid ci_tier 'someday'" in errors
@@ -588,16 +584,14 @@ proofs: []
 """,
     )
     with pytest.raises(ValueError, match="must define a non-empty proofs list"):
-        matrix.validate_matrix(tmp_path, empty_matrix)
+        matrix.validate_matrix(tmp_path, _payload(empty_matrix))
 
 
 def test_AC8_13_54_readme_outcome_table_parser_handles_empty_and_split_rows() -> None:
     """AC8.13.54: README macro table parsing handles empty and interrupted tables."""
     ids, errors = matrix._readme_outcome_ids("no table here")
     assert ids == []
-    assert errors == [
-        "README.md missing parseable macro outcome table with `Outcome ID` header"
-    ]
+    assert errors == ["README.md missing parseable macro outcome table with `Outcome ID` header"]
 
     ids, errors = matrix._readme_outcome_ids(
         """
@@ -671,9 +665,7 @@ def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
         proof_by_id={},
         index=0,
     )
-    assert "shape-only: missing required outcome keys: owner_epics, status" in (
-        missing_shape.errors
-    )
+    assert "shape-only: missing required outcome keys: owner_epics, status" in (missing_shape.errors)
     assert "shape-only: owner_epics must be a non-empty list" in missing_shape.errors
 
     malformed = matrix._validate_outcome(
@@ -689,15 +681,10 @@ def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
     )
 
     assert "bad-outcome: invalid owner EPIC id 'NOT-AN-EPIC'" in malformed.errors
-    assert (
-        "bad-outcome: owner EPIC EPIC-007 missing `## Macro Proof Ownership` section"
-        in malformed.errors
-    )
+    assert "bad-outcome: owner EPIC EPIC-007 missing `## Macro Proof Ownership` section" in malformed.errors
     assert "bad-outcome: unknown proof_id missing-proof" in malformed.errors
     assert "bad-outcome: proof broken-proof has validation errors" in malformed.errors
-    assert "bad-outcome: proof broken-proof must be behavioral E2E" in (
-        malformed.errors
-    )
+    assert "bad-outcome: proof broken-proof must be behavioral E2E" in (malformed.errors)
 
     bad_shape = matrix._validate_outcome(
         {
@@ -776,7 +763,7 @@ outcomes:
 """,
     )
 
-    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
     assert [outcome.outcome_id for outcome in validation.outcomes] == [
         "asset-distribution-net-worth",
         "monthly-income-spending",
@@ -799,8 +786,8 @@ def test_AC8_13_50_macro_outcome_contract_rejects_drift(
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-matrix.yaml
-Checker: tools/check_critical_proof_matrix.py
+Source: docs/ssot/critical-proof-outcomes.yaml
+Checker: tools/check_ac_index.py
 
 - asset-distribution-net-worth
 """.strip()
@@ -861,23 +848,16 @@ outcomes:
 """,
     )
 
-    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
     errors = validation.errors
     assert "macro outcomes include unknown ids: surprise-outcome" in errors
     assert any("owner EPIC does not exist: EPIC-999" in error for error in errors)
-    assert any(
-        "covered outcome requires at least one proof_id" in error for error in errors
-    )
-    assert any(
-        "proof contract-proof must be behavioral E2E" in error for error in errors
-    )
+    assert any("covered outcome requires at least one proof_id" in error for error in errors)
+    assert any("proof contract-proof must be behavioral E2E" in error for error in errors)
     assert any("gap outcome requires issue like #521" in error for error in errors)
     assert any("invalid status 'unknown'" in error for error in errors)
     assert any("outcome[7] must be a mapping" in error for error in errors)
-    assert any(
-        "README.md missing macro outcome id `monthly-income-spending`" in error
-        for error in errors
-    )
+    assert any("README.md missing macro outcome id `monthly-income-spending`" in error for error in errors)
 
 
 def test_AC8_13_54_macro_contract_requires_readme_matrix_exact_match(
@@ -891,8 +871,8 @@ def test_AC8_13_54_macro_contract_requires_readme_matrix_exact_match(
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-matrix.yaml
-Checker: tools/check_critical_proof_matrix.py
+Source: docs/ssot/critical-proof-outcomes.yaml
+Checker: tools/check_ac_index.py
 
 | Outcome ID | Purpose |
 |---|---|
@@ -920,7 +900,7 @@ proofs:
 """,
     )
 
-    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
     errors = validation.errors
     assert "README macro outcomes missing ids: monthly-income-spending" in errors
     assert "README macro outcomes include unknown ids: surprise-outcome" in errors
@@ -956,12 +936,10 @@ proofs:
 """,
     )
 
-    validation = matrix.validate_matrix_contract(tmp_path, matrix_path)
+    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
     errors = validation.errors
     assert any(
-        "monthly-income-spending: owner EPIC EPIC-008 missing macro outcome declaration"
-        in error
-        for error in errors
+        "monthly-income-spending: owner EPIC EPIC-008 missing macro outcome declaration" in error for error in errors
     )
 
 
@@ -983,8 +961,8 @@ def test_AC8_13_54_readme_contract_reports_missing_duplicate_and_drift(
     )
     assert "README.md missing" in missing.errors
     assert "README.md missing `## Core Proof Paths` section" in missing.errors
-    assert "README.md missing critical proof matrix source link" in missing.errors
-    assert "README.md missing critical proof matrix checker command" in (missing.errors)
+    assert "README.md missing critical proof outcomes source link" in missing.errors
+    assert "README.md missing AC index consistency gate command" in (missing.errors)
 
     (tmp_path / "README.md").write_text(
         """
@@ -992,8 +970,8 @@ def test_AC8_13_54_readme_contract_reports_missing_duplicate_and_drift(
 
 ## Core Proof Paths
 
-Source: docs/ssot/critical-proof-matrix.yaml
-Checker: tools/check_critical_proof_matrix.py
+Source: docs/ssot/critical-proof-outcomes.yaml
+Checker: tools/check_ac_index.py
 
 | Outcome ID | Purpose |
 |---|---|
@@ -1025,16 +1003,9 @@ Checker: tools/check_critical_proof_matrix.py
         ],
     )
 
-    assert (
-        "README macro outcomes duplicate ids: asset-distribution-net-worth"
-        in drift.errors
-    )
-    assert "README macro outcomes missing ids: monthly-income-spending" in (
-        drift.errors
-    )
-    assert "README macro outcomes include unknown ids: surprise-outcome" in (
-        drift.errors
-    )
+    assert "README macro outcomes duplicate ids: asset-distribution-net-worth" in drift.errors
+    assert "README macro outcomes missing ids: monthly-income-spending" in (drift.errors)
+    assert "README macro outcomes include unknown ids: surprise-outcome" in (drift.errors)
 
 
 def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
@@ -1044,9 +1015,7 @@ def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
     _write_registry(tmp_path)
 
     empty = matrix.validate_outcomes(tmp_path, {"outcomes": []}, [])
-    assert empty[0].errors == [
-        "critical proof matrix must define a non-empty outcomes list"
-    ]
+    assert empty[0].errors == ["critical proof matrix must define a non-empty outcomes list"]
 
     outcomes = matrix.validate_outcomes(
         tmp_path,
@@ -1114,7 +1083,7 @@ proofs:
 """,
     )
 
-    [result] = matrix.validate_matrix(tmp_path, matrix_path)
+    [result] = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     assert result.status == "fail"
     assert "stub-proof: critical proof cannot point at _ac_stubs" in result.errors
     assert "stub-proof: test anchor not found: AC8.13.1 proof" in result.errors
@@ -1160,23 +1129,17 @@ proofs:
             "check_critical_proof_matrix.py",
             "--repo-root",
             str(tmp_path),
-            "--matrix",
-            str(success_matrix),
             "--output",
             str(output_path),
         ],
     )
+    monkeypatch.setattr(matrix, "build_matrix_payload", lambda repo_root: _payload(success_matrix))
 
     assert matrix.main() == 0
     stdout = capsys.readouterr().out
     assert "Wrote critical proof matrix report" in stdout
-    assert (
-        "Critical proof matrix passed: 1 proof path(s), 6 macro outcome(s) validated."
-        in stdout
-    )
-    assert "| `core-flow` | behavioral | pr_ci |" in output_path.read_text(
-        encoding="utf-8"
-    )
+    assert "Critical proof matrix passed: 1 proof path(s), 6 macro outcome(s) validated." in stdout
+    assert "| `core-flow` | behavioral | pr_ci |" in output_path.read_text(encoding="utf-8")
 
     failure_matrix = _write_matrix(
         tmp_path,
@@ -1198,10 +1161,9 @@ proofs:
             "check_critical_proof_matrix.py",
             "--repo-root",
             str(tmp_path),
-            "--matrix",
-            str(failure_matrix),
         ],
     )
+    monkeypatch.setattr(matrix, "build_matrix_payload", lambda repo_root: _payload(failure_matrix))
 
     assert matrix.main() == 1
     captured = capsys.readouterr()

@@ -17,8 +17,27 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def build_critical_matrix() -> dict:
+    """Build the critical-proof matrix payload in-memory from the AC graph.
+
+    The matrix is a derived (not committed) view of the one AC-keyed graph, so
+    tests read the freshly-built payload instead of a checked-in YAML file.
+    """
+    from common.ssot.ac_graph import build_ac_graph
+    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+
+    return build_matrix_from_graph(build_ac_graph(ROOT))
+
+
+def critical_matrix_text() -> str:
+    """Render the in-memory critical-proof matrix to its canonical YAML text."""
+    from common.ssot.generate_critical_proof_matrix import render_matrix
+
+    return render_matrix(build_critical_matrix())
+
+
 def critical_post_merge_llm_proof_files() -> list[str]:
-    matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    matrix = build_critical_matrix()
     return sorted(
         {
             proof["file"]
@@ -335,7 +354,7 @@ def row_covers_ac_id(row: str, ac_id: str) -> bool:
 
 def test_AC8_13_50_critical_proof_e2e_files_are_epic_owned() -> None:
     """AC8.13.50: Critical proof E2E files stay listed in EPIC-008 ownership."""
-    proof_matrix = yaml.safe_load(read("docs/ssot/critical-proof-matrix.yaml"))
+    proof_matrix = build_critical_matrix()
     epic = read("docs/project/EPIC-008.testing-strategy.md")
 
     proof_files = {
@@ -2746,7 +2765,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
     gate = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
-    matrix = read("docs/ssot/critical-proof-matrix.yaml")
+    matrix = critical_matrix_text()
     epic = read("docs/project/EPIC-008.testing-strategy.md")
     ci_cd = read("docs/ssot/ci-cd.md")
 

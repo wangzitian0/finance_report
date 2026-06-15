@@ -1,0 +1,3 @@
+{"ac_id": "AC2.6.4", "score": 1.0, "metric": "posted_debit_credit_imbalance_is_zero", "provenance": "deterministic"}
+{"ac_id": "AC4.1.4", "score": 1.0, "metric": "description_similarity_pct", "provenance": "deterministic"}
+{"ac_id": "AC8.16.1", "score": 1.0, "metric": "superseded_excluded_corrected_total_match", "provenance": "deterministic"}

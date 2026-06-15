@@ -23,6 +23,7 @@ from xml.etree import ElementTree
 import pytest
 
 from common.ssot import ac_evidence_aggregate as agg
+from common.ssot import ac_score_baseline_format as baseline_format
 from common.ssot import check_ac_score_baseline as ratchet
 from common.testing.ac_evidence import (
     PROPERTY_KEY,
@@ -245,9 +246,10 @@ def test_record_property_emission_flows_to_aggregate(tmp_path):
 
 def test_update_refuses_to_cement_a_broken_run(tmp_path):
     """`--update` must not raise the baseline when the current run regresses."""
-    baseline_path = tmp_path / "baseline.json"
-    baseline_path.write_text(
-        json.dumps({"version": 1, "acs": {"AC4.1.4": {"score": 0.9}}}), encoding="utf-8"
+    baseline_path = tmp_path / "baseline.jsonl"
+    baseline_format.write_jsonl(
+        baseline_path,
+        {"version": 1, "acs": {"AC4.1.4": {"score": 0.9, "metric": "m", "provenance": "deterministic"}}},
     )
     current_path = tmp_path / "current.json"
     current_path.write_text(json.dumps(_payload("AC4.1.4", 0.5)), encoding="utf-8")
@@ -255,7 +257,7 @@ def test_update_refuses_to_cement_a_broken_run(tmp_path):
     rc = ratchet.main([str(current_path), "--baseline", str(baseline_path), "--update"])
     assert rc == 1
     # Baseline must be untouched.
-    after = json.loads(baseline_path.read_text())
+    after = baseline_format.load_jsonl(baseline_path)
     assert after["acs"]["AC4.1.4"]["score"] == 0.9
 
 
@@ -326,9 +328,10 @@ def test_iter_evidence_skips_missing_files_and_other_properties(tmp_path):
 
 
 def test_ratchet_main_pass_then_regression(tmp_path, capsys):
-    baseline = tmp_path / "b.json"
+    # Baseline is now stored as conflict-free sorted JSONL (one AC per line).
+    baseline = tmp_path / "b.jsonl"
     baseline.write_text(
-        json.dumps({"version": 1, "acs": {"AC4.1.4": {"score": 0.9}}}), encoding="utf-8"
+        json.dumps({"ac_id": "AC4.1.4", "score": 0.9}) + "\n", encoding="utf-8"
     )
     cur = tmp_path / "c.json"
     cur.write_text(json.dumps(_payload("AC4.1.4", 0.95)), encoding="utf-8")
@@ -339,11 +342,13 @@ def test_ratchet_main_pass_then_regression(tmp_path, capsys):
 
 
 def test_ratchet_main_update_writes_new_baseline(tmp_path):
-    baseline = tmp_path / "b.json"  # missing -> starts empty
+    baseline = tmp_path / "b.jsonl"  # missing -> starts empty
     cur = tmp_path / "c.json"
     cur.write_text(json.dumps(_payload("AC9.9.9", 0.7)), encoding="utf-8")
     assert ratchet.main([str(cur), "--baseline", str(baseline), "--update"]) == 0
-    assert json.loads(baseline.read_text())["acs"]["AC9.9.9"]["score"] == 0.7
+    # --update writes the persisted baseline back as sorted JSONL.
+    written = baseline_format.load_jsonl(baseline)
+    assert written["acs"]["AC9.9.9"]["score"] == 0.7
 
 
 def test_load_json_rejects_non_object(tmp_path):
@@ -354,10 +359,17 @@ def test_load_json_rejects_non_object(tmp_path):
 
 
 def test_committed_baseline_matches_schema():
-    """The seeded baseline must be loadable and well-formed."""
-    baseline = json.loads(
-        (REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.json").read_text()
-    )
+    """The seeded baseline must be loadable, sorted, and well-formed JSONL."""
+    path = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
+    baseline = baseline_format.load_jsonl(path)
     assert baseline["version"] == 1
     assert "AC4.1.4" in baseline["acs"]
     assert 0.0 <= baseline["acs"]["AC4.1.4"]["score"] <= 1.0
+
+    # Conflict-free storage contract: one JSON object per line, sorted by ac_id.
+    raw_lines = [
+        line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    ac_ids = [json.loads(line)["ac_id"] for line in raw_lines]
+    assert ac_ids == sorted(ac_ids)
+    assert len(ac_ids) == len(set(ac_ids))

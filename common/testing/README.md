@@ -45,7 +45,7 @@ The ratchet is a **hard, only-goes-up CI gate** today, not a deferred spike:
   `backend-e2e-tier1`, `frontend`), downloads their junit artifacts, runs
   `tools/aggregate_ac_evidence.py` to reduce them per AC, then runs
   `tools/check_ac_score_baseline.py` against the checked-in
-  `docs/ssot/ac-score-baseline.json`. It is a **separate** job — not part of
+  `docs/ssot/ac-score-baseline.jsonl`. It is a **separate** job — not part of
   `ac-traceability`.
 - The `finish` aggregation job **requires** `ac-behavioral-ratchet` to succeed
   (both via `needs:` and an explicit `result != "success"` failure check) on the
@@ -80,8 +80,10 @@ enforces:
   `apps/backend/tests/accounting/test_accounting_equation.py`. This is the
   reference pattern for anchoring a flagship money journey to L2 + L3.
 
-Seeded baseline: `docs/ssot/ac-score-baseline.json`. Hermetic proof of the whole
-chain: `tests/tooling/test_ac_evidence_pipeline.py`.
+Seeded baseline: `docs/ssot/ac-score-baseline.jsonl` (sorted, line-oriented JSONL
+with `merge=union` so independent ACs auto-merge — one AC per line — instead of
+all ACs colliding in one central JSON object). Hermetic proof of the whole chain:
+`tests/tooling/test_ac_evidence_pipeline.py`.
 
 ## Deliberately **out of scope** (follow-ups)
 

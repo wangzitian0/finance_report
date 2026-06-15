@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 import pytest
+from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page, expect
 
@@ -99,6 +100,17 @@ def _unique_pdf_copy(src: Path) -> Path:
     return dest
 
 
+@ac_proof(
+    "dbs-pdf-full-journey",
+    ac_ids=["AC8.13.1", "AC8.13.2", "AC8.13.3", "AC8.13.4", "AC8.13.5"],
+    scope="behavioral",
+    ci_tier="post_merge_environment",
+    trust_mode="llm_ocr_post_merge",
+    source_classes=["bank_statement"],
+    mirror_proof_id="structured-source-reporting-pr",
+    issue="#443",
+    required_markers=["e2e", "tier3", "critical", "llm"],
+)
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
