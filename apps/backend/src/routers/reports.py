@@ -443,7 +443,9 @@ async def list_personal_report_package_snapshots(
         select(ReportSnapshot)
         .where(ReportSnapshot.user_id == user_id)
         .where(ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
-        .order_by(ReportSnapshot.created_at.desc())
+        # Stable tiebreaker (id) so offset pagination is deterministic when
+        # created_at timestamps tie — otherwise pages could drop/duplicate rows.
+        .order_by(ReportSnapshot.created_at.desc(), ReportSnapshot.id.desc())
         .limit(pagination.limit)
         .offset(pagination.offset)
     )
