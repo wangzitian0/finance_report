@@ -361,8 +361,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"::error title=AC index PROTECTION::{error}", file=sys.stderr)
         print(
             f"[PROTECTION] FAILED: {len(floor_result.errors)} per-type count "
-            "regression(s). Add protection (raises current) or, to lower the floor "
-            "deliberately, re-run with --update-floor.",
+            "regression(s). Restore the protection that was removed (adding it back "
+            "raises the current count), or — only if the floor was set too high — "
+            "lower it by hand-editing protection-floor.json (--update-floor only "
+            "RAISES floors and cannot fix current < floor).",
             file=sys.stderr,
         )
         return 1

@@ -276,6 +276,36 @@ def test_AC8_13_140_count_floor_default_empty_passes(tmp_path) -> None:
     assert result.floor == dict.fromkeys(protection.PROTECTION_TYPES, 0)
 
 
+def test_AC8_13_140_load_floor_rejects_malformed_value(tmp_path) -> None:
+    """AC8.13.140: a malformed floor value is a hard error, not a silent zero.
+
+    Silently coercing a bad floor to 0 would weaken the ratchet (regressions
+    would pass unnoticed), so a present non-integer/negative value raises.
+    """
+    floor_file = tmp_path / "protection-floor.json"
+    floor_file.write_text(
+        json.dumps({"version": 1, "floor": {"has_proof": -3}}), encoding="utf-8"
+    )
+    try:
+        protection.load_floor(floor_file)
+    except ValueError:
+        pass
+    else:  # pragma: no cover - defensive
+        raise AssertionError("load_floor must reject a negative floor value")
+
+    # A MISSING type still defaults to 0 (new repo / newly added type passes).
+    floor_file.write_text(json.dumps({"version": 1, "floor": {}}), encoding="utf-8")
+    assert protection.load_floor(floor_file) == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+
+
+def test_AC8_13_140_write_floor_creates_missing_parent(tmp_path) -> None:
+    """AC8.13.140: write_floor creates the parent directory if it is absent."""
+    nested = tmp_path / "does" / "not" / "exist" / "protection-floor.json"
+    protection.write_floor(nested, dict.fromkeys(protection.PROTECTION_TYPES, 0))
+    assert nested.exists()
+    assert protection.load_floor(nested) == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+
+
 def test_AC8_13_140_count_floor_fails_when_type_drops_below_floor(tmp_path) -> None:
     """AC8.13.140: a type whose current count drops below its floor is a failure."""
     floor_file = tmp_path / "protection-floor.json"

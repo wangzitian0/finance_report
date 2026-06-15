@@ -76,17 +76,31 @@ def count_protection_types(graph: AcGraph) -> dict[str, int]:
 
 
 def load_floor(path: Path = DEFAULT_FLOOR) -> dict[str, int]:
-    """Load the committed per-type floor; a missing file is an all-zero floor."""
+    """Load the committed per-type floor; a missing file is an all-zero floor.
+
+    A missing TYPE defaults to 0 (so a brand-new repo / newly-added type passes),
+    but a PRESENT value that is not a non-negative integer is a hard error rather
+    than a silent coercion to 0: silently swallowing a malformed floor would
+    weaken the ratchet (a bad edit would let regressions pass unnoticed).
+    """
     if not path.exists():
         return dict.fromkeys(PROTECTION_TYPES, 0)
     payload = json.loads(path.read_text(encoding="utf-8"))
-    floor = payload.get("floor", payload) if isinstance(payload, dict) else {}
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path}: protection floor must be a JSON object")
+    floor = payload.get("floor", payload)
+    if not isinstance(floor, dict):
+        raise ValueError(f"{path}: 'floor' must be a JSON object of type->int")
     result = dict.fromkeys(PROTECTION_TYPES, 0)
     for ptype in PROTECTION_TYPES:
-        try:
-            result[ptype] = int(floor.get(ptype, 0))
-        except (TypeError, ValueError):
-            result[ptype] = 0
+        if ptype not in floor:
+            continue
+        value = floor[ptype]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(
+                f"{path}: floor[{ptype!r}] must be a non-negative integer, got {value!r}"
+            )
+        result[ptype] = value
     return result
 
 
@@ -119,6 +133,7 @@ def check_count_floor(graph: AcGraph, floor_path: Path = DEFAULT_FLOOR) -> Floor
 
 def write_floor(path: Path, floor: dict[str, int]) -> None:
     """Write the per-type floor as deterministic JSON with a convention header."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "_comment": (
             "Per-type PROTECTION COUNT floor (monotonic, raise-only). Normal PRs "
