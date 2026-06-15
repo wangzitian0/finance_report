@@ -70,9 +70,12 @@ Ledger immutability protects accounting facts: entry ownership/date/memo/source
 identity, status correction path, and all journal-line amounts, directions,
 accounts, currencies, and FX rates. The only non-fact metadata update allowed on
 a posted/reconciled entry is the source-type-priority promotion from
-`auto_parsed`, `bank_statement`, or `auto_matched` to `user_confirmed`, with
-`source_id` and every accounting fact unchanged. The same promotion is allowed
-when the entry moves from `posted` to `reconciled`.
+`auto_parsed` or `auto_matched` to `user_confirmed`, with `source_id` and every
+accounting fact unchanged. The same promotion is allowed when the entry moves
+from `posted` to `reconciled`. (The immutability trigger's text guard also
+retains the retired legacy value `bank_statement` — see migration 0040 / #896 —
+so any historical row in that state can still be promoted, though no write path
+produces it anymore.)
 
 ---
 
