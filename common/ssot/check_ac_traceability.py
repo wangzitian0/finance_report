@@ -107,9 +107,10 @@ def load_execution_matrix(path: Path = DEFAULT_EXECUTION_MATRIX) -> ExecutionMat
     return ExecutionMatrix(rules=rules)
 
 
-def _display_path(path: Path) -> str:
+def _display_path(path: Path, display_root: Path | None = None) -> str:
+    root = display_root if display_root is not None else Path.cwd()
     try:
-        return str(path.relative_to(Path.cwd())).replace("\\", "/")
+        return str(path.relative_to(root)).replace("\\", "/")
     except ValueError:
         return str(path).replace("\\", "/")
 
@@ -162,6 +163,7 @@ def find_test_files(test_dirs: list[Path]) -> list[Path]:
 def collect_referenced_acs(
     test_files: list[Path],
     execution_matrix: ExecutionMatrix | None = None,
+    display_root: Path | None = None,
 ) -> dict[str, ACReferenceStats]:
     references: dict[str, ACReferenceStats] = {}
     if execution_matrix is None:
@@ -172,7 +174,7 @@ def collect_referenced_acs(
         except OSError:
             continue
         kind = classify_reference_file(fpath, content)
-        display_path = _display_path(fpath)
+        display_path = _display_path(fpath, display_root)
         execution = execution_matrix.classify(display_path)
         for m in AC_PATTERN.finditer(content):
             ac_id = m.group(0)
@@ -318,6 +320,65 @@ def print_report(
         print()
 
 
+def traceability_failure_messages(result: TraceabilityResult) -> list[str]:
+    """Return the ordered traceability failure messages (verbatim).
+
+    Exactly ONE message is emitted, matching ``main()``'s priority order
+    (unexecuted-only > placeholder-only > stub-only > missing). This is the
+    single source of the gate wording, reused by both ``main()`` and the
+    consolidated ``check_ac_index`` gate so neither drifts from the other.
+    """
+    if result.unexecuted_only:
+        return [
+            "TRACEABILITY GATE FAILED: "
+            f"{len(result.unexecuted_only)} mandatory AC(s) have real references only in non-CI-required stages.\n"
+            "  Move at least one behavioral proof into a CI-required test stage or update docs/ssot/test-execution-matrix.yaml with the matching CI workflow."
+        ]
+    if result.placeholder_only:
+        return [
+            "TRACEABILITY GATE FAILED: "
+            f"{len(result.placeholder_only)} mandatory AC(s) are covered only by placeholder assertions.\n"
+            "  Replace expect(true).toBe(true), pure pass, or skipped placeholder tests with behavioral checks."
+        ]
+    if result.stub_only:
+        return [
+            "TRACEABILITY GATE FAILED: "
+            f"{len(result.stub_only)} mandatory AC(s) are covered only by _ac_stubs.\n"
+            "  Replace generated AC stubs with behavioral tests that exercise production paths."
+        ]
+    if result.missing:
+        return [
+            f"TRACEABILITY GATE FAILED: {len(result.missing)} mandatory AC(s) have no test reference.\n"
+            f'  Add docstrings like """{result.missing[0]}: description""" to at least one test per AC.'
+        ]
+    return []
+
+
+def run_traceability(repo_root: Path) -> TraceabilityResult:
+    """Run the traceability scan anchored at ``repo_root`` (no CWD dependency).
+
+    Reuses the exact library pieces ``main()`` uses — the registry load, the
+    test-file scan, the execution-matrix CI-stage classification, and
+    ``check_traceability`` — but resolves every path against ``repo_root`` so it
+    can be invoked as a library from the consolidated gate, not only as a CLI
+    run from the repo root. Same code, same classifications, same result shape.
+    """
+    registry_paths = [repo_root / "docs" / "ac_registry.yaml"]
+    infra_registry_path = repo_root / "docs" / "infra_registry.yaml"
+    if infra_registry_path.exists():
+        acs = load_multiple_registries(registry_paths + [infra_registry_path])
+    else:
+        acs = load_multiple_registries(registry_paths)
+
+    test_dirs = [repo_root / d for d in DEFAULT_AC_TEST_DIRS]
+    test_files = find_test_files(test_dirs)
+    execution_matrix = load_execution_matrix(repo_root / DEFAULT_EXECUTION_MATRIX)
+    references = collect_referenced_acs(
+        test_files, execution_matrix=execution_matrix, display_root=repo_root
+    )
+    return check_traceability(acs, references)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Check that every mandatory AC has at least one test reference."
@@ -395,35 +456,8 @@ def main() -> int:
         or result.stub_only
         or result.unexecuted_only
     ) and not args.report_only:
-        if result.unexecuted_only:
-            print(
-                "TRACEABILITY GATE FAILED: "
-                f"{len(result.unexecuted_only)} mandatory AC(s) have real references only in non-CI-required stages.\n"
-                "  Move at least one behavioral proof into a CI-required test stage or update docs/ssot/test-execution-matrix.yaml with the matching CI workflow.",
-                file=sys.stderr,
-            )
-            return 1
-        if result.placeholder_only:
-            print(
-                "TRACEABILITY GATE FAILED: "
-                f"{len(result.placeholder_only)} mandatory AC(s) are covered only by placeholder assertions.\n"
-                "  Replace expect(true).toBe(true), pure pass, or skipped placeholder tests with behavioral checks.",
-                file=sys.stderr,
-            )
-            return 1
-        if result.stub_only:
-            print(
-                "TRACEABILITY GATE FAILED: "
-                f"{len(result.stub_only)} mandatory AC(s) are covered only by _ac_stubs.\n"
-                "  Replace generated AC stubs with behavioral tests that exercise production paths.",
-                file=sys.stderr,
-            )
-            return 1
-        print(
-            f"TRACEABILITY GATE FAILED: {len(result.missing)} mandatory AC(s) have no test reference.\n"
-            f'  Add docstrings like """{result.missing[0]}: description""" to at least one test per AC.',
-            file=sys.stderr,
-        )
+        for message in traceability_failure_messages(result):
+            print(message, file=sys.stderr)
         return 1
 
     if (

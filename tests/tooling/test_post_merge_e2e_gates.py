@@ -1066,29 +1066,33 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
 
 
 def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
-    """AC8.13.17: AC traceability checks registry generation before audit output."""
+    """AC8.13.17 AC8.13.141: registry check precedes the audit; the fail-closed
+    AC-index gate (with folded traceability) is the single index gate.
+
+    The standalone ``check_ac_traceability`` STEP is retired (its contract is
+    folded into ``check_ac_index``, which runs once in the ``lint`` job). The
+    ``ac-traceability`` job still checks registry generation before building the
+    audit artifact.
+    """
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert (
         "uv run --with pyyaml python tools/generate_ac_registry.py --check" in workflow
     )
-    assert "uv run --with pyyaml python tools/check_ac_traceability.py" in workflow
+    # The single, fail-closed index gate (folds in the former traceability gate).
+    assert "uv run --with pyyaml python tools/check_ac_index.py" in workflow
+    # The retired standalone steps are gone.
+    assert "tools/check_ac_traceability.py" not in workflow
+    assert "tools/check_critical_proof_matrix.py" not in workflow
     assert (
         "uv run --with pyyaml python tools/build_ac_traceability.py --output"
         in workflow
     )
     assert workflow.index("tools/generate_ac_registry.py --check") < workflow.index(
-        "tools/check_ac_traceability.py"
-    )
-    assert workflow.index("tools/check_ac_traceability.py") < workflow.index(
         "tools/build_ac_traceability.py --output"
     )
     assert "generated registry indexes can be materialized" in ci_cd
-    assert (
-        "CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only"
-        in ci_cd
-    )
 
 
 def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
@@ -1178,12 +1182,9 @@ def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
         in workflow
     )
     assert "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md" in workflow
-    assert workflow.index("tools/check_ac_traceability.py") < workflow.index(
-        "tools/check_e2e_epic_traceability.py"
-    )
-    assert workflow.index("tools/check_e2e_epic_traceability.py") < workflow.index(
-        "tools/check_critical_proof_matrix.py"
-    )
+    # The standalone check_ac_traceability / check_critical_proof_matrix steps are
+    # retired (AC8.13.141); the surviving ordering is E2E traceability before the
+    # audit-artifact build.
     assert workflow.index("tools/check_e2e_epic_traceability.py") < workflow.index(
         "tools/build_ac_traceability.py --output"
     )
