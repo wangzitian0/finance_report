@@ -17,7 +17,10 @@
 > **Implementation Status**: The four-value user-data trust hierarchy is implemented:
 > `manual`, `user_confirmed`, `auto_matched`, `auto_parsed`.
 > Internal/system source types remain available as `system` and `fx_revaluation`.
-> `bank_statement` is a deprecated legacy value accepted for compatibility and normalized to `auto_parsed` for new API/service writes.
+> `bank_statement` was a legacy value, **retired from the enum in migration 0040 (#896)**. Its historical
+> rows were migrated to `auto_parsed` in 0018 and no write path emits it. The raw string is still tolerated
+> defensively — `normalize_source_type` folds it into `auto_parsed` — so legacy inputs and the immutability
+> trigger's text guard stay harmless.
 ---
 
 ## 2. Trust Hierarchy
