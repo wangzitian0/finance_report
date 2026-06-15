@@ -4513,7 +4513,6 @@
           "user_confirmed",
           "auto_matched",
           "auto_parsed",
-          "bank_statement",
           "system",
           "fx_revaluation"
         ],
