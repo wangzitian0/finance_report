@@ -365,3 +365,21 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.15.1 | A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response | `apiFunctions.test.ts` | P1 |
 | AC22.15.2 | The AI Settings page renders an editable form with explicit Save and Reset controls that submits the edited flags via `patchUserSettings`, surfacing loading, submitting, success, and error states using shared UI primitives | `aiSettingsPage.test.tsx` | P1 |
 | AC22.15.3 | A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid | `apiFunctions.test.ts`, `appShellSessionBootstrap.test.tsx` | P1 |
+
+### AC22.18 — Nav Alias Cleanup And Product-Analytics Funnel Instrumentation
+
+> #1118 + #1109 follow-up slice. Two leftover cleanups from the IA restructure
+> plus the product-analytics gap. (a) `/events` is permanently redirected to
+> `/notifications` but was still aliased in `ROUTE_CONFIG`, so the legacy label
+> could leak through breadcrumbs/persisted tabs — removed so `/notifications` is
+> the one canonical path/label. (b) The OpenPanel SDK was wired for page-views
+> only (zero `track()` calls); this slice adds a typed, non-blocking, PII-safe
+> `track()` wrapper and instruments the core product funnel. Per-environment
+> `OPENPANEL_CLIENT_ID` provisioning (#1109 AC1) is an infra2 task, out of scope
+> for this frontend repo.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.18.1 | The legacy `/events` alias is removed from `ROUTE_CONFIG` so `/notifications` is the single canonical path/label; the `/events`→`/notifications` redirect is unchanged | `navigation.test.ts`, `nextConfigRedirects.test.ts` | P1 |
+| AC22.18.2 | A typed `track(event, props)` analytics wrapper dispatches through the OpenPanel command queue, is strictly non-blocking (never throws, no-op when unconfigured), exposes a taxonomy of ≥6 named product events, and strips PII (emails, monetary amounts, account numbers) from event properties before sending | `analyticsTrack.test.ts` | P1 |
+| AC22.18.3 | The core product funnel is instrumented through the wrapper — signup, statement upload started/succeeded/failed, Stage-1 review approved, and report generated — with tests asserting `track()` is invoked on each action | `loginPage.test.tsx`, `StatementUploader.test.tsx`, `statementReviewPage.test.tsx`, `personalReportPackagePage.test.tsx` | P1 |

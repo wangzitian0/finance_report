@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import StatementUploader from "@/components/statements/StatementUploader";
 import { fetchAiModels } from "@/lib/aiModels";
 import { apiUpload } from "@/lib/api";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 vi.mock("@/lib/aiModels", () => ({
   fetchAiModels: vi.fn(),
@@ -18,6 +19,11 @@ vi.mock("@/components/ui/Toast", () => ({
 
 vi.mock("@/lib/api", () => ({
   apiUpload: vi.fn(),
+}));
+
+vi.mock("@/lib/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/analytics")>()),
+  track: vi.fn(),
 }));
 
 const baseModels = [
@@ -41,6 +47,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   beforeEach(() => {
     vi.mocked(fetchAiModels).mockReset();
     vi.mocked(apiUpload).mockReset();
+    vi.mocked(track).mockReset();
     if (!globalThis.localStorage || typeof globalThis.localStorage.clear !== "function") {
       const store = new Map<string, string>();
       globalThis.localStorage = {
@@ -404,5 +411,64 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     fireEvent.drop(dropZone, { dataTransfer: { files: [file] } });
 
     expect(await screen.findByText("statement.png")).toBeInTheDocument();
+  });
+
+  it("AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+    vi.mocked(apiUpload).mockResolvedValue({});
+
+    render(<StatementUploader />);
+
+    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
+    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    await userEvent.upload(fileInput, file);
+    await userEvent.click(screen.getByRole("button", { name: /upload & parse statement/i }));
+
+    await waitFor(() => expect(apiUpload).toHaveBeenCalledTimes(1));
+
+    expect(vi.mocked(track)).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.UPLOAD_STARTED,
+      expect.objectContaining({ is_csv: false }),
+    );
+    expect(vi.mocked(track)).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.UPLOAD_SUCCEEDED,
+      expect.objectContaining({ is_csv: false }),
+    );
+
+    // No PII (filename) is forwarded to analytics.
+    for (const call of vi.mocked(track).mock.calls) {
+      expect(JSON.stringify(call[1] ?? {})).not.toContain("statement.pdf");
+    }
+  });
+
+  it("AC22.18.3 tracks UPLOAD_FAILED with an error category on failure", async () => {
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
+    vi.mocked(apiUpload).mockRejectedValue(new Error("Server Error"));
+
+    render(<StatementUploader />);
+
+    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
+    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    await userEvent.upload(fileInput, file);
+    await userEvent.click(screen.getByRole("button", { name: /upload & parse statement/i }));
+
+    await screen.findByText("Server Error");
+
+    expect(vi.mocked(track)).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.UPLOAD_FAILED,
+      expect.objectContaining({ error_category: "error" }),
+    );
+    // The raw error message must not leak into analytics props.
+    for (const call of vi.mocked(track).mock.calls) {
+      expect(JSON.stringify(call[1] ?? {})).not.toContain("Server Error");
+    }
   });
 });

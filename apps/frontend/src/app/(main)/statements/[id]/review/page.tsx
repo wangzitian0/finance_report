@@ -9,6 +9,7 @@ import { ChevronLeft } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import type { MoneyValue } from "@/lib/types";
 
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
@@ -117,6 +118,9 @@ export default function StatementReviewPage() {
         }),
         onSuccess: (result) => {
             const createdCount = result.journal_entries_created ?? 0;
+            // EPIC-022 AC22.18.3 (#1109): instrument the Stage-1 review approval.
+            // statement_id is a non-PII opaque identifier.
+            track(ANALYTICS_EVENTS.REVIEW_APPROVED, { statement_id: statementId });
             showToast(`Statement approved. ${createdCount} journal entries posted.`, "success");
             setApproveDialogOpen(false);
             router.push(

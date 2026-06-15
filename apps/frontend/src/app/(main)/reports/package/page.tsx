@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { SkeletonBlock } from "@/components/ui";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/currency";
 import { formatDateInput } from "@/lib/date";
@@ -353,6 +354,9 @@ export default function PersonalReportPackagePage() {
     setSnapshotError(null);
     try {
       await generatePackageSnapshot(selectedFrameworkId, reportDate);
+      // EPIC-022 AC22.18.3 (#1109): instrument report-package generation. The
+      // framework id is a safe, non-PII selector (e.g. personal_us_gaap_like).
+      track(ANALYTICS_EVENTS.REPORT_GENERATED, { framework_id: selectedFrameworkId });
       await refetchPackageSnapshots();
     } catch (err) {
       setSnapshotError(

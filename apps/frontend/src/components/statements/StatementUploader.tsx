@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { fetchAiModels } from "@/lib/aiModels";
 import { useToast } from "@/components/ui/Toast";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 const STORAGE_KEY = "statement_model_v1";
 
@@ -189,7 +190,11 @@ export default function StatementUploader({
             }
 
             const { apiUpload } = await import("@/lib/api");
+            // EPIC-022 AC22.18.3 (#1109): instrument the upload funnel. Only safe,
+            // non-PII context (file type) is sent — never the filename or contents.
+            track(ANALYTICS_EVENTS.UPLOAD_STARTED, { is_csv: isCsvFile });
             await apiUpload("/api/statements/upload", formData);
+            track(ANALYTICS_EVENTS.UPLOAD_SUCCEEDED, { is_csv: isCsvFile });
 
             showToast(
                 isCsvFile ? "Statement uploaded! CSV parsing in progress..." : "Statement uploaded! AI parsing in progress...",
@@ -200,6 +205,12 @@ export default function StatementUploader({
             onUploadComplete?.();
         } catch (err) {
             const message = err instanceof Error ? err.message : "Upload failed";
+            // EPIC-022 AC22.18.3 (#1109): record the failure with a coarse error
+            // category only — never the raw message, filename, or amounts.
+            track(ANALYTICS_EVENTS.UPLOAD_FAILED, {
+                is_csv: isCsvFile,
+                error_category: err instanceof Error ? "error" : "unknown",
+            });
             setError(message);
             onError?.(message);
         } finally {

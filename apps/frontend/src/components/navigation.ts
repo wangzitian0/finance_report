@@ -55,8 +55,10 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/attention": { label: "Needs attention", Icon: ShieldCheck },
     // Legacy routes redirect to the new IA; keep label/icon mappings so any
     // persisted workspace tabs or breadcrumbs render with the new names.
+    // #1118: `/events` is permanently redirected to `/notifications` and is no
+    // longer aliased here — `/notifications` is the single canonical path/label,
+    // so the legacy "Notifications" label can no longer leak via the stale path.
     "/dashboard": { label: "Home", Icon: Home },
-    "/events": { label: "Notifications", Icon: Bell },
     "/accounts": { label: "Accounts", Icon: Landmark },
     "/journal": { label: "Journal", Icon: BookOpen },
     "/statements": { label: "Statements", Icon: UploadCloud },

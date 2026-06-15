@@ -3,10 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
 import { apiDownload, apiFetch } from "@/lib/api";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 vi.mock("@/lib/api", () => ({
   apiDownload: vi.fn(),
   apiFetch: vi.fn(),
+}));
+
+vi.mock("@/lib/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/analytics")>()),
+  track: vi.fn(),
 }));
 
 const mockedApiDownload = vi.mocked(apiDownload);
@@ -579,6 +585,7 @@ describe("PersonalReportPackagePage", () => {
   afterEach(() => {
     mockedApiDownload.mockReset();
     mockedApiFetch.mockReset();
+    vi.mocked(track).mockReset();
   });
 
   it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {
@@ -934,6 +941,51 @@ describe("PersonalReportPackagePage", () => {
 
     createObjectUrl.mockRestore();
     revokeObjectUrl.mockRestore();
+  });
+
+  it("AC22.18.3 tracks REPORT_GENERATED with the framework id after a successful snapshot", async () => {
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Generate Snapshot/i }));
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/reports/package/generate",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+
+    await waitFor(() =>
+      expect(vi.mocked(track)).toHaveBeenCalledWith(
+        ANALYTICS_EVENTS.REPORT_GENERATED,
+        expect.objectContaining({ framework_id: "personal_us_gaap_like" }),
+      ),
+    );
+  });
+
+  it("AC22.18.3 does not track REPORT_GENERATED when snapshot generation fails", async () => {
+    mockPackageApi(
+      readiness,
+      frameworkPolicy,
+      traceabilityAppendix,
+      lineageResponse,
+      [packageSnapshot],
+      new Error("Snapshot generation failed"),
+    );
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Generate Snapshot/i }));
+
+    expect(await screen.findByText("Snapshot generation failed")).toBeInTheDocument();
+    expect(vi.mocked(track)).not.toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.REPORT_GENERATED,
+      expect.anything(),
+    );
   });
 
   it("AC5.19.4 surfaces package snapshot generation failures", async () => {
