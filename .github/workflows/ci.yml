@@ -166,11 +166,17 @@ jobs:
           uv run python ../../tools/generate_db_schema_reference.py --check
       - name: AC Index Consistency Check
         run: |
-          # Exactly TWO gates over the AC-keyed graph (replaces the per-view
-          # byte-compares for the critical-proof, vision-proof, and EPIC-status
-          # aggregate views): A) INTEGRITY (hard: every AC managed + no dangling
-          # link) and B) PROTECTION RATCHET (per-type count floor over
-          # protection-floor.json; the per-AC score floor runs via the ratchet).
+          # The SINGLE AC-index gate, exactly TWO gates over the AC-keyed graph:
+          # A) INTEGRITY (hard) — every AC managed + no dangling link, PLUS the
+          #    two folded former-standalone contracts: CI-stage traceability
+          #    (mandatory ACs must resolve to a real ref in a CI-required stage,
+          #    with placeholder/stub/unexecuted classifications) and the
+          #    critical-proof matrix contract (trust_mode/mirror/markers/scope/
+          #    ci_tier/manual-gate evidence + macro-outcome shape). The old
+          #    check_ac_traceability / check_critical_proof_matrix gate STEPS are
+          #    retired; their logic runs here by importing them as libraries.
+          # B) PROTECTION RATCHET — per-type count floor over protection-floor.json
+          #    (the per-AC score floor runs in the ac-behavioral-ratchet job).
           uv run --with pyyaml python tools/check_ac_index.py
       - name: SSOT Ownership Lint
         run: |
@@ -961,21 +967,15 @@ jobs:
           set +e
           uv run --with pyyaml python tools/generate_ac_registry.py --check
           registry_status=$?
-          uv run --with pyyaml python tools/check_ac_traceability.py
-          ac_status=$?
+          # NOTE: the AC-index gate is exactly TWO gates and runs ONCE, in the
+          # fast `lint` job (`tools/check_ac_index.py`). Its Gate A INTEGRITY now
+          # FOLDS the former standalone `check_ac_traceability` (CI-stage
+          # traceability classifications) and `check_critical_proof_matrix`
+          # (per-proof trust/mirror/marker + macro-outcome contract) by calling
+          # those modules as libraries — so they are no longer separate CI gate
+          # STEPS here (no protection lost, no double-run of the index gate).
           uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md"
           e2e_status=$?
-          # Two-gate AC-index check over the AC-keyed graph. Gate A INTEGRITY: no
-          # dangling @ac_proof / vision item / macro outcome, every mandatory
-          # active AC resolves to a real test reference, every AC managed. Gate B
-          # PROTECTION RATCHET: per-type protection count floor never regresses.
-          uv run --with pyyaml python tools/check_ac_index.py
-          ac_index_status=$?
-          # The critical-proof matrix is a DERIVED (not committed) view; the
-          # semantic validation builds the matrix in-memory from the @ac_proof
-          # decorators and the macro-outcome source, then validates it.
-          uv run --with pyyaml python tools/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
-          critical_status=$?
           uv run --with pyyaml python tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
           audit_status=$?
           mkdir -p "$RUNNER_TEMP/reconciliation-audit"
@@ -1000,15 +1000,15 @@ jobs:
             echo "Gate Status"
             echo "-----------"
             echo "generate_ac_registry=$registry_status"
-            echo "check_ac_traceability=$ac_status"
             echo "check_e2e_epic_traceability=$e2e_status"
-            echo "check_ac_index=$ac_index_status"
-            echo "check_critical_proof_matrix=$critical_status"
             echo "build_ac_traceability=$audit_status"
             echo "reconciliation_audit_gate=$reconciliation_audit_status"
+            echo ""
+            echo "NOTE: CI-stage traceability + critical-proof-matrix contracts are"
+            echo "now folded into the single check_ac_index gate (lint job)."
           } > "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md"
 
-          if [ "$registry_status" -ne 0 ] || [ "$ac_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$ac_index_status" -ne 0 ] || [ "$critical_status" -ne 0 ] || [ "$audit_status" -ne 0 ] || [ "$reconciliation_audit_status" -ne 0 ]; then
+          if [ "$registry_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$audit_status" -ne 0 ] || [ "$reconciliation_audit_status" -ne 0 ]; then
             exit 1
           fi
 
@@ -1020,7 +1020,6 @@ jobs:
           path: |
             ${{ runner.temp }}/AC-TEST-TRACEABILITY-AUDIT.md
             ${{ runner.temp }}/E2E-EPIC-TRACEABILITY.md
-            ${{ runner.temp }}/CRITICAL-PROOF-MATRIX.md
             ${{ runner.temp }}/AC-TRACEABILITY-CONTEXT.md
             ${{ runner.temp }}/reconciliation-audit/reconciliation-audit.json
             ${{ runner.temp }}/reconciliation-audit/reconciliation-audit.md

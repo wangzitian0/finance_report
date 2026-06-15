@@ -107,7 +107,7 @@ def _consistent_graph() -> AcGraph:
 
 def test_AC8_13_139_gate_passes_on_consistent_tree() -> None:
     """AC8.13.139: the gate reports no errors on a consistent graph."""
-    assert gate.check_graph(_consistent_graph()) == []
+    assert gate.check_integrity(_consistent_graph()) == []
 
 
 def test_AC8_13_139_gate_fails_on_dangling_vision_item() -> None:
@@ -121,7 +121,7 @@ def test_AC8_13_139_gate_fails_on_dangling_vision_item() -> None:
             ac_ids=(),
         )
     )
-    errors = gate.check_graph(graph)
+    errors = gate.check_integrity(graph)
     assert any("dangling" in e and "dangling vision" in e for e in errors), errors
 
 
@@ -130,13 +130,13 @@ def test_AC8_13_139_gate_fails_on_proof_missing_test_or_ac() -> None:
     # (a) proof names an AC id that is not in the registry.
     graph = _consistent_graph()
     graph.proofs.append(_proof("p-bad-ac", ("AC9.9.9",), file=REAL_FILE, test=REAL_TEST))
-    errors = gate.check_graph(graph)
+    errors = gate.check_integrity(graph)
     assert any("unknown AC id" in e and "AC9.9.9" in e for e in errors), errors
 
     # (b) proof names a test function that does not exist.
     graph2 = _consistent_graph()
     graph2.proofs.append(_proof("p-bad-test", ("AC8.13.139",), file=REAL_FILE, test="no_such_test_fn"))
-    errors2 = gate.check_graph(graph2)
+    errors2 = gate.check_integrity(graph2)
     assert any("does not resolve to a real test" in e for e in errors2), errors2
 
 
@@ -144,13 +144,15 @@ def test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof() -> None:
     """AC8.13.139: a mandatory, active AC with no real test reference fails."""
     graph = _consistent_graph()
     graph.nodes["AC8.13.140"] = _ac("AC8.13.140", mandatory=True, has_test=False)
-    errors = gate.check_graph(graph)
+    errors = gate.check_integrity(graph)
     assert any("AC8.13.140" in e and "no real test reference" in e for e in errors), errors
 
     # A deprecated (strikethrough) AC with no test is excluded, not a failure.
+    # (Synthetic id AC8.13.900 — not a real registry id — so it never collides
+    # with a registered AC.)
     graph2 = _consistent_graph()
     deprecated = AcNode(
-        id="AC8.13.141",
+        id="AC8.13.900",
         epic=8,
         epic_name="testing-strategy",
         description="~~retired criterion~~",
@@ -159,15 +161,15 @@ def test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof() -> None:
         proof_ids=(),
         score=None,
     )
-    graph2.nodes["AC8.13.141"] = deprecated
-    assert all("AC8.13.141" not in e for e in gate.check_graph(graph2))
+    graph2.nodes["AC8.13.900"] = deprecated
+    assert all("AC8.13.900" not in e for e in gate.check_integrity(graph2))
 
 
 def test_AC8_13_139_gate_fails_on_macro_outcome_missing_proof() -> None:
     """AC8.13.139: a macro outcome's proof_ids must resolve to a declared proof."""
     graph = _consistent_graph()
     graph.outcomes.append(Outcome(id="o-bad", proof_ids=("no-such-proof",), raw={"id": "o-bad"}))
-    errors = gate.check_graph(graph)
+    errors = gate.check_integrity(graph)
     assert any("no-such-proof" in e and "does not resolve" in e for e in errors), errors
 
 

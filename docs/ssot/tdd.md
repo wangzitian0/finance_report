@@ -89,9 +89,12 @@ E2E-like assets outside declared product or non-product roots.
 Core product journeys have one extra guard: the **critical-proof matrix**, a
 DERIVED (not committed) view of the one AC-keyed graph. It owns the macro
 README -> EPIC -> E2E contract for the closed set of core vision outcomes.
-`tools/check_critical_proof_matrix.py` keeps the README outcome table, matrix
+The `check_critical_proof_matrix` module keeps the README outcome table, matrix
 rows, owner EPIC reverse declarations, and explicit E2E proof anchors in sync.
-It is not a general-purpose semantic parser for all tests.
+It is not a general-purpose semantic parser for all tests. It is no longer a
+standalone CI gate step: its contract is folded into the single
+`tools/check_ac_index.py` gate (which calls it as a library), and it remains
+runnable directly for local validation / report rendering.
 
 The matrix `proofs` section comes from the co-located `@ac_proof(...)` decorator
 on each critical-proof test (`common/testing/ac_proof.py`), statically scanned
@@ -127,8 +130,8 @@ Macro and micro proof are intentionally separate:
 
 - **Macro**: README -> EPIC -> E2E, a derived view of the AC graph (macro
   outcome source `docs/ssot/critical-proof-outcomes.yaml` + `@ac_proof`
-  decorators) enforced bidirectionally by
-  `tools/check_critical_proof_matrix.py`.
+  decorators) enforced bidirectionally by the `check_critical_proof_matrix`
+  contract, now folded into the single `tools/check_ac_index.py` gate.
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
   and AC traceability gates.
 
@@ -172,15 +175,24 @@ times. The final model removes that:
 - **Exactly TWO gates.** `tools/check_ac_index.py` builds the graph once and runs
   exactly two gates (two labelled report sections, `[INTEGRITY]` and
   `[PROTECTION]`), replacing the three per-view byte-compares:
-  - **Gate A — INTEGRITY (hard, binary):** `check_integrity(graph)`. One predicate
-    — "does this reference obligation resolve?" — over every edge type. It asserts
-    every AC is *managed* (enumerated with a protection record — an all-zero/empty
-    record is VALID; managed means present in the structure, not that it has a
-    test) AND there is no dangling reference: every `@ac_proof` points at a real
-    test and real AC ids; every vision item with an owning EPIC backs >=1 AC; every
-    macro outcome's `proof_ids` resolve; and every mandatory non-deprecated AC
-    resolves to >=1 real test reference. The engine is unified but the
-    per-edge-type error wording is preserved verbatim from the legacy checks.
+  - **Gate A — INTEGRITY (hard, binary):** `check_integrity(graph)` plus
+    `check_repo_contracts(repo_root)`. One predicate — "does this reference
+    obligation resolve?" — over every edge type. It asserts every AC is *managed*
+    (enumerated with a protection record — an all-zero/empty record is VALID;
+    managed means present in the structure, not that it has a test) AND there is no
+    dangling reference: every `@ac_proof` points at a real test and real AC ids;
+    every vision item with an owning EPIC backs >=1 AC; every macro outcome's
+    `proof_ids` resolve; and every mandatory non-deprecated AC resolves to >=1 real
+    test reference. INTEGRITY additionally FOLDS IN the two contracts that used to
+    run as SEPARATE CI gate steps, by CALLING those modules as libraries (not
+    reimplementing them): **CI-stage traceability** (`check_ac_traceability.run_traceability`
+    + `traceability_failure_messages` — a mandatory active AC must resolve to a real
+    reference in a CI-REQUIRED execution stage, with the
+    placeholder-only/stub-only/unexecuted-only/missing classifications) and the
+    **critical-proof contract** (`check_critical_proof_matrix.validate_matrix_contract`
+    — trust_mode/mirror/required_markers/scope/ci_tier + manual_gate evidence +
+    macro-outcome shape). The engine is unified but the per-edge-type and
+    per-contract error wording is preserved verbatim from the legacy checks.
   - **Gate B — PROTECTION RATCHET (soft, monotonic, per type):** two conflict-safe
     sub-parts that must never regress. *Part 1* is the per-AC behavioural-score
     floor over `ac-score-baseline.jsonl` (delegated unchanged to
@@ -201,10 +213,23 @@ times. The final model removes that:
 The distinction that still matters: a *derived view* is rebuilt from the sharded
 sources on every read and is never committed; the *persisted ratchet* is kept on
 disk because regenerating it from current scores would erase the floor it exists
-to protect. The two protection layers — the L2 critical-proof semantic gate
-(`tools/check_critical_proof_matrix.py`) and the L3 behavioral-score ratchet
-(`tools/check_ac_score_baseline.py`) — are unchanged; only the storage of the
-aggregate views moved from committed-materialized to derived-on-demand.
+to protect.
+
+**One gate entry, two gates, no separate standalone steps.** `tools/check_ac_index.py`
+is the SINGLE AC-index gate entry point. The CI-stage traceability check
+(`check_ac_traceability`) and the critical-proof matrix contract
+(`check_critical_proof_matrix`) are no longer SEPARATE CI gate steps — their
+logic is folded into Gate A INTEGRITY (above) by importing them as LIBRARIES, so
+the SAME code runs and every failure they ever caught still fails the one gate
+with the same message. Those two modules remain importable libraries (their own
+unit tests still exercise them directly, and `tools/generate_critical_proof_matrix.py`
+still renders the matrix on demand); they are simply not invoked as their own CI
+gates any more. The gate runs ONCE, in the fast `lint` job; the `ac-traceability`
+CI job no longer re-runs it. The L3 behavioral-score ratchet
+(`tools/check_ac_score_baseline.py`) stays enforced separately in the
+`ac-behavioral-ratchet` job (it needs the junit aggregate). Only the storage of
+the aggregate views moved from committed-materialized to derived-on-demand; no
+protection was weakened.
 
 ## SSOT Governance Metrics
 
@@ -341,8 +366,10 @@ Use these before claiming a documentation or implementation change is aligned:
 python tools/generate_ac_registry.py --check
 python tools/analyze_test_ac_coverage.py --no-write --stdout
 python tools/check_e2e_epic_traceability.py
+# The single AC-index gate (two gates). Its INTEGRITY gate folds in the former
+# standalone CI-stage traceability and critical-proof-matrix contracts, so those
+# are no longer separate required gate runs.
 python tools/check_ac_index.py
-python tools/check_critical_proof_matrix.py
 python tools/check_manifest.py
 python tools/check_ssot_ownership.py
 ```

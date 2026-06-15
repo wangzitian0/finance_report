@@ -20,10 +20,31 @@ target exists. It catches:
 * every vision item that owns at least one EPIC backs at least one AC (no
   dangling vision promise);
 * every mandatory, non-deprecated AC resolves to >=1 real test reference (the
-  traceability invariant — kept a HARD integrity rule, identical to before).
+  graph-level traceability mirror).
 
-The per-edge-type ERROR WORDING is preserved verbatim from the four legacy
-functions; only the engine is unified, so fixability is unchanged.
+INTEGRITY additionally folds in the two checks that used to run as SEPARATE CI
+gate steps, by CALLING those modules as libraries (not reimplementing them), so
+the SAME code runs and no protection is weakened:
+
+* **CI-stage traceability** (``check_ac_traceability.run_traceability`` +
+  ``traceability_failure_messages``): a mandatory AC's test reference must land
+  in a CI-REQUIRED execution stage (per ``docs/ssot/test-execution-matrix.yaml``),
+  with the placeholder-only / stub-only / unexecuted-only / missing
+  classifications and their verbatim ``TRACEABILITY GATE FAILED`` wording. This
+  is strictly stronger than the graph-level mirror above (it also fails an AC
+  whose only real reference sits in a non-CI stage, and distinguishes
+  placeholder/stub references).
+* **Critical-proof contract** (``check_critical_proof_matrix.validate_matrix_contract``):
+  the per-proof contract — valid ``trust_mode``, ``mirror_proof_id`` required for
+  ``llm_ocr_post_merge`` proofs (mirror must exist + be deterministic_pr in
+  pr_ci), ``required_markers`` present on the anchored test, valid ``scope`` /
+  ``ci_tier``, ``manual_gate`` requires evidence, and the macro-outcome /
+  README-sync shape — with that module's verbatim error wording.
+
+The per-edge-type ERROR WORDING is preserved verbatim from the legacy functions;
+only the engine is unified, so fixability is unchanged. The two folded modules
+remain importable LIBRARIES (their own unit tests still run them directly); they
+are simply no longer SEPARATE CI gate steps.
 
 **Gate B — PROTECTION RATCHET (soft, monotonic, per type).** Two conflict-safe,
 never-regressing sub-parts:
@@ -36,13 +57,16 @@ never-regressing sub-parts:
    protection only raises the current count and passes WITHOUT editing the floor
    file; the floor is bumped only by the explicit ``--update-floor`` action.
 
-``main()`` runs Gate A then Gate B and exits 1 if either fails. On pass it prints
-the per-type protection dashboard so the gate REPORTS the protection levels even
-though only a floor regression fails it.
+``main()`` runs Gate A (graph obligations + the two folded repo contracts) then
+Gate B and exits 1 if either fails. On pass it prints the per-type protection
+dashboard so the gate REPORTS the protection levels even though only a floor
+regression fails it.
 
-The full critical-proof semantic contract (proof shape, trust modes, README
-macro-outcome sync, behavioural anchors) stays owned by
-``tools/check_critical_proof_matrix.py``.
+This is the SINGLE AC-index gate entry point. The old standalone
+``tools/check_ac_traceability.py`` and ``tools/check_critical_proof_matrix.py``
+CI gate STEPS are retired; their logic is folded into Gate A here (by importing
+them as libraries), so every failure they caught still fails this gate with the
+same wording.
 """
 
 from __future__ import annotations
@@ -229,28 +253,33 @@ def check_integrity(graph: AcGraph) -> list[str]:
     return [ob.message for ob in _integrity_obligations(graph) if not ob.ok]
 
 
-# Backwards-compatible thin views onto the unified obligation engine. They keep
-# the exact same return shape (and messages) as before so existing callers/tests
-# that import the individual checks keep working.
-def check_proof_edges(graph: AcGraph) -> list[str]:
-    return [ob.message for ob in _proof_obligations(graph) if not ob.ok]
+def check_repo_contracts(repo_root: Path) -> list[str]:
+    """Gate A, repo half: the two folded former-standalone gate contracts.
 
+    These are the rules the graph-only obligations do NOT cover, run by CALLING
+    the original modules as libraries (no reimplementation, so no drift):
 
-def check_macro_outcomes(graph: AcGraph) -> list[str]:
-    return [ob.message for ob in _macro_outcome_obligations(graph) if not ob.ok]
+    1. **CI-stage traceability** — every mandatory active AC must resolve to a
+       real reference in a CI-REQUIRED execution stage; emits the verbatim
+       ``TRACEABILITY GATE FAILED`` message (unexecuted-only / placeholder-only /
+       stub-only / missing) from ``check_ac_traceability``.
+    2. **Critical-proof contract** — the per-proof + macro-outcome contract from
+       ``check_critical_proof_matrix.validate_matrix_contract`` (trust_mode,
+       mirror, required_markers, scope/ci_tier, manual_gate evidence, README
+       sync), with that module's verbatim error wording.
 
+    Returns the combined list of failure messages (empty when both pass).
+    """
+    from common.ssot.check_ac_traceability import (
+        run_traceability,
+        traceability_failure_messages,
+    )
+    from common.ssot.check_critical_proof_matrix import validate_matrix_contract
 
-def check_vision_items(graph: AcGraph) -> list[str]:
-    return [ob.message for ob in _vision_obligations(graph) if not ob.ok]
-
-
-def check_mandatory_traceability(graph: AcGraph) -> list[str]:
-    return [ob.message for ob in _mandatory_traceability_obligations(graph) if not ob.ok]
-
-
-def check_graph(graph: AcGraph) -> list[str]:
-    """Run Gate A (INTEGRITY) over the graph. Alias for :func:`check_integrity`."""
-    return check_integrity(graph)
+    errors: list[str] = []
+    errors.extend(traceability_failure_messages(run_traceability(repo_root)))
+    errors.extend(validate_matrix_contract(repo_root).errors)
+    return errors
 
 
 # ---------------------------------------------------------------------------
@@ -335,12 +364,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # ---- Gate A: INTEGRITY (hard) ----
-    integrity_errors = check_integrity(graph)
+    # Graph obligations (managed + dangling links) plus the two folded repo
+    # contracts (CI-stage traceability + critical-proof matrix), run as one gate.
+    integrity_errors = check_integrity(graph) + check_repo_contracts(repo_root)
     if integrity_errors:
         for error in integrity_errors:
             print(f"::error title=AC index INTEGRITY::{error}", file=sys.stderr)
         print(
-            f"[INTEGRITY] FAILED: {len(integrity_errors)} dangling/missing link(s).",
+            f"[INTEGRITY] FAILED: {len(integrity_errors)} dangling/missing link(s) "
+            "or folded traceability/critical-proof contract violation(s).",
             file=sys.stderr,
         )
         return 1
@@ -349,7 +381,8 @@ def main(argv: list[str] | None = None) -> int:
         "[INTEGRITY] PASSED: "
         f"{len(graph.nodes)} AC node(s) managed, {len(graph.proofs)} @ac_proof "
         f"edge(s), {len(graph.vision_items)} vision item(s), {len(graph.outcomes)} "
-        "macro outcome(s); no dangling/missing links."
+        "macro outcome(s); no dangling/missing links; CI-stage traceability + "
+        "critical-proof contract intact."
     )
 
     # ---- Gate B: PROTECTION RATCHET (soft, monotonic, per type) ----
