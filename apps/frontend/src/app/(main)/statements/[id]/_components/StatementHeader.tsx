@@ -59,6 +59,7 @@ export function StatementHeader({
                 </Link>
                 {canImport && (
                     <button
+                        type="button"
                         onClick={onBrokerageImport}
                         disabled={importLoading}
                         className="btn-secondary flex items-center gap-2"
@@ -76,6 +77,7 @@ export function StatementHeader({
                 )}
                 {canRetry && (
                     <button
+                        type="button"
                         onClick={onRetry}
                         disabled={retryLoading}
                         className="btn-secondary flex items-center gap-2"
