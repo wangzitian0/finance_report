@@ -52,11 +52,14 @@ Important Rules:
 10. Include "balance_after" showing the running balance after the transaction (from the balance column if present)
 11. Auto-detect the institution name from the document header/logo and return it in the "institution" field
 12. For each transaction, suggest a category from: Food & Dining, Transport, Shopping, Utilities, Salary, Transfer, Investment, Insurance, Rent, Healthcare, Entertainment, Education, Subscriptions, Other. Set "suggested_category" and "category_confidence" (0.0-1.0). If unsure, use "Other" with low confidence.
+13. MULTI-SECTION STATEMENTS: a statement may contain more than one transaction section (e.g. "SAVINGS - TRANSACTION DETAILS" and "INVESTMENTS - TRANSACTION DETAILS"). Extract transactions from EVERY section, but record each cash movement EXACTLY ONCE. A transfer or fund purchase/redemption between the user's own accounts (e.g. "Buy - Mari Invest" / "Sell - Mari Invest") is shown as a cash movement in one section AND mirrored in another - include ONLY the single cash leg that moves THIS statement's balance (a purchase/"Buy" reduces cash -> OUT; a redemption/"Sell" adds cash -> IN), and do NOT also add the mirrored row from the other section as a second transaction. Do NOT skip transfers between the user's own accounts, and do NOT double-count them.
+14. COMPLETENESS SELF-CHECK (do this before returning): reconcile EACH currency separately. For every currency present, opening_balance + sum(IN) - sum(OUT) for that currency MUST equal that currency's closing balance within 0.10. Never add amounts across different currencies. The top-level opening_balance/closing_balance are for the statement's primary currency. If a currency does NOT balance, you have either missed, duplicated, or mis-signed a transaction: use the running balance ("balance_after" / the daily balance column) to locate the day where the balance jumps and correct it using ONLY what the document actually shows. NEVER invent, fabricate, or alter transactions or balances to force a match - if the document genuinely does not reconcile, return exactly what is shown.
+15. FOREIGN-EXCHANGE / CROSS-CURRENCY: if a line converts one currency to another (e.g. "Converted 1,000 SGD to 740 USD"), record the leg in the currency that actually moved on THIS statement and set its "currency" accordingly; preserve the other currency, the exchange rate, and any fee/spread in "raw_text" (and "reference" if shown). List a separately-shown fee as its own transaction.
 """
 
 VALIDATION_PROMPT = """Verify the extracted data:
 
-1. Balance check: opening_balance + sum(IN) - sum(OUT) ≈ closing_balance (tolerance: 0.10)
+1. Balance check: opening_balance + sum(IN) - sum(OUT) ≈ closing_balance (tolerance: 0.10), computed per currency - never sum amounts across different currencies. Only perform a per-currency balance check when the document actually provides that currency's opening and closing balance.
 2. Date check: All transaction dates should be within period_start and period_end
 3. Completeness: No missing required fields
 
@@ -146,9 +149,11 @@ GXS Bank Singapore statement:
     "MariBank": """
 MariBank Singapore statement:
 - Digital bank monthly statement
+- Sections: SAVINGS transaction details, INVESTMENTS transaction details, and a daily SAVINGS interest-details table
 - PayNow transfers to merchants
-- Interest entries
+- Interest: a single total "Interest" line appears in the savings transaction table. The daily interest-details table is informational - do NOT also add each day as a separate transaction.
 - Credit card repayments
+- Fund transfers with Mari Invest: "Buy - Mari Invest" (cash OUT of savings) and "Sell - Mari Invest" (cash IN to savings) - always include these savings-side cash legs
 """,
 }
 
