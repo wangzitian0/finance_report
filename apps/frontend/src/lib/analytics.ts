@@ -54,12 +54,21 @@ const PII_KEY_PATTERN =
 /** A value that looks like an email address is dropped even under a benign key. */
 const EMAIL_VALUE_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** A long unbroken digit run is treated as an account/card number and dropped. */
-const ACCOUNT_NUMBER_VALUE_PATTERN = /\d{8,}/;
+/**
+ * Treat a value as an account/card number only when it is *entirely* digits
+ * (optionally grouped by spaces or dashes) and long. This deliberately preserves
+ * opaque alphanumeric ids — e.g. UUID `statement_id`s, which contain letters —
+ * so legitimate funnel context is not stripped, while real account/card strings
+ * (`12345678`, `1234 5678 9012 3456`) are still dropped.
+ */
+function isAccountNumberLike(value: string): boolean {
+  const compact = value.replace(/[\s-]/g, "");
+  return /^\d{8,}$/.test(compact);
+}
 
 function isPiiValue(value: AnalyticsPropValue): boolean {
   if (typeof value !== "string") return false;
-  return EMAIL_VALUE_PATTERN.test(value) || ACCOUNT_NUMBER_VALUE_PATTERN.test(value);
+  return EMAIL_VALUE_PATTERN.test(value) || isAccountNumberLike(value);
 }
 
 /**

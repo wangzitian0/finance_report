@@ -86,4 +86,14 @@ describe("analytics track wrapper (EPIC-022 AC22.18.2)", () => {
       page: 2,
     });
   });
+
+  it("AC22.18.2 keeps opaque UUID ids but still drops pure-digit account strings", () => {
+    // UUID statement_ids contain letters, so the all-digit account heuristic must
+    // not strip them (a UUID node segment can be 12 consecutive digits).
+    expect(
+      sanitizeAnalyticsProps({ statement_id: "550e8400-e29b-41d4-a716-446655440000" }),
+    ).toEqual({ statement_id: "550e8400-e29b-41d4-a716-446655440000" });
+    // A grouped, all-digit value is treated as an account/card number and dropped.
+    expect(sanitizeAnalyticsProps({ ref: "1234 5678 9012 3456" })).toEqual({});
+  });
 });
