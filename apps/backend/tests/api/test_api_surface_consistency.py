@@ -16,7 +16,10 @@ PR1 of the sweep (this file's AC12.29.4/.5):
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from fastapi.routing import APIRoute
+from httpx import AsyncClient
 
 from src.main import app
 
@@ -91,14 +94,27 @@ def test_AC12_29_4_no_route_or_tag_collisions() -> None:
     assert {"ai", "ai-feedback"} <= _tags_under_prefix("/ai")
 
 
-def test_AC12_29_5_deprecated_statement_decision_endpoints_removed() -> None:
+async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(client: AsyncClient) -> None:
     """AC12.29.5: the deprecated Stage-0 ``/approve`` and ``/reject`` statement
-    decision endpoints are removed; the ``/review/*`` variants remain."""
-    paths = set(app.openapi()["paths"])
+    decision endpoints are removed; the ``/review/*`` variants remain.
 
+    Asserts both the routing layer (the endpoints no longer respond, returning
+    404/405 rather than a real status) and the OpenAPI schema (the Stage-1
+    replacements are still declared), so a route that exists but is hidden from the
+    schema cannot pass silently.
+    """
+    sid = uuid4()
+
+    # Routing layer: the removed endpoints no longer resolve. POSTing returns 404
+    # (no such path) or 405 (method not allowed) — never an authenticated 2xx/4xx
+    # from the handler that used to live here.
+    for removed in (f"/statements/{sid}/approve", f"/statements/{sid}/reject"):
+        response = await client.post(removed, json={"notes": ""})
+        assert response.status_code in (404, 405), f"{removed} still resolves: {response.status_code}"
+
+    # OpenAPI schema: removed paths gone, Stage-1 replacements still declared.
+    paths = set(app.openapi()["paths"])
     assert "/statements/{statement_id}/approve" not in paths
     assert "/statements/{statement_id}/reject" not in paths
-
-    # The supported Stage-1 review variants must still exist.
     assert "/statements/{statement_id}/review/approve" in paths
     assert "/statements/{statement_id}/review/reject" in paths

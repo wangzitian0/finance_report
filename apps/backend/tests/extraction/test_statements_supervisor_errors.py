@@ -16,15 +16,12 @@ from src.database import create_session_maker_from_db
 from src.models.statement_enums import BankStatementStatus
 from src.models.statement_summary import StatementSummary
 from src.routers.statements import (
-    approve_statement,
     delete_statement,
     get_statement,
     list_statement_transactions,
-    reject_statement,
     retry_statement_parsing,
     upload_statement,
 )
-from src.schemas import StatementDecisionRequest
 from src.services.statement_parsing import parse_statement_background
 from src.services.statement_parsing_supervisor import (
     run_parsing_supervisor,
@@ -146,14 +143,6 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
 
     with pytest.raises(HTTPException) as exc:
         await list_statement_transactions(sid, db, uid)
-    assert exc.value.status_code == 404
-
-    with pytest.raises(HTTPException) as exc:
-        await approve_statement(sid, StatementDecisionRequest(notes=""), db, uid)
-    assert exc.value.status_code == 404
-
-    with pytest.raises(HTTPException) as exc:
-        await reject_statement(sid, StatementDecisionRequest(notes=""), db, uid)
     assert exc.value.status_code == 404
 
     with pytest.raises(HTTPException) as exc:
