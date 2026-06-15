@@ -680,7 +680,14 @@ def _brokerage_import_not_ready_reason(statement: StatementSummary, transaction_
     return f"Statement must be parsed before importing brokerage positions; current status={status_value}"
 
 
-@router.post("/{statement_id}/brokerage/import", response_model=BrokerageImportResponse)
+# Synchronous 200: the import runs inline and returns the full BrokerageImportResponse
+# (counts + reconciliation results), so the operation is complete on response — not a
+# 202 background job (cf. #1099 AC12.29.1).
+@router.post(
+    "/{statement_id}/brokerage/import",
+    response_model=BrokerageImportResponse,
+    status_code=status.HTTP_200_OK,
+)
 async def import_brokerage_statement_positions(
     statement_id: UUID,
     db: DbSession,
@@ -872,7 +879,7 @@ async def approve_statement_stage1(
         await db.commit()
     except ValueError as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
@@ -893,7 +900,7 @@ async def reject_statement_stage1(
         await db.refresh(statement)
         await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 
@@ -916,7 +923,7 @@ async def edit_and_approve_statement(
         await db.commit()
     except ValueError as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
@@ -935,7 +942,7 @@ async def set_statement_opening_balance(
         await set_opening_balance(db, statement_id, user_id, request.opening_balance)
         await db.commit()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     statement = await _get_statement_or_404(db, statement_id, user_id)
     return await _compose_statement_response(db, statement, user_id)
