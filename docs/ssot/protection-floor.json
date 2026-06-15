@@ -1,0 +1,10 @@
+{
+  "_comment": "Per-type PROTECTION COUNT floor (monotonic, raise-only). Normal PRs that ADD protection must NOT edit this file: adding protection only raises the CURRENT count, which passes current>=floor untouched. Bump it ONLY via `tools/check_ac_index.py --update-floor` (a separate lock-in-gains action), so it is almost never in a PR diff and does not become a conflict hotspot. Default all-zero is valid.",
+  "version": 1,
+  "floor": {
+    "has_real_ref": 1642,
+    "has_proof": 45,
+    "has_score": 3,
+    "has_mirror": 33
+  }
+}

@@ -1,16 +1,31 @@
-"""AC8.13.139: one AC-keyed graph, derived views, one consistency gate.
+"""AC8.13.139: one AC-keyed graph, derived views, exactly TWO gates.
 
 The cross-cutting proof/vision/status indexes are unified onto ONE AC-keyed
 graph (``common/ssot/ac_graph.py``). The critical-proof matrix, vision-proof
 matrix, and README EPIC-status table are DERIVED on demand and never
-committed-materialized, and ONE internal-consistency gate
-(``tools/check_ac_index.py``) enforces no dangling/missing link — never a shifted
-total.
+committed-materialized, and the gate over that graph is exactly TWO gates:
 
-These tests assert the gate PASSES on a consistent tree and FAILS on each of the
-four dangling/missing cases (dangling vision item, ``@ac_proof`` pointing at a
-missing test/AC, a mandatory AC with no proof, a ratchet regression), and that no
-committed materialized matrix/vision/status file is required.
+* **Gate A — INTEGRITY (hard).** Every AC is managed (enumerated with a
+  protection record — an all-empty record is valid) and there is no dangling
+  reference: every ``@ac_proof`` resolves to a real test + real AC, every vision
+  item with an owner EPIC backs an AC, every macro outcome's proof_ids resolve,
+  every mandatory active AC has a real test reference. The per-edge-type error
+  wording is preserved verbatim from the four legacy checks.
+* **Gate B — PROTECTION RATCHET (soft, monotonic, per type).** Part 1 is the
+  per-AC behavioural-score floor (``ac-score-baseline.jsonl``, unchanged); part 2
+  is the per-type COUNT floor (``protection-floor.json``): current count of
+  mandatory active ACs at each type must be ``>=`` the committed floor. Adding
+  protection raises the current count and passes WITHOUT editing the floor file;
+  the floor is bumped only by the explicit ``--update-floor`` action. The default
+  all-zero / missing floor is valid.
+
+These tests assert Gate A PASSES on a consistent tree and FAILS on each
+dangling/missing case (dangling vision item, ``@ac_proof`` pointing at a missing
+test/AC, a mandatory AC with no proof, a dead macro outcome) with the SPECIFIC
+message, that an all-empty protection record is still "managed", that Gate B's
+count floor FAILS on a regression and PASSES (no regression) when protection is
+added, that the default empty floor passes, that ``--update-floor`` raises floors,
+and that no committed materialized matrix/vision/status file is required.
 """
 
 from __future__ import annotations
@@ -18,7 +33,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from common.ssot import check_ac_index as gate, check_ac_score_baseline as ratchet
+from common.ssot import (
+    check_ac_index as gate,
+    check_ac_score_baseline as ratchet,
+    protection,
+)
 from common.ssot.ac_graph import AcGraph, AcNode, Outcome, ProofEdge, VisionItem
 from common.ssot.ac_score_baseline_format import write_jsonl
 
@@ -193,6 +212,169 @@ def test_AC8_13_139_gate_fails_on_ratchet_regression(tmp_path) -> None:
         )
         == 1
     )
+
+
+# ---------------------------------------------------------------------------
+# Gate A — INTEGRITY: "every AC is managed" (all-empty record is valid)
+# ---------------------------------------------------------------------------
+
+
+def test_AC8_13_140_every_ac_managed_with_empty_protection_passes() -> None:
+    """AC8.13.140: an AC with an all-empty protection record is still 'managed'.
+
+    Managed means present in the structure, NOT that it has any test. A node with
+    no real test files, no proofs, and no score is a VALID managed record and must
+    NOT make Gate A fail on the 'managed' obligation.
+    """
+    node = AcNode(
+        id="AC8.13.200",
+        epic=8,
+        epic_name="testing-strategy",
+        description="AC8.13.200 description",
+        mandatory=False,  # non-mandatory so traceability does not require a test
+        real_test_files=(),
+        proof_ids=(),
+        score=None,
+    )
+    graph = _consistent_graph()
+    graph.nodes["AC8.13.200"] = node
+    # 'managed' is satisfied (node enumerated); no integrity error mentions it.
+    assert all("AC8.13.200" not in e for e in gate.check_integrity(graph))
+
+
+# ---------------------------------------------------------------------------
+# Gate B part 2 — per-type COUNT floor (monotonic, conflict-safe)
+# ---------------------------------------------------------------------------
+
+
+def _floor_graph() -> AcGraph:
+    """A graph whose mandatory active ACs give known per-type counts.
+
+    AC8.13.139 has a real test ref + a proof (p-1) + a score; AC8.13.99 has a real
+    test ref only. So: has_real_ref=2, has_proof=1, has_score=1, has_mirror=0.
+    """
+    graph = _consistent_graph()
+    scored = graph.nodes["AC8.13.139"]
+    graph.nodes["AC8.13.139"] = AcNode(
+        id=scored.id,
+        epic=scored.epic,
+        epic_name=scored.epic_name,
+        description=scored.description,
+        mandatory=scored.mandatory,
+        real_test_files=scored.real_test_files,
+        proof_ids=("p-1",),
+        score=0.5,
+    )
+    return graph
+
+
+def test_AC8_13_140_count_floor_default_empty_passes(tmp_path) -> None:
+    """AC8.13.140: a missing/empty floor file is valid (brand-new repo passes)."""
+    missing = tmp_path / "no-such-floor.json"
+    result = protection.check_count_floor(_floor_graph(), missing)
+    assert result.errors == []
+    assert result.floor == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+
+
+def test_AC8_13_140_load_floor_rejects_malformed_value(tmp_path) -> None:
+    """AC8.13.140: a malformed floor value is a hard error, not a silent zero.
+
+    Silently coercing a bad floor to 0 would weaken the ratchet (regressions
+    would pass unnoticed), so a present non-integer/negative value raises.
+    """
+    floor_file = tmp_path / "protection-floor.json"
+    floor_file.write_text(
+        json.dumps({"version": 1, "floor": {"has_proof": -3}}), encoding="utf-8"
+    )
+    try:
+        protection.load_floor(floor_file)
+    except ValueError:
+        pass
+    else:  # pragma: no cover - defensive
+        raise AssertionError("load_floor must reject a negative floor value")
+
+    # A MISSING type still defaults to 0 (new repo / newly added type passes).
+    floor_file.write_text(json.dumps({"version": 1, "floor": {}}), encoding="utf-8")
+    assert protection.load_floor(floor_file) == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+
+
+def test_AC8_13_140_write_floor_creates_missing_parent(tmp_path) -> None:
+    """AC8.13.140: write_floor creates the parent directory if it is absent."""
+    nested = tmp_path / "does" / "not" / "exist" / "protection-floor.json"
+    protection.write_floor(nested, dict.fromkeys(protection.PROTECTION_TYPES, 0))
+    assert nested.exists()
+    assert protection.load_floor(nested) == dict.fromkeys(protection.PROTECTION_TYPES, 0)
+
+
+def test_AC8_13_140_count_floor_fails_when_type_drops_below_floor(tmp_path) -> None:
+    """AC8.13.140: a type whose current count drops below its floor is a failure."""
+    floor_file = tmp_path / "protection-floor.json"
+    graph = _floor_graph()  # has_proof current = 1
+    # Commit a floor that requires MORE proofs than currently exist.
+    protection.write_floor(floor_file, {"has_real_ref": 2, "has_proof": 5, "has_score": 1, "has_mirror": 0})
+    result = protection.check_count_floor(graph, floor_file)
+    assert any("has_proof" in e and "regressed" in e for e in result.errors), result.errors
+
+
+def test_AC8_13_140_count_floor_passes_when_protection_added(tmp_path) -> None:
+    """AC8.13.140: adding protection raises the current count; floor file untouched.
+
+    The floor is captured at the current level, then more protection is added. The
+    new (higher) current count still satisfies ``current >= floor`` WITHOUT editing
+    the floor file — the conflict-safety guarantee.
+    """
+    floor_file = tmp_path / "protection-floor.json"
+    graph = _floor_graph()
+    # Lock the floor in at the current counts.
+    protection.update_floor(graph, floor_file)
+    locked = protection.load_floor(floor_file)
+    before = floor_file.read_text(encoding="utf-8")
+
+    # Now ADD protection: give AC8.13.99 a proof too (has_proof 1 -> 2).
+    node99 = graph.nodes["AC8.13.99"]
+    graph.nodes["AC8.13.99"] = AcNode(
+        id=node99.id,
+        epic=node99.epic,
+        epic_name=node99.epic_name,
+        description=node99.description,
+        mandatory=node99.mandatory,
+        real_test_files=node99.real_test_files,
+        proof_ids=("p-1",),
+        score=node99.score,
+    )
+    result = protection.check_count_floor(graph, floor_file)
+    assert result.errors == []  # adding protection never regresses
+    assert result.counts["has_proof"] == locked["has_proof"] + 1
+    # The floor FILE was not touched by adding protection.
+    assert floor_file.read_text(encoding="utf-8") == before
+
+
+def test_AC8_13_140_update_floor_raises_floors(tmp_path) -> None:
+    """AC8.13.140: --update-floor raises floors to current counts (never lowers)."""
+    floor_file = tmp_path / "protection-floor.json"
+    protection.write_floor(floor_file, dict.fromkeys(protection.PROTECTION_TYPES, 0))
+
+    graph = _floor_graph()
+    counts = protection.count_protection_types(graph)
+    raised = protection.update_floor(graph, floor_file)
+    assert raised == counts
+    # Re-running with a LOWER current count never lowers the locked floor.
+    poorer = _consistent_graph()  # has_proof current = 0 (p-1 not bound here? see below)
+    # Strip all proofs so has_proof current drops to 0.
+    poorer.proofs.clear()
+    for ac_id, node in list(poorer.nodes.items()):
+        poorer.nodes[ac_id] = AcNode(
+            id=node.id,
+            epic=node.epic,
+            epic_name=node.epic_name,
+            description=node.description,
+            mandatory=node.mandatory,
+            real_test_files=node.real_test_files,
+            proof_ids=(),
+            score=None,
+        )
+    not_lowered = protection.update_floor(poorer, floor_file)
+    assert not_lowered["has_proof"] >= raised["has_proof"]
 
 
 def test_AC8_13_139_no_committed_materialized_index_files() -> None:

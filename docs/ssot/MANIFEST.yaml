@@ -182,6 +182,8 @@ concepts:
       - docs/ssot/tdd.md
       - docs/ssot/critical-proof-outcomes.yaml
       - docs/ssot/ac-score-baseline.jsonl
+      - docs/ssot/protection-floor.json
+      - common/ssot/protection.py
       - common/testing/ac_proof.py
       - vision.md
       - .github/workflows/ci.yml
@@ -526,6 +528,20 @@ concepts:
       - tools/check_ac_score_baseline.py
       - tools/migrate_proof_index_storage.py
       - tests/tooling/test_ac_evidence_pipeline.py
+
+  protection_count_floor:
+    owner: docs/ssot/protection-floor.json
+    description: Per-type PROTECTION COUNT floor (Gate B part 2 of tools/check_ac_index.py). Monotonic raise-only floor mapping each protection type (has_real_ref, has_proof, has_score, has_mirror) to the minimum count of mandatory active ACs; bumped only by --update-floor so protection-adding PRs never edit it (conflict-safe). Default all-zero is valid.
+    family: tdd
+    kind: baseline
+    parent: tdd_workflow
+    authority: machine_generated
+    cross_refs:
+      - docs/ssot/tdd.md
+      - common/ssot/protection.py
+      - common/ssot/check_ac_index.py
+      - tools/check_ac_index.py
+      - tests/tooling/test_ac_index_consistency.py
 
   critical_proof_matrix:
     owner: common/ssot/generate_critical_proof_matrix.py
