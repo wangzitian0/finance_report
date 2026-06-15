@@ -11,19 +11,19 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 |---|---:|
 | Vision nodes (anchors) | 9 |
 | Vision nodes with an owning EPIC | 9 |
-| Acceptance Criteria mapped | 1841 |
-| ACs with a real test reference | 1838 |
+| Acceptance Criteria mapped | 1845 |
+| ACs with a real test reference | 1842 |
 
 ## Vision nodes
 
 | Vision anchor | Node | Owner EPICs | ACs | ACs with test |
 |---|---|---|---:|---:|
 | `decision-1-portfolio-self-developed` | Portfolio is native. | EPIC-017 | 111 | 111 |
-| `decision-2-event-middle-layer` | Uploaded sources become reviewed records before ledger knowledge. | EPIC-003, EPIC-013, EPIC-018, EPIC-019, EPIC-022 | 373 | 373 |
+| `decision-2-event-middle-layer` | Uploaded sources become reviewed records before ledger knowledge. | EPIC-003, EPIC-013, EPIC-018, EPIC-019, EPIC-022 | 376 | 376 |
 | `decision-3-record-layer` | Uploaded sources become reviewed records before ledger knowledge. | EPIC-011, EPIC-019 | 149 | 149 |
 | `decision-4-two-stage-review` | Review separates source accuracy from batch consistency. | EPIC-004, EPIC-016, EPIC-022 | 378 | 378 |
 | `decision-5-processing-account` | In-transit funds stay visible. | EPIC-015 | 31 | 31 |
-| `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 203 | 200 |
+| `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 204 | 201 |
 | `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 430 | 430 |
 | `non-goals-not-budgeting-app` | Becoming a consumer budgeting app | EPIC-005 | 94 | 94 |
 | `non-goals-not-robo-advisor` | Automated trading, portfolio | EPIC-006 | 72 | 72 |
@@ -152,7 +152,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 
 - **Node**: Uploaded sources become reviewed records before ledger knowledge.
 - **Owner EPICs**: EPIC-003, EPIC-013, EPIC-018, EPIC-019, EPIC-022
-- **ACs**: 373 (373 with a real test reference)
+- **ACs**: 376 (376 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
@@ -320,6 +320,9 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC13.17.12 | EPIC-013 | An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins | `apps/backend/tests/extraction/test_self_consistency.py` |
 | AC13.18.1 | EPIC-013 | The vision model list appends VISION_FALLBACK_MODELS after the primary OCR/vision model, deduplicated and order-preserving, so more than one model is attempted on the vision path | `apps/backend/tests/extraction/test_extraction_error_paths.py` |
 | AC13.18.2 | EPIC-013 | When the primary vision model raises a non-retryable provider error (e.g. a 400), the vision path attempts the configured vision fallback model and succeeds instead of failing the upload | `apps/backend/tests/extraction/test_extraction_error_paths.py` |
+| AC13.19.1 | EPIC-013 | Common non-ISO date formats parse; empty/garbage return None | `apps/backend/tests/extraction/test_tolerant_date_parsing.py` |
+| AC13.19.2 | EPIC-013 | A Chinese-format statement parses instead of being rejected | `apps/backend/tests/extraction/test_tolerant_date_parsing.py` |
+| AC13.19.3 | EPIC-013 | One unparseable row date is non-fatal — the row is skipped, the rest parse | `apps/backend/tests/extraction/test_tolerant_date_parsing.py` |
 | AC18.1.1 | EPIC-018 | 1 | `apps/backend/tests/extraction/test_extraction.py`<br>`apps/backend/tests/extraction/test_extraction_flow.py`<br>`apps/backend/tests/extraction/test_pdf_fixtures.py` |
 | AC18.1.2 | EPIC-018 | 1 | `apps/backend/tests/extraction/test_extraction_flow.py` |
 | AC18.1.3 | EPIC-018 | 1 | `apps/backend/tests/extraction/test_classification_service.py` |
@@ -1119,7 +1122,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 
 - **Node**: The stack stays self-hostable.
 - **Owner EPICs**: EPIC-001, EPIC-007, EPIC-010, EPIC-012
-- **ACs**: 203 (200 with a real test reference)
+- **ACs**: 204 (201 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
@@ -1326,6 +1329,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC12.27.3 | EPIC-012 | Frontend apiFetch throws ApiError carrying the parsed errorId | `apps/frontend/src/__tests__/apiErrorStructured.test.ts` |
 | AC12.28.1 | EPIC-012 | The generator emits the spec from the live OpenAPI schema | `tests/tooling/test_generate_openapi_spec.py` |
 | AC12.28.2 | EPIC-012 | The --check staleness gate fails when the committed spec is stale | `tests/tooling/test_generate_openapi_spec.py` |
+| AC12.28.3 | EPIC-012 | High-traffic call sites type responses against the generated schema | `apps/frontend/src/__tests__/apiTypedClient.test.ts` |
 
 ### `decision-filter-accuracy-auditability`
 

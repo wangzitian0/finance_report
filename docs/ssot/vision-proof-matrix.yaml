@@ -7,8 +7,8 @@ description: Generated vision -> AC -> test proof matrix. Maps every vision.md a
 summary:
   vision_nodes: 9
   vision_nodes_with_owner_epic: 9
-  total_acs: 1841
-  acs_with_real_test: 1838
+  total_acs: 1845
+  acs_with_real_test: 1842
 vision_nodes:
   - anchor: decision-1-portfolio-self-developed
     label: Portfolio is native.
@@ -762,8 +762,8 @@ vision_nodes:
       - EPIC-018
       - EPIC-019
       - EPIC-022
-    ac_count: 373
-    ac_with_test_count: 373
+    ac_count: 376
+    ac_with_test_count: 376
     acs:
       - id: AC3.1.1
         epic: EPIC-003
@@ -1792,6 +1792,24 @@ vision_nodes:
         mandatory: true
         tests:
           - apps/backend/tests/extraction/test_extraction_error_paths.py
+      - id: AC13.19.1
+        epic: EPIC-013
+        description: Common non-ISO date formats parse; empty/garbage return None
+        mandatory: true
+        tests:
+          - apps/backend/tests/extraction/test_tolerant_date_parsing.py
+      - id: AC13.19.2
+        epic: EPIC-013
+        description: A Chinese-format statement parses instead of being rejected
+        mandatory: true
+        tests:
+          - apps/backend/tests/extraction/test_tolerant_date_parsing.py
+      - id: AC13.19.3
+        epic: EPIC-013
+        description: "One unparseable row date is non-fatal \u2014 the row is skipped, the rest parse"
+        mandatory: true
+        tests:
+          - apps/backend/tests/extraction/test_tolerant_date_parsing.py
       - id: AC18.1.1
         epic: EPIC-018
         description: '1'
@@ -6950,8 +6968,8 @@ vision_nodes:
       - EPIC-007
       - EPIC-010
       - EPIC-012
-    ac_count: 203
-    ac_with_test_count: 200
+    ac_count: 204
+    ac_with_test_count: 201
     acs:
       - id: AC1.1.1
         epic: EPIC-001
@@ -8307,6 +8325,12 @@ vision_nodes:
         mandatory: true
         tests:
           - tests/tooling/test_generate_openapi_spec.py
+      - id: AC12.28.3
+        epic: EPIC-012
+        description: High-traffic call sites type responses against the generated schema
+        mandatory: true
+        tests:
+          - apps/frontend/src/__tests__/apiTypedClient.test.ts
   - anchor: decision-filter-accuracy-auditability
     label: Decision Filter
     owner_epics:
