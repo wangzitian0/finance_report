@@ -249,7 +249,15 @@ async def list_restricted_holdings(
 
     # Paginate the deduplicated current-head holdings (dedup must run over the full
     # result set before slicing, so the bound is applied here rather than in SQL).
-    page = list(holdings.values())[pagination.offset : pagination.offset + pagination.limit]
+    # Sort explicitly with a stable tiebreaker (id) instead of relying on dict
+    # insertion order, so offset pagination is deterministic when as_of_date /
+    # created_at tie — otherwise pages could drop or duplicate rows.
+    ordered = sorted(
+        holdings.values(),
+        key=lambda s: (s.as_of_date, s.created_at, s.id),
+        reverse=True,
+    )
+    page = ordered[pagination.offset : pagination.offset + pagination.limit]
     return [
         RestrictedHoldingResponse(
             ticker=snapshot.source,
