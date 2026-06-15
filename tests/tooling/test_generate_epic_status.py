@@ -141,39 +141,33 @@ def test_AC14_1_22_splice_requires_markers() -> None:
     assert spliced.endswith("after\n")
 
 
-def test_AC14_1_22_check_passes_when_block_current(tmp_path: Path, monkeypatch) -> None:
-    """AC14.1.22: --check passes when the committed block matches regeneration."""
-    block = f"{ges.BEGIN_MARKER}\nGENERATED\n{ges.END_MARKER}"
-    monkeypatch.setattr(ges, "generate_block", lambda **_: block)
+def test_AC14_1_22_check_passes_when_block_current(tmp_path: Path) -> None:
+    """AC14.1.22: --check passes when the committed README holds the stable pointer.
+
+    The EPIC-status numbers are a derived (not committed) view, so --check now
+    compares the STABLE pointer block, never the live numbers.
+    """
+    pointer = ges.render_pointer_block()
     doc = tmp_path / "README.md"
-    doc.write_text(f"intro\n{block}\noutro\n", encoding="utf-8")
+    doc.write_text(f"intro\n{pointer}\noutro\n", encoding="utf-8")
 
     assert ges.main(["--output", str(doc), "--check"]) == 0
 
 
-def test_AC14_1_22_check_fails_on_drift(tmp_path: Path, monkeypatch, capsys) -> None:
-    """AC14.1.22: --check fails (drift gate) when the committed block is stale."""
-    fresh = f"{ges.BEGIN_MARKER}\nFRESH\n{ges.END_MARKER}"
-    monkeypatch.setattr(ges, "generate_block", lambda **_: fresh)
+def test_AC14_1_22_check_fails_on_drift(tmp_path: Path, capsys) -> None:
+    """AC14.1.22: --check fails when the committed pointer block is malformed/stale."""
     doc = tmp_path / "README.md"
     doc.write_text(
-        f"intro\n{ges.BEGIN_MARKER}\nSTALE\n{ges.END_MARKER}\noutro\n",
+        f"intro\n{ges.BEGIN_MARKER}\nSTALE numbers\n{ges.END_MARKER}\noutro\n",
         encoding="utf-8",
     )
 
     assert ges.main(["--output", str(doc), "--check"]) == 1
-    assert "stale" in capsys.readouterr().err
+    assert "pointer block" in capsys.readouterr().err.lower()
 
 
-def test_AC14_1_22_check_fails_when_markers_missing(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_AC14_1_22_check_fails_when_markers_missing(tmp_path: Path, capsys) -> None:
     """AC14.1.22: --check fails when the document has no generated block."""
-    monkeypatch.setattr(
-        ges,
-        "generate_block",
-        lambda **_: f"{ges.BEGIN_MARKER}\nX\n{ges.END_MARKER}",
-    )
     doc = tmp_path / "README.md"
     doc.write_text("no markers\n", encoding="utf-8")
 
@@ -182,11 +176,16 @@ def test_AC14_1_22_check_fails_when_markers_missing(
 
 
 def test_AC14_1_22_committed_readme_block_is_current() -> None:
-    """AC14.1.22: the committed README EPIC status block is drift-free."""
+    """AC14.1.22: the committed README EPIC status pointer block is drift-free."""
     repo_root = Path(__file__).resolve().parents[2]
     readme = repo_root / "README.md"
     document = readme.read_text(encoding="utf-8")
     assert ges.BEGIN_MARKER in document, "README is missing the generated EPIC block"
 
-    block = ges.generate_block(repo_root=repo_root)
-    assert ges.splice_block(document, block) == document
+    # The committed block is the STABLE pointer (no live numbers), so a shifted
+    # AC total never makes it stale.
+    pointer = ges.render_pointer_block()
+    assert ges.splice_block(document, pointer) == document
+    # And the live numeric table still renders on demand (derived view).
+    live = ges.generate_block(repo_root=repo_root)
+    assert "| EPIC-001 |" in live

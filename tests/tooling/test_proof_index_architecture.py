@@ -1,13 +1,13 @@
-"""AC8.13.137: conflict-free storage for cross-cutting proof-index artifacts.
+"""AC8.13.137: conflict-free storage for the PERSISTED ratchet baseline.
 
-Two kinds, treated differently (see docs/ssot/tdd.md "Cross-Cutting Index
-Artifacts: Two Kinds"):
-
-- DERIVED index: ``docs/ssot/critical-proof-matrix.yaml`` is generated from the
-  co-located ``@ac_proof`` decorators; ``--check`` must round-trip.
-- PERSISTED ratchet: ``docs/ssot/ac-score-baseline.jsonl`` is stored as sorted,
-  line-oriented JSONL with a ``merge=union`` gitattribute, and the ratchet still
-  fails on regression / missing evidence / non-pass code.
+The cross-cutting aggregate VIEWS (critical-proof matrix, vision-proof matrix,
+EPIC status) are no longer committed-materialized — they are derived on demand
+from the one AC-keyed graph and gated by ``tools/check_ac_index.py`` (covered by
+AC8.13.138 in ``test_ac_index_consistency.py``). This module now owns only the
+one PERSISTED artifact: ``docs/ssot/ac-score-baseline.jsonl`` is stored as
+sorted, line-oriented JSONL with a ``merge=union`` gitattribute, loads into the
+shape the ratchet uses, and the ratchet still fails on regression / missing
+evidence / non-pass code.
 """
 
 from __future__ import annotations
@@ -18,31 +18,16 @@ from pathlib import Path
 from common.ssot import (
     ac_score_baseline_format as baseline_format,
     check_ac_score_baseline as ratchet,
-    generate_critical_proof_matrix as gen,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MATRIX = REPO_ROOT / "docs" / "ssot" / "critical-proof-matrix.yaml"
-OUTCOMES = REPO_ROOT / "docs" / "ssot" / "critical-proof-outcomes.yaml"
 BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
 GITATTRIBUTES = REPO_ROOT / ".gitattributes"
 
 
-def test_AC8_13_137_matrix_check_round_trips() -> None:
-    """The checked-in matrix equals a fresh generation from @ac_proof decorators."""
-    expected = gen.render_matrix(gen.build_matrix(REPO_ROOT, OUTCOMES))
-    assert MATRIX.read_text(encoding="utf-8") == expected
-    # And the generator's own --check agrees (exit 0 == no drift).
-    assert gen.main(["--check"]) == 0
-
-
 def test_AC8_13_137_baseline_is_sorted_jsonl_with_union_merge() -> None:
     """Baseline is sorted, one-AC-per-line JSONL guarded by merge=union."""
-    lines = [
-        line
-        for line in BASELINE.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    lines = [line for line in BASELINE.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert lines, "baseline must not be empty"
     ac_ids = []
     for line in lines:
@@ -86,9 +71,7 @@ def test_AC8_13_137_ratchet_still_fails_on_regression_and_missing_ac(tmp_path) -
         baseline,
         {
             "version": 1,
-            "acs": {
-                "AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}
-            },
+            "acs": {"AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}},
         },
     )
 
@@ -104,9 +87,7 @@ def test_AC8_13_137_ratchet_still_fails_on_regression_and_missing_ac(tmp_path) -
 
     # Non-pass code cannot be bought back by a high score -> fail.
     non_pass = tmp_path / "nonpass.json"
-    non_pass.write_text(
-        json.dumps(_current("AC1.1.1", 0.99, code="fail")), encoding="utf-8"
-    )
+    non_pass.write_text(json.dumps(_current("AC1.1.1", 0.99, code="fail")), encoding="utf-8")
     assert ratchet.main([str(non_pass), "--baseline", str(baseline)]) == 1
 
     # Meeting the floor with a passing code -> ok.
@@ -122,9 +103,7 @@ def test_AC8_13_137_update_refuses_to_cement_a_regression(tmp_path) -> None:
         baseline,
         {
             "version": 1,
-            "acs": {
-                "AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}
-            },
+            "acs": {"AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}},
         },
     )
     regress = tmp_path / "regress.json"

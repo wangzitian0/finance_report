@@ -16,10 +16,13 @@ The macro product-proof layer is separate from AC traceability:
 README.md -> EPIC -> E2E
 ```
 
-That macro contract is owned by
-[critical-proof-matrix.yaml](./critical-proof-matrix.yaml) and checked by
-`tools/check_critical_proof_matrix.py`. The checker keeps the README outcome
-table, matrix rows, owner EPIC declarations, and E2E proof anchors aligned.
+That macro contract is a DERIVED (not committed) view of the one AC-keyed graph
+([ac_graph.py](../../common/ssot/ac_graph.py)): its hand-curated outcome source
+is [critical-proof-outcomes.yaml](./critical-proof-outcomes.yaml) and its proofs
+come from the co-located `@ac_proof` decorators. It is validated by
+`tools/check_critical_proof_matrix.py` and gated for dangling/missing links by
+`tools/check_ac_index.py`. The checker keeps the README outcome table, matrix
+rows, owner EPIC declarations, and E2E proof anchors aligned.
 
 SSOT documents support that hierarchy by explaining why a contract exists and
 linking to its code owner and proof tests.
@@ -104,7 +107,8 @@ cleanup that backfills `family` / `kind` and binds child clauses.
 |---|---|
 | [Generated API Reference](../reference/api.md) | OpenAPI-derived endpoint inventory |
 | [Generated DB Schema Reference](../reference/db-schema.md) | SQLAlchemy-derived table, column, enum, index, constraint, and FK inventory |
-| [critical-proof-matrix.yaml](./critical-proof-matrix.yaml) | Bidirectional README -> EPIC -> E2E macro outcome contract |
+| `python tools/check_critical_proof_matrix.py` | Bidirectional README -> EPIC -> E2E macro outcome contract, a derived view of [critical-proof-outcomes.yaml](./critical-proof-outcomes.yaml) + `@ac_proof` decorators (rendered on demand by `tools/generate_critical_proof_matrix.py`, never committed) |
+| `python tools/check_ac_index.py` | One consistency gate over the AC-keyed graph: no dangling `@ac_proof`, vision item, or macro outcome; every mandatory active AC has a real test reference |
 | `python tools/check_source_coverage_matrix.py` | Source-class coverage and proof-level contract for [`source_coverage_matrix`](./source-coverage-matrix.yaml) |
 | `python tools/analyze_test_ac_coverage.py --no-write --stdout` | Live local AC-to-test coverage report |
 | [unified-coverage.json](https://github.com/wangzitian0/finance_report/blob/main/unified-coverage.json) | Current committed coverage baseline |

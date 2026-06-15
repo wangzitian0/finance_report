@@ -153,17 +153,23 @@ jobs:
         run: |
           cd apps/backend
           uv run python ../../tools/generate_api_reference.py --check
-      - name: Generated EPIC Status Check
+      - name: EPIC Status Pointer Check
         run: |
+          # The EPIC-status numbers are a derived (not committed) view of the AC
+          # graph; this only verifies the README pointer block is intact, never a
+          # shifted AC total.
           uv run --with pyyaml python tools/generate_epic_status.py --check
       - name: Generated DB Schema Reference Check
         run: |
           cd apps/backend
           uv run python ../../tools/generate_db_schema_reference.py
           uv run python ../../tools/generate_db_schema_reference.py --check
-      - name: Generated Vision-to-Proof Matrix Check
+      - name: AC Index Consistency Check
         run: |
-          uv run --with pyyaml python tools/generate_vision_proof_matrix.py --check
+          # ONE consistency gate over the AC-keyed graph (replaces the per-view
+          # byte-compares for the critical-proof, vision-proof, and EPIC-status
+          # aggregate views). Fails only on dangling/missing links.
+          uv run --with pyyaml python tools/check_ac_index.py
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose
@@ -957,11 +963,14 @@ jobs:
           ac_status=$?
           uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md"
           e2e_status=$?
-          # The matrix proofs are a DERIVED index: assert the checked-in YAML is
-          # freshly generated from the co-located @ac_proof decorators, then run
-          # the semantic validation report.
-          uv run --with pyyaml python tools/generate_critical_proof_matrix.py --check
-          matrix_gen_status=$?
+          # One AC-index consistency gate over the AC-keyed graph: no dangling
+          # @ac_proof / vision item / macro outcome, and every mandatory active
+          # AC resolves to a real test reference.
+          uv run --with pyyaml python tools/check_ac_index.py
+          ac_index_status=$?
+          # The critical-proof matrix is a DERIVED (not committed) view; the
+          # semantic validation builds the matrix in-memory from the @ac_proof
+          # decorators and the macro-outcome source, then validates it.
           uv run --with pyyaml python tools/check_critical_proof_matrix.py --output "$RUNNER_TEMP/CRITICAL-PROOF-MATRIX.md"
           critical_status=$?
           uv run --with pyyaml python tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
@@ -990,13 +999,13 @@ jobs:
             echo "generate_ac_registry=$registry_status"
             echo "check_ac_traceability=$ac_status"
             echo "check_e2e_epic_traceability=$e2e_status"
-            echo "generate_critical_proof_matrix=$matrix_gen_status"
+            echo "check_ac_index=$ac_index_status"
             echo "check_critical_proof_matrix=$critical_status"
             echo "build_ac_traceability=$audit_status"
             echo "reconciliation_audit_gate=$reconciliation_audit_status"
           } > "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md"
 
-          if [ "$registry_status" -ne 0 ] || [ "$ac_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$matrix_gen_status" -ne 0 ] || [ "$critical_status" -ne 0 ] || [ "$audit_status" -ne 0 ] || [ "$reconciliation_audit_status" -ne 0 ]; then
+          if [ "$registry_status" -ne 0 ] || [ "$ac_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$ac_index_status" -ne 0 ] || [ "$critical_status" -ne 0 ] || [ "$audit_status" -ne 0 ] || [ "$reconciliation_audit_status" -ne 0 ]; then
             exit 1
           fi
 

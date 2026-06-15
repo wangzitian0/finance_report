@@ -268,7 +268,9 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "tools/staging_ai_ocr_gate_contract.py",
         "tools/_lib/pdf_fixtures/generators/moomoo_generator.py",
         "docs/ssot/ai.md",
-        "docs/ssot/critical-proof-matrix.yaml",
+        # The critical-proof matrix is no longer committed; its hand-curated
+        # macro-outcome source is the staging trigger that replaced it.
+        "docs/ssot/critical-proof-outcomes.yaml",
     ):
         assert is_staging_ai_ocr_relevant(path) is True
 

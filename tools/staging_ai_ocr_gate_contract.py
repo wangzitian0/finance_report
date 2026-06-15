@@ -13,11 +13,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-import yaml
-
 
 REPO_ROOT = ROOT_DIR
-CRITICAL_MATRIX = REPO_ROOT / "docs" / "ssot" / "critical-proof-matrix.yaml"
 
 SUPPLEMENTAL_LLM_FILES = [
     "tests/e2e/test_statement_upload_e2e.py",
@@ -58,7 +55,17 @@ REPLAY_COUNTERS = {
 
 
 def _load_matrix() -> dict[str, Any]:
-    return yaml.safe_load(CRITICAL_MATRIX.read_text(encoding="utf-8")) or {}
+    """Build the critical proof matrix payload in-memory from the AC graph.
+
+    The matrix is a derived (not committed) view of the one AC-keyed graph, so
+    the llm-marked post-merge proofs that drive the staging gate come straight
+    from the co-located ``@ac_proof`` decorators (a pure static AST scan, no test
+    imports), not from a checked-in YAML file.
+    """
+    from common.ssot.ac_graph import build_ac_graph
+    from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
+
+    return build_matrix_from_graph(build_ac_graph(REPO_ROOT))
 
 
 def gate_files() -> list[str]:
@@ -66,25 +73,18 @@ def gate_files() -> list[str]:
     proof_files = {
         proof["file"]
         for proof in matrix.get("proofs", [])
-        if proof.get("ci_tier") == "post_merge_environment"
-        and "llm" in proof.get("required_markers", [])
+        if proof.get("ci_tier") == "post_merge_environment" and "llm" in proof.get("required_markers", [])
     }
     files = sorted(proof_files | set(SUPPLEMENTAL_LLM_FILES))
     missing_counters = [path for path in files if path not in REPLAY_COUNTERS]
     if missing_counters:
-        raise SystemExit(
-            "Missing staging AI/OCR replay counters for: "
-            + ", ".join(sorted(missing_counters))
-        )
+        raise SystemExit("Missing staging AI/OCR replay counters for: " + ", ".join(sorted(missing_counters)))
     return files
 
 
 def totals(files: list[str]) -> dict[str, int]:
     keys = ("uploads", "parse_completions", "brokerage_imports", "report_verifications")
-    return {
-        key: sum(REPLAY_COUNTERS[path][key] for path in files)
-        for key in keys
-    }
+    return {key: sum(REPLAY_COUNTERS[path][key] for path in files) for key in keys}
 
 
 def emit_shell() -> str:

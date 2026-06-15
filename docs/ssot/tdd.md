@@ -86,23 +86,24 @@ root README EPIC map against `docs/project/EPIC-*.md` and fails unclassified
 E2E-like assets outside declared product or non-product roots.
 `tools/check_e2e_epic_traceability.py` enforces this closure in CI.
 
-Core product journeys have one extra guard:
-`docs/ssot/critical-proof-matrix.yaml`. It owns the macro README -> EPIC -> E2E
-contract for the closed set of core vision outcomes. The checker keeps the
-README outcome table, matrix rows, owner EPIC reverse declarations, and explicit
-E2E proof anchors in sync. It is not a general-purpose semantic parser for all
-tests.
+Core product journeys have one extra guard: the **critical-proof matrix**, a
+DERIVED (not committed) view of the one AC-keyed graph. It owns the macro
+README -> EPIC -> E2E contract for the closed set of core vision outcomes.
+`tools/check_critical_proof_matrix.py` keeps the README outcome table, matrix
+rows, owner EPIC reverse declarations, and explicit E2E proof anchors in sync.
+It is not a general-purpose semantic parser for all tests.
 
-The matrix `proofs` section is a **generated artifact**, not a hand-maintained
-list. Its source of truth is a co-located `@ac_proof(...)` decorator on each
-critical-proof test (`common/testing/ac_proof.py`);
-`tools/generate_critical_proof_matrix.py` statically scans those decorators and
-emits the YAML, and `--check` fails CI if the checked-in file drifts (exactly
-like `tools/generate_ac_registry.py --check`). The macro `outcomes` section —
+The matrix `proofs` section comes from the co-located `@ac_proof(...)` decorator
+on each critical-proof test (`common/testing/ac_proof.py`), statically scanned
+into the one AC graph (`common/ssot/ac_graph.py`). The macro `outcomes` section —
 the README/EPIC outcome contract — stays hand-maintained in
-`docs/ssot/critical-proof-outcomes.yaml` and is merged in verbatim. A PR
-anchoring a new AC therefore edits only its own test file (adds the decorator);
-two such PRs touching different tests do not collide on the central YAML.
+`docs/ssot/critical-proof-outcomes.yaml`. The checker builds the matrix
+**in-memory** from those two sharded sources and validates it; the matrix is
+never committed-materialized, so a PR anchoring a new AC edits only its own test
+file (adds the decorator), and two such PRs touching different tests never
+collide on a central YAML. Render the matrix on demand with
+`tools/generate_critical_proof_matrix.py` (stdout); consistency is gated by
+`tools/check_ac_index.py`.
 
 ## Proof Semantics
 
@@ -124,36 +125,65 @@ behavioral row.
 
 Macro and micro proof are intentionally separate:
 
-- **Macro**: README -> EPIC -> E2E, owned by
-  `docs/ssot/critical-proof-matrix.yaml` and enforced bidirectionally by
+- **Macro**: README -> EPIC -> E2E, a derived view of the AC graph (macro
+  outcome source `docs/ssot/critical-proof-outcomes.yaml` + `@ac_proof`
+  decorators) enforced bidirectionally by
   `tools/check_critical_proof_matrix.py`.
 - **Micro**: EPIC -> AC -> test, owned by EPIC AC tables, generated registries,
   and AC traceability gates.
 
-## Cross-Cutting Index Artifacts: Two Kinds
+## Cross-Cutting Index Artifacts: One Graph, Derived Views, One Gate
 
-Several SSOT files are *cross-cutting indexes* — one central file that many
-independent PRs touch. Hand-maintaining them as one shared list makes
-independent PRs collide textually (false sharing) and forces a linear merge
-train. Every such artifact must be stored in one of two conflict-resistant
-forms, chosen by what the file fundamentally *is*:
+The critical-proof matrix, the vision-proof matrix, and the README EPIC-status
+table are all PROJECTIONS of the SAME underlying graph:
 
-| Kind | What it is | Storage rule | Examples |
-|---|---|---|---|
-| **Derived index** | A projection of facts that already live somewhere else | Generate from the co-located source; check the result in as an artifact guarded by `--check` (fail CI on drift). A PR edits only the source (e.g. its own test/EPIC), never the index. | `ac_registry` / `infra_registry` (from EPIC docs), `critical-proof-matrix.yaml` (from `@ac_proof` decorators), `vision-proof-matrix.yaml` *(same class — migrate next)* |
-| **Persisted ratchet** | A floor that must survive across runs and must NOT be regenerated from current state | Keep persisted, but store conflict-free: one sorted, line-oriented record per key, with `merge=union` in `.gitattributes` so PRs adding *different* keys auto-merge and only same-key edits conflict. | `ac-score-baseline.jsonl` |
+```text
+EPIC -> AC -> Proof (-> behavioral score, -> vision item)
+```
 
-The distinction is critical: regenerating a *derived index* is correct and
-required; regenerating a *persisted ratchet* from current scores would erase the
-floor it exists to protect. A new file that is a central index but stored as a
-hand-maintained shared list is drift — convert it to the matching kind.
+They were each previously committed-materialized and CI byte-compared, so EVERY
+PR that touched ANY AC rewrote them — the repo's worst merge-conflict hotspot,
+and the same "committed file + generator + byte-check" wheel reinvented three
+times. The final model removes that:
 
-`docs/ssot/vision-proof-matrix.yaml` is the same-class **derived index** to look
-to next: it is already generated from EPIC ACs by
-`tools/generate_vision_proof_matrix.py --check`, but its rows are still derived
-from EPIC AC tables rather than from co-located per-test declarations. Aligning
-it with the `@ac_proof` co-location model (so its proof rows come from the tests
-themselves) is tracked as follow-up and intentionally out of scope here.
+- **One model.** `common/ssot/ac_graph.py` exposes `build_ac_graph()`, the single
+  AC-keyed graph. Every concern is just additional FIELDS on the one AC key.
+- **Sharded sources only.** The graph is built from sources that no two
+  independent PRs share: AC nodes from the EPIC docs (via the registry loader),
+  proof edges from the co-located `@ac_proof(...)` decorators
+  (`common/testing/ac_proof.py`), score floors from `ac-score-baseline.jsonl`,
+  vision items from `vision.md`, and macro outcomes from
+  `docs/ssot/critical-proof-outcomes.yaml`.
+- **Derived views, never committed.** The critical-proof matrix, the vision-proof
+  matrix, and the EPIC-status table are rendered ON DEMAND from the graph
+  (`tools/generate_critical_proof_matrix.py`,
+  `tools/generate_vision_proof_matrix.py`,
+  `tools/generate_epic_status.py --stdout`, all to stdout). None is
+  committed-materialized, so there is nothing for two unrelated PRs to collide
+  on. The consumers that used to read the committed YAML (the critical-proof
+  checker and the staging AI/OCR gate) build the matrix in-memory from the graph
+  instead.
+- **One persisted artifact, conflict-free.** The only on-disk index is the
+  behavioral-score ratchet floor, `docs/ssot/ac-score-baseline.jsonl`: a floor
+  that must survive across runs and must NOT be regenerated from current state.
+  It is stored as sorted, one-AC-per-line JSONL with `merge=union` in
+  `.gitattributes`, so PRs adopting *different* ACs auto-merge and only same-AC
+  edits conflict.
+- **One consistency gate.** `tools/check_ac_index.py` builds the graph and
+  asserts the invariants that matter, failing ONLY on dangling/missing — NEVER on
+  a shifted total: every mandatory non-deprecated AC resolves to >=1 real test
+  reference; every `@ac_proof` points at a real test and real AC ids; every
+  vision item with an owning EPIC backs >=1 AC; every macro outcome's `proof_ids`
+  resolve; and (when fed a current-evidence aggregate) the ratchet is not
+  regressed. This replaces the three per-view byte-compares.
+
+The distinction that still matters: a *derived view* is rebuilt from the sharded
+sources on every read and is never committed; the *persisted ratchet* is kept on
+disk because regenerating it from current scores would erase the floor it exists
+to protect. The two protection layers — the L2 critical-proof semantic gate
+(`tools/check_critical_proof_matrix.py`) and the L3 behavioral-score ratchet
+(`tools/check_ac_score_baseline.py`) — are unchanged; only the storage of the
+aggregate views moved from committed-materialized to derived-on-demand.
 
 ## SSOT Governance Metrics
 
@@ -290,6 +320,7 @@ Use these before claiming a documentation or implementation change is aligned:
 python tools/generate_ac_registry.py --check
 python tools/analyze_test_ac_coverage.py --no-write --stdout
 python tools/check_e2e_epic_traceability.py
+python tools/check_ac_index.py
 python tools/check_critical_proof_matrix.py
 python tools/check_manifest.py
 python tools/check_ssot_ownership.py

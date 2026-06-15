@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """One-shot migration to the conflict-free proof-index storage.
 
-Two cross-cutting index artifacts are converted to their merge-safe form:
+The persisted behavioural-score ratchet baseline is converted to its merge-safe
+form: ``docs/ssot/ac-score-baseline.json`` (single central JSON object) ->
+``docs/ssot/ac-score-baseline.jsonl`` (sorted, one AC per line). Each AC's
+score/metric/provenance is carried over unchanged (scores are re-serialised
+through ``float()`` and rounded to 6 decimal places, the same normalisation the
+ratchet's own ``--update`` path already applies, so the floor never moves).
+Paired with ``merge=union`` in ``.gitattributes``, PRs adopting different ACs
+auto-merge.
 
-1. ``docs/ssot/ac-score-baseline.json`` (single central JSON object) ->
-   ``docs/ssot/ac-score-baseline.jsonl`` (sorted, one AC per line). This is a
-   PERSISTED ratchet: each AC's score/metric/provenance is carried over
-   unchanged (scores are re-serialised through ``float()`` and rounded to 6
-   decimal places, the same normalisation the ratchet's own ``--update`` path
-   already applies, so the floor never moves). Paired with ``merge=union`` in
-   ``.gitattributes``, PRs adopting different ACs auto-merge.
+The cross-cutting aggregate VIEWS (critical-proof matrix, vision-proof matrix,
+EPIC status) are no longer committed at all: they are DERIVED on demand from the
+one AC-keyed graph (``common/ssot/ac_graph.py``) and gated by
+``tools/check_ac_index.py``, so this migration no longer regenerates any matrix
+file.
 
-2. ``docs/ssot/critical-proof-matrix.yaml`` is a DERIVED index: it is simply
-   regenerated from the co-located ``@ac_proof(...)`` decorators via
-   ``tools/generate_critical_proof_matrix.py``.
-
-The script is idempotent. Re-run it at rebase time if sibling PRs (e.g. #1114 /
-#1121) land first and reintroduce old-format entries: it picks up any remaining
-``ac-score-baseline.json``, folds it into the JSONL ratchet (raise-only, so a
-sibling's higher floor is kept), and regenerates the matrix.
+The script is idempotent. Re-run it at rebase time if sibling PRs land first and
+reintroduce an old-format ``ac-score-baseline.json``: it folds the legacy file
+into the JSONL ratchet (raise-only, so a sibling's higher floor is kept).
 """
 
 from __future__ import annotations
@@ -35,16 +35,13 @@ from common.ssot.ac_score_baseline_format import (  # noqa: E402
     load_jsonl,
     write_jsonl,
 )
-from common.ssot.generate_critical_proof_matrix import main as generate_matrix  # noqa: E402
 
 REPO_ROOT = ROOT_DIR
 LEGACY_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.json"
 JSONL_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
 
 
-def _raise_only_merge(
-    existing: dict[str, dict], incoming: dict[str, dict]
-) -> dict[str, dict]:
+def _raise_only_merge(existing: dict[str, dict], incoming: dict[str, dict]) -> dict[str, dict]:
     """Keep the higher per-AC floor; never lower a baseline that already exists.
 
     On a tie the EXISTING record wins: an equal incoming score must not churn
@@ -87,11 +84,9 @@ def migrate_baseline() -> int:
 
 
 def main() -> int:
-    status = migrate_baseline()
-    if status != 0:
-        return status
-    # Regenerate the derived matrix from co-located @ac_proof declarations.
-    return generate_matrix([])
+    # The aggregate views are derived on demand from the AC graph and never
+    # committed, so the only persisted artifact to migrate is the JSONL ratchet.
+    return migrate_baseline()
 
 
 if __name__ == "__main__":

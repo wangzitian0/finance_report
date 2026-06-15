@@ -98,9 +98,7 @@ def _literal(node: ast.AST, *, where: str) -> Any:
     try:
         value = ast.literal_eval(node)
     except (ValueError, SyntaxError) as exc:
-        raise GeneratorError(
-            f"{where}: @ac_proof arguments must be plain literals"
-        ) from exc
+        raise GeneratorError(f"{where}: @ac_proof arguments must be plain literals") from exc
     if isinstance(value, tuple):
         return list(value)
     return value
@@ -112,13 +110,7 @@ def _decorator_proof_call(node: ast.AST) -> ast.Call | None:
         if not isinstance(decorator, ast.Call):
             continue
         func = decorator.func
-        name = (
-            func.attr
-            if isinstance(func, ast.Attribute)
-            else func.id
-            if isinstance(func, ast.Name)
-            else None
-        )
+        name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else None
         if name == DECORATOR_NAME:
             return decorator
     return None
@@ -202,37 +194,61 @@ def _ordered_proof(fields: dict[str, Any]) -> dict[str, Any]:
     return ordered
 
 
-def build_matrix(repo_root: Path, outcomes_path: Path) -> dict[str, Any]:
-    """Return the full matrix payload (outcomes source + generated proofs)."""
-    outcomes_doc = yaml.safe_load(outcomes_path.read_text(encoding="utf-8"))
-    if not isinstance(outcomes_doc, dict):
-        raise GeneratorError(f"{outcomes_path} must contain a YAML mapping")
+def _matrix_payload(outcomes_doc: dict[str, Any], proofs: list[CollectedProof]) -> dict[str, Any]:
+    """Assemble the matrix payload from an outcomes source doc + collected proofs.
 
-    proofs = collect_proofs(repo_root)
+    Shared by ``build_matrix`` (reads the outcomes file + scans proofs itself)
+    and ``build_matrix_from_graph`` (reuses the single :class:`AcGraph` scan), so
+    both produce the identical ``{version, description?, outcomes, proofs}`` shape
+    the validator consumes.
+    """
     seen: dict[str, str] = {}
     duplicates: list[str] = []
     for proof in proofs:
         prior = seen.get(proof.proof_id)
         if prior is not None:
-            duplicates.append(
-                f"{proof.proof_id} ({prior} and {proof.file}::{proof.test})"
-            )
+            duplicates.append(f"{proof.proof_id} ({prior} and {proof.file}::{proof.test})")
         seen[proof.proof_id] = f"{proof.file}::{proof.test}"
     if duplicates:
-        raise GeneratorError(
-            "duplicate proof ids across @ac_proof declarations: "
-            + "; ".join(sorted(duplicates))
-        )
+        raise GeneratorError("duplicate proof ids across @ac_proof declarations: " + "; ".join(sorted(duplicates)))
 
-    proofs.sort(key=lambda item: item.proof_id)
+    ordered = sorted(proofs, key=lambda item: item.proof_id)
     payload: dict[str, Any] = {
         "version": str(outcomes_doc.get("version", "1.0")),
     }
     if "description" in outcomes_doc:
         payload["description"] = outcomes_doc["description"]
     payload["outcomes"] = outcomes_doc.get("outcomes", [])
-    payload["proofs"] = [_ordered_proof(proof.fields) for proof in proofs]
+    payload["proofs"] = [_ordered_proof(proof.fields) for proof in ordered]
     return payload
+
+
+def build_matrix_from_graph(graph: Any) -> dict[str, Any]:
+    """Return the matrix payload from a pre-built ``common.ssot.ac_graph.AcGraph``.
+
+    The de-materialized projection: instead of re-scanning the test tree, reuse
+    the proofs and outcomes the single AC graph already collected. The result is
+    the same payload ``build_matrix`` would produce from disk.
+    """
+    proofs = [
+        CollectedProof(
+            proof_id=edge.proof_id,
+            file=edge.file,
+            test=edge.test,
+            fields=edge.fields,
+        )
+        for edge in graph.proofs
+    ]
+    return _matrix_payload(graph.outcomes_doc, proofs)
+
+
+def build_matrix(repo_root: Path, outcomes_path: Path) -> dict[str, Any]:
+    """Return the full matrix payload (outcomes source + generated proofs)."""
+    outcomes_doc = yaml.safe_load(outcomes_path.read_text(encoding="utf-8"))
+    if not isinstance(outcomes_doc, dict):
+        raise GeneratorError(f"{outcomes_path} must contain a YAML mapping")
+
+    return _matrix_payload(outcomes_doc, collect_proofs(repo_root))
 
 
 def render_matrix(payload: dict[str, Any]) -> str:
@@ -253,15 +269,29 @@ def render_matrix(payload: dict[str, Any]) -> str:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate the critical proof matrix from co-located @ac_proof declarations."
+        description=(
+            "Render the critical proof matrix on demand from the co-located "
+            "@ac_proof declarations. This is a DERIVED view of the one AC-keyed "
+            "graph and is never committed-materialized; consistency is enforced "
+            "by tools/check_ac_index.py, not by a byte-compare."
+        )
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--matrix", type=Path, default=DEFAULT_MATRIX)
     parser.add_argument("--outcomes", type=Path, default=DEFAULT_OUTCOMES)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write the rendered matrix to a file (default: print to stdout, never committed).",
+    )
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Exit 1 if the checked-in matrix differs from a fresh generation.",
+        help=(
+            "Build the matrix and exit non-zero only if it cannot be built "
+            "consistently (duplicate proof ids, non-literal args). Kept as a "
+            "consistency alias; there is no committed file to byte-compare."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -269,10 +299,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args([] if argv is None else argv)
     repo_root = args.repo_root.resolve()
-    matrix_path = args.matrix if args.matrix.is_absolute() else repo_root / args.matrix
-    outcomes_path = (
-        args.outcomes if args.outcomes.is_absolute() else repo_root / args.outcomes
-    )
+    outcomes_path = args.outcomes if args.outcomes.is_absolute() else repo_root / args.outcomes
 
     try:
         payload = build_matrix(repo_root, outcomes_path)
@@ -283,29 +310,22 @@ def main(argv: list[str] | None = None) -> int:
     rendered = render_matrix(payload)
 
     if args.check:
-        current = (
-            matrix_path.read_text(encoding="utf-8") if matrix_path.exists() else ""
-        )
-        if current != rendered:
-            print(
-                "::error title=Critical proof matrix generator::"
-                f"{_rel(matrix_path, repo_root)} is out of date.\n"
-                "  Run: python tools/generate_critical_proof_matrix.py",
-                file=sys.stderr,
-            )
-            return 1
         print(
-            "OK: critical proof matrix matches co-located @ac_proof declarations "
-            f"({len(payload['proofs'])} proof path(s))."
+            "OK: critical proof matrix builds consistently from co-located "
+            f"@ac_proof declarations ({len(payload['proofs'])} proof path(s)). "
+            "The matrix is a derived view and is not committed; full consistency "
+            "is gated by tools/check_ac_index.py."
         )
         return 0
 
-    matrix_path.parent.mkdir(parents=True, exist_ok=True)
-    matrix_path.write_text(rendered, encoding="utf-8")
-    print(
-        f"Wrote {matrix_path} ({len(payload['proofs'])} proof path(s) "
-        "from @ac_proof declarations)."
-    )
+    if args.output is not None:
+        output = args.output if args.output.is_absolute() else repo_root / args.output
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered, encoding="utf-8")
+        print(f"Wrote {output} ({len(payload['proofs'])} proof path(s) from @ac_proof declarations).")
+        return 0
+
+    sys.stdout.write(rendered)
     return 0
 
 

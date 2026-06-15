@@ -149,7 +149,11 @@ STAGING_AI_OCR_EXACT = frozenset(
         "apps/backend/src/config.py",
         "apps/backend/src/prompts/statement.py",
         "docs/ssot/ai.md",
-        "docs/ssot/critical-proof-matrix.yaml",
+        # The critical-proof matrix is no longer committed; it is a derived view
+        # of the AC graph. Adding/removing an llm-marked post-merge @ac_proof
+        # edits its OWN e2e test file, and every such file is already a staging
+        # trigger below, so the staging gate still fires on the real change.
+        "docs/ssot/critical-proof-outcomes.yaml",
         "docs/ssot/extraction.md",
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",

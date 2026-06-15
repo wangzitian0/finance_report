@@ -2,14 +2,16 @@
 
 AC14.1.19: The vision -> AC -> test proof matrix is mechanically generated from
 vision.md anchors, EPIC ``Vision Anchor`` declarations, the AC registries, and
-test references; it is published as a parseable YAML artifact plus a MkDocs page;
-and ``--check`` fails on drift so the matrix cannot silently rot.
+test references. It is a DERIVED view of the one AC-keyed graph, rendered on
+demand (YAML + MkDocs page) and never committed-materialized; consistency (no
+dangling vision item) is gated by ``tools/check_ac_index.py``.
 """
 
 from __future__ import annotations
 
-import yaml
+from pathlib import Path
 
+import yaml
 from common.ssot import generate_vision_proof_matrix as gvpm
 
 
@@ -56,77 +58,40 @@ def test_AC14_1_19_rendered_yaml_is_parseable_and_deterministic() -> None:
     assert gvpm.render_yaml(_build()) == rendered
 
 
-def test_AC14_1_19_checked_in_artifacts_exist_and_are_generated() -> None:
-    """AC14.1.19: the YAML + MkDocs page are checked in and marked generated."""
-    yaml_text = gvpm.YAML_OUTPUT_PATH.read_text(encoding="utf-8")
-    md_text = gvpm.MD_OUTPUT_PATH.read_text(encoding="utf-8")
+def test_AC14_1_19_matrix_is_a_derived_view_not_committed() -> None:
+    """AC14.1.19: the vision matrix is a DERIVED view, never committed-materialized.
+
+    The previously-committed YAML + MkDocs page are removed; the matrix is
+    rendered on demand from the AC graph and gated by tools/check_ac_index.py.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    assert not (repo_root / "docs/ssot/vision-proof-matrix.yaml").exists()
+    assert not (repo_root / "docs/reference/vision-proof-matrix.md").exists()
+    # The on-demand renderers still produce a generated, parseable artifact.
+    yaml_text = gvpm.render_yaml(_build())
+    md_text = gvpm.render_markdown(_build())
     assert "DO NOT edit" in yaml_text
     assert "generate_vision_proof_matrix.py" in yaml_text
     assert "Vision-to-Proof Matrix" in md_text
     assert "generate_vision_proof_matrix.py" in md_text
 
 
-def test_AC14_1_19_check_passes_when_artifacts_are_current(tmp_path) -> None:
-    """AC14.1.19: --check passes when both artifacts match the generator."""
+def test_AC14_1_19_check_builds_without_committing() -> None:
+    """AC14.1.19: --check builds the matrix and never byte-compares a committed file."""
+    assert gvpm.main(["--check"]) == 0
+
+
+def test_AC14_1_19_on_demand_render_writes_only_when_requested(tmp_path) -> None:
+    """AC14.1.19: the matrix is rendered on demand to an explicit output only."""
     yaml_out = tmp_path / "matrix.yaml"
     md_out = tmp_path / "matrix.md"
     assert gvpm.main(["--yaml-output", str(yaml_out), "--md-output", str(md_out)]) == 0
-    assert (
-        gvpm.main(
-            [
-                "--yaml-output",
-                str(yaml_out),
-                "--md-output",
-                str(md_out),
-                "--check",
-            ]
-        )
-        == 0
-    )
+    assert yaml_out.exists() and md_out.exists()
+    # Deterministic: a second render is byte-identical.
+    assert gvpm.render_yaml(_build()) == yaml_out.read_text(encoding="utf-8")
 
 
-def test_AC14_1_19_check_fails_on_drift(tmp_path, capsys) -> None:
-    """AC14.1.19: --check exits non-zero when an artifact is stale."""
-    yaml_out = tmp_path / "matrix.yaml"
-    md_out = tmp_path / "matrix.md"
-    assert gvpm.main(["--yaml-output", str(yaml_out), "--md-output", str(md_out)]) == 0
-    yaml_out.write_text("version: stale\n", encoding="utf-8")
-
-    assert (
-        gvpm.main(
-            [
-                "--yaml-output",
-                str(yaml_out),
-                "--md-output",
-                str(md_out),
-                "--check",
-            ]
-        )
-        == 1
-    )
-    assert "stale" in capsys.readouterr().err.lower()
-
-
-def test_AC14_1_19_check_fails_when_artifact_missing(tmp_path, capsys) -> None:
-    """AC14.1.19: --check fails closed when an artifact is missing."""
-    assert (
-        gvpm.main(
-            [
-                "--yaml-output",
-                str(tmp_path / "missing.yaml"),
-                "--md-output",
-                str(tmp_path / "missing.md"),
-                "--check",
-            ]
-        )
-        == 1
-    )
-    assert "missing" in capsys.readouterr().err.lower()
-
-
-def test_AC14_1_19_wrapped_vision_anchor_continuation_is_captured(
-    tmp_path, monkeypatch
-) -> None:
+def test_AC14_1_19_wrapped_vision_anchor_continuation_is_captured(tmp_path, monkeypatch) -> None:
     """AC14.1.19: anchors wrapped onto continuation blockquote lines are captured.
 
     A "Vision Anchor" declaration can wrap its anchor list across multiple
