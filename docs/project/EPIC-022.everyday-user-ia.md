@@ -365,3 +365,23 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.15.1 | A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response | `apiFunctions.test.ts` | P1 |
 | AC22.15.2 | The AI Settings page renders an editable form with explicit Save and Reset controls that submits the edited flags via `patchUserSettings`, surfacing loading, submitting, success, and error states using shared UI primitives | `aiSettingsPage.test.tsx` | P1 |
 | AC22.15.3 | A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid | `apiFunctions.test.ts`, `appShellSessionBootstrap.test.tsx` | P1 |
+
+### AC22.16 — Home Stops Leaking Internal Pipeline; Composable Dashboard Hooks
+
+> #1116 + #1119 follow-up slice. The shipped Home still leaked internal
+> accounting/pipeline plumbing as first-class destinations, competing with the
+> Trust Meter → `/attention` signal (Axiom B asks for one confidence-ranked
+> queue): the getting-started guide opened the accounting-jargon `/accounts`
+> route, and the analytics "Risk radar" card plus the unmatched-alerts CTA linked
+> straight into Advanced reconciliation internals. This slice routes every Home
+> "needs attention" affordance through the single `/attention` queue and retargets
+> onboarding to everyday surfaces. It also pays down the paired FE structural
+> debt: the ~294-line `useDashboardData` god-hook is decomposed into composable,
+> independently-usable hooks with the aggregate contract preserved (behavior-
+> preserving, no backend or schema change).
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.16.1 | The Home getting-started steps link only to everyday surfaces — the first step targets `/upload` and no step links to the accounting-jargon `/accounts` route | `dashboardPage.test.tsx` | P1 |
+| AC22.16.2 | The Home presents a single confidence-ranked attention entry point: the analytics reconciliation ("Risk radar") card and the unmatched-alerts call-to-action link to the unified `/attention` queue instead of parallel Advanced reconciliation internals (`/reconciliation`, `/reconciliation/unmatched`, `/review`) | `dashboardPage.test.tsx` | P1 |
+| AC22.16.3 | `useDashboardData` is composed from independently-usable hooks (`useDashboardSnapshot` for the financial/reconciliation aggregate and `useAssetTrend` for the per-account trend), each callable on its own through the shared `apiFetch` transport, while the aggregate hook preserves its existing public result contract | `useDashboardData.test.ts`, `useAssetTrend.test.ts` | P1 |

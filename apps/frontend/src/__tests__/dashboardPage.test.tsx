@@ -316,7 +316,7 @@ describe("HomePage", () => {
     await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
   })
 
-  it("AC22.5.6 de-duplicates the reconciliation links in the risk radar", async () => {
+  it("AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /attention queue", async () => {
     mockDashboardApi()
 
     render(<HomePage />)
@@ -327,14 +327,15 @@ describe("HomePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Show analytics/i }))
     await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
 
-    // Exactly one entry routes to the reconciliation workbench (the redundant
-    // "Review queue →" duplicate link is gone); the other two route to the
-    // distinct review-queue and unmatched surfaces.
-    const reconLinks = screen
-      .getAllByRole("link")
-      .filter((link) => link.getAttribute("href") === "/reconciliation")
-    expect(reconLinks).toHaveLength(1)
-    expect(screen.queryByRole("link", { name: /Review queue →/i })).toBeNull()
+    // The Home no longer leaks Advanced reconciliation internals as parallel
+    // destinations — every "needs attention" affordance funnels into the single
+    // confidence-ranked /attention queue (Axiom B).
+    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"))
+    expect(hrefs).not.toContain("/reconciliation")
+    expect(hrefs).not.toContain("/reconciliation/unmatched")
+    // Both the risk-radar card and the unmatched-alerts CTA point at /attention.
+    const attentionLinks = hrefs.filter((href) => href === "/attention")
+    expect(attentionLinks.length).toBeGreaterThanOrEqual(2)
   })
 
   it("AC19.3.6 renders the workflow status feed on the dashboard landing surface", async () => {
@@ -636,7 +637,7 @@ describe("HomePage", () => {
     consoleErrorSpy.mockRestore()
   })
 
-  it("AC16.12.17 AC16.12.18 renders first-time onboarding with core workflow links", async () => {
+  it("AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
       income: { currency: "USD", trends: [] },
@@ -653,9 +654,15 @@ describe("HomePage", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
     expect(screen.getByText("Build your first accurate financial view")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Add your first account/i })).toHaveAttribute("href", "/accounts")
+    // AC22.16.1: the first step is Upload (everyday tier); no step links to the
+    // accounting-jargon "/accounts" route anymore.
     expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/upload")
     expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
+    expect(screen.getByRole("link", { name: /Read your reports/i })).toHaveAttribute("href", "/reports")
+    expect(screen.queryByRole("link", { name: /Add your first account/i })).toBeNull()
+    expect(
+      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).not.toContain("/accounts")
   })
 
   it("AC16.12.17 keeps onboarding visible with partial progress markers", async () => {
@@ -674,8 +681,10 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
-    expect(screen.getAllByText("Done")).toHaveLength(2)
-    expect(screen.getByText("Next")).toBeInTheDocument()
+    // Upload is done (a statement exists); Review and Reports remain Next until an
+    // approved statement + posted entry complete the core flow.
+    expect(screen.getAllByText("Done")).toHaveLength(1)
+    expect(screen.getAllByText("Next")).toHaveLength(2)
     expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
   })
 
