@@ -34,8 +34,8 @@ describe("useAssetTrend (EPIC-022 AC22.16.3)", () => {
   it("AC22.16.3 is usable on its own and fetches the trend for the top asset", async () => {
     mockedApiFetch.mockResolvedValue({ points: [{ period_start: "2026-01-01", amount: "5000" }] });
     const balance = balanceWith([
-      { account_id: "a1", name: "Cash", type: "asset", amount: "5000" },
-      { account_id: "a2", name: "Brokerage", type: "asset", amount: "9000" },
+      { account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" },
+      { account_id: "a2", name: "Brokerage", type: "ASSET", amount: "9000" },
     ]);
 
     const { result } = renderHook(() => useAssetTrend(balance));
@@ -51,8 +51,8 @@ describe("useAssetTrend (EPIC-022 AC22.16.3)", () => {
   it("AC22.16.3 refetches the trend when the selected account changes", async () => {
     mockedApiFetch.mockResolvedValue({ points: [] });
     const balance = balanceWith([
-      { account_id: "a1", name: "Cash", type: "asset", amount: "5000" },
-      { account_id: "a2", name: "Brokerage", type: "asset", amount: "9000" },
+      { account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" },
+      { account_id: "a2", name: "Brokerage", type: "ASSET", amount: "9000" },
     ]);
 
     const { result } = renderHook(() => useAssetTrend(balance));
@@ -77,7 +77,7 @@ describe("useAssetTrend (EPIC-022 AC22.16.3)", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mockedApiFetch.mockRejectedValue(new Error("trend down"));
     const { result } = renderHook(() =>
-      useAssetTrend(balanceWith([{ account_id: "a1", name: "Cash", type: "asset", amount: "5000" }])),
+      useAssetTrend(balanceWith([{ account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" }])),
     );
 
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalled());
@@ -87,8 +87,8 @@ describe("useAssetTrend (EPIC-022 AC22.16.3)", () => {
   it("AC22.16.3 clears a stale selection when the chosen account leaves the balance sheet", async () => {
     mockedApiFetch.mockResolvedValue({ points: [] });
     const initial = balanceWith([
-      { account_id: "a1", name: "Cash", type: "asset", amount: "5000" },
-      { account_id: "a2", name: "Brokerage", type: "asset", amount: "9000" },
+      { account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" },
+      { account_id: "a2", name: "Brokerage", type: "ASSET", amount: "9000" },
     ]);
     const { result, rerender } = renderHook(({ bs }) => useAssetTrend(bs), {
       initialProps: { bs: initial },
@@ -101,7 +101,7 @@ describe("useAssetTrend (EPIC-022 AC22.16.3)", () => {
     // Refreshed balance sheet no longer contains a2 (e.g. restricted toggled
     // off): the stale selection is dropped so the <select> can't show a missing
     // value, and the trend falls back to the top remaining asset.
-    const refreshed = balanceWith([{ account_id: "a1", name: "Cash", type: "asset", amount: "5000" }]);
+    const refreshed = balanceWith([{ account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" }]);
     rerender({ bs: refreshed });
 
     await waitFor(() => expect(result.current.trendAccountId).toBeNull());
