@@ -135,8 +135,8 @@ or placeholder debt; mutable live CI/deploy run status is deliberately excluded.
 | EPIC-009 | pdf-fixture-generation | 39 | 39 (100.0%) | 0 | 0 | 0 | 0 |
 | EPIC-010 | signoz-logging | 31 | 31 (100.0%) | 0 | 0 | 0 | 0 |
 | EPIC-011 | asset-lifecycle | 82 | 82 (100.0%) | 0 | 0 | 0 | 0 |
-| EPIC-012 | foundation-libs | 68 | 68 (100.0%) | 0 | 0 | 0 | 3 |
-| EPIC-013 | statement-parsing-v2 | 95 | 95 (100.0%) | 0 | 0 | 0 | 0 |
+| EPIC-012 | foundation-libs | 69 | 69 (100.0%) | 0 | 0 | 0 | 3 |
+| EPIC-013 | statement-parsing-v2 | 98 | 98 (100.0%) | 0 | 0 | 0 | 0 |
 | EPIC-014 | ttd-transformation | 23 | 23 (100.0%) | 0 | 0 | 0 | 0 |
 | EPIC-015 | processing-account | 31 | 31 (100.0%) | 0 | 0 | 0 | 0 |
 | EPIC-016 | two-stage-review-ui | 260 | 260 (100.0%) | 0 | 0 | 0 | 0 |
@@ -146,7 +146,7 @@ or placeholder debt; mutable live CI/deploy run status is deliberately excluded.
 | EPIC-020 | framework-aware-personal-reporting | 7 | 7 (100.0%) | 0 | 0 | 0 | 0 |
 | EPIC-021 | application-ai-advisor | 9 | 9 (100.0%) | 0 | 0 | 0 | 0 |
 | EPIC-022 | everyday-user-ia | 68 | 68 (100.0%) | 0 | 0 | 0 | 0 |
-| **Total** | all EPICs | **1636** | **1636 (100.0%)** | **0** | **0** | **0** | **3** |
+| **Total** | all EPICs | **1640** | **1640 (100.0%)** | **0** | **0** | **0** | **3** |
 
 - Repo line coverage (from `unified-coverage.json`): `97.3%`.
 - `Automated covered` is the only category that counts as proof; the three debt columns are work remaining, reported apart so a high coverage number cannot hide manual or placeholder debt.
