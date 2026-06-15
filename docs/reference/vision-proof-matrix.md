@@ -11,8 +11,8 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 |---|---:|
 | Vision nodes (anchors) | 9 |
 | Vision nodes with an owning EPIC | 9 |
-| Acceptance Criteria mapped | 1845 |
-| ACs with a real test reference | 1842 |
+| Acceptance Criteria mapped | 1846 |
+| ACs with a real test reference | 1843 |
 
 ## Vision nodes
 
@@ -24,7 +24,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | `decision-4-two-stage-review` | Review separates source accuracy from batch consistency. | EPIC-004, EPIC-016, EPIC-022 | 378 | 378 |
 | `decision-5-processing-account` | In-transit funds stay visible. | EPIC-015 | 31 | 31 |
 | `decision-7-tech-stack` | The stack stays self-hostable. | EPIC-001, EPIC-007, EPIC-010, EPIC-012 | 204 | 201 |
-| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 430 | 430 |
+| `decision-filter-accuracy-auditability` | Decision Filter | EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021 | 431 | 431 |
 | `non-goals-not-budgeting-app` | Becoming a consumer budgeting app | EPIC-005 | 94 | 94 |
 | `non-goals-not-robo-advisor` | Automated trading, portfolio | EPIC-006 | 72 | 72 |
 
@@ -1335,7 +1335,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 
 - **Node**: Decision Filter
 - **Owner EPICs**: EPIC-002, EPIC-008, EPIC-009, EPIC-014, EPIC-019, EPIC-020, EPIC-021
-- **ACs**: 430 (430 with a real test reference)
+- **ACs**: 431 (431 with a real test reference)
 
 | AC | EPIC | Description | Tests |
 |---|---|---|---|
@@ -1612,6 +1612,7 @@ This matrix is the single generated map from the irreducible `vision.md` nodes (
 | AC8.13.134 | EPIC-008 | Consolidated/archived stale docs stay absent and every mkdocs nav markdown target resolves (no dangling internal links after the consolidation) (#350) | `tests/tooling/test_stale_docs_consolidation.py` |
 | AC8.13.135 | EPIC-008 | The AC traceability report labels its mandatory-coverage number as L1 reference hygiene (reference exists), never as behavioral coverage, and its pass message names the separate L2 critical-proof-matrix and L3 behavioral-score-ratchet gates as the behavioral authorities — so a passing traceability gate cannot be read as misleading behavioral assurance | `tests/tooling/test_check_ac_traceability.py` |
 | AC8.13.136 | EPIC-008 | A content-level secret scan (gitleaks) runs in both the pre-commit hooks and the CI lint job (local==CI parity), blocking credential material by content rather than by filename so .gitignore is not the only line of defense | `tests/tooling/test_secret_scan_gate.py` |
+| AC8.13.137 | EPIC-008 | The staging AI/OCR gate summarizes its JUnit output into real pass/fail counts and names the failing corpus docs (instead of a binary "Failures observed: 1+" with verified counts "unknown"), so a red gate is diagnosable ([#1089](https://github.com/wangzitian0/finance_report/issues/1089)) | `tests/tooling/test_staging_ai_ocr_gate_contract.py` |
 | AC8.14.1 | EPIC-008 | Critical proof matrix classifies product proof paths by trust mode and source classes | `tests/tooling/test_check_critical_proof_matrix.py` |
 | AC8.14.2 | EPIC-008 | Critical post-merge LLM/OCR product proofs must name a PR deterministic mirror proof for the same source classes | `tests/tooling/test_check_critical_proof_matrix.py` |
 | AC8.14.3 | EPIC-008 | Personal report package critical proof has a deterministic PR mirror covering bank, brokerage, manual valuation, restricted-compensation, CSV, and manual-record source classes | `apps/backend/tests/api/test_personal_report_package_contract.py`<br>`tests/tooling/test_personal_report_package_fixture_contract.py` |

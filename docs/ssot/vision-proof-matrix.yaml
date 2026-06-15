@@ -7,8 +7,8 @@ description: Generated vision -> AC -> test proof matrix. Maps every vision.md a
 summary:
   vision_nodes: 9
   vision_nodes_with_owner_epic: 9
-  total_acs: 1845
-  acs_with_real_test: 1842
+  total_acs: 1846
+  acs_with_real_test: 1843
 vision_nodes:
   - anchor: decision-1-portfolio-self-developed
     label: Portfolio is native.
@@ -8341,8 +8341,8 @@ vision_nodes:
       - EPIC-019
       - EPIC-020
       - EPIC-021
-    ac_count: 430
-    ac_with_test_count: 430
+    ac_count: 431
+    ac_with_test_count: 431
     acs:
       - id: AC2.1.1
         epic: EPIC-002
@@ -10338,6 +10338,14 @@ vision_nodes:
         mandatory: true
         tests:
           - tests/tooling/test_secret_scan_gate.py
+      - id: AC8.13.137
+        epic: EPIC-008
+        description: 'The staging AI/OCR gate summarizes its JUnit output into real pass/fail counts and
+          names the failing corpus docs (instead of a binary "Failures observed: 1+" with verified counts
+          "unknown"), so a red gate is diagnosable ([#1089](https://github.com/wangzitian0/finance_report/issues/1089))'
+        mandatory: true
+        tests:
+          - tests/tooling/test_staging_ai_ocr_gate_contract.py
       - id: AC8.14.1
         epic: EPIC-008
         description: Critical proof matrix classifies product proof paths by trust mode and source classes

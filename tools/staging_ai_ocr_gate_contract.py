@@ -8,6 +8,7 @@ import shlex
 import sys
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -101,9 +102,72 @@ def emit_shell() -> str:
     return "\n".join(lines)
 
 
+def summarize_junit(xml_paths: list[Path]) -> dict[str, Any]:
+    """Summarize JUnit XML results into pass/fail counts + the failed test names.
+
+    The gate previously reported a binary "Failures observed: 1+" with all verified
+    counts "unknown" on any failure (#1089), so a red gate gave no signal about
+    *which* of the corpus docs failed. This parses the JUnit output the gate already
+    writes so the summary is actionable.
+    """
+    total = passed = failed = skipped = 0
+    failed_tests: list[str] = []
+    for path in xml_paths:
+        try:
+            root = ET.parse(path).getroot()
+        except (OSError, ET.ParseError):
+            continue
+        # Handle both <testsuites><testsuite>... and a bare <testsuite> root.
+        suites = root.iter("testsuite")
+        for suite in suites:
+            for case in suite.iter("testcase"):
+                total += 1
+                failure = case.find("failure")
+                error = case.find("error")
+                if case.find("skipped") is not None:
+                    skipped += 1
+                elif failure is not None or error is not None:
+                    failed += 1
+                    name = case.get("classname", "")
+                    case_name = case.get("name", "<unknown>")
+                    failed_tests.append(f"{name}::{case_name}" if name else case_name)
+                else:
+                    passed += 1
+    return {
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "failed_tests": failed_tests,
+    }
+
+
+def render_junit_summary(summary: dict[str, Any]) -> str:
+    """Render a markdown block of the JUnit summary for the GitHub step summary."""
+    lines = [
+        "### Staging AI/OCR gate — observed results",
+        "",
+        f"- Tests: {summary['total']} | passed: {summary['passed']} "
+        f"| failed: {summary['failed']} | skipped: {summary['skipped']}",
+    ]
+    if summary["failed_tests"]:
+        lines.append("- Failed:")
+        lines.extend(f"  - `{name}`" for name in summary["failed_tests"])
+    else:
+        lines.append("- Failed: none")
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
+    parser.add_argument(
+        "--summarize-junit",
+        nargs="+",
+        type=Path,
+        metavar="XML",
+        help="Summarize JUnit result XML into pass/fail counts + failed test names.",
+    )
     return parser.parse_args()
 
 
@@ -111,6 +175,10 @@ def main() -> int:
     args = parse_args()
     if args.shell:
         print(emit_shell())
+        return 0
+
+    if args.summarize_junit:
+        print(render_junit_summary(summarize_junit(args.summarize_junit)))
         return 0
 
     files = gate_files()

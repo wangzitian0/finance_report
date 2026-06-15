@@ -165,3 +165,51 @@ def test_AC8_13_109_ai_ocr_gate_tests_avoid_networkidle_waits() -> None:
             offenders.append(f"{relative_path} waits for networkidle")
 
     assert offenders == []
+
+
+_JUNIT_XML = """<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="staging-ai-ocr" tests="3" failures="1" errors="0" skipped="1">
+    <testcase classname="tests.e2e.test_a" name="test_upload_ok"/>
+    <testcase classname="tests.e2e.test_b" name="test_parse_cmb">
+      <failure message="parse failed">Date is required</failure>
+    </testcase>
+    <testcase classname="tests.e2e.test_c" name="test_skipme"><skipped/></testcase>
+  </testsuite>
+</testsuites>
+"""
+
+
+def test_AC8_13_137_summarize_junit_reports_per_doc_failures(tmp_path: Path) -> None:
+    """AC8.13.137: the gate summarizes JUnit results into real pass/fail counts and
+    names the failing corpus docs, instead of a binary "Failures observed: 1+"."""
+    xml = tmp_path / "gate.xml"
+    xml.write_text(_JUNIT_XML, encoding="utf-8")
+
+    summary = contract.summarize_junit([xml])
+
+    assert summary["total"] == 3
+    assert summary["passed"] == 1
+    assert summary["failed"] == 1
+    assert summary["skipped"] == 1
+    assert summary["failed_tests"] == ["tests.e2e.test_b::test_parse_cmb"]
+
+
+def test_AC8_13_137_render_junit_summary_lists_failed_tests(tmp_path: Path) -> None:
+    """AC8.13.137: the rendered markdown names the failed test so the red gate is
+    actionable (which doc failed), not opaque."""
+    xml = tmp_path / "gate.xml"
+    xml.write_text(_JUNIT_XML, encoding="utf-8")
+
+    rendered = contract.render_junit_summary(contract.summarize_junit([xml]))
+
+    assert "passed: 1" in rendered
+    assert "failed: 1" in rendered
+    assert "tests.e2e.test_b::test_parse_cmb" in rendered
+
+
+def test_AC8_13_137_summarize_junit_tolerates_missing_xml(tmp_path: Path) -> None:
+    """AC8.13.137: a missing/unreadable XML yields an empty summary, never a crash,
+    so the gate's reporting step can't itself fail the workflow."""
+    summary = contract.summarize_junit([tmp_path / "does-not-exist.xml"])
+    assert summary == {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "failed_tests": []}
