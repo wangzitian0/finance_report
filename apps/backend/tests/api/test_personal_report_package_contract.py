@@ -1562,7 +1562,7 @@ def test_AC19_10_1_anchor_detail_helpers_keep_auditable_deduped_payloads():
         user_id=user_id,
         entry_date=date(2026, 5, 31),
         memo="Ledger detail",
-        source_type=JournalEntrySourceType.BANK_STATEMENT,
+        source_type=JournalEntrySourceType.AUTO_PARSED,
         status=JournalEntryStatus.POSTED,
     )
     line = JournalLine(

@@ -736,7 +736,7 @@ def _review_state_for_source_type(source_type: JournalEntrySourceType) -> str:
         return "reviewed_source"
     if source_type == JournalEntrySourceType.AUTO_MATCHED:
         return "auto_matched"
-    if source_type in {JournalEntrySourceType.AUTO_PARSED, JournalEntrySourceType.BANK_STATEMENT}:
+    if source_type == JournalEntrySourceType.AUTO_PARSED:
         return "unreviewed_auto_parse"
     return "system_generated"
 
