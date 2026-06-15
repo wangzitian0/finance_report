@@ -265,3 +265,15 @@ proofs:
     ac_ids:
       - AC19.9.1
       - AC8.14.3
+
+  - id: double-entry-posting-balances-pr
+    scope: behavioral
+    ci_tier: pr_ci
+    trust_mode: deterministic_pr
+    source_classes:
+      - manual_record
+    issue: "#896"
+    file: apps/backend/tests/accounting/test_accounting_equation.py
+    test: test_many_lines_complex_salary_correct
+    ac_ids:
+      - AC2.6.4
