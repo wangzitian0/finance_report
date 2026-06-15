@@ -753,49 +753,6 @@ async def import_brokerage_statement_positions(
     return BrokerageImportResponse(**import_result.__dict__)
 
 
-@router.post("/{statement_id}/approve", response_model=BankStatementResponse, deprecated=True)
-async def approve_statement(
-    statement_id: UUID,
-    decision: StatementDecisionRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> BankStatementResponse:
-    """[Deprecated] Approve via Stage 1 validation flow.
-
-    Compatibility note: decision payload is accepted but ignored.
-    """
-    await _get_statement_or_404(db, statement_id, user_id)
-
-    try:
-        await approve_statement_svc(db, statement_id, user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    await db.commit()
-
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    return await _compose_statement_response(db, statement, user_id)
-
-
-@router.post("/{statement_id}/reject", response_model=BankStatementResponse, deprecated=True)
-async def reject_statement(
-    statement_id: UUID,
-    decision: StatementDecisionRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> BankStatementResponse:
-    """[Deprecated] Reject via Stage 1 validation flow."""
-    await _get_statement_or_404(db, statement_id, user_id)
-
-    try:
-        await reject_statement_svc(db, statement_id, user_id, reason=decision.notes)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    await db.commit()
-
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-    return await _compose_statement_response(db, statement, user_id)
-
-
 @router.delete("/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_statement(
     statement_id: UUID,

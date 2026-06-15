@@ -16,5 +16,5 @@ The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=
 | `GET` | `/package/snapshots/{snapshot_id}/export` | `export_personal_report_package_snapshot` | apps/backend/src/routers/reports.py:1779 |
 | `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:2059 |
 | `GET` | `/{statement_id}/document` | `get_statement_document` | apps/backend/src/routers/statements.py:536 |
-| `DELETE` | `/{statement_id}` | `delete_statement` | apps/backend/src/routers/statements.py:800 |
+| `DELETE` | `/{statement_id}` | `delete_statement` | apps/backend/src/routers/statements.py:757 |
 | `DELETE` | `/{user_id}` | `delete_user` | apps/backend/src/routers/users.py:102 |

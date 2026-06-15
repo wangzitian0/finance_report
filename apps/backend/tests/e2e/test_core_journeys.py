@@ -871,12 +871,11 @@ async def test_statement_full_flow(client, test_user):
     get_resp = await client.get(f"/statements/{stmt_id}")
     assert get_resp.status_code == 200
 
-    # Approve
-    approve_resp = await client.post(
-        f"/statements/{stmt_id}/approve",
-        json={"approved": True, "notes": "E2E lifecycle test"},
-    )
-    # 200 = approved, 400 = already processed — both acceptable in E2E
+    # Approve via the Stage-1 review endpoint (the legacy POST /statements/{id}/approve
+    # was removed in #1099 / AC12.29.5; /review/approve is the supported path).
+    approve_resp = await client.post(f"/statements/{stmt_id}/review/approve")
+    # 200 = approved, 400 = not approvable (e.g. parse/validation failure) — both
+    # acceptable in this lifecycle smoke test.
     assert approve_resp.status_code in [200, 400]
 
 
