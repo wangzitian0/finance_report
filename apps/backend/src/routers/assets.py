@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, Pagination
 from src.logger import get_logger
 from src.models.layer3 import (
     ManualValuationComponentType,
@@ -221,6 +221,7 @@ async def list_valuation_components(
 async def list_restricted_holdings(
     db: DbSession,
     user_id: CurrentUserId,
+    pagination: Pagination,
     as_of_date: date | None = Query(default=None),
 ) -> list[RestrictedHoldingResponse]:
     """List latest ESOP/RSU/locked manual valuations as restricted holdings."""
@@ -246,6 +247,9 @@ async def list_restricted_holdings(
         key = (snapshot.component_type, snapshot.source, snapshot.currency)
         holdings.setdefault(key, snapshot)
 
+    # Paginate the deduplicated current-head holdings (dedup must run over the full
+    # result set before slicing, so the bound is applied here rather than in SQL).
+    page = list(holdings.values())[pagination.offset : pagination.offset + pagination.limit]
     return [
         RestrictedHoldingResponse(
             ticker=snapshot.source,
@@ -255,7 +259,7 @@ async def list_restricted_holdings(
             fair_value=to_money(snapshot.value),
             currency=snapshot.currency,
         )
-        for snapshot in holdings.values()
+        for snapshot in page
     ]
 
 
