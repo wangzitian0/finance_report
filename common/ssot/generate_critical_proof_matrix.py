@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Generate ``docs/ssot/critical-proof-matrix.yaml`` from co-located declarations.
+"""Render the critical-proof matrix on demand from co-located declarations.
 
-The ``proofs:`` section of the matrix is a DERIVED index. Its source of truth is
+The ``proofs:`` section of the matrix is a DERIVED view. Its source of truth is
 the ``@ac_proof(...)`` decorator co-located on each critical-proof test (see
 :mod:`common.testing.ac_proof`). This generator statically scans the test tree
 for those decorators — mirroring the AST style of
-``common.ssot.check_critical_proof_matrix`` and the generated-artifact contract
-of ``common.ssot.generate_ac_registry`` — and emits the matrix.
+``common.ssot.check_critical_proof_matrix`` — and renders the matrix.
 
 The ``outcomes:`` section is the README/EPIC macro-outcome contract, not a
 per-test fact, so it is kept as a small hand-maintained source file
@@ -14,8 +13,12 @@ per-test fact, so it is kept as a small hand-maintained source file
 rarely change and are NOT the merge-train false-sharing hotspot; the per-AC
 ``proofs[]`` appends were.
 
-``--check`` exits non-zero when the checked-in YAML differs from a fresh
-generation, exactly like ``tools/generate_ac_registry.py --check``.
+The matrix is a derived view of the one AC-keyed graph and is NO LONGER
+committed-materialized (there is no checked-in ``critical-proof-matrix.yaml`` to
+byte-compare against). ``--check`` therefore does not diff a committed file: it
+only verifies the matrix can be built consistently in-memory (no duplicate proof
+ids, no non-literal decorator args) and exits non-zero if it cannot. Full
+cross-source consistency is gated by ``tools/check_ac_index.py``.
 """
 
 from __future__ import annotations

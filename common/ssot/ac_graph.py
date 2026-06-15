@@ -192,9 +192,12 @@ def _vision_items(repo_root: Path) -> list[VisionItem]:
     # graph is actually constructed.
     from common.ssot import generate_vision_proof_matrix as vision
 
-    # build_matrix is memoized; clear so we never reuse a stale process cache.
+    # build_matrix is memoized per repo_root; clear so we never reuse a stale
+    # process cache, and pass THIS graph's repo_root so vision.md/EPIC/registry
+    # parsing is sourced from the SAME checkout as the rest of the graph (a
+    # non-default root — temp worktree/tests — must not read the real repo).
     vision.build_matrix.cache_clear()
-    matrix = vision.build_matrix()
+    matrix = vision.build_matrix(repo_root)
     items: list[VisionItem] = []
     for node in matrix.get("vision_nodes", []):
         items.append(
@@ -236,6 +239,51 @@ def _load_scores(baseline_path: Path) -> dict[str, float]:
             except (TypeError, ValueError):
                 continue
     return scores
+
+
+@dataclass(frozen=True)
+class ProofsOnlyGraph:
+    """The minimal proofs+outcomes slice of the AC graph.
+
+    Carries only what the critical-proof matrix payload needs: the
+    ``@ac_proof`` proof edges and the hand-maintained outcomes doc. It exposes
+    the same ``proofs`` / ``outcomes_doc`` attributes as :class:`AcGraph`, so
+    ``generate_critical_proof_matrix.build_matrix_from_graph`` consumes either
+    one interchangeably and yields the identical matrix payload. Use it when the
+    AC-reference scan and the vision build are pure overhead (the staging gate
+    and the critical-proof validator).
+    """
+
+    repo_root: Path
+    proofs: list[ProofEdge]
+    outcomes_doc: dict[str, Any]
+
+
+def build_proofs_only(
+    repo_root: Path = REPO_ROOT,
+    *,
+    outcomes_path: Path | None = None,
+) -> ProofsOnlyGraph:
+    """Build only the proofs + outcomes slice — no AC-ref scan, no vision build.
+
+    The lightweight path: a pure ``@ac_proof`` AST scan plus the hand-maintained
+    ``critical-proof-outcomes.yaml``. It deliberately skips the AC test-universe
+    reference scan and the heavy vision-matrix build that ``build_ac_graph``
+    performs, because the critical-proof matrix payload depends on neither. The
+    ``proofs``/``outcomes_doc`` it carries are byte-for-byte what ``build_ac_graph``
+    would have produced, so any matrix derived from it is identical — just faster
+    to start up.
+    """
+    repo_root = repo_root.resolve()
+    outcomes_path = outcomes_path or (repo_root / DEFAULT_OUTCOMES.relative_to(REPO_ROOT))
+
+    proofs = _proof_edges(collect_proofs(repo_root))
+
+    outcomes_doc = yaml.safe_load(outcomes_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(outcomes_doc, dict):
+        outcomes_doc = {}
+
+    return ProofsOnlyGraph(repo_root=repo_root, proofs=proofs, outcomes_doc=outcomes_doc)
 
 
 def build_ac_graph(

@@ -73,6 +73,21 @@ _BLOCKQUOTE_LINE_RE = re.compile(r"^\s*>")
 _NEW_LABEL_LINE_RE = re.compile(r"^\s*>\s*\*\*")
 
 
+def _vision_path(repo_root: Path) -> Path:
+    return repo_root / "vision.md"
+
+
+def _epic_dir(repo_root: Path) -> Path:
+    return repo_root / "docs" / "project"
+
+
+def _registry_paths(repo_root: Path) -> tuple[Path, Path]:
+    return (
+        repo_root / "docs" / "ac_registry.yaml",
+        repo_root / "docs" / "infra_registry.yaml",
+    )
+
+
 def load_vision_anchors(vision_path: Path = VISION_PATH) -> dict[str, str]:
     """Return ``{anchor_id: heading_or_label}`` for every vision.md anchor.
 
@@ -125,15 +140,15 @@ def _anchor_label(line: str, anchor_end: int, lines: list[str], idx: int, last_h
     return last_heading
 
 
-def _epic_files() -> list[Path]:
+def _epic_files(epic_dir: Path = EPIC_DIR) -> list[Path]:
     return sorted(
-        EPIC_DIR / fname
-        for fname in os.listdir(EPIC_DIR)
+        epic_dir / fname
+        for fname in os.listdir(epic_dir)
         if re.match(r"EPIC-\d+.*\.md", fname) and "IMPLEMENTATION" not in fname and "ENCODING" not in fname
     )
 
 
-def load_epic_anchor_map() -> dict[str, list[str]]:
+def load_epic_anchor_map(epic_dir: Path = EPIC_DIR) -> dict[str, list[str]]:
     """Return ``{anchor_id: [EPIC-001, ...]}`` from EPIC ``Vision Anchor`` lines.
 
     A "Vision Anchor" declaration may wrap its anchor list across several
@@ -143,7 +158,7 @@ def load_epic_anchor_map() -> dict[str, list[str]]:
     until one opens a new ``**Label**`` field or the blockquote ends.
     """
     mapping: dict[str, set[str]] = defaultdict(set)
-    for path in _epic_files():
+    for path in _epic_files(epic_dir):
         epic_match = _EPIC_FILE_RE.match(path.name)
         if not epic_match:
             continue
@@ -172,10 +187,10 @@ def load_epic_anchor_map() -> dict[str, list[str]]:
     return {anchor: sorted(epics) for anchor, epics in mapping.items()}
 
 
-def _load_registry_acs() -> dict[str, dict[str, Any]]:
+def _load_registry_acs(registry_paths: tuple[Path, Path] = (FEATURE_REGISTRY, INFRA_REGISTRY)) -> dict[str, dict[str, Any]]:
     """Return ``{ac_id: {epic, epic_name, description, mandatory}}`` for both registries."""
     acs: dict[str, dict[str, Any]] = {}
-    for path in (FEATURE_REGISTRY, INFRA_REGISTRY):
+    for path in registry_paths:
         for entry in load_registry_entries(path):
             ac_id = str(entry["id"])
             acs.setdefault(
@@ -190,9 +205,9 @@ def _load_registry_acs() -> dict[str, dict[str, Any]]:
     return acs
 
 
-def _find_test_files() -> list[Path]:
+def _find_test_files(repo_root: Path = REPO_ROOT) -> list[Path]:
     found: list[Path] = []
-    for base in default_ac_test_dirs(REPO_ROOT):
+    for base in default_ac_test_dirs(repo_root):
         if not base.exists():
             continue
         for root, dirs, files in os.walk(base):
@@ -203,17 +218,17 @@ def _find_test_files() -> list[Path]:
     return sorted(found)
 
 
-def collect_real_test_refs() -> dict[str, list[str]]:
+def collect_real_test_refs(repo_root: Path = REPO_ROOT) -> dict[str, list[str]]:
     """Return ``{ac_id: [test_file, ...]}`` for real (non-stub/placeholder) refs."""
     refs: dict[str, set[str]] = defaultdict(set)
-    for fpath in _find_test_files():
+    for fpath in _find_test_files(repo_root):
         try:
             content = fpath.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         if classify_reference_file(fpath, content) != "real":
             continue
-        rel = fpath.relative_to(REPO_ROOT).as_posix()
+        rel = fpath.relative_to(repo_root).as_posix()
         for match in AC_PATTERN.finditer(content):
             refs[match.group(0)].add(rel)
     return {ac_id: sorted(files) for ac_id, files in refs.items()}
@@ -223,20 +238,25 @@ def _epic_num(epic_id: str) -> int:
     return int(epic_id.split("-")[1])
 
 
-@functools.lru_cache(maxsize=1)
-def build_matrix() -> dict[str, Any]:
+@functools.lru_cache(maxsize=4)
+def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """Build the vision -> AC -> test matrix as a plain, serializable mapping.
 
     Building scans vision.md, every EPIC doc, both AC registries, and the AC
-    test directories, so it is memoized: repeated calls (the CLI plus several
-    tests) reuse one scan within a process. The returned mapping is treated as
-    read-only by all callers; do not mutate it, or call ``build_matrix.cache_clear()``
-    if the underlying files change mid-process.
+    test directories under ``repo_root``, so it is memoized per ``repo_root``:
+    repeated calls (the CLI plus several tests) reuse one scan within a process.
+    Threading ``repo_root`` through keeps the whole matrix sourced from ONE
+    consistent checkout, so callers like ``ac_graph.build_ac_graph(repo_root=...)``
+    (temp worktrees, tests) never mix this checkout's vision.md with another
+    root's registries. The returned mapping is treated as read-only by all
+    callers; do not mutate it, or call ``build_matrix.cache_clear()`` if the
+    underlying files change mid-process.
     """
-    anchors = load_vision_anchors()
-    epic_map = load_epic_anchor_map()
-    acs = _load_registry_acs()
-    test_refs = collect_real_test_refs()
+    repo_root = repo_root.resolve()
+    anchors = load_vision_anchors(_vision_path(repo_root))
+    epic_map = load_epic_anchor_map(_epic_dir(repo_root))
+    acs = _load_registry_acs(_registry_paths(repo_root))
+    test_refs = collect_real_test_refs(repo_root)
 
     # Index ACs by EPIC number for fast EPIC -> AC lookup.
     acs_by_epic: dict[int, list[str]] = defaultdict(list)

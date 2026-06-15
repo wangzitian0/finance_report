@@ -62,11 +62,16 @@ def _load_matrix() -> dict[str, Any]:
     the llm-marked post-merge proofs that drive the staging gate come straight
     from the co-located ``@ac_proof`` decorators (a pure static AST scan, no test
     imports), not from a checked-in YAML file.
+
+    The gate only reads ``matrix["proofs"]``, so it uses the lightweight
+    ``build_proofs_only`` path (proofs + outcomes), skipping the AC-reference
+    scan and the vision build the full graph performs. The observable
+    proofs/outcomes payload is identical, only the startup cost is lower.
     """
-    from common.ssot.ac_graph import build_ac_graph
+    from common.ssot.ac_graph import build_proofs_only
     from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
 
-    return build_matrix_from_graph(build_ac_graph(REPO_ROOT))
+    return build_matrix_from_graph(build_proofs_only(REPO_ROOT))
 
 
 def gate_files() -> list[str]:

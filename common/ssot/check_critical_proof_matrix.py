@@ -627,11 +627,16 @@ def build_matrix_payload(repo_root: Path) -> dict[str, Any]:
     The matrix is a DERIVED view of the one AC-keyed graph (see
     ``common.ssot.ac_graph``); it is never committed-materialized, so the
     validator reads the freshly-built payload instead of a checked-in file.
+
+    Only the proofs + outcomes drive the matrix payload, so this routes through
+    the lightweight ``build_proofs_only`` path — skipping the AC-reference scan
+    and the vision build that the full graph performs. The payload (and thus all
+    downstream validation) is identical to the full-graph build, only faster.
     """
-    from common.ssot.ac_graph import build_ac_graph
+    from common.ssot.ac_graph import build_proofs_only
     from common.ssot.generate_critical_proof_matrix import build_matrix_from_graph
 
-    return build_matrix_from_graph(build_ac_graph(repo_root))
+    return build_matrix_from_graph(build_proofs_only(repo_root))
 
 
 def validate_matrix_contract(repo_root: Path, matrix_payload: dict[str, Any] | None = None) -> MatrixValidation:
