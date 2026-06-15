@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, Pagination
 from src.logger import get_logger
 from src.models import (
     Direction,
@@ -540,6 +540,7 @@ async def list_anomalies(
     *,
     db: DbSession,
     user_id: CurrentUserId,
+    pagination: Pagination,
 ) -> list[AnomalyResponse]:
     result = await db.execute(
         select(AtomicTransaction).where(AtomicTransaction.id == txn_id).where(AtomicTransaction.user_id == user_id)
@@ -548,4 +549,5 @@ async def list_anomalies(
     if not txn:
         raise_not_found("Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
-    return [AnomalyResponse(**anomaly.__dict__) for anomaly in anomalies]
+    page = anomalies[pagination.offset : pagination.offset + pagination.limit]
+    return [AnomalyResponse(**anomaly.__dict__) for anomaly in page]

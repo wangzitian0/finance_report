@@ -18,10 +18,20 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from fastapi import status
 from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
+from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from src.main import app
+
+# The list endpoints #1099 named as unbounded; each must now accept bounded
+# limit/offset (AC12.29.2).
+_PREVIOUSLY_UNBOUNDED_LIST_PATHS = (
+    "/assets/restricted",
+    "/reconciliation/transactions/{txn_id}/anomalies",
+    "/reports/package/snapshots",
+)
 
 # Utility/infra routes that are intentionally untagged (excluded from the
 # one-tag-per-operation contract because they are not part of any FE module).
@@ -92,6 +102,43 @@ def test_AC12_29_4_no_route_or_tag_collisions() -> None:
 
     assert {"statements", "review"} <= _tags_under_prefix("/statements")
     assert {"ai", "ai-feedback"} <= _tags_under_prefix("/ai")
+
+
+def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:
+    """AC12.29.2: the three named unbounded list endpoints now accept bounded
+    ``limit``/``offset`` query params, with ``limit`` capped at ``MAX_PAGE_LIMIT``."""
+    paths = app.openapi()["paths"]
+
+    for path in _PREVIOUSLY_UNBOUNDED_LIST_PATHS:
+        assert path in paths, f"{path} missing from OpenAPI"
+        params = {p["name"]: p for p in paths[path]["get"].get("parameters", [])}
+
+        assert "limit" in params, f"{path} GET has no `limit` query param"
+        assert "offset" in params, f"{path} GET has no `offset` query param"
+
+        limit_schema = params["limit"]["schema"]
+        assert limit_schema.get("maximum") == MAX_PAGE_LIMIT, (
+            f"{path} `limit` is not capped at MAX_PAGE_LIMIT ({MAX_PAGE_LIMIT}): {limit_schema}"
+        )
+        assert limit_schema.get("minimum") == 1
+        assert params["offset"]["schema"].get("minimum") == 0
+
+
+async def test_AC12_29_3_pagination_convention_is_enforced(client: AsyncClient) -> None:
+    """AC12.29.3: a single documented pagination convention exists and the shared
+    dependency rejects an over-max ``limit`` with 422."""
+    assert isinstance(DEFAULT_PAGE_LIMIT, int)
+    assert isinstance(MAX_PAGE_LIMIT, int)
+    assert 1 <= DEFAULT_PAGE_LIMIT <= MAX_PAGE_LIMIT
+
+    # A valid bounded request is accepted...
+    ok = await client.get("/reports/package/snapshots", params={"limit": 5, "offset": 0})
+    assert ok.status_code == status.HTTP_200_OK
+
+    # ...and a request above the documented hard maximum is rejected by the
+    # shared PaginationParams bound, not silently clamped.
+    too_big = await client.get("/reports/package/snapshots", params={"limit": MAX_PAGE_LIMIT + 1})
+    assert too_big.status_code == 422
 
 
 async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(client: AsyncClient) -> None:
