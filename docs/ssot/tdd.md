@@ -169,13 +169,34 @@ times. The final model removes that:
   It is stored as sorted, one-AC-per-line JSONL with `merge=union` in
   `.gitattributes`, so PRs adopting *different* ACs auto-merge and only same-AC
   edits conflict.
-- **One consistency gate.** `tools/check_ac_index.py` builds the graph and
-  asserts the invariants that matter, failing ONLY on dangling/missing — NEVER on
-  a shifted total: every mandatory non-deprecated AC resolves to >=1 real test
-  reference; every `@ac_proof` points at a real test and real AC ids; every
-  vision item with an owning EPIC backs >=1 AC; every macro outcome's `proof_ids`
-  resolve; and (when fed a current-evidence aggregate) the ratchet is not
-  regressed. This replaces the three per-view byte-compares.
+- **Exactly TWO gates.** `tools/check_ac_index.py` builds the graph once and runs
+  exactly two gates (two labelled report sections, `[INTEGRITY]` and
+  `[PROTECTION]`), replacing the three per-view byte-compares:
+  - **Gate A — INTEGRITY (hard, binary):** `check_integrity(graph)`. One predicate
+    — "does this reference obligation resolve?" — over every edge type. It asserts
+    every AC is *managed* (enumerated with a protection record — an all-zero/empty
+    record is VALID; managed means present in the structure, not that it has a
+    test) AND there is no dangling reference: every `@ac_proof` points at a real
+    test and real AC ids; every vision item with an owning EPIC backs >=1 AC; every
+    macro outcome's `proof_ids` resolve; and every mandatory non-deprecated AC
+    resolves to >=1 real test reference. The engine is unified but the
+    per-edge-type error wording is preserved verbatim from the legacy checks.
+  - **Gate B — PROTECTION RATCHET (soft, monotonic, per type):** two conflict-safe
+    sub-parts that must never regress. *Part 1* is the per-AC behavioural-score
+    floor over `ac-score-baseline.jsonl` (delegated unchanged to
+    `check_ac_score_baseline`; `merge=union`, so PRs adopting different ACs
+    auto-merge). *Part 2* is the per-type COUNT floor over
+    `docs/ssot/protection-floor.json`: for each protection type (`has_real_ref`,
+    `has_proof`, `has_score`, `has_mirror`) the current count of mandatory active
+    ACs must be `>=` the committed floor. **Conflict-safety convention:** a normal
+    PR that ADDS protection only RAISES the *current* count, which passes
+    `current >= floor` WITHOUT editing `protection-floor.json`; the floor is bumped
+    ONLY by the explicit `tools/check_ac_index.py --update-floor` ("lock in gains")
+    action, so the floor file is almost never in a PR diff and never becomes a
+    conflict hotspot. The default all-zero / missing floor is valid (a brand-new
+    repo passes). On pass the gate prints the per-type protection dashboard so it
+    REPORTS the current protection levels even though only a floor regression fails
+    it.
 
 The distinction that still matters: a *derived view* is rebuilt from the sharded
 sources on every read and is never committed; the *persisted ratchet* is kept on
