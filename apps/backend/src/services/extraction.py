@@ -62,11 +62,15 @@ _DATE_FORMATS: tuple[str, ...] = (
 
 
 def _tolerant_parse_date(value: str | None) -> date | None:
-    """Parse a date from common bank/brokerage formats, not just strict ISO (#1086).
+    """Defensive fallback parser for dates the model didn't normalize to ISO (#1086).
 
-    Returns ``None`` for empty/unparseable input so callers decide whether a missing
-    date is fatal (a required statement period) or skippable (one bad transaction
-    row), instead of a strict ``date.fromisoformat`` aborting the whole document.
+    Primary date normalization is the extraction model's responsibility — the parsing
+    prompt instructs it to emit ISO ``YYYY-MM-DD`` for every source format. This
+    handles the residual cases where the model still echoes a common non-ISO form
+    (Chinese ``YYYY年MM月DD日``, ``DD/MM/YYYY``, ``YYYY.MM.DD``, ``DD Mon YYYY``, ISO
+    datetimes). It returns ``None`` for empty/unparseable input so callers decide
+    whether a missing date is fatal (a required statement period) or skippable (one
+    bad row), instead of a strict ``date.fromisoformat`` aborting the whole document.
     """
     if value is None:
         return None
@@ -444,15 +448,22 @@ class ExtractionService:
                     )
                     continue
 
+                # Primary date normalization is the model's job (see the parsing
+                # prompt's ISO rule). `_tolerant_parse_date` is only a defensive net
+                # for the few rows the model still emits in a non-ISO/empty form.
                 parsed_date = _tolerant_parse_date(txn_date_val)
                 if parsed_date is None:
                     # #1086: one unparseable row date is non-fatal — skip and flag the
                     # row instead of rejecting the whole (often multi-month) statement.
+                    # Carry description/amount so the skipped row is identifiable from
+                    # logs without reproducing locally.
                     logger.warning(
                         "Skipping transaction row with unparseable date",
                         raw_date=txn_date_val,
+                        description=txn.get("description", "N/A"),
+                        amount=txn.get("amount"),
                         is_brokerage=is_brokerage_payload,
-                        filename=original_filename or (file_path.name if file_path else "unknown"),
+                        statement_file=original_filename or (file_path.name if file_path else "unknown"),
                     )
                     continue
 
