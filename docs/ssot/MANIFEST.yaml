@@ -477,7 +477,7 @@ concepts:
     cross_refs:
       - docs/ssot/ci-cd.md
       - docs/ssot/tdd.md
-      - tools/check_ac_traceability.py
+      - tools/check_ac_index.py
 
   # ── Deployment ─────────────────────────────────────────────────────────
   deployment_architecture:
@@ -558,7 +558,7 @@ concepts:
       - .github/workflows/ci.yml
       - common/testing/ac_proof.py
       - tools/generate_critical_proof_matrix.py
-      - tools/check_critical_proof_matrix.py
+      - tools/check_ac_index.py
 
   critical_proof_outcomes:
     owner: docs/ssot/critical-proof-outcomes.yaml

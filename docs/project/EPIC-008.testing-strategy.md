@@ -86,7 +86,7 @@ Integration tests and E2E tests are intentionally different in this project:
 |---|---|---|---|
 | Unified Line Coverage | `(sum covered LF) / (sum executable LF)` over unified files only | `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov` after policy mapping | No-regression vs `unified-coverage.json`; line-based only |
 | AC Pass Rate | `(ACs with at least one passing qualifying test) / (Total ACs)` | Generated AC coverage audit report | Informational for behavior completeness; not a line-coverage substitute |
-| AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_traceability.py`, `docs/ssot/test-execution-matrix.yaml`, `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
+| AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_index.py`, `docs/ssot/test-execution-matrix.yaml`, `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
 
 AC rates are generated on each CI run from `python tools/analyze_test_ac_coverage.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
 
@@ -126,9 +126,9 @@ proof is managed by:
 | Proof layer | Owner |
 |---|---|
 | README macro outcomes and owner EPIC declarations | `README.md`, EPIC `Macro Proof Ownership` sections |
-| Critical E2E proof paths | `tools/check_critical_proof_matrix.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
+| Critical E2E proof paths | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
 | Product E2E function ownership | `tools/check_e2e_epic_traceability.py` |
-| AC proof and placeholder/stub exclusion | `tools/check_ac_traceability.py`, CI traceability artifact |
+| AC proof and placeholder/stub exclusion | `tools/check_ac_index.py`, CI traceability artifact |
 
 New scenario coverage must be added as ACs plus tests or as critical proof
 matrix rows, not as another prose scenario checklist.
@@ -407,13 +407,13 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.132 | Every test/support file with no AC reference stays classified in `docs/analysis/traceability-exceptions.md`, with no unclassified drift and no product E2E test parked on the allow-list (#511) | `test_AC8_13_132_*` | `tests/tooling/test_no_ac_test_classification.py` | P1 |
 | AC8.13.133 | Cross-document SSOT concepts (reconciliation thresholds, reconciliation/confirmation state machines, extraction confidence tiers, confidence-tier rollup) are registered in `docs/ssot/MANIFEST.yaml` with anchored owners backed by explicit `<a id>` anchors (#340) | `test_AC8_13_133_*` | `tests/tooling/test_ssot_cross_document_anchors.py` | P1 |
 | AC8.13.134 | Consolidated/archived stale docs stay absent and every mkdocs `nav` markdown target resolves (no dangling internal links after the consolidation) (#350) | `test_AC8_13_134_*` | `tests/tooling/test_stale_docs_consolidation.py` | P1 |
-| AC8.13.135 | The AC traceability report labels its mandatory-coverage number as L1 reference hygiene (reference exists), never as behavioral coverage, and its pass message names the separate L2 critical-proof-matrix and L3 behavioral-score-ratchet gates as the behavioral authorities — so a passing traceability gate cannot be read as misleading behavioral assurance | `test_AC8_13_135_report_labels_l1_hygiene_not_behavioral`, `test_AC8_13_135_pass_message_points_to_behavioral_gates` | `tests/tooling/test_check_ac_traceability.py` | P0 |
+| AC8.13.135 | The AC-index gate's PROTECTION dashboard reports mandatory-AC coverage as per-type counts (`has_real_ref` / `has_proof` / `has_score` / `has_mirror`), never conflating L1 reference presence with behavioral proof, so a passing gate cannot be read as misleading behavioral assurance (re-anchored from the retired standalone traceability report) | `test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral` | `tests/tooling/test_ac_index_consistency.py` | P0 |
 | AC8.13.136 | A content-level secret scan (gitleaks) runs in both the pre-commit hooks and the CI `lint` job (local==CI parity), blocking credential material by content rather than by filename so `.gitignore` is not the only line of defense | `test_AC8_13_136_gitleaks_runs_in_precommit_and_ci` | `tests/tooling/test_secret_scan_gate.py` | P0 |
 | AC8.13.137 | The staging AI/OCR gate summarizes its JUnit output into real pass/fail counts and names the failing corpus docs (instead of a binary "Failures observed: 1+" with verified counts "unknown"), so a red gate is diagnosable ([#1089](https://github.com/wangzitian0/finance_report/issues/1089)) | `test_AC8_13_137_summarize_junit_reports_per_doc_failures`; `test_AC8_13_137_render_junit_summary_lists_failed_tests`; `test_AC8_13_137_summarize_junit_tolerates_missing_xml` | `tests/tooling/test_staging_ai_ocr_gate_contract.py` | P1 |
 | AC8.13.138 | The AC-score ratchet baseline is a PERSISTED ratchet stored conflict-free as sorted, one-AC-per-line JSONL with a `merge=union` gitattribute, loading into the same in-memory shape the ratchet uses — and the ratchet still fails on regression, missing evidence, or non-pass code (the derived aggregate views it once sat beside are now covered by AC8.13.139) | `test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge`, `test_AC8_13_138_baseline_loads_to_legacy_shape`, `test_AC8_13_138_ratchet_still_fails_on_regression_and_missing_ac` | `tests/tooling/test_proof_index_architecture.py` | P1 |
 | AC8.13.139 | The cross-cutting proof/vision/status indexes are unified onto ONE AC-keyed graph (`common/ssot/ac_graph.py`) built from sharded sources (EPIC docs, `@ac_proof` decorators, `vision.md`, `critical-proof-outcomes.yaml`, the JSONL ratchet); the critical-proof matrix, vision-proof matrix, and README EPIC-status table are DERIVED on demand and never committed-materialized; and `tools/check_ac_index.py` is exactly TWO gates — **Gate A INTEGRITY** (`check_integrity`, hard: every AC is managed/enumerated with a protection record AND no dangling reference — every `@ac_proof` resolves to a real test + real AC, every vision item with an owner EPIC backs an AC, every macro outcome's proof_ids resolve, every mandatory active AC has a real test reference, with the per-edge-type messages preserved verbatim) and **Gate B PROTECTION RATCHET** (see AC8.13.140) — instead of N byte-compares | `test_AC8_13_139_gate_passes_on_consistent_tree`, `test_AC8_13_139_gate_fails_on_dangling_vision_item`, `test_AC8_13_139_gate_fails_on_proof_missing_test_or_ac`, `test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof`, `test_AC8_13_139_gate_fails_on_macro_outcome_missing_proof`, `test_AC8_13_139_gate_fails_on_ratchet_regression`, `test_AC8_13_139_no_committed_materialized_index_files` | `tests/tooling/test_ac_index_consistency.py` | P1 |
 | AC8.13.140 | Gate B (PROTECTION RATCHET) of `tools/check_ac_index.py` is monotonic, per-type and conflict-safe: an AC with an all-empty protection record is still "managed" (managed = present in the structure, not that it has any test); part 1 is the per-AC behavioural-score floor (`ac-score-baseline.jsonl`, `merge=union`, unchanged); part 2 is a per-type COUNT floor (`docs/ssot/protection-floor.json`) where the current count of mandatory active ACs at each type (`has_real_ref`, `has_proof`, `has_score`, `has_mirror`) must be `>=` the committed floor — adding protection only RAISES the current count and passes without editing the floor file, the default all-zero/missing floor is valid, and floors are raised only by the explicit `--update-floor` action so protection-adding PRs never touch the file | `test_AC8_13_140_every_ac_managed_with_empty_protection_passes`, `test_AC8_13_140_count_floor_default_empty_passes`, `test_AC8_13_140_count_floor_fails_when_type_drops_below_floor`, `test_AC8_13_140_count_floor_passes_when_protection_added`, `test_AC8_13_140_update_floor_raises_floors`, `test_AC8_13_140_load_floor_rejects_malformed_value`, `test_AC8_13_140_write_floor_creates_missing_parent` | `tests/tooling/test_ac_index_consistency.py` | P1 |
-| AC8.13.141 | The AC-index gate is OPERATIONALLY exactly TWO CI gates: the formerly-standalone `tools/check_ac_traceability.py` (CI-stage traceability: a mandatory active AC must resolve to a real test reference in a CI-REQUIRED execution stage per `docs/ssot/test-execution-matrix.yaml`, with the placeholder-only/stub-only/unexecuted-only/missing classifications) and `tools/check_critical_proof_matrix.py` (per-proof trust_mode/mirror/required_markers/scope/ci_tier + manual_gate evidence + macro-outcome shape contract) gate STEPS are RETIRED as separate CI steps; their logic is FOLDED into `check_ac_index`'s Gate A INTEGRITY (`check_repo_contracts`) by importing those modules as LIBRARIES (no reimplementation, verbatim messages), so every failure they caught still fails the single gate, the index gate runs ONCE (lint job, not duplicated in `ac-traceability`), and no CI job name / required status context is renamed | `test_AC8_13_141_green_tree_old_gates_and_consolidated_agree`, `test_AC8_13_141_unexecuted_only_is_caught`, `test_AC8_13_141_placeholder_only_is_caught`, `test_AC8_13_141_stub_only_is_caught`, `test_AC8_13_141_missing_is_caught`, `test_AC8_13_141_critical_proof_invalid_trust_mode_caught`, `test_AC8_13_141_critical_proof_llm_missing_mirror_caught`, `test_AC8_13_141_critical_proof_missing_marker_caught`, `test_AC8_13_141_critical_proof_manual_gate_without_evidence_caught`, `test_AC8_13_141_consolidated_gate_surfaces_critical_proof_errors`, `test_AC8_13_141_old_standalone_gate_steps_removed_from_ci`, `test_AC8_13_141_single_ac_index_gate_runs_exactly_once_per_required_path`, `test_AC8_13_141_ci_job_names_and_required_contexts_unchanged` | `tests/tooling/test_two_gate_consolidation.py` | P1 |
+| AC8.13.141 | The AC-index gate is OPERATIONALLY exactly TWO CI gates: the formerly-standalone `tools/check_ac_index.py` (CI-stage traceability: a mandatory active AC must resolve to a real test reference in a CI-REQUIRED execution stage per `docs/ssot/test-execution-matrix.yaml`, with the placeholder-only/stub-only/unexecuted-only/missing classifications) and `tools/check_critical_proof_matrix.py` (per-proof trust_mode/mirror/required_markers/scope/ci_tier + manual_gate evidence + macro-outcome shape contract) gate STEPS are RETIRED as separate CI steps; their logic is FOLDED into `check_ac_index`'s Gate A INTEGRITY (`check_repo_contracts`) by importing those modules as LIBRARIES (no reimplementation, verbatim messages), so every failure they caught still fails the single gate, the index gate runs ONCE (lint job, not duplicated in `ac-traceability`), and no CI job name / required status context is renamed | `test_AC8_13_141_green_tree_old_gates_and_consolidated_agree`, `test_AC8_13_141_unexecuted_only_is_caught`, `test_AC8_13_141_placeholder_only_is_caught`, `test_AC8_13_141_stub_only_is_caught`, `test_AC8_13_141_missing_is_caught`, `test_AC8_13_141_critical_proof_invalid_trust_mode_caught`, `test_AC8_13_141_critical_proof_llm_missing_mirror_caught`, `test_AC8_13_141_critical_proof_missing_marker_caught`, `test_AC8_13_141_critical_proof_manual_gate_without_evidence_caught`, `test_AC8_13_141_consolidated_gate_surfaces_critical_proof_errors`, `test_AC8_13_141_old_standalone_gate_steps_removed_from_ci`, `test_AC8_13_141_single_ac_index_gate_runs_exactly_once_per_required_path`, `test_AC8_13_141_ci_job_names_and_required_contexts_unchanged` | `tests/tooling/test_two_gate_consolidation.py` | P1 |
 
 ### AC8.14: Product Trust Proof Mirrors
 
@@ -453,7 +453,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
   owned by `python tools/analyze_test_ac_coverage.py --no-write --stdout` and
   CI traceability artifacts.
-- Mandatory AC gate behavior is owned by `python tools/check_ac_traceability.py`.
+- Mandatory AC gate behavior is owned by `python tools/check_ac_index.py`.
 - Test path execution status for AC proof is owned by
   [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml).
 - Default AC traceability test-surface directories are owned by
@@ -461,7 +461,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
   generated audit builder.
 - Critical product proof-path anchoring is owned by
   the derived critical-proof matrix (macro outcome source `docs/ssot/critical-proof-outcomes.yaml`) and
-  `python tools/check_critical_proof_matrix.py`.
+  `python tools/check_ac_index.py`.
 - Do not copy generated AC totals or per-group percentages into this EPIC.
 
 ---
@@ -535,8 +535,8 @@ by tooling instead of being copied into this EPIC:
 |---|---|
 | Test path -> execution stage mapping | [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
 | Product E2E function -> EPIC ownership | `tools/check_e2e_epic_traceability.py` |
-| Mandatory AC proof eligibility | `tools/check_ac_traceability.py` |
-| Critical macro outcome proof | `tools/check_critical_proof_matrix.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
+| Mandatory AC proof eligibility | `tools/check_ac_index.py` |
+| Critical macro outcome proof | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
 
 Product E2E ownership index:
 
@@ -679,7 +679,7 @@ these owners instead:
 
 | Gap type | Owner |
 |---|---|
-| Personal report package proof contract | `tools/check_critical_proof_matrix.py` (derived view; macro outcome source [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)), #573/#649, `tests/tooling/test_personal_report_package_fixture_contract.py` |
+| Personal report package proof contract | `tools/check_ac_index.py` (derived view; macro outcome source [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)), #573/#649, `tests/tooling/test_personal_report_package_fixture_contract.py` |
 | Provider-backed staging AI/OCR gates | [ci-cd.md](../ssot/ci-cd.md), staging workflow artifacts |
 | Manual-verification treatment | [issue #454](https://github.com/wangzitian0/finance_report/issues/454) |
 | Generated README/project metrics | [issue #455](https://github.com/wangzitian0/finance_report/issues/455) |

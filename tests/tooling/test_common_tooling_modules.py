@@ -181,10 +181,9 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
         "tools.analyze_test_ac_coverage": "common.ssot.analyze_test_ac_coverage",
         "tools.audit_ac_epic_mismatches": "common.ssot.audit_ac_epic_mismatches",
         "tools.build_ac_traceability": "common.ssot.build_ac_traceability",
-        "tools.check_ac_traceability": "common.ssot.check_ac_traceability",
-        "tools.check_critical_proof_matrix": (
-            "common.ssot.check_critical_proof_matrix"
-        ),
+        # check_ac_traceability / check_critical_proof_matrix are no longer
+        # standalone tool commands: their validators are folded into the single
+        # check_ac_index gate (they remain pure common-only libraries).
         "tools.check_e2e_epic_traceability": (
             "common.ssot.check_e2e_epic_traceability"
         ),
