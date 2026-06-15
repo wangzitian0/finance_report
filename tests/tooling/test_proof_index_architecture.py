@@ -1,9 +1,9 @@
-"""AC8.13.137: conflict-free storage for the PERSISTED ratchet baseline.
+"""AC8.13.138: conflict-free storage for the PERSISTED ratchet baseline.
 
 The cross-cutting aggregate VIEWS (critical-proof matrix, vision-proof matrix,
 EPIC status) are no longer committed-materialized — they are derived on demand
 from the one AC-keyed graph and gated by ``tools/check_ac_index.py`` (covered by
-AC8.13.138 in ``test_ac_index_consistency.py``). This module now owns only the
+AC8.13.139 in ``test_ac_index_consistency.py``). This module now owns only the
 one PERSISTED artifact: ``docs/ssot/ac-score-baseline.jsonl`` is stored as
 sorted, line-oriented JSONL with a ``merge=union`` gitattribute, loads into the
 shape the ratchet uses, and the ratchet still fails on regression / missing
@@ -25,7 +25,7 @@ BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.jsonl"
 GITATTRIBUTES = REPO_ROOT / ".gitattributes"
 
 
-def test_AC8_13_137_baseline_is_sorted_jsonl_with_union_merge() -> None:
+def test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge() -> None:
     """Baseline is sorted, one-AC-per-line JSONL guarded by merge=union."""
     lines = [line for line in BASELINE.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert lines, "baseline must not be empty"
@@ -41,7 +41,7 @@ def test_AC8_13_137_baseline_is_sorted_jsonl_with_union_merge() -> None:
     assert "docs/ssot/ac-score-baseline.jsonl merge=union" in gitattrs
 
 
-def test_AC8_13_137_baseline_loads_to_legacy_shape() -> None:
+def test_AC8_13_138_baseline_loads_to_legacy_shape() -> None:
     """The JSONL form loads into the same {"version","acs"} shape the ratchet uses."""
     payload = baseline_format.load_jsonl(BASELINE)
     assert payload["version"] == 1
@@ -64,7 +64,7 @@ def _current(ac_id: str, score: float, code: str = "pass") -> dict:
     }
 
 
-def test_AC8_13_137_ratchet_still_fails_on_regression_and_missing_ac(tmp_path) -> None:
+def test_AC8_13_138_ratchet_still_fails_on_regression_and_missing_ac(tmp_path) -> None:
     """Ratchet semantics are UNCHANGED by the JSONL storage migration."""
     baseline = tmp_path / "b.jsonl"
     baseline_format.write_jsonl(
@@ -96,7 +96,7 @@ def test_AC8_13_137_ratchet_still_fails_on_regression_and_missing_ac(tmp_path) -
     assert ratchet.main([str(ok), "--baseline", str(baseline)]) == 0
 
 
-def test_AC8_13_137_update_refuses_to_cement_a_regression(tmp_path) -> None:
+def test_AC8_13_138_update_refuses_to_cement_a_regression(tmp_path) -> None:
     """--update must not lower the floor on a regressed/non-pass run."""
     baseline = tmp_path / "b.jsonl"
     baseline_format.write_jsonl(

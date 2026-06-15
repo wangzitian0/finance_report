@@ -1,4 +1,4 @@
-"""AC8.13.138: one AC-keyed graph, derived views, one consistency gate.
+"""AC8.13.139: one AC-keyed graph, derived views, one consistency gate.
 
 The cross-cutting proof/vision/status indexes are unified onto ONE AC-keyed
 graph (``common/ssot/ac_graph.py``). The critical-proof matrix, vision-proof
@@ -27,7 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # A real test file + function that exists in this repo, so a proof edge that
 # names it resolves to a real test (this very test module).
 REAL_FILE = "tests/tooling/test_ac_index_consistency.py"
-REAL_TEST = "test_AC8_13_138_gate_passes_on_consistent_tree"
+REAL_TEST = "test_AC8_13_139_gate_passes_on_consistent_tree"
 
 
 def _ac(ac_id: str, *, mandatory: bool = True, has_test: bool = True) -> AcNode:
@@ -59,18 +59,18 @@ def _proof(proof_id: str, ac_ids: tuple[str, ...], *, file: str, test: str) -> P
 def _consistent_graph() -> AcGraph:
     """A minimal but internally consistent graph the gate must accept."""
     nodes = {
-        "AC8.13.138": _ac("AC8.13.138"),
+        "AC8.13.139": _ac("AC8.13.139"),
         "AC8.13.99": _ac("AC8.13.99"),
     }
     proofs = [
-        _proof("p-1", ("AC8.13.138",), file=REAL_FILE, test=REAL_TEST),
+        _proof("p-1", ("AC8.13.139",), file=REAL_FILE, test=REAL_TEST),
     ]
     vision = [
         VisionItem(
             anchor="axiom-a",
             label="Axiom A",
             owner_epics=("EPIC-008",),
-            ac_ids=("AC8.13.138",),
+            ac_ids=("AC8.13.139",),
         ),
         # Parked anchor with no owner EPIC: allowed, not a dangling promise.
         VisionItem(anchor="parked", label="Parked", owner_epics=(), ac_ids=()),
@@ -86,13 +86,13 @@ def _consistent_graph() -> AcGraph:
     )
 
 
-def test_AC8_13_138_gate_passes_on_consistent_tree() -> None:
-    """AC8.13.138: the gate reports no errors on a consistent graph."""
+def test_AC8_13_139_gate_passes_on_consistent_tree() -> None:
+    """AC8.13.139: the gate reports no errors on a consistent graph."""
     assert gate.check_graph(_consistent_graph()) == []
 
 
-def test_AC8_13_138_gate_fails_on_dangling_vision_item() -> None:
-    """AC8.13.138: a vision item owning an EPIC but backing no AC is dangling."""
+def test_AC8_13_139_gate_fails_on_dangling_vision_item() -> None:
+    """AC8.13.139: a vision item owning an EPIC but backing no AC is dangling."""
     graph = _consistent_graph()
     graph.vision_items.append(
         VisionItem(
@@ -106,8 +106,8 @@ def test_AC8_13_138_gate_fails_on_dangling_vision_item() -> None:
     assert any("dangling" in e and "dangling vision" in e for e in errors), errors
 
 
-def test_AC8_13_138_gate_fails_on_proof_missing_test_or_ac() -> None:
-    """AC8.13.138: an @ac_proof must point at a real test AND real AC ids."""
+def test_AC8_13_139_gate_fails_on_proof_missing_test_or_ac() -> None:
+    """AC8.13.139: an @ac_proof must point at a real test AND real AC ids."""
     # (a) proof names an AC id that is not in the registry.
     graph = _consistent_graph()
     graph.proofs.append(_proof("p-bad-ac", ("AC9.9.9",), file=REAL_FILE, test=REAL_TEST))
@@ -116,13 +116,13 @@ def test_AC8_13_138_gate_fails_on_proof_missing_test_or_ac() -> None:
 
     # (b) proof names a test function that does not exist.
     graph2 = _consistent_graph()
-    graph2.proofs.append(_proof("p-bad-test", ("AC8.13.138",), file=REAL_FILE, test="no_such_test_fn"))
+    graph2.proofs.append(_proof("p-bad-test", ("AC8.13.139",), file=REAL_FILE, test="no_such_test_fn"))
     errors2 = gate.check_graph(graph2)
     assert any("does not resolve to a real test" in e for e in errors2), errors2
 
 
-def test_AC8_13_138_gate_fails_on_mandatory_ac_without_proof() -> None:
-    """AC8.13.138: a mandatory, active AC with no real test reference fails."""
+def test_AC8_13_139_gate_fails_on_mandatory_ac_without_proof() -> None:
+    """AC8.13.139: a mandatory, active AC with no real test reference fails."""
     graph = _consistent_graph()
     graph.nodes["AC8.13.140"] = _ac("AC8.13.140", mandatory=True, has_test=False)
     errors = gate.check_graph(graph)
@@ -144,16 +144,16 @@ def test_AC8_13_138_gate_fails_on_mandatory_ac_without_proof() -> None:
     assert all("AC8.13.141" not in e for e in gate.check_graph(graph2))
 
 
-def test_AC8_13_138_gate_fails_on_macro_outcome_missing_proof() -> None:
-    """AC8.13.138: a macro outcome's proof_ids must resolve to a declared proof."""
+def test_AC8_13_139_gate_fails_on_macro_outcome_missing_proof() -> None:
+    """AC8.13.139: a macro outcome's proof_ids must resolve to a declared proof."""
     graph = _consistent_graph()
     graph.outcomes.append(Outcome(id="o-bad", proof_ids=("no-such-proof",), raw={"id": "o-bad"}))
     errors = gate.check_graph(graph)
     assert any("no-such-proof" in e and "does not resolve" in e for e in errors), errors
 
 
-def test_AC8_13_138_gate_fails_on_ratchet_regression(tmp_path) -> None:
-    """AC8.13.138: the persisted JSONL ratchet still catches a score regression."""
+def test_AC8_13_139_gate_fails_on_ratchet_regression(tmp_path) -> None:
+    """AC8.13.139: the persisted JSONL ratchet still catches a score regression."""
     baseline = tmp_path / "baseline.jsonl"
     write_jsonl(
         baseline,
@@ -195,8 +195,8 @@ def test_AC8_13_138_gate_fails_on_ratchet_regression(tmp_path) -> None:
     )
 
 
-def test_AC8_13_138_no_committed_materialized_index_files() -> None:
-    """AC8.13.138: no committed materialized matrix/vision/status file is required.
+def test_AC8_13_139_no_committed_materialized_index_files() -> None:
+    """AC8.13.139: no committed materialized matrix/vision/status file is required.
 
     The aggregate views are derived on demand; the previously-committed copies
     must be absent, and the README EPIC-status block must hold the stable pointer
@@ -216,6 +216,6 @@ def test_AC8_13_138_no_committed_materialized_index_files() -> None:
     assert "| EPIC-001 |" not in readme
 
 
-def test_AC8_13_138_real_repo_graph_passes_the_gate() -> None:
-    """AC8.13.138: the gate passes on the real repository graph."""
+def test_AC8_13_139_real_repo_graph_passes_the_gate() -> None:
+    """AC8.13.139: the gate passes on the real repository graph."""
     assert gate.main(["--repo-root", str(REPO_ROOT)]) == 0
