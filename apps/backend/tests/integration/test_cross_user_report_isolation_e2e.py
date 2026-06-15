@@ -49,7 +49,7 @@ async def _post(db: AsyncSession, user_id: UUID, *, debit: Account, credit: Acco
     await post_journal_entry(db, entry.id, user_id)
 
 
-async def test_AC8_16_2_reports_exclude_other_users_entries(db: AsyncSession, test_user: User) -> None:
+async def test_AC8_16_2_reports_exclude_other_users_entries(db: AsyncSession, test_user: User, ac_evidence) -> None:
     """AC8.16.2: user A's report totals reflect only A's facts; B's data never leaks in."""
     user_a = test_user.id
     user_b = (await UserFactory.create_async(db)).id
@@ -115,3 +115,14 @@ async def test_AC8_16_2_reports_exclude_other_users_entries(db: AsyncSession, te
     b_nw = await service.get_latest_valuation_components(db, user_b, as_of_date=period_end)
     assert a_nw.total_assets == Decimal("200000.00")  # A's appraisal only, not 200000 + 800000
     assert b_nw.total_assets == Decimal("800000.00")  # B's own, not A's
+
+    # Behavioral evidence (#990 cross-user input selection): A's assets total is its
+    # own 1500.00, never 1500 + B's 17776; A's net-worth valuation is 200000.00, never
+    # 200000 + B's 800000. A cross-user leak would move both off these golden numbers.
+    ac_evidence(
+        ac_id="AC8.16.2",
+        score=1.0,
+        metric="cross_user_excluded_own_totals_match",
+        comment="A assets 1500.00 (not 1500+17776) and A net-worth 200000.00 (not +800000); B never leaks in",
+        provenance="deterministic",
+    )
