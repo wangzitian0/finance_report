@@ -2,6 +2,8 @@
  * Shared Type Definitions
  */
 
+import type { Schemas } from "./api-schema";
+
 export type DecimalValue = string;
 export type MoneyValue = DecimalValue;
 export type DataProvenance = "imported" | "manual" | "derived";
@@ -46,13 +48,7 @@ export interface JournalEntry {
   total_amount?: MoneyValue;
 }
 
-export interface JournalEntrySummary {
-  id: string;
-  entry_date: string;
-  memo?: string | null;
-  status: string;
-  total_amount: MoneyValue;
-}
+export type JournalEntrySummary = Schemas["JournalEntrySummary"];
 
 export interface JournalEntryListResponse {
   items: JournalEntry[];
@@ -118,36 +114,11 @@ export interface BankStatementListResponse {
   total: number;
 }
 
-export interface ReportLine {
-  account_id: string;
-  name: string;
-  type: string;
-  parent_id?: string | null;
-  amount: MoneyValue;
-  provenance?: DataProvenance | null;
-}
+export type ReportLine = Schemas["ReportLine"];
 
-export interface AccountLineageLine {
-  journal_line_id: string;
-  journal_entry_id: string;
-  entry_date: string;
-  memo: string;
-  direction: string;
-  original_amount: MoneyValue;
-  original_currency: string;
-  amount: MoneyValue;
-}
+export type AccountLineageLine = Schemas["AccountLineageLine"];
 
-export interface AccountLineageResponse {
-  account_id: string;
-  account_name: string;
-  account_type: string;
-  currency: string;
-  as_of_date: string;
-  start_date: string | null;
-  total: MoneyValue;
-  lines: AccountLineageLine[];
-}
+export type AccountLineageResponse = Schemas["AccountLineageResponse"];
 
 export interface FxWarning {
   type: string;
@@ -177,13 +148,7 @@ export interface BalanceSheetResponse {
   is_balanced: boolean;
 }
 
-export interface IncomeStatementTrend {
-  period_start: string;
-  period_end: string;
-  total_income: MoneyValue;
-  total_expenses: MoneyValue;
-  net_income: MoneyValue;
-}
+export type IncomeStatementTrend = Schemas["IncomeStatementTrend"];
 
 export interface IncomeStatementResponse {
   start_date: string;
@@ -202,23 +167,9 @@ export interface IncomeStatementResponse {
   };
 }
 
-export interface CashFlowItem {
-  category: string;
-  subcategory: string;
-  amount: MoneyValue;
-  description: string | null;
-  /** Account this line's movement belongs to, for report drill-down (#887). */
-  account_id?: string | null;
-}
+export type CashFlowItem = Schemas["CashFlowItem"];
 
-export interface CashFlowSummary {
-  operating_activities: MoneyValue;
-  investing_activities: MoneyValue;
-  financing_activities: MoneyValue;
-  net_cash_flow: MoneyValue;
-  beginning_cash: MoneyValue;
-  ending_cash: MoneyValue;
-}
+export type CashFlowSummary = Schemas["CashFlowSummary"];
 
 export interface CashFlowResponse {
   start_date: string;
@@ -231,17 +182,7 @@ export interface CashFlowResponse {
   fx_warnings?: FxWarning[];
 }
 
-export interface PersonalReportPackageSectionContract {
-  section_id: string;
-  label: string;
-  owner_epic: string;
-  period_type?: string;
-  source_endpoint: string;
-  status: string;
-  required?: boolean;
-  blocking_issue?: string | null;
-  decimal_total_fields?: string[];
-}
+export type PersonalReportPackageSectionContract = Schemas["PersonalReportPackageSectionContract"];
 
 export interface PersonalReportPackageContractResponse {
   package_id: string;
@@ -257,14 +198,7 @@ export interface PersonalReportPackageContractResponse {
   };
 }
 
-export interface PersonalReportPackageReadinessBlocker {
-  code: string;
-  label: string;
-  severity: string;
-  count: number;
-  reason: string;
-  action_href: string;
-}
+export type PersonalReportPackageReadinessBlocker = Schemas["PersonalReportPackageReadinessBlocker"];
 
 export interface PersonalReportPackageReadinessResponse {
   package_id: string;
@@ -301,23 +235,9 @@ export interface PersonalReportPackageSnapshotPayload {
   section_payloads: Record<string, unknown>;
 }
 
-export interface PersonalReportPackageSnapshotSummary {
-  id: string;
-  package_id: string;
-  status: "draft" | "trusted";
-  framework_id: string;
-  start_date: string;
-  end_date: string;
-  as_of_date: string;
-  currency: string;
-  readiness_state: string;
-  is_latest: boolean;
-  created_at?: string | null;
-}
+export type PersonalReportPackageSnapshotSummary = Schemas["PersonalReportPackageSnapshotSummary"];
 
-export interface PersonalReportPackageSnapshotResponse extends PersonalReportPackageSnapshotSummary {
-  payload: PersonalReportPackageSnapshotPayload;
-}
+export type PersonalReportPackageSnapshotResponse = Schemas["PersonalReportPackageSnapshotResponse"];
 
 export interface AdvisorSuggestion {
   basis: string;
@@ -352,97 +272,25 @@ export interface ChatSuggestionsResponse {
   structured_suggestions?: AdvisorSuggestion[];
 }
 
-export interface PersonalReportPackageNote {
-  note_id: string;
-  label: string;
-  owner_epic: string;
-  basis: string;
-  source_state: string;
-  applies_to_sections: string[];
-  disclosure: string;
-}
+export type PersonalReportPackageNote = Schemas["PersonalReportPackageNote"];
 
-export interface PersonalReportPackageNotesResponse {
-  section_id: string;
-  label: string;
-  status: string;
-  notes: PersonalReportPackageNote[];
-  non_compliance_statement: string;
-}
+export type PersonalReportPackageNotesResponse = Schemas["PersonalReportPackageNotesResponse"];
 
-export interface PersonalReportPackageTraceabilityAnchor {
-  state: string;
-  source_types?: string[];
-  entry_statuses?: string[];
-  identifier_fields?: string[];
-  identifiers?: string[];
-  unavailable_reason?: string | null;
-  details?: Array<Record<string, string | number | null>>;
-}
+export type PersonalReportPackageTraceabilityAnchor = Schemas["PersonalReportPackageTraceabilityAnchor"];
 
-export interface PersonalReportPackageTraceabilityLine {
-  line_id: string;
-  section_id: string;
-  label: string;
-  amount_field?: string | null;
-  currency_field?: string | null;
-  source_state: string;
-  source_anchor: PersonalReportPackageTraceabilityAnchor;
-  ledger_anchor: PersonalReportPackageTraceabilityAnchor;
-  review_state: string;
-  confidence_tier: string;
-  source_classes?: string[];
-  proof_level?: string;
-  anchor_count?: number;
-  blocker_codes?: string[];
-}
+export type PersonalReportPackageTraceabilityLine = Schemas["PersonalReportPackageTraceabilityLine"];
 
-export interface PersonalReportPackageCompletenessWarning {
-  code: string;
-  label: string;
-  applies_to_sections: string[];
-  state: string;
-  remediation?: string | null;
-}
+export type PersonalReportPackageCompletenessWarning = Schemas["PersonalReportPackageCompletenessWarning"];
 
-export interface PersonalReportPackageTraceabilityResponse {
-  section_id: string;
-  label: string;
-  status: string;
-  lines: PersonalReportPackageTraceabilityLine[];
-  completeness_warnings: PersonalReportPackageCompletenessWarning[];
-}
+export type PersonalReportPackageTraceabilityResponse = Schemas["PersonalReportPackageTraceabilityResponse"];
 
-export interface EvidenceLineageNode {
-  id: string;
-  node_kind: string;
-  entity_type: string;
-  entity_id: string;
-  properties: Record<string, string | number | boolean | null>;
-}
+export type EvidenceLineageNode = Schemas["EvidenceLineageNode"];
 
-export interface EvidenceLineageEdge {
-  id: string;
-  from_node_id: string;
-  to_node_id: string;
-  relation: string;
-  direction: "upstream" | "downstream";
-  depth: number;
-  properties: Record<string, string | number | boolean | null>;
-}
+export type EvidenceLineageEdge = Schemas["EvidenceLineageEdge"];
 
-export interface EvidenceLineageBlocker {
-  code: string;
-  message: string;
-}
+export type EvidenceLineageBlocker = Schemas["EvidenceLineageBlocker"];
 
-export interface EvidenceLineageResponse {
-  anchor: EvidenceLineageNode | null;
-  nodes: EvidenceLineageNode[];
-  edges: EvidenceLineageEdge[];
-  blockers: EvidenceLineageBlocker[];
-  max_depth: number;
-}
+export type EvidenceLineageResponse = Schemas["EvidenceLineageResponse"];
 
 export interface FrameworkPolicyEvidenceAnchor {
   anchor_id: string;
@@ -547,124 +395,29 @@ export type WorkflowReportImpact =
 
 export type WorkflowSessionStatus = "active" | "generated" | "archived";
 
-export interface WorkflowNextActionResponse {
-  type: WorkflowNextActionType;
-  count: number;
-  href: string;
-  label: string;
-  summary: string;
-}
+export type WorkflowNextActionResponse = Schemas["WorkflowNextActionResponse"];
 
-export interface WorkflowReportReadinessResponse {
-  state: WorkflowReportReadinessState;
-  blocking_count: number;
-  href: string;
-}
+export type WorkflowReportReadinessResponse = Schemas["WorkflowReportReadinessResponse"];
 
-export interface WorkflowEventCountsResponse {
-  unread: number;
-  action_required: number;
-  blocked: number;
-}
+export type WorkflowEventCountsResponse = Schemas["WorkflowEventCountsResponse"];
 
-export interface WorkflowSessionSummaryResponse {
-  id: string;
-  status: WorkflowSessionStatus;
-  title: string;
-  summary: string;
-  started_at: string;
-  last_event_at?: string | null;
-  source_count: number;
-  report_href?: string | null;
-  primary_state: WorkflowPrimaryState;
-  report_readiness: WorkflowReportReadinessResponse;
-  event_counts: WorkflowEventCountsResponse;
-}
+export type WorkflowSessionSummaryResponse = Schemas["WorkflowSessionSummaryResponse"];
 
-export interface WorkflowStatusResponse {
-  primary_state: WorkflowPrimaryState;
-  next_action: WorkflowNextActionResponse;
-  report_readiness: WorkflowReportReadinessResponse;
-  event_counts: WorkflowEventCountsResponse;
-  active_session?: WorkflowSessionSummaryResponse | null;
-}
+export type WorkflowStatusResponse = Schemas["WorkflowStatusResponse"];
 
-export interface WorkflowEventResponse {
-  id: string;
-  user_id: string;
-  session_id?: string | null;
-  occurred_at: string;
-  family: WorkflowEventFamily;
-  severity: WorkflowEventSeverity;
-  status: WorkflowEventStatus;
-  title: string;
-  summary: string;
-  source_type: string;
-  source_id: string;
-  action_href: string;
-  report_impact: WorkflowReportImpact;
-  dedupe_key: string;
-  created_at: string;
-  updated_at: string;
-}
+export type WorkflowEventResponse = Schemas["WorkflowEventResponse"];
 
-export interface WorkflowEventListResponse {
-  items: WorkflowEventResponse[];
-  total: number;
-  sessions: WorkflowSessionSummaryResponse[];
-}
+export type WorkflowEventListResponse = Schemas["WorkflowEventListResponse"];
 
-export interface AnnualizedIncomeScheduleIncome {
-  annualized_salary: MoneyValue;
-  annualized_bonus: MoneyValue;
-  annualized_dividend: MoneyValue;
-  annualized_total: MoneyValue;
-  currency: string;
-  calculation_basis: string;
-}
+export type AnnualizedIncomeScheduleIncome = Schemas["AnnualizedIncomeScheduleIncome"];
 
-export interface AnnualizedIncomeScheduleHolding {
-  ticker: string;
-  compensation_type: string;
-  fair_value: MoneyValue;
-  currency: string;
-  valuation_basis: string;
-  vesting_schedule?: string | null;
-  unlock_date?: string | null;
-  liquidity_class: string;
-  net_worth_treatment: string;
-}
+export type AnnualizedIncomeScheduleHolding = Schemas["AnnualizedIncomeScheduleHolding"];
 
-export interface AnnualizedIncomeScheduleNetWorthTreatment {
-  liquid_net_worth_default: string;
-  restricted_wealth_basis: string;
-  include_restricted_query: string;
-  exclude_restricted_query: string;
-}
+export type AnnualizedIncomeScheduleNetWorthTreatment = Schemas["AnnualizedIncomeScheduleNetWorthTreatment"];
 
-export interface AnnualizedIncomeScheduleResponse {
-  section_id: string;
-  label: string;
-  as_of_date: string;
-  trailing_period_start: string;
-  trailing_period_end: string;
-  trailing_period_days: number;
-  income: AnnualizedIncomeScheduleIncome;
-  restricted_holdings: AnnualizedIncomeScheduleHolding[];
-  restricted_fair_value_total: MoneyValue;
-  restricted_fair_value_total_currency: string;
-  net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment;
-  notes: string[];
-}
+export type AnnualizedIncomeScheduleResponse = Schemas["AnnualizedIncomeScheduleResponse"];
 
-export interface AnnualizedIncomeResponse {
-  annualized_salary: MoneyValue;
-  annualized_bonus: MoneyValue;
-  annualized_dividend: MoneyValue;
-  annualized_total: MoneyValue;
-  currency: string;
-  as_of: string;
-}
+export type AnnualizedIncomeResponse = Schemas["AnnualizedIncomeResponse"];
 
 export interface RestrictedHolding {
   ticker: string;
@@ -675,22 +428,9 @@ export interface RestrictedHolding {
   currency: string;
 }
 
-export interface ValuationComponentsResponse {
-  items: unknown[];
-  total_assets: MoneyValue;
-  total_liabilities: MoneyValue;
-  net_worth_delta: MoneyValue;
-}
+export type ValuationComponentsResponse = Schemas["ValuationComponentsResponse"];
 
-export interface ReconciliationStatsResponse {
-  total_transactions: number;
-  matched_transactions: number;
-  unmatched_transactions: number;
-  pending_review: number;
-  auto_accepted: number;
-  match_rate: number;
-  score_distribution: Record<string, number>;
-}
+export type ReconciliationStatsResponse = Schemas["ReconciliationStatsResponse"];
 
 export interface UnmatchedTransactionsResponse {
   items: BankStatementTransactionSummary[];
@@ -712,27 +452,11 @@ export interface TrendResponse {
 
 export type NetWorthRange = "1M" | "3M" | "6M" | "1Y" | "All";
 
-export interface NetWorthTimeSeriesPoint {
-  date: string;
-  total_assets: MoneyValue;
-  total_liabilities: MoneyValue;
-  net_worth: MoneyValue;
-  currency: string;
-}
+export type NetWorthTimeSeriesPoint = Schemas["NetWorthTimeSeriesPoint"];
 
-export interface NetWorthTimeSeriesResponse {
-  currency: string;
-  granularity: "daily" | "monthly";
-  points: NetWorthTimeSeriesPoint[];
-}
+export type NetWorthTimeSeriesResponse = Schemas["NetWorthTimeSeriesResponse"];
 
-export interface NetWorthAllocationSourceLine {
-  source_type: string;
-  source_id: string | null;
-  label: string;
-  value: MoneyValue;
-  href: string | null;
-}
+export type NetWorthAllocationSourceLine = Schemas["NetWorthAllocationSourceLine"];
 
 export interface NetWorthAllocationRow {
   asset_class: string;
@@ -940,32 +664,11 @@ export interface PerformanceMetrics {
   money_weighted_return: string;
 }
 
-export interface InvestmentPerformanceHoldingRow {
-  asset_identifier: string;
-  quantity: string;
-  cost_basis: string;
-  market_value: string;
-  unrealized_pnl: string;
-  realized_pnl: string;
-  dividend_income: string;
-  currency: string;
-}
+export type InvestmentPerformanceHoldingRow = Schemas["InvestmentPerformanceHoldingRow"];
 
-export interface InvestmentPerformanceAllocationRow {
-  dimension: "sector" | "geography" | "asset_class" | string;
-  category: string;
-  value: string;
-  percentage: string;
-  count: number;
-}
+export type InvestmentPerformanceAllocationRow = Schemas["InvestmentPerformanceAllocationRow"];
 
-export interface InvestmentPerformanceDataFreshness {
-  latest_price_date: string | null;
-  market_data_provider: string | null;
-  stale: boolean;
-  stale_holdings: string[];
-  manual_override_basis?: string | null;
-}
+export type InvestmentPerformanceDataFreshness = Schemas["InvestmentPerformanceDataFreshness"];
 
 export interface InvestmentPerformanceReportSchedule {
   period_start: string;
@@ -1014,24 +717,9 @@ export interface PriceUpdateResponse {
   }>;
 }
 
-export interface ProcessingSummaryResponse {
-  pending_count: number;
-  pending_total: string;
-  current_balance: string;
-  currency: string;
-  oldest_pending_date: string | null;
-}
+export type ProcessingSummaryResponse = Schemas["ProcessingSummaryResponse"];
 
-export interface ProcessingPendingItem {
-  entry_id: string;
-  from_account: string;
-  to_account: string;
-  amount: string;
-  currency: string;
-  initiated_date: string;
-  days_outstanding: number;
-  description: string;
-}
+export type ProcessingPendingItem = Schemas["ProcessingPendingItem"];
 
 export interface ProcessingPendingListResponse {
   items: ProcessingPendingItem[];
@@ -1040,16 +728,7 @@ export interface ProcessingPendingListResponse {
 
 // ── Brokerage Import (EPIC-017 / statement import completion) ─────────────
 
-export interface BrokerageImportResponse {
-  broker: string;
-  parsed_positions: number;
-  created_atomic_positions: number;
-  existing_atomic_positions: number;
-  reconcile_created: number;
-  reconcile_updated: number;
-  reconcile_disposed: number;
-  skipped: number;
-}
+export type BrokerageImportResponse = Schemas["BrokerageImportResponse"];
 
 // ── North-Star confidence metric (EPIC-018 AC18.12 / #1003, #1055 PR4) ─────
 //
@@ -1057,32 +736,16 @@ export interface BrokerageImportResponse {
 // ledger facts that sit in the LOW confidence tier. Lower is better. Decimal
 // proportions arrive as strings (e.g. "0.12500") to preserve precision.
 
-export interface ConfidenceMetricPoint {
-  total_count: number;
-  low_confidence_count: number;
-  low_confidence_proportion: DecimalValue;
-  tier_breakdown: Record<string, number>;
-}
+export type ConfidenceMetricPoint = Schemas["ConfidenceMetricPoint"];
 
 export interface ConfidenceMetricSnapshot extends ConfidenceMetricPoint {
   id: string;
   captured_at: string;
 }
 
-export interface ConfidenceNorthStarResponse {
-  current: ConfidenceMetricPoint;
-  /** Recorded trend, newest-first. */
-  series: ConfidenceMetricSnapshot[];
-}
+export type ConfidenceNorthStarResponse = Schemas["ConfidenceNorthStarResponse"];
 
-export interface CorrectionLoopReplayResponse {
-  holdout_size: number;
-  grounded: number;
-  proportion_before: DecimalValue;
-  proportion_after: DecimalValue;
-  /** Whether the correction loop measurably lowered the held-out proportion. */
-  reduced: boolean;
-}
+export type CorrectionLoopReplayResponse = Schemas["CorrectionLoopReplayResponse"];
 
 // ── User AI settings & session identity (EPIC-022 AC22.15 / #1010) ──────────
 //
@@ -1094,7 +757,7 @@ export interface UserAiSettings {
   enable_ai_classification: boolean;
 }
 
-export type UserAiSettingsUpdate = Partial<UserAiSettings>;
+export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];
 
 /**
  * Identity returned by `GET /api/auth/me`, consumed by `useSessionBootstrap`.

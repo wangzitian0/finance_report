@@ -95,3 +95,11 @@ migrations:
     file: c955c65dcc1f_add_is_system_to_accounts.py
     risk: medium
     proof: Adds non-null account flag with server default; staging should exercise account reads and writes.
+  0040_retire_bank_stmt_source:
+    file: 0040_retire_bank_stmt_source.py
+    risk: high
+    issue: "#896"
+    proof: Retires the dead legacy bank_statement value from journal_source_type_enum. Data was already collapsed to auto_parsed in 0018 and no write path emits it (every write runs normalize_source_type first); the upgrade re-runs the defensive text-cast UPDATE before rebuilding the enum, so the data mutation is idempotent and a no-op on already-clean data.
+    staging_validation: Deploy to staging and exercise upload -> parse -> reconcile -> report; confirm journal entries persist and read back with the rebuilt enum and that no path attempts to write bank_statement.
+    production_preflight: None required - the defensive UPDATE collapses any residual bank_statement rows before the enum rebuild, so the type recreate cannot fail on a stray value regardless of production row count. Optionally count rows with source_type::text = 'bank_statement' to confirm zero.
+    rollback_strategy: downgrade() re-adds the bank_statement label idempotently (ADD VALUE IF NOT EXISTS); restore from pre-migration snapshot only if the type rebuild is interrupted. The raw string stays tolerated by normalize_source_type so reverted code keeps working.

@@ -12,9 +12,13 @@ class SourceTypeDowngradeError(ValueError):
     """Raised when a source_type transition would reduce trust."""
 
 
+# Raw text of the retired ``bank_statement`` source_type (migration 0040, #896).
+# Kept as a string so historical values are still normalized away even though
+# the enum no longer defines the member.
+_LEGACY_BANK_STATEMENT_VALUE = "bank_statement"
+
 TRUST_RANK: dict[JournalEntrySourceType, int] = {
     JournalEntrySourceType.AUTO_PARSED: 1,
-    JournalEntrySourceType.BANK_STATEMENT: 1,
     JournalEntrySourceType.AUTO_MATCHED: 2,
     JournalEntrySourceType.USER_CONFIRMED: 3,
     JournalEntrySourceType.MANUAL: 4,
@@ -22,14 +26,12 @@ TRUST_RANK: dict[JournalEntrySourceType, int] = {
 
 STATEMENT_SOURCE_TYPES: tuple[JournalEntrySourceType, ...] = (
     JournalEntrySourceType.AUTO_PARSED,
-    JournalEntrySourceType.BANK_STATEMENT,
     JournalEntrySourceType.AUTO_MATCHED,
     JournalEntrySourceType.USER_CONFIRMED,
 )
 
 USER_DATA_SOURCE_TYPES: tuple[JournalEntrySourceType, ...] = (
     JournalEntrySourceType.AUTO_PARSED,
-    JournalEntrySourceType.BANK_STATEMENT,
     JournalEntrySourceType.AUTO_MATCHED,
     JournalEntrySourceType.USER_CONFIRMED,
     JournalEntrySourceType.MANUAL,
@@ -41,7 +43,7 @@ def normalize_source_type(source_type: JournalEntrySourceType | str | None) -> J
     if source_type is None:
         return JournalEntrySourceType.MANUAL
     value = source_type.value if isinstance(source_type, JournalEntrySourceType) else str(source_type)
-    if value == JournalEntrySourceType.BANK_STATEMENT.value:
+    if value == _LEGACY_BANK_STATEMENT_VALUE:
         return JournalEntrySourceType.AUTO_PARSED
     return JournalEntrySourceType(value)
 

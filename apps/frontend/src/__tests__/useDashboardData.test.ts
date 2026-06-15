@@ -122,6 +122,43 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(result.current.error).toBeNull());
   });
 
+  it("AC22.16.3 composes the snapshot and asset-trend hooks, exposing the trend once the balance loads", async () => {
+    mockedApiFetch.mockImplementation((path: string) =>
+      routeResponder(
+        {
+          "/api/reports/balance-sheet": {
+            assets: [{ account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" }],
+            liabilities: [],
+            equity: [],
+            total_assets: "5000",
+            total_liabilities: "0",
+            total_equity: "5000",
+            equation_delta: "0",
+            currency: "USD",
+            as_of_date: "2026-02-01",
+            is_balanced: true,
+          },
+          "/api/reports/income-statement": { currency: "USD" },
+          "/api/income/annualized": {},
+          "/api/reports/trend": { points: [{ period_start: "2026-01-01", amount: "5000" }] },
+          "/api/chat/suggestions": { suggestions: [], structured_suggestions: [] },
+        },
+        () => null,
+      )(path),
+    );
+
+    const { result } = renderHook(() => useDashboardData(false));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    // The aggregate keeps its public contract: snapshot fields plus the trend
+    // resolved by the composed useAssetTrend hook for the top asset.
+    await waitFor(() => expect(result.current.trend).not.toBeNull());
+    expect(result.current.trendAccountName).toBe("Cash");
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      "/api/reports/trend?account_id=a1&period=monthly",
+    );
+  });
+
   it("AC5.35.4 tolerates failing chat suggestions endpoint", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/chat/suggestions")) {
