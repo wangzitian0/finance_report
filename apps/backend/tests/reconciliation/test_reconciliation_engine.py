@@ -112,10 +112,31 @@ def _atomic(
     )
 
 
-def test_auto_accept_threshold() -> None:
+def test_auto_accept_threshold(ac_evidence) -> None:
     """[AC4.3.1] [AC4.3.2] Auto-accept helper respects the threshold."""
-    assert auto_accept(DEFAULT_CONFIG.auto_accept, DEFAULT_CONFIG)
-    assert not auto_accept(DEFAULT_CONFIG.pending_review - 1, DEFAULT_CONFIG)
+    at_threshold = auto_accept(DEFAULT_CONFIG.auto_accept, DEFAULT_CONFIG)
+    below_review = auto_accept(DEFAULT_CONFIG.pending_review - 1, DEFAULT_CONFIG)
+    assert at_threshold
+    assert not below_review
+    # Measured evidence: a score at the auto-accept threshold auto-accepts.
+    ac_evidence(
+        ac_id="AC4.3.1",
+        score=1.0 if at_threshold else 0.0,
+        metric="auto_accept_at_threshold",
+        comment=f"auto_accept({DEFAULT_CONFIG.auto_accept})={at_threshold} (threshold={DEFAULT_CONFIG.auto_accept})",
+        provenance="deterministic",
+    )
+    # Measured evidence: a score below the review threshold does not auto-accept.
+    ac_evidence(
+        ac_id="AC4.3.2",
+        score=1.0 if not below_review else 0.0,
+        metric="below_review_not_auto_accepted",
+        comment=(
+            f"auto_accept({DEFAULT_CONFIG.pending_review - 1})={below_review} "
+            f"(review threshold={DEFAULT_CONFIG.pending_review})"
+        ),
+        provenance="deterministic",
+    )
 
 
 def test_normalize_text_and_grouping() -> None:
