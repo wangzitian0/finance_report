@@ -365,3 +365,19 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.15.1 | A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response | `apiFunctions.test.ts` | P1 |
 | AC22.15.2 | The AI Settings page renders an editable form with explicit Save and Reset controls that submits the edited flags via `patchUserSettings`, surfacing loading, submitting, success, and error states using shared UI primitives | `aiSettingsPage.test.tsx` | P1 |
 | AC22.15.3 | A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid | `apiFunctions.test.ts`, `appShellSessionBootstrap.test.tsx` | P1 |
+
+### AC22.17 — God-Component Decomposition (FE Structural Hygiene)
+
+> #1117 follow-up slice. The FE audit flagged several oversized pages/components
+> that mix data orchestration, layout, and many sub-sections in one function,
+> making them hard to test and reason about: the report package page (~1298
+> lines), the Stage 2 review queue (~851 lines), and the statement detail page
+> (~521 lines). This slice decomposes the worst offenders into co-located,
+> independently-testable sub-components while preserving the rendered surface and
+> behavior exactly — no backend, schema, or UX change.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.17.1 | The report package page is composed from extracted, independently-testable section components (cover/table-of-contents, readiness, and schedule/section blocks) instead of one monolithic page function, with the rendered package surface unchanged | `personalReportPackagePage.test.tsx`, `reportPackageSections.test.tsx` | P1 |
+| AC22.17.2 | The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior | `reviewQueuePage.test.tsx`, `stage2ReviewQueueParts.test.tsx` | P1 |
+| AC22.17.3 | The statement detail page is composed from extracted sub-components (header/summary and the transactions/section blocks) with unchanged behavior | `statementDetailPage.test.tsx`, `statementDetailParts.test.tsx` | P1 |
