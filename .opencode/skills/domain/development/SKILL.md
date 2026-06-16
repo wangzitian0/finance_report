@@ -72,10 +72,10 @@ Terminal 1 exits                   → refcount=0 (stop container)
 |---|----------|---------|-------|------|
 | 1 | Local Dev | Manual | None | Iteration speed |
 | 2 | Local Test | `moon run :test` | Unit+Integration | <30s feedback |
-| 3 | Remote CI | PR / Push | Unit+Integration | Quality gate |
-| 4 | PR Test | PR opened | Health Check | Deployment validation |
-| 5 | Staging | Push to main | Smoke + Perf | Full validation |
-| 6 | Production | Manual dispatch | Health Check | Minimal validation |
+| 3 | Remote CI | PR / Push / dispatch | Lint/static, schema, backend/frontend, images, coverage, AC gates | Merge gate |
+| 4 | PR Preview | PR / dispatch | Runner-local health + smoke/E2E | Deployment validation |
+| 5 | Staging | Manual `workflow_dispatch` | Deploy smoke, non-LLM E2E, provider/AI-OCR when required | Pre-prod canary |
+| 6 | Production | Release push / dispatch | Release dry-run, prod-safe smoke, release integrity | Release validation |
 
 ## Coverage Gate
 
@@ -96,3 +96,7 @@ Terminal 1 exits                   → refcount=0 (stop container)
 | `tools/test_lifecycle.py` | Database lifecycle |
 | `docker-compose.yml` | Development containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
+| `.github/workflows/pr-test.yml` | PR preview smoke/E2E |
+| `.github/workflows/staging-deploy.yml` | Manual staging deploy |
+| `.github/workflows/staging-ai-ocr-gate.yml` | On-demand staging AI/OCR gate |
+| `.github/workflows/production-release.yml` | Production release |

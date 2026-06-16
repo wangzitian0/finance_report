@@ -172,8 +172,8 @@ times. The final model removes that:
   It is stored as sorted, one-AC-per-line JSONL with `merge=union` in
   `.gitattributes`, so PRs adopting *different* ACs auto-merge and only same-AC
   edits conflict.
-- **Exactly TWO gates.** `tools/check_ac_index.py` builds the graph once and runs
-  exactly two gates (two labelled report sections, `[INTEGRITY]` and
+- **Exactly TWO AC-index gates.** `tools/check_ac_index.py` builds the graph once
+  and runs exactly two labelled report sections (`[INTEGRITY]` and
   `[PROTECTION]`), replacing the three per-view byte-compares:
   - **Gate A — INTEGRITY (hard, binary):** `check_integrity(graph)` plus
     `check_repo_contracts(repo_root)`. One predicate — "does this reference
@@ -193,26 +193,31 @@ times. The final model removes that:
     — trust_mode/mirror/required_markers/scope/ci_tier + manual_gate evidence +
     macro-outcome shape). The engine is unified but the per-edge-type and
     per-contract error wording is preserved verbatim from the legacy checks.
-  - **Gate B — PROTECTION RATCHET (soft, monotonic, per type):** two conflict-safe
-    sub-parts that must never regress. *Part 1* is the per-AC behavioural-score
+  - **Gate B — PROTECTION RATCHET (soft, monotonic):** two conflict-safe
+    sub-parts that must never regress, but they have different CI entry points
+    because one needs JUnit artifacts. *Part 1* is the per-AC behavioural-score
     floor over `ac-score-baseline.jsonl` (delegated unchanged to
     `check_ac_score_baseline`; `merge=union`, so PRs adopting different ACs
-    auto-merge). *Part 2* is the per-type COUNT floor over
+    auto-merge). In CI this part runs in the dedicated
+    `ac-behavioral-ratchet` job after the JUnit-emitting backend/frontend test
+    stages. *Part 2* is the per-type COUNT floor over
     `docs/ssot/protection-floor.json`: for each protection type (`has_real_ref`,
     `has_proof`, `has_score`, `has_mirror`) the current count of mandatory active
-    ACs must be `>=` the committed floor. **Conflict-safety convention:** a normal
-    PR that ADDS protection only RAISES the *current* count, which passes
-    `current >= floor` WITHOUT editing `protection-floor.json`; the floor is bumped
-    ONLY by the explicit `tools/check_ac_index.py --update-floor` ("lock in gains")
+    ACs must be `>=` the committed floor. `tools/check_ac_index.py` enforces this
+    count floor in the fast `lint` job and can delegate Part 1 only when invoked
+    with `--ratchet-current`. **Conflict-safety convention:** a normal PR that
+    ADDS protection only RAISES the *current* count, which passes `current >=
+    floor` WITHOUT editing `protection-floor.json`; the floor is bumped ONLY by
+    the explicit `tools/check_ac_index.py --update-floor` ("lock in gains")
     action, so the floor file is almost never in a PR diff and never becomes a
     conflict hotspot. The default all-zero / missing floor is valid (a brand-new
-    repo passes). On pass the gate prints the per-type protection dashboard so it
-    REPORTS the current protection levels even though only a floor regression fails
-    it.
+    repo passes). On pass the AC-index gate prints the per-type protection
+    dashboard so it REPORTS the current protection levels even though only a
+    floor regression fails it.
 
 The distinction that still matters: a *derived view* is rebuilt from the sharded
-sources on every read and is never committed; the *persisted ratchet* is kept on
-disk because regenerating it from current scores would erase the floor it exists
+sources on every read and is never committed; a *persisted ratchet* is kept on
+disk because regenerating it from current state would erase the floor it exists
 to protect.
 
 **One gate entry, two gates, no separate standalone steps.** `tools/check_ac_index.py`

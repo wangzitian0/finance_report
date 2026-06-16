@@ -60,7 +60,9 @@ The ratchet is a **hard, only-goes-up CI gate** today, not a deferred spike:
 
 The same emitted record feeds both a deterministic PR gate (stable subset) and a
 post-merge eval dashboard (full score distribution, LLM noise tolerated) — the
-split already modelled by `trust_mode` in `docs/ssot/critical-proof-matrix.yaml`.
+split already modelled by `trust_mode` on the co-located `@ac_proof`
+declarations and the derived critical-proof matrix rendered on demand from the
+AC graph.
 This is why a separate evaluation engine is unnecessary: the test harness *is*
 the eval emitter.
 

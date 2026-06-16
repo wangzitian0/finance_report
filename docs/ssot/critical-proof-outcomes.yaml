@@ -1,8 +1,7 @@
 version: "1.0"
-# NOTE: this `description` is copied verbatim into the generated
-# docs/ssot/critical-proof-matrix.yaml, so it is written to describe THAT
-# generated artifact (not this source file).
-description: "Generated critical proof matrix: the README -> EPIC -> E2E macro outcome guard plus the core product proof paths. Both sections are GENERATED, do not hand-edit this matrix. The `outcomes` section comes from docs/ssot/critical-proof-outcomes.yaml (hand-maintained outcome -> owner EPICs + proof_ids mapping); the `proofs` section is collected from the @ac_proof(...) decorators co-located on the tests (common/testing/ac_proof.py). Regenerate with tools/generate_critical_proof_matrix.py."
+# NOTE: this `description` is copied verbatim into the derived critical-proof
+# matrix view, so it describes that rendered view rather than this source file.
+description: "Derived critical proof matrix: the README -> EPIC -> E2E macro outcome guard plus the core product proof paths. Do not hand-edit rendered matrix output. The `outcomes` section comes from docs/ssot/critical-proof-outcomes.yaml (hand-maintained outcome -> owner EPICs + proof_ids mapping); the `proofs` section is collected from the @ac_proof(...) decorators co-located on the tests (common/testing/ac_proof.py). Render on demand with tools/generate_critical_proof_matrix.py; consistency is gated by tools/check_ac_index.py."
 
 outcomes:
   - id: personal-financial-report-package
