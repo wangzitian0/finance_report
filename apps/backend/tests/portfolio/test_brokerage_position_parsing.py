@@ -15,7 +15,6 @@ from src.models.layer1 import DocumentType, UploadedDocument
 from src.models.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.models.layer3 import ManagedPosition
 from src.models.statement_summary import StatementSummary
-from src.routers.statements import _brokerage_payload_from_statement
 from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
 from src.services.brokerage_positions import (
     BrokeragePositionImportService,
@@ -27,6 +26,7 @@ from src.services.brokerage_positions import (
     detect_broker,
     parse_brokerage_positions,
 )
+from src.services.brokerage_statement_payload import _brokerage_payload_from_statement
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
