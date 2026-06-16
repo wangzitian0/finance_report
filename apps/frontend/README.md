@@ -22,3 +22,4 @@ Open <http://localhost:3000> for local development.
 | Environment contract | [environments.md](../../docs/ssot/environments.md), [.env.example](../../.env.example) |
 | API endpoints and schemas | [Generated API reference](../../docs/reference/api.md), `/api/docs` |
 | Test policy | [tdd.md](../../docs/ssot/tdd.md), [coverage.md](../../docs/ssot/coverage.md) |
+| Product analytics event taxonomy | [analytics-events.md](../../docs/reference/analytics-events.md) |

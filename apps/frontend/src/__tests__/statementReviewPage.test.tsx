@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
 import { apiFetch } from "@/lib/api";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
@@ -23,6 +24,10 @@ vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
     useParams: vi.fn(() => ({ id: "s1" })),
     useSearchParams: vi.fn(() => navigationState.searchParams),
+}));
+vi.mock("@/lib/analytics", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/analytics")>()),
+    track: vi.fn(),
 }));
 
 const mockedApi = vi.mocked(apiFetch);
@@ -182,6 +187,38 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
         await waitFor(() => {
             expect(pushMock).toHaveBeenCalledWith("/statements/s1?approved=1&entriesCreated=2");
+        });
+    });
+
+    it("AC22.18.3 tracks REVIEW_APPROVED with the statement id on a successful approve", async () => {
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve(baseStatement);
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            if (path === "/api/statements/s1/review/approve") {
+                expect(options).toMatchObject({ method: "POST" });
+                return Promise.resolve({ journal_entries_created: 2 });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+        const dialog = await screen.findByRole("dialog", { name: "Approve Statement" });
+        fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+
+        await waitFor(() => {
+            expect(vi.mocked(track)).toHaveBeenCalledWith(
+                ANALYTICS_EVENTS.REVIEW_APPROVED,
+                expect.objectContaining({ statement_id: "s1" }),
+            );
         });
     });
 

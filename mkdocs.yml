@@ -109,6 +109,7 @@ nav:
       - Database Schema: ssot/schema.md
       - Observability: ssot/observability.md
       - Observability Logging: ssot/observability-logging.md
+      - Product Analytics Events: reference/analytics-events.md
       - Frontend Patterns: ssot/frontend-patterns.md
       - Env Smoke Test: ssot/env_smoke_test.md
   - Governance:

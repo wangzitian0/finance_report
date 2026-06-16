@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import LoginPage from "@/app/login/page"
 import { apiFetch } from "@/lib/api"
 import { setUser } from "@/lib/auth"
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics"
 
 const pushMock = vi.fn()
 
@@ -19,6 +20,11 @@ vi.mock("@/lib/auth", () => ({
   setUser: vi.fn(),
 }))
 
+vi.mock("@/lib/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/analytics")>()),
+  track: vi.fn(),
+}))
+
 describe("LoginPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
   const mockedSetUser = vi.mocked(setUser)
@@ -27,6 +33,7 @@ describe("LoginPage", () => {
     mockedApiFetch.mockReset()
     mockedSetUser.mockReset()
     pushMock.mockReset()
+    vi.mocked(track).mockReset()
   })
 
   it("AC16.12.5 AC22.1.3 submits login payload and redirects to Home", async () => {
@@ -86,6 +93,59 @@ describe("LoginPage", () => {
         expect.objectContaining({ method: "POST" }),
       )
     })
+  })
+
+  it("AC22.18.3 tracks SIGNUP only on successful register, not on login", async () => {
+    // Successful register: the signup funnel event fires.
+    mockedApiFetch.mockResolvedValueOnce({
+      id: "u3",
+      email: "signup@example.com",
+      name: null,
+      created_at: "2026-01-01T00:00:00Z",
+      access_token: "token-3",
+    })
+
+    const { unmount } = render(<LoginPage />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Register" })[0])
+    fireEvent.change(screen.getByLabelText("Email Address"), {
+      target: { value: "signup@example.com" },
+    })
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "password123" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
+
+    await waitFor(() => {
+      expect(vi.mocked(track)).toHaveBeenCalledWith(ANALYTICS_EVENTS.SIGNUP)
+    })
+
+    unmount()
+    vi.mocked(track).mockReset()
+
+    // Plain login must NOT be counted as a signup.
+    mockedApiFetch.mockResolvedValueOnce({
+      id: "u4",
+      email: "login@example.com",
+      name: null,
+      created_at: "2026-01-01T00:00:00Z",
+      access_token: "token-4",
+    })
+
+    render(<LoginPage />)
+
+    fireEvent.change(screen.getByLabelText("Email Address"), {
+      target: { value: "login@example.com" },
+    })
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "password123" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }))
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/")
+    })
+    expect(vi.mocked(track)).not.toHaveBeenCalledWith(ANALYTICS_EVENTS.SIGNUP)
   })
 
   it("AC16.12.7 shows API error and exits loading state", async () => {
