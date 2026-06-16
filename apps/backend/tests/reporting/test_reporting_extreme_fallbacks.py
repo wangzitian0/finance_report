@@ -330,7 +330,12 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
     transfer_result = MagicMock()
     transfer_result.scalars.return_value.all.return_value = []
 
-    fake_db.execute = AsyncMock(side_effect=[transfer_result, currency_result, agg_result])
+    # Then it auto-discovers transfer legs from the raw ledger (#1123 AC2 live):
+    # the asset-line query returns nothing here, so discovery is a no-op too.
+    discovery_result = MagicMock()
+    discovery_result.all.return_value = []
+
+    fake_db.execute = AsyncMock(side_effect=[transfer_result, discovery_result, currency_result, agg_result])
 
     # Patch get_average_rate so we don't need to mock DB FX queries; USD gets a rate
     with patch("src.services.reporting.get_average_rate", new_callable=AsyncMock) as mock_avg:
