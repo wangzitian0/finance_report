@@ -2624,6 +2624,7 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     workflow = read(".github/workflows/staging-deploy.yml")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     statements_router = read("apps/backend/src/routers/statements.py")
+    brokerage_payload = read("apps/backend/src/services/brokerage_statement_payload.py")
     generator = read("tools/_lib/pdf_fixtures/generate_pdf_fixtures.py")
 
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
@@ -2648,7 +2649,7 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     assert "BrokeragePositionImportService" in statements_router
     assert (
         "Statement must be parsed before importing brokerage positions"
-        in statements_router
+        in brokerage_payload
     )
     assert '"futu"' in generator
 
