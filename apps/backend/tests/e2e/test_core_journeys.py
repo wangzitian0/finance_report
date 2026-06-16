@@ -828,9 +828,11 @@ async def test_statement_list_and_get(client, test_user):
     """
     # Upload first
     csv_content = "Date,Description,Amount\n2026-02-01,Groceries,-50.00\n"
+    # institution is required for CSV (no AI auto-detect) — #1087 / AC13.21.6
     upload_resp = await client.post(
         "/statements/upload",
         files={"file": ("list_test.csv", csv_content.encode(), "text/csv")},
+        data={"institution": "DBS"},
     )
     assert upload_resp.status_code == 202
     stmt_id = upload_resp.json()["id"]
@@ -857,9 +859,11 @@ async def test_statement_full_flow(client, test_user):
     """
     # Upload
     csv_content = "Date,Description,Amount\n2026-03-01,Rent,-1500.00\n"
+    # institution is required for CSV (no AI auto-detect) — #1087 / AC13.21.6
     upload_resp = await client.post(
         "/statements/upload",
         files={"file": ("flow_test.csv", csv_content.encode(), "text/csv")},
+        data={"institution": "DBS"},
     )
     assert upload_resp.status_code == 202
     stmt_id = upload_resp.json()["id"]
