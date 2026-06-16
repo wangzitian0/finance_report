@@ -37,7 +37,7 @@ async def test_ai_semantic_score_returns_score():
     mock_stream = MagicMock()
 
     with (
-        patch("src.services.reconciliation.settings") as mock_settings,
+        patch("src.services.reconciliation_scoring.settings") as mock_settings,
         patch(
             "src.services.ai_streaming.stream_ai_json",
             return_value=mock_stream,
@@ -68,7 +68,7 @@ async def test_ai_semantic_score_returns_low_for_unrelated():
     mock_stream = MagicMock()
 
     with (
-        patch("src.services.reconciliation.settings") as mock_settings,
+        patch("src.services.reconciliation_scoring.settings") as mock_settings,
         patch(
             "src.services.ai_streaming.stream_ai_json",
             return_value=mock_stream,
@@ -98,7 +98,7 @@ async def test_ai_semantic_score_fallback_on_error():
     mock_stream = MagicMock(side_effect=AIStreamError("API error"))
 
     with (
-        patch("src.services.reconciliation.settings") as mock_settings,
+        patch("src.services.reconciliation_scoring.settings") as mock_settings,
         patch(
             "src.services.ai_streaming.stream_ai_json",
             mock_stream,
@@ -119,7 +119,7 @@ async def test_ai_semantic_score_fallback_on_error():
 
 async def test_ai_semantic_score_no_api_key_returns_50():
     """When no API key is configured, fall back to neutral score."""
-    with patch("src.services.reconciliation.settings") as mock_settings:
+    with patch("src.services.reconciliation_scoring.settings") as mock_settings:
         mock_settings.ai_api_key = ""
 
         score = await ai_semantic_score(
@@ -137,7 +137,7 @@ async def test_ai_semantic_score_empty_response_returns_50():
     mock_stream = MagicMock()
 
     with (
-        patch("src.services.reconciliation.settings") as mock_settings,
+        patch("src.services.reconciliation_scoring.settings") as mock_settings,
         patch(
             "src.services.ai_streaming.stream_ai_json",
             return_value=mock_stream,
@@ -168,7 +168,7 @@ async def test_ai_semantic_score_clamps_to_range():
     mock_stream = MagicMock()
 
     with (
-        patch("src.services.reconciliation.settings") as mock_settings,
+        patch("src.services.reconciliation_scoring.settings") as mock_settings,
         patch(
             "src.services.ai_streaming.stream_ai_json",
             return_value=mock_stream,
