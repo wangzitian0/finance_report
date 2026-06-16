@@ -202,7 +202,7 @@ class TestRepeatedParseDeterminism:
         ids=["bank_balance_invalid->parsed", "brokerage->parsed"],
     )
     async def test_routing_is_consistent_per_payload_class(self, db, test_user, payload, expected_status):
-        """AC13.13.3 / AC13.18.5: each payload class routes to one stable status across N parses.
+        """AC13.13.3 / AC13.21.5: each payload class routes to one stable status across N parses.
 
         Post-#1141 a balance-invalid bank statement rests in PARSED (review), the
         same deterministic resting state as a brokerage statement — never the
@@ -217,8 +217,8 @@ class TestRepeatedParseDeterminism:
             f"Routing drifted across {RUNS} parses: {set(statuses)} (expected always {expected_status})"
         )
 
-    async def test_AC13_18_2_balance_invalid_parse_is_pending_review(self, db, test_user):
-        """AC13.18.2 (#1141): a balance-invalid bank parse lands in PARSED review.
+    async def test_AC13_21_2_balance_invalid_parse_is_pending_review(self, db, test_user):
+        """AC13.21.2 (#1141): a balance-invalid bank parse lands in PARSED review.
 
         The statement must carry the reviewable resting state (`PARSED` +
         `stage1_status=PENDING_REVIEW`) and a `validation_error` describing the

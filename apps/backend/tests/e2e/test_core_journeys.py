@@ -801,13 +801,16 @@ async def test_statement_upload_csv(client, test_user):
     EPIC-003 EPIC-013 / AC8.4.1: Upload bank statement (CSV format)
     AC8.10.4: Traceability — statement upload works
     GIVEN a user is authenticated
-    WHEN uploading a CSV bank statement
+    WHEN uploading a CSV bank statement with an institution (required for CSV — #1087)
     THEN it should return 202 Accepted with statement metadata
     """
     csv_content = "Date,Description,Amount\n2026-01-15,Coffee Shop,-5.00\n2026-01-16,Salary,5000.00\n"
+    # CSV parsing has no AI institution auto-detect, so institution is required and
+    # validated synchronously (AC13.21.6 / #1087). Provide it to exercise the happy path.
     response = await client.post(
         "/statements/upload",
         files={"file": ("test_statement.csv", csv_content.encode(), "text/csv")},
+        data={"institution": "DBS"},
     )
     assert response.status_code == 202
     data = response.json()

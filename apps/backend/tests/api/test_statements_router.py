@@ -1040,8 +1040,8 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
         assert resp.status == BankStatementStatus.PARSING
 
 
-async def test_AC13_18_3_retry_accepts_parsed_resting_state(db, storage_stub, test_user):
-    """AC13.18.3 (#1141): retry accepts a balance-invalid statement at its PARSED rest.
+async def test_AC13_21_3_retry_accepts_parsed_resting_state(db, storage_stub, test_user):
+    """AC13.21.3 (#1141): retry accepts a balance-invalid statement at its PARSED rest.
 
     A balance-invalid bank statement now rests in PARSED (review) instead of the
     UPLOADED dead-end that the retry endpoint rejected. PARSED is already an
@@ -1082,8 +1082,8 @@ async def test_AC13_18_3_retry_accepts_parsed_resting_state(db, storage_stub, te
         assert resp.id == sid
 
 
-async def test_AC13_18_6_csv_missing_institution_rejected_sync(db, storage_stub, test_user):
-    """AC13.18.6 (#1141): CSV upload without an institution fails synchronously (400).
+async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub, test_user):
+    """AC13.21.6 (#1141): CSV upload without an institution fails synchronously (400).
 
     Previously a CSV with no institution was accepted (202) and only rejected
     asynchronously inside the parse worker ("Institution is required for CSV
