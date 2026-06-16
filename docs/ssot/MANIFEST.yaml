@@ -646,6 +646,8 @@ concepts:
   # ── LLM provider abstraction (EPIC-023) ───────────────────────────────
   llm_provider_abstraction:
     owner: docs/ssot/llm.md#axes
+    family: llm
+    kind: concept
     description: LLM layer's three orthogonal axes (protocol family x model x scene), scene->model binding, and at-rest provider-secret encryption.
     cross_refs:
       - docs/ssot/extraction.md
