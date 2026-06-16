@@ -105,6 +105,7 @@ nav:
       - Market Data: ssot/market_data.md
       - Source Type Priority: ssot/source-type-priority.md
       - Workflow Events: ssot/workflow-events.md
+      - LLM Provider Abstraction: ssot/llm.md
       - Evidence Lineage: ssot/evidence-lineage.md
       - Database Schema: ssot/schema.md
       - Observability: ssot/observability.md
@@ -148,6 +149,7 @@ nav:
           - "EPIC-020: Framework-Aware Personal Reporting": project/EPIC-020.framework-aware-personal-reporting.md
           - "EPIC-021: Application-Layer AI Advisor": project/EPIC-021.application-ai-advisor.md
           - "EPIC-022: Everyday-User IA": project/EPIC-022.everyday-user-ia.md
+          - "EPIC-023: LLM Provider Abstraction": project/EPIC-023.llm-provider-abstraction.md
 
 extra:
   social:
