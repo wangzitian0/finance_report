@@ -80,28 +80,42 @@ def test_AC13_21_1_balance_invalid_routes_to_parsed_review():
     assert route_by_threshold(50, balance_valid=True) == BankStatementStatus.UPLOADED
 
 
-def test_AC13_21_4_readiness_counts_parsed_balance_invalid():
+async def test_AC13_21_4_readiness_counts_parsed_balance_invalid(db, test_user):
     """AC13.21.4 (#1141): the balance-invalid resting state is readiness-visible.
 
-    A balance-invalid bank statement rests in `PARSED`; report readiness counts
-    `PARSED` + `APPROVED` summaries, so the statement is now an available report
-    input instead of an invisible `uploaded` orphan. This pins the resting status
-    against the set readiness actually counts.
+    A balance-invalid bank statement rests in `PARSED` (see routing below); report
+    readiness counts `PARSED` + `APPROVED` summaries, so the statement is an
+    available report input instead of an invisible `uploaded` orphan. This drives
+    the real readiness query against a seeded DB row rather than inspecting source
+    text, so a regression in the status filter would actually fail the test.
     """
-    import inspect
+    from src.models import StatementSummary
+    from src.services.report_readiness import get_personal_report_package_readiness
 
-    from src.services import report_readiness
-
+    # The balance-invalid bank statement rests in PARSED, not UPLOADED.
     resting_status = route_by_threshold(95, balance_valid=False)
     assert resting_status == BankStatementStatus.PARSED
 
-    # The readiness query filters statements by status; PARSED + APPROVED are the
-    # counted (confirmed) classes. Assert the resting status is among them.
-    source = inspect.getsource(report_readiness.get_personal_report_package_readiness)
-    assert "BankStatementStatus.PARSED" in source
-    assert "BankStatementStatus.APPROVED" in source
-    counted = {BankStatementStatus.PARSED, BankStatementStatus.APPROVED}
-    assert resting_status in counted
+    # Baseline: no statements seeded -> readiness counts zero.
+    baseline = await get_personal_report_package_readiness(db, test_user.id)
+    assert baseline["source_summary"]["statements"] == 0
+
+    # Seed a PARSED, balance-invalid statement (the exact resting state under test).
+    statement = StatementSummary(
+        user_id=test_user.id,
+        account_id=None,
+        file_hash="readiness-parsed-balance-invalid",
+        institution="DBS",
+        currency="SGD",
+        status=resting_status,
+        balance_validated=False,
+    )
+    db.add(statement)
+    await db.flush()
+
+    # The real readiness query must count the PARSED balance-invalid statement.
+    readiness = await get_personal_report_package_readiness(db, test_user.id)
+    assert readiness["source_summary"]["statements"] == 1
 
 
 def test_validate_balance_tolerance():

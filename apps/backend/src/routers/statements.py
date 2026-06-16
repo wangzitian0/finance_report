@@ -253,9 +253,10 @@ async def upload_statement(
     omitted model uses the OCR-first default pipeline.
 
     Institution is optional for PDF/image uploads (AI auto-detects it from the
-    document). It is **required** for CSV uploads — CSVs have no detectable header,
-    so a missing institution is rejected synchronously with HTTP 400 rather than
-    accepted and rejected asynchronously by the parse worker (#1141 / #1087).
+    document). It is **required** for CSV uploads — the institution cannot be
+    auto-detected from CSV content, so a missing institution is rejected
+    synchronously with HTTP 400 rather than accepted and rejected asynchronously
+    by the parse worker (#1141 / #1087).
     """
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
@@ -278,7 +279,11 @@ async def upload_statement(
     # fail later inside the async parse worker ("Institution is required for CSV
     # parsing"), leaving an orphaned PARSING record. Reject it synchronously here
     # with an actionable 400 instead of accepting (202) then rejecting async.
-    if extension == "csv" and not (institution and institution.strip()):
+    # Normalize the institution up front: persist/pass the STRIPPED value so that
+    # leading/trailing whitespace can't break CSV institution routing downstream
+    # in ``ExtractionService._parse_csv_content()`` (#1141 / #1087).
+    institution = institution.strip() if institution else None
+    if extension == "csv" and not institution:
         raise_bad_request("Institution is required for CSV uploads. Please select an institution and retry.")
 
     if account_id is not None:
