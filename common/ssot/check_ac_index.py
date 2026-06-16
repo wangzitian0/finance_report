@@ -71,11 +71,11 @@ and Gate B's per-type count floor, then exits 1 if either fails. When
 so the gate REPORTS the protection levels even though only a floor regression
 fails it.
 
-This is the SINGLE AC-index gate entry point. The old standalone
-``tools/check_ac_traceability.py`` and ``tools/check_critical_proof_matrix.py``
-CI gate STEPS are retired; their logic is folded into Gate A here (by importing
-them as libraries), so every failure they caught still fails this gate with the
-same wording.
+This is the SINGLE AC-index gate entry point. The former standalone CI gate
+steps for ``common.ssot.check_ac_traceability`` and
+``common.ssot.check_critical_proof_matrix`` are retired; their logic is folded
+into Gate A here (by importing them as libraries), so every failure they caught
+still fails this gate with the same wording.
 """
 
 from __future__ import annotations
