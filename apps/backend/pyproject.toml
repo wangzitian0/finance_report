@@ -30,6 +30,7 @@ dependencies = [
     "httpx-sse>=0.4.3",
     "pymupdf>=1.24.0",
     "cryptography>=42.0.0",
+    "litellm>=1.55.0",
 ]
 
 [project.optional-dependencies]
