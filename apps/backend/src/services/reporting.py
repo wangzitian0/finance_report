@@ -1862,6 +1862,54 @@ async def get_category_breakdown(
     }
 
 
+def _cash_flow_agg_stmt(user_id: UUID, *date_conditions):
+    """Per-(account, currency, direction) journal-line sums for the cash-flow
+    statement: report-eligible entries scoped by the given date conditions."""
+    stmt = (
+        select(
+            Account.id.label("account_id"),
+            JournalLine.currency,
+            JournalLine.direction,
+            func.sum(JournalLine.amount).label("total"),
+        )
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
+    )
+    for condition in date_conditions:
+        stmt = stmt.where(condition)
+    return stmt
+
+
+def _accumulate_period_balances(
+    rows,
+    account_id_to_account: dict[UUID, Account],
+    fx_rates: PrefetchedFxRates,
+    *,
+    target_currency: str,
+    rate_date: date,
+) -> dict[UUID, Decimal]:
+    """Convert each aggregated row to ``target_currency`` at ``rate_date`` and
+    accumulate signed balances per account. Raises ReportError on a missing rate."""
+    balances: dict[UUID, Decimal] = {}
+    for row in rows:
+        rate = fx_rates.get_rate(row.currency, target_currency, rate_date)
+        if rate is None:
+            if row.currency.upper() == target_currency:
+                rate = Decimal("1")
+            else:
+                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {rate_date}")
+        converted = Decimal(str(row.total)) * rate
+        account = account_id_to_account.get(row.account_id)
+        if account:
+            balances[row.account_id] = balances.get(row.account_id, Decimal("0")) + _signed_amount(
+                account.type, row.direction, converted
+            )
+    return balances
+
+
 async def generate_cash_flow(
     db: AsyncSession,
     user_id: UUID,
@@ -1888,68 +1936,21 @@ async def generate_cash_flow(
 
     account_id_to_account = {a.id: a for a in all_accounts}
 
-    agg_stmt_before = (
-        select(
-            Account.id.label("account_id"),
-            JournalLine.currency,
-            JournalLine.direction,
-            func.sum(JournalLine.amount).label("total"),
+    rows_before = (await db.execute(_cash_flow_agg_stmt(user_id, JournalEntry.entry_date < start_date))).all()
+    rows_during = (
+        await db.execute(
+            _cash_flow_agg_stmt(user_id, JournalEntry.entry_date >= start_date, JournalEntry.entry_date <= end_date)
         )
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(Account.user_id == user_id)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
-        .where(JournalEntry.entry_date < start_date)
-        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
-    )
-    result_before = await db.execute(agg_stmt_before)
-    rows_before = result_before.all()
-
-    agg_stmt_during = (
-        select(
-            Account.id.label("account_id"),
-            JournalLine.currency,
-            JournalLine.direction,
-            func.sum(JournalLine.amount).label("total"),
-        )
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(Account.user_id == user_id)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
-        .where(JournalEntry.entry_date >= start_date)
-        .where(JournalEntry.entry_date <= end_date)
-        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
-    )
-    result_during = await db.execute(agg_stmt_during)
-    rows_during = result_during.all()
-
-    agg_stmt_ending = (
-        select(
-            Account.id.label("account_id"),
-            JournalLine.currency,
-            JournalLine.direction,
-            func.sum(JournalLine.amount).label("total"),
-        )
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(Account.user_id == user_id)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
-        .where(JournalEntry.entry_date <= end_date)
-        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
-    )
-    result_ending = await db.execute(agg_stmt_ending)
-    rows_ending = result_ending.all()
+    ).all()
+    rows_ending = (await db.execute(_cash_flow_agg_stmt(user_id, JournalEntry.entry_date <= end_date))).all()
 
     fx_needs: list[tuple[str, str, date, date | None, date | None]] = []
-    for row in rows_before:
-        if row.currency.upper() != target_currency:
-            fx_needs.append((row.currency, target_currency, start_date, None, None))
-    for row in rows_during:
-        if row.currency.upper() != target_currency:
-            fx_needs.append((row.currency, target_currency, end_date, None, None))
-    for row in rows_ending:
-        if row.currency.upper() != target_currency:
-            fx_needs.append((row.currency, target_currency, end_date, None, None))
+    for rows, rate_date in ((rows_before, start_date), (rows_during, end_date), (rows_ending, end_date)):
+        fx_needs.extend(
+            (row.currency, target_currency, rate_date, None, None)
+            for row in rows
+            if row.currency.upper() != target_currency
+        )
 
     fx_rates = PrefetchedFxRates(lazy_load=True)
     if fx_needs:
@@ -1963,53 +1964,15 @@ async def generate_cash_flow(
             )
             raise ReportError(str(exc)) from exc
 
-    balances_before: dict[UUID, Decimal] = {}
-    for row in rows_before:
-        rate = fx_rates.get_rate(row.currency, target_currency, start_date)
-        if rate is None:
-            if row.currency.upper() == target_currency:
-                rate = Decimal("1")
-            else:
-                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {start_date}")
-
-        converted = Decimal(str(row.total)) * rate
-        account = account_id_to_account.get(row.account_id)
-        if account:
-            if row.account_id not in balances_before:
-                balances_before[row.account_id] = Decimal("0")
-            balances_before[row.account_id] += _signed_amount(account.type, row.direction, converted)
-
-    activity_movements: dict[UUID, Decimal] = {}
-    for row in rows_during:
-        rate = fx_rates.get_rate(row.currency, target_currency, end_date)
-        if rate is None:
-            if row.currency.upper() == target_currency:
-                rate = Decimal("1")
-            else:
-                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {end_date}")
-
-        converted = Decimal(str(row.total)) * rate
-        account = account_id_to_account.get(row.account_id)
-        if account:
-            if row.account_id not in activity_movements:
-                activity_movements[row.account_id] = Decimal("0")
-            activity_movements[row.account_id] += _signed_amount(account.type, row.direction, converted)
-
-    balances_ending: dict[UUID, Decimal] = {}
-    for row in rows_ending:
-        rate = fx_rates.get_rate(row.currency, target_currency, end_date)
-        if rate is None:
-            if row.currency.upper() == target_currency:
-                rate = Decimal("1")
-            else:
-                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {end_date}")
-
-        converted = Decimal(str(row.total)) * rate
-        account = account_id_to_account.get(row.account_id)
-        if account:
-            if row.account_id not in balances_ending:
-                balances_ending[row.account_id] = Decimal("0")
-            balances_ending[row.account_id] += _signed_amount(account.type, row.direction, converted)
+    balances_before = _accumulate_period_balances(
+        rows_before, account_id_to_account, fx_rates, target_currency=target_currency, rate_date=start_date
+    )
+    activity_movements = _accumulate_period_balances(
+        rows_during, account_id_to_account, fx_rates, target_currency=target_currency, rate_date=end_date
+    )
+    balances_ending = _accumulate_period_balances(
+        rows_ending, account_id_to_account, fx_rates, target_currency=target_currency, rate_date=end_date
+    )
 
     beginning_cash = Decimal("0")
     ending_cash = Decimal("0")
