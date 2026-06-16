@@ -84,10 +84,17 @@ export default function RootLayout({
             environment={process.env.OPENPANEL_ENVIRONMENT}
           />
         ) : null}
-        {/* Browser OTel → SigNoz. A complete no-op until
-            NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT is set; mounts once,
-            never blocks render. */}
-        <FrontendTelemetry />
+        {/* Browser OTel → SigNoz. Config is read HERE (server, at request time)
+            and passed as props — same runtime-injection pattern as <Analytics>
+            above — so one promoted image serves every env via its container
+            `environment:` block (NEXT_PUBLIC_* would otherwise inline at build
+            time and never pick up the per-env runtime value). No-op until the
+            endpoint is set; mounts once, never blocks render. */}
+        <FrontendTelemetry
+          endpoint={process.env.NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT}
+          environment={process.env.NEXT_PUBLIC_DEPLOYMENT_ENVIRONMENT}
+          serviceVersion={process.env.NEXT_PUBLIC_GIT_SHA}
+        />
         <Providers>
           <AuthGuard>
             {children}
