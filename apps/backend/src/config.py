@@ -424,6 +424,23 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "AI Provider"},
     )
 
+    # LLM provider secret encryption (EPIC-023): project-level symmetric key(s)
+    # used to encrypt provider API keys at rest in the database (DB-backed
+    # provider config). Comma-separated Fernet keys, newest first; decryption
+    # tries all (MultiFernet) so rotation is a single pass — prepend a new key,
+    # re-encrypt every stored secret, then drop the old key. Empty disables
+    # DB-backed provider storage (env/Vault provider config still works).
+    llm_encryption_keys: str = Field(
+        default="",
+        validation_alias=AliasChoices("LLM_ENCRYPTION_KEYS", "LLM_ENCRYPTION_KEY"),
+        description=(
+            "Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM "
+            "provider API keys at rest; newest first. Empty disables DB-backed provider "
+            "storage. Rotate by prepending a new key and re-encrypting all secrets."
+        ),
+        json_schema_extra={"group": "AI Provider", "vault": True},
+    )
+
     @field_validator("ai_json_seed", mode="before")
     @classmethod
     def _empty_seed_is_none(cls, value: object) -> object:
@@ -639,6 +656,15 @@ class Settings(BaseSettings):
                 "glm-4.5v",
             ],
         )
+
+    @cached_property
+    def llm_encryption_key_list(self) -> list[str]:
+        """Parsed Fernet keys for provider-secret encryption (newest first).
+
+        Empty when ``LLM_ENCRYPTION_KEYS`` is unset, which means DB-backed
+        provider secrets cannot be stored (see ``src/llm/common/secrets.py``).
+        """
+        return parse_comma_list(self.llm_encryption_keys, [])
 
 
 settings = Settings()
