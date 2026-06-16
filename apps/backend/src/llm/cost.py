@@ -8,6 +8,7 @@ billing (that is an explicit non-goal).
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from decimal import Decimal
 
@@ -26,6 +27,13 @@ class DailyBudgetMeter:
     ``today`` is injected (defaults to UTC date) so the rollover is testable
     without patching the clock. Pass ``daily_limit_usd=None`` to explicitly
     disable the guard; omit it to inherit ``AI_DAILY_LIMIT_USD`` from settings.
+
+    Concurrency: a lock makes each ``check_budget`` / ``record`` atomic so
+    concurrent calls can never lose a spend increment. It is a **best-effort**
+    daily guard, not a transactional cap — because per-call cost is only known
+    after the provider responds, in-flight calls that all pass ``check_budget``
+    before any ``record`` can overshoot by (concurrency × per-call cost). That is
+    acceptable for a daily spend ceiling; a hard cap would need reserve/commit.
     """
 
     def __init__(self, daily_limit_usd: Decimal | None | object = _UNSET) -> None:
@@ -35,6 +43,7 @@ class DailyBudgetMeter:
         self._limit: Decimal | None = daily_limit_usd  # type: ignore[assignment]
         self._day: date | None = None
         self._spent = Decimal("0")
+        self._lock = asyncio.Lock()
 
     def _roll(self, today: date) -> None:
         if self._day != today:
@@ -48,11 +57,12 @@ class DailyBudgetMeter:
     async def check_budget(self, *, today: date | None = None) -> None:
         if self._limit is None:
             return
-        self._roll(today or _utc_today())
-        if self._spent >= self._limit:
-            raise LLMBudgetExceeded(
-                f"Daily AI budget of ${self._limit} reached (spent ${self._spent}); refusing further calls today."
-            )
+        async with self._lock:
+            self._roll(today or _utc_today())
+            if self._spent >= self._limit:
+                raise LLMBudgetExceeded(
+                    f"Daily AI budget of ${self._limit} reached (spent ${self._spent}); refusing further calls today."
+                )
 
     async def record(
         self,
@@ -65,8 +75,9 @@ class DailyBudgetMeter:
     ) -> None:
         if cost_usd is None:
             return
-        self._roll(today or _utc_today())
-        self._spent += Decimal(str(cost_usd))
+        async with self._lock:
+            self._roll(today or _utc_today())
+            self._spent += Decimal(str(cost_usd))
         logger.info(
             "llm spend recorded",
             scene=scene.value,

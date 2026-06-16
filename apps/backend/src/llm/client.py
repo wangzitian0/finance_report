@@ -46,7 +46,10 @@ def _is_retryable(exc: Exception) -> bool:
 
 
 def _wrap(exc: Exception) -> LLMError:
-    return LLMError(f"{type(exc).__name__}: {exc}", retryable=_is_retryable(exc))
+    # Surface only the exception class in the raised message — upstream provider
+    # errors can embed request context (endpoints, headers, payload fragments).
+    # The full detail is logged server-side (with the logger) by the caller.
+    return LLMError(f"LLM provider call failed ({type(exc).__name__})", retryable=_is_retryable(exc))
 
 
 def _base_kwargs(
@@ -109,6 +112,7 @@ async def litellm_stream(
 
     start = time.perf_counter()
     chars = 0
+    success = False
     try:
         response = await litellm.acompletion(**kwargs)
         async for chunk in response:
@@ -120,15 +124,19 @@ async def litellm_stream(
             if content:
                 chars += len(content)
                 yield content
+        success = True
     except LLMError:
         raise
     except Exception as exc:  # noqa: BLE001 - normalise every provider failure
         logger.error("litellm stream failed", model=kwargs.get("model"), error=str(exc), error_type=type(exc).__name__)
         raise _wrap(exc) from exc
     finally:
+        # success=False covers both provider errors and a consumer that abandons
+        # the generator early — dashboards can filter completed-OK from the rest.
         logger.info(
-            "litellm stream completed",
+            "litellm stream finished",
             model=kwargs.get("model"),
+            success=success,
             duration_ms=round((time.perf_counter() - start) * 1000, 2),
             total_chars=chars,
         )
@@ -195,26 +203,35 @@ class LitellmClient:
         self._config = config_source
         self._cost = cost_meter
 
-    async def _resolve(self, scene: Scene) -> tuple[ProviderRef, SceneBinding]:
+    async def _resolve(self, scene: Scene) -> tuple[ProviderRef, str, SceneBinding]:
         binding = await self._config.get_binding(scene)
         if binding is None:
             raise LLMConfigError(f"No model bound for scene {scene.value!r}")
-        provider = await self._resolve_provider(binding.model_id)
-        return provider, binding
+        provider, model = await self._resolve_provider(binding.model_id)
+        return provider, model, binding
 
-    async def _resolve_provider(self, model_id: str) -> ProviderRef:
-        # A binding may qualify its model as "provider_id/model"; otherwise fall
-        # back to the sole configured provider.
-        if "/" in model_id:
-            provider = await self._config.get_provider(model_id.split("/", 1)[0])
-            if provider is not None:
-                return provider
+    async def _resolve_provider(self, model_id: str) -> tuple[ProviderRef, str]:
+        """Resolve ``model_id`` to ``(provider, bare_model)``.
+
+        Convention: with a single configured provider the binding's ``model_id``
+        is used as-is (it may contain slashes — OpenRouter's ``vendor/model``).
+        With multiple providers a binding MUST qualify as ``provider_id/model``
+        (split once; the model part may still contain slashes); an unqualified or
+        unknown-provider id is a config error rather than a silent fallback to the
+        wrong credentials.
+        """
         providers = await self._config.list_providers()
         if not providers:
             raise LLMConfigError("No LLM provider configured")
-        if len(providers) > 1 and "/" not in model_id:
-            raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider/model")
-        return providers[0]
+        if len(providers) == 1:
+            return providers[0], model_id
+        if "/" not in model_id:
+            raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider_id/model")
+        provider_id, _, model = model_id.partition("/")
+        provider = await self._config.get_provider(provider_id)
+        if provider is None:
+            raise LLMConfigError(f"Unknown provider id {provider_id!r} in model {model_id!r}")
+        return provider, model
 
     def stream(
         self, scene: Scene, messages: Sequence[Message], *, reasoning: ReasoningEffort | None = None
@@ -233,11 +250,11 @@ class LitellmClient:
     ) -> AsyncIterator[str]:
         if self._cost is not None:
             await self._cost.check_budget()
-        provider, binding = await self._resolve(scene)
+        provider, model, binding = await self._resolve(scene)
         async for chunk in litellm_stream(
             messages,
             provider=provider,
-            model_id=binding.model_id,
+            model_id=model,
             max_tokens=binding.max_tokens,
             reasoning=reasoning or binding.reasoning,
         ):
@@ -248,11 +265,11 @@ class LitellmClient:
     ) -> ChatResult:
         if self._cost is not None:
             await self._cost.check_budget()
-        provider, binding = await self._resolve(scene)
+        provider, model, binding = await self._resolve(scene)
         result = await litellm_complete(
             messages,
             provider=provider,
-            model_id=binding.model_id,
+            model_id=model,
             max_tokens=binding.max_tokens,
             reasoning=reasoning or binding.reasoning,
         )

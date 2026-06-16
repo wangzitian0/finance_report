@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from decimal import Decimal
 
@@ -58,6 +59,18 @@ async def test_AC23_2_6_record_ignores_unknown_cost():
     meter = DailyBudgetMeter(daily_limit_usd=Decimal("5"))
     await meter.record(Scene.ADVISOR_CHAT, "m", Usage(1, 1), None, today=DAY)
     assert meter.spent_today == Decimal("0")
+
+
+async def test_AC23_2_6_concurrent_records_do_not_lose_increments():
+    """AC23.2.6: the lock makes concurrent record() calls accumulate exactly (no lost updates)."""
+    meter = DailyBudgetMeter(daily_limit_usd=None)
+    n = 50
+
+    async def one():
+        await meter.record(Scene.ADVISOR_CHAT, "m", Usage(1, 1), Decimal("0.01"), today=DAY)
+
+    await asyncio.gather(*(one() for _ in range(n)))
+    assert meter.spent_today == Decimal("0.01") * n
 
 
 async def test_AC23_2_6_defaults_today_to_utc_when_omitted():

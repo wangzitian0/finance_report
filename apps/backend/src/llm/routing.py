@@ -41,27 +41,20 @@ class LitellmCall:
         return out
 
 
-def _strip_known_prefix(model_id: str) -> str:
-    """Drop a leading ``provider/`` token if the binding already carries one.
-
-    Bindings may store either ``glm-4.6v`` or ``zai/glm-4.6v``; we re-derive the
-    litellm provider from the protocol family, so any leading family/vendor token
-    is normalised away to avoid ``openai/zai/glm-4.6v``.
-    """
-    if "/" in model_id:
-        return model_id.split("/", 1)[1]
-    return model_id
-
-
 def build_call(provider: ProviderRef, model_id: str) -> LitellmCall:
     """Resolve ``(provider, model_id)`` into a litellm call.
+
+    ``model_id`` is the *bare* model — the provider has already been resolved and
+    any ``provider_id/`` qualifier stripped by the caller. It may legitimately
+    contain a slash (OpenRouter's ``vendor/model`` form, e.g.
+    ``deepseek/deepseek-chat``), so segments are never stripped here; we only
+    avoid double-prefixing when it already carries the litellm family token.
 
     OpenRouter gets the attribution headers it expects; OpenAI-compatible
     endpoints get their custom ``api_base``; Anthropic is native.
     """
     prefix = _FAMILY_PREFIX[provider.protocol]
-    bare_model = _strip_known_prefix(model_id)
-    litellm_model = f"{prefix}/{bare_model}"
+    litellm_model = model_id if model_id.startswith(f"{prefix}/") else f"{prefix}/{model_id}"
 
     extra_headers: dict[str, str] = {}
     if provider.protocol is ProtocolFamily.OPENROUTER_COMPATIBLE:

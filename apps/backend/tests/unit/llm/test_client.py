@@ -284,3 +284,22 @@ async def test_AC23_2_2_no_provider_configured_errors(captured):
     with pytest.raises(LLMConfigError):
         async for _ in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
             pass
+
+
+async def test_AC23_2_2_unknown_qualified_provider_raises_not_silently_falls_back(captured):
+    """AC23.2.2: a provider_id-qualified model whose provider is unknown raises, not silently wrong creds."""
+    p1 = _provider()
+    p2 = ProviderRef(id="other", label="o", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2")
+    cli = LitellmClient(_FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "ghost/model"), [p1, p2]))
+    with pytest.raises(LLMConfigError):
+        async for _ in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
+            pass
+
+
+async def test_AC23_2_2_single_provider_keeps_slashed_openrouter_model(captured):
+    """AC23.2.2: with one provider an OpenRouter vendor/model id is used whole, not split as provider."""
+    p = ProviderRef(id="env", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k")
+    cfg = _FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "deepseek/deepseek-chat"), [p])
+    async for _ in LitellmClient(cfg).stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
+        pass
+    assert captured["kwargs"]["model"] == "openrouter/deepseek/deepseek-chat"

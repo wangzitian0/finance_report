@@ -18,10 +18,11 @@ def test_AC23_2_1_openai_compatible_prefixes_and_keeps_api_base():
     assert call.extra_headers == {}
 
 
-def test_AC23_2_1_openrouter_adds_attribution_headers():
-    """AC23.2.1: openrouter-compatible -> openrouter/ prefix + attribution headers."""
+def test_AC23_2_1_openrouter_keeps_vendor_segment_and_adds_headers():
+    """AC23.2.1: OpenRouter vendor/model is preserved (not stripped) + attribution headers."""
     call = build_call(_provider(ProtocolFamily.OPENROUTER_COMPATIBLE), "deepseek/deepseek-chat")
-    assert call.model.startswith("openrouter/")
+    # The vendor segment must survive — stripping it would silently route to the wrong model.
+    assert call.model == "openrouter/deepseek/deepseek-chat"
     assert call.extra_headers.get("HTTP-Referer")
     assert call.extra_headers.get("X-Title")
 
@@ -33,9 +34,9 @@ def test_AC23_2_1_anthropic_is_native_without_api_base():
     assert call.api_base is None
 
 
-def test_AC23_2_1_existing_provider_prefix_is_normalised():
-    """AC23.2.1: a binding model already qualified as vendor/model is re-derived, not doubled."""
-    call = build_call(_provider(ProtocolFamily.OPENAI_COMPATIBLE, "https://x"), "zai/glm-5.1")
+def test_AC23_2_1_avoids_double_family_prefix():
+    """AC23.2.1: a model already carrying the litellm family token is not double-prefixed."""
+    call = build_call(_provider(ProtocolFamily.OPENAI_COMPATIBLE, "https://x"), "openai/glm-5.1")
     assert call.model == "openai/glm-5.1"
 
 

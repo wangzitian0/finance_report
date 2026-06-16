@@ -17,8 +17,8 @@ from src.config import settings
 from src.llm.common import Modality, ModelSpec
 from src.llm.env_config import _PROVIDER_ENV_ID
 
-# Configured roles -> the modalities each accepts. The vision/OCR models carry
-# image+pdf; text models are text-only.
+# Configured roles -> the modalities each accepts. Vision/OCR models accept text
+# plus the document modalities (image, pdf, file); text models are text-only.
 _VISION_MODALITIES = frozenset({Modality.TEXT, Modality.IMAGE, Modality.PDF, Modality.FILE})
 _TEXT_MODALITIES = frozenset({Modality.TEXT})
 
