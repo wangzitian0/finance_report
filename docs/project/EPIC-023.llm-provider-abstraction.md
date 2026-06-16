@@ -57,7 +57,7 @@ free; this EPIC wraps it in a contract the rest of the app can depend on.
 | Slice | PR | Owns |
 |-------|----|------|
 | **common** | PR1 | `src/llm/common`: value types, `ConfigSource`/`LLMClient`/`CatalogProvider`/`CostMeter` protocols, `SecretCipher`+`FernetCipher`, `docs/ssot/llm.md`. The frozen contract A and B build against. |
-| **EPIC A** | PR2 | litellm `client`/`catalog`/`cost` implementations + `EnvConfigSource`; rewire `ai_streaming`/`ai_models`/`extraction` to delegate. |
+| **EPIC A** | PR2 | litellm `client`/`catalog`/`cost`/`routing` + `EnvConfigSource` — the litellm-backed scene surface. Cutting the legacy `ai_streaming`/`ai_models`/`extraction` call sites onto it is a deliberate follow-up (it requires migrating their transport-coupled unit tests and verifying live extraction through the post-merge AI/OCR gate). |
 | **EPIC B** | PR3 | `llm_provider` + `llm_scene_binding` tables, `DbConfigSource`, `/llm/*` API, first-run modal + scene×model settings page. |
 
 A and B depend only on **common**, not on each other, so they proceed in
@@ -76,3 +76,17 @@ parallel once PR1 merges.
 | AC23.1.3 | Key rotation is single-pass: a secret sealed by an older key still decrypts after a newer key is prepended, and `rotate()` re-stamps it to the newest `key_version` | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
 | AC23.1.4 | `build_cipher()` raises `LLMConfigError` when `LLM_ENCRYPTION_KEYS` is unset, and `FernetCipher` rejects malformed keys — DB-backed secrets fail closed | `apps/backend/tests/unit/llm/test_secrets.py` | P1 |
 | AC23.1.5 | The seam protocols (`ConfigSource`, `LLMClient`, `CatalogProvider`, `CostMeter`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract | `apps/backend/tests/unit/llm/test_contract.py` | P1 |
+
+### AC23.2 — litellm-backed scene surface
+> PR2 slice (EPIC A). The litellm implementation of the contract: provider
+> routing, the scene client, the dynamic catalogue, env config, and the budget
+> meter. (Legacy call-site cutover is a follow-up — see Scope Slices.)
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.2.1 | Provider routing maps each protocol family onto the correct litellm call — `openai`/`anthropic`/`openrouter` prefix, custom `api_base` for OpenAI-compatible endpoints, OpenRouter attribution headers — and normalises an already-qualified model id | `apps/backend/tests/unit/llm/test_routing.py` | P1 |
+| AC23.2.2 | The litellm client streams and completes via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd), resolves a scene's provider/model through the `ConfigSource`, and returns text + token usage + USD cost | `apps/backend/tests/unit/llm/test_client.py` | P1 |
+| AC23.2.3 | Provider failures are normalised to `LLMError` with a retryable verdict (rate-limit/5xx/timeout → retryable; others not) | `apps/backend/tests/unit/llm/test_client.py` | P1 |
+| AC23.2.4 | `EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal | `apps/backend/tests/unit/llm/test_env_config.py` | P1 |
+| AC23.2.5 | The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free | `apps/backend/tests/unit/llm/test_catalog.py` | P1 |
+| AC23.2.6 | The daily budget meter blocks once the USD limit is reached, rolls over per UTC day, and records spend (replacing the unenforced `AI_DAILY_LIMIT_USD`) | `apps/backend/tests/unit/llm/test_cost.py` | P1 |

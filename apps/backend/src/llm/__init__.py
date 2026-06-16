@@ -17,4 +17,26 @@ around three orthogonal axes (see ``docs/ssot/llm.md``):
 cipher) that the litellm client implementation (EPIC A) and the DB-backed
 configuration layer (EPIC B) both build against. Importing from ``common`` keeps
 the two halves decoupled so they can evolve in parallel.
+
+This top-level package re-exports the EPIC A litellm surface (client, catalogue,
+cost, env config). Provider-specific routing lives in :mod:`src.llm.routing`.
 """
+
+from __future__ import annotations
+
+from src.llm.catalog import LitellmCatalog
+from src.llm.client import LitellmClient, litellm_complete, litellm_stream
+from src.llm.cost import DailyBudgetMeter
+from src.llm.env_config import EnvConfigSource
+from src.llm.routing import LitellmCall, build_call
+
+__all__ = [
+    "LitellmClient",
+    "litellm_stream",
+    "litellm_complete",
+    "LitellmCatalog",
+    "DailyBudgetMeter",
+    "EnvConfigSource",
+    "LitellmCall",
+    "build_call",
+]
