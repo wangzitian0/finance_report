@@ -748,6 +748,21 @@ balance-sheet net income — adding back only the (converted) fee. A naively
 double-booked internal transfer therefore nets to zero in the report except for
 its fee, proven end to end in `reporting/test_internal_transfer_e2e.py`.
 
+**Source: recorded rows OR raw ledger (#1123 AC2 live).** The adjustment does not
+require a pre-seeded `fx_conversions` row. In addition to recorded rows, it calls
+`services/fx_transfer_discovery.discover_fx_conversions` to **auto-discover** the
+same transfer pairs directly from the raw `ASSET`-account journal lines (see
+[FX / Cross-Currency Transfer Pairing](reconciliation.md#fx-cross-currency-transfer-pairing)).
+Discovered (in-memory) conversions are merged with recorded ones and deduplicated
+by the unordered pair of anchored journal entries, so a transfer that is BOTH
+recorded and discoverable is never netted twice. A cross-currency internal
+transfer booked purely as raw ledger lines is therefore net-worth-correct end to
+end with **no manual conversion row**, proven in
+`reporting/test_fx_ledger_autodiscovery_e2e.py`. Discovery is conservative — only
+unambiguous 1:1 matches net, so the report biases toward *under*-netting and skips
+ambiguous matches — reducing, though not fully eliminating, false-positive netting
+without an explicit linkage signal.
+
 **FX gain/loss is attributed to revaluation over time, not the conversion event**
 (#1123 AC4). A same-day round-trip conversion A→B→A nets ~zero realized P&L (minus
 fee/spread) because the market rate has not moved
@@ -755,7 +770,10 @@ fee/spread) because the market rate has not moved
 conversion and a subsequent valuation is a holding-period **revaluation**, routed
 through the `FX_REVALUATION` journal source type (consistent with
 `unrealized_fx_gain_loss` above) — never booked as a conversion-event
-income/expense line.
+income/expense line. This is also proven **live through the real report**: a
+same-day SGD→USD→SGD round-trip seeded as raw ledger lines is auto-discovered,
+both legs net out, and `generate_income_statement` returns zero realized P&L
+(`reporting/test_fx_ledger_autodiscovery_e2e.py::test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report`).
 
 ---
 

@@ -54,6 +54,7 @@ from src.services.fx_transfer import (
     classify_internal_transfer,
     pair_fx_legs,
 )
+from src.services.fx_transfer_discovery import discover_fx_conversions
 from src.services.portfolio import AssetNotFoundError, PortfolioService
 from src.services.source_type_priority import normalize_source_type
 from src.utils.money import to_money
@@ -684,7 +685,37 @@ async def _internal_transfer_adjustment(
         stmt = stmt.where(FxConversion.conversion_date >= start_date)
 
     result = await db.execute(stmt)
-    conversions = result.scalars().all()
+    conversions = list(result.scalars().all())
+
+    # AC2 live (#1123): also auto-discover internal-transfer leg pairs straight
+    # from the RAW ledger, so a real cross-currency transfer booked only as journal
+    # lines (no pre-seeded ``fx_conversions`` row) is netted out too. Discovered
+    # conversions are in-memory only and deduplicated against recorded rows by the
+    # unordered pair of anchored journal entries, so a transfer that is BOTH
+    # recorded and discoverable is never counted twice.
+    async def _resolve_market_rate(base: str, quote: str, on_date: date) -> Decimal | None:
+        try:
+            return await get_exchange_rate(db, base, quote, on_date, lazy_load=True)
+        except FxRateError:
+            return None
+
+    recorded_anchor_pairs = {
+        frozenset((c.from_journal_entry_id, c.to_journal_entry_id))
+        for c in conversions
+        if c.from_journal_entry_id is not None and c.to_journal_entry_id is not None
+    }
+    discovered = await discover_fx_conversions(
+        db,
+        user_id,
+        as_of_date,
+        _resolve_market_rate,
+        start_date=start_date,
+    )
+    for found in discovered:
+        anchor = frozenset((found.conversion.from_journal_entry_id, found.conversion.to_journal_entry_id))
+        if anchor in recorded_anchor_pairs:
+            continue
+        conversions.append(found.conversion)
 
     excluded: set[UUID] = set()
     fee_total = Decimal("0")

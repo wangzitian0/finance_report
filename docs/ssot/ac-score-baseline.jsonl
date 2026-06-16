@@ -3,6 +3,10 @@
 {"ac_id": "AC4.1.4", "score": 1.0, "metric": "description_similarity_pct", "provenance": "deterministic"}
 {"ac_id": "AC4.14.1", "score": 1.0, "metric": "fx_legs_pair_when_implied_rate_within_tolerance", "provenance": "deterministic"}
 {"ac_id": "AC4.14.10", "score": 1.0, "metric": "balance_sheet_net_income_excludes_internal_transfer_fee_only", "provenance": "deterministic"}
+{"ac_id": "AC4.14.11", "score": 1.0, "metric": "cross_currency_transfer_legs_discovered_from_raw_ledger", "provenance": "deterministic"}
+{"ac_id": "AC4.14.12", "score": 1.0, "metric": "ambiguous_transfer_legs_not_paired", "provenance": "deterministic"}
+{"ac_id": "AC4.14.13", "score": 1.0, "metric": "raw_ledger_transfer_autodiscovered_and_excluded_fee_only", "provenance": "deterministic"}
+{"ac_id": "AC4.14.14", "score": 1.0, "metric": "same_day_round_trip_nets_zero_realized_pnl_through_live_report", "provenance": "deterministic"}
 {"ac_id": "AC4.14.2", "score": 1.0, "metric": "fx_legs_do_not_pair_outside_rate_tolerance", "provenance": "deterministic"}
 {"ac_id": "AC4.14.3", "score": 1.0, "metric": "non_candidate_fx_legs_rejected", "provenance": "deterministic"}
 {"ac_id": "AC4.14.4", "score": 1.0, "metric": "internal_transfer_income_and_expense_are_zero", "provenance": "deterministic"}
