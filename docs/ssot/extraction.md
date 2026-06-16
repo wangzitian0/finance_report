@@ -93,6 +93,15 @@ write path and no dual-write flag.
   institution metadata, `file_hash`, and the resolved custody `account_id`.
 - Carries review/workflow state: `status`, `stage1_status`,
   `balance_validation_result`, `stage1_reviewed_at`, and `manual_opening_balance`.
+- Multi-currency statements (Wise / IBKR / Futu) additionally carry
+  `currency_balances` (JSONB `[{currency, opening, closing}]`) so each currency
+  has its own opening/closing pair. This is additive: the scalar
+  `opening_balance` / `closing_balance` stay populated for the single-currency
+  case, and reconciliation runs **per currency** (never summing across
+  currencies). See
+  [reconciliation.md#per-currency-balance-reconciliation](reconciliation.md#per-currency-balance-reconciliation).
+  (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123
+  AC2/AC3/AC4.)
 - Enums `BankStatementStatus` and `Stage1Status` live in
   `src/models/statement_enums.py`.
 

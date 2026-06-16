@@ -65,6 +65,126 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+def _currency_buckets(extracted: dict[str, Any]) -> list[dict[str, Any]]:
+    """Resolve the per-currency opening/closing buckets for a statement.
+
+    #1123 AC1. Prefers an explicit ``balances`` array
+    (``[{currency, opening, closing}, ...]``). When absent — today's
+    single-currency payloads — it falls back to the scalar
+    ``opening_balance`` / ``closing_balance`` under the header ``currency`` (or a
+    synthetic ``"*"`` bucket when no currency is stated), so the per-currency
+    path degenerates to the existing scalar check without a cross-currency sum.
+    """
+    raw_balances = extracted.get("balances")
+    if raw_balances:
+        buckets: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for entry in raw_balances:
+            currency = (entry.get("currency") or "*").strip().upper() or "*"
+            # Reject duplicate currencies rather than silently collapsing them.
+            # ``nets`` is keyed by currency, so two buckets for the same code
+            # would produce ambiguous, order-dependent results for that currency.
+            # Failing loudly forces upstream parsing to merge the duplicate
+            # opening/closing pair into a single authoritative bucket.
+            if currency in seen:
+                raise ValueError(f"Duplicate currency in balances: {currency}")
+            seen.add(currency)
+            buckets.append(
+                {
+                    "currency": currency,
+                    "opening": Decimal(str(entry.get("opening") or "0")),
+                    "closing": Decimal(str(entry.get("closing") or "0")),
+                }
+            )
+        return buckets
+
+    header_currency = (extracted.get("currency") or "*").strip().upper() or "*"
+    return [
+        {
+            "currency": header_currency,
+            "opening": Decimal(str(extracted.get("opening_balance") or "0")),
+            "closing": Decimal(str(extracted.get("closing_balance") or "0")),
+        }
+    ]
+
+
+def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``open + ΣIN − ΣOUT ≈ close`` independently for each currency.
+
+    #1123 AC1. Transactions are grouped by their own ``currency`` and each
+    currency's running balance is checked against that currency's opening/closing
+    pair. Currencies are NEVER summed together — a multi-currency statement is a
+    set of independent single-currency closed loops. The legacy scalar check
+    (:func:`validate_balance`) is the degenerate one-currency case of this rule.
+
+    Returns a dict with an overall ``balance_valid`` (AND across currencies) plus
+    a ``per_currency`` list, one :func:`validate_balance_explicit`-shaped result
+    per currency tagged with its ``currency`` code. No cross-currency aggregate
+    ``expected_closing`` is produced.
+
+    A transaction whose currency has no declared balance bucket is NOT dropped:
+    an orphan bucket (zero declared opening/closing, the computed net, flagged
+    ``declared_balance=False``) is surfaced so no transaction currency goes
+    silently unaccounted in a multi-currency statement.
+
+    .. note::
+       Not yet wired into the live extraction-write path: that path still calls
+       the scalar :func:`validate_balance`. Wiring depends on multi-currency
+       payload parsing, deferred to #1123 AC2/AC3/AC4.
+    """
+    try:
+        buckets = _currency_buckets(extracted)
+
+        # Net IN/OUT per currency. A transaction without an explicit currency
+        # falls back to the single bucket when there is exactly one (the
+        # degenerate case); with multiple buckets an untagged txn lands in "*".
+        single_bucket_ccy = buckets[0]["currency"] if len(buckets) == 1 else None
+        nets: dict[str, Decimal] = {b["currency"]: Decimal("0") for b in buckets}
+        for txn in extracted.get("transactions", []):
+            amount = Decimal(str(txn["amount"]))
+            amount, direction = normalize_amount_direction(amount, txn.get("direction"))
+            ccy = (txn.get("currency") or single_bucket_ccy or "*").strip().upper() or "*"
+            nets.setdefault(ccy, Decimal("0"))
+            nets[ccy] += amount if direction == "IN" else -amount
+    except (ValueError, KeyError, InvalidOperation) as exc:
+        return {
+            "balance_valid": False,
+            "balance_computable": False,
+            "per_currency": [],
+            "notes": f"Validation error: {exc}",
+        }
+
+    declared = {bucket["currency"] for bucket in buckets}
+    per_currency: list[dict[str, Any]] = []
+    for bucket in buckets:
+        ccy = bucket["currency"]
+        result = validate_balance_explicit(bucket["opening"], bucket["closing"], nets.get(ccy, Decimal("0")))
+        result["currency"] = ccy
+        result["declared_balance"] = True
+        per_currency.append(result)
+
+    # Surface orphan currencies — those that appear in transactions but have no
+    # declared balance bucket. Without this, such transactions are dropped and a
+    # multi-currency statement could appear to reconcile while real money in an
+    # undeclared currency goes unaccounted. Each orphan is reported against a
+    # zero opening/closing so its non-zero net forces the bucket invalid.
+    for ccy in nets:
+        if ccy in declared:
+            continue
+        result = validate_balance_explicit(Decimal("0"), Decimal("0"), nets[ccy])
+        result["currency"] = ccy
+        result["declared_balance"] = False
+        if result["notes"] is None:
+            result["notes"] = f"No declared balance for currency {ccy}"
+        per_currency.append(result)
+
+    return {
+        "balance_valid": all(r["balance_valid"] for r in per_currency),
+        "balance_computable": True,
+        "per_currency": per_currency,
+    }
+
+
 def validate_balance_explicit(opening: Decimal, closing: Decimal, net_transactions: Decimal) -> dict[str, Any]:
     """Validate balance using explicit Decimal values."""
     expected_closing = (opening or Decimal("0")) + (net_transactions or Decimal("0"))
