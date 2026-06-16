@@ -21,4 +21,8 @@ regexes = [
   '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJzdWIiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJleHAiOjE3MDY5NzYwMDB9\.xxx''',
   # Frontend localStorage key name (a constant identifier, not a credential).
   '''ai_advisor_disclaimer_v1''',
+  # False positive: a tiktoken wheel's sha256 in apps/backend/uv.lock happens to
+  # start with `eaaa` + 60 hex chars, matching the Square access-token rule
+  # (EAAA...). It is a package hash, not a credential. Pinned to the exact value.
+  '''eaaaef47c2406277181d2086484c317bf7fc433e2d5d03ff94f56b0dcec87471''',
 ]
