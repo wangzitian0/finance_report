@@ -358,3 +358,57 @@ async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum
     # No cross-sum into one scalar: three independent buckets, none equal to 88710.
     assert len(statement.currency_balances) == 3
     assert all(Decimal(b["closing"]) != Decimal("88710.00") for b in statement.currency_balances)
+
+
+async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_user, monkeypatch):
+    """#1160 CR1: a failing per-currency NAV self-check is respected, not ignored.
+
+    Previously ``validate_balance_per_currency`` could return ``balance_valid=False``
+    yet ``currency_balances`` was persisted as if reconciled — only a warning was
+    logged. The fix surfaces the failure on the persisted statement
+    (``balance_validated`` False + a ``validation_error``), mirroring the scalar
+    invalid-balance path, while still persisting the per-currency evidence array.
+    """
+    from unittest.mock import AsyncMock
+
+    import src.services.extraction as extraction_module
+
+    service = ExtractionService()
+    payload = _load_fixture("ibkr-multicurrency-positions_parsed.json")
+    service.extract_financial_data = AsyncMock(return_value=payload)
+
+    # Force the per-currency self-check to fail for one currency.
+    def _failing_per_currency(_extracted):
+        return {
+            "balance_valid": False,
+            "balance_computable": True,
+            "per_currency": [
+                {
+                    "currency": "USD",
+                    "balance_valid": False,
+                    "expected_closing": "4400.00",
+                    "actual_closing": "4000.00",
+                },
+                {"currency": "HKD", "balance_valid": True},
+            ],
+        }
+
+    monkeypatch.setattr(extraction_module, "validate_balance_per_currency", _failing_per_currency)
+
+    statement, _ = await service.parse_document(
+        file_path=Path("ibkr-multicurrency-2506.pdf"),
+        institution="Interactive Brokers",
+        user_id=test_user.id,
+        file_content=b"%PDF-1.7",
+        file_hash="ibkr-multicurrency-invalid-hash",
+        original_filename="ibkr-multicurrency-2506.pdf",
+    )
+
+    # The per-currency evidence array is still persisted (it is the audit trail)...
+    assert statement.currency_balances is not None
+    assert len(statement.currency_balances) == 3
+    # ...but the statement is NOT marked balance-valid, and the failure is surfaced.
+    assert statement.balance_validated is False
+    assert statement.validation_error is not None
+    assert "USD" in statement.validation_error
+    assert "self-check failed" in statement.validation_error.lower()

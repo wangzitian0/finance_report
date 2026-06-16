@@ -433,6 +433,11 @@ class ExtractionService:
             # into a meaningless NAV. Instead derive the per-currency balance array
             # (each currency an independent closed loop) and persist it additively
             # to the scalar columns; reconciliation then runs per currency.
+            # When per-currency brokerage reconciliation fails we must not stamp the
+            # statement as balance-valid (mirrors the scalar invalid-balance path
+            # below). Capture the failure note here so it propagates into
+            # ``balance_validated`` / ``validation_error`` after the scalar check.
+            per_currency_invalid_note: str | None = None
             if is_brokerage_payload:
                 brokerage_balances = brokerage_currency_balances(
                     extracted,
@@ -443,11 +448,24 @@ class ExtractionService:
                     # Reconcile each currency independently (open + ΣIN − ΣOUT ≈
                     # close per currency); never cross-sum. A snapshot has no cash
                     # flow, so each currency is a zero-net closed loop and must
-                    # reconcile before we persist it.
+                    # reconcile before we trust it.
                     per_currency_result = validate_balance_per_currency(
                         {"balances": brokerage_balances, "transactions": []}
                     )
-                    if not per_currency_result["balance_valid"]:  # pragma: no cover - defensive
+                    if not per_currency_result["balance_valid"]:
+                        # Respect the self-check result: surface the failing
+                        # currencies so the persisted statement carries the invalid
+                        # flag rather than silently looking reconciled (#1160 CR1).
+                        failed = [
+                            f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
+                            for r in per_currency_result.get("per_currency", [])
+                            if not r.get("balance_valid")
+                        ]
+                        per_currency_invalid_note = (
+                            "Per-currency NAV self-check failed: " + ", ".join(failed)
+                            if failed
+                            else "Per-currency NAV self-check failed"
+                        )
                         logger.warning(
                             "Per-currency brokerage NAV failed self-check",
                             per_currency=per_currency_result["per_currency"],
@@ -455,7 +473,9 @@ class ExtractionService:
                     # Serialize Decimal -> str for the JSONB column (no float). The
                     # scalar opening/closing columns stay populated for the
                     # single-currency degenerate case and backward compatibility;
-                    # this array is additive and never cross-sums currencies.
+                    # this array is additive and never cross-sums currencies. The
+                    # array is still persisted (it is the per-currency evidence), but
+                    # the invalid flag above ensures it is not mistaken for valid.
                     statement.currency_balances = [
                         {
                             "currency": bucket["currency"],
@@ -627,9 +647,16 @@ class ExtractionService:
                 if status == BankStatementStatus.APPROVED and account_id is None:
                     status = BankStatementStatus.PARSED
 
+            # A failing per-currency NAV self-check invalidates the brokerage
+            # balance even when the scalar (cross-summed) check happens to pass:
+            # the array is the authoritative multi-currency evidence (#1160 CR1).
+            if per_currency_invalid_note is not None:
+                is_valid = False
             statement.balance_validated = is_valid
             if has_inferred_csv_balances:
                 statement.validation_error = CSV_INFERRED_BALANCE_REVIEW_NOTE
+            elif per_currency_invalid_note is not None:
+                statement.validation_error = per_currency_invalid_note
             elif not is_valid:
                 statement.validation_error = balance_result["notes"]
             statement.confidence_score = confidence
