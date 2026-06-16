@@ -5,7 +5,7 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `130`
+- Endpoint count: `128`
 - Schema count: `231`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
@@ -31,7 +31,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `reconciliation` | 11 |
 | `reports` | 21 |
 | `review` | 8 |
-| `statements` | 16 |
+| `statements` | 14 |
 | `untagged` | 3 |
 | `user-settings` | 2 |
 | `users` | 5 |
@@ -234,10 +234,8 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/statements/upload` | yes | - | `Body_upload_statement_statements_upload_post` | `202` `BankStatementResponse` | Upload Statement |
 | `GET` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `200` `BankStatementResponse` | Get Statement |
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |
-| `POST` | `/statements/{statement_id}/approve` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Approve Statement |
 | `POST` | `/statements/{statement_id}/brokerage/import` | yes | `statement_id`* (path) | - | `200` `BrokerageImportResponse` | Import Brokerage Statement Positions |
 | `GET` | `/statements/{statement_id}/document` | yes | `statement_id`* (path) | - | `200` - | Get Statement Document |
-| `POST` | `/statements/{statement_id}/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement |
 | `POST` | `/statements/{statement_id}/retry` | yes | `statement_id`* (path) | `RetryParsingRequest` \| null | `200` `BankStatementResponse` | Retry Statement Parsing |
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |
 | `POST` | `/statements/{statement_id}/review/approve` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |

@@ -54,11 +54,6 @@ from src.routers.reports import (
     ExportFormat,
     ExportReportType,
     PackageSnapshotExportFormat,
-    _add_anchor_details,
-    _append_blocker,
-    _journal_source_anchor_detail,
-    _ledger_anchor_detail,
-    _source_document_details,
     export_personal_report_package_snapshot,
     export_report,
     generate_personal_report_package_snapshot,
@@ -73,6 +68,13 @@ from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadi
 from src.services.deduplication import dual_write_layer2
 from src.services.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.services.fx import FxRateError
+from src.services.report_traceability import (
+    _add_anchor_details,
+    _append_blocker,
+    _journal_source_anchor_detail,
+    _ledger_anchor_detail,
+    _source_document_details,
+)
 from src.services.review_queue import create_entry_from_txn
 from tests.factories import UserFactory
 

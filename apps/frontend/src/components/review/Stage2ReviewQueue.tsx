@@ -1,56 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
-import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useToast } from "@/components/ui/Toast";
 import { BackLink } from "@/components/ui/BackLink";
-import { InfoHint } from "@/components/ui/InfoHint";
 
 import { apiFetch } from "@/lib/api";
 
-import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
-import { formatAmount } from "@/lib/currency";
 import { ATTENTION_SOURCE_PARAM, ATTENTION_SOURCE_VALUE, isAttentionOrigin } from "@/lib/attentionNavigation";
-import type { MoneyValue } from "@/lib/types";
 import type { Schemas } from "@/lib/api-schema";
 
-interface ConsistencyCheck {
-    id: string;
-    check_type: string;
-    status: string;
-    related_txn_ids: string[];
-    details: Record<string, unknown>;
-    severity: string;
-    resolved_at: string | null;
-    resolution_note: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-interface PendingMatch {
-    id: string;
-    match_score: number;
-    status: string;
-    created_at: string | null;
-    description?: string;
-    amount?: MoneyValue;
-    txn_date?: string;
-}
-
-interface Stage2Data {
-    pending_matches: PendingMatch[];
-    consistency_checks: ConsistencyCheck[];
-    has_unresolved_checks: boolean;
-}
-
-interface ProcessingSummary {
-    pending_count: number;
-    pending_total: MoneyValue;
-    currency: string;
-    oldest_pending_date: string | null;
-}
+import { ConsistencyChecksPanel } from "./stage2/ConsistencyChecksPanel";
+import { PendingMatchesPanel } from "./stage2/PendingMatchesPanel";
+import { ResolveCheckDialog } from "./stage2/ResolveCheckDialog";
+import { RunSummaryPanel } from "./stage2/RunSummaryPanel";
+import { Stage2Filters } from "./stage2/Stage2Filters";
+import type { ConsistencyCheck, ProcessingSummary, Stage2Data } from "./stage2/types";
 
 export function Stage2ReviewQueue() {
     const { showToast } = useToast();
@@ -65,9 +31,7 @@ export function Stage2ReviewQueue() {
     const [actionLoading, setActionLoading] = useState(false);
     const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
     const [selectedCheck, setSelectedCheck] = useState<ConsistencyCheck | null>(null);
-    const [resolveNote, setResolveNote] = useState("");
     const [processingSummary, setProcessingSummary] = useState<ProcessingSummary | null>(null);
-    const resolveDialogRef = useRef<HTMLDivElement>(null);
 
     // Filters state
     const [checkTypeFilter, setCheckTypeFilter] = useState<string>(searchParams.get("check_type") || "");
@@ -76,8 +40,6 @@ export function Stage2ReviewQueue() {
     const [minScore, setMinScore] = useState<number>(Number(searchParams.get("min_score")) || 0);
 
     const [filteredChecks, setFilteredChecks] = useState<ConsistencyCheck[] | null>(null);
-    const [filtering, setFiltering] = useState(false);
-    const resolveTitleId = useId();
     const runIdMatch = pathname.match(/^\/review\/run\/([^/?#]+)/);
     const runId = runIdMatch ? decodeURIComponent(runIdMatch[1]) : null;
     const isRunReview = Boolean(runId);
@@ -129,7 +91,6 @@ export function Stage2ReviewQueue() {
     }, [checkTypeFilter, statusFilter, severityFilter, minScore, router, pathname, searchParams]);
 
     const fetchFilteredChecks = useCallback(async () => {
-        setFiltering(true);
         try {
             const params = new URLSearchParams();
             if (checkTypeFilter) params.append("check_type", checkTypeFilter);
@@ -145,8 +106,6 @@ export function Stage2ReviewQueue() {
             setFilteredChecks(severityFilteredItems);
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to filter checks", "error");
-        } finally {
-            setFiltering(false);
         }
     }, [checkTypeFilter, statusFilter, severityFilter, runId, showToast]);
 
@@ -154,21 +113,6 @@ export function Stage2ReviewQueue() {
         fetchFilteredChecks();
         updateUrlParams();
     }, [fetchFilteredChecks, updateUrlParams]);
-
-    useEffect(() => {
-        if (!resolveDialogOpen) return;
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && !actionLoading) {
-                setResolveDialogOpen(false);
-                setSelectedCheck(null);
-                setResolveNote("");
-            }
-        };
-        document.addEventListener("keydown", handleKeyDown);
-        return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [resolveDialogOpen, actionLoading]);
-
-    useFocusTrap(resolveDialogRef, resolveDialogOpen);
 
     const toggleMatch = (id: string) => {
         setSelectedMatches((prev) => {
@@ -314,7 +258,6 @@ export function Stage2ReviewQueue() {
 
             setResolveDialogOpen(false);
             setSelectedCheck(null);
-            setResolveNote("");
             fetchData();
             fetchFilteredChecks();
         } catch (err) {
@@ -324,36 +267,17 @@ export function Stage2ReviewQueue() {
         }
     };
 
+    const closeResolveDialog = () => {
+        setResolveDialogOpen(false);
+        setSelectedCheck(null);
+    };
+
     const toggleSeverity = (severity: string) => {
         setSeverityFilter(prev =>
             prev.includes(severity)
                 ? prev.filter(s => s !== severity)
                 : [...prev, severity]
         );
-    };
-
-    const getSeverityColor = (severity: string) => {
-        switch (severity) {
-            case "high":
-                return "text-[var(--error)]";
-            case "medium":
-                return "text-[var(--warning)]";
-            default:
-                return "text-muted";
-        }
-    };
-
-    const getCheckTypeLabel = (type: string) => {
-        switch (type) {
-            case "duplicate":
-                return "Duplicate";
-            case "transfer_pair":
-                return "Transfer Pair";
-            case "anomaly":
-                return "Anomaly";
-            default:
-                return type;
-        }
     };
 
     if (loading) {
@@ -411,134 +335,30 @@ export function Stage2ReviewQueue() {
             </div>
 
             {isRunReview && (
-                <div className="mb-6 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
-                        <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">Run ID</p>
-                            <p className="mt-1 text-sm font-semibold break-all">{runId}</p>
-                        </div>
-                        <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">
-                                Unresolved transfers
-                                <InfoHint term="transfer_pair" label="Transfer pair" />
-                            </p>
-                            <p className="mt-1 text-lg font-semibold text-[var(--warning)]">
-                                {unresolvedTransferCount} unresolved transfer{unresolvedTransferCount === 1 ? "" : "s"}
-                            </p>
-                        </div>
-                        <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">
-                                Duplicates
-                                <InfoHint term="duplicate" label="Duplicate" />
-                            </p>
-                            <p className="mt-1 text-lg font-semibold">
-                                {unresolvedDuplicateCount} duplicate{unresolvedDuplicateCount === 1 ? "" : "s"}
-                            </p>
-                        </div>
-                        <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">
-                                Anomalies
-                                <InfoHint term="anomaly" label="Anomaly" />
-                            </p>
-                            <p className="mt-1 text-lg font-semibold">
-                                {unresolvedAnomalyCount} anomal{unresolvedAnomalyCount === 1 ? "y" : "ies"}
-                            </p>
-                        </div>
-                        <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">Processing</p>
-                            <p className={`mt-1 text-lg font-semibold ${processingPendingCount > 0 ? "text-[var(--warning)]" : ""}`}>
-                                {processingPendingCount} pending
-                            </p>
-                        </div>
-                        <div className="card p-4">
-                            <p className="text-xs uppercase text-muted font-medium">Pending matches</p>
-                            <p className="mt-1 text-lg font-semibold">{data.pending_matches.length}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 rounded-lg border border-[var(--border)] bg-[var(--background-card)]">
-                        <div>
-                            <p className="text-sm font-medium">Run approval gate</p>
-                            <p className="text-sm text-muted">
-                                Resolve transfer, duplicate, and anomaly checks and clear Processing Account pending transfers before approving current pending matches.
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={handleApproveRun}
-                            disabled={approveRunDisabled}
-                            className="btn-primary disabled:opacity-50 md:min-w-36"
-                            title={runApprovalTitle}
-                        >
-                            {actionLoading ? "Processing..." : "Approve Run"}
-                        </button>
-                    </div>
-                </div>
+                <RunSummaryPanel
+                    runId={runId}
+                    unresolvedTransferCount={unresolvedTransferCount}
+                    unresolvedDuplicateCount={unresolvedDuplicateCount}
+                    unresolvedAnomalyCount={unresolvedAnomalyCount}
+                    processingPendingCount={processingPendingCount}
+                    pendingMatchesCount={data.pending_matches.length}
+                    actionLoading={actionLoading}
+                    approveRunDisabled={approveRunDisabled}
+                    runApprovalTitle={runApprovalTitle}
+                    onApproveRun={handleApproveRun}
+                />
             )}
 
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-[var(--background-card)] p-4 rounded-lg border border-[var(--border)]">
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted uppercase">Severity</label>
-                    <div className="flex flex-wrap gap-2">
-                        {["high", "medium", "low"].map(s => (
-                            <button
-                                key={s}
-                                onClick={() => toggleSeverity(s)}
-                                className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                                    severityFilter.includes(s)
-                                        ? "bg-[var(--accent)] text-white border-[var(--accent)]"
-                                        : "bg-[var(--background)] text-muted border-[var(--border)] hover:border-[var(--accent)]"
-                                }`}
-                            >
-                                {s.toUpperCase()}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted uppercase">Check Type</label>
-                    <select
-                        className="input text-sm py-1"
-                        value={checkTypeFilter}
-                        onChange={(e) => setCheckTypeFilter(e.target.value)}
-                    >
-                        <option value="">All Types</option>
-                        <option value="duplicate">Duplicate</option>
-                        <option value="transfer_pair">Transfer Pair</option>
-                        <option value="anomaly">Anomaly</option>
-                    </select>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted uppercase">Status</label>
-                    <select
-                        className="input text-sm py-1"
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                        <option value="">All Statuses</option>
-                        <option value="pending">Pending</option>
-                        <option value="resolved">Resolved</option>
-                    </select>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted uppercase">
-                        Min Match Score: {minScore}
-                        <InfoHint term="match_score" label="Match score" />
-                    </label>
-                    <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="5"
-                        value={minScore}
-                        onChange={(e) => setMinScore(parseInt(e.target.value))}
-                        className="w-full h-2 bg-[var(--border)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)]"
-                    />
-                </div>
-            </div>
+            <Stage2Filters
+                checkTypeFilter={checkTypeFilter}
+                statusFilter={statusFilter}
+                severityFilter={severityFilter}
+                minScore={minScore}
+                onToggleSeverity={toggleSeverity}
+                onCheckTypeChange={setCheckTypeFilter}
+                onStatusChange={setStatusFilter}
+                onMinScoreChange={setMinScore}
+            />
 
             {error && <div className="mb-4 alert-error">{error}</div>}
 
@@ -557,294 +377,33 @@ export function Stage2ReviewQueue() {
             )}
 
             <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
-                <div className="card">
-                    <div className="card-header flex items-center justify-between">
-                        <h3 className="text-sm font-medium">
-                            Consistency Checks
-                            <InfoHint term="consistency_check" label="Consistency check" />
-                        </h3>
-                        <span className="text-xs text-muted">{allChecks.length} total</span>
-                    </div>
+                <ConsistencyChecksPanel
+                    checks={allChecks}
+                    onResolve={(check) => {
+                        setSelectedCheck(check);
+                        setResolveDialogOpen(true);
+                    }}
+                />
 
-                    {allChecks.length === 0 ? (
-                        <div className="p-8 text-center text-muted">No pending checks</div>
-                    ) : (
-                        <div className="divide-y divide-[var(--border)]">
-                            {allChecks.map((check) => (
-                                <div key={check.id} className="p-4 flex items-start justify-between gap-4">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className={`font-medium text-xs ${getSeverityColor(check.severity)}`}>
-                                                {check.severity.toUpperCase()}
-                                            </span>
-                                            <span className="badge badge-muted text-[10px]">{getCheckTypeLabel(check.check_type)}</span>
-                                        </div>
-                                        <p className="text-sm text-muted truncate">
-                                            {(check.details.message as string | undefined) || JSON.stringify(check.details)}
-                                        </p>
-                                        <p className="text-xs text-muted mt-1">
-                                            {formatDateTimeDisplay(check.created_at)}
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedCheck(check);
-                                            setResolveDialogOpen(true);
-                                        }}
-                                        className="btn-secondary text-sm"
-                                    >
-                                        Resolve
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="card">
-                    <div className="card-header flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Pending Matches</h3>
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={toggleAll}
-                                className="text-xs text-muted hover:text-[var(--foreground)]"
-                            >
-                                {matchesFilteredByScore.length > 0 && matchesFilteredByScore.every((m) => selectedMatches.has(m.id)) ? "Deselect all" : "Select all"}
-                            </button>
-                            <span className="text-xs text-muted">{matchesFilteredByScore.length} total</span>
-                        </div>
-                    </div>
-
-                    {matchesFilteredByScore.length === 0 ? (
-                        <div className="p-8 text-center text-muted">No pending matches</div>
-                    ) : (
-                        <>
-                            <div data-testid="stage2-mobile-match-list" className="divide-y divide-[var(--border)] md:hidden">
-                                    {matchesFilteredByScore.map((match) => (
-                                        <article
-                                            key={match.id}
-                                            data-testid={`stage2-mobile-match-card-${match.id}`}
-                                            className="space-y-4 p-4"
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <input
-                                                    type="checkbox"
-                                                    aria-label={`Select match ${match.id}`}
-                                                    checked={selectedMatches.has(match.id)}
-                                                    onChange={() => toggleMatch(match.id)}
-                                                    className="mt-1 rounded"
-                                                />
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <p className="text-xs font-medium uppercase text-muted">Description</p>
-                                                            <p className="mt-1 break-words text-sm font-medium">
-                                                                {match.description || "—"}
-                                                            </p>
-                                                        </div>
-                                                        <span
-                                                            className={`flex-shrink-0 text-sm font-semibold ${
-                                                                match.match_score >= 85
-                                                                    ? "text-[var(--success)]"
-                                                                    : match.match_score >= 60
-                                                                      ? "text-[var(--warning)]"
-                                                                      : "text-[var(--error)]"
-                                                            }`}
-                                                        >
-                                                            {match.match_score}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                                                        <div>
-                                                            <p className="text-xs font-medium uppercase text-muted">Amount</p>
-                                                            <p className="mt-1 font-semibold">
-                                                                {match.amount != null ? formatAmount(match.amount, 2) : "—"}
-                                                            </p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs font-medium uppercase text-muted">Date</p>
-                                                            <p className="mt-1 text-muted">
-                                                                {match.txn_date ? formatDateDisplay(match.txn_date) : "—"}
-                                                            </p>
-                                                        </div>
-                                                        <div className="col-span-2">
-                                                            <p className="text-xs font-medium uppercase text-muted">Status</p>
-                                                            <span className="badge badge-warning mt-1">{match.status}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </article>
-                                    ))}
-                            </div>
-
-                            <div data-testid="stage2-desktop-match-region" className="hidden max-h-[400px] overflow-hidden md:block">
-                                <table className="table-fixed border-collapse text-sm" style={{ width: "calc(100% - 4px)" }}>
-                                    <thead className="sticky top-0 bg-[var(--background)]">
-                                        <tr className="border-b border-[var(--border)]">
-                                            <th className="text-left px-4 py-2 w-8">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedMatches.size === matchesFilteredByScore.length && matchesFilteredByScore.length > 0}
-                                                    onChange={toggleAll}
-                                                    className="rounded"
-                                                />
-                                            </th>
-                                            <th className="text-left px-4 py-2 font-medium w-20">Score</th>
-                                            <th className="text-left px-4 py-2 font-medium">Description</th>
-                                            <th className="text-right px-4 py-2 font-medium w-28">Amount</th>
-                                            <th className="text-left px-4 py-2 font-medium w-28">Date</th>
-                                            <th className="text-left px-4 py-2 font-medium w-32">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[var(--border)]">
-                                        {matchesFilteredByScore.map((match) => (
-                                            <tr
-                                                key={match.id}
-                                                className="hover:bg-[var(--background-muted)]/50 cursor-pointer"
-                                                onClick={() => toggleMatch(match.id)}
-                                            >
-                                                <td className="px-4 py-2">
-                                                    <input
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        type="checkbox"
-                                                        checked={selectedMatches.has(match.id)}
-                                                        onChange={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleMatch(match.id);
-                                                        }}
-                                                        className="rounded"
-                                                    />
-                                                </td>
-                                                <td className="px-4 py-2">
-                                                    <span
-                                                        className={`font-medium ${
-                                                            match.match_score >= 85
-                                                                ? "text-[var(--success)]"
-                                                                : match.match_score >= 60
-                                                                  ? "text-[var(--warning)]"
-                                                                  : "text-[var(--error)]"
-                                                        }`}
-                                                    >
-                                                        {match.match_score}
-                                                    </span>
-                                                </td>
-                                                <td className="truncate px-4 py-2 text-muted">
-                                                    {match.description || "—"}
-                                                </td>
-                                                <td className="px-4 py-2 text-right font-medium">
-                                                    {match.amount != null ? formatAmount(match.amount, 2) : "—"}
-                                                </td>
-                                                <td className="px-4 py-2 text-muted">
-                                                    {match.txn_date ? formatDateDisplay(match.txn_date) : "—"}
-                                                </td>
-                                                <td className="px-4 py-2">
-                                                    <span className="badge badge-warning">{match.status}</span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div className="flex flex-col gap-3 border-t border-[var(--border)] p-4 sm:flex-row sm:items-center sm:justify-between">
-                                <span className="text-sm text-muted">{selectedMatches.size} selected</span>
-                                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                                    <button
-                                        type="button"
-                                        onClick={handleBatchReject}
-                                        disabled={actionLoading || selectedMatches.size === 0}
-                                        className="btn-secondary text-[var(--error)]"
-                                    >
-                                        Reject
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleBatchApprove}
-                                        disabled={
-                                            actionLoading ||
-                                            selectedMatches.size === 0 ||
-                                            data.has_unresolved_checks
-                                        }
-                                        className="btn-primary disabled:opacity-50"
-                                        title={
-                                            data.has_unresolved_checks
-                                                ? "Resolve consistency checks first"
-                                                : ""
-                                        }
-                                    >
-                                        {actionLoading ? "Processing..." : "Approve Selected"}
-                                    </button>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
+                <PendingMatchesPanel
+                    matches={matchesFilteredByScore}
+                    selectedMatches={selectedMatches}
+                    actionLoading={actionLoading}
+                    hasUnresolvedChecks={data.has_unresolved_checks}
+                    onToggleMatch={toggleMatch}
+                    onToggleAll={toggleAll}
+                    onBatchReject={handleBatchReject}
+                    onBatchApprove={handleBatchApprove}
+                />
             </div>
 
             {resolveDialogOpen && selectedCheck && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center">
-                    <div className="fixed inset-0 bg-black/60" onClick={() => { if (!actionLoading) { setResolveDialogOpen(false); setSelectedCheck(null); setResolveNote(""); } }} aria-hidden="true" />
-                    <div ref={resolveDialogRef} role="dialog" aria-modal="true" aria-labelledby={resolveTitleId} className="relative z-10 w-full max-w-md card animate-slide-up">
-                        <div className="card-header">
-                            <h2 id={resolveTitleId} className="text-lg font-semibold">Resolve Consistency Check</h2>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <p className="text-sm text-muted">
-                                <span className="font-medium text-[var(--foreground)]">{selectedCheck.severity.toUpperCase()}</span>{" "}
-                                {getCheckTypeLabel(selectedCheck.check_type)} —{" "}
-                                {(selectedCheck.details.message as string | undefined) || JSON.stringify(selectedCheck.details)}
-                            </p>
-                            <div>
-                                <label className="block text-sm font-medium mb-1.5">Note (optional)</label>
-                                <input
-                                    type="text"
-                                    value={resolveNote}
-                                    onChange={(e) => setResolveNote(e.target.value)}
-                                    placeholder="Add resolution note..."
-                                    className="input"
-                                />
-                            </div>
-                            <div className="flex gap-2 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => { setResolveDialogOpen(false); setSelectedCheck(null); setResolveNote(""); }}
-                                    className="btn-secondary flex-1"
-                                    disabled={actionLoading}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleResolveCheck("reject", resolveNote)}
-                                    className="btn-secondary flex-1 text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)]"
-                                    disabled={actionLoading}
-                                >
-                                    Reject
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleResolveCheck("flag", resolveNote)}
-                                    className="btn-secondary flex-1 text-[var(--warning)] border-[var(--warning)]/30 hover:bg-[var(--warning-muted)]"
-                                    disabled={actionLoading}
-                                >
-                                    Flag
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleResolveCheck("approve", resolveNote)}
-                                    className="btn-primary flex-1"
-                                    disabled={actionLoading}
-                                >
-                                    {actionLoading ? "Processing..." : "Approve"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <ResolveCheckDialog
+                    check={selectedCheck}
+                    actionLoading={actionLoading}
+                    onClose={closeResolveDialog}
+                    onResolve={handleResolveCheck}
+                />
             )}
         </div>
     );
