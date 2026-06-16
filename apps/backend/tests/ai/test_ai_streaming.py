@@ -71,7 +71,8 @@ async def test_stream_ai_json_uses_explicit_credentials(litellm_stub, monkeypatc
 
 
 async def test_stream_ai_json_forwards_zai_knobs_and_seed(litellm_stub, monkeypatch):
-    """do_sample/thinking ride extra_body; seed is a native (droppable) param."""
+    """AC13.16.1: a provided seed is forwarded in the request payload (deterministic
+    decoding, #989). do_sample/thinking ride extra_body; seed is a native (droppable) param."""
     _explicit_provider(monkeypatch)
     await accumulate_stream(
         stream_ai_json(
@@ -97,7 +98,11 @@ async def test_stream_resolves_default_provider_from_config(litellm_stub, monkey
         async def list_providers(self):
             return [
                 ProviderRef(
-                    id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="cfg", api_base="https://z"
+                    id="env",
+                    label="zai",
+                    protocol=ProtocolFamily.OPENAI_COMPATIBLE,
+                    api_key="cfg",
+                    api_base="https://z",
                 )
             ]
 
