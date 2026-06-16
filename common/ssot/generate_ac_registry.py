@@ -54,6 +54,7 @@ EPIC_NAMES: dict[int, str] = {
     20: "framework-aware-personal-reporting",
     21: "application-ai-advisor",
     22: "everyday-user-ia",
+    23: "frontend-observability",
 }
 
 
