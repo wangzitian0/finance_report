@@ -157,7 +157,7 @@ member column lists the current inferred manifest groupings (the
 |---|---|---|
 | `accounting` | Double-entry ledger, in-transit funds, reconciliation, and trust hierarchy | `accounting`, `reconciliation`, `confirmation`, `processing`, `source` |
 | `reporting` | Reports, frameworks, market data, assets, and evidence/workflow read models | `reporting`, `framework`, `market`, `assets`, `evidence`, `workflow` |
-| `extraction` | Statement parsing, AI advisor, and PDF fixtures | `extraction`, `ai`, `pdf` |
+| `extraction` | Statement parsing, AI advisor, LLM provider abstraction, and PDF fixtures | `extraction`, `ai`, `llm`, `pdf` |
 | `schema` | Database schema, data layering, enum naming, and migration risk | `schema`, `migration` |
 | `platform` | Dev workflow, environments, CI/CD, coverage, deployment, and observability | `platform`, `development`, `environments`, `ci`, `test`, `delivery`, `coverage`, `deployment`, `observability`, `runtime`, `env` |
 | `identity` | Auth identity and frontend integration contract | `auth`, `frontend` |
