@@ -21,6 +21,10 @@ sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
 from src.models import ReconciliationMatch, ReconciliationStatus  # noqa: E402
 
+# Pre-cache real submodule deps so the isolated reconciliation load (which stubs
+# src.services) can still resolve them after the split into reconciliation_config etc.
+from src.services import promotion_gate as _promotion_gate  # noqa: E402, F401
+
 
 def _load_reconciliation_module():
     """Load reconciliation without importing src.services package exports."""
@@ -56,10 +60,24 @@ def _load_reconciliation_module():
     sys.modules["src.services.source_type_priority"] = source_type_priority_module
     sys.modules["src.services.statement_summary"] = statement_summary_module
 
+    # reconciliation.py was split into focused submodules; load them (in dependency
+    # order: config -> scoring -> stats) under their real names so reconciliation's
+    # re-export imports resolve inside this isolated environment.
+    split_submodules = ("reconciliation_config", "reconciliation_scoring", "reconciliation_stats")
+    services_dir = REPO_ROOT / "apps" / "backend" / "src" / "services"
     try:
+        for submodule_name in split_submodules:
+            sub_spec = importlib.util.spec_from_file_location(
+                f"src.services.{submodule_name}", services_dir / f"{submodule_name}.py"
+            )
+            assert sub_spec is not None and sub_spec.loader is not None
+            sub_module = importlib.util.module_from_spec(sub_spec)
+            sys.modules[f"src.services.{submodule_name}"] = sub_module
+            sub_spec.loader.exec_module(sub_module)
+
         spec = importlib.util.spec_from_file_location(
             "_reconciliation_under_test",
-            REPO_ROOT / "apps" / "backend" / "src" / "services" / "reconciliation.py",
+            services_dir / "reconciliation.py",
         )
         assert spec is not None
         assert spec.loader is not None
@@ -68,6 +86,8 @@ def _load_reconciliation_module():
         spec.loader.exec_module(module)
         return module
     finally:
+        for submodule_name in split_submodules:
+            sys.modules.pop(f"src.services.{submodule_name}", None)
         if previous_services is None:
             sys.modules.pop("src.services", None)
         else:
