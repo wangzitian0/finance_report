@@ -60,6 +60,75 @@ Important Rules:
 15. FOREIGN-EXCHANGE / CROSS-CURRENCY: if a line converts one currency to another (e.g. "Converted 1,000 SGD to 740 USD"), record the leg in the currency that actually moved on THIS statement and set its "currency" accordingly; preserve the other currency, the exchange rate, and any fee/spread in "raw_text" (and "reference" if shown). List a separately-shown fee as its own transaction.
 """
 
+# Brokerage POSITIONS output schema (issue #1139 / #1088).
+#
+# A brokerage/securities statement's primary value is the holdings TABLE (the
+# point-in-time positions), not a running-balance cash chain. The bank SYSTEM_PROMPT
+# has NO positions field, so a brokerage doc routed through it loses every holding.
+# This prompt fragment adds a top-level ``positions[]`` array whose item shape is
+# exactly what ``brokerage_positions._iter_structured_positions`` /
+# ``_parse_structured_positions`` already consume (``symbol``/``asset_identifier``,
+# ``quantity``, ``market_value``, optional ``price``/``currency``/``asset_type``), so
+# the producer side finally emits what the long-existing consumer side expects.
+#
+# Scope (#1139): this PR emits scalar ``market_value`` per position. A per-currency
+# NAV / balance array is deliberately deferred to issue #1123 and intentionally NOT
+# added here, to avoid colliding with that parallel slice.
+BROKERAGE_POSITIONS_PROMPT = """You are a brokerage / securities statement parser.
+Extract the point-in-time HOLDINGS (positions) table from the provided document.
+
+PRIVACY INSTRUCTIONS:
+- Do NOT extract or include any personally identifiable information (PII)
+- Ignore names, addresses, NRIC/ID numbers, and full account numbers
+- Only extract account_last4: the LAST 4 alphanumeric characters of the account number
+- Focus only on financial holdings/position data
+
+CRITICAL: Return a SINGLE JSON object (not an array).
+Do NOT wrap the JSON in markdown or code fences.
+Do NOT include any extra text before or after the JSON.
+
+Output format (JSON object - NOT an array):
+{
+  "institution": "Broker Name",
+  "account_last4": "1234",
+  "currency": "USD",
+  "snapshot_date": "2025-04-30",
+  "period_start": "2025-04-01",
+  "period_end": "2025-04-30",
+  "positions": [
+    {
+      "symbol": "AAPL",
+      "asset_identifier": "AAPL",
+      "isin": "US0378331005",
+      "quantity": "10",
+      "price": "190.025",
+      "market_value": "1900.25",
+      "currency": "USD",
+      "asset_type": "stock",
+      "sector": "Technology",
+      "geography": "US"
+    }
+  ],
+  "transactions": []
+}
+
+Important Rules:
+1. Output MUST be a single JSON object starting with `{`, NOT an array `[`, and no markdown
+2. Extract EVERY row of the holdings/positions table - do NOT truncate
+3. For each position emit at least an identifier (`symbol`/`ticker`/`isin`/`asset_identifier`),
+   a `quantity`, and a `market_value`. Optionally include the closing `price` per unit and the
+   position `currency`, `asset_type`, `sector`, and `geography` when the document shows them.
+4. All amounts/quantities as non-negative strings, no thousands separators (e.g. "1900.25", "10")
+5. Normalize EVERY date to ISO YYYY-MM-DD (convert from the source format yourself)
+6. `snapshot_date` is the as-of date of the holdings (usually the statement period end)
+7. asset_type: one of stock, etf, mutual_fund, money_market, bond, crypto, other (lowercase)
+8. If the document ALSO shows cash activity rows (trades, dividends, fees), include them in
+   `transactions` using the bank transaction shape; positions remain the primary output.
+9. If NO holdings/positions table is present, return an EMPTY `positions` array (do not invent rows)
+10. Auto-detect the broker name from the document header/logo into the "institution" field
+"""
+
+
 VALIDATION_PROMPT = """Verify the extracted data:
 
 1. Balance check: opening_balance + sum(IN) - sum(OUT) ≈ closing_balance (tolerance: 0.10), computed per currency - never sum amounts across different currencies. Only perform a per-currency balance check when the document actually provides that currency's opening and closing balance.
@@ -164,6 +233,8 @@ MariBank Singapore statement:
 def get_parsing_prompt(
     institution: str | None = None,
     correction_examples: list[dict] | None = None,
+    *,
+    document_kind: str = "bank",
 ) -> str:
     """Get the full parsing prompt with institution-specific hints and few-shot corrections.
 
@@ -173,8 +244,16 @@ def get_parsing_prompt(
             - description: transaction description
             - original_category: AI's wrong suggestion
             - corrected_category: user's correction
+        document_kind: ``"bank"`` (default) uses the bank ``SYSTEM_PROMPT`` whose
+            schema is balance/transaction-only. ``"brokerage"`` selects
+            ``BROKERAGE_POSITIONS_PROMPT`` so the model emits a ``positions[]``
+            holdings array (issue #1139 producer routing). The brokerage path is
+            chosen *before* the model call by the extraction service's brokerage
+            classifier (filename/institution/broker-name keywords). The bank prompt
+            is left unchanged for bank documents.
     """
-    prompt = SYSTEM_PROMPT
+    base_prompt = BROKERAGE_POSITIONS_PROMPT if document_kind == "brokerage" else SYSTEM_PROMPT
+    prompt = base_prompt
     if institution:
         inst_upper = institution.upper()
         # Try exact match first, then partial match

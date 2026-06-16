@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.logger import get_logger
 from src.models import BankStatementStatus
 from src.models.layer1 import DocumentStatus, DocumentType, UploadedDocument
+from src.models.statement_enums import Stage1Status
 from src.models.statement_summary import StatementSummary
 from src.services import ExtractionError, ExtractionService, StorageError, StorageService
 from src.services.brokerage_positions import BrokeragePositionImportService, looks_like_brokerage_payload
@@ -97,10 +98,17 @@ async def import_brokerage_payload_if_present(
             source_document_id=source_document_id,
         )
         if result.parsed_positions == 0:
+            # AC-B5 (#1139): a brokerage document that yields zero positions is a
+            # surfaced REVIEW FLAG, not a buried string. Routing it to the Stage-1
+            # pending-review queue (in addition to the validation_error note) makes
+            # the empty-holdings case visible to a human instead of letting a
+            # brokerage upload silently auto-settle with no imported holdings.
             summary.validation_error = _append_validation_note(
                 summary.validation_error,
                 "Brokerage import skipped: no positions detected in parsed brokerage payload",
             )
+            if summary.status == BankStatementStatus.PARSED:
+                summary.stage1_status = Stage1Status.PENDING_REVIEW
         await db.commit()
         logger.info(
             "statement.brokerage_import.completed",

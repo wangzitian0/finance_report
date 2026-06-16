@@ -1,0 +1,292 @@
+"""Producer-side wiring for brokerage POSITION extraction (issue #1139, covers #1088).
+
+Registered ACs: AC17.4.9 (AC-B1), AC17.4.10 (AC-B2), AC17.4.11 (AC-B5),
+AC17.4.12 (AC-B4/AC-B6) under EPIC-017 AC17.4.
+
+These tests cover the producer half that was previously missing: routing a brokerage
+document to a positions-emitting prompt BEFORE the model call (AC-B1), the brokerage
+positions output schema and parser path (AC-B2), surfacing zero-position brokerage docs
+as a visible review flag (AC-B5), and an end-to-end fixture-driven import assertion
+(AC-B4/AC-B6) including the moomoo holdings-table shape for #1088.
+
+Because real LLM calls cannot run in CI, the model output is injected by stubbing
+``ExtractionService.extract_financial_data`` (the existing extraction test seam) or by
+loading a recorded payload fixture, so routing + import + flag logic is asserted
+deterministically without a live model.
+"""
+
+import json
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
+
+from sqlalchemy import select
+
+from src.database import create_session_maker_from_db
+from src.models import BankStatementStatus
+from src.models.layer2 import AtomicPosition
+from src.models.statement_enums import Stage1Status
+from src.models.statement_summary import StatementSummary
+from src.prompts import BROKERAGE_POSITIONS_PROMPT, SYSTEM_PROMPT, get_parsing_prompt
+from src.services.brokerage_positions import (
+    BrokeragePositionImportService,
+    looks_like_brokerage_document,
+    parse_brokerage_positions,
+)
+from src.services.extraction import ExtractionService
+from src.services.statement_parsing import import_brokerage_payload_if_present, parse_statement_background
+from tests.factories import StatementSummaryFactory
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+def _load_fixture(name: str) -> dict:
+    with (FIXTURES / name).open() as fh:
+        return json.load(fh)
+
+
+# --------------------------------------------------------------------------- AC-B1
+
+
+def test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution():
+    """AC17.4.9 (AC-B1): Pre-call brokerage routing decides from filename/institution keywords."""
+    assert looks_like_brokerage_document(filename="moomoo-2506.pdf", institution=None)
+    assert looks_like_brokerage_document(filename="statement.pdf", institution="Futu Securities")
+    assert looks_like_brokerage_document(filename="activity.csv", institution="Interactive Brokers")
+    # Bank documents must NOT be routed to the brokerage prompt.
+    assert not looks_like_brokerage_document(filename="dbs-statement.pdf", institution="DBS")
+    assert not looks_like_brokerage_document(filename="statement.pdf", institution=None)
+
+
+def test_AC_B1_get_parsing_prompt_selects_positions_prompt_for_brokerage():
+    """AC17.4.9/AC17.4.10 (AC-B1/AC-B2): Brokerage routing selects the positions prompt; bank stays unchanged."""
+    brokerage_prompt = get_parsing_prompt("Moomoo", document_kind="brokerage")
+    assert brokerage_prompt.startswith(BROKERAGE_POSITIONS_PROMPT)
+    assert '"positions"' in brokerage_prompt
+
+    bank_prompt = get_parsing_prompt("DBS")
+    assert bank_prompt.startswith(SYSTEM_PROMPT)
+    assert bank_prompt == get_parsing_prompt("DBS", document_kind="bank")
+    # The bank prompt schema must remain balance/transaction-only (no positions field).
+    assert '"positions"' not in SYSTEM_PROMPT
+
+
+async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_call(monkeypatch):
+    """AC17.4.9 (AC-B1): The brokerage prompt is selected pre-call from the upload filename."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    captured: dict[str, str] = {}
+
+    async def capture_prompt(*, messages, models, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return {"institution": "Moomoo", "positions": []}
+
+    monkeypatch.setattr(service, "_extract_json_with_models", capture_prompt)
+
+    await service.extract_financial_data(
+        file_content=b"\x89PNG\r\n",
+        institution="Moomoo",
+        file_type="png",
+        force_model="glm-4.6v",
+        filename="moomoo-positions-2506.png",
+    )
+
+    assert captured["prompt"].startswith(BROKERAGE_POSITIONS_PROMPT)
+
+
+async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(monkeypatch):
+    """AC17.4.9 (AC-B1): A bank upload keeps the unchanged bank prompt (no producer reroute)."""
+    service = ExtractionService()
+    service.api_key = "test-key"
+    captured: dict[str, str] = {}
+
+    async def capture_prompt(*, messages, models, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return {"institution": "DBS", "transactions": []}
+
+    monkeypatch.setattr(service, "_extract_json_with_models", capture_prompt)
+
+    await service.extract_financial_data(
+        file_content=b"\x89PNG\r\n",
+        institution="DBS",
+        file_type="png",
+        force_model="glm-4.6v",
+        filename="dbs-statement.png",
+    )
+
+    assert captured["prompt"].startswith(SYSTEM_PROMPT)
+
+
+# --------------------------------------------------------------------------- AC-B2
+
+
+def test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser():
+    """AC17.4.10 (AC-B2): positions[] emitted under the new schema flows into AtomicPosition snapshots."""
+    payload = {
+        "institution": "Moomoo",
+        "snapshot_date": "2026-06-30",
+        "currency": "USD",
+        "positions": [
+            {
+                "symbol": "AAPL",
+                "quantity": "15",
+                "price": "212.40",
+                "market_value": "3186.00",
+                "currency": "USD",
+                "asset_type": "stock",
+            }
+        ],
+    }
+
+    snapshots = parse_brokerage_positions(payload, filename="moomoo-positions-2506.pdf")
+
+    assert len(snapshots) == 1
+    assert snapshots[0].asset_identifier == "AAPL"
+    assert snapshots[0].quantity == Decimal("15")
+    assert snapshots[0].market_value == Decimal("3186.00")
+    assert snapshots[0].currency == "USD"
+
+
+# --------------------------------------------------------------------------- AC-B5
+
+
+async def test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag(db, test_user):
+    """AC17.4.11 (AC-B5): A brokerage doc with zero positions is surfaced as a review flag, not buried."""
+    statement_id = uuid4()
+    statement = StatementSummaryFactory.build(
+        id=statement_id,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSED,
+        stage1_status=None,
+        file_hash="b5-empty-positions",
+        institution="Futu",
+    )
+    db.add(statement)
+    await db.commit()
+
+    await import_brokerage_payload_if_present(
+        summary=statement,
+        db=db,
+        user_id=test_user.id,
+        filename="futu-empty.pdf",
+        institution="Futu",
+        payload={"institution": "Futu", "positions": []},
+    )
+
+    db.expire_all()
+    refreshed = await db.get(StatementSummary, statement_id)
+
+    assert refreshed is not None
+    # Visible review flag: lands in the Stage-1 pending-review queue ...
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+    # ... and keeps the human-readable reason.
+    assert refreshed.validation_error is not None
+    assert "no positions detected" in refreshed.validation_error
+
+
+# ----------------------------------------------------------------- AC-B4 / AC-B6
+
+
+async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, db, test_user, monkeypatch):
+    """AC17.4.12 (AC-B4/AC-B6) (#1088): Moomoo holdings TABLE -> extracted positions -> imported AtomicPositions.
+
+    AtomicPosition row count must equal the holdings-table row count, with exact market_value.
+    The parsed payload is loaded from a recorded fixture and injected via the extraction seam,
+    so the producer routing + import are asserted deterministically without a live model.
+    """
+    fixture = _load_fixture("moomoo-positions-table_parsed.json")
+    expected_rows = fixture["positions"]
+
+    statement_id = uuid4()
+    user_id = test_user.id
+    file_hash = "b4-b6-moomoo-positions-table"
+    statement = StatementSummaryFactory.build(
+        id=statement_id,
+        user_id=user_id,
+        status=BankStatementStatus.PARSING,
+        file_hash=file_hash,
+        institution="Moomoo",
+    )
+    db.add(statement)
+    await db.commit()
+
+    async def fake_parse_document(*args, **kwargs):
+        session = kwargs["db"]
+        summary = await session.get(StatementSummary, statement_id)
+        summary.institution = "Moomoo"
+        summary.currency = "USD"
+        summary.status = BankStatementStatus.PARSED
+        summary.confidence_score = 90
+        summary.balance_validated = True
+        await session.flush()
+        summary._extracted_payload = fixture
+        return summary, []
+
+    monkeypatch.setattr("src.services.statement_parsing.ExtractionService.parse_document", fake_parse_document)
+    monkeypatch.setattr(
+        "src.services.statement_parsing.StorageService.generate_presigned_url",
+        lambda *args, **kwargs: "https://example.com/moomoo-positions-2506.pdf",
+    )
+
+    await parse_statement_background(
+        statement_id=statement_id,
+        filename="moomoo-positions-2506.pdf",
+        institution="Moomoo",
+        user_id=user_id,
+        account_id=None,
+        file_hash=file_hash,
+        storage_key="statements/moomoo-positions.pdf",
+        content=b"%PDF-1.7",
+        model=None,
+        session_maker=create_session_maker_from_db(db),
+    )
+
+    db.expire_all()
+    atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
+
+    # AtomicPosition rows == holdings-table rows.
+    assert len(atomic_rows) == len(expected_rows)
+
+    by_identifier = {row.asset_identifier: row for row in atomic_rows}
+    for spec in expected_rows:
+        identifier = spec["symbol"]
+        assert identifier in by_identifier, f"missing imported position {identifier}"
+        row = by_identifier[identifier]
+        # market_value exact (Decimal, never float).
+        assert row.market_value == Decimal(spec["market_value"])
+        assert row.quantity == Decimal(spec["quantity"])
+        assert row.currency == spec["currency"]
+        assert row.snapshot_date == date(2026, 6, 30)
+
+    refreshed = await db.get(StatementSummary, statement_id)
+    assert refreshed is not None
+    assert refreshed.status == BankStatementStatus.PARSED
+    # Positions were imported, so no zero-position review flag.
+    assert refreshed.validation_error is None
+
+
+async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
+    """AC17.4.12 (AC-B6): The recorded moomoo positions fixture imports the full table via the service."""
+    service = BrokeragePositionImportService()
+    fixture = _load_fixture("moomoo-positions-table_parsed.json")
+
+    result = await service.import_positions(
+        db,
+        user_id=test_user.id,
+        payload=fixture,
+        filename="moomoo-positions-2506.pdf",
+        source_document_id="doc-moomoo-positions",
+        reconcile=False,
+    )
+    await db.commit()
+
+    assert result.broker == "Moomoo"
+    assert result.parsed_positions == len(fixture["positions"])
+    assert result.created_atomic_positions == len(fixture["positions"])
+
+    rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
+    assert len(rows) == len(fixture["positions"])
+    total_market_value = sum((row.market_value for row in rows), Decimal("0"))
+    expected_total = sum((Decimal(p["market_value"]) for p in fixture["positions"]), Decimal("0"))
+    assert total_market_value == expected_total

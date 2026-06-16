@@ -26,7 +26,10 @@ from src.services.ai_streaming import (
     accumulate_stream,
     stream_ai_json,
 )
-from src.services.brokerage_positions import looks_like_brokerage_payload
+from src.services.brokerage_positions import (
+    looks_like_brokerage_document,
+    looks_like_brokerage_payload,
+)
 from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.services.pii_redaction import detect_pii
 from src.services.storage import redact_presigned_url
@@ -770,6 +773,7 @@ class ExtractionService:
                     file_url=file_url,
                     force_model=force_model,
                     seed_override=seed_override,
+                    filename=filename,
                 )
             except ExtractionError as exc:
                 # A transient error on one attempt must not fail an upload that
@@ -1084,6 +1088,7 @@ class ExtractionService:
         file_url: str | None = None,
         force_model: str | None = None,
         seed_override: int | None = None,
+        filename: str | None = None,
     ) -> dict[str, Any]:
         """Extract structured statement data using OCR + chat models."""
         if file_content is None and not file_url:
@@ -1113,7 +1118,21 @@ class ExtractionService:
             pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
         )
 
-        prompt = get_parsing_prompt(institution)
+        # AC-B1 (#1139): producer routing. Decide the prompt class BEFORE the model
+        # call from pre-extraction signals (filename + institution) so brokerage
+        # statements get the positions-emitting prompt rather than the bank schema,
+        # which has no positions field. Bank documents keep the unchanged bank prompt.
+        document_kind = (
+            "brokerage" if looks_like_brokerage_document(filename=filename, institution=institution) else "bank"
+        )
+        if document_kind == "brokerage":
+            logger.info(
+                "Selected brokerage positions prompt for extraction",
+                institution=institution,
+                filename=filename,
+                file_type=file_type,
+            )
+        prompt = get_parsing_prompt(institution, document_kind=document_kind)
         if force_model:
             media_payloads = await asyncio.to_thread(
                 self._build_vision_media_payloads,
