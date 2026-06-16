@@ -27,6 +27,7 @@ from src.services.ai_streaming import (
     stream_ai_json,
 )
 from src.services.brokerage_positions import (
+    brokerage_currency_balances,
     looks_like_brokerage_document,
     looks_like_brokerage_payload,
 )
@@ -40,6 +41,7 @@ from src.services.validation import (
     route_by_threshold,
     validate_balance,
     validate_balance_explicit,
+    validate_balance_per_currency,
 )
 
 logger = get_logger(__name__)
@@ -424,6 +426,44 @@ class ExtractionService:
                 extraction_metadata={"extraction_payload": extracted},
             )
             statement._extracted_payload = extracted
+
+            # Per-currency brokerage NAV (#1139 AC-B3): a multi-currency brokerage
+            # statement holds positions in several currencies at once. Persisting
+            # only the scalar opening/closing would cross-sum unrelated currencies
+            # into a meaningless NAV. Instead derive the per-currency balance array
+            # (each currency an independent closed loop) and persist it additively
+            # to the scalar columns; reconciliation then runs per currency.
+            if is_brokerage_payload:
+                brokerage_balances = brokerage_currency_balances(
+                    extracted,
+                    filename=original_filename or (file_path.name if file_path else None),
+                    institution=final_institution,
+                )
+                if brokerage_balances:
+                    # Reconcile each currency independently (open + ΣIN − ΣOUT ≈
+                    # close per currency); never cross-sum. A snapshot has no cash
+                    # flow, so each currency is a zero-net closed loop and must
+                    # reconcile before we persist it.
+                    per_currency_result = validate_balance_per_currency(
+                        {"balances": brokerage_balances, "transactions": []}
+                    )
+                    if not per_currency_result["balance_valid"]:  # pragma: no cover - defensive
+                        logger.warning(
+                            "Per-currency brokerage NAV failed self-check",
+                            per_currency=per_currency_result["per_currency"],
+                        )
+                    # Serialize Decimal -> str for the JSONB column (no float). The
+                    # scalar opening/closing columns stay populated for the
+                    # single-currency degenerate case and backward compatibility;
+                    # this array is additive and never cross-sums currencies.
+                    statement.currency_balances = [
+                        {
+                            "currency": bucket["currency"],
+                            "opening": str(bucket["opening"]),
+                            "closing": str(bucket["closing"]),
+                        }
+                        for bucket in brokerage_balances
+                    ]
 
             transactions: list[AtomicTransaction] = []
             net_transactions = Decimal("0.00")

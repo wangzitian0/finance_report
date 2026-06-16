@@ -102,6 +102,12 @@ write path and no dual-write flag.
   [reconciliation.md#per-currency-balance-reconciliation](reconciliation.md#per-currency-balance-reconciliation).
   (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123
   AC2/AC3/AC4.)
+- A multi-currency **brokerage** statement populates `currency_balances` from its
+  parsed positions: each currency's NAV is the sum of that currency's position
+  market values, persisted as an independent `{currency, opening, closing}` bucket
+  (a position snapshot has no intra-period cash flow, so `opening == closing`). The
+  multi-currency NAV therefore never collapses to a single scalar, and each
+  currency reconciles on its own closed loop. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
 - Enums `BankStatementStatus` and `Stage1Status` live in
   `src/models/statement_enums.py`.
 

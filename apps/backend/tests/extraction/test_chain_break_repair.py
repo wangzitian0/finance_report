@@ -16,13 +16,24 @@ tests stay reproducible in CI.
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
+from pathlib import Path
+from unittest.mock import AsyncMock
 
 from src.services.chain_repair import (
     ChainRepairResult,
     repair_under_extraction,
 )
+from src.services.extraction import ExtractionService
 from src.services.validation import detect_balance_chain_break, validate_balance
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+def _load_corpus() -> dict:
+    with (FIXTURES / "clean_bank_dropped_row_corpus.json").open() as fh:
+        return json.load(fh)
 
 
 # --------------------------------------------------------------------------- #
@@ -239,3 +250,54 @@ def test_AC13_20_7_regression_fixture_detects_and_repairs():
     assert result.repaired is True
     # 3) the repaired payload now reconciles under the same hard self-check guard
     assert validate_balance(result.payload)["balance_valid"] is True
+
+
+# --------------------------------------------------------------------------- #
+# AC-C3 end-to-end: the regression-corpus fixture drives the repair pass through
+# the live ExtractionService retry loop with an injected RegionReExtractor.
+# --------------------------------------------------------------------------- #
+async def test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end():
+    """AC13.20.8 (AC-C3): the clean-bank dropped-row corpus fixture triggers the chain-break
+    detector + repair_under_extraction hook end-to-end through ExtractionService.
+
+    Unlike AC13.20.7 (which calls the bare detector/hook functions), this drives the
+    actual ``_extract_with_balance_retry`` path: every model attempt returns the
+    under-extracted (dropped-row) payload so the whole-document retry never
+    reconciles, the repair pass runs the deterministic detector, and the injected
+    ``RegionReExtractor`` re-extracts the dropped region exactly once — yielding a
+    reconciling parse without any live LLM.
+    """
+    corpus = _load_corpus()
+    under_extracted = corpus["dropped_row"]
+    clean = corpus["clean"]
+
+    # Sanity: the corpus shapes are what AC-C3 needs — the dropped-row chain breaks
+    # at the documented index and the clean shape reconciles.
+    assert validate_balance(under_extracted)["balance_valid"] is False
+    assert detect_balance_chain_break(under_extracted["transactions"]).index == corpus["break_index"]
+    assert validate_balance(clean)["balance_valid"] is True
+
+    service = ExtractionService()
+    # Every attempt yields the same under-extracted parse (recall is the problem;
+    # re-sampling alone does not recover the dropped row), forcing the retry loop to
+    # fall through to the repair pass.
+    service.extract_financial_data = AsyncMock(return_value=dict(under_extracted))
+    # Inject the deterministic region re-extractor that recovers the dropped row.
+    backend = _RecordingReExtractor(repaired_payload=clean)
+    service.region_reextractor = backend
+
+    result = await service._extract_with_balance_retry(
+        file_content=b"%PDF-1.7",
+        institution="DBS",
+        file_type="pdf",
+        file_url=None,
+        force_model=None,
+        filename="dbs-dropped-row-2503.pdf",
+    )
+
+    # The injected re-extractor fired exactly once and the returned parse now
+    # reconciles under the same hard self-check guard.
+    assert len(backend.calls) == 1
+    assert backend.calls[0]["break_info"].index == corpus["break_index"]
+    assert validate_balance(result)["balance_valid"] is True
+    assert result is clean

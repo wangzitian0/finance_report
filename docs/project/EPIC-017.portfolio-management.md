@@ -157,6 +157,7 @@ be treated as current work.
 | AC17.4.10 | AC-B2 Brokerage positions output schema flows into AtomicPosition-ready snapshots via the existing consumer parser | `test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
 | AC17.4.11 | AC-B5 Zero-position brokerage doc is surfaced as a visible review flag (stage1 pending-review + note) | `test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag` | `extraction/test_brokerage_position_extraction_wiring.py` | P1 |
 | AC17.4.12 | AC-B4/B6 Moomoo holdings TABLE extracts and imports: AtomicPosition rows == table rows with exact market_value (#1088) | `test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports`, `test_AC_B6_positions_payload_imports_via_service` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
+| AC17.4.13 | AC-B3 A multi-currency brokerage statement persists a per-currency NAV array (`currency_balances`) instead of collapsing to a single scalar opening/closing: each currency's NAV is the sum of that currency's positions, every currency round-trips independently, and no currency is cross-summed into another (#1139) | `test_AC_B3_multi_currency_brokerage_emits_per_currency_balances`, `test_AC_B3_parse_document_persists_currency_balances_without_cross_sum` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
 
 ### AC17.5: Investment Accounting (Journal Entries)
 

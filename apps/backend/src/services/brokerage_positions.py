@@ -388,6 +388,64 @@ def parse_brokerage_positions(
     return []
 
 
+def brokerage_currency_balances(
+    payload: dict[str, Any],
+    *,
+    filename: str | None = None,
+    institution: str | None = None,
+) -> list[dict[str, Any]]:
+    """Derive the per-currency NAV array for a brokerage statement (#1139 AC-B3).
+
+    A multi-currency brokerage statement (IBKR / Futu / Wise) holds positions in
+    several currencies at once. Collapsing them into a single scalar
+    ``opening_balance`` / ``closing_balance`` would cross-sum unrelated currencies
+    into a meaningless number. Instead each currency is an independent closed loop:
+    its closing NAV is the sum of that currency's position market values, and —
+    because a position snapshot carries no intra-period cash flow — its opening
+    equals its closing (net == 0, so ``open + ΣIN − ΣOUT ≈ close`` holds per
+    currency). The result is the ``[{currency, opening, closing}]`` shape consumed
+    by :func:`src.services.validation.validate_balance_per_currency` and persisted
+    on ``StatementSummary.currency_balances``.
+
+    An explicitly declared ``balances`` array on the payload (a broker that prints
+    a real opening/closing cash ladder per currency) is authoritative and returned
+    as-is — the derived position NAV only fills currencies that ladder omits, so a
+    declared opening is never overwritten by the snapshot-equals-NAV degenerate.
+
+    Currencies are NEVER summed across; the array is empty when no positions and no
+    declared balances exist, so callers can leave ``currency_balances`` NULL.
+    """
+    by_currency: dict[str, Decimal] = {}
+    for snapshot in parse_brokerage_positions(payload, filename=filename, institution=institution):
+        ccy = (snapshot.currency or "*").strip().upper() or "*"
+        by_currency[ccy] = by_currency.get(ccy, Decimal("0")) + snapshot.market_value
+
+    # Explicit per-currency cash ladders win over the derived snapshot NAV.
+    declared: dict[str, dict[str, Any]] = {}
+    raw_balances = payload.get("balances")
+    if isinstance(raw_balances, list):
+        for entry in raw_balances:
+            if not isinstance(entry, dict):
+                continue
+            ccy = (entry.get("currency") or "*").strip().upper() or "*"
+            declared[ccy] = {
+                "currency": ccy,
+                "opening": to_money(_clean_decimal(entry.get("opening")) or Decimal("0")),
+                "closing": to_money(_clean_decimal(entry.get("closing")) or Decimal("0")),
+            }
+
+    balances: list[dict[str, Any]] = []
+    for ccy in sorted({*by_currency, *declared}):
+        if ccy in declared:
+            balances.append(declared[ccy])
+            continue
+        nav = to_money(by_currency[ccy])
+        # Snapshot statement: opening == closing == NAV (no intra-period cash flow),
+        # so the per-currency reconciliation is a zero-net closed loop.
+        balances.append({"currency": ccy, "opening": nav, "closing": nav})
+    return balances
+
+
 def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
     material = "|".join(
         [
