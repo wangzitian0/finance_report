@@ -337,3 +337,74 @@ def test_invalid_transfer_leg_rejected():
             currency="SGD",
             occurred_at=when,
         )
+
+
+def test_transfer_leg_rejects_naive_datetime():
+    """#1161 CR3: a naive (tz-less) occurred_at is rejected at construction.
+
+    Pairing subtracts two legs' occurred_at; a naive/aware mix raises TypeError
+    mid-pairing. Reject naive datetimes up front so the error is a clear
+    FxTransferError rather than an opaque TypeError deeper in the call.
+    """
+    naive = datetime(2025, 6, 1, 12, 0)  # no tzinfo
+    assert naive.tzinfo is None
+    with pytest.raises(FxTransferError, match="timezone-aware"):
+        TransferLeg(
+            user_id=uuid4(),
+            account_id=uuid4(),
+            direction="OUT",
+            amount=Decimal("100.00"),
+            currency="SGD",
+            occurred_at=naive,
+        )
+
+
+def test_same_currency_legs_never_pair_even_with_unit_rate():
+    """#1161 CR2: same-currency legs never pair, even at rate 1.0 with equal amounts.
+
+    A same-currency own-account transfer (SGD->SGD, amount unchanged, implied rate
+    1.0) must NOT be classified as a cross-currency FX conversion. It is handled by
+    the (non-FX) internal-transfer path, not by FX-leg pairing.
+    """
+    user_id = uuid4()
+    when = datetime(2025, 6, 1, 12, 0, tzinfo=UTC)
+    out_leg = TransferLeg(
+        user_id=user_id,
+        account_id=uuid4(),
+        direction="OUT",
+        amount=Decimal("500.00"),
+        currency="SGD",
+        occurred_at=when,
+    )
+    in_leg = TransferLeg(
+        user_id=user_id,
+        account_id=uuid4(),
+        direction="IN",
+        amount=Decimal("500.00"),  # identical amount -> implied rate exactly 1.0
+        currency="SGD",  # same currency as the out-leg
+        occurred_at=when,
+    )
+    # Even with a perfectly matching unit rate, same-currency legs must not pair.
+    assert pair_fx_legs(out_leg, in_leg, Decimal("1.000000")) is None
+    # And the swapped argument order must also refuse to pair.
+    assert pair_fx_legs(in_leg, out_leg, Decimal("1.000000")) is None
+
+
+def test_unpaired_classification_carries_caller_income_expense():
+    """#1161 CR4: the non-internal (pair is None) branch obeys net_worth = income - expense.
+
+    Previously the unpaired branch zeroed income/expense, silently zeroing net
+    worth. It must now carry the caller's already-classified income/expense so the
+    documented formula holds.
+    """
+    classification = classify_internal_transfer(
+        None,
+        income=Decimal("120.00"),
+        expense=Decimal("45.00"),
+    )
+    assert classification.is_internal_transfer is False
+    assert classification.income_amount == Decimal("120.00")
+    assert classification.expense_amount == Decimal("45.00")
+    assert classification.net_worth_delta == Decimal("75.00")
+    # Backward-compatible default: omitting income/expense is still a net-zero no-op.
+    assert classify_internal_transfer(None).net_worth_delta == Decimal("0.00")
