@@ -17,23 +17,30 @@ from src.llm.env_config import EnvConfigSource
 
 
 class LayeredConfigSource:
-    """DB-primary config with an env fallback, behind the ``ConfigSource`` contract."""
+    """DB-primary config with an env fallback, behind the ``ConfigSource`` contract.
+
+    The fallback is **all-or-nothing**: if the primary (DB) has any provider, every
+    lookup — providers *and* bindings — is served from the primary; otherwise every
+    lookup comes from the fallback (env). This avoids mixing sources (e.g. an env
+    binding's unqualified model resolved against DB providers), which would
+    misroute or raise an ambiguity error.
+    """
 
     def __init__(self, primary: ConfigSource, fallback: ConfigSource) -> None:
         self._primary = primary
         self._fallback = fallback
 
+    async def _active(self) -> ConfigSource:
+        return self._primary if await self._primary.is_configured() else self._fallback
+
     async def list_providers(self) -> list[ProviderRef]:
-        primary = await self._primary.list_providers()
-        return primary if primary else await self._fallback.list_providers()
+        return await (await self._active()).list_providers()
 
     async def get_provider(self, provider_id: str) -> ProviderRef | None:
-        found = await self._primary.get_provider(provider_id)
-        return found if found is not None else await self._fallback.get_provider(provider_id)
+        return await (await self._active()).get_provider(provider_id)
 
     async def get_binding(self, scene: Scene) -> SceneBinding | None:
-        binding = await self._primary.get_binding(scene)
-        return binding if binding is not None else await self._fallback.get_binding(scene)
+        return await (await self._active()).get_binding(scene)
 
     async def is_configured(self) -> bool:
         return await self._primary.is_configured() or await self._fallback.is_configured()

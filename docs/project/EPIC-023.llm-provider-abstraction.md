@@ -91,10 +91,12 @@ parallel once PR1 merges.
 | AC23.2.5 | The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free | `apps/backend/tests/unit/llm/test_catalog.py` | P1 |
 | AC23.2.6 | The daily budget meter blocks once the USD limit is reached, rolls over per UTC day, and records spend (replacing the unenforced `AI_DAILY_LIMIT_USD`) | `apps/backend/tests/unit/llm/test_cost.py` | P1 |
 
-### AC23.3 — DB-backed configuration & first-run
-> PR3 slice (EPIC B). Provider/binding tables, the DB config source layered over
-> env, the `/llm` API, the first-run modal, and the cutover of the existing call
-> sites onto the litellm client.
+### AC23.3 — DB-backed configuration & cutover
+> PR3 slice (EPIC B): the provider/binding tables, the DB config source layered
+> over env (all-or-nothing), and the cutover of the existing call sites onto the
+> litellm client. The `/llm` API, the first-run modal, and the scene×model page
+> ship in PR4 (with their own ACs) — that is where `LitellmCatalog`/`LitellmClient`
+> are consumed and `services/ai_models.py` is retired.
 
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|

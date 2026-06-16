@@ -124,6 +124,21 @@ async def test_stream_raises_when_no_provider_configured(monkeypatch):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
 
 
+async def test_stream_fails_closed_with_multiple_providers(monkeypatch):
+    """Scene-less path can't disambiguate >1 provider -> fail closed (no nondeterministic routing)."""
+
+    class _Multi:
+        async def list_providers(self):
+            return [
+                ProviderRef(id="a", label="a", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k1"),
+                ProviderRef(id="b", label="b", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k2"),
+            ]
+
+    monkeypatch.setattr(ai_streaming, "get_config_source", lambda: _Multi())
+    with pytest.raises(AIStreamError):
+        await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
+
+
 async def test_litellm_error_becomes_retryable_aistreamerror(monkeypatch):
     """A litellm provider failure surfaces as a retryable AIStreamError."""
     _explicit_provider(monkeypatch)

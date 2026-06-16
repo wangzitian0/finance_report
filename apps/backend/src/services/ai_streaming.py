@@ -52,6 +52,13 @@ async def _resolve_provider(api_key: str | None, base_url: str | None) -> Provid
     providers = await get_config_source().list_providers()
     if not providers:
         raise AIStreamError("AI provider not configured", retryable=False)
+    if len(providers) > 1:
+        # This scene-less path can't disambiguate; fail closed rather than route a
+        # prompt to a nondeterministically-chosen provider. Multi-provider use must
+        # go through the scene-keyed client (provider_id/model bindings).
+        raise AIStreamError(
+            "Multiple AI providers configured; this path needs exactly one default provider", retryable=False
+        )
     return providers[0]
 
 
@@ -102,7 +109,8 @@ async def _stream_ai_base(
     except LLMError as exc:
         logger.error(
             "AI provider streaming failed",
-            provider=settings.ai_provider,
+            provider=provider.label,  # resolved provider (DB or env), not the env AI_PROVIDER
+            provider_id=provider.id,
             model=model,
             mode=mode_label,
             error=str(exc),
