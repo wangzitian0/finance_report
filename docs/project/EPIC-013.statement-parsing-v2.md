@@ -359,3 +359,39 @@ kept so routing is unchanged. Only failing parses retry, so average cost is boun
 | AC13.17.10 | If every attempt raises, the error propagates so the upload fails as in the single-call path | `test_all_attempts_error_reraises()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.11 | A transient error on the first attempt does not abort; a later reconciling attempt is returned | `test_first_attempt_error_then_success_recovers()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.12 | An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins | `test_error_mid_run_does_not_skip_remaining_attempts()` | `extraction/test_self_consistency.py` | P1 |
+
+### AC13.20: Running-Balance Chain-Break Detector + Repair-Pass Hook (root [#1140](https://github.com/wangzitian0/finance_report/issues/1140))
+
+Bank-statement **under-extraction**: the per-currency self-check correctly flags
+`opening + ΣIN − ΣOUT ≠ closing` when rows are dropped, but recall is the
+underlying problem and recall is probabilistic (LLM) — it cannot be turned into a
+hard CI gate. This AC delivers the **deterministic, testable** slice around that
+soft metric:
+
+- **AC-C1 (detector)** — a pure, `Decimal`-based function walks the ordered
+  transactions' running `balance_after` chain and returns the exact index/region
+  where `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
+  `BALANCE_TOLERANCE`), pinpointing where a row was missed/misparsed. No floats,
+  no model call, fully reproducible.
+- **AC-C2 (repair-pass hook)** — orchestration + decision logic keyed off the
+  self-check delta: when the balance self-check fails *and* the detector finds a
+  break, a region-targeted re-extract is attempted exactly once before
+  finalizing. The actual re-extraction is behind an injectable interface so CI
+  exercises the trigger logic without a live model; it is a safe no-op when there
+  is no detector signal or no repair backend is wired.
+- **AC-C3 (regression fixture)** — a synthetic clean bank-statement shape with a
+  deliberately-dropped row, asserting the detector finds the correct break index
+  and the repair hook is invoked.
+
+Extraction **recall** stays a **soft metric** (tracked, no hard CI gate); the
+self-check balance guard and these deterministic seams stay hard-tested.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.20.1 | AC-C1: detector pinpoints the exact break index on a crafted chain with a dropped row | `test_AC13_20_1_detector_finds_break_index_on_dropped_row()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.2 | AC-C1: a clean running-balance chain reports no break | `test_AC13_20_2_clean_chain_reports_no_break()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.3 | AC-C1: detection is Decimal-based and tolerant within `BALANCE_TOLERANCE` (no float drift) | `test_AC13_20_3_detector_is_decimal_tolerant()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.4 | AC-C2: on balance mismatch with a detected break, the repair hook is invoked exactly once | `test_AC13_20_4_repair_hook_invoked_once_on_mismatch()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.5 | AC-C2: a clean/reconciling chain never invokes the repair hook | `test_AC13_20_5_repair_hook_not_invoked_on_clean_chain()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.6 | AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload | `test_AC13_20_6_repair_is_safe_noop_without_backend()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.7 | AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook | `test_AC13_20_7_regression_fixture_detects_and_repairs()` | `extraction/test_chain_break_repair.py` | P1 |

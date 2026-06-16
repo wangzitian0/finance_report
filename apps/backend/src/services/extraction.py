@@ -27,6 +27,7 @@ from src.services.ai_streaming import (
     stream_ai_json,
 )
 from src.services.brokerage_positions import looks_like_brokerage_payload
+from src.services.chain_repair import RegionReExtractor, repair_under_extraction
 from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.services.pii_redaction import detect_pii
 from src.services.storage import redact_presigned_url
@@ -112,6 +113,11 @@ class ExtractionService:
         self.fallback_models = settings.fallback_models
         self.vision_fallback_models = settings.vision_fallback_models
         self.deduplication_service = DeduplicationService()
+        # Injectable region re-extraction backend for the under-extraction repair
+        # pass (#1140 / AC13.20). ``None`` => the repair hook is a safe no-op: the
+        # deterministic chain-break detector still runs and logs, but no live model
+        # is called. A real LLM-backed backend is wired separately.
+        self.region_reextractor: RegionReExtractor | None = None
 
     def _safe_date(self, value: str | None) -> date:
         """Safely parse a required date, accepting common non-ISO formats (#1086)."""
@@ -819,7 +825,14 @@ class ExtractionService:
                     attempts=max_attempts,
                     best_difference=str(best_diff),
                 )
-            return best
+            # Under-extraction repair pass (#1140 / AC13.20): whole-document
+            # re-extract did not reconcile. Run the deterministic chain-break
+            # detector and, when it pinpoints a dropped-row region, attempt a single
+            # region-targeted re-extract via the injectable backend. Safe no-op when
+            # no backend is wired — recall stays a soft metric, the self-check guard
+            # stays hard. A successful repair replaces ``best``; a failed one keeps it.
+            repair = repair_under_extraction(best, reextractor=self.region_reextractor)
+            return repair.payload
         if last_parse is not None:
             # No balance-computable parse, but at least one attempt produced a
             # (structurally-broken) result; return it so parse_document reports the

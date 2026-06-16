@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -79,6 +80,81 @@ def validate_balance_explicit(opening: Decimal, closing: Decimal, net_transactio
         "difference": f"{diff:.2f}",
         "notes": None if balance_valid else f"Balance mismatch: expected {expected_closing}, got {closing}",
     }
+
+
+@dataclass(frozen=True)
+class ChainBreak:
+    """A pinpointed break in a statement's running-balance chain (AC13.20 / #1140).
+
+    The running balance (``balance_after``) of transaction ``index`` does not equal
+    the previous running balance plus ``index``'s own signed amount (within
+    ``BALANCE_TOLERANCE``). That is the deterministic fingerprint of a row that was
+    *missed or misparsed* between the previous row and this one — the most common
+    shape of bank-statement under-extraction.
+
+    All amounts are ``Decimal`` (never ``float``): ``index`` is the 0-based
+    position of the first non-reconciling row, ``expected_balance`` is what the
+    chain predicted, ``observed_balance`` is what the parse reported, and ``delta``
+    is ``observed - expected`` (signed, so a positive delta means the observed
+    balance is higher than the chain predicted — i.e. an ``OUT`` row was likely
+    dropped, and vice-versa).
+    """
+
+    index: int
+    expected_balance: Decimal
+    observed_balance: Decimal
+
+    @property
+    def delta(self) -> Decimal:
+        return self.observed_balance - self.expected_balance
+
+
+def detect_balance_chain_break(
+    transactions: list[dict[str, Any]],
+    *,
+    opening_balance: Decimal | None = None,
+    tolerance: Decimal = BALANCE_TOLERANCE,
+) -> ChainBreak | None:
+    """Locate the first running-balance discontinuity in an ordered txn list (AC-C1).
+
+    Walks the ordered transactions and checks, for each row that carries a
+    ``balance_after``, that ``previous_balance + signed_amount == balance_after``
+    within ``tolerance``. The "previous balance" is the prior row's
+    ``balance_after`` (or ``opening_balance`` for the first row, when supplied).
+    Returns the first :class:`ChainBreak` found, or ``None`` if the chain is
+    consistent / too short to check.
+
+    Fully deterministic and ``Decimal``-based — it never calls a model and never
+    uses ``float`` — so it is safe to run on every parse to pinpoint where a row
+    was dropped or misparsed. Rows whose ``balance_after``/``amount`` cannot be
+    coerced to ``Decimal`` are skipped (they carry no chain signal); the previous
+    balance simply does not advance across an unparseable row.
+    """
+    prev_balance: Decimal | None = opening_balance
+
+    for index, txn in enumerate(transactions):
+        raw_balance = txn.get("balance_after")
+        raw_amount = txn.get("amount")
+        if raw_balance is None or raw_amount is None:
+            # No running-balance signal on this row; cannot extend the chain.
+            continue
+        try:
+            observed = Decimal(str(raw_balance))
+            amount = Decimal(str(raw_amount))
+        except (ValueError, TypeError, InvalidOperation):
+            continue
+
+        amount, direction = normalize_amount_direction(amount, txn.get("direction"))
+        signed = amount if direction == "IN" else -amount
+
+        if prev_balance is not None:
+            expected = prev_balance + signed
+            if abs(observed - expected) > tolerance:
+                return ChainBreak(index=index, expected_balance=expected, observed_balance=observed)
+
+        prev_balance = observed
+
+    return None
 
 
 def validate_completeness(extracted: dict[str, Any]) -> list[str]:
