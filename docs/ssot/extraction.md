@@ -310,6 +310,26 @@ S3_PRESIGN_EXPIRY_SECONDS=300
   attempt reconciles, the smallest-difference result is kept so routing is
   unchanged. Only failing parses retry, so average cost is bounded; set
   `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
+- **Running-balance chain-break detection + repair pass** (#1140 / AC13.20):
+  bank-statement *under-extraction* (a dropped or misparsed row) is caught by the
+  per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying
+  cause is **recall**, which is probabilistic (LLM). Around that soft metric the
+  system runs a deterministic seam: `detect_balance_chain_break`
+  (`src/services/validation.py`) walks the ordered transactions' running
+  `balance_after` chain and returns the exact index where
+  `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
+  `BALANCE_TOLERANCE`), pinpointing where a row went missing. When the
+  whole-document re-extract still does not reconcile, `repair_under_extraction`
+  (`src/services/chain_repair.py`) fires the **repair-pass hook** once: it only
+  triggers when the self-check fails *and* the detector finds a region, then asks
+  an **injectable** `RegionReExtractor` backend to re-extract just that region,
+  keeping the repaired payload only if it reconciles (else the original is kept,
+  so routing is unchanged). The detector and decision logic are pure and
+  `Decimal`-based (never `float`); the re-extraction backend is injected so CI
+  exercises the trigger logic without a live model, and the hook is a safe no-op
+  when no backend is wired. **Extraction recall is a SOFT metric** — tracked and
+  logged, with **no hard CI gate** — while the balance self-check guard and these
+  deterministic chain-break / repair seams stay hard-tested.
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
@@ -426,7 +446,8 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/services/extraction.py` | Core extraction logic |
-| `src/services/validation.py` | Validation and confidence scoring |
+| `src/services/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
+| `src/services/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
 | `src/services/storage.py` | Object storage uploads + presigned URLs |
 | `src/prompts/statement.py` | Parsing prompt templates |
 | `tests/fixtures/*.json` | Parsed test data |
