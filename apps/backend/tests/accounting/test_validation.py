@@ -330,3 +330,58 @@ def test_AC1_currency_balance_schema_round_trips_decimals():
     assert bal.currency == "USD"  # normalized upper-case ISO code
     assert bal.opening == Decimal("1000.00")
     assert bal.closing == Decimal("1200.50")
+
+
+def test_AC1_orphan_currency_transaction_is_surfaced_not_dropped():
+    """AC4.13.7 (#1123 AC1): A transaction in an undeclared currency is surfaced, not dropped.
+
+    EUR appears in a transaction but has no declared balance bucket. Without
+    surfacing it, the EUR money would vanish and the statement could appear to
+    reconcile. The orphan currency must show up as its own per-currency result
+    (flagged ``declared_balance=False``) and force the overall result invalid.
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+            {"amount": "75.00", "direction": "IN", "currency": "EUR"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    per_ccy = {r["currency"]: r for r in result["per_currency"]}
+    assert set(per_ccy) == {"SGD", "EUR"}, "orphan EUR transaction must not be dropped"
+    assert per_ccy["SGD"]["declared_balance"] is True
+    assert per_ccy["SGD"]["balance_valid"] is True
+    assert per_ccy["EUR"]["declared_balance"] is False
+    assert per_ccy["EUR"]["balance_valid"] is False
+    assert per_ccy["EUR"]["difference"] == "75.00"
+    assert result["balance_valid"] is False
+
+
+def test_AC1_duplicate_currency_in_balances_is_rejected():
+    """AC4.13.8 (#1123 AC1): Duplicate currencies in ``balances`` are rejected, not collapsed.
+
+    Two SGD buckets would make ``nets`` ambiguous (keyed by currency), so the
+    validator rejects the payload with ``balance_computable=False`` rather than
+    silently picking one bucket and producing an arbitrary result.
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+            {"currency": "SGD", "opening": "5000.00", "closing": "5100.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is False
+    assert result["balance_computable"] is False
+    assert result["per_currency"] == []
+    assert "Duplicate currency" in (result["notes"] or "")

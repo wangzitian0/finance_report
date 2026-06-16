@@ -78,8 +78,17 @@ def _currency_buckets(extracted: dict[str, Any]) -> list[dict[str, Any]]:
     raw_balances = extracted.get("balances")
     if raw_balances:
         buckets: list[dict[str, Any]] = []
+        seen: set[str] = set()
         for entry in raw_balances:
             currency = (entry.get("currency") or "*").strip().upper() or "*"
+            # Reject duplicate currencies rather than silently collapsing them.
+            # ``nets`` is keyed by currency, so two buckets for the same code
+            # would produce ambiguous, order-dependent results for that currency.
+            # Failing loudly forces upstream parsing to merge the duplicate
+            # opening/closing pair into a single authoritative bucket.
+            if currency in seen:
+                raise ValueError(f"Duplicate currency in balances: {currency}")
+            seen.add(currency)
             buckets.append(
                 {
                     "currency": currency,
@@ -112,6 +121,16 @@ def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
     a ``per_currency`` list, one :func:`validate_balance_explicit`-shaped result
     per currency tagged with its ``currency`` code. No cross-currency aggregate
     ``expected_closing`` is produced.
+
+    A transaction whose currency has no declared balance bucket is NOT dropped:
+    an orphan bucket (zero declared opening/closing, the computed net, flagged
+    ``declared_balance=False``) is surfaced so no transaction currency goes
+    silently unaccounted in a multi-currency statement.
+
+    .. note::
+       Not yet wired into the live extraction-write path: that path still calls
+       the scalar :func:`validate_balance`. Wiring depends on multi-currency
+       payload parsing, deferred to #1123 AC2/AC3/AC4.
     """
     try:
         buckets = _currency_buckets(extracted)
@@ -135,11 +154,28 @@ def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
             "notes": f"Validation error: {exc}",
         }
 
+    declared = {bucket["currency"] for bucket in buckets}
     per_currency: list[dict[str, Any]] = []
     for bucket in buckets:
         ccy = bucket["currency"]
         result = validate_balance_explicit(bucket["opening"], bucket["closing"], nets.get(ccy, Decimal("0")))
         result["currency"] = ccy
+        result["declared_balance"] = True
+        per_currency.append(result)
+
+    # Surface orphan currencies — those that appear in transactions but have no
+    # declared balance bucket. Without this, such transactions are dropped and a
+    # multi-currency statement could appear to reconcile while real money in an
+    # undeclared currency goes unaccounted. Each orphan is reported against a
+    # zero opening/closing so its non-zero net forces the bucket invalid.
+    for ccy in nets:
+        if ccy in declared:
+            continue
+        result = validate_balance_explicit(Decimal("0"), Decimal("0"), nets[ccy])
+        result["currency"] = ccy
+        result["declared_balance"] = False
+        if result["notes"] is None:
+            result["notes"] = f"No declared balance for currency {ccy}"
         per_currency.append(result)
 
     return {

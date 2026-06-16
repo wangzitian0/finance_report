@@ -370,3 +370,5 @@ See: docs/ssot/reconciliation.md#per-currency-balance-reconciliation
 | AC4.13.4 | The degenerate single-currency path still detects a balance mismatch | `test_AC1_single_currency_degenerate_path_detects_mismatch` | `accounting/test_validation.py` | P1 |
 | AC4.13.5 | `CurrencyBalance` schema carries (currency, opening, closing) as Decimal with normalized ISO currency | `test_AC1_currency_balance_schema_round_trips_decimals` | `accounting/test_validation.py` | P1 |
 | AC4.13.6 | `currency_balances` JSONB persists a per-currency balance array additively to the scalar columns | `test_AC1_currency_balances_jsonb_round_trips` | `extraction/test_statement_summary_conform.py` | P1 |
+| AC4.13.7 | A transaction in a currency with no declared balance bucket is surfaced as an orphan per-currency result (not silently dropped) | `test_AC1_orphan_currency_transaction_is_surfaced_not_dropped` | `accounting/test_validation.py` | P0 |
+| AC4.13.8 | Duplicate currencies in the `balances` array are rejected (not silently collapsed) so per-currency nets stay unambiguous | `test_AC1_duplicate_currency_in_balances_is_rejected` | `accounting/test_validation.py` | P1 |
