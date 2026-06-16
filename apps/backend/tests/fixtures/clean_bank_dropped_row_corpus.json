@@ -1,0 +1,29 @@
+{
+  "description": "Regression-corpus shape for clean-bank under-extraction (#1140 AC-C3). A clean DBS statement whose running balance_after chain is consistent, plus the same statement with one middle row dropped so the chain breaks. The true opening/closing stay the real statement values so the per-currency self-check also flags the under-extraction.",
+  "clean": {
+    "institution": "DBS",
+    "currency": "SGD",
+    "period_start": "2025-03-01",
+    "period_end": "2025-03-31",
+    "opening_balance": "2000.00",
+    "closing_balance": "2350.00",
+    "transactions": [
+      {"date": "2025-03-04", "amount": "600.00", "direction": "IN", "balance_after": "2600.00"},
+      {"date": "2025-03-12", "amount": "450.00", "direction": "OUT", "balance_after": "2150.00"},
+      {"date": "2025-03-22", "amount": "200.00", "direction": "IN", "balance_after": "2350.00"}
+    ]
+  },
+  "dropped_row": {
+    "institution": "DBS",
+    "currency": "SGD",
+    "period_start": "2025-03-01",
+    "period_end": "2025-03-31",
+    "opening_balance": "2000.00",
+    "closing_balance": "2350.00",
+    "transactions": [
+      {"date": "2025-03-04", "amount": "600.00", "direction": "IN", "balance_after": "2600.00"},
+      {"date": "2025-03-22", "amount": "200.00", "direction": "IN", "balance_after": "2350.00"}
+    ]
+  },
+  "break_index": 1
+}

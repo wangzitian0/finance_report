@@ -400,9 +400,14 @@ soft metric:
   finalizing. The actual re-extraction is behind an injectable interface so CI
   exercises the trigger logic without a live model; it is a safe no-op when there
   is no detector signal or no repair backend is wired.
-- **AC-C3 (regression fixture)** — a synthetic clean bank-statement shape with a
-  deliberately-dropped row, asserting the detector finds the correct break index
-  and the repair hook is invoked.
+- **AC-C3 (regression fixture / corpus)** — a synthetic clean bank-statement shape
+  with a deliberately-dropped row, asserting the detector finds the correct break
+  index and the repair hook is invoked. A corpus fixture
+  (`clean_bank_dropped_row_corpus.json`) also drives the detector + repair hook
+  **end-to-end** through `ExtractionService._extract_with_balance_retry` with an
+  injected `RegionReExtractor`, proving the live wiring fires (not just the bare
+  functions). Actual extraction **recall** stays a tracked **soft** metric — no
+  hard CI gate.
 
 Extraction **recall** stays a **soft metric** (tracked, no hard CI gate); the
 self-check balance guard and these deterministic seams stay hard-tested.
@@ -416,3 +421,4 @@ self-check balance guard and these deterministic seams stay hard-tested.
 | AC13.20.5 | AC-C2: a clean/reconciling chain never invokes the repair hook | `test_AC13_20_5_repair_hook_not_invoked_on_clean_chain()` | `extraction/test_chain_break_repair.py` | P1 |
 | AC13.20.6 | AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload | `test_AC13_20_6_repair_is_safe_noop_without_backend()` | `extraction/test_chain_break_repair.py` | P1 |
 | AC13.20.7 | AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook | `test_AC13_20_7_regression_fixture_detects_and_repairs()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.8 | AC-C3: the clean-bank dropped-row regression-corpus fixture triggers the chain-break detector + `repair_under_extraction` end-to-end through `ExtractionService._extract_with_balance_retry` with an injected `RegionReExtractor` (recall stays a soft metric) | `test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end()` | `extraction/test_chain_break_repair.py` | P1 |
