@@ -1,37 +1,22 @@
-"""Tests for tools/openpanel_query.py (EPIC-023 / AC23.1.4).
+"""Tests for the OpenPanel query CLI (EPIC-023 / AC23.1.4).
 
-The OpenPanel query CLI lives in the repo-root ``tools/`` package (the
-registered home for Python governance / CI tooling). It is stdlib-only and is
-loaded by file path here so the import does not depend on package wiring.
+Logic lives in ``common.observability.openpanel_query`` (measured under the
+``common`` coverage component); ``tools/openpanel_query.py`` is a thin wrapper.
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
-from pathlib import Path
-from types import ModuleType
+import io
+import json
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CLI_PATH = REPO_ROOT / "tools" / "openpanel_query.py"
-
-
-def _load_cli() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("openpanel_query", CLI_PATH)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-cli = _load_cli()
+from common.observability import openpanel_query as cli
 
 
 def test_AC23_1_4_cli_module_and_help_smoke() -> None:
     """AC23.1.4: the OpenPanel query CLI exists and exposes events/funnel."""
-    assert CLI_PATH.exists()
     parser = cli.build_parser()
     assert isinstance(parser, argparse.ArgumentParser)
     # --help must exit cleanly (smoke).
@@ -104,3 +89,38 @@ def test_AC23_1_4_resolve_api_url_precedence(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("OPENPANEL_API_URL", "https://env.example/api")
     assert cli.resolve_api_url(None) == "https://env.example/api"
     assert cli.resolve_api_url("https://flag.example/api") == "https://flag.example/api"
+
+
+def test_AC23_1_4_main_prints_json_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC23.1.4: main() resolves config, runs the request, and prints JSON."""
+    monkeypatch.setenv("OPENPANEL_API_KEY", "secret-key")
+    monkeypatch.setattr(
+        cli, "post_json", lambda url, key, payload: {"events": [], "url": url}
+    )
+    out = io.StringIO()
+    monkeypatch.setattr("sys.stdout", out)
+    rc = cli.main(["--env", "staging", "events"])
+    assert rc == 0
+    printed = json.loads(out.getvalue())
+    assert printed["url"].endswith("/events")
+
+
+def test_AC23_1_4_main_reports_network_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC23.1.4: a transport URLError is reported as a non-zero exit, not a crash."""
+    import urllib.error
+
+    monkeypatch.setenv("OPENPANEL_API_KEY", "secret-key")
+
+    def boom(url: str, key: str, payload: dict[str, object]) -> dict[str, object]:
+        raise urllib.error.URLError("down")
+
+    monkeypatch.setattr(cli, "post_json", boom)
+    err = io.StringIO()
+    monkeypatch.setattr("sys.stderr", err)
+    rc = cli.main(["funnel", "--steps", "a,b"])
+    assert rc == 1
+    assert "failed" in err.getvalue()
