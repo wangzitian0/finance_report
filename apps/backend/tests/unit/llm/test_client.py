@@ -296,6 +296,15 @@ async def test_AC23_2_2_unknown_qualified_provider_raises_not_silently_falls_bac
             pass
 
 
+async def test_AC23_2_2_single_provider_honours_db_style_qualified_binding(captured):
+    """AC23.2.2: a DB binding qualified as provider_id/model strips the id even with one provider."""
+    p = ProviderRef(id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k", api_base="https://z")
+    cfg = _FakeConfig(SceneBinding(Scene.EXTRACTION_JSON, "env/glm-5.1"), [p])
+    async for _ in LitellmClient(cfg).stream(Scene.EXTRACTION_JSON, [{"role": "user", "content": "x"}]):
+        pass
+    assert captured["kwargs"]["model"] == "openai/glm-5.1"
+
+
 async def test_AC23_2_2_single_provider_keeps_slashed_openrouter_model(captured):
     """AC23.2.2: with one provider an OpenRouter vendor/model id is used whole, not split as provider."""
     p = ProviderRef(id="env", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k")

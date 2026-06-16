@@ -34,6 +34,7 @@ from src.models.layer3 import (
     TransactionClassification,
 )
 from src.models.layer4 import ReportSnapshot, ReportType
+from src.models.llm_config import LlmProvider, LlmSceneBinding
 from src.models.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.models.metrics import ConfidenceMetricSnapshot
 from src.models.ping_state import PingState
@@ -111,6 +112,8 @@ __all__ = [
     "ReportSnapshot",
     "ReportType",
     "RuleType",
+    "LlmProvider",
+    "LlmSceneBinding",
     "StatementSummary",
     "Stage1Status",
     "StockPrice",

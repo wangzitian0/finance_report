@@ -213,25 +213,29 @@ class LitellmClient:
     async def _resolve_provider(self, model_id: str) -> tuple[ProviderRef, str]:
         """Resolve ``model_id`` to ``(provider, bare_model)``.
 
-        Convention: with a single configured provider the binding's ``model_id``
-        is used as-is (it may contain slashes — OpenRouter's ``vendor/model``).
-        With multiple providers a binding MUST qualify as ``provider_id/model``
-        (split once; the model part may still contain slashes); an unqualified or
-        unknown-provider id is a config error rather than a silent fallback to the
+        A binding may qualify its model as ``provider_id/model`` (DB-backed config
+        always does, so the exact provider is selected even with several
+        configured). If the leading segment is a known provider id, it is used and
+        stripped — for any provider count. Otherwise: with a single provider the
+        whole ``model_id`` is the model (it may contain slashes — OpenRouter's
+        ``vendor/model``); with several providers an unqualified or
+        unknown-provider id is a config error, never a silent fallback to the
         wrong credentials.
         """
         providers = await self._config.list_providers()
         if not providers:
             raise LLMConfigError("No LLM provider configured")
+        if "/" in model_id:
+            provider_id, _, model = model_id.partition("/")
+            provider = await self._config.get_provider(provider_id)
+            if provider is not None:
+                return provider, model
+            if len(providers) == 1:
+                return providers[0], model_id
+            raise LLMConfigError(f"Unknown provider id {provider_id!r} in model {model_id!r}")
         if len(providers) == 1:
             return providers[0], model_id
-        if "/" not in model_id:
-            raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider_id/model")
-        provider_id, _, model = model_id.partition("/")
-        provider = await self._config.get_provider(provider_id)
-        if provider is None:
-            raise LLMConfigError(f"Unknown provider id {provider_id!r} in model {model_id!r}")
-        return provider, model
+        raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider_id/model")
 
     def stream(
         self, scene: Scene, messages: Sequence[Message], *, reasoning: ReasoningEffort | None = None
