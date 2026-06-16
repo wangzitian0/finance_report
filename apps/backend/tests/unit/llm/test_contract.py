@@ -104,3 +104,18 @@ def test_AC23_1_5_modality_round_trips_via_model_spec():
     """AC23.1.5: ModelSpec uses the Modality enum the catalogue/binding share."""
     spec = ModelSpec(id="p/m", provider_id="p", modalities=frozenset({Modality.TEXT}))
     assert spec.accepts(Modality.TEXT)
+
+
+def test_AC23_1_5_error_hierarchy_carries_retryable_semantics():
+    """AC23.1.5: the error contract — config/budget never retry; all derive from LLMError."""
+    from src.llm.common import LLMBudgetExceeded, LLMConfigError, LLMError, ModelCatalogError
+
+    budget = LLMBudgetExceeded("over daily budget")
+    assert isinstance(budget, LLMError)
+    assert budget.retryable is False
+
+    catalog = ModelCatalogError("catalogue unavailable", retryable=True)
+    assert isinstance(catalog, LLMError)
+    assert catalog.retryable is True
+
+    assert issubclass(LLMConfigError, LLMError)

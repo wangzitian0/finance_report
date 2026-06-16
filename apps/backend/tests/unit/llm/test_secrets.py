@@ -54,6 +54,15 @@ def test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts():
         new_only.decrypt(sealed)
 
 
+def test_AC23_1_3_rotate_fails_closed_on_a_corrupt_value():
+    """AC23.1.3: rotating a value no key can decrypt fails closed, not silently."""
+    from src.llm.common import Encrypted
+
+    cipher = FernetCipher([_key()])
+    with pytest.raises(LLMConfigError):
+        cipher.rotate(Encrypted(ciphertext="not-a-valid-token", key_version=1))
+
+
 def test_AC23_1_4_build_cipher_fails_closed_without_a_key(monkeypatch):
     """AC23.1.4: no LLM_ENCRYPTION_KEYS -> build_cipher raises (DB secrets fail closed)."""
     monkeypatch.setattr(settings, "llm_encryption_key_list", [], raising=False)
