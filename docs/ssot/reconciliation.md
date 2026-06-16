@@ -330,6 +330,20 @@ currency_to, rate, fee, fee_currency, conversion_date}`).
 Implemented by `pair_fx_legs` / `build_fx_conversion`
 (`services/fx_transfer.py`); rate orientation matches `services/fx.py`. (#1123 AC2)
 
+**Ledger-based auto-discovery (#1123 AC2 live).** A transfer that is recorded
+only as RAW journal lines — with no pre-seeded `fx_conversions` row — is still
+recognised. `services/fx_transfer_discovery.discover_fx_conversions` scans the
+user's `ASSET`-account journal lines in the window, reinterprets each as a
+directional `TransferLeg` (asset `DEBIT` = money `IN`, asset `CREDIT` = money
+`OUT`), and pairs OUT/IN candidates through the same `pair_fx_legs` rule above
+(market rate fetched per candidate via `get_exchange_rate`). The discovery is
+**conservative and deterministic**: it materialises a conversion only for an
+**unambiguous 1:1 match** — if a leg could pair with more than one counterpart it
+is left alone, so discovery can only ever *under*-net, never falsely net unrelated
+activity. Discovered conversions are in-memory only (not persisted) and feed the
+reporting consumer alongside any recorded rows, deduplicated by the unordered pair
+of anchored journal entries.
+
 ### Stage 2: Consistency Checks
 
 **Location**: `/reconciliation/review-queue`

@@ -400,7 +400,17 @@ slice adds:
   path (`services/reporting.py::_internal_transfer_adjustment`): a recorded
   `fx_conversions` row whose legs are anchored to journal entries excludes those
   legs from income/expense aggregation, so the net-worth/income report reflects the
-  internal transfer as net-zero minus the fee, proven end to end (**AC3 E2E**).
+  internal transfer as net-zero minus the fee, proven end to end (**AC3 E2E**);
+- **ledger-based auto-discovery** (`services/fx_transfer_discovery.py::discover_fx_conversions`,
+  consumed by `_internal_transfer_adjustment`): candidate cross-currency transfer
+  leg pairs are discovered directly from RAW asset-account journal lines — no
+  pre-recorded `fx_conversions` row required — by reinterpreting each asset line as
+  a directional `TransferLeg` (asset DEBIT = IN, asset CREDIT = OUT) and pairing via
+  the deterministic `pair_fx_legs`. Discovery is **conservative**: only unambiguous
+  1:1 matches are netted (a leg matching more than one counterpart is left alone), so
+  net worth can only ever *under*-net, never falsely net unrelated activity. This is
+  the **AC2 live-consumption** slice that makes a transfer recorded purely as raw
+  ledger lines net-worth-correct end to end (**AC2 E2E + AC4 round-trip E2E**).
 
 Generalized invariant: **net worth changes only via external in/out + market
 moves + FX revaluation; internal transfers cancel (minus fees).**
@@ -420,3 +430,7 @@ docs/ssot/schema.md (`fx_conversions`).
 | AC4.14.8 | The `fx_conversions` linking model round-trips its multi-leg fields as Decimal with normalized ISO currencies | `test_AC2_fx_conversion_model_round_trips_decimals` | `accounting/test_fx_transfer.py` | P1 |
 | AC4.14.9 | End to end: a recorded internal transfer whose legs are booked to income/expense accounts is excluded from the income statement so net worth is unchanged except for the fee (live wiring, not just the unit primitive) | `test_AC3_internal_transfer_excluded_from_income_statement_e2e` | `reporting/test_internal_transfer_e2e.py` | P0 |
 | AC4.14.10 | End to end: the cumulative balance-sheet net income excludes a recorded internal transfer's legs and reflects only the fee | `test_AC3_internal_transfer_net_income_fee_only_e2e` | `reporting/test_internal_transfer_e2e.py` | P0 |
+| AC4.14.11 | Ledger auto-discovery pairs an out-leg/in-leg cross-currency transfer from RAW asset-account journal lines (no pre-recorded `fx_conversions` row) and pairs only unambiguous matches | `test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger` | `accounting/test_fx_transfer_discovery.py` | P0 |
+| AC4.14.12 | Ledger auto-discovery is conservative: an ambiguous out-leg (matching more than one candidate in-leg) is not paired, so net worth is never falsely netted | `test_AC2_discover_skips_ambiguous_candidate_legs` | `accounting/test_fx_transfer_discovery.py` | P0 |
+| AC4.14.13 | End to end (live, no recorded conversion): a cross-currency internal transfer seeded as RAW journal lines only is auto-discovered and excluded from the income statement so net worth is unchanged except the fee | `test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e` | `reporting/test_fx_ledger_autodiscovery_e2e.py` | P0 |
+| AC4.14.14 | End to end (live): a same-day cross-currency round-trip (A→B→A) seeded as RAW journal lines nets ~zero realized P&L through the real income statement (rate move is revaluation, not a conversion-event gain) | `test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report` | `reporting/test_fx_ledger_autodiscovery_e2e.py` | P0 |
