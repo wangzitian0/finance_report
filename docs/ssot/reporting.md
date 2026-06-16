@@ -723,6 +723,30 @@ Posted `FX_REVALUATION` journal entries are excluded from both native balance an
 
 `net_worth_adjustment_gain_loss` is the explicit balancing component for non-ledger value included by portfolio market adjustments and manual valuation snapshots. It is computed from those added report lines, not from the remaining balance sheet delta.
 
+### <a id="internal-transfer-net-worth-neutrality"></a>Internal-Transfer Net-Worth Neutrality
+
+**Generalized invariant.** Net worth changes only via **external in/out** (real
+income / expense), **market moves** (portfolio valuation), and **FX revaluation**.
+**Internal (own-account) transfers cancel** — they move money between the owner's
+own accounts and must not change net worth.
+
+A matched cross-currency transfer (see
+[FX / Cross-Currency Transfer Pairing](reconciliation.md#fx-cross-currency-transfer-pairing))
+is therefore classified **net-zero** (#1123 AC3): the transfer-**in** leg is *not*
+income and the matching transfer-**out** leg is *not* expense. The only net-worth
+impact is the transfer **fee**, which is a real external outflow. Implemented by
+`classify_internal_transfer` (`services/fx_transfer.py`): `net_worth_delta = −fee`
+for an internal transfer, `income − expense` otherwise.
+
+**FX gain/loss is attributed to revaluation over time, not the conversion event**
+(#1123 AC4). A same-day round-trip conversion A→B→A nets ~zero realized P&L (minus
+fee/spread) because the market rate has not moved
+(`round_trip_realized_pnl == −fee`). Any later divergence between the recorded
+conversion and a subsequent valuation is a holding-period **revaluation**, routed
+through the `FX_REVALUATION` journal source type (consistent with
+`unrealized_fx_gain_loss` above) — never booked as a conversion-event
+income/expense line.
+
 ---
 
 ## 4. Design Constraints

@@ -46,7 +46,7 @@ Examples:
 | DIM | `accounts`, `classification_rules`, market/security/institution reference data |
 | ODS | `uploaded_documents`, `manual_valuation_snapshots` |
 | DWD | `atomic_transactions`, `atomic_positions`, `statement_summaries`, `journal_entries`, `journal_lines` |
-| DWM | `reconciliation_matches`, `consistency_checks` |
+| DWM | `reconciliation_matches`, `consistency_checks`, `fx_conversions` (links a cross-currency transfer's out-leg + in-leg into one multi-leg event; #1123 AC2) |
 | DWS | `managed_positions`, `investment_lots`, derived balances and period aggregates |
 | ADS | `report_snapshots` |
 | Application / audit plane | `users`, chat/workflow tables, evidence graph tables, feedback/correction tables, `confidence_metric_snapshots` (append-only North-Star metric series) |
