@@ -12,24 +12,27 @@
 
 **Definition of a mergeable PR** — every item must hold:
 - On a branch, never committed to `main`
-- **CI passing** (all required checks green)
-- Test environment deploys + health-checks (preview `report-pr-XX.zitian.party`)
+- **CI passing** (all required checks green) — behavior is proven by the tests in CI
+  (TDD / root-cause), **not** by manually watching a preview deploy
 - **All Copilot auto-review (CR) comments resolved** — each fixed, or justified — and the comment **threads resolved on GitHub**
 - Code/PR/commits in English
+
+> Manual preview verification (`report-pr-XX.zitian.party`) is **optional** — useful
+> to eyeball a UI change, but not a required deliverable step. The proof of behavior
+> lives in the test suite, not in watching the app run.
 
 **Agent Workflow (Complete)**:
 
 1. ✅ Understand requirements
 2. ✅ Design solution
-3. ✅ Implement code
-4. ✅ Write tests
+3. ✅ Write failing tests (TDD)
+4. ✅ Write minimal code to pass
 5. ✅ Create PR (branch only — never commit to `main`)
 6. ✅ **Monitor CI until it passes** (use `gh run watch`)
-   - If CI fails: Fix issues and repeat
-7. ✅ Verify test environment deploys successfully (health check on `report-pr-XX.zitian.party`)
-8. ✅ **Resolve every Copilot (CR) review comment** — fix or justify each — then resolve the threads on GitHub
-9. ✅ **Report: "PR ready for your review"**
-10. ⏸️ **STOP. Wait for user decision.** (Agents never merge.)
+   - If CI fails: find the root cause, fix, repeat
+7. ✅ **Resolve every Copilot (CR) review comment** — fix or justify each — then resolve the threads on GitHub
+8. ✅ **Report: "PR ready for your review"**
+9. ⏸️ **STOP. Wait for user decision.** (Agents never merge.)
 
 **User Workflow**: Review → Approve / Request changes / Reject → **User merges PR**.
 
