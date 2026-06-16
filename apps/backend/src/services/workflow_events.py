@@ -223,91 +223,94 @@ async def _insert_workflow_event_conflict_safe(
     return event
 
 
-def build_uploaded_statement_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
-    """Build the deterministic uploaded-statement workflow event payload."""
-    family = WorkflowEventFamily.SOURCE_UPLOADED
+def _build_statement_event_payload(
+    statement: StatementSummary,
+    *,
+    family: WorkflowEventFamily,
+    occurred_at: datetime,
+    severity: WorkflowEventSeverity,
+    title: str,
+    summary: str,
+    action_href: str,
+    report_impact: WorkflowReportImpact,
+) -> WorkflowEventCreate:
+    """Shared builder for the per-statement workflow events (uploaded / parse-failed
+    / review-required / review-completed), which differ only in their family,
+    timestamp, severity, copy, deep link, and report impact."""
     return WorkflowEventCreate(
-        occurred_at=statement.created_at,
+        occurred_at=occurred_at,
         family=family,
-        severity=WorkflowEventSeverity.INFO,
-        title="Statement uploaded",
-        summary=f"{filename} was uploaded and is ready for processing.",
+        severity=severity,
+        title=title,
+        summary=summary,
         source_type="bank_statement",
         source_id=statement.id,
-        action_href=f"/statements/{statement.id}",
-        report_impact=WorkflowReportImpact.PROCESSING,
+        action_href=action_href,
+        report_impact=report_impact,
         dedupe_key=build_workflow_dedupe_key(
             family=family,
             source_type="bank_statement",
             source_id=statement.id,
         ),
+    )
+
+
+def build_uploaded_statement_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
+    """Build the deterministic uploaded-statement workflow event payload."""
+    return _build_statement_event_payload(
+        statement,
+        family=WorkflowEventFamily.SOURCE_UPLOADED,
+        occurred_at=statement.created_at,
+        severity=WorkflowEventSeverity.INFO,
+        title="Statement uploaded",
+        summary=f"{filename} was uploaded and is ready for processing.",
+        action_href=f"/statements/{statement.id}",
+        report_impact=WorkflowReportImpact.PROCESSING,
     )
 
 
 def build_statement_parsing_failed_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the user-action event for a failed statement parse."""
-    family = WorkflowEventFamily.SOURCE_PARSING_FAILED
-    return WorkflowEventCreate(
+    return _build_statement_event_payload(
+        statement,
+        family=WorkflowEventFamily.SOURCE_PARSING_FAILED,
         occurred_at=statement.updated_at or statement.created_at,
-        family=family,
         severity=WorkflowEventSeverity.ACTION_REQUIRED,
         title="Statement parsing failed",
         summary=f"{filename} could not be parsed and needs attention.",
-        source_type="bank_statement",
-        source_id=statement.id,
         action_href=f"/statements/{statement.id}",
         report_impact=WorkflowReportImpact.BLOCKED,
-        dedupe_key=build_workflow_dedupe_key(
-            family=family,
-            source_type="bank_statement",
-            source_id=statement.id,
-        ),
     )
 
 
 def build_review_required_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the user-action event for pending Stage 1 review."""
-    family = WorkflowEventFamily.REVIEW_REQUIRED
-    return WorkflowEventCreate(
+    return _build_statement_event_payload(
+        statement,
+        family=WorkflowEventFamily.REVIEW_REQUIRED,
         occurred_at=statement.updated_at or statement.created_at,
-        family=family,
         severity=WorkflowEventSeverity.ACTION_REQUIRED,
         title="Source review required",
         summary=f"{filename} needs source review before report readiness can advance.",
-        source_type="bank_statement",
-        source_id=statement.id,
         # Deep-link straight to this statement's review surface (EPIC-022 PR2):
         # the standalone Review Queue page is gone; the notification card is the
         # entry point, so it must point at the specific item to review.
         action_href=f"/statements/{statement.id}/review",
         report_impact=WorkflowReportImpact.BLOCKED,
-        dedupe_key=build_workflow_dedupe_key(
-            family=family,
-            source_type="bank_statement",
-            source_id=statement.id,
-        ),
     )
 
 
 def build_review_completed_event_payload(statement: StatementSummary, filename: str) -> WorkflowEventCreate:
     """Build the routine success event for completed Stage 1 review."""
-    family = WorkflowEventFamily.REVIEW_COMPLETED
-    reviewed_at = statement.stage1_reviewed_at or statement.updated_at or statement.created_at
-    return WorkflowEventCreate(
-        occurred_at=reviewed_at,
-        family=family,
+    return _build_statement_event_payload(
+        statement,
+        family=WorkflowEventFamily.REVIEW_COMPLETED,
+        occurred_at=statement.stage1_reviewed_at or statement.updated_at or statement.created_at,
         severity=WorkflowEventSeverity.SUCCESS,
         title="Source review completed",
         summary=f"{filename} source review is complete.",
-        source_type="bank_statement",
-        source_id=statement.id,
         action_href=f"/statements/{statement.id}",
         report_impact=WorkflowReportImpact.NONE,
-        dedupe_key=build_workflow_dedupe_key(
-            family=family,
-            source_type="bank_statement",
-            source_id=statement.id,
-        ),
     )
 
 

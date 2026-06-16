@@ -99,6 +99,27 @@ _DEFAULT_LIQUIDITY_CLASS: dict[ManualValuationComponentType, ManualValuationLiqu
 }
 
 
+def _valuation_key_query(
+    user_id: UUID,
+    *,
+    component_type: ManualValuationComponentType,
+    source: str,
+    as_of_date: date,
+):
+    """Base select for a manual-valuation version-chain key.
+
+    Matches the partial unique index identity (user_id, component_type, source,
+    as_of_date); callers append head/order/lock clauses.
+    """
+    return (
+        select(ManualValuationSnapshot)
+        .where(ManualValuationSnapshot.user_id == user_id)
+        .where(ManualValuationSnapshot.component_type == component_type)
+        .where(ManualValuationSnapshot.source == source)
+        .where(ManualValuationSnapshot.as_of_date == as_of_date)
+    )
+
+
 class AssetService:
     """Service for managing asset positions."""
 
@@ -183,11 +204,7 @@ class AssetService:
         attribute of the fact, not part of its version-chain identity.
         """
         result = await db.execute(
-            select(ManualValuationSnapshot)
-            .where(ManualValuationSnapshot.user_id == user_id)
-            .where(ManualValuationSnapshot.component_type == component_type)
-            .where(ManualValuationSnapshot.source == source)
-            .where(ManualValuationSnapshot.as_of_date == as_of_date)
+            _valuation_key_query(user_id, component_type=component_type, source=source, as_of_date=as_of_date)
             .where(ManualValuationSnapshot.superseded_by_id.is_(None))
             .with_for_update()
         )
@@ -209,12 +226,9 @@ class AssetService:
         changes currency is still part of one history chain.
         """
         result = await db.execute(
-            select(ManualValuationSnapshot)
-            .where(ManualValuationSnapshot.user_id == user_id)
-            .where(ManualValuationSnapshot.component_type == component_type)
-            .where(ManualValuationSnapshot.source == source)
-            .where(ManualValuationSnapshot.as_of_date == as_of_date)
-            .order_by(ManualValuationSnapshot.version.desc())
+            _valuation_key_query(user_id, component_type=component_type, source=source, as_of_date=as_of_date).order_by(
+                ManualValuationSnapshot.version.desc()
+            )
         )
         return result.scalars().all()
 
