@@ -70,7 +70,8 @@ _BANK_VALID = {
 }
 
 # Same bank statement but the closing balance does not reconcile (balance invalid)
-# -> must route to UPLOADED (manual review) on every parse.
+# -> must route to PARSED (review) on every parse (#1141: no longer a UPLOADED
+# dead-end; it enters review with a validation_error like the brokerage path).
 _BANK_BALANCE_INVALID = {
     **_BANK_VALID,
     "closing_balance": "9999.99",
@@ -195,13 +196,18 @@ class TestRepeatedParseDeterminism:
     @pytest.mark.parametrize(
         "payload,expected_status",
         [
-            (_BANK_BALANCE_INVALID, BankStatementStatus.UPLOADED),
+            (_BANK_BALANCE_INVALID, BankStatementStatus.PARSED),
             (_BROKERAGE, BankStatementStatus.PARSED),
         ],
-        ids=["bank_balance_invalid->uploaded", "brokerage->parsed"],
+        ids=["bank_balance_invalid->parsed", "brokerage->parsed"],
     )
     async def test_routing_is_consistent_per_payload_class(self, db, test_user, payload, expected_status):
-        """AC13.13.3: each payload class routes to one stable status across N parses."""
+        """AC13.13.3 / AC13.18.5: each payload class routes to one stable status across N parses.
+
+        Post-#1141 a balance-invalid bank statement rests in PARSED (review), the
+        same deterministic resting state as a brokerage statement — never the
+        UPLOADED dead-end.
+        """
         statuses = []
         for i in range(RUNS):
             statement, _ = await self._parse_once(db, test_user.id, payload, f"route-{expected_status.value}-{i}")
@@ -210,3 +216,22 @@ class TestRepeatedParseDeterminism:
         assert set(statuses) == {expected_status}, (
             f"Routing drifted across {RUNS} parses: {set(statuses)} (expected always {expected_status})"
         )
+
+    async def test_AC13_18_2_balance_invalid_parse_is_pending_review(self, db, test_user):
+        """AC13.18.2 (#1141): a balance-invalid bank parse lands in PARSED review.
+
+        The statement must carry the reviewable resting state (`PARSED` +
+        `stage1_status=PENDING_REVIEW`) and a `validation_error` describing the
+        mismatch — not the `uploaded` dead-end that the retry endpoint rejects and
+        report readiness ignores.
+        """
+        from src.models.statement_enums import Stage1Status
+
+        statement, _ = await self._parse_once(db, test_user.id, _BANK_BALANCE_INVALID, "ac13-18-2")
+
+        assert statement.status == BankStatementStatus.PARSED
+        assert statement.status != BankStatementStatus.UPLOADED
+        assert statement.stage1_status == Stage1Status.PENDING_REVIEW
+        assert statement.balance_validated is False
+        assert statement.validation_error
+        assert "mismatch" in statement.validation_error.lower()

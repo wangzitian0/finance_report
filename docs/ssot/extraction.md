@@ -188,19 +188,40 @@ Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/se
 
 Routing after parsing depends on the document class, on purpose (#981):
 
-- **Bank statements** route via `route_by_threshold(confidence, balance_valid)`: an invalid
-  running-balance chain sends them to `uploaded` (manual entry), and high confidence + valid
-  balance can auto-approve. **Exception:** CSV exports without source statement balances take the
-  inferred-balance path (`has_inferred_csv_balances`), which forces `parsed`/review with
-  `balance_valid = False` rather than routing to `uploaded` — so they remain reviewable instead of
-  demanding manual entry.
+- **Bank statements** route via `route_by_threshold(confidence, balance_valid)`:
+  - **Balance invalid** → `parsed` (review) regardless of confidence (#1141). The statement
+    parsed but its running balance does not reconcile, so it enters review carrying a
+    `validation_error` and `stage1_status = pending_review`. It never auto-approves and is
+    **never** parked in `uploaded`.
+  - **Balance valid + confidence ≥ 85** → can auto-approve (`approved`).
+  - **Balance valid + confidence ≥ 60** → `parsed` (review).
+  - **Balance valid + confidence < 60** → `uploaded` (genuinely low-signal parse → manual entry).
+  - CSV exports without source statement balances take the inferred-balance path
+    (`has_inferred_csv_balances`), which forces `parsed`/review with `balance_valid = False`.
 - **Brokerage statements** always route to `parsed` (review) regardless of `balance_valid`,
   because they reconcile via `AtomicPosition` position snapshots rather than a running-balance
   chain — `balance_valid` is not a meaningful gating signal for them.
 
-So the same "balance invalid" outcome lands a (non-CSV) bank statement in `uploaded` but a
-brokerage statement in `parsed`. This is by design, not a routing bug. Owner: `ExtractionService`
-status selection (`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
+So the "balance invalid" outcome now lands **both** a (non-CSV) bank statement and a brokerage
+statement in `parsed`/review — a single deterministic, reviewable terminal state (#1141, folding
+#1085). `uploaded` is reserved for genuinely low-signal valid-balance parses, not for
+parsed-but-unreconciled statements. Owner: `ExtractionService` status selection
+(`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
+
+### Balance-mismatch lifecycle invariants (#1141)
+
+The single balance-mismatch terminal state (`parsed`, `stage1_status = pending_review`,
+`validation_error` set) is consistent across the lifecycle:
+
+- **Retry**: the retry endpoint (`POST /statements/{id}/retry`) accepts `parsed` (alongside
+  `rejected`/`parsing`), so a balance-mismatch statement is retriable. `uploaded` remains
+  non-retriable, which is now safe because balance-mismatch statements no longer rest there.
+- **Readiness**: `get_personal_report_package_readiness` counts `parsed` + `approved` summaries,
+  so a balance-mismatch statement is a visible report input rather than an invisible orphan.
+- **CSV intake** (#1087): CSV parsing cannot auto-detect the institution, so the upload route
+  rejects a CSV with a missing institution **synchronously** with HTTP 400 (actionable message)
+  instead of accepting (202) and rejecting asynchronously inside the parse worker. PDF/image
+  uploads keep institution optional (vision auto-detect).
 
 Parsing priority:
 1. Prefer structured `positions`, `holdings`, or `securities` arrays from OCR/LLM output.

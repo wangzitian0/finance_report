@@ -413,9 +413,14 @@ class TestConfidenceRouting:
         assert status == BankStatementStatus.UPLOADED  # Not auto-parsed
 
     def test_invalid_balance_never_auto_accept(self):
-        """Invalid balance should never auto-accept regardless of score."""
+        """Invalid balance should never auto-accept regardless of score.
+
+        #1141: balance-invalid statements route to PARSED (review) rather than the
+        UPLOADED dead-end, but still never auto-approve.
+        """
         status = route_by_threshold(95, balance_valid=False)
-        assert status == BankStatementStatus.UPLOADED
+        assert status == BankStatementStatus.PARSED
+        assert status != BankStatementStatus.APPROVED
 
 
 class TestStatementCompleteness:

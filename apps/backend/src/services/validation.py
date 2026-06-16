@@ -247,9 +247,25 @@ def _score_currency_consistency(transactions: list[dict[str, Any]], header_curre
 
 
 def route_by_threshold(score: int, balance_valid: bool) -> BankStatementStatus:
-    """Route statement by confidence threshold and validation result."""
+    """Route a parsed bank statement by confidence threshold and balance validity.
+
+    Resting states (#1141):
+
+    - **Balance invalid** -> ``PARSED`` (review) regardless of score. The statement
+      parsed but its running balance does not reconcile; it must enter review
+      carrying a ``validation_error`` — the same reviewable resting state as a
+      brokerage statement. It is never parked in ``uploaded``, which was a
+      dead-end the retry endpoint rejected and report readiness ignored (#1085).
+      It also never auto-approves: an unreconciled balance must be human-reviewed.
+    - **Balance valid, score >= 85** -> ``APPROVED`` (auto-accept).
+    - **Balance valid, score >= 60** -> ``PARSED`` (review).
+    - **Balance valid, score < 60** -> ``UPLOADED``: a genuinely low-signal parse
+      where there is not enough extracted structure to review meaningfully, so the
+      user is routed to manual entry. (Distinct from the balance-invalid case,
+      where there *is* a reviewable parse that merely fails reconciliation.)
+    """
     if not balance_valid:
-        return BankStatementStatus.UPLOADED
+        return BankStatementStatus.PARSED
     if score >= 85:
         return BankStatementStatus.APPROVED
     if score >= 60:

@@ -60,7 +60,48 @@ def test_route_by_threshold():
     assert route_by_threshold(90, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(70, True) == BankStatementStatus.PARSED
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED
-    assert route_by_threshold(90, False) == BankStatementStatus.UPLOADED
+    # AC13.18.1 (#1141): a balance-invalid bank statement no longer dead-ends in
+    # `uploaded`; it enters review (`PARSED`), matching the brokerage path.
+    assert route_by_threshold(90, False) == BankStatementStatus.PARSED
+
+
+def test_AC13_18_1_balance_invalid_routes_to_parsed_review():
+    """AC13.18.1 (#1141): balance-invalid bank statements route to PARSED (review).
+
+    A parsed-but-unvalidated bank statement must never be parked in `uploaded`
+    (the retry-rejected, readiness-invisible dead-end). It must enter the same
+    reviewable resting state as a brokerage statement, regardless of score.
+    """
+    for score in (0, 50, 59, 60, 84, 85, 95, 100):
+        assert route_by_threshold(score, balance_valid=False) == BankStatementStatus.PARSED, (
+            f"balance-invalid score={score} must route to PARSED, never UPLOADED"
+        )
+    # Valid-balance routing semantics are preserved (low signal -> manual entry).
+    assert route_by_threshold(50, balance_valid=True) == BankStatementStatus.UPLOADED
+
+
+def test_AC13_18_4_readiness_counts_parsed_balance_invalid():
+    """AC13.18.4 (#1141): the balance-invalid resting state is readiness-visible.
+
+    A balance-invalid bank statement rests in `PARSED`; report readiness counts
+    `PARSED` + `APPROVED` summaries, so the statement is now an available report
+    input instead of an invisible `uploaded` orphan. This pins the resting status
+    against the set readiness actually counts.
+    """
+    import inspect
+
+    from src.services import report_readiness
+
+    resting_status = route_by_threshold(95, balance_valid=False)
+    assert resting_status == BankStatementStatus.PARSED
+
+    # The readiness query filters statements by status; PARSED + APPROVED are the
+    # counted (confirmed) classes. Assert the resting status is among them.
+    source = inspect.getsource(report_readiness.get_personal_report_package_readiness)
+    assert "BankStatementStatus.PARSED" in source
+    assert "BankStatementStatus.APPROVED" in source
+    counted = {BankStatementStatus.PARSED, BankStatementStatus.APPROVED}
+    assert resting_status in counted
 
 
 def test_validate_balance_tolerance():

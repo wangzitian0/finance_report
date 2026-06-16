@@ -247,7 +247,11 @@ async def upload_statement(
 
     Supported file types: PDF, CSV, PNG, JPG. Model is optional for PDF/image uploads;
     omitted model uses the OCR-first default pipeline.
-    Institution is optional - AI will auto-detect from document if not provided.
+
+    Institution is optional for PDF/image uploads (AI auto-detects it from the
+    document). It is **required** for CSV uploads — CSVs have no detectable header,
+    so a missing institution is rejected synchronously with HTTP 400 rather than
+    accepted and rejected asynchronously by the parse worker (#1141 / #1087).
     """
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
@@ -264,6 +268,14 @@ async def upload_statement(
 
     if extension not in ("pdf", "csv", "png", "jpg", "jpeg"):
         raise_bad_request(f"Unsupported file type: {extension}")
+
+    # AC13.18.6 (#1141 / #1087): CSV parsing cannot auto-detect the institution the
+    # way PDF/image vision extraction can, so a CSV without an institution can only
+    # fail later inside the async parse worker ("Institution is required for CSV
+    # parsing"), leaving an orphaned PARSING record. Reject it synchronously here
+    # with an actionable 400 instead of accepting (202) then rejecting async.
+    if extension == "csv" and not (institution and institution.strip()):
+        raise_bad_request("Institution is required for CSV uploads. Please select an institution and retry.")
 
     if account_id is not None:
         account_result = await db.execute(
