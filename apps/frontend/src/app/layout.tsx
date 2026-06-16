@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Analytics } from "@/components/Analytics";
 import { AuthGuard } from "@/components/AuthGuard";
+import { FrontendTelemetry } from "@/components/FrontendTelemetry";
 import { analyticsClientIdMissingInDeployedEnv } from "@/lib/analytics-env";
 import { Inter } from "next/font/google";
 import { Providers } from "./providers";
@@ -83,6 +84,10 @@ export default function RootLayout({
             environment={process.env.OPENPANEL_ENVIRONMENT}
           />
         ) : null}
+        {/* Browser OTel → SigNoz. A complete no-op until
+            NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT is set; mounts once,
+            never blocks render. */}
+        <FrontendTelemetry />
         <Providers>
           <AuthGuard>
             {children}
