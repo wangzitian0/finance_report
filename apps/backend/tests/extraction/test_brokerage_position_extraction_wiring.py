@@ -31,6 +31,7 @@ from src.models.statement_summary import StatementSummary
 from src.prompts import BROKERAGE_POSITIONS_PROMPT, SYSTEM_PROMPT, get_parsing_prompt
 from src.services.brokerage_positions import (
     BrokeragePositionImportService,
+    brokerage_currency_balances,
     looks_like_brokerage_document,
     parse_brokerage_positions,
 )
@@ -290,3 +291,70 @@ async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
     total_market_value = sum((row.market_value for row in rows), Decimal("0"))
     expected_total = sum((Decimal(p["market_value"]) for p in fixture["positions"]), Decimal("0"))
     assert total_market_value == expected_total
+
+
+# --------------------------------------------------------------------------- AC-B3
+
+
+def test_AC_B3_multi_currency_brokerage_emits_per_currency_balances():
+    """AC17.4.13 (AC-B3): A multi-currency brokerage snapshot yields one NAV bucket per currency.
+
+    USD = 2124 + 2276 = 4400, HKD = 80500, SGD = 3810. The currencies must NOT be
+    cross-summed into a single scalar (88710) — each currency is an independent
+    closed loop whose opening == closing == its own position NAV.
+    """
+    fixture = _load_fixture("ibkr-multicurrency-positions_parsed.json")
+
+    balances = brokerage_currency_balances(fixture, filename="ibkr-multicurrency-2506.pdf")
+
+    by_currency = {b["currency"]: b for b in balances}
+    # Every distinct position currency round-trips as its own bucket.
+    assert set(by_currency) == {"USD", "HKD", "SGD"}
+    assert by_currency["USD"]["closing"] == Decimal("4400.00")
+    assert by_currency["HKD"]["closing"] == Decimal("80500.00")
+    assert by_currency["SGD"]["closing"] == Decimal("3810.00")
+    # Snapshot has no cash flow: opening == closing per currency (zero-net loop).
+    for bucket in balances:
+        assert bucket["opening"] == bucket["closing"]
+    # No cross-sum: no bucket carries the meaningless 88710 aggregate, and the
+    # number of buckets equals the number of distinct currencies.
+    assert all(b["closing"] != Decimal("88710.00") for b in balances)
+    assert len(balances) == 3
+
+
+async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum(test_user):
+    """AC17.4.13 (AC-B3): parse_document persists the per-currency NAV array on the statement.
+
+    The scalar opening/closing stay None for the position snapshot (no running-balance
+    chain), while ``currency_balances`` carries the independent per-currency NAV — the
+    multi-currency NAV no longer collapses to one scalar. Decimal-safe round-trip: the
+    JSONB values are strings that parse back to the exact per-currency NAV.
+    """
+    from unittest.mock import AsyncMock
+
+    service = ExtractionService()
+    payload = _load_fixture("ibkr-multicurrency-positions_parsed.json")
+    service.extract_financial_data = AsyncMock(return_value=payload)
+
+    statement, transactions = await service.parse_document(
+        file_path=Path("ibkr-multicurrency-2506.pdf"),
+        institution="Interactive Brokers",
+        user_id=test_user.id,
+        file_content=b"%PDF-1.7",
+        file_hash="ibkr-multicurrency-hash",
+        original_filename="ibkr-multicurrency-2506.pdf",
+    )
+
+    assert transactions == []
+    assert statement.status == BankStatementStatus.PARSED
+    # The per-currency NAV is persisted; it does not collapse to a single scalar.
+    assert statement.currency_balances is not None
+    by_currency = {b["currency"]: b for b in statement.currency_balances}
+    assert set(by_currency) == {"USD", "HKD", "SGD"}
+    # Decimal round-trip: stored strings parse back to the exact per-currency NAV.
+    assert Decimal(by_currency["USD"]["closing"]) == Decimal("4400.00")
+    assert Decimal(by_currency["HKD"]["closing"]) == Decimal("80500.00")
+    assert Decimal(by_currency["SGD"]["closing"]) == Decimal("3810.00")
+    # No cross-sum into one scalar: three independent buckets, none equal to 88710.
+    assert len(statement.currency_balances) == 3
+    assert all(Decimal(b["closing"]) != Decimal("88710.00") for b in statement.currency_balances)
