@@ -176,6 +176,34 @@ def test_AC13_20_6_repair_is_safe_noop_without_backend():
     assert result.break_info is not None and result.break_info.index == 1
 
 
+def test_AC13_20_repair_noop_on_non_computable_payload():
+    """AC-C2: a structurally-broken (non-computable) payload must NOT trigger the repair backend.
+
+    ``validate_balance`` returns ``balance_valid=False`` *and*
+    ``balance_computable=False`` when amounts are non-numeric/missing. In that case
+    the self-check delta is undefined, so attempting region re-extraction is
+    pointless/possibly harmful; the hook must short-circuit to a safe no-op without
+    invoking the backend.
+    """
+    payload = _clean_chain_payload()
+    # Corrupt an amount so the balance self-check cannot even be computed.
+    payload["transactions"][0]["amount"] = "not-a-number"
+    balance = validate_balance(payload)
+    assert balance["balance_valid"] is False
+    assert balance["balance_computable"] is False
+
+    backend = _RecordingReExtractor(repaired_payload=_clean_chain_payload())
+    result = repair_under_extraction(payload, reextractor=backend)
+
+    # The backend must never be invoked on a non-computable payload.
+    assert backend.calls == []
+    assert result.attempted is False
+    assert result.repaired is False
+    assert result.break_info is None
+    # No-op must return the original payload untouched.
+    assert result.payload is payload
+
+
 def test_AC13_20_repair_only_once_even_if_still_broken():
     """AC-C2: the repair pass runs at most once; a still-broken re-extract is not
     retried in a loop (bounded, deterministic)."""

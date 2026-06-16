@@ -77,6 +77,10 @@ def repair_under_extraction(
     Trigger logic (all deterministic):
 
     - If the balance self-check already passes, do nothing (``attempted=False``).
+    - If the balance is not even *computable* (a structurally-broken payload with
+      non-numeric/missing amounts), do nothing — the self-check delta is
+      meaningless, so a region re-extraction has nothing valid to target. Treat it
+      as "not repairable" rather than entering the re-extraction path.
     - If it fails but the chain-break detector finds no region, do nothing — the
       mismatch is not the dropped-row shape this pass repairs.
     - Otherwise, if a backend is injected, call it **exactly once** to re-extract
@@ -87,6 +91,14 @@ def repair_under_extraction(
     """
     balance_result = validate_balance(payload)
     if balance_result.get("balance_valid"):
+        return ChainRepairResult(payload=payload, attempted=False, repaired=False, break_info=None)
+
+    if not balance_result.get("balance_computable"):
+        # Structurally-broken payload (non-numeric/missing amounts): the balance
+        # delta is undefined, so the chain-break detector cannot pinpoint a
+        # meaningful region. Re-extraction would be pointless/possibly harmful;
+        # short-circuit to a safe "not repairable" no-op.
+        logger.info("Balance not computable; under-extraction repair is not applicable")
         return ChainRepairResult(payload=payload, attempted=False, repaired=False, break_info=None)
 
     transactions = payload.get("transactions") or []
