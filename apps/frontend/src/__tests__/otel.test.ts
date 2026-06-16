@@ -4,10 +4,13 @@ import {
   captureWebVitals,
   initOtel,
   installErrorHooks,
+  makeDocumentLoadScrubHook,
   makeUrlScrubHook,
+  redactException,
   resetOtelForTests,
   resolveOtelConfig,
   sanitizeAttributes,
+  scrubSpanUrlAttributes,
   scrubUrl,
   type OtelConfig,
 } from "@/lib/otel"
@@ -225,23 +228,123 @@ describe("initOtel (AC23.1.1 — config-gated, non-blocking, idempotent)", () =>
   })
 })
 
+describe("scrubSpanUrlAttributes (AC23.1.2)", () => {
+  it("AC23.1.2 scrubs all URL-bearing attributes and blanks url.query", () => {
+    const span = { setAttribute: vi.fn() }
+    scrubSpanUrlAttributes(span, "https://x.com/p?secret=1#frag")
+    expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
+    for (const key of ["http.url", "http.target", "url.full", "document.url"]) {
+      expect(span.setAttribute).toHaveBeenCalledWith(key, "https://x.com/p")
+    }
+  })
+
+  it("AC23.1.2 still blanks url.query when no URL is present", () => {
+    const span = { setAttribute: vi.fn() }
+    scrubSpanUrlAttributes(span, undefined)
+    expect(span.setAttribute).toHaveBeenCalledTimes(1)
+    expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
+  })
+})
+
 describe("makeUrlScrubHook (AC23.1.2)", () => {
-  it("AC23.1.2 rewrites http.url to the scrubbed URL for a string request", () => {
+  it("AC23.1.2 scrubs all URL attributes for a string request", () => {
     const span = { setAttribute: vi.fn() }
     makeUrlScrubHook()(span, "https://x.com/p?secret=1")
     expect(span.setAttribute).toHaveBeenCalledWith("http.url", "https://x.com/p")
+    expect(span.setAttribute).toHaveBeenCalledWith("url.full", "https://x.com/p")
+    expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
   })
 
-  it("AC23.1.2 rewrites http.url from a Request-like object", () => {
+  it("AC23.1.2 scrubs all URL attributes from a Request-like object", () => {
     const span = { setAttribute: vi.fn() }
     makeUrlScrubHook()(span, { url: "https://x.com/q?a=b#c" })
-    expect(span.setAttribute).toHaveBeenCalledWith("http.url", "https://x.com/q")
+    expect(span.setAttribute).toHaveBeenCalledWith("http.target", "https://x.com/q")
+    expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
   })
 
-  it("AC23.1.2 does nothing when no URL is present", () => {
+  it("AC23.1.2 blanks url.query even when no URL is present", () => {
     const span = { setAttribute: vi.fn() }
     makeUrlScrubHook()(span, {})
-    expect(span.setAttribute).not.toHaveBeenCalled()
+    expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
+  })
+})
+
+describe("makeDocumentLoadScrubHook (AC23.1.2)", () => {
+  it("AC23.1.2 scrubs the document URL attributes on the span", () => {
+    const span = { setAttribute: vi.fn() }
+    const original = Object.getOwnPropertyDescriptor(document, "documentURI")
+    Object.defineProperty(document, "documentURI", {
+      configurable: true,
+      get: () => "https://x.com/page?token=abc#h",
+    })
+    try {
+      makeDocumentLoadScrubHook()(span)
+      expect(span.setAttribute).toHaveBeenCalledWith("document.url", "https://x.com/page")
+      expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
+    } finally {
+      if (original) {
+        Object.defineProperty(document, "documentURI", original)
+      }
+    }
+  })
+
+  it("AC23.1.2 falls back to location.href when documentURI is empty", () => {
+    const span = { setAttribute: vi.fn() }
+    const original = Object.getOwnPropertyDescriptor(document, "documentURI")
+    const originalLoc = Object.getOwnPropertyDescriptor(window, "location")
+    Object.defineProperty(document, "documentURI", { configurable: true, get: () => "" })
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      get: () => ({ href: "https://x.com/home?u=1" }),
+    })
+    try {
+      makeDocumentLoadScrubHook()(span)
+      expect(span.setAttribute).toHaveBeenCalledWith("document.url", "https://x.com/home")
+    } finally {
+      if (original) Object.defineProperty(document, "documentURI", original)
+      if (originalLoc) Object.defineProperty(window, "location", originalLoc)
+    }
+  })
+
+  it("AC23.1.2 tolerates document access throwing (safe blank)", () => {
+    const span = { setAttribute: vi.fn() }
+    const original = Object.getOwnPropertyDescriptor(document, "documentURI")
+    Object.defineProperty(document, "documentURI", {
+      configurable: true,
+      get() {
+        throw new Error("blocked")
+      },
+    })
+    const originalLoc = Object.getOwnPropertyDescriptor(window, "location")
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      get() {
+        throw new Error("blocked")
+      },
+    })
+    try {
+      expect(() => makeDocumentLoadScrubHook()(span)).not.toThrow()
+      expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
+    } finally {
+      if (original) Object.defineProperty(document, "documentURI", original)
+      if (originalLoc) Object.defineProperty(window, "location", originalLoc)
+    }
+  })
+})
+
+describe("redactException (AC23.1.3)", () => {
+  it("AC23.1.3 keeps the error type but redacts the message/stack", () => {
+    const err = new Error("user a@b.com owes $1,234 on account 999")
+    expect(redactException(err)).toEqual({ name: "Error", message: "[redacted]" })
+  })
+
+  it("AC23.1.3 defaults a missing name to 'Error'", () => {
+    expect(redactException({})).toEqual({ name: "Error", message: "[redacted]" })
+    expect(redactException({ name: "" })).toEqual({ name: "Error", message: "[redacted]" })
+    expect(redactException({ name: "TypeError" })).toEqual({
+      name: "TypeError",
+      message: "[redacted]",
+    })
   })
 })
 
@@ -306,10 +409,12 @@ describe("installErrorHooks (AC23.1.3 — exceptions as span exceptions)", () =>
       },
     }
     installErrorHooks(f.provider, CONFIG, target as unknown as Window)
-    const err = new Error("boom")
+    const err = new Error("user a@b.com owes $1,234")
     listeners["error"]({ error: err } as ErrorEvent)
-    expect(f.recordException).toHaveBeenCalledWith(err)
+    // The raw Error must NOT be exported — only a redacted form (type kept).
+    expect(f.recordException).toHaveBeenCalledWith({ name: "Error", message: "[redacted]" })
     expect(f.setAttribute).toHaveBeenCalledWith("exception.source", "onerror")
+    expect(f.setAttribute).toHaveBeenCalledWith("exception.type", "Error")
     expect(f.end).toHaveBeenCalled()
   })
 
@@ -324,13 +429,24 @@ describe("installErrorHooks (AC23.1.3 — exceptions as span exceptions)", () =>
     installErrorHooks(f.provider, CONFIG, target as unknown as Window)
     listeners["unhandledrejection"]({ reason: "string failure" } as PromiseRejectionEvent)
     expect(f.recordException).toHaveBeenCalledTimes(1)
-    const recorded = f.recordException.mock.calls[0][0] as Error
-    expect(recorded).toBeInstanceOf(Error)
-    expect(recorded.message).toContain("string failure")
+    // A non-Error reason is wrapped in Error then redacted — the raw string
+    // ("string failure") must not appear in the exported exception.
+    const recorded = f.recordException.mock.calls[0][0] as { name: string; message: string }
+    expect(recorded).toEqual({ name: "Error", message: "[redacted]" })
 
-    // And a non-Error onerror payload is also wrapped.
+    // And a non-Error onerror payload is also wrapped + redacted.
     listeners["error"]({ error: undefined } as ErrorEvent)
     expect(f.recordException).toHaveBeenCalledTimes(2)
+    expect(f.recordException.mock.calls[1][0]).toEqual({ name: "Error", message: "[redacted]" })
+
+    // An Error reason keeps its type through redaction.
+    listeners["unhandledrejection"]({
+      reason: new TypeError("bad"),
+    } as PromiseRejectionEvent)
+    expect(f.recordException.mock.calls[2][0]).toEqual({
+      name: "TypeError",
+      message: "[redacted]",
+    })
   })
 
   it("AC23.1.3 tolerates window.location access throwing (safe href fallback)", () => {

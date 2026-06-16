@@ -24,18 +24,38 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Sequence
 
 DEFAULT_API_URL = "https://openpanel.zitian.party/api"
 API_KEY_ENV = "OPENPANEL_API_KEY"
 API_URL_ENV = "OPENPANEL_API_URL"
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _is_loopback(host: str) -> bool:
+    return host.strip("[]").lower() in _LOOPBACK_HOSTS
 
 
 def resolve_api_url(explicit: str | None) -> str:
-    """Resolve the API base URL: CLI flag > env var > self-hosted default."""
+    """Resolve and validate the API base URL: CLI flag > env var > default.
+
+    The API key is sent as a header, so a plaintext ``http://`` endpoint would
+    leak the secret on the wire. Reject any non-``https`` URL except loopback
+    (localhost / 127.0.0.1 / ::1), which is safe for local development.
+    """
     candidate = (explicit or os.environ.get(API_URL_ENV) or "").strip()
-    return candidate or DEFAULT_API_URL
+    url = candidate or DEFAULT_API_URL
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "https":
+        return url
+    if parsed.scheme == "http" and parsed.hostname and _is_loopback(parsed.hostname):
+        return url
+    raise SystemExit(
+        f"error: refusing to send the API key to a non-HTTPS endpoint: {url!r}; "
+        "use https:// (or http:// only for localhost)."
+    )
 
 
 def resolve_api_key(env: dict[str, str] | None = None) -> str:
@@ -78,7 +98,7 @@ def post_json(
     Isolated so tests can monkeypatch it without making a network call.
     """
     data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(  # noqa: S310 - fixed https base, not user-controlled scheme
+    request = urllib.request.Request(  # noqa: S310 - scheme validated by resolve_api_url (https, or http only for loopback)
         url,
         data=data,
         headers={

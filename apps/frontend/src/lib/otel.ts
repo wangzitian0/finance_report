@@ -222,10 +222,19 @@ function startTracing(config: OtelConfig): void {
   registerInstrumentations({
     instrumentations: [
       new FetchInstrumentation({
-        // Scrub the captured URL so query-string PII never reaches the span.
+        // Scrub every URL-bearing attribute so query-string PII never reaches
+        // the span.
         applyCustomAttributesOnSpan: makeUrlScrubHook(),
       }),
-      new DocumentLoadInstrumentation(),
+      new DocumentLoadInstrumentation({
+        // document-load records the page URL (which can carry query-string
+        // PII); scrub the same URL attributes on each emitted span.
+        applyCustomAttributesOnSpan: {
+          documentLoad: makeDocumentLoadScrubHook(),
+          documentFetch: makeDocumentLoadScrubHook(),
+          resourceFetch: makeDocumentLoadScrubHook(),
+        },
+      }),
     ],
   });
 
@@ -233,9 +242,37 @@ function startTracing(config: OtelConfig): void {
   installErrorHooks(provider, config);
 }
 
+/** String-valued URL attribute keys the instrumentations may emit. */
+const URL_BEARING_ATTRIBUTE_KEYS = [
+  "http.url",
+  "http.target",
+  "url.full",
+  "document.url",
+] as const;
+
+/**
+ * Overwrite every URL-bearing attribute on a span with the scrubbed (query +
+ * fragment stripped) form of `url`, and defensively blank `url.query`. Pure
+ * over its inputs; safe to call with a partial/unknown URL.
+ */
+export function scrubSpanUrlAttributes(
+  span: { setAttribute(key: string, value: string): void },
+  url: string | undefined,
+): void {
+  // Always blank the query attribute — it is, by definition, the PII carrier.
+  span.setAttribute("url.query", "");
+  if (!url) {
+    return;
+  }
+  const scrubbed = scrubUrl(url);
+  for (const key of URL_BEARING_ATTRIBUTE_KEYS) {
+    span.setAttribute(key, scrubbed);
+  }
+}
+
 /**
  * Build the fetch-instrumentation hook that rewrites the recorded URL
- * attribute to its scrubbed form. Returned as a standalone factory so the
+ * attributes to their scrubbed form. Returned as a standalone factory so the
  * scrubbing behavior is unit-testable without standing up the SDK.
  */
 export function makeUrlScrubHook(): (
@@ -247,10 +284,29 @@ export function makeUrlScrubHook(): (
       typeof request === "string"
         ? request
         : (request as { url?: string }).url;
-    if (url) {
-      span.setAttribute("http.url", scrubUrl(url));
-    }
+    scrubSpanUrlAttributes(span, url);
   };
+}
+
+/**
+ * Build the document-load hook that scrubs the page URL attributes. The page
+ * URL is read defensively from the document/location.
+ */
+export function makeDocumentLoadScrubHook(): (span: {
+  setAttribute(key: string, value: string): void;
+}) => void {
+  return (span) => {
+    scrubSpanUrlAttributes(span, safeDocumentUrl());
+  };
+}
+
+/** Read the current document URL without throwing in odd environments. */
+function safeDocumentUrl(): string {
+  try {
+    return document.documentURI || window.location.href;
+  } catch {
+    return "";
+  }
 }
 
 /** Minimal shape of the tracer we need; keeps `any` out of the call sites. */
@@ -258,7 +314,7 @@ interface MinimalTracerProvider {
   getTracer(name: string): {
     startSpan(name: string): {
       setAttribute(key: string, value: string | number | boolean): void;
-      recordException(error: Error): void;
+      recordException(error: RedactedException): void;
       end(): void;
     };
   };
@@ -326,7 +382,10 @@ export function installErrorHooks(
     for (const [key, value] of Object.entries(attrs)) {
       span.setAttribute(key, value);
     }
-    span.recordException(error);
+    // Record a REDACTED exception: keep the error type for triage, but never
+    // export the raw message/stack, which routinely carry emails, amounts,
+    // account numbers, and query strings.
+    span.recordException(redactException(error));
     span.end();
   };
 
@@ -341,6 +400,25 @@ export function installErrorHooks(
       "unhandledrejection",
     );
   });
+}
+
+/** A redacted exception: type preserved, message/stack stripped of PII. */
+export interface RedactedException {
+  name: string;
+  message: string;
+}
+
+/**
+ * Strip the PII-bearing fields from an error before it is exported. The error
+ * *type* (`name`) is retained for triage; the message and stack — which
+ * routinely contain emails, amounts, account numbers, and query strings — are
+ * replaced with a fixed redaction marker. Pure and total.
+ */
+export function redactException(error: { name?: string }): RedactedException {
+  return {
+    name: typeof error.name === "string" && error.name ? error.name : "Error",
+    message: "[redacted]",
+  };
 }
 
 /** Read `location.href` without throwing in non-browser/odd environments. */

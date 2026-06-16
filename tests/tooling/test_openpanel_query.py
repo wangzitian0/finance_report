@@ -91,6 +91,21 @@ def test_AC23_1_4_resolve_api_url_precedence(monkeypatch: pytest.MonkeyPatch) ->
     assert cli.resolve_api_url("https://flag.example/api") == "https://flag.example/api"
 
 
+def test_AC23_1_4_refuses_plaintext_http_except_loopback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC23.1.4: the API key is never sent over plaintext http to a remote host."""
+    monkeypatch.delenv("OPENPANEL_API_URL", raising=False)
+    # Loopback http is allowed (local dev).
+    assert cli.resolve_api_url("http://localhost:3000/api") == "http://localhost:3000/api"
+    assert cli.resolve_api_url("http://127.0.0.1/api") == "http://127.0.0.1/api"
+    # Remote http (or any non-https/non-loopback scheme) is refused.
+    with pytest.raises(SystemExit):
+        cli.resolve_api_url("http://op.example.com/api")
+    with pytest.raises(SystemExit):
+        cli.resolve_api_url("ftp://op.example.com/api")
+
+
 def test_AC23_1_4_main_prints_json_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
