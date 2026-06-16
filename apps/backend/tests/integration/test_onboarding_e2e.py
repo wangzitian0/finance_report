@@ -88,7 +88,7 @@ async def test_AC1_9_1_first_run_registration_account_entry_journey(
     assert draft_entry["status"] == "draft"
 
     post_response = await public_client.post(
-        f"/journal-entries/{draft_entry['id']}/post",
+        f"/journal-entries/{draft_entry['id']}/postings",
         headers=auth_headers,
     )
     assert post_response.status_code == 200

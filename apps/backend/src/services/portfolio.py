@@ -14,7 +14,13 @@ from src.logger import get_logger
 from src.models import StockPrice
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.models.portfolio import MarketDataOverride, PriceSource
+from src.models.portfolio import (
+    DividendIncome,
+    InvestmentTransaction,
+    InvestmentTransactionType,
+    MarketDataOverride,
+    PriceSource,
+)
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,
@@ -873,3 +879,85 @@ class PortfolioService:
         )
         result = await db.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_realized_pnl_by_asset(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        start_date: date,
+        end_date: date,
+        target_currency: str,
+    ) -> tuple[dict[str, Decimal], set[str]]:
+        """Per-asset realized P&L from SELL transactions in ``[start_date, end_date]``.
+
+        Each transaction's realized P&L is converted to ``target_currency`` at the
+        transaction date. Returns ``(by_asset, source_refs)`` where ``source_refs``
+        carries journal-entry / transaction-source links for traceability. Raises
+        ``fx.FxRateError`` when a required rate is unavailable.
+        """
+        result = await db.execute(
+            select(InvestmentTransaction)
+            .where(InvestmentTransaction.user_id == user_id)
+            .where(InvestmentTransaction.transaction_type == InvestmentTransactionType.SELL)
+            .where(InvestmentTransaction.transaction_date >= start_date)
+            .where(InvestmentTransaction.transaction_date <= end_date)
+        )
+        by_asset: dict[str, Decimal] = {}
+        source_refs: set[str] = set()
+        for txn in result.scalars().all():
+            amount = await fx.convert_amount(
+                db,
+                txn.realized_pnl or Decimal("0.00"),
+                txn.currency,
+                target_currency,
+                txn.transaction_date,
+                lazy_load=True,
+            )
+            by_asset[txn.asset_identifier] = by_asset.get(txn.asset_identifier, Decimal("0.00")) + amount
+            if txn.journal_entry_id:
+                source_refs.add(f"journal_entry:{txn.journal_entry_id}")
+            if txn.source_id:
+                source_refs.add(f"investment_transaction_source:{txn.source_id}")
+        return by_asset, source_refs
+
+    async def get_dividend_income_by_asset(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        start_date: date,
+        end_date: date,
+        target_currency: str,
+    ) -> dict[str, Decimal]:
+        """Per-asset dividend income in ``[start_date, end_date]``.
+
+        Each dividend is converted to ``target_currency`` at the payment date and
+        grouped by the owning position's asset identifier. Raises ``fx.FxRateError``
+        when a required rate is unavailable.
+        """
+        result = await db.execute(
+            select(DividendIncome, ManagedPosition)
+            .join(ManagedPosition, DividendIncome.position_id == ManagedPosition.id)
+            .where(DividendIncome.user_id == user_id)
+            .where(ManagedPosition.user_id == user_id)
+            .where(DividendIncome.payment_date >= start_date)
+            .where(DividendIncome.payment_date <= end_date)
+        )
+        by_asset: dict[str, Decimal] = {}
+        for dividend, position in result.all():
+            amount = await fx.convert_amount(
+                db,
+                dividend.amount,
+                dividend.currency,
+                target_currency,
+                dividend.payment_date,
+                lazy_load=True,
+            )
+            by_asset[position.asset_identifier] = by_asset.get(position.asset_identifier, Decimal("0.00")) + amount
+        return by_asset
+
+
+# Shared singleton instance reused by the portfolio router and the
+# performance-report service so monkeypatching one reference affects both.
+portfolio_service = PortfolioService()

@@ -146,7 +146,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
             });
 
             if (postImmediately) {
-                await apiFetch(`/api/journal-entries/${createdEntry.id}/post`, {
+                await apiFetch(`/api/journal-entries/${createdEntry.id}/postings`, {
                     method: "POST",
                 });
             }

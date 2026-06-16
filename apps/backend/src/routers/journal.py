@@ -108,7 +108,7 @@ async def get_journal_entry(
     return JournalEntryResponse.model_validate(entry)
 
 
-@router.post("/{entry_id}/post", response_model=JournalEntryResponse)
+@router.post("/{entry_id}/postings", response_model=JournalEntryResponse)
 async def post_entry(
     entry_id: UUID,
     db: DbSession = None,
@@ -123,7 +123,7 @@ async def post_entry(
         raise_bad_request(str(e), cause=e)
 
 
-@router.post("/{entry_id}/void", response_model=JournalEntryResponse)
+@router.post("/{entry_id}/voidings", response_model=JournalEntryResponse)
 async def void_entry(
     entry_id: UUID,
     void_request: VoidJournalEntryRequest,

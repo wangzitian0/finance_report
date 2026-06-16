@@ -55,7 +55,7 @@ async def test_market_data_sync_endpoints_return_counts(
     monkeypatch.setattr(market_data_router, "sync_fx_rates", fake_fx_sync)
 
     stock_response = await client.post(
-        "/market-data/sync/stocks",
+        "/market-data/stocks/syncs",
         json={
             "symbols": ["AAPL"],
             "start_date": "2026-01-05",
@@ -63,7 +63,7 @@ async def test_market_data_sync_endpoints_return_counts(
         },
     )
     fx_response = await client.post(
-        "/market-data/sync/fx",
+        "/market-data/fx/syncs",
         json={
             "pairs": ["USD/SGD"],
             "start_date": "2026-01-05",
@@ -82,7 +82,7 @@ async def test_market_data_sync_endpoints_return_counts(
 async def test_market_data_fx_sync_endpoint_rejects_invalid_pair(client: AsyncClient) -> None:
     """AC11.10.5: FX sync endpoint returns 422 for malformed pair requests."""
     response = await client.post(
-        "/market-data/sync/fx",
+        "/market-data/fx/syncs",
         json={
             "pairs": ["USD-SGD"],
             "start_date": "2026-01-05",
@@ -117,7 +117,7 @@ async def test_market_data_stock_sync_endpoint_rolls_back_service_value_error(
     monkeypatch.setattr(market_data_router, "sync_stock_prices", fake_stock_sync)
 
     response = await client.post(
-        "/market-data/sync/stocks",
+        "/market-data/stocks/syncs",
         json={
             "symbols": ["BAD"],
             "start_date": "2026-01-05",
@@ -256,5 +256,5 @@ def test_market_data_provider_e2e_gate_is_declared() -> None:
     assert "@pytest.mark.critical" in e2e_source
     assert "RUN_MARKET_DATA_PROVIDER_E2E" in e2e_source
     assert "/market-data/status" in e2e_source
-    assert "/market-data/sync/stocks" not in e2e_source
+    assert "/market-data/stocks/syncs" not in e2e_source
     assert "/reports/balance-sheet" in e2e_source

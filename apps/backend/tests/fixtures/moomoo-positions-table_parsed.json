@@ -1,0 +1,51 @@
+{
+  "file": "moomoo-positions-2506.pdf",
+  "institution": "Moomoo",
+  "account_last4": "1582",
+  "currency": "USD",
+  "snapshot_date": "2026-06-30",
+  "period_start": "2026-06-01",
+  "period_end": "2026-06-30",
+  "positions": [
+    {
+      "symbol": "AAPL",
+      "quantity": "15",
+      "price": "212.40",
+      "market_value": "3186.00",
+      "currency": "USD",
+      "asset_type": "stock",
+      "sector": "Technology",
+      "geography": "US"
+    },
+    {
+      "symbol": "NVDA",
+      "quantity": "8",
+      "price": "1180.55",
+      "market_value": "9444.40",
+      "currency": "USD",
+      "asset_type": "stock",
+      "sector": "Technology",
+      "geography": "US"
+    },
+    {
+      "symbol": "VWRA",
+      "isin": "IE00BK5BQT80",
+      "quantity": "30",
+      "price": "128.10",
+      "market_value": "3843.00",
+      "currency": "USD",
+      "asset_type": "etf",
+      "sector": "Diversified",
+      "geography": "Global"
+    },
+    {
+      "symbol": "CSOP USD Money Market Fund",
+      "quantity": "1",
+      "price": "5000.00",
+      "market_value": "5000.00",
+      "currency": "USD",
+      "asset_type": "money_market"
+    }
+  ],
+  "transactions": []
+}

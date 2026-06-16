@@ -146,7 +146,7 @@ Sometimes a single transaction affects more than two accounts:
 Draft entries don't affect account balances. To finalize:
 
 ```bash
-curl -X POST https://report.zitian.party/api/journal-entries/{id}/post
+curl -X POST https://report.zitian.party/api/journal-entries/{id}/postings
 ```
 
 !!! warning "Posted entries cannot be edited"
@@ -157,7 +157,7 @@ curl -X POST https://report.zitian.party/api/journal-entries/{id}/post
 To cancel a posted entry:
 
 ```bash
-curl -X POST https://report.zitian.party/api/journal-entries/{id}/void \
+curl -X POST https://report.zitian.party/api/journal-entries/{id}/voidings \
   -H "Content-Type: application/json" \
   -d '{"reason": "Duplicate entry"}'
 ```

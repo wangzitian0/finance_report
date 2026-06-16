@@ -138,7 +138,7 @@ describe("ReconciliationWorkbench", () => {
     await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/run", { method: "POST", body: JSON.stringify({}) }))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/runs", { method: "POST", body: JSON.stringify({}) }))
 
     fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 80" }))
     await waitFor(() =>
@@ -231,7 +231,7 @@ describe("ReconciliationWorkbench", () => {
       if (url.includes("/api/reconciliation/stats")) return Promise.resolve(statsResponse)
       if (url.includes("/api/reconciliation/pending")) return Promise.resolve({ items: [matchResponse] })
       if (url.includes("/api/reconciliation/transactions/t1/anomalies")) return Promise.resolve([])
-      if (url.includes("/api/reconciliation/run")) return Promise.reject(new Error("run failed"))
+      if (url.includes("/api/reconciliation/runs")) return Promise.reject(new Error("run failed"))
       if (url.includes("/api/reconciliation/batch-accept")) return Promise.reject(new Error("batch failed"))
       if (url.includes("/api/reconciliation/matches/m1/accept")) return Promise.reject(new Error("accept failed"))
       if (url.includes("/api/reconciliation/matches/m1/reject")) return Promise.reject(new Error("reject failed"))
@@ -275,7 +275,7 @@ describe("ReconciliationWorkbench", () => {
       if (url.includes("/api/reconciliation/stats")) return Promise.resolve(statsResponse)
       if (url.includes("/api/reconciliation/pending")) return Promise.resolve(pendingResponses.shift() ?? { items: [] })
       if (url.includes("/api/reconciliation/transactions/t1/anomalies")) return Promise.resolve([])
-      if (url.includes("/api/reconciliation/run")) return Promise.resolve({})
+      if (url.includes("/api/reconciliation/runs")) return Promise.resolve({})
       return Promise.resolve({})
     })
 

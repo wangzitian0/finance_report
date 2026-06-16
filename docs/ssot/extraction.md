@@ -184,6 +184,36 @@ not balance proof and must not satisfy the auto-approve precondition.
 
 Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/services/brokerage_positions.py`.
 
+### Producer routing & positions output schema (#1139)
+
+The single parsing prompt path is `ExtractionService.extract_financial_data` ->
+`get_parsing_prompt`. The default bank `SYSTEM_PROMPT` schema is balance/transaction-only
+(`institution`/`currency`/`opening_balance`/`closing_balance`/`transactions[]`) and has **no**
+positions field, so a brokerage statement parsed through it can never emit a holdings table —
+the consumer-side import (`_iter_structured_positions` -> `import_positions`) has nothing to
+consume.
+
+Routing to the brokerage prompt is therefore decided **before** the model call
+(`looks_like_brokerage_document(filename, institution)`), reusing the same broker keyword
+detection (`detect_broker`) as the post-parse `looks_like_brokerage_payload`. When the upload
+filename or institution matches a known broker, `get_parsing_prompt(..., document_kind="brokerage")`
+returns `BROKERAGE_POSITIONS_PROMPT`, which adds a top-level `positions[]` array. The bank prompt
+is left unchanged for bank documents.
+
+Each position item uses the shape the consumer already understands: an identifier
+(`symbol`/`ticker`/`isin`/`asset_identifier`), a `quantity`, a scalar `market_value`, and optional
+`price` (closing unit price), `currency`, `asset_type`, `sector`, and `geography`. Cash activity
+rows, when present, remain in `transactions[]` (bank shape); positions are the primary output. When
+a recognized brokerage document yields **zero** positions, the parsed statement is surfaced as a
+visible review flag — it carries a `validation_error` note **and** is routed to the Stage-1
+`pending_review` queue (`stage1_status = PENDING_REVIEW`) instead of silently settling with no
+holdings.
+
+**Scope note (#1139 vs #1123):** this slice emits a scalar `market_value` per position. A
+per-currency NAV / balance array is owned by issue #1123 and is intentionally **not** added here,
+to avoid colliding with that parallel slice. The scalar `opening_balance`/`closing_balance`
+representation is unchanged.
+
 ### Post-parse routing (intentional difference vs bank statements)
 
 Routing after parsing depends on the document class, on purpose (#981):

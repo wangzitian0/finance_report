@@ -144,6 +144,27 @@ def detect_broker(*, filename: str | None, institution: str | None, text: str | 
     return "Unknown Broker"
 
 
+def looks_like_brokerage_document(
+    *,
+    filename: str | None = None,
+    institution: str | None = None,
+) -> bool:
+    """Producer-side routing decision made BEFORE the model call (issue #1139 AC-B1).
+
+    ``looks_like_brokerage_payload`` runs AFTER extraction and inspects the parsed
+    output (positions/holdings keys). That is too late to choose the prompt: the
+    single bank ``SYSTEM_PROMPT`` has no positions field, so a brokerage statement
+    parsed through it never produces a holdings table to detect. This classifier uses
+    only the pre-extraction signals available at prompt-selection time — the upload
+    filename and the user-/header-supplied institution — reusing the same broker
+    keyword detection (``detect_broker``) so routing stays consistent with the
+    post-parse path. When it returns True the extraction service selects the
+    brokerage positions-emitting prompt.
+    """
+    broker = detect_broker(filename=filename, institution=institution, text=None)
+    return broker != "Unknown Broker"
+
+
 def looks_like_brokerage_payload(
     payload: dict[str, Any] | None,
     *,

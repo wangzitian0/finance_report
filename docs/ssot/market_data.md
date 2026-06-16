@@ -74,7 +74,7 @@ async def get_fx_rate(base: str, quote: str, date: date) -> Decimal:
 
 ### Sync Workflow
 - The backend starts `run_market_data_scheduler()` in FastAPI lifespan and runs FX plus stock sync once per day at 22:00 Asia/Singapore.
-- Manual and E2E callers can still use `POST /api/market-data/sync/fx` and `POST /api/market-data/sync/stocks`.
+- Manual and E2E callers can still use `POST /api/market-data/fx/syncs` and `POST /api/market-data/stocks/syncs`.
 - Report endpoints call `ensure_market_data_fresh()` before report generation with the report's own effective end date. If the relevant FX pair, requested non-base report currency, or active stock symbol has no successful provider sync in the last 24 hours, the backend sends one immediate incremental provider request and records the new sync state, including successful no-row responses such as weekends or market holidays.
 - Authenticated users can call `GET /api/market-data/status` with explicit `pairs` and `symbols` query parameters, or with no explicit scopes to inspect observed user scopes. The endpoint is read-only and does not trigger provider requests.
 - Sync fetches provider chart/CSV data by bounded date range per pair or symbol, then inserts only missing daily rows. It does not issue one provider request per calendar day.
