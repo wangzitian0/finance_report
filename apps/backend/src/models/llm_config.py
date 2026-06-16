@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,8 +40,10 @@ class LlmProvider(Base, UUIDMixin, TimestampMixin):
         nullable=False,
     )
     # Fernet ciphertext + the key fingerprint that sealed it (see src/llm/common/secrets.py).
+    # BigInteger: the fingerprint is an unsigned 32-bit value (sha256[:4], up to ~4.3e9)
+    # which overflows a signed int32 column.
     api_key_ciphertext: Mapped[str] = mapped_column(String, nullable=False)
-    api_key_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    api_key_version: Mapped[int] = mapped_column(BigInteger, nullable=False)
     api_base: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
 

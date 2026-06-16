@@ -48,7 +48,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("api_key_ciphertext", sa.String(), nullable=False),
-        sa.Column("api_key_version", sa.Integer(), nullable=False),
+        sa.Column("api_key_version", sa.BigInteger(), nullable=False),
         sa.Column("api_base", sa.String(length=500), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
