@@ -8,6 +8,7 @@ from src.llm.common import (
     Modality,
     ModelSpec,
     ProtocolFamily,
+    ProviderRef,
     ReasoningEffort,
     Scene,
     SceneBinding,
@@ -60,6 +61,15 @@ def test_AC23_1_1_scene_binding_defaults_are_conservative():
     assert binding.prefer_free is False
     assert binding.fallback_model_ids == ()
     assert binding.max_tokens is None
+
+
+def test_AC23_1_1_provider_ref_never_reprs_its_api_key():
+    """AC23.1.1: the decrypted api_key is excluded from repr/str (no secret in logs)."""
+    ref = ProviderRef(id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="sk-secret-123")
+    assert "sk-secret-123" not in repr(ref)
+    assert "sk-secret-123" not in str(ref)
+    # The key is still accessible programmatically.
+    assert ref.api_key == "sk-secret-123"
 
 
 def test_AC23_1_1_usage_totals_tokens():

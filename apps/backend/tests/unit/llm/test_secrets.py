@@ -23,31 +23,39 @@ def test_AC23_1_2_round_trips_a_provider_secret_without_storing_plaintext():
 
     assert sealed.ciphertext != secret
     assert secret not in sealed.ciphertext
-    assert sealed.key_version == 1
+    assert sealed.key_version == cipher.current_version
     assert cipher.decrypt(sealed) == secret
 
 
 def test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts():
-    """AC23.1.3: after prepending a new key, an old secret still decrypts and re-stamps."""
+    """AC23.1.3: after prepending a new key, an old secret still decrypts and re-stamps.
+
+    The version stamp is a stable fingerprint of the encrypting key, so "needs
+    re-stamping" is `row.key_version != cipher.current_version` and stays correct
+    even after the retired key is dropped.
+    """
     old_key, new_key = _key(), _key()
 
     old_cipher = FernetCipher([old_key])
     sealed = old_cipher.encrypt("provider-key")
-    assert sealed.key_version == 1
+    assert sealed.key_version == old_cipher.current_version
 
     # Rotation step 1: prepend the new key (newest first); both keys held.
     rotating = FernetCipher([new_key, old_key])
-    assert rotating.current_version == 2
-    # Old ciphertext keeps decrypting while both keys are present.
+    assert rotating.current_version != old_cipher.current_version  # new encrypting key -> new stamp
     assert rotating.decrypt(sealed) == "provider-key"
+    # A not-yet-rotated row is detectable: its stamp != the current encrypting key.
+    assert sealed.key_version != rotating.current_version
 
     # Rotation step 2: re-encrypt under the newest key and re-stamp the version.
     rotated = rotating.rotate(sealed)
-    assert rotated.key_version == 2
+    assert rotated.key_version == rotating.current_version
     assert rotating.decrypt(rotated) == "provider-key"
 
-    # Rotation step 3: once every row is re-stamped, the old key can be dropped.
+    # Rotation step 3: dropping the retired key does NOT change the surviving
+    # key's fingerprint, so already-rotated rows stay marked done.
     new_only = FernetCipher([new_key])
+    assert new_only.current_version == rotating.current_version
     assert new_only.decrypt(rotated) == "provider-key"
     # ...and the not-yet-rotated ciphertext fails closed under the new key alone.
     with pytest.raises(LLMConfigError):

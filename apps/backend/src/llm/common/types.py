@@ -90,7 +90,8 @@ class ProviderRef:
     id: str
     label: str
     protocol: ProtocolFamily
-    api_key: str
+    # repr=False so the decrypted key never lands in logs/exceptions/debug output.
+    api_key: str = field(repr=False)
     api_base: str | None = None
 
 

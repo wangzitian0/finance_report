@@ -16,6 +16,7 @@ DB layer that owns the secrets.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
@@ -48,8 +49,12 @@ class FernetCipher:
     """``MultiFernet``-backed :class:`SecretCipher`.
 
     Keys are ordered newest-first: index 0 encrypts, all keys are tried on
-    decrypt. ``current_version`` is the key count, so prepending a rotation key
-    bumps it and lets callers detect not-yet-rotated rows.
+    decrypt. ``current_version`` is a *stable fingerprint of the encrypting key*
+    (not the key count): rotating to a new key changes the stamp, while dropping
+    a retired key never changes a surviving key's stamp. So a row needs
+    re-stamping iff ``row.key_version != cipher.current_version`` — a check that
+    stays correct across the whole rotation lifecycle (the key-count approach
+    was non-monotonic: dropping the old key lowered the version again).
     """
 
     def __init__(self, keys: Sequence[str]) -> None:
@@ -60,7 +65,7 @@ class FernetCipher:
         except (ValueError, TypeError) as exc:
             raise LLMConfigError("Invalid Fernet key in LLM_ENCRYPTION_KEYS (need urlsafe base64, 32 bytes)") from exc
         self._multi = MultiFernet(fernets)
-        self._version = len(fernets)
+        self._version = _key_fingerprint(keys[0])
 
     @property
     def current_version(self) -> int:
@@ -86,6 +91,17 @@ class FernetCipher:
         except InvalidToken as exc:
             raise LLMConfigError("Could not rotate provider secret — encrypting key missing or value corrupt.") from exc
         return Encrypted(ciphertext=token.decode("ascii"), key_version=self._version)
+
+
+def _key_fingerprint(key: str) -> int:
+    """A stable, non-reversible 32-bit id for a Fernet key.
+
+    The first 4 bytes of SHA-256 over the key. It identifies *which* key sealed a
+    value without revealing the key, and is independent of how many keys are
+    configured, so it survives dropping retired keys after a rotation pass.
+    """
+    digest = hashlib.sha256(key.encode("ascii")).digest()
+    return int.from_bytes(digest[:4], "big")
 
 
 def build_cipher() -> FernetCipher:

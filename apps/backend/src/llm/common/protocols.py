@@ -8,6 +8,7 @@ Scenes call these; they never see a provider id or model string directly — the
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
+from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
 from src.llm.common.types import ChatResult, Message, Modality, ModelSpec, ReasoningEffort, Scene, Usage
@@ -75,6 +76,6 @@ class CostMeter(Protocol):
         """Raise :class:`~src.llm.common.errors.LLMBudgetExceeded` if over budget."""
         ...
 
-    async def record(self, scene: Scene, model_id: str, usage: Usage, cost_usd: object | None) -> None:
+    async def record(self, scene: Scene, model_id: str, usage: Usage, cost_usd: Decimal | None) -> None:
         """Record spend for a completed call."""
         ...
