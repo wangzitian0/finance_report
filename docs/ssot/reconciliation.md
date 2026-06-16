@@ -339,8 +339,9 @@ directional `TransferLeg` (asset `DEBIT` = money `IN`, asset `CREDIT` = money
 (market rate fetched per candidate via `get_exchange_rate`). The discovery is
 **conservative and deterministic**: it materialises a conversion only for an
 **unambiguous 1:1 match** — if a leg could pair with more than one counterpart it
-is left alone, so discovery can only ever *under*-net, never falsely net unrelated
-activity. Discovered conversions are in-memory only (not persisted) and feed the
+is left alone, so discovery biases toward *under*-netting and skips ambiguous
+matches — reducing false-positive netting, though it cannot fully eliminate it
+without an explicit linkage signal. Discovered conversions are in-memory only (not persisted) and feed the
 reporting consumer alongside any recorded rows, deduplicated by the unordered pair
 of anchored journal entries.
 

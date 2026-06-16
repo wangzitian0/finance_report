@@ -408,7 +408,8 @@ slice adds:
   a directional `TransferLeg` (asset DEBIT = IN, asset CREDIT = OUT) and pairing via
   the deterministic `pair_fx_legs`. Discovery is **conservative**: only unambiguous
   1:1 matches are netted (a leg matching more than one counterpart is left alone), so
-  net worth can only ever *under*-net, never falsely net unrelated activity. This is
+  net worth biases toward *under*-netting — reducing, not fully eliminating,
+  false-positive netting without an explicit linkage signal. This is
   the **AC2 live-consumption** slice that makes a transfer recorded purely as raw
   ledger lines net-worth-correct end to end (**AC2 E2E + AC4 round-trip E2E**).
 

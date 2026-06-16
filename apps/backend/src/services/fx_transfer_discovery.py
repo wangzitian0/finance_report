@@ -19,8 +19,10 @@ The discovery is deliberately **deterministic and conservative**:
   and ``amount_from / amount_to`` within tolerance of the observed market rate.
 - Only **unambiguous** matches are materialised. If an OUT leg could pair with
   more than one IN leg (or vice versa), the leg is left alone — the system never
-  *guesses* which booking is the counterpart. This keeps false-positive netting
-  (which would corrupt net worth) impossible by construction.
+  *guesses* which booking is the counterpart. This biases strongly toward
+  *under*-netting: skipping ambiguous matches sharply reduces the risk of
+  false-positive netting (which would corrupt net worth), though absent an
+  explicit linkage signal it cannot eliminate it entirely.
 
 A discovered pair is materialised as an **in-memory** :class:`FxConversion`
 (never persisted by this module) anchoring both legs to their journal entries, so
@@ -171,8 +173,10 @@ async def discover_fx_conversions(
     **Only unambiguous pairs are returned.** A pairing is kept iff the OUT leg
     pairs with exactly one IN leg *and* that IN leg pairs with exactly one OUT
     leg. Any leg involved in more than one acceptable pairing is dropped entirely
-    (the algorithm refuses to guess), so discovery can only ever *under*-net,
-    never falsely net unrelated activity.
+    (the algorithm refuses to guess), so discovery biases toward *under*-netting
+    rather than risk pairing unrelated legs. Without an explicit linkage signal,
+    coincidental matches remain possible, so this reduces — not eliminates —
+    false positives.
 
     Returns the discovered conversions as in-memory :class:`FxConversion` rows
     (not persisted) wrapped with their :class:`FxLegPair` for reporting.

@@ -759,8 +759,9 @@ recorded and discoverable is never netted twice. A cross-currency internal
 transfer booked purely as raw ledger lines is therefore net-worth-correct end to
 end with **no manual conversion row**, proven in
 `reporting/test_fx_ledger_autodiscovery_e2e.py`. Discovery is conservative — only
-unambiguous 1:1 matches net, so the report can only ever *under*-net, never falsely
-net unrelated activity.
+unambiguous 1:1 matches net, so the report biases toward *under*-netting and skips
+ambiguous matches — reducing, though not fully eliminating, false-positive netting
+without an explicit linkage signal.
 
 **FX gain/loss is attributed to revaluation over time, not the conversion event**
 (#1123 AC4). A same-day round-trip conversion A→B→A nets ~zero realized P&L (minus
