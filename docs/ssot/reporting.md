@@ -738,6 +738,16 @@ impact is the transfer **fee**, which is a real external outflow. Implemented by
 `classify_internal_transfer` (`services/fx_transfer.py`): `net_worth_delta = −fee`
 for an internal transfer, `income − expense` otherwise.
 
+This classification is **wired into report generation** (#1123 AC3, live):
+`reporting._internal_transfer_adjustment` loads recorded `fx_conversions` rows
+whose legs are anchored to journal entries (`from_journal_entry_id` /
+`to_journal_entry_id`), re-validates each through `pair_fx_legs` +
+`classify_internal_transfer`, and excludes the matched legs from the income /
+expense aggregation in both `generate_income_statement` and the cumulative
+balance-sheet net income — adding back only the (converted) fee. A naively
+double-booked internal transfer therefore nets to zero in the report except for
+its fee, proven end to end in `reporting/test_internal_transfer_e2e.py`.
+
 **FX gain/loss is attributed to revaluation over time, not the conversion event**
 (#1123 AC4). A same-day round-trip conversion A→B→A nets ~zero realized P&L (minus
 fee/spread) because the market rate has not moved

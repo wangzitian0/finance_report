@@ -129,9 +129,11 @@ def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
     silently unaccounted in a multi-currency statement.
 
     .. note::
-       Not yet wired into the live extraction-write path: that path still calls
-       the scalar :func:`validate_balance`. Wiring depends on multi-currency
-       payload parsing, deferred to #1123 AC2/AC3/AC4.
+       Wired into the brokerage extraction-write path (#1160): a failing
+       per-currency self-check now marks the persisted statement
+       ``balance_validated=False`` with a ``validation_error`` rather than being
+       silently logged. The scalar :func:`validate_balance` still gates bank
+       running-balance chains; the two are complementary, not competing.
     """
     try:
         buckets = _currency_buckets(extracted)

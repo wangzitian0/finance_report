@@ -74,6 +74,12 @@ class TransferLeg:
             raise FxTransferError(f"direction must be 'IN' or 'OUT', got {self.direction!r}")
         if self.amount <= 0:
             raise FxTransferError("transfer leg amount must be positive")
+        # Enforce timezone-aware timestamps at construction (#1161 CR3). Pairing
+        # subtracts two legs' ``occurred_at``; a mix of naive and aware datetimes
+        # raises ``TypeError`` mid-pairing. Reject naive datetimes up front so the
+        # failure is a clear, local FxTransferError instead.
+        if self.occurred_at.tzinfo is None or self.occurred_at.utcoffset() is None:
+            raise FxTransferError("transfer leg occurred_at must be timezone-aware")
 
 
 @dataclass(frozen=True)
@@ -163,6 +169,13 @@ def pair_fx_legs(
     if out_leg.account_id == in_leg.account_id:
         # Same account cannot be both source and destination of a transfer.
         return None
+    if out_leg.currency == in_leg.currency:
+        # A cross-currency conversion requires distinct currencies (#1161 CR2).
+        # A same-currency internal transfer with rate≈1 and matching amounts would
+        # otherwise be misclassified here as an FX conversion. Same-currency
+        # own-account transfers are handled by the (non-FX) internal-transfer path,
+        # not by FX-leg pairing.
+        return None
     if abs(out_leg.occurred_at - in_leg.occurred_at) > time_window:
         return None
 
@@ -184,18 +197,28 @@ def classify_internal_transfer(
     pair: FxLegPair | None,
     *,
     fee: Decimal = Decimal("0"),
+    income: Decimal = Decimal("0"),
+    expense: Decimal = Decimal("0"),
 ) -> TransferClassification:
     """Classify a matched transfer for net-worth aggregation (#1123 AC3).
 
     When ``pair`` is a matched :class:`FxLegPair`, the event is an internal
     (own-account) transfer: the in-leg must NOT register as income and the
-    out-leg must NOT register as expense. Net worth changes only by ``fee``.
+    out-leg must NOT register as expense. Net worth changes only by ``fee``, so
+    income/expense are forced to zero and ``net_worth_delta == -fee``.
 
     When ``pair`` is ``None`` (legs did not pair), no internal-transfer netting is
-    asserted and the caller's normal income/expense classification stands.
+    asserted: the caller's already-classified ``income`` / ``expense`` are carried
+    through unchanged so ``net_worth_delta == income − expense`` matches the
+    documented formula (#1161 CR4). Defaulting both to zero preserves the previous
+    "no-op" behavior for callers that do not pass them.
     """
     if pair is None:
-        return TransferClassification(is_internal_transfer=False)
+        return TransferClassification(
+            is_internal_transfer=False,
+            income_amount=to_money(income),
+            expense_amount=to_money(expense),
+        )
     return TransferClassification(
         is_internal_transfer=True,
         income_amount=Decimal("0.00"),

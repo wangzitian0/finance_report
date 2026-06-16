@@ -395,7 +395,12 @@ slice adds:
 - FX gain/loss attribution to revaluation over time via the existing
   `fx_revaluation` journal source type, so a same-day round-trip conversion nets
   ~zero realized P&L (minus fee/spread), the rate move being a holding-period
-  revaluation rather than a conversion-event gain (**AC4**).
+  revaluation rather than a conversion-event gain (**AC4**);
+- live wiring of the classification into the reporting net-income / income-statement
+  path (`services/reporting.py::_internal_transfer_adjustment`): a recorded
+  `fx_conversions` row whose legs are anchored to journal entries excludes those
+  legs from income/expense aggregation, so the net-worth/income report reflects the
+  internal transfer as net-zero minus the fee, proven end to end (**AC3 E2E**).
 
 Generalized invariant: **net worth changes only via external in/out + market
 moves + FX revaluation; internal transfers cancel (minus fees).**
@@ -413,3 +418,5 @@ docs/ssot/schema.md (`fx_conversions`).
 | AC4.14.6 | A same-day round-trip conversion nets ~zero realized P&L (minus fee/spread); rate move is attributed to revaluation, not the conversion event | `test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee` | `accounting/test_fx_transfer.py` | P0 |
 | AC4.14.7 | FX revaluation P&L is routed through the `fx_revaluation` journal source type, never booked as conversion-event income/expense | `test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type` | `accounting/test_fx_transfer.py` | P1 |
 | AC4.14.8 | The `fx_conversions` linking model round-trips its multi-leg fields as Decimal with normalized ISO currencies | `test_AC2_fx_conversion_model_round_trips_decimals` | `accounting/test_fx_transfer.py` | P1 |
+| AC4.14.9 | End to end: a recorded internal transfer whose legs are booked to income/expense accounts is excluded from the income statement so net worth is unchanged except for the fee (live wiring, not just the unit primitive) | `test_AC3_internal_transfer_excluded_from_income_statement_e2e` | `reporting/test_internal_transfer_e2e.py` | P0 |
+| AC4.14.10 | End to end: the cumulative balance-sheet net income excludes a recorded internal transfer's legs and reflects only the fee | `test_AC3_internal_transfer_net_income_fee_only_e2e` | `reporting/test_internal_transfer_e2e.py` | P0 |

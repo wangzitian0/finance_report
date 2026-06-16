@@ -325,7 +325,12 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
         )
     ]
 
-    fake_db.execute = AsyncMock(side_effect=[currency_result, agg_result])
+    # _aggregate_net_income_sql first loads internal-transfer FxConversion rows
+    # (#1123 AC3 live wiring); none in this race scenario, so the adjustment is a no-op.
+    transfer_result = MagicMock()
+    transfer_result.scalars.return_value.all.return_value = []
+
+    fake_db.execute = AsyncMock(side_effect=[transfer_result, currency_result, agg_result])
 
     # Patch get_average_rate so we don't need to mock DB FX queries; USD gets a rate
     with patch("src.services.reporting.get_average_rate", new_callable=AsyncMock) as mock_avg:
