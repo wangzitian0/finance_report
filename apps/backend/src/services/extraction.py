@@ -984,8 +984,6 @@ class ExtractionService:
                 stream = stream_ai_json(
                     messages=messages,
                     model=model,
-                    api_key=self.api_key,
-                    base_url=self.base_url,
                     timeout=settings.ai_json_timeout_seconds,
                     max_tokens=settings.ai_json_max_tokens,
                     temperature=0.0,
@@ -1676,8 +1674,6 @@ class ExtractionService:
         stream = stream_ai_json(
             messages=messages,
             model=self.primary_model,
-            api_key=self.api_key,
-            base_url=self.base_url,
             timeout=30.0,
         )
         content = await accumulate_stream(stream)
