@@ -243,8 +243,8 @@ async def test_journal_entry_lifecycle_api(app_url, shared_auth_state):
     - POST /accounts (setup debit/credit accounts)
     - POST /journal-entries (create balanced entry)
     - GET /journal-entries/{id} (read)
-    - POST /journal-entries/{id}/post (post entry)
-    - POST /journal-entries/{id}/void (void entry)
+    - POST /journal-entries/{id}/postings (post entry)
+    - POST /journal-entries/{id}/voidings (void entry)
     - DELETE /journal-entries/{id} (cleanup)
     """
     async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
@@ -316,14 +316,14 @@ async def test_journal_entry_lifecycle_api(app_url, shared_auth_state):
 
             # 3. Post entry
             response = await client.post(
-                f"{app_url}/api/journal-entries/{entry_id}/post", headers=headers
+                f"{app_url}/api/journal-entries/{entry_id}/postings", headers=headers
             )
             assert response.status_code == 200, f"Post failed: {response.text}"
             assert response.json()["status"].lower() == "posted"
 
             # 4. Void entry (creates reversal entry, original remains posted)
             response = await client.post(
-                f"{app_url}/api/journal-entries/{entry_id}/void",
+                f"{app_url}/api/journal-entries/{entry_id}/voidings",
                 headers=headers,
                 json={"reason": "E2E Test cleanup"},
             )
