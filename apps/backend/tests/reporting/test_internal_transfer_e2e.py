@@ -214,6 +214,17 @@ async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: Asyn
     # Net income reflects salary minus the fee only.
     assert report["net_income"] == Decimal("4997.50")
 
+    # Coherence (#1162 CR2): the fee is a real expense LINE, not an out-of-band bump,
+    # so the expense lines sum exactly to total_expenses and the fee is drill-downable.
+    expense_lines = report["expenses"]
+    expense_line_sum = sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0"))
+    assert expense_line_sum == report["total_expenses"]
+    fee_lines = [line for line in expense_lines if Decimal(str(line["amount"])) == _FEE_SGD]
+    assert len(fee_lines) == 1, "internal-transfer fee must appear as a single expense line"
+    assert fee_lines[0]["account_id"] is not None
+    # The fee also lands in a monthly trend expense bucket (charts must see it).
+    assert sum((Decimal(str(t["total_expenses"])) for t in report["trends"]), Decimal("0")) == _FEE_SGD
+
     ac_evidence(
         ac_id="AC4.14.9",
         score=1.0,

@@ -635,10 +635,20 @@ class _InternalTransferAdjustment:
     - ``fee_total``: total fee across matched internal transfers, in the report's
       target currency. The fee is the only net-income impact of the transfer
       (it lowers net income, like an expense).
+    - ``fee_by_account``: the converted fee total attributed to the account it was
+      effectively paid from (the conversion's ``from_account_id``), in the target
+      currency. Used to materialise the fee as a real expense LINE so the income
+      statement's lines, totals and trend buckets stay coherent — rather than
+      bumping ``total_expenses`` out of band (#1162 CR2).
+    - ``fee_trend_date``: the earliest conversion date contributing a fee, used to
+      bucket the fee into the correct monthly trend period. ``None`` when there is
+      no fee.
     """
 
     excluded_entry_ids: frozenset[UUID]
     fee_total: Decimal
+    fee_by_account: dict[UUID, Decimal]
+    fee_trend_date: date | None
 
 
 async def _internal_transfer_adjustment(
@@ -678,6 +688,8 @@ async def _internal_transfer_adjustment(
 
     excluded: set[UUID] = set()
     fee_total = Decimal("0")
+    fee_by_account: dict[UUID, Decimal] = {}
+    fee_trend_date: date | None = None
     for conversion in conversions:
         # Re-derive the legs and confirm the accounting layer still classifies
         # this as an internal transfer before excluding anything. occurred_at is
@@ -731,16 +743,33 @@ async def _internal_transfer_adjustment(
                     lazy_load=True,
                 )
             except FxRateError:
-                # If the fee currency cannot be converted, fall back to leaving the
-                # fee in the normal expense flow (do not silently drop it).
-                excluded.discard(conversion.from_journal_entry_id)
-                excluded.discard(conversion.to_journal_entry_id)
+                # The transfer legs are still a matched internal transfer and MUST
+                # stay excluded (otherwise the double-counted income/expense legs
+                # are re-introduced). Only the fee adjustment is omitted when its
+                # currency cannot be converted; keep the exclusions intact.
+                logger.warning(
+                    "Internal-transfer fee FX conversion failed; omitting fee adjustment but keeping leg exclusions",
+                    error_id=ErrorIds.REPORT_FX_FALLBACK,
+                    fee_currency=fee_currency,
+                    target_currency=target_currency,
+                    conversion_date=conversion.conversion_date,
+                )
                 continue
-            fee_total += classification.fee_amount * fee_rate
+            converted_fee = to_money(classification.fee_amount * fee_rate)
+            fee_total += converted_fee
+            # Attribute the fee to the account it was effectively paid from so it can
+            # be materialised as a real expense line (#1162 CR2).
+            fee_by_account[conversion.from_account_id] = (
+                fee_by_account.get(conversion.from_account_id, Decimal("0")) + converted_fee
+            )
+            if fee_trend_date is None or conversion.conversion_date < fee_trend_date:
+                fee_trend_date = conversion.conversion_date
 
     return _InternalTransferAdjustment(
         excluded_entry_ids=frozenset(excluded),
         fee_total=to_money(fee_total),
+        fee_by_account=fee_by_account,
+        fee_trend_date=fee_trend_date,
     )
 
 
@@ -1683,12 +1712,40 @@ async def generate_income_statement(
         provenance_by_account=provenance_by_account,
     )
 
+    # The matched internal-transfer fee is the only expense that survives netting
+    # (#1123 AC3). Materialise it as a real expense LINE attributed to the account
+    # it was paid from, rather than bumping total_expenses out of band, so that
+    # ``total_expenses == sum(expense_lines)`` holds and the fee shows up in the
+    # drill-down and the monthly trend buckets (#1162 CR2).
+    fee_account_name_by_id = {account.id: account.name for account in accounts}
+    for from_account_id, converted_fee in transfer_adjustment.fee_by_account.items():
+        expense_lines.append(
+            {
+                "account_id": from_account_id,
+                "name": fee_account_name_by_id.get(from_account_id, "Internal transfer fee"),
+                "type": AccountType.EXPENSE,
+                "parent_id": None,
+                "amount": _quantize_money(converted_fee),
+                "confidence_tier": None,
+                "provenance": None,
+                "source_currency": target_currency,
+                "allocation_asset_class": None,
+                "allocation_liquidity_class": None,
+                "allocation_source_type": "internal_transfer_fee",
+            }
+        )
+
     total_income = _quantize_money(sum((Decimal(str(line["amount"])) for line in income_lines), Decimal("0")))
     total_expenses = _quantize_money(sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0")))
-    # The matched internal-transfer fee is the only expense that survives netting
-    # (#1123 AC3); add it to total expenses so net income reflects the fee drag.
-    total_expenses = _quantize_money(total_expenses + transfer_adjustment.fee_total)
     net_income = _quantize_money(total_income - total_expenses)
+
+    # Add the fee into the correct monthly trend/period bucket so the trends and the
+    # expense totals stay coherent (#1162 CR2). Bucket by the earliest contributing
+    # conversion date; clamp into the reporting window so it always lands in a bucket.
+    if transfer_adjustment.fee_total > 0 and transfer_adjustment.fee_trend_date is not None:
+        fee_period_key = _month_start(min(max(transfer_adjustment.fee_trend_date, start_date), end_date))
+        fee_bucket = period_totals.setdefault(fee_period_key, {"income": Decimal("0"), "expense": Decimal("0")})
+        fee_bucket["expense"] += transfer_adjustment.fee_total
 
     # Calculate Unrealized FX Gain/Loss for the period
     # This requires balance sheets at both points
