@@ -32,7 +32,11 @@ def test_llm_provider_abstraction_epic023_product_owner_contract() -> None:
     secrets_src = read("apps/backend/src/llm/common/secrets.py")
 
     # Axis 1 — exactly the three universally-compatible protocol families.
-    for family in ("openai-compatible", "anthropic-compatible", "openrouter-compatible"):
+    for family in (
+        "openai-compatible",
+        "anthropic-compatible",
+        "openrouter-compatible",
+    ):
         assert family in ssot
         assert family in types_src
 
