@@ -153,6 +153,10 @@ be treated as current work.
 | AC17.4.6 | Brokerage Import Endpoint | `test_brokerage_import_endpoint`, `test_statement_import_flows_to_holdings_and_balance_sheet` | `portfolio/test_brokerage_position_parsing.py` | P1 |
 | AC17.4.7 | Upload Parse-to-Import Bridge | `test_parse_statement_background_imports_brokerage_positions`, `test_parse_document_routes_brokerage_balance_mismatch_to_parsed` | `extraction/test_statement_brokerage_import_bridge.py` | P0 |
 | AC17.4.8 | Concurrent Auto/Manual Brokerage Import Idempotency | `test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import` | `portfolio/test_brokerage_position_parsing.py` | P0 |
+| AC17.4.9 | AC-B1 Producer routing: brokerage docs select the positions prompt before the model call (filename/institution), bank docs keep the bank prompt | `test_AC_B1_looks_like_brokerage_document_routes_by_filename_and_institution`, `test_AC_B1_get_parsing_prompt_selects_positions_prompt_for_brokerage`, `test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_call`, `test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
+| AC17.4.10 | AC-B2 Brokerage positions output schema flows into AtomicPosition-ready snapshots via the existing consumer parser | `test_AC_B2_positions_prompt_payload_is_understood_by_consumer_parser` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
+| AC17.4.11 | AC-B5 Zero-position brokerage doc is surfaced as a visible review flag (stage1 pending-review + note) | `test_AC_B5_zero_position_brokerage_doc_raises_visible_review_flag` | `extraction/test_brokerage_position_extraction_wiring.py` | P1 |
+| AC17.4.12 | AC-B4/B6 Moomoo holdings TABLE extracts and imports: AtomicPosition rows == table rows with exact market_value (#1088) | `test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports`, `test_AC_B6_positions_payload_imports_via_service` | `extraction/test_brokerage_position_extraction_wiring.py` | P0 |
 
 ### AC17.5: Investment Accounting (Journal Entries)
 
