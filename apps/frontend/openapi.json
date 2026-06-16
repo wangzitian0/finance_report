@@ -14631,9 +14631,9 @@
         ]
       }
     },
-    "/journal-entries/{entry_id}/post": {
+    "/journal-entries/{entry_id}/postings": {
       "post": {
-        "operationId": "post_entry_journal_entries__entry_id__post_post",
+        "operationId": "post_entry_journal_entries__entry_id__postings_post",
         "parameters": [
           {
             "in": "path",
@@ -14749,9 +14749,9 @@
         ]
       }
     },
-    "/journal-entries/{entry_id}/void": {
+    "/journal-entries/{entry_id}/voidings": {
       "post": {
-        "operationId": "void_entry_journal_entries__entry_id__void_post",
+        "operationId": "void_entry_journal_entries__entry_id__voidings_post",
         "parameters": [
           {
             "in": "path",
@@ -14874,6 +14874,123 @@
         "summary": "Void Entry",
         "tags": [
           "journal-entries"
+        ]
+      }
+    },
+    "/market-data/fx/syncs": {
+      "post": {
+        "description": "Incrementally fill FX rows for explicit or observed pairs.",
+        "operationId": "sync_fx_endpoint_market_data_fx_syncs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDataSyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDataSyncResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Sync Fx Endpoint",
+        "tags": [
+          "market-data"
         ]
       }
     },
@@ -15042,127 +15159,10 @@
         ]
       }
     },
-    "/market-data/sync/fx": {
-      "post": {
-        "description": "Incrementally fill FX rows for explicit or observed pairs.",
-        "operationId": "sync_fx_endpoint_market_data_sync_fx_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MarketDataSyncRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MarketDataSyncResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Sync Fx Endpoint",
-        "tags": [
-          "market-data"
-        ]
-      }
-    },
-    "/market-data/sync/stocks": {
+    "/market-data/stocks/syncs": {
       "post": {
         "description": "Incrementally fill stock prices for explicit symbols or active holdings.",
-        "operationId": "sync_stocks_endpoint_market_data_sync_stocks_post",
+        "operationId": "sync_stocks_endpoint_market_data_stocks_syncs_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18141,9 +18141,9 @@
         ]
       }
     },
-    "/reconciliation/run": {
+    "/reconciliation/runs": {
       "post": {
-        "operationId": "run_reconciliation_reconciliation_run_post",
+        "operationId": "run_reconciliation_reconciliation_runs_post",
         "requestBody": {
           "content": {
             "application/json": {

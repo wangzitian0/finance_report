@@ -188,7 +188,7 @@ describe("JournalEntryForm", () => {
     fireEvent.submit(container.querySelector("form") as HTMLFormElement)
 
     await waitFor(() => {
-      expect(mockedApiFetch.mock.calls.some((call) => call[0] === "/api/journal-entries/je-post/post")).toBe(true)
+      expect(mockedApiFetch.mock.calls.some((call) => call[0] === "/api/journal-entries/je-post/postings")).toBe(true)
     })
   })
 

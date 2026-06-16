@@ -48,7 +48,7 @@ async def _post_balanced_entry(client, *, debit_id, credit_id, amount, entry_dat
     )
     assert create.status_code == 201, create.text
     entry_id = create.json()["id"]
-    posted = await client.post(f"/journal-entries/{entry_id}/post")
+    posted = await client.post(f"/journal-entries/{entry_id}/postings")
     assert posted.status_code == 200, posted.text
     assert posted.json()["status"] == "posted"
     return entry_id
@@ -292,13 +292,13 @@ async def test_void_journal_entry(client, test_user):
     entry_id = create_resp.json()["id"]
 
     # Post it first
-    post_resp = await client.post(f"/journal-entries/{entry_id}/post")
+    post_resp = await client.post(f"/journal-entries/{entry_id}/postings")
     assert post_resp.status_code == 200
     assert post_resp.json()["status"] == "posted"
 
     # Void it
     void_resp = await client.post(
-        f"/journal-entries/{entry_id}/void",
+        f"/journal-entries/{entry_id}/voidings",
         json={"reason": "Duplicate entry"},
     )
     assert void_resp.status_code == 200
@@ -346,7 +346,7 @@ async def test_post_draft_entry(client, test_user):
     assert entry["status"] == "draft"
 
     # Post the draft
-    post_resp = await client.post(f"/journal-entries/{entry['id']}/post")
+    post_resp = await client.post(f"/journal-entries/{entry['id']}/postings")
     assert post_resp.status_code == 200
     assert post_resp.json()["status"] == "posted"
 
@@ -495,7 +495,7 @@ async def test_reconciliation_engine_runs(client, db, test_user):
         },
     )
 
-    recon_resp = await client.post("/reconciliation/run", json={})
+    recon_resp = await client.post("/reconciliation/runs", json={})
     assert recon_resp.status_code == 200
 
 
@@ -508,7 +508,7 @@ async def test_reconciliation_stats(client, db, test_user):
     THEN it should return stats with total_transactions and match_rate
     """
     # Run reconciliation first (even with no data, stats should work)
-    run_resp = await client.post("/reconciliation/run", json={})
+    run_resp = await client.post("/reconciliation/runs", json={})
     assert run_resp.status_code == 200
 
     stats_resp = await client.get("/reconciliation/stats")
@@ -893,7 +893,7 @@ async def test_reconciliation_match_acceptance(client, db, test_user):
     THEN all three return 200 with list responses
     """
     # Run reconciliation first
-    run_resp = await client.post("/reconciliation/run", json={})
+    run_resp = await client.post("/reconciliation/runs", json={})
     assert run_resp.status_code == 200
 
     # Pending
@@ -1105,7 +1105,7 @@ async def test_traceability_reconciliation_engine(client, db, test_user):
     WHEN triggering reconciliation
     THEN it returns 200 (engine executed successfully)
     """
-    resp = await client.post("/reconciliation/run", json={})
+    resp = await client.post("/reconciliation/runs", json={})
     assert resp.status_code == 200
 
 

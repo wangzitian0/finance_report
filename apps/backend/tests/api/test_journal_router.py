@@ -4,8 +4,8 @@ Tests all endpoints in src/routers/journal.py covering:
 - POST /journal-entries - Create journal entry
 - GET /journal-entries - List journal entries with filters
 - GET /journal-entries/{id} - Get specific entry
-- POST /journal-entries/{id}/post - Post draft entry
-- POST /journal-entries/{id}/void - Void posted entry
+- POST /journal-entries/{id}/postings - Post draft entry
+- POST /journal-entries/{id}/voidings - Void posted entry
 - DELETE /journal-entries/{id} - Delete draft entry
 """
 
@@ -289,7 +289,7 @@ async def test_post_journal_entry(
     assert draft_entry is not None, "No draft entry found"
 
     # WHEN: Post the entry
-    response = await client.post(f"/journal-entries/{draft_entry.id}/post")
+    response = await client.post(f"/journal-entries/{draft_entry.id}/postings")
 
     # THEN: Entry posted successfully
     assert response.status_code == status.HTTP_200_OK
@@ -302,13 +302,13 @@ async def test_post_journal_entry(
     assert draft_entry.status == JournalEntryStatus.POSTED
 
     # Test posting already posted entry
-    response = await client.post(f"/journal-entries/{draft_entry.id}/post")
+    response = await client.post(f"/journal-entries/{draft_entry.id}/postings")
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "draft" in response.json()["detail"].lower()  # Error mentions draft requirement
 
     # Test posting non-existent entry
     non_existent_id = uuid4()
-    response = await client.post(f"/journal-entries/{non_existent_id}/post")
+    response = await client.post(f"/journal-entries/{non_existent_id}/postings")
     assert response.status_code == status.HTTP_400_BAD_REQUEST  # Service ValidationError, not 404
 
 
@@ -326,7 +326,7 @@ async def test_void_journal_entry(
     # WHEN: Void the entry
     void_request = {"reason": "Test void reason"}
     response = await client.post(
-        f"/journal-entries/{posted_entry.id}/void",
+        f"/journal-entries/{posted_entry.id}/voidings",
         json=void_request,
     )
 
@@ -347,14 +347,14 @@ async def test_void_journal_entry(
     draft_entry = next((e for e in test_entries if e.status == JournalEntryStatus.DRAFT), None)
     if draft_entry:
         response = await client.post(
-            f"/journal-entries/{draft_entry.id}/void",
+            f"/journal-entries/{draft_entry.id}/voidings",
             json=void_request,
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "posted" in response.json()["detail"].lower()
     non_existent_id = uuid4()
     response = await client.post(
-        f"/journal-entries/{non_existent_id}/void",
+        f"/journal-entries/{non_existent_id}/voidings",
         json=void_request,
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST  # Service ValidationError

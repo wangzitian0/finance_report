@@ -154,7 +154,7 @@ describe("JournalPage", () => {
     await waitFor(() => expect(screen.getByText("Draft Entry")).toBeInTheDocument())
 
     fireEvent.click(screen.getAllByRole("button", { name: "Post" })[0])
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/d1/post", { method: "POST" }))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/d1/postings", { method: "POST" }))
 
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
     fireEvent.click(screen.getByRole("button", { name: "Delete Entry" }))
@@ -163,7 +163,7 @@ describe("JournalPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Void" })[0])
     fireEvent.click(screen.getByRole("button", { name: "Void Entry" }))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/p1/void", {
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/p1/voidings", {
         method: "POST",
         body: JSON.stringify({ reason: "void reason" }),
       }),

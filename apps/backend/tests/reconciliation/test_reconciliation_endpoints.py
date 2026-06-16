@@ -170,7 +170,7 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
     await session.commit()
 
     run_resp = await client.post(
-        "/reconciliation/run",
+        "/reconciliation/runs",
         json={},
     )
     assert run_resp.status_code == 200
@@ -294,5 +294,5 @@ async def test_reconciliation_stats_empty(client: AsyncClient) -> None:
 
 
 async def test_reconciliation_run_defaults(client: AsyncClient) -> None:
-    resp = await client.post("/reconciliation/run", json={})
+    resp = await client.post("/reconciliation/runs", json={})
     assert resp.status_code == 200

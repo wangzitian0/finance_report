@@ -95,7 +95,7 @@ class TestJournalRouterErrors:
         with patch("src.routers.journal.post_journal_entry", new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = ValidationError("Entry has no lines")
 
-            response = await client.post(f"/journal-entries/{entry.id}/post")
+            response = await client.post(f"/journal-entries/{entry.id}/postings")
             assert response.status_code == 400
             assert "no lines" in response.json()["detail"].lower()
 
@@ -121,7 +121,7 @@ class TestJournalRouterErrors:
             mock_void.side_effect = ValidationError("Cannot void draft entry")
 
             response = await client.post(
-                f"/journal-entries/{entry.id}/void",
+                f"/journal-entries/{entry.id}/voidings",
                 json={"reason": "Test void"},
             )
             assert response.status_code == 400

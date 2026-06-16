@@ -126,12 +126,21 @@ def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:
     assert "202" in upload["responses"]
 
 
-def test_AC12_29_6_deferred_url_renames_were_not_performed() -> None:
-    """AC12.29.6: the breaking verb-in-path URL renames are explicitly OUT OF SCOPE
-    for #1099; this guard fails if one slipped in (original URLs must still exist)."""
+def test_AC12_29_6_verb_in_path_urls_renamed_to_resources() -> None:
+    """AC12.29.6: the verb-in-path action URLs are renamed to resource-style nouns
+    (the rename #1099 originally deferred, completed FE+BE atomically). The old verb
+    URLs are gone from the schema; the new noun URLs are present."""
     paths = set(app.openapi()["paths"])
-    for deferred in ("/reconciliation/run", "/market-data/sync/fx", "/market-data/sync/stocks"):
-        assert deferred in paths, f"{deferred} was renamed — URL renames are out of scope for #1099"
+    renamed = {
+        "/reconciliation/run": "/reconciliation/runs",
+        "/market-data/sync/fx": "/market-data/fx/syncs",
+        "/market-data/sync/stocks": "/market-data/stocks/syncs",
+        "/journal-entries/{entry_id}/post": "/journal-entries/{entry_id}/postings",
+        "/journal-entries/{entry_id}/void": "/journal-entries/{entry_id}/voidings",
+    }
+    for old, new in renamed.items():
+        assert old not in paths, f"{old} should have been renamed to {new}"
+        assert new in paths, f"{new} missing from OpenAPI"
 
 
 def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:

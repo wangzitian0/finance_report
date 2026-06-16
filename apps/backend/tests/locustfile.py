@@ -119,8 +119,8 @@ class FinanceReportUser(HttpUser):
 
     @task(2)
     def run_reconciliation(self) -> None:
-        """POST /api/reconciliation/run - Run reconciliation matching."""
-        with self.client.post("/api/reconciliation/run", catch_response=True, timeout=30) as response:
+        """POST /api/reconciliation/runs - Run reconciliation matching."""
+        with self.client.post("/api/reconciliation/runs", catch_response=True, timeout=30) as response:
             if response.status_code == 200:
                 response.success()
             elif response.status_code in (401, 403):
@@ -131,7 +131,7 @@ class FinanceReportUser(HttpUser):
                 response.failure("Rate limited")
             else:
                 logger.error(
-                    "Unexpected status", extra={"endpoint": "/api/reconciliation/run", "status": response.status_code}
+                    "Unexpected status", extra={"endpoint": "/api/reconciliation/runs", "status": response.status_code}
                 )
                 response.failure(f"Unexpected: {response.status_code}")
 

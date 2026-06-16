@@ -85,7 +85,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### API Endpoints (Backend)
 
-- [x] `POST /reconciliation/run` - Execute matching
+- [x] `POST /reconciliation/runs` - Execute matching
 - [x] `GET /reconciliation/matches` - Match results
 - [x] `GET /reconciliation/pending` - Pending queue
 - [x] `POST /reconciliation/matches/{id}/accept` - Accept
