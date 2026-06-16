@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, ClassVar, cast
 from uuid import UUID
@@ -25,6 +25,7 @@ from src.models import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.models.fx_conversion import FxConversion
 from src.models.layer3 import (
     ManagedPosition,
     ManualValuationComponentType,
@@ -45,6 +46,14 @@ from src.services.fx import (
     get_exchange_rate,
 )
 from src.services.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
+from src.services.fx_transfer import (
+    DEFAULT_RATE_TOLERANCE,
+    DEFAULT_TIME_WINDOW,
+    FxTransferError,
+    TransferLeg,
+    classify_internal_transfer,
+    pair_fx_legs,
+)
 from src.services.portfolio import AssetNotFoundError, PortfolioService
 from src.services.source_type_priority import normalize_source_type
 from src.utils.money import to_money
@@ -612,6 +621,129 @@ async def get_account_lineage(
     }
 
 
+@dataclass(frozen=True)
+class _InternalTransferAdjustment:
+    """Net-income correction for matched internal (own-account) transfers (#1123 AC3).
+
+    A matched internal transfer is one economic event spanning two legs, not two
+    independent income/expense transactions. Its legs must not double-count as
+    income (in-leg) and expense (out-leg); net income changes only by the fee.
+
+    - ``excluded_entry_ids``: journal entries that are the legs of a matched
+      internal transfer; their INCOME/EXPENSE lines are skipped during net-income
+      aggregation.
+    - ``fee_total``: total fee across matched internal transfers, in the report's
+      target currency. The fee is the only net-income impact of the transfer
+      (it lowers net income, like an expense).
+    """
+
+    excluded_entry_ids: frozenset[UUID]
+    fee_total: Decimal
+
+
+async def _internal_transfer_adjustment(
+    db: AsyncSession,
+    user_id: UUID,
+    target_currency: str,
+    as_of_date: date,
+    *,
+    start_date: date | None = None,
+) -> _InternalTransferAdjustment:
+    """Resolve matched internal transfers into a net-income correction (#1123 AC3).
+
+    Loads the recorded :class:`FxConversion` rows for ``user_id`` whose
+    ``conversion_date`` falls in ``[start_date, as_of_date]`` and that anchor BOTH
+    legs to journal entries (``from_journal_entry_id`` / ``to_journal_entry_id``).
+    Each candidate is re-validated through the deterministic accounting primitives
+    :func:`pair_fx_legs` + :func:`classify_internal_transfer`: only a pair that the
+    primitives still classify as an internal transfer contributes an exclusion, so
+    the reporting layer never invents netting the accounting layer would reject.
+
+    Returns the entry IDs to exclude from income/expense and the converted fee to
+    subtract from net income. This is the live wiring that makes a matched
+    internal transfer net-worth-neutral (minus fees) end to end.
+    """
+    stmt = (
+        select(FxConversion)
+        .where(FxConversion.user_id == user_id)
+        .where(FxConversion.conversion_date <= as_of_date)
+        .where(FxConversion.from_journal_entry_id.is_not(None))
+        .where(FxConversion.to_journal_entry_id.is_not(None))
+    )
+    if start_date:
+        stmt = stmt.where(FxConversion.conversion_date >= start_date)
+
+    result = await db.execute(stmt)
+    conversions = result.scalars().all()
+
+    excluded: set[UUID] = set()
+    fee_total = Decimal("0")
+    for conversion in conversions:
+        # Re-derive the legs and confirm the accounting layer still classifies
+        # this as an internal transfer before excluding anything. occurred_at is
+        # tz-aware midnight on the conversion date (legs share the day; the exact
+        # instant is immaterial to same-day pairing and net-worth netting).
+        when = datetime.combine(conversion.conversion_date, time.min, tzinfo=UTC)
+        try:
+            out_leg = TransferLeg(
+                user_id=conversion.user_id,
+                account_id=conversion.from_account_id,
+                direction="OUT",
+                amount=conversion.amount_from,
+                currency=conversion.currency_from,
+                occurred_at=when,
+            )
+            in_leg = TransferLeg(
+                user_id=conversion.user_id,
+                account_id=conversion.to_account_id,
+                direction="IN",
+                amount=conversion.amount_to,
+                currency=conversion.currency_to,
+                occurred_at=when,
+            )
+            pair = pair_fx_legs(
+                out_leg,
+                in_leg,
+                conversion.rate,
+                tolerance=DEFAULT_RATE_TOLERANCE,
+                time_window=DEFAULT_TIME_WINDOW,
+            )
+        except FxTransferError:
+            # A malformed/ non-conforming conversion row is not trusted to net;
+            # leave its legs to the normal income/expense classification.
+            continue
+
+        classification = classify_internal_transfer(pair, fee=conversion.fee)
+        if not classification.is_internal_transfer:
+            continue
+
+        excluded.add(conversion.from_journal_entry_id)
+        excluded.add(conversion.to_journal_entry_id)
+
+        if conversion.fee and conversion.fee > 0:
+            fee_currency = conversion.fee_currency or conversion.currency_from
+            try:
+                fee_rate = await get_exchange_rate(
+                    db,
+                    fee_currency,
+                    target_currency,
+                    as_of_date,
+                    lazy_load=True,
+                )
+            except FxRateError:
+                # If the fee currency cannot be converted, fall back to leaving the
+                # fee in the normal expense flow (do not silently drop it).
+                excluded.discard(conversion.from_journal_entry_id)
+                excluded.discard(conversion.to_journal_entry_id)
+                continue
+            fee_total += classification.fee_amount * fee_rate
+
+    return _InternalTransferAdjustment(
+        excluded_entry_ids=frozenset(excluded),
+        fee_total=to_money(fee_total),
+    )
+
+
 async def _aggregate_net_income_sql(
     db: AsyncSession,
     user_id: UUID,
@@ -630,6 +762,13 @@ async def _aggregate_net_income_sql(
     spot rate on or before as_of_date; if that is also absent, FxRateError is raised
     and re-raised here as ReportError.
     """
+    # Resolve matched internal (own-account) transfers (#1123 AC3): their legs
+    # must NOT double-count as income/expense; only the fee affects net income.
+    transfer_adjustment = await _internal_transfer_adjustment(
+        db, user_id, target_currency, as_of_date, start_date=start_date
+    )
+    excluded_entry_ids = transfer_adjustment.excluded_entry_ids
+
     # Get distinct currencies for income/expense lines in the period
     currency_stmt = (
         select(JournalLine.currency)
@@ -641,6 +780,8 @@ async def _aggregate_net_income_sql(
         .where(JournalEntry.status.in_(_REPORT_STATUSES))
         .where(JournalEntry.entry_date <= as_of_date)
     )
+    if excluded_entry_ids:
+        currency_stmt = currency_stmt.where(JournalEntry.id.not_in(excluded_entry_ids))
     if start_date:
         currency_stmt = currency_stmt.where(JournalEntry.entry_date >= start_date)
 
@@ -699,6 +840,8 @@ async def _aggregate_net_income_sql(
         .where(JournalEntry.entry_date <= as_of_date)
         .group_by(JournalLine.currency, Account.type, JournalLine.direction)
     )
+    if excluded_entry_ids:
+        agg_stmt = agg_stmt.where(JournalEntry.id.not_in(excluded_entry_ids))
     if start_date:
         agg_stmt = agg_stmt.where(JournalEntry.entry_date >= start_date)
 
@@ -718,6 +861,11 @@ async def _aggregate_net_income_sql(
         # convention), which is the opposite of what the net-income formula needs.
         signed = converted if row.direction == Direction.CREDIT else -converted
         net_income += signed
+
+    # A matched internal transfer's only net-income impact is its fee, which lowers
+    # net income like an expense (#1123 AC3). The transfer legs themselves were
+    # excluded above, so add the fee back here as the sole net-worth effect.
+    net_income -= transfer_adjustment.fee_total
 
     return net_income
 
@@ -1416,6 +1564,13 @@ async def generate_income_statement(
             )
             raise ReportError(str(exc)) from exc
 
+    # Matched internal (own-account) transfers (#1123 AC3): exclude their legs from
+    # income/expense so they do not double-count; only the fee is a real expense.
+    transfer_adjustment = await _internal_transfer_adjustment(
+        db, user_id, target_currency, end_date, start_date=start_date
+    )
+    excluded_entry_ids = transfer_adjustment.excluded_entry_ids
+
     entries_to_include: set[UUID] = set()
     if tags:
         for entry_id, lines_and_accounts in entries_by_id.items():
@@ -1427,6 +1582,7 @@ async def generate_income_statement(
                         break
     else:
         entries_to_include = set(entries_by_id.keys())
+    entries_to_include -= excluded_entry_ids
 
     provenance_inputs_by_account: dict[UUID, list[DataProvenance | None]] = {}
     for entry_id, lines_and_accounts in entries_by_id.items():
@@ -1529,6 +1685,9 @@ async def generate_income_statement(
 
     total_income = _quantize_money(sum((Decimal(str(line["amount"])) for line in income_lines), Decimal("0")))
     total_expenses = _quantize_money(sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0")))
+    # The matched internal-transfer fee is the only expense that survives netting
+    # (#1123 AC3); add it to total expenses so net income reflects the fee drag.
+    total_expenses = _quantize_money(total_expenses + transfer_adjustment.fee_total)
     net_income = _quantize_money(total_income - total_expenses)
 
     # Calculate Unrealized FX Gain/Loss for the period
