@@ -385,3 +385,18 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.16.1 | The Home getting-started steps link only to everyday surfaces — the first step targets `/upload` and no step links to the accounting-jargon `/accounts` route | `dashboardPage.test.tsx` | P1 |
 | AC22.16.2 | The Home presents a single confidence-ranked attention entry point: the analytics reconciliation ("Risk radar") card and the unmatched-alerts call-to-action link to the unified `/attention` queue instead of parallel Advanced reconciliation internals (`/reconciliation`, `/reconciliation/unmatched`, `/review`) | `dashboardPage.test.tsx` | P1 |
 | AC22.16.3 | `useDashboardData` is composed from independently-usable hooks (`useDashboardSnapshot` for the financial/reconciliation aggregate and `useAssetTrend` for the per-account trend), each callable on its own through the shared `apiFetch` transport, while the aggregate hook preserves its existing public result contract | `useDashboardData.test.ts`, `useAssetTrend.test.ts` | P1 |
+
+### AC22.17 — God-Component Decomposition (FE Structural Hygiene)
+
+> #1117 follow-up slice. The FE audit flagged several oversized pages/components
+> that mix data orchestration, layout, and many sub-sections in one function,
+> making them hard to test and reason about. This slice decomposes the worst
+> offenders into co-located, independently-testable sub-components while
+> preserving the rendered surface and behavior exactly — no backend, schema, or
+> UX change. (The report package page, also flagged at ~1298 lines, was
+> decomposed separately by #1132, so it is out of scope here.)
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.17.2 | The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior | `reviewQueuePage.test.tsx`, `stage2ReviewQueueParts.test.tsx` | P1 |
+| AC22.17.3 | The statement detail page is composed from extracted sub-components (header/summary and the transactions/section blocks) with unchanged behavior | `statementDetailPage.test.tsx`, `statementDetailParts.test.tsx` | P1 |
