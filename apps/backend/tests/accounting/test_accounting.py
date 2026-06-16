@@ -75,13 +75,18 @@ async def test_balanced_entry_passes(ac_evidence):
     )
     imbalance = abs(total_debit - total_credit)
     assert imbalance == Decimal("0")  # exact, not within-tolerance
-    # Score: 1.0 iff the accepted entry is exactly balanced, degrading by the
-    # imbalance fraction otherwise. An unbalanced entry would have raised before
-    # reaching here, so a passing run measures a genuine 1.0 rather than asserts it.
-    score = 1.0 - min(1.0, float(imbalance) / float(total_debit or Decimal("1")))
+    # Score: a Decimal yardstick (money stays Decimal end-to-end, per red line),
+    # 1 iff the accepted entry is exactly balanced and degrading by the imbalance
+    # fraction otherwise. Note the production validator only requires balance
+    # *within* a Decimal("0.01") tolerance, so an entry off by <=0.01 would still
+    # have been accepted with a non-zero imbalance; this evidence deliberately
+    # measures the stricter "imbalance is exactly zero" golden for the L3 anchor.
+    score_decimal = Decimal("1") - min(Decimal("1"), imbalance / (total_debit or Decimal("1")))
+    # ac_evidence's JSON payload types ``score`` as a float; convert only here, at
+    # the serialization boundary, after all money arithmetic is done in Decimal.
     ac_evidence(
         ac_id="AC2.2.1",
-        score=score,
+        score=float(score_decimal),
         metric="balanced_entry_debit_credit_imbalance_is_zero",
         comment=(
             "Balanced 2-line entry accepted by validate_journal_balance; "
