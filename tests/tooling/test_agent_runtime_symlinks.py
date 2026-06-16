@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -196,3 +197,24 @@ def test_claude_settings_enable_mcp_baseline() -> None:
     assert not missing, (
         f".claude/settings.json does not enable baseline MCP servers: {sorted(missing)}"
     )
+
+
+_TOOL_REF = re.compile(r"\btools/[A-Za-z0-9_./-]+\.py\b")
+
+
+def test_skill_docs_reference_existing_tools() -> None:
+    """Every ``tools/<x>.py`` path a canonical SKILL.md tells agents to run must
+    resolve to a real file.
+
+    Skills are static markdown; when a tool is renamed or moved, nothing fails the
+    skill until an agent follows a now-dead command. (This guard exists because the
+    ac-workflow skill shipped a reference to ``tools/check_ac_traceability.py``,
+    which never existed — the real gate is ``tools/check_ac_index.py``.)
+    """
+    missing: list[str] = []
+    for skill_md in sorted(OPENCODE_SKILLS.rglob("SKILL.md")):
+        text = skill_md.read_text(encoding="utf-8")
+        for ref in _TOOL_REF.findall(text):
+            if not (ROOT / ref).is_file():
+                missing.append(f"{skill_md.relative_to(ROOT)} -> {ref}")
+    assert not missing, f"SKILL.md files reference non-existent tools: {sorted(set(missing))}"
