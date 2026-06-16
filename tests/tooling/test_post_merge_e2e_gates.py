@@ -2743,7 +2743,7 @@ def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
 
     for token in (
         "journal_entries_created",
-        "/api/reconciliation/run",
+        "/api/reconciliation/runs",
         "/api/statements/stage2/queue",
         "/api/accounts/processing/summary",
         "/dashboard",
@@ -2779,7 +2779,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
         "authenticated_page_unique",
         "/statements/upload",
         "/review/approve",
-        "/reconciliation/run",
+        "/reconciliation/runs",
         "/brokerage/import",
         "/assets/valuation-snapshots",
         "/assets/valuation-components",

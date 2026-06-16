@@ -663,7 +663,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/journal-entries/{entry_id}/post": {
+    "/journal-entries/{entry_id}/postings": {
         parameters: {
             query?: never;
             header?: never;
@@ -673,14 +673,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Post Entry */
-        post: operations["post_entry_journal_entries__entry_id__post_post"];
+        post: operations["post_entry_journal_entries__entry_id__postings_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/journal-entries/{entry_id}/void": {
+    "/journal-entries/{entry_id}/voidings": {
         parameters: {
             query?: never;
             header?: never;
@@ -690,7 +690,27 @@ export interface paths {
         get?: never;
         put?: never;
         /** Void Entry */
-        post: operations["void_entry_journal_entries__entry_id__void_post"];
+        post: operations["void_entry_journal_entries__entry_id__voidings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/market-data/fx/syncs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Fx Endpoint
+         * @description Incrementally fill FX rows for explicit or observed pairs.
+         */
+        post: operations["sync_fx_endpoint_market_data_fx_syncs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -717,27 +737,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/market-data/sync/fx": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Sync Fx Endpoint
-         * @description Incrementally fill FX rows for explicit or observed pairs.
-         */
-        post: operations["sync_fx_endpoint_market_data_sync_fx_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/market-data/sync/stocks": {
+    "/market-data/stocks/syncs": {
         parameters: {
             query?: never;
             header?: never;
@@ -750,7 +750,7 @@ export interface paths {
          * Sync Stocks Endpoint
          * @description Incrementally fill stock prices for explicit symbols or active holdings.
          */
-        post: operations["sync_stocks_endpoint_market_data_sync_stocks_post"];
+        post: operations["sync_stocks_endpoint_market_data_stocks_syncs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1194,7 +1194,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/reconciliation/run": {
+    "/reconciliation/runs": {
         parameters: {
             query?: never;
             header?: never;
@@ -1204,7 +1204,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Run Reconciliation */
-        post: operations["run_reconciliation_reconciliation_run_post"];
+        post: operations["run_reconciliation_reconciliation_runs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1959,29 +1959,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/statements/{statement_id}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve Statement
-         * @deprecated
-         * @description [Deprecated] Approve via Stage 1 validation flow.
-         *
-         *     Compatibility note: decision payload is accepted but ignored.
-         */
-        post: operations["approve_statement_statements__statement_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/statements/{statement_id}/brokerage/import": {
         parameters: {
             query?: never;
@@ -2022,27 +1999,6 @@ export interface paths {
         get: operations["get_statement_document_statements__statement_id__document_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/statements/{statement_id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reject Statement
-         * @deprecated
-         * @description [Deprecated] Reject via Stage 1 validation flow.
-         */
-        post: operations["reject_statement_statements__statement_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4343,7 +4299,7 @@ export interface components {
          * @description Source type of a journal entry.
          * @enum {string}
          */
-        JournalEntrySourceType: "manual" | "user_confirmed" | "auto_matched" | "auto_parsed" | "bank_statement" | "system" | "fx_revaluation";
+        JournalEntrySourceType: "manual" | "user_confirmed" | "auto_matched" | "auto_parsed" | "system" | "fx_revaluation";
         /**
          * JournalEntryStatus
          * @description Status of a journal entry.
@@ -8103,6 +8059,10 @@ export interface operations {
         parameters: {
             query?: {
                 as_of_date?: string | null;
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -10191,7 +10151,7 @@ export interface operations {
             };
         };
     };
-    post_entry_journal_entries__entry_id__post_post: {
+    post_entry_journal_entries__entry_id__postings_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -10285,7 +10245,7 @@ export interface operations {
             };
         };
     };
-    void_entry_journal_entries__entry_id__void_post: {
+    void_entry_journal_entries__entry_id__voidings_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -10307,6 +10267,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalEntryResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sync_fx_endpoint_market_data_fx_syncs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketDataSyncRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketDataSyncResponse"];
                 };
             };
             /** @description Bad request */
@@ -10481,103 +10537,7 @@ export interface operations {
             };
         };
     };
-    sync_fx_endpoint_market_data_sync_fx_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MarketDataSyncRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MarketDataSyncResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    sync_stocks_endpoint_market_data_sync_stocks_post: {
+    sync_stocks_endpoint_market_data_stocks_syncs_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -12715,7 +12675,7 @@ export interface operations {
             };
         };
     };
-    run_reconciliation_reconciliation_run_post: {
+    run_reconciliation_reconciliation_runs_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -12896,7 +12856,12 @@ export interface operations {
     };
     list_anomalies_reconciliation_transactions__txn_id__anomalies_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path: {
                 txn_id: string;
@@ -14703,7 +14668,12 @@ export interface operations {
     };
     list_personal_report_package_snapshots_reports_package_snapshots_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -14762,6 +14732,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Too many requests */
@@ -16382,104 +16361,6 @@ export interface operations {
             };
         };
     };
-    approve_statement_statements__statement_id__approve_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                statement_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StatementDecisionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BankStatementResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     import_brokerage_statement_positions_statements__statement_id__brokerage_import_post: {
         parameters: {
             query?: never;
@@ -16592,104 +16473,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    reject_statement_statements__statement_id__reject_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                statement_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StatementDecisionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BankStatementResponse"];
                 };
             };
             /** @description Bad request */

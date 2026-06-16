@@ -57,7 +57,7 @@ export default function JournalPage() {
 
     const handlePostEntry = async (entryId: string) => {
         try {
-            await apiFetch(`/api/journal-entries/${entryId}/post`, { method: "POST" });
+            await apiFetch(`/api/journal-entries/${entryId}/postings`, { method: "POST" });
             showToast("Entry posted successfully", "success");
             fetchEntries();
         } catch (err) {
@@ -106,7 +106,7 @@ export default function JournalPage() {
         
         setVoidLoading(true);
         try {
-            await apiFetch(`/api/journal-entries/${voidingEntryId}/void`, {
+            await apiFetch(`/api/journal-entries/${voidingEntryId}/voidings`, {
                 method: "POST",
                 body: JSON.stringify({ reason }),
             });

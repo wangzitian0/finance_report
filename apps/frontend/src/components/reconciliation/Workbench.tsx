@@ -79,7 +79,7 @@ export default function ReconciliationWorkbench() {
   });
 
   const runReconciliationMutation = useMutation({
-    mutationFn: () => apiFetch("/api/reconciliation/run", { method: "POST", body: JSON.stringify({}) }),
+    mutationFn: () => apiFetch("/api/reconciliation/runs", { method: "POST", body: JSON.stringify({}) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
       setError(null);

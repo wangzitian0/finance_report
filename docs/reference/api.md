@@ -133,16 +133,16 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/journal-entries` | yes | - | `JournalEntryCreate` | `201` `JournalEntryResponse` | Create Entry |
 | `GET` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Get Journal Entry |
 | `DELETE` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `204` - | Delete Journal Entry |
-| `POST` | `/journal-entries/{entry_id}/post` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
-| `POST` | `/journal-entries/{entry_id}/void` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
+| `POST` | `/journal-entries/{entry_id}/postings` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
+| `POST` | `/journal-entries/{entry_id}/voidings` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
 
 ### market-data
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
+| `POST` | `/market-data/fx/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Fx Endpoint |
 | `GET` | `/market-data/status` | yes | `pairs` (query), `symbols` (query), `include_default_fx` (query) | - | `200` array[`MarketDataStatusResponse`] | Market Data Status Endpoint |
-| `POST` | `/market-data/sync/fx` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Fx Endpoint |
-| `POST` | `/market-data/sync/stocks` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Stocks Endpoint |
+| `POST` | `/market-data/stocks/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Stocks Endpoint |
 
 ### metrics
 
@@ -179,7 +179,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/reconciliation/matches/{match_id}/accept` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Accept Match |
 | `POST` | `/reconciliation/matches/{match_id}/reject` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Reject Match |
 | `GET` | `/reconciliation/pending` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_ReconciliationMatchResponse_` | Pending Review Queue |
-| `POST` | `/reconciliation/run` | yes | - | `ReconciliationRunRequest` | `200` `ReconciliationRunResponse` | Run Reconciliation |
+| `POST` | `/reconciliation/runs` | yes | - | `ReconciliationRunRequest` | `200` `ReconciliationRunResponse` | Run Reconciliation |
 | `GET` | `/reconciliation/stats` | yes | - | - | `200` `ReconciliationStatsResponse` | Reconciliation Stats |
 | `GET` | `/reconciliation/transactions/{txn_id}/anomalies` | yes | `txn_id`* (path), `limit` (query), `offset` (query) | - | `200` array[`AnomalyResponse`] | List Anomalies |
 | `GET` | `/reconciliation/unmatched` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_BankTransactionSummary_` | List Unmatched |

@@ -238,7 +238,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     reconciliation_headers = await _auth_headers(page)
     first_run = await _api_json(
         page,
-        "/api/reconciliation/run",
+        "/api/reconciliation/runs",
         method="POST",
         data=f'{{"statement_id":"{statement_id}"}}',
         headers=reconciliation_headers,
@@ -252,7 +252,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
 
     second_run = await _api_json(
         page,
-        "/api/reconciliation/run",
+        "/api/reconciliation/runs",
         method="POST",
         data=f'{{"statement_id":"{statement_id}"}}',
         headers=reconciliation_headers,

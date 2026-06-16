@@ -151,7 +151,7 @@ async def test_market_data_sync_endpoint_commits_service_writes_at_router_bounda
     monkeypatch.setattr(market_data, "_fetch_validated_stock_price_series", fake_stock_fetch)
 
     fx_response = await client.post(
-        "/market-data/sync/fx",
+        "/market-data/fx/syncs",
         json={
             "pairs": ["USD/SGD"],
             "start_date": "2026-01-05",
@@ -159,7 +159,7 @@ async def test_market_data_sync_endpoint_commits_service_writes_at_router_bounda
         },
     )
     stock_response = await client.post(
-        "/market-data/sync/stocks",
+        "/market-data/stocks/syncs",
         json={
             "symbols": ["AAPL"],
             "start_date": "2026-01-05",

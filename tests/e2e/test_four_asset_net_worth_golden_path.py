@@ -338,7 +338,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
         }
 
         first_reconciliation = await client.post(
-            _api_url("/reconciliation/run"),
+            _api_url("/reconciliation/runs"),
             json={"statement_id": bank_statement_id},
         )
         assert first_reconciliation.status_code == 200, (
@@ -352,7 +352,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
         }
 
         second_reconciliation = await client.post(
-            _api_url("/reconciliation/run"),
+            _api_url("/reconciliation/runs"),
             json={"statement_id": bank_statement_id},
         )
         assert second_reconciliation.status_code == 200, (

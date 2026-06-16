@@ -127,7 +127,7 @@ graph LR
 ### Run via API
 
 ```bash
-curl -X POST https://report.zitian.party/api/reconciliation/run \
+curl -X POST https://report.zitian.party/api/reconciliation/runs \
   -H "Content-Type: application/json" \
   -d '{"statement_id": "<statement-id>"}'
 ```
