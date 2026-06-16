@@ -279,6 +279,41 @@ valid = (opening_delta <= 0.001) AND (closing_delta <= 0.001)
 - `balance_validation_result`: JSONB with validation details (opening/closing deltas)
 - `stage1_reviewed_at`: Timestamp
 - `manual_opening_balance`: Manual override for first statement
+- `currency_balances`: JSONB array `[{currency, opening, closing}]` for
+  multi-currency statements (see below)
+
+### <a id="per-currency-balance-reconciliation"></a>Per-Currency Balance Reconciliation
+
+A statement may hold balances in more than one currency (Wise, IBKR, Futu). The
+scalar `opening_balance` / `closing_balance` columns cannot represent that, so a
+multi-currency statement also carries a `currency_balances` JSONB array of
+`{currency, opening, closing}`. This is **additive**: the scalar columns stay
+populated for the single-currency case and backward compatibility, and a
+single-currency statement maps to a one-element array.
+
+**Generalized invariant — per account, per currency.** Reconciliation runs
+**independently for each currency** and never sums across currencies:
+
+```
+for each currency ccy on the statement:
+    opening_ccy + Σ(IN_ccy) − Σ(OUT_ccy) ≈ closing_ccy   (within tolerance)
+statement is balance_valid  ⟺  every currency balances
+```
+
+Transactions are grouped by their own `currency`. The legacy scalar check
+(`opening + Σ(IN) − Σ(OUT) ≈ closing`) is the **degenerate one-currency case** of
+this rule. A mismatch in one currency flags only that currency; the per-currency
+result is surfaced as a `per_currency` list, one entry per currency, so a
+multi-currency statement is a set of independent single-currency closed loops.
+
+Implemented by `validate_balance_per_currency` (`services/validation.py`);
+schema `CurrencyBalance` (`schemas/extraction.py`). (#1123 AC1)
+
+> **Out of scope here (tracked under #1123 follow-up EPIC).** This slice is the
+> per-currency *representation + reconciliation* only. FX leg pairing (#1123
+> AC2), internal-transfer net-worth (#1123 AC3), and FX gain/loss attribution
+> (#1123 AC4) require a linked-leg event model and accounting-layer changes and
+> are deferred.
 
 ### Stage 2: Consistency Checks
 

@@ -343,3 +343,30 @@ arbitrary string.
 |----|-----------|---------------|------|----------|
 | AC4.12.1 | A non-UUID `match_id` on accept returns 422 | `test_AC4_12_1_accept_match_malformed_uuid_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
 | AC4.12.2 | A non-UUID `txn_id` on create-entry returns 422 | `test_AC4_12_2_create_entry_malformed_uuid_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
+
+### AC4.13: Per-Currency Statement Balances & Reconciliation ([#1123](https://github.com/wangzitian0/finance_report/issues/1123))
+
+First mergeable slice of the complex-money design track (root #1123). A
+multi-currency statement (Wise / IBKR / Futu) cannot be represented by the scalar
+`opening_balance` / `closing_balance` columns. This slice introduces an additive
+per-currency balance representation (`balances: [{currency, opening, closing}]`,
+persisted as the `currency_balances` JSONB column) and runs balance
+reconciliation **per currency** — `open_ccy + ΣIN_ccy − ΣOUT_ccy ≈ close_ccy` for
+each currency independently, never summing across currencies. The legacy scalar
+check is the degenerate one-currency case. Scalar columns stay populated for
+backward compatibility.
+
+Covers **AC1** (per-currency balances + per-currency reconciliation) and **AC5**
+(SSOT) of #1123. **AC2** (FX leg pairing), **AC3** (internal-transfer net-worth),
+and **AC4** (FX P&L) are deferred to a follow-up EPIC — they require a linked-leg
+event model and accounting-layer changes beyond this representation slice.
+See: docs/ssot/reconciliation.md#per-currency-balance-reconciliation
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC4.13.1 | A multi-currency statement reconciles each currency independently and never cross-sums currencies | `test_AC1_per_currency_reconcile_does_not_cross_sum` | `accounting/test_validation.py` | P0 |
+| AC4.13.2 | A balance mismatch in one currency flags only that currency, leaving others valid | `test_AC1_per_currency_reconcile_flags_only_offending_currency` | `accounting/test_validation.py` | P0 |
+| AC4.13.3 | A single-currency statement passes via the degenerate one-currency path (scalar-only payload) | `test_AC1_single_currency_degenerate_path_still_passes` | `accounting/test_validation.py` | P0 |
+| AC4.13.4 | The degenerate single-currency path still detects a balance mismatch | `test_AC1_single_currency_degenerate_path_detects_mismatch` | `accounting/test_validation.py` | P1 |
+| AC4.13.5 | `CurrencyBalance` schema carries (currency, opening, closing) as Decimal with normalized ISO currency | `test_AC1_currency_balance_schema_round_trips_decimals` | `accounting/test_validation.py` | P1 |
+| AC4.13.6 | `currency_balances` JSONB persists a per-currency balance array additively to the scalar columns | `test_AC1_currency_balances_jsonb_round_trips` | `extraction/test_statement_summary_conform.py` | P1 |

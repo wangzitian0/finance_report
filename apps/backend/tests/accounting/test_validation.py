@@ -11,6 +11,7 @@ from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,
     validate_balance,
+    validate_balance_per_currency,
     validate_completeness,
 )
 
@@ -219,3 +220,113 @@ def test_validate_balance_incomplete_transaction():
     result = validate_balance(extracted)
     assert result["balance_valid"] is False
     assert "Validation error" in (result["notes"] or "")
+
+
+# --- #1123 AC1: per-currency balances + per-currency reconciliation ---
+
+
+def test_AC1_per_currency_reconcile_does_not_cross_sum():
+    """AC4.13.1 (#1123 AC1): A multi-currency statement reconciles each currency independently.
+
+    Each currency's running balance is checked with its OWN
+    ``open_ccy + ΣIN_ccy − ΣOUT_ccy ≈ close_ccy`` invariant. The currencies must
+    NOT be summed together: here both SGD and USD balance individually, but the
+    cross-summed scalar total (which the legacy aggregate check would compute)
+    does NOT balance — so a correct per-currency check passes where a cross-sum
+    check would wrongly fail (or, worse, wrongly pass on offsetting errors).
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+            {"currency": "USD", "opening": "500.00", "closing": "300.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+            {"amount": "200.00", "direction": "OUT", "currency": "USD"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is True
+    assert result["balance_computable"] is True
+    per_ccy = {r["currency"]: r for r in result["per_currency"]}
+    assert set(per_ccy) == {"SGD", "USD"}
+    assert per_ccy["SGD"]["balance_valid"] is True
+    assert per_ccy["USD"]["balance_valid"] is True
+    # No cross-currency total is produced; each currency stands alone.
+    assert "expected_closing" not in result
+
+
+def test_AC1_per_currency_reconcile_flags_only_offending_currency():
+    """AC4.13.2 (#1123 AC1): A mismatch in one currency does not contaminate the others.
+
+    USD is short by 50; SGD is correct. The per-currency result marks only USD
+    invalid and keeps SGD valid — never collapsing them into one aggregate flag.
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+            {"currency": "USD", "opening": "500.00", "closing": "300.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+            {"amount": "150.00", "direction": "OUT", "currency": "USD"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is False
+    per_ccy = {r["currency"]: r for r in result["per_currency"]}
+    assert per_ccy["SGD"]["balance_valid"] is True
+    assert per_ccy["USD"]["balance_valid"] is False
+    assert per_ccy["USD"]["difference"] == "50.00"
+
+
+def test_AC1_single_currency_degenerate_path_still_passes():
+    """AC4.13.3 (#1123 AC1): A single-currency statement passes via the degenerate path.
+
+    With only the scalar ``opening_balance`` / ``closing_balance`` present (no
+    ``balances`` array — today's payloads), per-currency validation falls back to
+    one synthetic currency bucket and reproduces the existing scalar check.
+    """
+    extracted = {
+        "currency": "SGD",
+        "opening_balance": "100.00",
+        "closing_balance": "150.00",
+        "transactions": [{"amount": "50.00", "direction": "IN", "currency": "SGD"}],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is True
+    assert len(result["per_currency"]) == 1
+    assert result["per_currency"][0]["currency"] == "SGD"
+    assert result["per_currency"][0]["balance_valid"] is True
+
+
+def test_AC1_single_currency_degenerate_path_detects_mismatch():
+    """AC4.13.4 (#1123 AC1): The degenerate single-currency path still catches mismatches."""
+    extracted = {
+        "currency": "SGD",
+        "opening_balance": "100.00",
+        "closing_balance": "200.00",
+        "transactions": [{"amount": "10.00", "direction": "IN", "currency": "SGD"}],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is False
+    assert result["per_currency"][0]["balance_valid"] is False
+
+
+def test_AC1_currency_balance_schema_round_trips_decimals():
+    """AC4.13.5 (#1123 AC1): ``CurrencyBalance`` carries (currency, opening, closing) as Decimal."""
+    from src.schemas.extraction import CurrencyBalance
+
+    bal = CurrencyBalance(currency="usd", opening="1000.00", closing="1200.50")
+
+    assert bal.currency == "USD"  # normalized upper-case ISO code
+    assert bal.opening == Decimal("1000.00")
+    assert bal.closing == Decimal("1200.50")

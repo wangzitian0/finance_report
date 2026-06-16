@@ -8,7 +8,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.models.statement_enums import BankStatementStatus
 from src.schemas.base import ListResponse
@@ -33,6 +33,31 @@ class BankStatementTransactionStatusEnum(str, Enum):
     PENDING = "pending"
     MATCHED = "matched"
     UNMATCHED = "unmatched"
+
+
+class CurrencyBalance(BaseModel):
+    """One currency's opening/closing balance within a statement (#1123 AC1).
+
+    A statement may hold balances in several currencies (Wise / IBKR / Futu).
+    Each currency is an independent closed loop: ``open + ΣIN − ΣOUT ≈ close`` is
+    validated per currency and never summed across currencies. A single-currency
+    statement maps to a one-element array; the scalar ``opening_balance`` /
+    ``closing_balance`` columns stay populated for backward compatibility.
+
+    FX leg pairing, internal-transfer net-worth, and FX P&L (#1123 AC2/AC3/AC4)
+    are out of scope here and tracked as follow-up.
+    """
+
+    currency: str = Field(..., description="ISO currency code (normalized upper-case)")
+    opening: Decimal = Field(..., description="Opening balance in this currency")
+    closing: Decimal = Field(..., description="Closing balance in this currency")
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("currency")
+    @classmethod
+    def _normalize_currency(cls, value: str) -> str:
+        return value.strip().upper()
 
 
 # --- Request Schemas ---
