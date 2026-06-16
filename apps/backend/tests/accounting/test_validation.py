@@ -11,6 +11,7 @@ from src.services.validation import (
     compute_confidence_score,
     route_by_threshold,
     validate_balance,
+    validate_balance_per_currency,
     validate_completeness,
 )
 
@@ -60,7 +61,62 @@ def test_route_by_threshold():
     assert route_by_threshold(90, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(70, True) == BankStatementStatus.PARSED
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED
-    assert route_by_threshold(90, False) == BankStatementStatus.UPLOADED
+    # AC13.21.1 (#1141): a balance-invalid bank statement no longer dead-ends in
+    # `uploaded`; it enters review (`PARSED`), matching the brokerage path.
+    assert route_by_threshold(90, False) == BankStatementStatus.PARSED
+
+
+def test_AC13_21_1_balance_invalid_routes_to_parsed_review():
+    """AC13.21.1 (#1141): balance-invalid bank statements route to PARSED (review).
+
+    A parsed-but-unvalidated bank statement must never be parked in `uploaded`
+    (the retry-rejected, readiness-invisible dead-end). It must enter the same
+    reviewable resting state as a brokerage statement, regardless of score.
+    """
+    for score in (0, 50, 59, 60, 84, 85, 95, 100):
+        assert route_by_threshold(score, balance_valid=False) == BankStatementStatus.PARSED, (
+            f"balance-invalid score={score} must route to PARSED, never UPLOADED"
+        )
+    # Valid-balance routing semantics are preserved (low signal -> manual entry).
+    assert route_by_threshold(50, balance_valid=True) == BankStatementStatus.UPLOADED
+
+
+async def test_AC13_21_4_readiness_counts_parsed_balance_invalid(db, test_user):
+    """AC13.21.4 (#1141): the balance-invalid resting state is readiness-visible.
+
+    A balance-invalid bank statement rests in `PARSED` (see routing below); report
+    readiness counts `PARSED` + `APPROVED` summaries, so the statement is an
+    available report input instead of an invisible `uploaded` orphan. This drives
+    the real readiness query against a seeded DB row rather than inspecting source
+    text, so a regression in the status filter would actually fail the test.
+    """
+    from src.models import StatementSummary
+    from src.services.report_readiness import get_personal_report_package_readiness
+
+    # The balance-invalid bank statement rests in PARSED, not UPLOADED.
+    resting_status = route_by_threshold(95, balance_valid=False)
+    assert resting_status == BankStatementStatus.PARSED
+
+    # Baseline: no statements seeded -> readiness counts zero.
+    baseline = await get_personal_report_package_readiness(db, test_user.id)
+    assert baseline["source_summary"]["statements"] == 0
+
+    # Seed a PARSED, balance-invalid statement (the exact resting state under test).
+    statement = StatementSummary(
+        user_id=test_user.id,
+        account_id=None,
+        file_hash="readiness-parsed-balance-invalid",
+        institution="DBS",
+        currency="SGD",
+        status=resting_status,
+        balance_validated=False,
+    )
+    db.add(statement)
+    await db.flush()
+
+    # The real readiness query must count the PARSED balance-invalid statement.
+    readiness = await get_personal_report_package_readiness(db, test_user.id)
+    assert readiness["source_summary"]["statements"] == 1
 
 
 def test_validate_balance_tolerance():
@@ -219,3 +275,168 @@ def test_validate_balance_incomplete_transaction():
     result = validate_balance(extracted)
     assert result["balance_valid"] is False
     assert "Validation error" in (result["notes"] or "")
+
+
+# --- #1123 AC1: per-currency balances + per-currency reconciliation ---
+
+
+def test_AC1_per_currency_reconcile_does_not_cross_sum():
+    """AC4.13.1 (#1123 AC1): A multi-currency statement reconciles each currency independently.
+
+    Each currency's running balance is checked with its OWN
+    ``open_ccy + ΣIN_ccy − ΣOUT_ccy ≈ close_ccy`` invariant. The currencies must
+    NOT be summed together: here both SGD and USD balance individually, but the
+    cross-summed scalar total (which the legacy aggregate check would compute)
+    does NOT balance — so a correct per-currency check passes where a cross-sum
+    check would wrongly fail (or, worse, wrongly pass on offsetting errors).
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+            {"currency": "USD", "opening": "500.00", "closing": "300.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+            {"amount": "200.00", "direction": "OUT", "currency": "USD"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is True
+    assert result["balance_computable"] is True
+    per_ccy = {r["currency"]: r for r in result["per_currency"]}
+    assert set(per_ccy) == {"SGD", "USD"}
+    assert per_ccy["SGD"]["balance_valid"] is True
+    assert per_ccy["USD"]["balance_valid"] is True
+    # No cross-currency total is produced; each currency stands alone.
+    assert "expected_closing" not in result
+
+
+def test_AC1_per_currency_reconcile_flags_only_offending_currency():
+    """AC4.13.2 (#1123 AC1): A mismatch in one currency does not contaminate the others.
+
+    USD is short by 50; SGD is correct. The per-currency result marks only USD
+    invalid and keeps SGD valid — never collapsing them into one aggregate flag.
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+            {"currency": "USD", "opening": "500.00", "closing": "300.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+            {"amount": "150.00", "direction": "OUT", "currency": "USD"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is False
+    per_ccy = {r["currency"]: r for r in result["per_currency"]}
+    assert per_ccy["SGD"]["balance_valid"] is True
+    assert per_ccy["USD"]["balance_valid"] is False
+    assert per_ccy["USD"]["difference"] == "50.00"
+
+
+def test_AC1_single_currency_degenerate_path_still_passes():
+    """AC4.13.3 (#1123 AC1): A single-currency statement passes via the degenerate path.
+
+    With only the scalar ``opening_balance`` / ``closing_balance`` present (no
+    ``balances`` array — today's payloads), per-currency validation falls back to
+    one synthetic currency bucket and reproduces the existing scalar check.
+    """
+    extracted = {
+        "currency": "SGD",
+        "opening_balance": "100.00",
+        "closing_balance": "150.00",
+        "transactions": [{"amount": "50.00", "direction": "IN", "currency": "SGD"}],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is True
+    assert len(result["per_currency"]) == 1
+    assert result["per_currency"][0]["currency"] == "SGD"
+    assert result["per_currency"][0]["balance_valid"] is True
+
+
+def test_AC1_single_currency_degenerate_path_detects_mismatch():
+    """AC4.13.4 (#1123 AC1): The degenerate single-currency path still catches mismatches."""
+    extracted = {
+        "currency": "SGD",
+        "opening_balance": "100.00",
+        "closing_balance": "200.00",
+        "transactions": [{"amount": "10.00", "direction": "IN", "currency": "SGD"}],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is False
+    assert result["per_currency"][0]["balance_valid"] is False
+
+
+def test_AC1_currency_balance_schema_round_trips_decimals():
+    """AC4.13.5 (#1123 AC1): ``CurrencyBalance`` carries (currency, opening, closing) as Decimal."""
+    from src.schemas.extraction import CurrencyBalance
+
+    bal = CurrencyBalance(currency="usd", opening="1000.00", closing="1200.50")
+
+    assert bal.currency == "USD"  # normalized upper-case ISO code
+    assert bal.opening == Decimal("1000.00")
+    assert bal.closing == Decimal("1200.50")
+
+
+def test_AC1_orphan_currency_transaction_is_surfaced_not_dropped():
+    """AC4.13.7 (#1123 AC1): A transaction in an undeclared currency is surfaced, not dropped.
+
+    EUR appears in a transaction but has no declared balance bucket. Without
+    surfacing it, the EUR money would vanish and the statement could appear to
+    reconcile. The orphan currency must show up as its own per-currency result
+    (flagged ``declared_balance=False``) and force the overall result invalid.
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+            {"amount": "75.00", "direction": "IN", "currency": "EUR"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    per_ccy = {r["currency"]: r for r in result["per_currency"]}
+    assert set(per_ccy) == {"SGD", "EUR"}, "orphan EUR transaction must not be dropped"
+    assert per_ccy["SGD"]["declared_balance"] is True
+    assert per_ccy["SGD"]["balance_valid"] is True
+    assert per_ccy["EUR"]["declared_balance"] is False
+    assert per_ccy["EUR"]["balance_valid"] is False
+    assert per_ccy["EUR"]["difference"] == "75.00"
+    assert result["balance_valid"] is False
+
+
+def test_AC1_duplicate_currency_in_balances_is_rejected():
+    """AC4.13.8 (#1123 AC1): Duplicate currencies in ``balances`` are rejected, not collapsed.
+
+    Two SGD buckets would make ``nets`` ambiguous (keyed by currency), so the
+    validator rejects the payload with ``balance_computable=False`` rather than
+    silently picking one bucket and producing an arbitrary result.
+    """
+    extracted = {
+        "balances": [
+            {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+            {"currency": "SGD", "opening": "5000.00", "closing": "5100.00"},
+        ],
+        "transactions": [
+            {"amount": "200.00", "direction": "IN", "currency": "SGD"},
+        ],
+    }
+
+    result = validate_balance_per_currency(extracted)
+
+    assert result["balance_valid"] is False
+    assert result["balance_computable"] is False
+    assert result["per_currency"] == []
+    assert "Duplicate currency" in (result["notes"] or "")

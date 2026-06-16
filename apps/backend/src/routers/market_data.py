@@ -91,7 +91,7 @@ async def market_data_status_endpoint(
     return [_status_response(item) for item in statuses]
 
 
-@router.post("/sync/fx", response_model=MarketDataSyncResponse, status_code=status.HTTP_200_OK)
+@router.post("/fx/syncs", response_model=MarketDataSyncResponse, status_code=status.HTTP_200_OK)
 async def sync_fx_endpoint(
     request: MarketDataSyncRequest,
     db: DbSession,
@@ -113,7 +113,7 @@ async def sync_fx_endpoint(
     return _response_from_result(result)
 
 
-@router.post("/sync/stocks", response_model=MarketDataSyncResponse, status_code=status.HTTP_200_OK)
+@router.post("/stocks/syncs", response_model=MarketDataSyncResponse, status_code=status.HTTP_200_OK)
 async def sync_stocks_endpoint(
     request: MarketDataSyncRequest,
     db: DbSession,

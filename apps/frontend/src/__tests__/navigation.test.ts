@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_ROUTE_ICON,
+  ROUTE_CONFIG,
   advancedNavItems,
   getRouteConfig,
   primaryWorkflowNavItems,
@@ -77,5 +78,15 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/notifications").label).toBe("Notifications");
     expect(getRouteConfig("/custom-report_page").label).toBe("Custom Report Page");
     expect(getRouteConfig("/totally-unknown-xyz").Icon).toBe(DEFAULT_ROUTE_ICON);
+  });
+
+  it("AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label", () => {
+    // /events is permanently redirected to /notifications; it is no longer in
+    // ROUTE_CONFIG, so it falls through to a derived label instead of leaking
+    // the legacy "Notifications" mapping.
+    expect(ROUTE_CONFIG["/events"]).toBeUndefined();
+    expect(getRouteConfig("/events").label).toBe("Events");
+    // /notifications remains the single canonical Notifications surface.
+    expect(getRouteConfig("/notifications").label).toBe("Notifications");
   });
 });

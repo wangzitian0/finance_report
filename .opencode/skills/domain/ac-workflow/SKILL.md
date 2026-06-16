@@ -28,7 +28,7 @@ drift if you don't regenerate:
 
 ```bash
 apps/backend/.venv/bin/python tools/generate_ac_registry.py     # sync the index
-apps/backend/.venv/bin/python tools/check_ac_traceability.py    # gate: every mandatory AC has a real CI test
+apps/backend/.venv/bin/python tools/check_ac_index.py           # gate: every mandatory AC has a real CI test
 ```
 
 The **preflight** skill runs both automatically when it sees an EPIC/registry

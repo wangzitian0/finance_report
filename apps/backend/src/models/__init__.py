@@ -5,6 +5,7 @@ from src.models.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessi
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.correction import CorrectionLog
 from src.models.evidence import EvidenceEdge, EvidenceNode
+from src.models.fx_conversion import FxConversion
 from src.models.journal import (
     Direction,
     JournalAuditLog,
@@ -83,6 +84,7 @@ __all__ = [
     "DocumentType",
     "EvidenceEdge",
     "EvidenceNode",
+    "FxConversion",
     "FxRate",
     "JournalEntry",
     "JournalAuditLog",

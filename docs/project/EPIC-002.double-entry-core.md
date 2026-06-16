@@ -52,8 +52,8 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 - [x] `POST /api/journal-entries` - Create journal entry (with balance validation)
 - [x] `GET /api/journal-entries` - Journal entry list (pagination, date filter)
 - [x] `GET /api/journal-entries/{id}` - Journal entry details
-- [x] `POST /api/journal-entries/{id}/post` - Post entry (draft → posted)
-- [x] `POST /api/journal-entries/{id}/void` - Void entry (generate reversal entry)
+- [x] `POST /api/journal-entries/{id}/postings` - Post entry (draft → posted)
+- [x] `POST /api/journal-entries/{id}/voidings` - Void entry (generate reversal entry)
 
 ### Business Logic (Backend) ✅
 
@@ -204,7 +204,7 @@ SUM(DEBIT) = SUM(CREDIT)  // Each journal entry must balance
 |----|-------------|---------------|------|----------|
 | AC2.10.1 | `POST /accounts`, `GET /accounts`, `GET /accounts/{id}`, `PUT /accounts/{id}` | `test_accounts_endpoints()` | `api/test_api_endpoints.py` | P0 |
 | AC2.10.2 | `POST /journal-entries`, `GET /journal-entries`, `GET /journal-entries/{id}` | `test_journal_entry_endpoints()` | `api/test_api_endpoints.py` | P0 |
-| AC2.10.3 | `POST /journal-entries/{id}/post`, `POST /journal-entries/{id}/void` | `test_journal_entry_endpoints()` | `api/test_api_endpoints.py` | P0 |
+| AC2.10.3 | `POST /journal-entries/{id}/postings`, `POST /journal-entries/{id}/voidings` | `test_journal_entry_endpoints()` | `api/test_api_endpoints.py` | P0 |
 | AC2.10.4 | API error behavior for missing/invalid resources | `test_journal_router_errors.py` suite | `accounting/test_journal_router_errors.py` | P1 |
 | AC2.10.5 | DELETE /statements/{id} success | `test_delete_endpoints` | `accounting/test_delete_endpoints.py` | P1 |
 

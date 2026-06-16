@@ -44,6 +44,40 @@ async def _make_summary(db: AsyncSession, user_id, *, file_hash: str, account_id
 
 
 class TestStatementSummaryConform:
+    async def test_AC1_currency_balances_jsonb_round_trips(self, db, test_user):
+        """AC4.13.6 (#1123 AC1): ``currency_balances`` JSONB persists a per-currency balance array.
+
+        Additive to the scalar ``opening_balance`` / ``closing_balance`` columns,
+        which stay populated for the single-currency degenerate case and
+        backward compatibility.
+        """
+        summary = await StatementSummaryFactory.create_async(
+            db,
+            test_user.id,
+            file_hash="hash-ccy-balances",
+            institution="Wise",
+            currency="SGD",
+            period_start=date(2024, 1, 1),
+            period_end=date(2024, 1, 31),
+            opening_balance=Decimal("1000.00"),
+            closing_balance=Decimal("1200.00"),
+            currency_balances=[
+                {"currency": "SGD", "opening": "1000.00", "closing": "1200.00"},
+                {"currency": "USD", "opening": "500.00", "closing": "300.00"},
+            ],
+        )
+        await db.commit()
+        await db.refresh(summary)
+
+        assert summary.currency_balances is not None
+        assert len(summary.currency_balances) == 2
+        usd = next(b for b in summary.currency_balances if b["currency"] == "USD")
+        assert usd["opening"] == "500.00"
+        assert usd["closing"] == "300.00"
+        # Scalar columns remain populated for back-compat.
+        assert summary.opening_balance == Decimal("1000.00")
+        assert summary.closing_balance == Decimal("1200.00")
+
     async def test_resolve_custody_account_from_atomic_txn(self, db, test_user):
         """AC11.15.3: custody account resolves from an atomic txn via the conform (DWD-native)."""
         account = await _make_account(db, test_user.id)

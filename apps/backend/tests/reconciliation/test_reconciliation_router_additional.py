@@ -9,6 +9,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.deps import PaginationParams
 from src.models import (
     Account,
     AccountType,
@@ -459,7 +460,9 @@ async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
     txn = await _create_transaction(db, statement, amount=Decimal("10.00"), status=None)
     await db.commit()
 
-    anomalies = await reconciliation_router.list_anomalies(txn_id=str(txn.id), db=db, user_id=test_user.id)
+    anomalies = await reconciliation_router.list_anomalies(
+        txn_id=str(txn.id), db=db, user_id=test_user.id, pagination=PaginationParams()
+    )
     assert isinstance(anomalies, list)
 
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { setUser } from "@/lib/auth";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 interface AuthResponse {
     id: string;
@@ -38,6 +39,11 @@ export default function LoginPage() {
             });
 
             setUser(data.id, data.email, data.access_token);
+            // EPIC-022 AC22.18.3 (#1109): instrument the signup funnel step. Only
+            // the register success path is a new-user signup; plain login is not.
+            if (mode === "register") {
+                track(ANALYTICS_EVENTS.SIGNUP);
+            }
             router.push("/");
         } catch (err) {
             setError(err instanceof Error ? err.message : "An error occurred");

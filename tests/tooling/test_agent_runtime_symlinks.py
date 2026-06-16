@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -196,3 +197,50 @@ def test_claude_settings_enable_mcp_baseline() -> None:
     assert not missing, (
         f".claude/settings.json does not enable baseline MCP servers: {sorted(missing)}"
     )
+
+
+# Explicit `tools/<x>.py` path — must exist at exactly that path.
+_TOOL_PATH_REF = re.compile(r"\btools/[A-Za-z0-9_./-]+\.py\b")
+# Bare backticked `<name>.py` (no path) — skills often cite a tool script by
+# filename alone (e.g. a preflight mapping cell). Those must still resolve to a
+# real file somewhere in the repo, or the same drift slips past a path-only check.
+_BARE_PY_REF = re.compile(r"`([A-Za-z0-9_-]+\.py)`")
+_PY_SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", "worktrees"}
+
+
+def _repo_py_basenames() -> set[str]:
+    """All `*.py` basenames tracked in the repo (heavy/vendored dirs pruned)."""
+    names: set[str] = set()
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        dirnames[:] = [d for d in dirnames if d not in _PY_SKIP_DIRS]
+        names.update(fn for fn in filenames if fn.endswith(".py"))
+    return names
+
+
+def test_skill_docs_reference_existing_tools() -> None:
+    """Every tool script a canonical SKILL.md tells agents to run must resolve.
+
+    Skills are static markdown; when a tool is renamed or moved, nothing fails the
+    skill until an agent follows a now-dead command. Two citation styles are checked:
+
+    * explicit ``tools/<x>.py`` paths must exist at that path;
+    * bare backticked ``<name>.py`` filenames (no path) must match a real ``*.py``
+      file somewhere in the repo.
+
+    (This guard exists because the ac-workflow and preflight skills both shipped
+    references to ``check_ac_traceability.py`` — which never existed; the real gate
+    is ``check_ac_index.py`` — and the bare-filename form slipped past a path-only
+    matcher.)
+    """
+    repo_basenames = _repo_py_basenames()
+    missing: list[str] = []
+    for skill_md in sorted(OPENCODE_SKILLS.rglob("SKILL.md")):
+        text = skill_md.read_text(encoding="utf-8")
+        rel = skill_md.relative_to(ROOT)
+        for ref in _TOOL_PATH_REF.findall(text):
+            if not (ROOT / ref).is_file():
+                missing.append(f"{rel} -> {ref}")
+        for name in _BARE_PY_REF.findall(text):
+            if name not in repo_basenames:
+                missing.append(f"{rel} -> {name} (no such file in repo)")
+    assert not missing, f"SKILL.md files reference non-existent tools: {sorted(set(missing))}"

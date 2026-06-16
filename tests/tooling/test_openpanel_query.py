@@ -1,4 +1,4 @@
-"""Tests for the OpenPanel query CLI (EPIC-023 / AC23.1.4).
+"""Tests for the OpenPanel query CLI (EPIC-024 / AC24.1.4).
 
 Logic lives in ``common.observability.openpanel_query`` (measured under the
 ``common`` coverage component); ``tools/openpanel_query.py`` is a thin wrapper.
@@ -16,7 +16,7 @@ from common.observability import openpanel_query as cli
 
 
 def test_AC23_1_4_cli_module_and_help_smoke() -> None:
-    """AC23.1.4: the OpenPanel query CLI exists and exposes events/funnel."""
+    """AC24.1.4: the OpenPanel query CLI exists and exposes events/funnel."""
     parser = cli.build_parser()
     assert isinstance(parser, argparse.ArgumentParser)
     # --help must exit cleanly (smoke).
@@ -26,7 +26,7 @@ def test_AC23_1_4_cli_module_and_help_smoke() -> None:
 
 
 def test_AC23_1_4_api_key_read_from_env_not_args() -> None:
-    """AC23.1.4: the API key comes from OPENPANEL_API_KEY, never a CLI flag."""
+    """AC24.1.4: the API key comes from OPENPANEL_API_KEY, never a CLI flag."""
     assert "--api-key" not in cli.build_parser().format_help()
     assert cli.resolve_api_key({"OPENPANEL_API_KEY": "abc"}) == "abc"
     with pytest.raises(SystemExit):
@@ -34,7 +34,7 @@ def test_AC23_1_4_api_key_read_from_env_not_args() -> None:
 
 
 def test_AC23_1_4_env_filter_and_funnel_payload() -> None:
-    """AC23.1.4: --env filters by environment; funnel steps are split/trimmed."""
+    """AC24.1.4: --env filters by environment; funnel steps are split/trimmed."""
     events_ns = argparse.Namespace(
         command="events", env="staging", limit=50, event="upload_clicked", api_url=None
     )
@@ -56,7 +56,7 @@ def test_AC23_1_4_env_filter_and_funnel_payload() -> None:
 def test_AC23_1_4_run_uses_resolved_endpoint_and_injected_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC23.1.4: run() targets <api-url>/<command> with the env-sourced key."""
+    """AC24.1.4: run() targets <api-url>/<command> with the env-sourced key."""
     monkeypatch.setenv("OPENPANEL_API_KEY", "secret-key")
     captured: dict[str, object] = {}
 
@@ -83,7 +83,7 @@ def test_AC23_1_4_run_uses_resolved_endpoint_and_injected_transport(
 
 
 def test_AC23_1_4_resolve_api_url_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC23.1.4: explicit flag > OPENPANEL_API_URL env > self-hosted default."""
+    """AC24.1.4: explicit flag > OPENPANEL_API_URL env > self-hosted default."""
     monkeypatch.delenv("OPENPANEL_API_URL", raising=False)
     assert cli.resolve_api_url(None) == cli.DEFAULT_API_URL
     monkeypatch.setenv("OPENPANEL_API_URL", "https://env.example/api")
@@ -94,7 +94,7 @@ def test_AC23_1_4_resolve_api_url_precedence(monkeypatch: pytest.MonkeyPatch) ->
 def test_AC23_1_4_refuses_plaintext_http_except_loopback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC23.1.4: the API key is never sent over plaintext http to a remote host."""
+    """AC24.1.4: the API key is never sent over plaintext http to a remote host."""
     monkeypatch.delenv("OPENPANEL_API_URL", raising=False)
     # Loopback http is allowed (local dev).
     assert cli.resolve_api_url("http://localhost:3000/api") == "http://localhost:3000/api"
@@ -109,7 +109,7 @@ def test_AC23_1_4_refuses_plaintext_http_except_loopback(
 def test_AC23_1_4_main_prints_json_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC23.1.4: main() resolves config, runs the request, and prints JSON."""
+    """AC24.1.4: main() resolves config, runs the request, and prints JSON."""
     monkeypatch.setenv("OPENPANEL_API_KEY", "secret-key")
     monkeypatch.setattr(
         cli, "post_json", lambda url, key, payload: {"events": [], "url": url}
@@ -125,7 +125,7 @@ def test_AC23_1_4_main_prints_json_result(
 def test_AC23_1_4_main_reports_network_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC23.1.4: a transport URLError is reported as a non-zero exit, not a crash."""
+    """AC24.1.4: a transport URLError is reported as a non-zero exit, not a crash."""
     import urllib.error
 
     monkeypatch.setenv("OPENPANEL_API_KEY", "secret-key")

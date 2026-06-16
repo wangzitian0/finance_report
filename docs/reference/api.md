@@ -75,7 +75,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/assets/positions/{position_id}` | yes | `position_id`* (path) | - | `200` `ManagedPositionResponse` | Get Position |
 | `GET` | `/assets/positions/{position_id}/depreciation` | yes | `position_id`* (path), `method` (query), `useful_life_years` (query), `salvage_value` (query), `as_of_date` (query) | - | `200` `DepreciationResponse` | Get Position Depreciation |
 | `POST` | `/assets/reconcile` | yes | - | - | `200` `ReconcilePositionsResponse` | Reconcile Positions |
-| `GET` | `/assets/restricted` | yes | `as_of_date` (query) | - | `200` array[`RestrictedHoldingResponse`] | List Restricted Holdings |
+| `GET` | `/assets/restricted` | yes | `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` array[`RestrictedHoldingResponse`] | List Restricted Holdings |
 | `GET` | `/assets/valuation-components` | yes | `as_of_date` (query), `include_restricted` (query) | - | `200` `ValuationComponentsResponse` | List Valuation Components |
 | `GET` | `/assets/valuation-snapshots` | yes | `as_of_date` (query), `component_type` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ManualValuationSnapshotResponse_` | List Valuation Snapshots |
 | `POST` | `/assets/valuation-snapshots` | yes | - | `ManualValuationSnapshotCreate` | `201` `ManualValuationSnapshotResponse` | Create Valuation Snapshot |
@@ -133,16 +133,16 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/journal-entries` | yes | - | `JournalEntryCreate` | `201` `JournalEntryResponse` | Create Entry |
 | `GET` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Get Journal Entry |
 | `DELETE` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `204` - | Delete Journal Entry |
-| `POST` | `/journal-entries/{entry_id}/post` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
-| `POST` | `/journal-entries/{entry_id}/void` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
+| `POST` | `/journal-entries/{entry_id}/postings` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
+| `POST` | `/journal-entries/{entry_id}/voidings` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
 
 ### market-data
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
+| `POST` | `/market-data/fx/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Fx Endpoint |
 | `GET` | `/market-data/status` | yes | `pairs` (query), `symbols` (query), `include_default_fx` (query) | - | `200` array[`MarketDataStatusResponse`] | Market Data Status Endpoint |
-| `POST` | `/market-data/sync/fx` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Fx Endpoint |
-| `POST` | `/market-data/sync/stocks` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Stocks Endpoint |
+| `POST` | `/market-data/stocks/syncs` | yes | - | `MarketDataSyncRequest` | `200` `MarketDataSyncResponse` | Sync Stocks Endpoint |
 
 ### metrics
 
@@ -179,9 +179,9 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/reconciliation/matches/{match_id}/accept` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Accept Match |
 | `POST` | `/reconciliation/matches/{match_id}/reject` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Reject Match |
 | `GET` | `/reconciliation/pending` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_ReconciliationMatchResponse_` | Pending Review Queue |
-| `POST` | `/reconciliation/run` | yes | - | `ReconciliationRunRequest` | `200` `ReconciliationRunResponse` | Run Reconciliation |
+| `POST` | `/reconciliation/runs` | yes | - | `ReconciliationRunRequest` | `200` `ReconciliationRunResponse` | Run Reconciliation |
 | `GET` | `/reconciliation/stats` | yes | - | - | `200` `ReconciliationStatsResponse` | Reconciliation Stats |
-| `GET` | `/reconciliation/transactions/{txn_id}/anomalies` | yes | `txn_id`* (path) | - | `200` array[`AnomalyResponse`] | List Anomalies |
+| `GET` | `/reconciliation/transactions/{txn_id}/anomalies` | yes | `txn_id`* (path), `limit` (query), `offset` (query) | - | `200` array[`AnomalyResponse`] | List Anomalies |
 | `GET` | `/reconciliation/unmatched` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_BankTransactionSummary_` | List Unmatched |
 | `POST` | `/reconciliation/unmatched/batch-create` | yes | - | `BatchCreateEntriesRequest` | `200` `BatchCreateEntriesResponse` | Batch Create Entries |
 | `POST` | `/reconciliation/unmatched/{txn_id}/create-entry` | yes | `txn_id`* (path) | - | `200` `JournalEntrySummary` | Create Entry |
@@ -205,7 +205,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/reports/package/generate` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | `PersonalReportPackageGenerateRequest` \| null | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
 | `GET` | `/reports/package/notes` | no | - | - | `200` `PersonalReportPackageNotesResponse` | Personal Report Package Notes |
 | `GET` | `/reports/package/readiness` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageReadinessResponse` | Personal Report Package Readiness |
-| `GET` | `/reports/package/snapshots` | yes | - | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
+| `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
 | `GET` | `/reports/package/snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `PersonalReportPackageSnapshotResponse` | Get Personal Report Package Snapshot |
 | `GET` | `/reports/package/snapshots/{snapshot_id}/export` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |
 | `GET` | `/reports/package/traceability` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageTraceabilityResponse` | Personal Report Package Traceability |

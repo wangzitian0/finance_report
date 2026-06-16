@@ -106,7 +106,8 @@ registries, and generated reports rather than duplicated here.
 | [EPIC-020](docs/project/EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
 | [EPIC-021](docs/project/EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
 | [EPIC-022](docs/project/EPIC-022.everyday-user-ia.md) | Everyday-user information architecture |
-| [EPIC-023](docs/project/EPIC-023.frontend-observability.md) | Frontend browser observability |
+| [EPIC-023](docs/project/EPIC-023.llm-provider-abstraction.md) | LLM provider abstraction (litellm) |
+| [EPIC-024](docs/project/EPIC-024.frontend-observability.md) | Frontend browser observability |
 
 ## EPIC Status (Generated)
 

@@ -92,30 +92,30 @@ afterEach(() => {
   resetOtelForTests()
 })
 
-describe("scrubUrl (AC23.1.2 — PII scrub)", () => {
-  it("AC23.1.2 strips query string and fragment from an absolute URL", () => {
+describe("scrubUrl (AC24.1.2 — PII scrub)", () => {
+  it("AC24.1.2 strips query string and fragment from an absolute URL", () => {
     expect(scrubUrl("https://app.example.com/reports?email=a@b.com&amount=1000#frag")).toBe(
       "https://app.example.com/reports",
     )
   })
 
-  it("AC23.1.2 keeps a clean absolute URL unchanged", () => {
+  it("AC24.1.2 keeps a clean absolute URL unchanged", () => {
     expect(scrubUrl("https://app.example.com/reports")).toBe("https://app.example.com/reports")
   })
 
-  it("AC23.1.2 cuts query/fragment from a relative/unparseable path", () => {
+  it("AC24.1.2 cuts query/fragment from a relative/unparseable path", () => {
     expect(scrubUrl("/accounts/42?token=secret")).toBe("/accounts/42")
     expect(scrubUrl("/accounts/42#balance")).toBe("/accounts/42")
     expect(scrubUrl("/accounts/42")).toBe("/accounts/42")
   })
 
-  it("AC23.1.2 returns empty input unchanged", () => {
+  it("AC24.1.2 returns empty input unchanged", () => {
     expect(scrubUrl("")).toBe("")
   })
 })
 
-describe("sanitizeAttributes (AC23.1.2 — PII scrub)", () => {
-  it("AC23.1.2 drops sensitive keys (email/amount/account/...) entirely", () => {
+describe("sanitizeAttributes (AC24.1.2 — PII scrub)", () => {
+  it("AC24.1.2 drops sensitive keys (email/amount/account/...) entirely", () => {
     const clean = sanitizeAttributes({
       "user.email": "a@b.com",
       "txn.amount": 100,
@@ -127,7 +127,7 @@ describe("sanitizeAttributes (AC23.1.2 — PII scrub)", () => {
     expect(clean).toEqual({ safe: "kept" })
   })
 
-  it("AC23.1.2 scrubs URL-valued attributes and drops null/undefined", () => {
+  it("AC24.1.2 scrubs URL-valued attributes and drops null/undefined", () => {
     const clean = sanitizeAttributes({
       "http.url": "https://x.com/p?q=1#h",
       "document.url": "https://x.com/d?a=b",
@@ -142,19 +142,19 @@ describe("sanitizeAttributes (AC23.1.2 — PII scrub)", () => {
     })
   })
 
-  it("AC23.1.2 leaves a non-URL string URL key untouched when value is not a string", () => {
+  it("AC24.1.2 leaves a non-URL string URL key untouched when value is not a string", () => {
     // `http.target` is a URL key but here carries a number → passes through.
     expect(sanitizeAttributes({ "http.target": 8080 })).toEqual({ "http.target": 8080 })
   })
 })
 
-describe("resolveOtelConfig (AC23.1.1 — config gate)", () => {
-  it("AC23.1.1 returns null when the OTLP endpoint is unset/blank", () => {
+describe("resolveOtelConfig (AC24.1.1 — config gate)", () => {
+  it("AC24.1.1 returns null when the OTLP endpoint is unset/blank", () => {
     expect(resolveOtelConfig({})).toBeNull()
     expect(resolveOtelConfig({ NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT: "   " })).toBeNull()
   })
 
-  it("AC23.1.1 resolves endpoint + env + version, defaulting tags to 'unknown'", () => {
+  it("AC24.1.1 resolves endpoint + env + version, defaulting tags to 'unknown'", () => {
     expect(
       resolveOtelConfig({ NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT: "https://o/v1/traces" }),
     ).toEqual({
@@ -176,13 +176,13 @@ describe("resolveOtelConfig (AC23.1.1 — config gate)", () => {
   })
 })
 
-describe("initOtel (AC23.1.1 — config-gated, non-blocking, idempotent)", () => {
-  it("AC23.1.1 is a no-op (returns false) when unconfigured", () => {
+describe("initOtel (AC24.1.1 — config-gated, non-blocking, idempotent)", () => {
+  it("AC24.1.1 is a no-op (returns false) when unconfigured", () => {
     expect(initOtel({})).toBe(false)
     expect(mocks.register).not.toHaveBeenCalled()
   })
 
-  it("AC23.1.1 wires the SDK once when configured, then is idempotent", () => {
+  it("AC24.1.1 wires the SDK once when configured, then is idempotent", () => {
     const env = {
       NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT: CONFIG.endpoint,
       NEXT_PUBLIC_DEPLOYMENT_ENVIRONMENT: "staging",
@@ -203,7 +203,7 @@ describe("initOtel (AC23.1.1 — config-gated, non-blocking, idempotent)", () =>
     expect(mocks.register).toHaveBeenCalledTimes(1)
   })
 
-  it("AC23.1.1 is a no-op when window is undefined (server bundle guard)", () => {
+  it("AC24.1.1 is a no-op when window is undefined (server bundle guard)", () => {
     const original = globalThis.window
     // @ts-expect-error — simulate a non-browser (server) environment.
     delete globalThis.window
@@ -217,7 +217,7 @@ describe("initOtel (AC23.1.1 — config-gated, non-blocking, idempotent)", () =>
     }
   })
 
-  it("AC23.1.1 swallows SDK errors and returns false (never throws)", () => {
+  it("AC24.1.1 swallows SDK errors and returns false (never throws)", () => {
     const env = { NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT: CONFIG.endpoint }
     mocks.register.mockImplementationOnce(() => {
       throw new Error("sdk boom")
@@ -228,8 +228,8 @@ describe("initOtel (AC23.1.1 — config-gated, non-blocking, idempotent)", () =>
   })
 })
 
-describe("scrubSpanUrlAttributes (AC23.1.2)", () => {
-  it("AC23.1.2 scrubs all URL-bearing attributes and blanks url.query", () => {
+describe("scrubSpanUrlAttributes (AC24.1.2)", () => {
+  it("AC24.1.2 scrubs all URL-bearing attributes and blanks url.query", () => {
     const span = { setAttribute: vi.fn() }
     scrubSpanUrlAttributes(span, "https://x.com/p?secret=1#frag")
     expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
@@ -238,7 +238,7 @@ describe("scrubSpanUrlAttributes (AC23.1.2)", () => {
     }
   })
 
-  it("AC23.1.2 still blanks url.query when no URL is present", () => {
+  it("AC24.1.2 still blanks url.query when no URL is present", () => {
     const span = { setAttribute: vi.fn() }
     scrubSpanUrlAttributes(span, undefined)
     expect(span.setAttribute).toHaveBeenCalledTimes(1)
@@ -246,8 +246,8 @@ describe("scrubSpanUrlAttributes (AC23.1.2)", () => {
   })
 })
 
-describe("makeUrlScrubHook (AC23.1.2)", () => {
-  it("AC23.1.2 scrubs all URL attributes for a string request", () => {
+describe("makeUrlScrubHook (AC24.1.2)", () => {
+  it("AC24.1.2 scrubs all URL attributes for a string request", () => {
     const span = { setAttribute: vi.fn() }
     makeUrlScrubHook()(span, "https://x.com/p?secret=1")
     expect(span.setAttribute).toHaveBeenCalledWith("http.url", "https://x.com/p")
@@ -255,22 +255,22 @@ describe("makeUrlScrubHook (AC23.1.2)", () => {
     expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
   })
 
-  it("AC23.1.2 scrubs all URL attributes from a Request-like object", () => {
+  it("AC24.1.2 scrubs all URL attributes from a Request-like object", () => {
     const span = { setAttribute: vi.fn() }
     makeUrlScrubHook()(span, { url: "https://x.com/q?a=b#c" })
     expect(span.setAttribute).toHaveBeenCalledWith("http.target", "https://x.com/q")
     expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
   })
 
-  it("AC23.1.2 blanks url.query even when no URL is present", () => {
+  it("AC24.1.2 blanks url.query even when no URL is present", () => {
     const span = { setAttribute: vi.fn() }
     makeUrlScrubHook()(span, {})
     expect(span.setAttribute).toHaveBeenCalledWith("url.query", "")
   })
 })
 
-describe("makeDocumentLoadScrubHook (AC23.1.2)", () => {
-  it("AC23.1.2 scrubs the document URL attributes on the span", () => {
+describe("makeDocumentLoadScrubHook (AC24.1.2)", () => {
+  it("AC24.1.2 scrubs the document URL attributes on the span", () => {
     const span = { setAttribute: vi.fn() }
     const original = Object.getOwnPropertyDescriptor(document, "documentURI")
     Object.defineProperty(document, "documentURI", {
@@ -288,7 +288,7 @@ describe("makeDocumentLoadScrubHook (AC23.1.2)", () => {
     }
   })
 
-  it("AC23.1.2 falls back to location.href when documentURI is empty", () => {
+  it("AC24.1.2 falls back to location.href when documentURI is empty", () => {
     const span = { setAttribute: vi.fn() }
     const original = Object.getOwnPropertyDescriptor(document, "documentURI")
     const originalLoc = Object.getOwnPropertyDescriptor(window, "location")
@@ -306,7 +306,7 @@ describe("makeDocumentLoadScrubHook (AC23.1.2)", () => {
     }
   })
 
-  it("AC23.1.2 tolerates document access throwing (safe blank)", () => {
+  it("AC24.1.2 tolerates document access throwing (safe blank)", () => {
     const span = { setAttribute: vi.fn() }
     const original = Object.getOwnPropertyDescriptor(document, "documentURI")
     Object.defineProperty(document, "documentURI", {
@@ -332,13 +332,13 @@ describe("makeDocumentLoadScrubHook (AC23.1.2)", () => {
   })
 })
 
-describe("redactException (AC23.1.3)", () => {
-  it("AC23.1.3 keeps the error type but redacts the message/stack", () => {
+describe("redactException (AC24.1.3)", () => {
+  it("AC24.1.3 keeps the error type but redacts the message/stack", () => {
     const err = new Error("user a@b.com owes $1,234 on account 999")
     expect(redactException(err)).toEqual({ name: "Error", message: "[redacted]" })
   })
 
-  it("AC23.1.3 defaults a missing name to 'Error'", () => {
+  it("AC24.1.3 defaults a missing name to 'Error'", () => {
     expect(redactException({})).toEqual({ name: "Error", message: "[redacted]" })
     expect(redactException({ name: "" })).toEqual({ name: "Error", message: "[redacted]" })
     expect(redactException({ name: "TypeError" })).toEqual({
@@ -348,8 +348,8 @@ describe("redactException (AC23.1.3)", () => {
   })
 })
 
-describe("captureWebVitals (AC23.1.1)", () => {
-  it("AC23.1.1 subscribes to vitals and emits a sanitized span per metric", () => {
+describe("captureWebVitals (AC24.1.1)", () => {
+  it("AC24.1.1 subscribes to vitals and emits a sanitized span per metric", () => {
     const setAttribute = vi.fn()
     const end = vi.fn()
     const provider = {
@@ -373,7 +373,7 @@ describe("captureWebVitals (AC23.1.1)", () => {
     expect(end).toHaveBeenCalledTimes(1)
   })
 
-  it("AC23.1.1 tolerates a partial web-vitals module (optional callbacks)", () => {
+  it("AC24.1.1 tolerates a partial web-vitals module (optional callbacks)", () => {
     const provider = {
       getTracer: () => ({
         startSpan: () => ({ setAttribute: vi.fn(), recordException: vi.fn(), end: vi.fn() }),
@@ -383,7 +383,7 @@ describe("captureWebVitals (AC23.1.1)", () => {
   })
 })
 
-describe("installErrorHooks (AC23.1.3 — exceptions as span exceptions)", () => {
+describe("installErrorHooks (AC24.1.3 — exceptions as span exceptions)", () => {
   function fakeProvider() {
     const recordException = vi.fn()
     const setAttribute = vi.fn()
@@ -400,7 +400,7 @@ describe("installErrorHooks (AC23.1.3 — exceptions as span exceptions)", () =>
     }
   }
 
-  it("AC23.1.3 records window.onerror as a span exception with a scrubbed location", () => {
+  it("AC24.1.3 records window.onerror as a span exception with a scrubbed location", () => {
     const f = fakeProvider()
     const listeners: Record<string, (e: unknown) => void> = {}
     const target = {
@@ -418,7 +418,7 @@ describe("installErrorHooks (AC23.1.3 — exceptions as span exceptions)", () =>
     expect(f.end).toHaveBeenCalled()
   })
 
-  it("AC23.1.3 records unhandledrejection, wrapping a non-Error reason", () => {
+  it("AC24.1.3 records unhandledrejection, wrapping a non-Error reason", () => {
     const f = fakeProvider()
     const listeners: Record<string, (e: unknown) => void> = {}
     const target = {
@@ -449,7 +449,7 @@ describe("installErrorHooks (AC23.1.3 — exceptions as span exceptions)", () =>
     })
   })
 
-  it("AC23.1.3 tolerates window.location access throwing (safe href fallback)", () => {
+  it("AC24.1.3 tolerates window.location access throwing (safe href fallback)", () => {
     const f = fakeProvider()
     const listeners: Record<string, (e: unknown) => void> = {}
     const target = {

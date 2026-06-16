@@ -1,14 +1,14 @@
 """AC4.3: Reconciliation API router tests for review queue and status management.
 
 Tests all endpoints in src/routers/reconciliation.py covering:
-- AC4.1: Matching core (POST /reconciliation/run)
+- AC4.1: Matching core (POST /reconciliation/runs)
 - AC4.2: Group matching and batch operations
 - AC4.3: Review queue and status management
 - AC4.4: Performance optimization
 - AC4.5: Anomaly detection
 
 Endpoints:
-- POST /reconciliation/run - Run reconciliation matching
+- POST /reconciliation/runs - Run reconciliation matching
 - GET /reconciliation/matches - List matches with status filter
 - GET /reconciliation/pending - List pending review queue
 - POST /reconciliation/matches/{match_id}/accept - Accept a match
@@ -136,7 +136,7 @@ class TestReconciliationEndpoints:
 
         # WHEN calling run endpoint
         payload = {"statement_id": str(statement.id)}
-        response = await client.post("/reconciliation/run", json=payload)
+        response = await client.post("/reconciliation/runs", json=payload)
 
         # THEN returns 200 with run results
         assert response.status_code == status.HTTP_200_OK
@@ -152,7 +152,7 @@ class TestReconciliationEndpoints:
         payload = {"statement_id": str(uuid4())}
 
         # WHEN calling run endpoint
-        response = await client.post("/reconciliation/run", json=payload)
+        response = await client.post("/reconciliation/runs", json=payload)
 
         # THEN returns 404 Not Found
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -578,7 +578,7 @@ class TestReconciliationEndpoints:
 
         # WHEN calling run endpoint with statement_id filter
         payload = {"statement_id": str(statement.id)}
-        response = await client.post("/reconciliation/run", json=payload)
+        response = await client.post("/reconciliation/runs", json=payload)
 
         # THEN returns 200 with filtered results
         assert response.status_code == status.HTTP_200_OK

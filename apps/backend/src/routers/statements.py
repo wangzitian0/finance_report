@@ -24,7 +24,6 @@ from src.models import (
     BankStatementStatus,
     UploadedDocument,
 )
-from src.models.layer2 import AtomicTransaction
 from src.models.statement_summary import StatementSummary
 from src.schemas import (
     AtomicTransactionResponse,
@@ -47,6 +46,11 @@ from src.schemas.review import (
 from src.services import StorageError, StorageService
 from src.services.ai_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.brokerage_positions import BrokeragePositionImportService
+from src.services.brokerage_statement_payload import (
+    _brokerage_import_not_ready_reason,
+    _brokerage_payload_from_persisted_extraction,
+    _brokerage_payload_from_statement,
+)
 from src.services.statement_pipeline import submit_parse_pipeline
 from src.services.statement_posting import auto_create_posted_entries_for_statement, resolve_statement_posting_account
 from src.services.statement_validation import (
@@ -247,7 +251,12 @@ async def upload_statement(
 
     Supported file types: PDF, CSV, PNG, JPG. Model is optional for PDF/image uploads;
     omitted model uses the OCR-first default pipeline.
-    Institution is optional - AI will auto-detect from document if not provided.
+
+    Institution is optional for PDF/image uploads (AI auto-detects it from the
+    document). It is **required** for CSV uploads — the institution cannot be
+    auto-detected from CSV content, so a missing institution is rejected
+    synchronously with HTTP 400 rather than accepted and rejected asynchronously
+    by the parse worker (#1141 / #1087).
     """
     filename = Path(file.filename or "unknown").name or "unknown"
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
@@ -264,6 +273,18 @@ async def upload_statement(
 
     if extension not in ("pdf", "csv", "png", "jpg", "jpeg"):
         raise_bad_request(f"Unsupported file type: {extension}")
+
+    # AC13.18.6 (#1141 / #1087): CSV parsing cannot auto-detect the institution the
+    # way PDF/image vision extraction can, so a CSV without an institution can only
+    # fail later inside the async parse worker ("Institution is required for CSV
+    # parsing"), leaving an orphaned PARSING record. Reject it synchronously here
+    # with an actionable 400 instead of accepting (202) then rejecting async.
+    # Normalize the institution up front: persist/pass the STRIPPED value so that
+    # leading/trailing whitespace can't break CSV institution routing downstream
+    # in ``ExtractionService._parse_csv_content()`` (#1141 / #1087).
+    institution = institution.strip() if institution else None
+    if extension == "csv" and not institution:
+        raise_bad_request("Institution is required for CSV uploads. Please select an institution and retry.")
 
     if account_id is not None:
         account_result = await db.execute(
@@ -592,95 +613,14 @@ async def list_statement_transactions(
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 
-def _brokerage_payload_from_statement(
-    statement: StatementSummary,
-    transactions: list[AtomicTransaction],
-) -> dict:
-    """Build an import payload from a parsed brokerage statement."""
-    events = []
-    for txn in transactions:
-        direction = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
-        signed_amount = txn.amount if direction == "IN" else -txn.amount
-        events.append(
-            {
-                "date": txn.txn_date.isoformat(),
-                "description": txn.description,
-                "amount": str(signed_amount),
-                "currency": txn.currency or statement.currency,
-                "raw_text": txn.description,
-            }
-        )
-
-    return {
-        "institution": statement.institution,
-        "statement": {
-            "institution": statement.institution,
-            "period_end": statement.period_end.isoformat() if statement.period_end else None,
-            "currency": statement.currency,
-        },
-        "transactions": events,
-        "events": events,
-    }
-
-
-def _extract_brokerage_payload_from_metadata(metadata: dict | None) -> dict | None:
-    """Return the structured extraction payload stored in Layer 1 metadata."""
-    if not isinstance(metadata, dict):
-        return None
-    for key in ("extraction_payload", "parsed_payload", "payload"):
-        payload = metadata.get(key)
-        if isinstance(payload, dict):
-            return payload
-    return metadata if any(key in metadata for key in ("positions", "holdings", "securities")) else None
-
-
-def _enrich_brokerage_payload_from_statement(payload: dict, statement: StatementSummary) -> dict:
-    """Backfill statement metadata into a recovered extraction payload."""
-    enriched = dict(payload)
-    enriched.setdefault("institution", statement.institution)
-    statement_payload = enriched.get("statement") if isinstance(enriched.get("statement"), dict) else {}
-    statement_payload = dict(statement_payload)
-    statement_payload.setdefault("institution", statement.institution)
-    statement_payload.setdefault("period_end", statement.period_end.isoformat() if statement.period_end else None)
-    statement_payload.setdefault("currency", statement.currency)
-    enriched["statement"] = statement_payload
-    return enriched
-
-
-async def _brokerage_payload_from_persisted_extraction(
-    db,
-    *,
-    statement: StatementSummary,
-    uploaded_document: UploadedDocument | None,
-    user_id: UUID,
-) -> dict | None:
-    """Load the persisted OCR extraction payload for statement-scoped imports."""
-    payload = _extract_brokerage_payload_from_metadata(statement.extraction_metadata)
-    if payload is not None:
-        return _enrich_brokerage_payload_from_statement(payload, statement)
-
-    if uploaded_document is None:
-        return None
-    payload = _extract_brokerage_payload_from_metadata(uploaded_document.extraction_metadata)
-    if payload is None:
-        return None
-    return _enrich_brokerage_payload_from_statement(payload, statement)
-
-
-def _brokerage_import_not_ready_reason(statement: StatementSummary, transaction_count: int) -> str:
-    """Explain why a brokerage statement cannot be imported yet."""
-    status_value = statement.status.value if hasattr(statement.status, "value") else str(statement.status)
-    validation_error = statement.validation_error
-
-    if status_value == BankStatementStatus.REJECTED.value:
-        return f"Provider parsing failed before brokerage import: {validation_error or 'statement rejected'}"
-    if status_value in {BankStatementStatus.UPLOADED.value, BankStatementStatus.PARSING.value}:
-        return "Provider parsing has not completed; statement must be parsed before brokerage import"
-
-    return f"Statement must be parsed before importing brokerage positions; current status={status_value}"
-
-
-@router.post("/{statement_id}/brokerage/import", response_model=BrokerageImportResponse)
+# Synchronous 200: the import runs inline and returns the full BrokerageImportResponse
+# (counts + reconciliation results), so the operation is complete on response — not a
+# 202 background job (cf. #1099 AC12.29.1).
+@router.post(
+    "/{statement_id}/brokerage/import",
+    response_model=BrokerageImportResponse,
+    status_code=status.HTTP_200_OK,
+)
 async def import_brokerage_statement_positions(
     statement_id: UUID,
     db: DbSession,
@@ -696,9 +636,7 @@ async def import_brokerage_statement_positions(
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
 
-    payload = await _brokerage_payload_from_persisted_extraction(
-        db, statement=statement, uploaded_document=uploaded_document, user_id=user_id
-    )
+    payload = _brokerage_payload_from_persisted_extraction(statement=statement, uploaded_document=uploaded_document)
     if payload is None:
         payload = _brokerage_payload_from_statement(statement, transactions)
     request_id = _current_request_id()
@@ -872,7 +810,7 @@ async def approve_statement_stage1(
         await db.commit()
     except ValueError as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
@@ -893,7 +831,7 @@ async def reject_statement_stage1(
         await db.refresh(statement)
         await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 
@@ -916,7 +854,7 @@ async def edit_and_approve_statement(
         await db.commit()
     except ValueError as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
@@ -935,7 +873,7 @@ async def set_statement_opening_balance(
         await set_opening_balance(db, statement_id, user_id, request.opening_balance)
         await db.commit()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     statement = await _get_statement_or_404(db, statement_id, user_id)
     return await _compose_statement_response(db, statement, user_id)

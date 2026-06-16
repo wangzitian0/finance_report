@@ -93,6 +93,21 @@ write path and no dual-write flag.
   institution metadata, `file_hash`, and the resolved custody `account_id`.
 - Carries review/workflow state: `status`, `stage1_status`,
   `balance_validation_result`, `stage1_reviewed_at`, and `manual_opening_balance`.
+- Multi-currency statements (Wise / IBKR / Futu) additionally carry
+  `currency_balances` (JSONB `[{currency, opening, closing}]`) so each currency
+  has its own opening/closing pair. This is additive: the scalar
+  `opening_balance` / `closing_balance` stay populated for the single-currency
+  case, and reconciliation runs **per currency** (never summing across
+  currencies). See
+  [reconciliation.md#per-currency-balance-reconciliation](reconciliation.md#per-currency-balance-reconciliation).
+  (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123
+  AC2/AC3/AC4.)
+- A multi-currency **brokerage** statement populates `currency_balances` from its
+  parsed positions: each currency's NAV is the sum of that currency's position
+  market values, persisted as an independent `{currency, opening, closing}` bucket
+  (a position snapshot has no intra-period cash flow, so `opening == closing`). The
+  multi-currency NAV therefore never collapses to a single scalar, and each
+  currency reconciles on its own closed loop. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
 - Enums `BankStatementStatus` and `Stage1Status` live in
   `src/models/statement_enums.py`.
 
@@ -184,23 +199,74 @@ not balance proof and must not satisfy the auto-approve precondition.
 
 Brokerage extraction feeds Layer 2 `AtomicPosition` through `apps/backend/src/services/brokerage_positions.py`.
 
+### Producer routing & positions output schema (#1139)
+
+The single parsing prompt path is `ExtractionService.extract_financial_data` ->
+`get_parsing_prompt`. The default bank `SYSTEM_PROMPT` schema is balance/transaction-only
+(`institution`/`currency`/`opening_balance`/`closing_balance`/`transactions[]`) and has **no**
+positions field, so a brokerage statement parsed through it can never emit a holdings table —
+the consumer-side import (`_iter_structured_positions` -> `import_positions`) has nothing to
+consume.
+
+Routing to the brokerage prompt is therefore decided **before** the model call
+(`looks_like_brokerage_document(filename, institution)`), reusing the same broker keyword
+detection (`detect_broker`) as the post-parse `looks_like_brokerage_payload`. When the upload
+filename or institution matches a known broker, `get_parsing_prompt(..., document_kind="brokerage")`
+returns `BROKERAGE_POSITIONS_PROMPT`, which adds a top-level `positions[]` array. The bank prompt
+is left unchanged for bank documents.
+
+Each position item uses the shape the consumer already understands: an identifier
+(`symbol`/`ticker`/`isin`/`asset_identifier`), a `quantity`, a scalar `market_value`, and optional
+`price` (closing unit price), `currency`, `asset_type`, `sector`, and `geography`. Cash activity
+rows, when present, remain in `transactions[]` (bank shape); positions are the primary output. When
+a recognized brokerage document yields **zero** positions, the parsed statement is surfaced as a
+visible review flag — it carries a `validation_error` note **and** is routed to the Stage-1
+`pending_review` queue (`stage1_status = PENDING_REVIEW`) instead of silently settling with no
+holdings.
+
+**Scope note (#1139 vs #1123):** this slice emits a scalar `market_value` per position. A
+per-currency NAV / balance array is owned by issue #1123 and is intentionally **not** added here,
+to avoid colliding with that parallel slice. The scalar `opening_balance`/`closing_balance`
+representation is unchanged.
+
 ### Post-parse routing (intentional difference vs bank statements)
 
 Routing after parsing depends on the document class, on purpose (#981):
 
-- **Bank statements** route via `route_by_threshold(confidence, balance_valid)`: an invalid
-  running-balance chain sends them to `uploaded` (manual entry), and high confidence + valid
-  balance can auto-approve. **Exception:** CSV exports without source statement balances take the
-  inferred-balance path (`has_inferred_csv_balances`), which forces `parsed`/review with
-  `balance_valid = False` rather than routing to `uploaded` — so they remain reviewable instead of
-  demanding manual entry.
+- **Bank statements** route via `route_by_threshold(confidence, balance_valid)`:
+  - **Balance invalid** → `parsed` (review) regardless of confidence (#1141). The statement
+    parsed but its running balance does not reconcile, so it enters review carrying a
+    `validation_error` and `stage1_status = pending_review`. It never auto-approves and is
+    **never** parked in `uploaded`.
+  - **Balance valid + confidence ≥ 85** → can auto-approve (`approved`).
+  - **Balance valid + confidence ≥ 60** → `parsed` (review).
+  - **Balance valid + confidence < 60** → `uploaded` (genuinely low-signal parse → manual entry).
+  - CSV exports without source statement balances take the inferred-balance path
+    (`has_inferred_csv_balances`), which forces `parsed`/review with `balance_valid = False`.
 - **Brokerage statements** always route to `parsed` (review) regardless of `balance_valid`,
   because they reconcile via `AtomicPosition` position snapshots rather than a running-balance
   chain — `balance_valid` is not a meaningful gating signal for them.
 
-So the same "balance invalid" outcome lands a (non-CSV) bank statement in `uploaded` but a
-brokerage statement in `parsed`. This is by design, not a routing bug. Owner: `ExtractionService`
-status selection (`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
+So the "balance invalid" outcome now lands **both** a (non-CSV) bank statement and a brokerage
+statement in `parsed`/review — a single deterministic, reviewable terminal state (#1141, folding
+#1085). `uploaded` is reserved for genuinely low-signal valid-balance parses, not for
+parsed-but-unreconciled statements. Owner: `ExtractionService` status selection
+(`BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(...)`).
+
+### Balance-mismatch lifecycle invariants (#1141)
+
+The single balance-mismatch terminal state (`parsed`, `stage1_status = pending_review`,
+`validation_error` set) is consistent across the lifecycle:
+
+- **Retry**: the retry endpoint (`POST /statements/{id}/retry`) accepts `parsed` (alongside
+  `rejected`/`parsing`), so a balance-mismatch statement is retriable. `uploaded` remains
+  non-retriable, which is now safe because balance-mismatch statements no longer rest there.
+- **Readiness**: `get_personal_report_package_readiness` counts `parsed` + `approved` summaries,
+  so a balance-mismatch statement is a visible report input rather than an invisible orphan.
+- **CSV intake** (#1087): CSV parsing cannot auto-detect the institution, so the upload route
+  rejects a CSV with a missing institution **synchronously** with HTTP 400 (actionable message)
+  instead of accepting (202) and rejecting asynchronously inside the parse worker. PDF/image
+  uploads keep institution optional (vision auto-detect).
 
 Parsing priority:
 1. Prefer structured `positions`, `holdings`, or `securities` arrays from OCR/LLM output.
@@ -271,6 +337,26 @@ S3_PRESIGN_EXPIRY_SECONDS=300
   attempt reconciles, the smallest-difference result is kept so routing is
   unchanged. Only failing parses retry, so average cost is bounded; set
   `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
+- **Running-balance chain-break detection + repair pass** (#1140 / AC13.20):
+  bank-statement *under-extraction* (a dropped or misparsed row) is caught by the
+  per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying
+  cause is **recall**, which is probabilistic (LLM). Around that soft metric the
+  system runs a deterministic seam: `detect_balance_chain_break`
+  (`src/services/validation.py`) walks the ordered transactions' running
+  `balance_after` chain and returns the exact index where
+  `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
+  `BALANCE_TOLERANCE`), pinpointing where a row went missing. When the
+  whole-document re-extract still does not reconcile, `repair_under_extraction`
+  (`src/services/chain_repair.py`) fires the **repair-pass hook** once: it only
+  triggers when the self-check fails *and* the detector finds a region, then asks
+  an **injectable** `RegionReExtractor` backend to re-extract just that region,
+  keeping the repaired payload only if it reconciles (else the original is kept,
+  so routing is unchanged). The detector and decision logic are pure and
+  `Decimal`-based (never `float`); the re-extraction backend is injected so CI
+  exercises the trigger logic without a live model, and the hook is a safe no-op
+  when no backend is wired. **Extraction recall is a SOFT metric** — tracked and
+  logged, with **no hard CI gate** — while the balance self-check guard and these
+  deterministic chain-break / repair seams stay hard-tested.
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
@@ -387,7 +473,8 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/models/statement_enums.py`, `src/models/statement_summary.py` | SQLAlchemy models and enums |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/services/extraction.py` | Core extraction logic |
-| `src/services/validation.py` | Validation and confidence scoring |
+| `src/services/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
+| `src/services/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
 | `src/services/storage.py` | Object storage uploads + presigned URLs |
 | `src/prompts/statement.py` | Parsing prompt templates |
 | `tests/fixtures/*.json` | Parsed test data |

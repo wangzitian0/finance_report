@@ -85,7 +85,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 
 ### API Endpoints (Backend)
 
-- [x] `POST /reconciliation/run` - Execute matching
+- [x] `POST /reconciliation/runs` - Execute matching
 - [x] `GET /reconciliation/matches` - Match results
 - [x] `GET /reconciliation/pending` - Pending queue
 - [x] `POST /reconciliation/matches/{id}/accept` - Accept
@@ -343,3 +343,73 @@ arbitrary string.
 |----|-----------|---------------|------|----------|
 | AC4.12.1 | A non-UUID `match_id` on accept returns 422 | `test_AC4_12_1_accept_match_malformed_uuid_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
 | AC4.12.2 | A non-UUID `txn_id` on create-entry returns 422 | `test_AC4_12_2_create_entry_malformed_uuid_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
+
+### AC4.13: Per-Currency Statement Balances & Reconciliation ([#1123](https://github.com/wangzitian0/finance_report/issues/1123))
+
+First mergeable slice of the complex-money design track (root #1123). A
+multi-currency statement (Wise / IBKR / Futu) cannot be represented by the scalar
+`opening_balance` / `closing_balance` columns. This slice introduces an additive
+per-currency balance representation (`balances: [{currency, opening, closing}]`,
+persisted as the `currency_balances` JSONB column) and runs balance
+reconciliation **per currency** — `open_ccy + ΣIN_ccy − ΣOUT_ccy ≈ close_ccy` for
+each currency independently, never summing across currencies. The legacy scalar
+check is the degenerate one-currency case. Scalar columns stay populated for
+backward compatibility.
+
+Covers **AC1** (per-currency balances + per-currency reconciliation) and **AC5**
+(SSOT) of #1123. **AC2** (FX leg pairing), **AC3** (internal-transfer net-worth),
+and **AC4** (FX P&L) are deferred to a follow-up EPIC — they require a linked-leg
+event model and accounting-layer changes beyond this representation slice.
+See: docs/ssot/reconciliation.md#per-currency-balance-reconciliation
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC4.13.1 | A multi-currency statement reconciles each currency independently and never cross-sums currencies | `test_AC1_per_currency_reconcile_does_not_cross_sum` | `accounting/test_validation.py` | P0 |
+| AC4.13.2 | A balance mismatch in one currency flags only that currency, leaving others valid | `test_AC1_per_currency_reconcile_flags_only_offending_currency` | `accounting/test_validation.py` | P0 |
+| AC4.13.3 | A single-currency statement passes via the degenerate one-currency path (scalar-only payload) | `test_AC1_single_currency_degenerate_path_still_passes` | `accounting/test_validation.py` | P0 |
+| AC4.13.4 | The degenerate single-currency path still detects a balance mismatch | `test_AC1_single_currency_degenerate_path_detects_mismatch` | `accounting/test_validation.py` | P1 |
+| AC4.13.5 | `CurrencyBalance` schema carries (currency, opening, closing) as Decimal with normalized ISO currency | `test_AC1_currency_balance_schema_round_trips_decimals` | `accounting/test_validation.py` | P1 |
+| AC4.13.6 | `currency_balances` JSONB persists a per-currency balance array additively to the scalar columns | `test_AC1_currency_balances_jsonb_round_trips` | `extraction/test_statement_summary_conform.py` | P1 |
+| AC4.13.7 | A transaction in a currency with no declared balance bucket is surfaced as an orphan per-currency result (not silently dropped) | `test_AC1_orphan_currency_transaction_is_surfaced_not_dropped` | `accounting/test_validation.py` | P0 |
+| AC4.13.8 | Duplicate currencies in the `balances` array are rejected (not silently collapsed) so per-currency nets stay unambiguous | `test_AC1_duplicate_currency_in_balances_is_rejected` | `accounting/test_validation.py` | P1 |
+
+### AC4.14: FX / Cross-Currency Transfers as Linked Multi-Leg Events ([#1123](https://github.com/wangzitian0/finance_report/issues/1123), assurance [#1103](https://github.com/wangzitian0/finance_report/issues/1103))
+
+Second mergeable slice of the complex-money design track (root #1123), building on
+the per-currency representation from AC4.13. A cross-currency transfer (e.g. SGD
+out of one account, USD into another, at a conversion rate) is **one economic
+event spanning two legs**, not two independent income/expense transactions. This
+slice adds:
+
+- an additive `fx_conversions` linking table —
+  `{user_id, from_account, amount_from, currency_from, to_account, amount_to,
+  currency_to, rate, fee, fee_currency, conversion_date}` — recording a paired
+  multi-leg FX event (**AC2**);
+- a deterministic pairing function (`services/fx_transfer.py::pair_fx_legs`) that
+  matches an out-leg in currency A with an in-leg in currency B for the **same
+  owner**, **opposite direction**, within a **time window**, where
+  `amount_from ≈ amount_to × market_rate` within a Decimal tolerance (**AC2**);
+- net-worth classification (`classify_internal_transfer`) so a matched internal
+  transfer is net-zero — the transfer-in is not income and the transfer-out is not
+  expense; net worth changes only by the fee (**AC3**);
+- FX gain/loss attribution to revaluation over time via the existing
+  `fx_revaluation` journal source type, so a same-day round-trip conversion nets
+  ~zero realized P&L (minus fee/spread), the rate move being a holding-period
+  revaluation rather than a conversion-event gain (**AC4**).
+
+Generalized invariant: **net worth changes only via external in/out + market
+moves + FX revaluation; internal transfers cancel (minus fees).**
+See: docs/ssot/reconciliation.md#fx-cross-currency-transfer-pairing,
+docs/ssot/reporting.md#internal-transfer-net-worth-neutrality,
+docs/ssot/schema.md (`fx_conversions`).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC4.14.1 | An out-leg in ccyA pairs with an in-leg in ccyB for the same owner, opposite direction, within the time window, when `amount_from ≈ amount_to × market_rate` within tolerance | `test_AC2_pairs_out_ccyA_with_in_ccyB_within_rate_tolerance` | `accounting/test_fx_transfer.py` | P0 |
+| AC4.14.2 | Legs whose implied rate falls outside tolerance do not pair | `test_AC2_implied_rate_outside_tolerance_does_not_pair` | `accounting/test_fx_transfer.py` | P0 |
+| AC4.14.3 | Legs outside the time window, or same direction, or different owner do not pair | `test_AC2_non_candidate_legs_do_not_pair` | `accounting/test_fx_transfer.py` | P0 |
+| AC4.14.4 | A matched internal transfer is classified net-zero: transfer-in is not income, transfer-out is not expense | `test_AC3_internal_transfer_classified_net_zero` | `accounting/test_fx_transfer.py` | P0 |
+| AC4.14.5 | Net worth is unchanged by an internal transfer except for the fee | `test_AC3_net_worth_unchanged_by_internal_transfer_minus_fee` | `accounting/test_fx_transfer.py` | P0 |
+| AC4.14.6 | A same-day round-trip conversion nets ~zero realized P&L (minus fee/spread); rate move is attributed to revaluation, not the conversion event | `test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee` | `accounting/test_fx_transfer.py` | P0 |
+| AC4.14.7 | FX revaluation P&L is routed through the `fx_revaluation` journal source type, never booked as conversion-event income/expense | `test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type` | `accounting/test_fx_transfer.py` | P1 |
+| AC4.14.8 | The `fx_conversions` linking model round-trips its multi-leg fields as Decimal with normalized ISO currencies | `test_AC2_fx_conversion_model_round_trips_decimals` | `accounting/test_fx_transfer.py` | P1 |

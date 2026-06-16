@@ -26,7 +26,12 @@ from src.services.ai_streaming import (
     accumulate_stream,
     stream_ai_json,
 )
-from src.services.brokerage_positions import looks_like_brokerage_payload
+from src.services.brokerage_positions import (
+    brokerage_currency_balances,
+    looks_like_brokerage_document,
+    looks_like_brokerage_payload,
+)
+from src.services.chain_repair import RegionReExtractor, repair_under_extraction
 from src.services.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.services.pii_redaction import detect_pii
 from src.services.storage import redact_presigned_url
@@ -36,6 +41,7 @@ from src.services.validation import (
     route_by_threshold,
     validate_balance,
     validate_balance_explicit,
+    validate_balance_per_currency,
 )
 
 logger = get_logger(__name__)
@@ -112,6 +118,11 @@ class ExtractionService:
         self.fallback_models = settings.fallback_models
         self.vision_fallback_models = settings.vision_fallback_models
         self.deduplication_service = DeduplicationService()
+        # Injectable region re-extraction backend for the under-extraction repair
+        # pass (#1140 / AC13.20). ``None`` => the repair hook is a safe no-op: the
+        # deterministic chain-break detector still runs and logs, but no live model
+        # is called. A real LLM-backed backend is wired separately.
+        self.region_reextractor: RegionReExtractor | None = None
 
     def _safe_date(self, value: str | None) -> date:
         """Safely parse a required date, accepting common non-ISO formats (#1086)."""
@@ -416,6 +427,44 @@ class ExtractionService:
             )
             statement._extracted_payload = extracted
 
+            # Per-currency brokerage NAV (#1139 AC-B3): a multi-currency brokerage
+            # statement holds positions in several currencies at once. Persisting
+            # only the scalar opening/closing would cross-sum unrelated currencies
+            # into a meaningless NAV. Instead derive the per-currency balance array
+            # (each currency an independent closed loop) and persist it additively
+            # to the scalar columns; reconciliation then runs per currency.
+            if is_brokerage_payload:
+                brokerage_balances = brokerage_currency_balances(
+                    extracted,
+                    filename=original_filename or (file_path.name if file_path else None),
+                    institution=final_institution,
+                )
+                if brokerage_balances:
+                    # Reconcile each currency independently (open + ΣIN − ΣOUT ≈
+                    # close per currency); never cross-sum. A snapshot has no cash
+                    # flow, so each currency is a zero-net closed loop and must
+                    # reconcile before we persist it.
+                    per_currency_result = validate_balance_per_currency(
+                        {"balances": brokerage_balances, "transactions": []}
+                    )
+                    if not per_currency_result["balance_valid"]:  # pragma: no cover - defensive
+                        logger.warning(
+                            "Per-currency brokerage NAV failed self-check",
+                            per_currency=per_currency_result["per_currency"],
+                        )
+                    # Serialize Decimal -> str for the JSONB column (no float). The
+                    # scalar opening/closing columns stay populated for the
+                    # single-currency degenerate case and backward compatibility;
+                    # this array is additive and never cross-sums currencies.
+                    statement.currency_balances = [
+                        {
+                            "currency": bucket["currency"],
+                            "opening": str(bucket["opening"]),
+                            "closing": str(bucket["closing"]),
+                        }
+                        for bucket in brokerage_balances
+                    ]
+
             transactions: list[AtomicTransaction] = []
             net_transactions = Decimal("0.00")
             # Per-document occurrence ordinal for balance-less rows: lets genuinely
@@ -566,9 +615,12 @@ class ExtractionService:
                 # Routing differs by document class on purpose (#981): brokerage payloads
                 # reconcile via Layer-2 AtomicPosition snapshots, not a running-balance chain, so
                 # `balance_valid` is not their gating signal — they always go to `parsed`/review.
-                # Bank statements route by `route_by_threshold`, where an invalid balance chain
-                # sends them to `uploaded` (manual entry). Same "balance invalid" input, different
-                # destination by design.
+                # Bank statements route by `route_by_threshold`. As of #1141 an invalid balance
+                # chain also sends a bank statement to `parsed` (review with a validation_error),
+                # not `uploaded`: a parsed-but-unreconciled statement is reviewable, not a manual-
+                # entry dead-end. `uploaded` is now reserved for genuinely low-signal valid-balance
+                # parses (score < 60). Both classes therefore converge on `parsed`/review for the
+                # "balance invalid" outcome.
                 status = (
                     BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
                 )
@@ -770,6 +822,7 @@ class ExtractionService:
                     file_url=file_url,
                     force_model=force_model,
                     seed_override=seed_override,
+                    filename=filename,
                 )
             except ExtractionError as exc:
                 # A transient error on one attempt must not fail an upload that
@@ -819,7 +872,14 @@ class ExtractionService:
                     attempts=max_attempts,
                     best_difference=str(best_diff),
                 )
-            return best
+            # Under-extraction repair pass (#1140 / AC13.20): whole-document
+            # re-extract did not reconcile. Run the deterministic chain-break
+            # detector and, when it pinpoints a dropped-row region, attempt a single
+            # region-targeted re-extract via the injectable backend. Safe no-op when
+            # no backend is wired — recall stays a soft metric, the self-check guard
+            # stays hard. A successful repair replaces ``best``; a failed one keeps it.
+            repair = repair_under_extraction(best, reextractor=self.region_reextractor)
+            return repair.payload
         if last_parse is not None:
             # No balance-computable parse, but at least one attempt produced a
             # (structurally-broken) result; return it so parse_document reports the
@@ -1084,6 +1144,7 @@ class ExtractionService:
         file_url: str | None = None,
         force_model: str | None = None,
         seed_override: int | None = None,
+        filename: str | None = None,
     ) -> dict[str, Any]:
         """Extract structured statement data using OCR + chat models."""
         if file_content is None and not file_url:
@@ -1113,7 +1174,21 @@ class ExtractionService:
             pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
         )
 
-        prompt = get_parsing_prompt(institution)
+        # AC-B1 (#1139): producer routing. Decide the prompt class BEFORE the model
+        # call from pre-extraction signals (filename + institution) so brokerage
+        # statements get the positions-emitting prompt rather than the bank schema,
+        # which has no positions field. Bank documents keep the unchanged bank prompt.
+        document_kind = (
+            "brokerage" if looks_like_brokerage_document(filename=filename, institution=institution) else "bank"
+        )
+        if document_kind == "brokerage":
+            logger.info(
+                "Selected brokerage positions prompt for extraction",
+                institution=institution,
+                filename=filename,
+                file_type=file_type,
+            )
+        prompt = get_parsing_prompt(institution, document_kind=document_kind)
         if force_model:
             media_payloads = await asyncio.to_thread(
                 self._build_vision_media_payloads,

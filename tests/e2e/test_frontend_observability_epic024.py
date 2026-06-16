@@ -1,4 +1,4 @@
-"""EPIC-023 frontend browser observability E2E smoke.
+"""EPIC-024 frontend browser observability E2E smoke.
 
 Product-level proof of the browser-telemetry contract: the app loads and runs
 even when no OTLP endpoint is configured (the SDK is a complete no-op until
@@ -15,8 +15,8 @@ import pytest
 @pytest.mark.e2e
 @pytest.mark.smoke
 @pytest.mark.prod_safe
-async def test_frontend_loads_without_uncaught_errors_epic023(page: Page) -> None:
-    """EPIC-023 / AC23.1.1: the app loads with the browser-telemetry mount as a
+async def test_frontend_loads_without_uncaught_errors_epic024(page: Page) -> None:
+    """EPIC-024 / AC24.1.1: the app loads with the browser-telemetry mount as a
     no-op (no configured OTLP endpoint) and raises no uncaught page error."""
     page_errors: list[str] = []
     page.on("pageerror", lambda exc: page_errors.append(str(exc)))

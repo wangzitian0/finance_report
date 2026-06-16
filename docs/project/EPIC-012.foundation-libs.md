@@ -429,13 +429,17 @@ Tier-2 follow-up of #1000/#1074: the audit found the API surface mostly good
 (centralized error model, all-`UUID` path params, ~120/125 `response_model`
 coverage) but with consistency gaps that would leak into the generated FE client
 (#1004/AC12.28). This sweep flattens those gaps **without breaking the live
-frontend**. Pure URL renames (verbs-in-path like `/reconciliation/run`,
-`/market-data/sync/*`, `journal /post`/`/void`) are **explicitly out of scope** and
-captured as a deferred, FE-coordinated follow-up. Landed as three stacked PRs:
-tags+deprecations, then pagination, then status codes.
+frontend**. Landed as three stacked PRs (tags+deprecations, pagination, status
+codes), then a follow-up PR completed the verb-in-path URL renames atomically across
+backend + frontend (`/reconciliation/run`→`/runs`, `/market-data/sync/{fx,stocks}`→
+`/market-data/{fx,stocks}/syncs`, `journal /post`→`/postings` / `/void`→`/voidings`).
 
 | AC ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
+| AC12.29.1 | Router status codes use `status.HTTP_*` constants (zero raw-integer `status_code=` literals); the async upload endpoint advertises `202`, and synchronous long operations document their `200` | `test_AC12_29_1_status_codes_use_constants_and_async_uses_202` | `api/test_api_surface_consistency.py` | P1 |
+| AC12.29.6 | Verb-in-path action URLs are renamed to resource-style nouns (`/reconciliation/runs`, `/market-data/{fx,stocks}/syncs`, `/journal-entries/{id}/postings`/`/voidings`); old verb URLs gone, new noun URLs present | `test_AC12_29_6_verb_in_path_urls_renamed_to_resources` | `api/test_api_surface_consistency.py` | P1 |
+| AC12.29.2 | The three named unbounded list endpoints (`/assets/restricted`, `/reconciliation/transactions/{txn_id}/anomalies`, `/reports/package/snapshots`) accept bounded `limit`/`offset` with an enforced `le=MAX_PAGE_LIMIT` | `test_AC12_29_2_named_unbounded_endpoints_are_bounded` | `api/test_api_surface_consistency.py` | P1 |
+| AC12.29.3 | A single documented pagination convention exists (`deps.DEFAULT_PAGE_LIMIT`/`MAX_PAGE_LIMIT` via the shared `PaginationParams`); an over-max `limit` is rejected with 422 | `test_AC12_29_3_pagination_convention_is_enforced` | `api/test_api_surface_consistency.py` | P1 |
 | AC12.29.4 | No two API operations collide on (method, path); every router maps to exactly one OpenAPI tag (the deliberately shared `/statements` and `/ai` prefixes carry distinct tags and are documented) | `test_AC12_29_4_no_route_or_tag_collisions` | `api/test_api_surface_consistency.py` | P1 |
 | AC12.29.5 | The deprecated `POST /statements/{id}/approve` and `/reject` are removed (return 404/405); the `/statements/{id}/review/*` variants remain the supported path | `test_AC12_29_5_deprecated_statement_decision_endpoints_removed` | `api/test_api_surface_consistency.py` | P1 |
 

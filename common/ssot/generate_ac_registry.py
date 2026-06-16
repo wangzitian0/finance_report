@@ -25,7 +25,7 @@ OUTPUT_INFRA = "docs/infra_registry.yaml"
 OVERRIDES = "docs/ac_registry_overrides.yaml"
 
 # EPIC classification: which EPICs are feature vs infra
-FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19, 20, 21, 22}
+FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23}
 INFRA_EPICS = {7, 9, 10, 12, 14}
 
 # EPIC-016 sub-classification: these AC16.XX.x groups route to infra
@@ -54,7 +54,8 @@ EPIC_NAMES: dict[int, str] = {
     20: "framework-aware-personal-reporting",
     21: "application-ai-advisor",
     22: "everyday-user-ia",
-    23: "frontend-observability",
+    23: "llm-provider-abstraction",
+    24: "frontend-observability",
 }
 
 

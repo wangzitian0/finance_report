@@ -25,6 +25,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from common.testing.ac_proof import ac_proof
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Account, AccountType, JournalEntrySourceType, User
@@ -69,6 +70,15 @@ async def _posted(
     await post_journal_entry(db, entry.id, user_id)
 
 
+@ac_proof(
+    "report-input-selection-excludes-superseded-pr",
+    ac_ids=["AC8.16.1"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["manual_record", "bank_statement"],
+    issue="#1103 / #990 / #992",
+)
 async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence(
     db: AsyncSession, test_user: User, ac_evidence
 ) -> None:

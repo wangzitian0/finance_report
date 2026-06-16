@@ -316,6 +316,27 @@ this gate.
 | AC13.13.2 | Re-parsing identical model output yields identical confidence/status/validation_error across N parses. | `test_repeated_parse_yields_identical_confidence_status_validation` | `extraction/test_extraction_determinism.py` | P0 |
 | AC13.13.3 | Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
 
+### AC13.21: Balance-Mismatch Statement Lifecycle (#1141, folds #1085 + #1087)
+
+A bank statement that parses cleanly but whose running balance does not reconcile
+must **not** be parked in `uploaded` (a dead-end that the retry endpoint rejects
+and the report-readiness query ignores). It must enter the same reviewable resting
+state as a brokerage statement: `PARSED` with `stage1_status=PENDING_REVIEW` and a
+`validation_error` describing the mismatch. This makes balance-invalid bank
+statements retriable (AC13.21.3), visible to readiness (AC13.21.4), and
+deterministic (AC13.21.5). CSV intake with a missing institution must fail
+synchronously at upload with HTTP 400 instead of accepting (202) and then
+rejecting asynchronously (AC13.21.6).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.21.1 | `route_by_threshold` routes a balance-invalid bank statement to `PARSED` (review), never `uploaded`, regardless of score. | `test_AC13_21_1_balance_invalid_routes_to_parsed_review` | `accounting/test_validation.py` | P0 |
+| AC13.21.2 | A parsed bank statement that fails balance reconciliation lands in `PARSED` with `stage1_status=PENDING_REVIEW` and a `validation_error`. | `test_AC13_21_2_balance_invalid_parse_is_pending_review` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.21.3 | The retry endpoint accepts a balance-invalid statement at its `PARSED` resting state. | `test_AC13_21_3_retry_accepts_parsed_resting_state` | `api/test_statements_router.py` | P0 |
+| AC13.21.4 | Report readiness counts the balance-invalid `PARSED` statement as an available input. | `test_AC13_21_4_readiness_counts_parsed_balance_invalid` | `accounting/test_validation.py` | P1 |
+| AC13.21.5 | The same balance-mismatch payload routes to the same `PARSED` status deterministically across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.21.6 | CSV upload with a missing institution fails synchronously with HTTP 400 and an actionable message. | `test_AC13_21_6_csv_missing_institution_rejected_sync` | `api/test_statements_router.py` | P0 |
+
 ### AC13.16: Deterministic Decoding — Request Seed (issue #989)
 
 Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the
@@ -359,3 +380,45 @@ kept so routing is unchanged. Only failing parses retry, so average cost is boun
 | AC13.17.10 | If every attempt raises, the error propagates so the upload fails as in the single-call path | `test_all_attempts_error_reraises()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.11 | A transient error on the first attempt does not abort; a later reconciling attempt is returned | `test_first_attempt_error_then_success_recovers()` | `extraction/test_self_consistency.py` | P1 |
 | AC13.17.12 | An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins | `test_error_mid_run_does_not_skip_remaining_attempts()` | `extraction/test_self_consistency.py` | P1 |
+
+### AC13.20: Running-Balance Chain-Break Detector + Repair-Pass Hook (root [#1140](https://github.com/wangzitian0/finance_report/issues/1140))
+
+Bank-statement **under-extraction**: the per-currency self-check correctly flags
+`opening + ΣIN − ΣOUT ≠ closing` when rows are dropped, but recall is the
+underlying problem and recall is probabilistic (LLM) — it cannot be turned into a
+hard CI gate. This AC delivers the **deterministic, testable** slice around that
+soft metric:
+
+- **AC-C1 (detector)** — a pure, `Decimal`-based function walks the ordered
+  transactions' running `balance_after` chain and returns the exact index/region
+  where `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
+  `BALANCE_TOLERANCE`), pinpointing where a row was missed/misparsed. No floats,
+  no model call, fully reproducible.
+- **AC-C2 (repair-pass hook)** — orchestration + decision logic keyed off the
+  self-check delta: when the balance self-check fails *and* the detector finds a
+  break, a region-targeted re-extract is attempted exactly once before
+  finalizing. The actual re-extraction is behind an injectable interface so CI
+  exercises the trigger logic without a live model; it is a safe no-op when there
+  is no detector signal or no repair backend is wired.
+- **AC-C3 (regression fixture / corpus)** — a synthetic clean bank-statement shape
+  with a deliberately-dropped row, asserting the detector finds the correct break
+  index and the repair hook is invoked. A corpus fixture
+  (`clean_bank_dropped_row_corpus.json`) also drives the detector + repair hook
+  **end-to-end** through `ExtractionService._extract_with_balance_retry` with an
+  injected `RegionReExtractor`, proving the live wiring fires (not just the bare
+  functions). Actual extraction **recall** stays a tracked **soft** metric — no
+  hard CI gate.
+
+Extraction **recall** stays a **soft metric** (tracked, no hard CI gate); the
+self-check balance guard and these deterministic seams stay hard-tested.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.20.1 | AC-C1: detector pinpoints the exact break index on a crafted chain with a dropped row | `test_AC13_20_1_detector_finds_break_index_on_dropped_row()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.2 | AC-C1: a clean running-balance chain reports no break | `test_AC13_20_2_clean_chain_reports_no_break()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.3 | AC-C1: detection is Decimal-based and tolerant within `BALANCE_TOLERANCE` (no float drift) | `test_AC13_20_3_detector_is_decimal_tolerant()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.4 | AC-C2: on balance mismatch with a detected break, the repair hook is invoked exactly once | `test_AC13_20_4_repair_hook_invoked_once_on_mismatch()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.5 | AC-C2: a clean/reconciling chain never invokes the repair hook | `test_AC13_20_5_repair_hook_not_invoked_on_clean_chain()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.6 | AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload | `test_AC13_20_6_repair_is_safe_noop_without_backend()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.7 | AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook | `test_AC13_20_7_regression_fixture_detects_and_repairs()` | `extraction/test_chain_break_repair.py` | P1 |
+| AC13.20.8 | AC-C3: the clean-bank dropped-row regression-corpus fixture triggers the chain-break detector + `repair_under_extraction` end-to-end through `ExtractionService._extract_with_balance_retry` with an injected `RegionReExtractor` (recall stays a soft metric) | `test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end()` | `extraction/test_chain_break_repair.py` | P1 |

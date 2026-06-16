@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -65,6 +66,126 @@ def validate_balance(extracted: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+def _currency_buckets(extracted: dict[str, Any]) -> list[dict[str, Any]]:
+    """Resolve the per-currency opening/closing buckets for a statement.
+
+    #1123 AC1. Prefers an explicit ``balances`` array
+    (``[{currency, opening, closing}, ...]``). When absent — today's
+    single-currency payloads — it falls back to the scalar
+    ``opening_balance`` / ``closing_balance`` under the header ``currency`` (or a
+    synthetic ``"*"`` bucket when no currency is stated), so the per-currency
+    path degenerates to the existing scalar check without a cross-currency sum.
+    """
+    raw_balances = extracted.get("balances")
+    if raw_balances:
+        buckets: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for entry in raw_balances:
+            currency = (entry.get("currency") or "*").strip().upper() or "*"
+            # Reject duplicate currencies rather than silently collapsing them.
+            # ``nets`` is keyed by currency, so two buckets for the same code
+            # would produce ambiguous, order-dependent results for that currency.
+            # Failing loudly forces upstream parsing to merge the duplicate
+            # opening/closing pair into a single authoritative bucket.
+            if currency in seen:
+                raise ValueError(f"Duplicate currency in balances: {currency}")
+            seen.add(currency)
+            buckets.append(
+                {
+                    "currency": currency,
+                    "opening": Decimal(str(entry.get("opening") or "0")),
+                    "closing": Decimal(str(entry.get("closing") or "0")),
+                }
+            )
+        return buckets
+
+    header_currency = (extracted.get("currency") or "*").strip().upper() or "*"
+    return [
+        {
+            "currency": header_currency,
+            "opening": Decimal(str(extracted.get("opening_balance") or "0")),
+            "closing": Decimal(str(extracted.get("closing_balance") or "0")),
+        }
+    ]
+
+
+def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``open + ΣIN − ΣOUT ≈ close`` independently for each currency.
+
+    #1123 AC1. Transactions are grouped by their own ``currency`` and each
+    currency's running balance is checked against that currency's opening/closing
+    pair. Currencies are NEVER summed together — a multi-currency statement is a
+    set of independent single-currency closed loops. The legacy scalar check
+    (:func:`validate_balance`) is the degenerate one-currency case of this rule.
+
+    Returns a dict with an overall ``balance_valid`` (AND across currencies) plus
+    a ``per_currency`` list, one :func:`validate_balance_explicit`-shaped result
+    per currency tagged with its ``currency`` code. No cross-currency aggregate
+    ``expected_closing`` is produced.
+
+    A transaction whose currency has no declared balance bucket is NOT dropped:
+    an orphan bucket (zero declared opening/closing, the computed net, flagged
+    ``declared_balance=False``) is surfaced so no transaction currency goes
+    silently unaccounted in a multi-currency statement.
+
+    .. note::
+       Not yet wired into the live extraction-write path: that path still calls
+       the scalar :func:`validate_balance`. Wiring depends on multi-currency
+       payload parsing, deferred to #1123 AC2/AC3/AC4.
+    """
+    try:
+        buckets = _currency_buckets(extracted)
+
+        # Net IN/OUT per currency. A transaction without an explicit currency
+        # falls back to the single bucket when there is exactly one (the
+        # degenerate case); with multiple buckets an untagged txn lands in "*".
+        single_bucket_ccy = buckets[0]["currency"] if len(buckets) == 1 else None
+        nets: dict[str, Decimal] = {b["currency"]: Decimal("0") for b in buckets}
+        for txn in extracted.get("transactions", []):
+            amount = Decimal(str(txn["amount"]))
+            amount, direction = normalize_amount_direction(amount, txn.get("direction"))
+            ccy = (txn.get("currency") or single_bucket_ccy or "*").strip().upper() or "*"
+            nets.setdefault(ccy, Decimal("0"))
+            nets[ccy] += amount if direction == "IN" else -amount
+    except (ValueError, KeyError, InvalidOperation) as exc:
+        return {
+            "balance_valid": False,
+            "balance_computable": False,
+            "per_currency": [],
+            "notes": f"Validation error: {exc}",
+        }
+
+    declared = {bucket["currency"] for bucket in buckets}
+    per_currency: list[dict[str, Any]] = []
+    for bucket in buckets:
+        ccy = bucket["currency"]
+        result = validate_balance_explicit(bucket["opening"], bucket["closing"], nets.get(ccy, Decimal("0")))
+        result["currency"] = ccy
+        result["declared_balance"] = True
+        per_currency.append(result)
+
+    # Surface orphan currencies — those that appear in transactions but have no
+    # declared balance bucket. Without this, such transactions are dropped and a
+    # multi-currency statement could appear to reconcile while real money in an
+    # undeclared currency goes unaccounted. Each orphan is reported against a
+    # zero opening/closing so its non-zero net forces the bucket invalid.
+    for ccy in nets:
+        if ccy in declared:
+            continue
+        result = validate_balance_explicit(Decimal("0"), Decimal("0"), nets[ccy])
+        result["currency"] = ccy
+        result["declared_balance"] = False
+        if result["notes"] is None:
+            result["notes"] = f"No declared balance for currency {ccy}"
+        per_currency.append(result)
+
+    return {
+        "balance_valid": all(r["balance_valid"] for r in per_currency),
+        "balance_computable": True,
+        "per_currency": per_currency,
+    }
+
+
 def validate_balance_explicit(opening: Decimal, closing: Decimal, net_transactions: Decimal) -> dict[str, Any]:
     """Validate balance using explicit Decimal values."""
     expected_closing = (opening or Decimal("0")) + (net_transactions or Decimal("0"))
@@ -79,6 +200,81 @@ def validate_balance_explicit(opening: Decimal, closing: Decimal, net_transactio
         "difference": f"{diff:.2f}",
         "notes": None if balance_valid else f"Balance mismatch: expected {expected_closing}, got {closing}",
     }
+
+
+@dataclass(frozen=True)
+class ChainBreak:
+    """A pinpointed break in a statement's running-balance chain (AC13.20 / #1140).
+
+    The running balance (``balance_after``) of transaction ``index`` does not equal
+    the previous running balance plus ``index``'s own signed amount (within
+    ``BALANCE_TOLERANCE``). That is the deterministic fingerprint of a row that was
+    *missed or misparsed* between the previous row and this one — the most common
+    shape of bank-statement under-extraction.
+
+    All amounts are ``Decimal`` (never ``float``): ``index`` is the 0-based
+    position of the first non-reconciling row, ``expected_balance`` is what the
+    chain predicted, ``observed_balance`` is what the parse reported, and ``delta``
+    is ``observed - expected`` (signed, so a positive delta means the observed
+    balance is higher than the chain predicted — i.e. an ``OUT`` row was likely
+    dropped, and vice-versa).
+    """
+
+    index: int
+    expected_balance: Decimal
+    observed_balance: Decimal
+
+    @property
+    def delta(self) -> Decimal:
+        return self.observed_balance - self.expected_balance
+
+
+def detect_balance_chain_break(
+    transactions: list[dict[str, Any]],
+    *,
+    opening_balance: Decimal | None = None,
+    tolerance: Decimal = BALANCE_TOLERANCE,
+) -> ChainBreak | None:
+    """Locate the first running-balance discontinuity in an ordered txn list (AC-C1).
+
+    Walks the ordered transactions and checks, for each row that carries a
+    ``balance_after``, that ``previous_balance + signed_amount == balance_after``
+    within ``tolerance``. The "previous balance" is the prior row's
+    ``balance_after`` (or ``opening_balance`` for the first row, when supplied).
+    Returns the first :class:`ChainBreak` found, or ``None`` if the chain is
+    consistent / too short to check.
+
+    Fully deterministic and ``Decimal``-based — it never calls a model and never
+    uses ``float`` — so it is safe to run on every parse to pinpoint where a row
+    was dropped or misparsed. Rows whose ``balance_after``/``amount`` cannot be
+    coerced to ``Decimal`` are skipped (they carry no chain signal); the previous
+    balance simply does not advance across an unparseable row.
+    """
+    prev_balance: Decimal | None = opening_balance
+
+    for index, txn in enumerate(transactions):
+        raw_balance = txn.get("balance_after")
+        raw_amount = txn.get("amount")
+        if raw_balance is None or raw_amount is None:
+            # No running-balance signal on this row; cannot extend the chain.
+            continue
+        try:
+            observed = Decimal(str(raw_balance))
+            amount = Decimal(str(raw_amount))
+        except (ValueError, TypeError, InvalidOperation):
+            continue
+
+        amount, direction = normalize_amount_direction(amount, txn.get("direction"))
+        signed = amount if direction == "IN" else -amount
+
+        if prev_balance is not None:
+            expected = prev_balance + signed
+            if abs(observed - expected) > tolerance:
+                return ChainBreak(index=index, expected_balance=expected, observed_balance=observed)
+
+        prev_balance = observed
+
+    return None
 
 
 def validate_completeness(extracted: dict[str, Any]) -> list[str]:
@@ -247,9 +443,25 @@ def _score_currency_consistency(transactions: list[dict[str, Any]], header_curre
 
 
 def route_by_threshold(score: int, balance_valid: bool) -> BankStatementStatus:
-    """Route statement by confidence threshold and validation result."""
+    """Route a parsed bank statement by confidence threshold and balance validity.
+
+    Resting states (#1141):
+
+    - **Balance invalid** -> ``PARSED`` (review) regardless of score. The statement
+      parsed but its running balance does not reconcile; it must enter review
+      carrying a ``validation_error`` — the same reviewable resting state as a
+      brokerage statement. It is never parked in ``uploaded``, which was a
+      dead-end the retry endpoint rejected and report readiness ignored (#1085).
+      It also never auto-approves: an unreconciled balance must be human-reviewed.
+    - **Balance valid, score >= 85** -> ``APPROVED`` (auto-accept).
+    - **Balance valid, score >= 60** -> ``PARSED`` (review).
+    - **Balance valid, score < 60** -> ``UPLOADED``: a genuinely low-signal parse
+      where there is not enough extracted structure to review meaningfully, so the
+      user is routed to manual entry. (Distinct from the balance-invalid case,
+      where there *is* a reviewable parse that merely fails reconciliation.)
+    """
     if not balance_valid:
-        return BankStatementStatus.UPLOADED
+        return BankStatementStatus.PARSED
     if score >= 85:
         return BankStatementStatus.APPROVED
     if score >= 60:

@@ -36,7 +36,7 @@ class TestJournalRouterAdditionalCoverage:
         THEN it should return 400
         """
         fake_id = uuid4()
-        response = await client.post(f"/journal-entries/{fake_id}/post")
+        response = await client.post(f"/journal-entries/{fake_id}/postings")
         assert response.status_code == 400
 
     async def test_void_entry_not_found(self, client, test_user):
@@ -47,7 +47,7 @@ class TestJournalRouterAdditionalCoverage:
         """
         fake_id = uuid4()
         response = await client.post(
-            f"/journal-entries/{fake_id}/void",
+            f"/journal-entries/{fake_id}/voidings",
             json={"reason": "Test void"},
         )
         assert response.status_code == 400

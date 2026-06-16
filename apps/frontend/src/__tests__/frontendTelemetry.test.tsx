@@ -7,8 +7,8 @@ vi.mock("@/lib/otel", () => ({ initOtel }))
 
 import { FrontendTelemetry } from "@/components/FrontendTelemetry"
 
-describe("FrontendTelemetry (AC23.1.1)", () => {
-  it("AC23.1.1 renders nothing and calls initOtel once on mount", () => {
+describe("FrontendTelemetry (AC24.1.1)", () => {
+  it("AC24.1.1 renders nothing and calls initOtel once on mount", () => {
     initOtel.mockClear()
     const { container } = render(<FrontendTelemetry />)
     expect(container).toBeEmptyDOMElement()

@@ -279,6 +279,56 @@ valid = (opening_delta <= 0.001) AND (closing_delta <= 0.001)
 - `balance_validation_result`: JSONB with validation details (opening/closing deltas)
 - `stage1_reviewed_at`: Timestamp
 - `manual_opening_balance`: Manual override for first statement
+- `currency_balances`: JSONB array `[{currency, opening, closing}]` for
+  multi-currency statements (see below)
+
+### <a id="per-currency-balance-reconciliation"></a>Per-Currency Balance Reconciliation
+
+A statement may hold balances in more than one currency (Wise, IBKR, Futu). The
+scalar `opening_balance` / `closing_balance` columns cannot represent that, so a
+multi-currency statement also carries a `currency_balances` JSONB array of
+`{currency, opening, closing}`. This is **additive**: the scalar columns stay
+populated for the single-currency case and backward compatibility, and a
+single-currency statement maps to a one-element array.
+
+**Generalized invariant — per account, per currency.** Reconciliation runs
+**independently for each currency** and never sums across currencies:
+
+```
+for each currency ccy on the statement:
+    opening_ccy + Σ(IN_ccy) − Σ(OUT_ccy) ≈ closing_ccy   (within tolerance)
+statement is balance_valid  ⟺  every currency balances
+```
+
+Transactions are grouped by their own `currency`. The legacy scalar check
+(`opening + Σ(IN) − Σ(OUT) ≈ closing`) is the **degenerate one-currency case** of
+this rule. A mismatch in one currency flags only that currency; the per-currency
+result is surfaced as a `per_currency` list, one entry per currency, so a
+multi-currency statement is a set of independent single-currency closed loops.
+
+Implemented by `validate_balance_per_currency` (`services/validation.py`);
+schema `CurrencyBalance` (`schemas/extraction.py`). (#1123 AC1)
+
+### <a id="fx-cross-currency-transfer-pairing"></a>FX / Cross-Currency Transfer Pairing
+
+A cross-currency transfer (money leaves `from_account` in currency A and arrives
+in `to_account` as currency B at a conversion rate) is **one economic event
+spanning two legs**, not two independent income/expense transactions. The paired
+multi-leg event is recorded additively in the `fx_conversions` linking table
+(`{user_id, from_account, amount_from, currency_from, to_account, amount_to,
+currency_to, rate, fee, fee_currency, conversion_date}`).
+
+**Pairing rule (#1123 AC2).** Two legs pair iff ALL of:
+
+1. **Same owner** — identical `user_id`.
+2. **Opposite direction** — one `OUT` leg and one `IN` leg.
+3. **Time window** — `|out.occurred_at − in.occurred_at| ≤ window` (default 2 days).
+4. **Implied-rate match** — `amount_from / amount_to` is within a relative
+   `tolerance` (default 0.5%) of the observed market rate (quoted
+   `currency_from / currency_to`, matching `services/fx.get_exchange_rate`).
+
+Implemented by `pair_fx_legs` / `build_fx_conversion`
+(`services/fx_transfer.py`); rate orientation matches `services/fx.py`. (#1123 AC2)
 
 ### Stage 2: Consistency Checks
 

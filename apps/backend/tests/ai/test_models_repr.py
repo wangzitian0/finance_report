@@ -91,7 +91,8 @@ def test_validation_route_by_threshold():
 
     assert route_by_threshold(85, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(60, True) == BankStatementStatus.PARSED
-    assert route_by_threshold(50, False) == BankStatementStatus.UPLOADED
+    # #1141: balance-invalid bank statements route to PARSED (review), not UPLOADED.
+    assert route_by_threshold(50, False) == BankStatementStatus.PARSED
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED
 
 

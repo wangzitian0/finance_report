@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from src.deps import CurrentUserId, DbSession
@@ -123,7 +123,7 @@ async def resolve_review_conflicts(
         await db.commit()
     except ValueError as exc:
         await db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     logger.info(
         "stage1.conflicts.resolved",
@@ -203,7 +203,7 @@ async def resolve_consistency_check(
         check = await resolve_check(db, check_id, request.action, user_id, request.note)
         await db.commit()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return ConsistencyCheckResponse.model_validate(check)
 
@@ -291,7 +291,7 @@ async def batch_approve_matches(
             accepted_match = await accept_match_service(db, str(match.id), user_id=user_id)
         except ValueError as exc:
             await db.rollback()
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
         after_entry_ids = set(accepted_match.journal_entry_ids or [])
         approved_count += 1

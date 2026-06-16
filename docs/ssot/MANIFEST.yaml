@@ -642,3 +642,18 @@ concepts:
       - docs/ssot/development.md
     proofs:
       - tests/tooling/test_runtime_incident_response_ssot.py
+
+  # ── LLM provider abstraction (EPIC-023) ───────────────────────────────
+  llm_provider_abstraction:
+    owner: docs/ssot/llm.md#axes
+    family: llm
+    kind: concept
+    description: LLM layer's three orthogonal axes (protocol family x model x scene), scene->model binding, and at-rest provider-secret encryption.
+    cross_refs:
+      - docs/ssot/extraction.md
+      - docs/project/EPIC-023.llm-provider-abstraction.md
+      - apps/backend/src/llm/common/types.py
+      - apps/backend/src/llm/common/secrets.py
+    proofs:
+      - apps/backend/tests/unit/llm/test_secrets.py
+      - apps/backend/tests/unit/llm/test_types.py

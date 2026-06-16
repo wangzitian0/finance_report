@@ -103,7 +103,7 @@ def test_load_reconciliation_config_reads_yaml_and_env(monkeypatch: pytest.Monke
 
 def test_load_reconciliation_config_malformed_yaml(monkeypatch):
     """Test that malformed YAML falls back to defaults."""
-    from src.services import reconciliation
+    from src.services import reconciliation, reconciliation_config
 
     class MockPath:
         def exists(self):
@@ -122,7 +122,7 @@ def test_load_reconciliation_config_malformed_yaml(monkeypatch):
         def __truediv__(self, other):
             return self
 
-    monkeypatch.setattr(reconciliation, "Path", lambda *args: MockPath())
+    monkeypatch.setattr(reconciliation_config, "Path", lambda *args: MockPath())
     # Force reload to bypass cache
     config = reconciliation.load_reconciliation_config(force_reload=True)
     assert config.auto_accept == 85  # Default
@@ -132,7 +132,7 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
     """Test that missing yaml module falls back to defaults."""
     import sys
 
-    from src.services import reconciliation
+    from src.services import reconciliation, reconciliation_config
 
     # Mock Path to say file exists
     class MockPath:
@@ -149,7 +149,7 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
         def __truediv__(self, other):
             return self
 
-    monkeypatch.setattr(reconciliation, "Path", lambda *args: MockPath())
+    monkeypatch.setattr(reconciliation_config, "Path", lambda *args: MockPath())
 
     # Effectively hide yaml module from being used in the function's local scope
     # The function does 'import yaml' inside a try-except block

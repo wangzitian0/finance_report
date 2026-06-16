@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
@@ -50,7 +50,7 @@ class CorrectionStatsResponse(BaseModel):
     correction_rate_by_category: dict[str, float]
 
 
-@router.post("", response_model=CorrectionResponse, status_code=201)
+@router.post("", response_model=CorrectionResponse, status_code=status.HTTP_201_CREATED)
 async def create_correction(
     body: CorrectionRequest,
     db: DbSession = None,
@@ -76,7 +76,7 @@ async def create_correction(
             corrected_category=correction.corrected_category,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.get("/stats", response_model=CorrectionStatsResponse)

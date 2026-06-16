@@ -100,22 +100,22 @@ async def test_journal_entry_endpoints(client: AsyncClient) -> None:
     missing_get = await client.get(f"/journal-entries/{uuid4()}")
     assert missing_get.status_code == 404
 
-    post_resp = await client.post(f"/journal-entries/{entry['id']}/post")
+    post_resp = await client.post(f"/journal-entries/{entry['id']}/postings")
     assert post_resp.status_code == 200
     assert post_resp.json()["status"] == "posted"
 
     void_resp = await client.post(
-        f"/journal-entries/{entry['id']}/void",
+        f"/journal-entries/{entry['id']}/voidings",
         json={"reason": "Test void"},
     )
     assert void_resp.status_code == 200
     assert void_resp.json()["status"] == "posted"
 
-    missing_post = await client.post(f"/journal-entries/{uuid4()}/post")
+    missing_post = await client.post(f"/journal-entries/{uuid4()}/postings")
     assert missing_post.status_code == 400
 
     missing_void = await client.post(
-        f"/journal-entries/{uuid4()}/void",
+        f"/journal-entries/{uuid4()}/voidings",
         json={"reason": "missing"},
     )
     assert missing_void.status_code == 400

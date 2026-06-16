@@ -96,6 +96,12 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     opening_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     closing_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     manual_opening_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    # #1123 AC1: per-currency opening/closing balances for multi-currency
+    # statements (Wise / IBKR / Futu), shape ``[{currency, opening, closing}]``.
+    # Additive to the scalar columns above, which stay populated for the
+    # single-currency degenerate case and backward compatibility. Reconciliation
+    # runs per currency (open + ΣIN − ΣOUT ≈ close), never summing across them.
+    currency_balances: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=None)
 
     # Review / confirmation state.
     status: Mapped[BankStatementStatus] = mapped_column(

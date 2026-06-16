@@ -1,4 +1,4 @@
-# EPIC-023: Frontend Browser Observability
+# EPIC-024: Frontend Browser Observability
 
 > **Status**: 🚧 In Progress
 > **Vision Anchor**: `decision-7-tech-stack`
@@ -104,14 +104,14 @@ triaging issues.
 > `apps/frontend/src/__tests__/frontendTelemetry.test.tsx`, and
 > `tests/tooling/test_openpanel_query.py`.
 
-### AC23.1: Browser OTel + OpenPanel Query CLI
+### AC24.1: Browser OTel + OpenPanel Query CLI
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC23.1.1 | The browser OTel module is config-gated (complete no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set), non-blocking, idempotent, and swallows SDK errors so it never throws into the app | `otel.test.ts`, `frontendTelemetry.test.tsx` | P1 |
-| AC23.1.2 | The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted | `otel.test.ts` | P1 |
-| AC23.1.3 | Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL | `otel.test.ts` | P1 |
-| AC23.1.4 | The OpenPanel query CLI exists, reads its API key from `OPENPANEL_API_KEY` (never a CLI flag), and supports events/funnels with an `--env` filter | `test_openpanel_query.py` | P1 |
+| AC24.1.1 | The browser OTel module is config-gated (complete no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set), non-blocking, idempotent, and swallows SDK errors so it never throws into the app | `otel.test.ts`, `frontendTelemetry.test.tsx` | P1 |
+| AC24.1.2 | The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted | `otel.test.ts` | P1 |
+| AC24.1.3 | Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL | `otel.test.ts` | P1 |
+| AC24.1.4 | The OpenPanel query CLI exists, reads its API key from `OPENPANEL_API_KEY` (never a CLI flag), and supports events/funnels with an `--env` filter | `test_openpanel_query.py` | P1 |
 
 ---
 
