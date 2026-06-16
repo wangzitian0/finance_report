@@ -65,6 +65,9 @@ def _load_reconciliation_module():
     # re-export imports resolve inside this isolated environment.
     split_submodules = ("reconciliation_config", "reconciliation_scoring", "reconciliation_stats")
     services_dir = REPO_ROOT / "apps" / "backend" / "src" / "services"
+    previous_submodules = {
+        name: sys.modules.get(f"src.services.{name}") for name in split_submodules
+    }
     try:
         for submodule_name in split_submodules:
             sub_spec = importlib.util.spec_from_file_location(
@@ -87,7 +90,11 @@ def _load_reconciliation_module():
         return module
     finally:
         for submodule_name in split_submodules:
-            sys.modules.pop(f"src.services.{submodule_name}", None)
+            previous = previous_submodules[submodule_name]
+            if previous is None:
+                sys.modules.pop(f"src.services.{submodule_name}", None)
+            else:
+                sys.modules[f"src.services.{submodule_name}"] = previous
         if previous_services is None:
             sys.modules.pop("src.services", None)
         else:

@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -105,7 +105,7 @@ def _valuation_key_query(
     component_type: ManualValuationComponentType,
     source: str,
     as_of_date: date,
-):
+) -> Select[tuple[ManualValuationSnapshot]]:
     """Base select for a manual-valuation version-chain key.
 
     Matches the partial unique index identity (user_id, component_type, source,
