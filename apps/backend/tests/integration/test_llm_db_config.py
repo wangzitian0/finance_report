@@ -19,6 +19,19 @@ def cipher() -> FernetCipher:
     return FernetCipher([Fernet.generate_key().decode("ascii")])
 
 
+@pytest.fixture(autouse=True)
+async def _clean_llm_tables(db):
+    """These tests commit rows (so DbConfigSource's own session sees them), which the
+    db-fixture rollback can't undo. Truncate the LLM tables before each test for a
+    deterministic, idempotent slate across runs."""
+    from sqlalchemy import delete
+
+    await db.execute(delete(LlmSceneBinding))
+    await db.execute(delete(LlmProvider))
+    await db.commit()
+    yield
+
+
 async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
     """AC23.3.1: DbConfigSource decrypts the provider key and qualifies bindings by provider id."""
     sealed = cipher.encrypt("sk-db-secret")
