@@ -59,7 +59,7 @@ class DailyBudgetMeter:
         scene: Scene,
         model_id: str,
         usage: Usage,
-        cost_usd: object | None,
+        cost_usd: Decimal | None,
         *,
         today: date | None = None,
     ) -> None:
