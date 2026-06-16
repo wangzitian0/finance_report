@@ -2,27 +2,20 @@
 
 from __future__ import annotations
 
-import os
-import re
 from collections.abc import Iterable
-from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
-from difflib import SequenceMatcher
 from itertools import combinations
-from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
 from src.logger import get_logger
 from src.models import (
-    AccountType,
     AtomicTransaction,
-    Direction,
     JournalEntry,
     JournalEntrySourceType,
     JournalEntryStatus,
@@ -31,555 +24,41 @@ from src.models import (
     ReconciliationMatchJournalEntry,
     ReconciliationStatus,
 )
-from src.services.accounting import ValidationError, validate_journal_balance
 from src.services.processing_account import (
     create_transfer_in_entry,
     create_transfer_out_entry,
     detect_transfer_pattern,
     find_transfer_pairs,
 )
-from src.services.promotion_gate import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
-from src.services.source_type_priority import promote_entry_source_type, source_type_rank
+from src.services.reconciliation_config import (  # noqa: F401
+    DEFAULT_CONFIG,
+    MAX_COMBINATION_CANDIDATES,
+    MatchCandidate,
+    ReconciliationConfig,
+    _candidate_is_better,
+    _candidate_source_rank,
+    entry_bank_side_amount,
+    entry_total_amount,
+    is_entry_balanced,
+    load_reconciliation_config,
+)
+from src.services.reconciliation_scoring import (  # noqa: F401
+    ai_semantic_score,
+    extract_merchant_tokens,
+    is_cross_period,
+    normalize_text,
+    score_amount,
+    score_business_logic,
+    score_date,
+    score_description,
+    score_pattern,
+    weighted_total,
+)
+from src.services.reconciliation_stats import ReconciliationStats, get_reconciliation_stats  # noqa: F401
+from src.services.source_type_priority import promote_entry_source_type
 from src.services.statement_summary import resolve_custody_account_id
 
 logger = get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class ReconciliationStats:
-    """Reconciliation statistics dataclass."""
-
-    total_transactions: int
-    matched_transactions: int
-    unmatched_transactions: int
-    pending_review: int
-    auto_accepted: int
-    match_rate: float
-    score_distribution: dict[str, int] | None = None
-
-
-async def get_reconciliation_stats(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    include_distribution: bool = False,
-) -> ReconciliationStats:
-    """Get reconciliation statistics for a user.
-
-    Counts Layer-2 atomic transactions and their reconciliation matches.
-    A transaction is "matched" when it has an active (non-superseded)
-    accepted/auto-accepted match; "unmatched" otherwise.
-    """
-    # Total atomic transactions for the user
-    total_result = await db.execute(
-        select(func.count(AtomicTransaction.id)).where(AtomicTransaction.user_id == user_id)
-    )
-    total = total_result.scalar_one()
-
-    # Match status counts via ReconciliationMatch joined on atomic_txn_id
-    match_base = (
-        select(func.count(ReconciliationMatch.id))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == user_id)
-        .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
-    )
-
-    # Count DISTINCT atomic transactions that have an accepted/auto-accepted
-    # match. A single atomic transaction can carry multiple active accepted
-    # matches; counting rows would inflate `matched` and let match_rate exceed
-    # 100%.
-    matched_result = await db.execute(
-        select(func.count(distinct(ReconciliationMatch.atomic_txn_id)))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == user_id)
-        .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
-        .where(
-            ReconciliationMatch.status.in_(
-                [
-                    ReconciliationStatus.ACCEPTED,
-                    ReconciliationStatus.AUTO_ACCEPTED,
-                ]
-            )
-        )
-    )
-    pending_result = await db.execute(
-        match_base.where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
-    )
-    auto_result = await db.execute(match_base.where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED))
-
-    matched = matched_result.scalar_one()
-    pending = pending_result.scalar_one()
-    auto = auto_result.scalar_one()
-    unmatched = max(total - matched, 0)
-
-    # Score distribution (optional)
-    score_distribution: dict[str, int] | None = None
-    if include_distribution:
-        score_result = await db.execute(
-            select(ReconciliationMatch.match_score)
-            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-            .where(AtomicTransaction.user_id == user_id)
-        )
-        scores = score_result.scalars().all()
-        buckets = {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": 0}
-        for score in scores:
-            if score < 60:
-                buckets["0-59"] += 1
-            elif score < 80:
-                buckets["60-79"] += 1
-            elif score < 90:
-                buckets["80-89"] += 1
-            else:
-                buckets["90-100"] += 1
-        score_distribution = buckets
-
-    # Compute match rate with zero-division guard
-    match_rate = float(round((matched / total) * 100, 2)) if total else 0.0
-
-    return ReconciliationStats(
-        total_transactions=total,
-        matched_transactions=matched,
-        unmatched_transactions=unmatched,
-        pending_review=pending,
-        auto_accepted=auto,
-        match_rate=match_rate,
-        score_distribution=score_distribution,
-    )
-
-
-@dataclass(frozen=True)
-class ReconciliationConfig:
-    """Runtime configuration for reconciliation scoring."""
-
-    weight_amount: Decimal
-    weight_date: Decimal
-    weight_description: Decimal
-    weight_business: Decimal
-    weight_history: Decimal
-    auto_accept: int
-    pending_review: int
-    amount_percent: Decimal
-    amount_absolute: Decimal
-    date_days: int
-
-
-@dataclass
-class MatchCandidate:
-    """Candidate match result."""
-
-    journal_entry_ids: list[str]
-    score: int
-    # Score components are 0-100 percentages, not monetary values.
-    # Float is acceptable per AGENTS.md which requires Decimal only for money.
-    breakdown: dict[str, float]
-
-
-def _candidate_source_rank(candidate: MatchCandidate, entries_by_id: dict[str, JournalEntry]) -> int:
-    """Return the highest source_type trust rank among a candidate's entries."""
-    return max(
-        (source_type_rank(entries_by_id[entry_id].source_type) for entry_id in candidate.journal_entry_ids), default=0
-    )
-
-
-def _candidate_is_better(
-    candidate: MatchCandidate,
-    best: MatchCandidate | None,
-    entries_by_id: dict[str, JournalEntry],
-) -> bool:
-    """Prefer higher score, then higher source_type trust for deterministic conflict resolution."""
-    if best is None:
-        return True
-    if candidate.score != best.score:
-        return candidate.score > best.score
-
-    candidate_rank = _candidate_source_rank(candidate, entries_by_id)
-    best_rank = _candidate_source_rank(best, entries_by_id)
-    if candidate_rank > best_rank:
-        candidate.breakdown["source_type_winner_rank"] = float(candidate_rank)
-        candidate.breakdown["source_type_loser_rank"] = float(best_rank)
-        return True
-    if candidate_rank < best_rank:
-        best.breakdown["source_type_winner_rank"] = float(best_rank)
-        best.breakdown["source_type_loser_rank"] = float(candidate_rank)
-    return False
-
-
-def entry_total_amount(entry: JournalEntry) -> Decimal:
-    """Return total debit amount for matching."""
-    return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
-
-
-def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str | None) -> Decimal:
-    """Return the bank/cash-side amount that should match a statement transaction."""
-    if not transaction_direction:
-        return entry_total_amount(entry)
-    direction = transaction_direction.upper()
-    bank_line_direction = Direction.DEBIT if direction == "IN" else Direction.CREDIT
-    bank_lines = [
-        line.amount
-        for line in entry.lines
-        if line.direction == bank_line_direction and line.account and line.account.type == AccountType.ASSET
-    ]
-    if bank_lines:
-        return sum(bank_lines, Decimal("0.00"))
-    return entry_total_amount(entry)
-
-
-def is_entry_balanced(entry: JournalEntry) -> bool:
-    """Return True if entry is balanced."""
-    try:
-        validate_journal_balance(entry.lines)
-    except ValidationError:
-        return False
-    return True
-
-
-DEFAULT_CONFIG = ReconciliationConfig(
-    weight_amount=Decimal("0.40"),
-    weight_date=Decimal("0.25"),
-    weight_description=Decimal("0.20"),
-    weight_business=Decimal("0.10"),
-    weight_history=Decimal("0.05"),
-    auto_accept=RECONCILIATION_AUTO_ACCEPT_SCORE,
-    pending_review=RECONCILIATION_REVIEW_SCORE,
-    amount_percent=Decimal("0.005"),
-    amount_absolute=Decimal("0.10"),
-    date_days=7,
-)
-
-MAX_COMBINATION_CANDIDATES = 30
-
-_config_cache: ReconciliationConfig | None = None
-
-
-def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConfig:
-    """Load reconciliation configuration from YAML if available.
-
-    Caches the result to avoid repeated disk I/O.
-    """
-    global _config_cache
-    if _config_cache is not None and not force_reload:
-        return _config_cache
-
-    config = DEFAULT_CONFIG
-    config_path = Path(__file__).resolve().parents[2] / "config" / "reconciliation.yaml"
-
-    if config_path.exists():
-        try:
-            import yaml
-        except ImportError:
-            yaml = None
-
-        if yaml:
-            try:
-                raw = yaml.safe_load(config_path.read_text()) or {}
-                scoring = raw.get("scoring", {})
-                weights = scoring.get("weights", {})
-                thresholds = scoring.get("thresholds", {})
-                tolerances = scoring.get("tolerances", {})
-
-                config = ReconciliationConfig(
-                    weight_amount=Decimal(str(weights.get("amount", config.weight_amount))),
-                    weight_date=Decimal(str(weights.get("date", config.weight_date))),
-                    weight_description=Decimal(str(weights.get("description", config.weight_description))),
-                    weight_business=Decimal(str(weights.get("business", config.weight_business))),
-                    weight_history=Decimal(str(weights.get("history", config.weight_history))),
-                    auto_accept=int(thresholds.get("auto_accept", config.auto_accept)),
-                    pending_review=int(thresholds.get("pending_review", config.pending_review)),
-                    amount_percent=Decimal(str(tolerances.get("amount_percent", config.amount_percent))),
-                    amount_absolute=Decimal(str(tolerances.get("amount_absolute", config.amount_absolute))),
-                    date_days=int(tolerances.get("date_days", config.date_days)),
-                )
-            except Exception as e:
-                logger.warning(
-                    "Failed to load reconciliation config - using defaults",
-                    config_path=str(config_path),
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
-
-    auto_accept_env = os.getenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD")
-    pending_review_env = os.getenv("RECONCILIATION_REVIEW_THRESHOLD")
-    if auto_accept_env:
-        config = replace(config, auto_accept=int(auto_accept_env))
-    if pending_review_env:
-        config = replace(config, pending_review=int(pending_review_env))
-
-    _config_cache = config
-    return config
-
-
-def normalize_text(value: str) -> str:
-    """Normalize text for similarity comparison."""
-    cleaned = re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
-    return re.sub(r"\s+", " ", cleaned)
-
-
-def score_description(a: str | None, b: str | None) -> float:
-    """Score description similarity (0-100)."""
-    if not a or not b:
-        return 0.0
-    norm_a = normalize_text(a)
-    norm_b = normalize_text(b)
-    if not norm_a or not norm_b:
-        return 0.0
-    ratio = SequenceMatcher(None, norm_a, norm_b).ratio()
-    tokens_a = set(norm_a.split())
-    tokens_b = set(norm_b.split())
-    token_score = len(tokens_a & tokens_b) / len(tokens_a | tokens_b) if tokens_a | tokens_b else 0
-    return round(100 * (0.6 * ratio + 0.4 * token_score), 2)
-
-
-def score_amount(
-    txn_amount: Decimal,
-    entry_amount: Decimal,
-    config: ReconciliationConfig,
-    is_multi: bool = False,
-) -> float:
-    """Score amount match (0-100)."""
-    diff = abs(txn_amount - entry_amount)
-    if diff <= Decimal("0.01"):
-        return 100.0
-
-    tolerance = max(txn_amount * config.amount_percent, config.amount_absolute)
-    if diff <= tolerance:
-        return 90.0
-    if diff <= Decimal("5.00"):
-        return 70.0
-    if is_multi and diff <= tolerance * 2:
-        return 70.0
-    if txn_amount == Decimal("0"):
-        return 0.0
-
-    ratio = max(Decimal("0"), Decimal("100") - (diff / txn_amount) * Decimal("100"))
-    return float(round(ratio, 2))
-
-
-def is_cross_period(txn_date: date, entry_date: date, max_days: int) -> bool:
-    """Detect cross-period matching scenarios."""
-    if txn_date.month == entry_date.month:
-        return False
-    return abs((txn_date - entry_date).days) <= max_days
-
-
-def score_date(txn_date: date, entry_date: date, config: ReconciliationConfig) -> float:
-    """Score date proximity (0-100)."""
-    # Scoring tiers:
-    # - Same day: 100
-    # - Within 3 days: 90
-    # - Cross-month but within config.date_days: 75 (bonus for cross-period matching)
-    # - Same month within config.date_days: 70
-    # - Beyond config.date_days: decreasing score
-    #
-    diff_days = abs((txn_date - entry_date).days)
-    if diff_days == 0:
-        return 100.0
-    if diff_days <= 3:
-        return 90.0
-
-    # Check if within acceptable date window
-    if diff_days <= config.date_days:
-        # Cross-period matching gets a slight bonus (e.g., Friday txn -> Monday entry)
-        if is_cross_period(txn_date, entry_date, max_days=config.date_days):
-            return 75.0
-        return 70.0
-
-    # Beyond acceptable window - rapidly decreasing score
-    return float(max(0, 100 - diff_days * 10))
-
-
-def score_business_logic(transaction: AtomicTransaction, entry: JournalEntry) -> float:
-    """Score business logic fit based on account types."""
-    account_types = {line.account.type for line in entry.lines if line.account}
-    has_asset = AccountType.ASSET in account_types
-    has_income = AccountType.INCOME in account_types
-    has_expense = AccountType.EXPENSE in account_types
-    has_liability = AccountType.LIABILITY in account_types
-    has_equity = AccountType.EQUITY in account_types
-
-    if transaction.direction == "IN":
-        if has_asset and has_income:
-            return 100.0
-        if has_asset and has_liability:
-            return 85.0
-        if has_asset and has_equity:
-            return 75.0
-        if has_asset and account_types == {AccountType.ASSET}:
-            return 70.0
-        return 40.0
-
-    if transaction.direction == "OUT":
-        if has_asset and has_expense:
-            return 100.0
-        if has_asset and has_liability:
-            return 90.0
-        if has_asset and account_types == {AccountType.ASSET}:
-            return 70.0
-        return 40.0
-
-    return 50.0
-
-
-def extract_merchant_tokens(description: str) -> list[str]:
-    """Extract meaningful merchant tokens from transaction description.
-
-    Improved extraction that takes up to 3 significant words, skipping
-    common prefixes like transaction codes, dates, and generic terms.
-    """
-    skip_patterns = {
-        "ref",
-        "txn",
-        "trn",
-        "pos",
-        "atm",
-        "eft",
-        "ibk",
-        "ibt",
-        "payment",
-        "transfer",
-        "debit",
-        "credit",
-        "card",
-        "visa",
-        "mastercard",
-    }
-    words = normalize_text(description).split()
-    tokens = []
-    for word in words:
-        # Skip very short words, numbers, and common prefixes
-        if len(word) < 3:
-            continue
-        if word.isdigit():
-            continue
-        if word.lower() in skip_patterns:
-            continue
-        tokens.append(word)
-        if len(tokens) >= 3:
-            break
-    return tokens
-
-
-async def score_pattern(
-    db: AsyncSession,
-    transaction: AtomicTransaction,
-    config: ReconciliationConfig,
-    user_id: UUID,
-) -> float:
-    """Score based on historical matching patterns.
-
-    Uses improved merchant extraction that considers multiple significant words.
-    """
-    merchant_tokens = extract_merchant_tokens(transaction.description)
-    if not merchant_tokens:
-        return 0.0
-
-    # Use first meaningful token for pattern matching
-    token = merchant_tokens[0]
-    safe_token = token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    pattern = f"%{safe_token}%"
-
-    result = await db.execute(
-        select(AtomicTransaction)
-        .join(
-            ReconciliationMatch,
-            ReconciliationMatch.atomic_txn_id == AtomicTransaction.id,
-        )
-        .where(AtomicTransaction.user_id == user_id)
-        .where(ReconciliationMatch.status.in_([ReconciliationStatus.AUTO_ACCEPTED, ReconciliationStatus.ACCEPTED]))
-        .where(AtomicTransaction.description.ilike(pattern, escape="\\"))
-        .order_by(AtomicTransaction.txn_date.desc())
-        .limit(10)
-    )
-    history = result.scalars().all()
-    if not history:
-        return 0.0
-
-    tolerance = max(transaction.amount * config.amount_percent, config.amount_absolute)
-    for past in history:
-        if abs(past.amount - transaction.amount) <= tolerance:
-            return 80.0
-    return 40.0
-
-
-def weighted_total(scores: dict[str, float], config: ReconciliationConfig) -> int:
-    """Compute weighted total score."""
-    total = (
-        Decimal(str(scores["amount"])) * config.weight_amount
-        + Decimal(str(scores["date"])) * config.weight_date
-        + Decimal(str(scores["description"])) * config.weight_description
-        + Decimal(str(scores["business"])) * config.weight_business
-        + Decimal(str(scores["history"])) * config.weight_history
-    )
-    return int(round(total, 0))
-
-
-async def ai_semantic_score(
-    txn_description: str,
-    entry_memo: str,
-    date_diff_days: int,
-    amount_match_pct: float,
-) -> int:
-    """EPIC-018 Phase 3: Compute AI semantic similarity score.
-
-    Calls the configured AI provider to assess semantic similarity between a bank transaction
-    description and a journal entry memo. Returns 0-100 score.
-
-    Falls back gracefully to 50 (neutral) on any error.
-    """
-    import json
-
-    from src.prompts.reconciliation import build_reconciliation_prompt
-    from src.services.ai_streaming import (
-        AIStreamError,
-        accumulate_stream,
-        stream_ai_json,
-    )
-
-    if not settings.ai_api_key:
-        logger.debug("AI reconciliation skipped: no API key configured")
-        return 50
-
-    prompt = build_reconciliation_prompt(
-        txn_description=txn_description,
-        entry_memo=entry_memo,
-        date_diff_days=date_diff_days,
-        amount_match_pct=amount_match_pct,
-    )
-
-    messages = [{"role": "user", "content": prompt}]
-
-    try:
-        stream = stream_ai_json(
-            messages=messages,
-            model=settings.primary_model,
-            api_key=settings.ai_api_key,
-            base_url=settings.ai_base_url,
-            timeout=30.0,
-        )
-        content = await accumulate_stream(stream)
-
-        if not content or not content.strip():
-            logger.warning("AI semantic score returned empty response")
-            return 50
-
-        parsed = json.loads(content)
-        score = int(parsed.get("similarity_score", 50))
-
-        logger.debug(
-            "AI semantic score computed",
-            score=score,
-            model=settings.primary_model,
-        )
-
-        return max(0, min(100, score))
-
-    except (AIStreamError, json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
-        logger.warning(
-            "AI semantic score failed, using fallback",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        return 50
 
 
 def prune_candidates(
