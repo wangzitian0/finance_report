@@ -20,7 +20,7 @@ from src.constants.report_package import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
     PERSONAL_REPORT_PACKAGE_NOTES,
 )
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, Pagination
 from src.logger import get_logger
 from src.models import (
     Account,
@@ -436,14 +436,18 @@ async def generate_personal_report_package_snapshot(
 async def list_personal_report_package_snapshots(
     db: DbSession,
     user_id: CurrentUserId,
+    pagination: Pagination,
 ) -> list[PersonalReportPackageSnapshotSummary]:
     """List saved personal report package snapshots for the current user."""
     stmt = (
         select(ReportSnapshot)
         .where(ReportSnapshot.user_id == user_id)
         .where(ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
-        .order_by(ReportSnapshot.created_at.desc())
-        .limit(25)
+        # Stable tiebreaker (id) so offset pagination is deterministic when
+        # created_at timestamps tie — otherwise pages could drop/duplicate rows.
+        .order_by(ReportSnapshot.created_at.desc(), ReportSnapshot.id.desc())
+        .limit(pagination.limit)
+        .offset(pagination.offset)
     )
     result = await db.execute(stmt)
     return [_package_snapshot_summary(snapshot) for snapshot in result.scalars().all()]

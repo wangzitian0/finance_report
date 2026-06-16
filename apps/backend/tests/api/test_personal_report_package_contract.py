@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.deps import PaginationParams
 from src.models import (
     Account,
     AccountType,
@@ -472,7 +473,7 @@ async def test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable(
     await _patch_package_snapshot_inputs(
         monkeypatch, readiness_state="ready", blocking_count=0, section_label="Live Changed"
     )
-    listed = await list_personal_report_package_snapshots(db=db, user_id=test_user.id)
+    listed = await list_personal_report_package_snapshots(db=db, user_id=test_user.id, pagination=PaginationParams())
     assert [item.id for item in listed] == [snapshot.id]
 
     reopened = await get_personal_report_package_snapshot(snapshot_id=snapshot.id, db=db, user_id=test_user.id)

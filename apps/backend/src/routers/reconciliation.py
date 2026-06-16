@@ -4,12 +4,12 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import structlog
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.deps import CurrentUserId, DbSession
+from src.deps import CurrentUserId, DbSession, Pagination
 from src.logger import get_logger
 from src.models import (
     Direction,
@@ -157,7 +157,10 @@ async def _load_entry_summaries(
     return {str(entry.id): _build_entry_summary(entry) for entry in result.scalars().all()}
 
 
-@router.post("/run", response_model=ReconciliationRunResponse)
+# Synchronous 200: matching runs inline and the response carries the completed run
+# result (matches_created/auto_accepted/pending_review/unmatched), so this is a
+# finished operation, not a 202 background job (cf. #1099 AC12.29.1).
+@router.post("/run", response_model=ReconciliationRunResponse, status_code=status.HTTP_200_OK)
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
     db: DbSession = None,
@@ -540,6 +543,7 @@ async def list_anomalies(
     *,
     db: DbSession,
     user_id: CurrentUserId,
+    pagination: Pagination,
 ) -> list[AnomalyResponse]:
     result = await db.execute(
         select(AtomicTransaction).where(AtomicTransaction.id == txn_id).where(AtomicTransaction.user_id == user_id)
@@ -548,4 +552,5 @@ async def list_anomalies(
     if not txn:
         raise_not_found("Transaction")
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
-    return [AnomalyResponse(**anomaly.__dict__) for anomaly in anomalies]
+    page = anomalies[pagination.offset : pagination.offset + pagination.limit]
+    return [AnomalyResponse(**anomaly.__dict__) for anomaly in page]
