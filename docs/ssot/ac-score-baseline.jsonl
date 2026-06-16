@@ -1,4 +1,12 @@
 {"ac_id": "AC2.2.1", "score": 1.0, "metric": "balanced_entry_debit_credit_imbalance_is_zero", "provenance": "deterministic"}
 {"ac_id": "AC2.6.4", "score": 1.0, "metric": "posted_debit_credit_imbalance_is_zero", "provenance": "deterministic"}
 {"ac_id": "AC4.1.4", "score": 1.0, "metric": "description_similarity_pct", "provenance": "deterministic"}
+{"ac_id": "AC4.14.1", "score": 1.0, "metric": "fx_legs_pair_when_implied_rate_within_tolerance", "provenance": "deterministic"}
+{"ac_id": "AC4.14.2", "score": 1.0, "metric": "fx_legs_do_not_pair_outside_rate_tolerance", "provenance": "deterministic"}
+{"ac_id": "AC4.14.3", "score": 1.0, "metric": "non_candidate_fx_legs_rejected", "provenance": "deterministic"}
+{"ac_id": "AC4.14.4", "score": 1.0, "metric": "internal_transfer_income_and_expense_are_zero", "provenance": "deterministic"}
+{"ac_id": "AC4.14.5", "score": 1.0, "metric": "net_worth_delta_equals_negative_fee", "provenance": "deterministic"}
+{"ac_id": "AC4.14.6", "score": 1.0, "metric": "same_day_round_trip_realized_pnl_is_negative_fee", "provenance": "deterministic"}
+{"ac_id": "AC4.14.7", "score": 1.0, "metric": "fx_pnl_routes_through_fx_revaluation_source_type", "provenance": "deterministic"}
+{"ac_id": "AC4.14.8", "score": 1.0, "metric": "fx_conversion_model_round_trips_decimal_and_iso_currency", "provenance": "deterministic"}
 {"ac_id": "AC8.16.1", "score": 1.0, "metric": "superseded_excluded_corrected_total_match", "provenance": "deterministic"}
