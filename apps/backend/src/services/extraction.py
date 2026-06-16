@@ -575,9 +575,12 @@ class ExtractionService:
                 # Routing differs by document class on purpose (#981): brokerage payloads
                 # reconcile via Layer-2 AtomicPosition snapshots, not a running-balance chain, so
                 # `balance_valid` is not their gating signal — they always go to `parsed`/review.
-                # Bank statements route by `route_by_threshold`, where an invalid balance chain
-                # sends them to `uploaded` (manual entry). Same "balance invalid" input, different
-                # destination by design.
+                # Bank statements route by `route_by_threshold`. As of #1141 an invalid balance
+                # chain also sends a bank statement to `parsed` (review with a validation_error),
+                # not `uploaded`: a parsed-but-unreconciled statement is reviewable, not a manual-
+                # entry dead-end. `uploaded` is now reserved for genuinely low-signal valid-balance
+                # parses (score < 60). Both classes therefore converge on `parsed`/review for the
+                # "balance invalid" outcome.
                 status = (
                     BankStatementStatus.PARSED if is_brokerage_payload else route_by_threshold(confidence, is_valid)
                 )

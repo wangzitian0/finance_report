@@ -1040,6 +1040,72 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
         assert resp.status == BankStatementStatus.PARSING
 
 
+async def test_AC13_21_3_retry_accepts_parsed_resting_state(db, storage_stub, test_user):
+    """AC13.21.3 (#1141): retry accepts a balance-invalid statement at its PARSED rest.
+
+    A balance-invalid bank statement now rests in PARSED (review) instead of the
+    UPLOADED dead-end that the retry endpoint rejected. PARSED is already an
+    allowed retry state, so retry must NOT raise a 400 for it.
+    """
+    from unittest.mock import patch
+    from uuid import uuid4
+
+    from src.schemas import RetryParsingRequest
+
+    sid = uuid4()
+    statement = StatementSummary(
+        id=sid,
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSED,
+        stage1_status=Stage1Status.PENDING_REVIEW,
+        balance_validated=False,
+        validation_error="Balance mismatch: expected 1500.00, got 9999.99",
+        file_hash="h_parsed_balance_invalid",
+        institution="DBS",
+    )
+    db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="p", original_filename="f.pdf")
+    await db.commit()
+
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
+        mock_storage = mock_storage_cls.return_value
+        mock_storage.get_object.return_value = b"content"
+
+        # Must not raise HTTP 400: PARSED is an accepted retry resting state.
+        resp = await statements_router.retry_statement_parsing(
+            statement_id=sid,
+            request=RetryParsingRequest(model=None),
+            db=db,
+            user_id=test_user.id,
+        )
+        assert resp.id == sid
+
+
+async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub, test_user):
+    """AC13.21.6 (#1141): CSV upload without an institution fails synchronously (400).
+
+    Previously a CSV with no institution was accepted (202) and only rejected
+    asynchronously inside the parse worker ("Institution is required for CSV
+    parsing"), leaving an orphaned PARSING record. The upload route must reject it
+    up-front with HTTP 400 and an actionable message.
+    """
+    upload_file = make_upload_file("statement.csv", b"date,amount\n2025-01-01,10.00\n")
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload_file,
+            institution=None,
+            account_id=None,
+            model=None,
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload_file.close()
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "institution" in exc.value.detail.lower()
+
+
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC3.5.19: Retry parsing with stronger model succeeds."""
     from src.schemas import RetryParsingRequest

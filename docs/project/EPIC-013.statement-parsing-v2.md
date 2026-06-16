@@ -316,6 +316,27 @@ this gate.
 | AC13.13.2 | Re-parsing identical model output yields identical confidence/status/validation_error across N parses. | `test_repeated_parse_yields_identical_confidence_status_validation` | `extraction/test_extraction_determinism.py` | P0 |
 | AC13.13.3 | Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
 
+### AC13.21: Balance-Mismatch Statement Lifecycle (#1141, folds #1085 + #1087)
+
+A bank statement that parses cleanly but whose running balance does not reconcile
+must **not** be parked in `uploaded` (a dead-end that the retry endpoint rejects
+and the report-readiness query ignores). It must enter the same reviewable resting
+state as a brokerage statement: `PARSED` with `stage1_status=PENDING_REVIEW` and a
+`validation_error` describing the mismatch. This makes balance-invalid bank
+statements retriable (AC13.21.3), visible to readiness (AC13.21.4), and
+deterministic (AC13.21.5). CSV intake with a missing institution must fail
+synchronously at upload with HTTP 400 instead of accepting (202) and then
+rejecting asynchronously (AC13.21.6).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.21.1 | `route_by_threshold` routes a balance-invalid bank statement to `PARSED` (review), never `uploaded`, regardless of score. | `test_AC13_21_1_balance_invalid_routes_to_parsed_review` | `accounting/test_validation.py` | P0 |
+| AC13.21.2 | A parsed bank statement that fails balance reconciliation lands in `PARSED` with `stage1_status=PENDING_REVIEW` and a `validation_error`. | `test_AC13_21_2_balance_invalid_parse_is_pending_review` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.21.3 | The retry endpoint accepts a balance-invalid statement at its `PARSED` resting state. | `test_AC13_21_3_retry_accepts_parsed_resting_state` | `api/test_statements_router.py` | P0 |
+| AC13.21.4 | Report readiness counts the balance-invalid `PARSED` statement as an available input. | `test_AC13_21_4_readiness_counts_parsed_balance_invalid` | `accounting/test_validation.py` | P1 |
+| AC13.21.5 | The same balance-mismatch payload routes to the same `PARSED` status deterministically across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
+| AC13.21.6 | CSV upload with a missing institution fails synchronously with HTTP 400 and an actionable message. | `test_AC13_21_6_csv_missing_institution_rejected_sync` | `api/test_statements_router.py` | P0 |
+
 ### AC13.16: Deterministic Decoding — Request Seed (issue #989)
 
 Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the
