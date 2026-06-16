@@ -146,8 +146,8 @@ TEST_FILE_SUFFIXES = (
     ".spec.tsx",
 )
 
-# Reused from tools/check_ac_traceability.py. Matches the canonical
-# AC ID form: ``ACx.y.z`` (epic.major.minor).
+# Matches the canonical AC ID form used by common.ssot.ac_traceability_refs:
+# ``ACx.y.z`` (epic.major.minor).
 AC_PATTERN = re.compile(r"\bAC(\d+)\.(\d+)\.(\d+)\b")
 
 # Lines in EPIC docs that document AC IDs as removed/duplicated/

@@ -489,7 +489,9 @@ def render_document(
     lines.append(
         "Source registries: `docs/ac_registry.yaml`, "
         "`docs/infra_registry.yaml`. "
-        "AC reference pattern: `ACx.y.z` (matched by `tools/check_ac_traceability.py`)."
+        "AC reference pattern: `ACx.y.z` (matched by "
+        "`common.ssot.ac_traceability_refs.AC_PATTERN`; gated by "
+        "`tools/check_ac_index.py`)."
     )
     lines.append("")
 

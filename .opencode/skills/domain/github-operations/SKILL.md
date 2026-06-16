@@ -165,5 +165,7 @@ gh run view "$RUN_ID" --log-failed 2>&1 | grep -A 5 "FAILED\|Error\|assert"
 | File | Purpose |
 |------|---------|
 | `.github/workflows/ci.yml` | CI pipeline definition |
-| `.github/workflows/pr-test-env.yml` | PR test environment deployment |
-| `.github/workflows/deploy-staging.yml` | Staging deployment |
+| `.github/workflows/pr-test.yml` | PR preview smoke/E2E |
+| `.github/workflows/staging-deploy.yml` | Manual staging deployment |
+| `.github/workflows/staging-ai-ocr-gate.yml` | On-demand staging AI/OCR gate |
+| `.github/workflows/production-release.yml` | Production release |
