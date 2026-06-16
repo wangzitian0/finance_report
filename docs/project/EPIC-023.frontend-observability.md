@@ -43,7 +43,7 @@ triaging issues.
    `<Analytics>` in the root layout, keeping the SDK out of the server bundle.
 3. Scrub PII (query strings, fragments, emails/amounts/account numbers) from
    all captured URLs and span attributes via pure, unit-tested helpers.
-4. Add `apps/frontend/tools/openpanel_query.py` (events/funnels, `--env`).
+4. Add `tools/openpanel_query.py` (events/funnels, `--env`).
 5. Document env vars; actual per-env ingest endpoint + DNS land in infra2.
 
 ### Result
@@ -90,7 +90,7 @@ triaging issues.
 - [x] Wire into `apps/frontend/src/app/layout.tsx` next to `<Analytics>`.
 
 ### Tooling
-- [x] Add `apps/frontend/tools/openpanel_query.py` (events/funnels, `--env`).
+- [x] Add `tools/openpanel_query.py` (events/funnels, `--env`).
 
 ### Documentation
 - [x] Document `NEXT_PUBLIC_OTEL_*` and `OPENPANEL_API_KEY` env vars (PR body).

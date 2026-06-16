@@ -1,8 +1,8 @@
-"""Tests for apps/frontend/tools/openpanel_query.py (EPIC-023 / AC23.1.4).
+"""Tests for tools/openpanel_query.py (EPIC-023 / AC23.1.4).
 
-The OpenPanel query CLI lives under the frontend app (co-located with the
-browser-telemetry surface) rather than the repo `tools/` package, so it is
-loaded by file path here.
+The OpenPanel query CLI lives in the repo-root ``tools/`` package (the
+registered home for Python governance / CI tooling). It is stdlib-only and is
+loaded by file path here so the import does not depend on package wiring.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CLI_PATH = REPO_ROOT / "apps" / "frontend" / "tools" / "openpanel_query.py"
+CLI_PATH = REPO_ROOT / "tools" / "openpanel_query.py"
 
 
 def _load_cli() -> ModuleType:
