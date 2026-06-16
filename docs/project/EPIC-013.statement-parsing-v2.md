@@ -348,7 +348,7 @@ because Z.AI/GLM validates params strictly and some models (e.g. the default
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC13.16.1 | A provided seed is forwarded in the streaming request payload | `test_stream_ai_json_includes_seed_when_provided()` | `ai/test_ai_streaming.py` | P1 |
+| AC13.16.1 | A provided seed is forwarded in the streaming request payload | `test_stream_ai_json_forwards_zai_knobs_and_seed()` | `ai/test_ai_streaming.py` | P1 |
 | AC13.16.2 | Extraction forwards the configured `ai_json_seed` to the model call | `test_extraction_forwards_configured_seed()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.3 | Extraction pins `temperature=0` / `do_sample=False` alongside the seed | `test_extraction_decoding_is_deterministic_by_default()` | `extraction/test_seed_determinism.py` | P1 |
 | AC13.16.4 | Empty `AI_JSON_SEED` parses as None (omitted) instead of raising | `test_empty_seed_env_is_treated_as_none()` | `extraction/test_seed_determinism.py` | P1 |

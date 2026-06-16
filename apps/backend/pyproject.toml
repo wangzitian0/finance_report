@@ -27,7 +27,6 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.45b0",
     "opentelemetry-instrumentation-httpx>=0.45b0",
     "bcrypt==4.0.1",
-    "httpx-sse>=0.4.3",
     "pymupdf>=1.24.0",
     "cryptography>=42.0.0",
     "litellm>=1.55.0",

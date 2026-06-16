@@ -1019,8 +1019,6 @@ class AIAdvisorService:
         async for chunk in stream_ai_chat(
             messages=messages,
             model=model,
-            api_key=self.api_key,
-            base_url=self.base_url,
             timeout=120.0,
         ):
             yield chunk

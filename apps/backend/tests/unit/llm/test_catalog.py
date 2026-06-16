@@ -12,6 +12,18 @@ from src.llm.catalog import LitellmCatalog
 from src.llm.common import Modality
 
 
+@pytest.fixture(autouse=True)
+def _clear_settings_model_caches():
+    """``settings.fallback_models``/``vision_fallback_models`` are ``cached_property``;
+    monkeypatching the ``*_str`` fields won't refresh them. Clear the cache around each
+    test so a test value never leaks into another test (or vice-versa)."""
+    for key in ("fallback_models", "vision_fallback_models"):
+        settings.__dict__.pop(key, None)
+    yield
+    for key in ("fallback_models", "vision_fallback_models"):
+        settings.__dict__.pop(key, None)
+
+
 @pytest.fixture
 def patched(monkeypatch):
     monkeypatch.setattr(settings, "primary_model", "glm-5.1", raising=False)

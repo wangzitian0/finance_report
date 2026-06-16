@@ -268,8 +268,6 @@ async def ai_semantic_score(
         stream = stream_ai_json(
             messages=messages,
             model=settings.primary_model,
-            api_key=settings.ai_api_key,
-            base_url=settings.ai_base_url,
             timeout=30.0,
         )
         content = await accumulate_stream(stream)

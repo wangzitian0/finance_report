@@ -90,3 +90,15 @@ parallel once PR1 merges.
 | AC23.2.4 | `EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal | `apps/backend/tests/unit/llm/test_env_config.py` | P1 |
 | AC23.2.5 | The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free | `apps/backend/tests/unit/llm/test_catalog.py` | P1 |
 | AC23.2.6 | The daily budget meter blocks once the USD limit is reached, rolls over per UTC day, and records spend (replacing the unenforced `AI_DAILY_LIMIT_USD`) | `apps/backend/tests/unit/llm/test_cost.py` | P1 |
+
+### AC23.3 — DB-backed configuration & cutover
+> PR3 slice (EPIC B): the provider/binding tables, the DB config source layered
+> over env (all-or-nothing), and the cutover of the existing call sites onto the
+> litellm client. The `/llm` API, the first-run modal, and the scene×model page
+> ship in PR4 (with their own ACs) — that is where `LitellmCatalog`/`LitellmClient`
+> are consumed and `services/ai_models.py` is retired.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.3.1 | `DbConfigSource` reads provider instances (decrypting the at-rest API key) and scene bindings (qualified by provider id) from `llm_providers` / `llm_scene_bindings` | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
+| AC23.3.2 | Config resolves DB-first with an env fallback; `is_configured()` is true when either has a provider and false when both are empty (driving the first-run modal) | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
