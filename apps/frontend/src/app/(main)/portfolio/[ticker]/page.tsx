@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types";
-import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/currency";
+import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/money";
 import { formatDateDisplay } from "@/lib/date";
 
 function getPnlColor(value: string): string {

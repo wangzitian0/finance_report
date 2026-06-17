@@ -14,7 +14,7 @@ import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader 
 import type { BadgeVariant } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale } from "@/lib/money";
 
 // Plain-language status for everyday users. "parsed" means the AI finished and
 // it is the user's turn to review — surface that as an action, not a warning.

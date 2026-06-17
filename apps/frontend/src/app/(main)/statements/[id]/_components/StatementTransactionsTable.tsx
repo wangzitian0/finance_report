@@ -1,5 +1,5 @@
 import { BankStatement, BankStatementTransaction } from "@/lib/types";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale } from "@/lib/money";
 
 interface StatementTransactionsTableProps {
     statement: BankStatement;

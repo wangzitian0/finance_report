@@ -1,6 +1,6 @@
 "use client";
 
-import { compareAmounts, formatAmount, formatCurrencyLocale } from "@/lib/currency";
+import { compareAmounts, formatAmount, formatCurrencyLocale } from "@/lib/money";
 import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 

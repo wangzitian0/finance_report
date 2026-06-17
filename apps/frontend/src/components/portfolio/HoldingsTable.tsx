@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PortfolioHolding } from "@/lib/types";
-import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/currency";
+import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/money";
 import { formatDateDisplay } from "@/lib/date";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 

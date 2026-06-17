@@ -1,4 +1,4 @@
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale } from "@/lib/money";
 import { anchorFromIdentifiers, type LineageAnchor } from "@/lib/lineage";
 import type {
   EvidenceLineageResponse,

@@ -10,7 +10,7 @@ import { TrustMeter } from "@/components/home/TrustMeter";
 import { InfoHint } from "@/components/ui/InfoHint";
 
 import { formatDateDisplay, formatMonthLabel } from "@/lib/date";
-import { amountToChartNumber, compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal } from "@/lib/currency";
+import { amountToChartNumber, compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal } from "@/lib/money";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { BarChart } from "@/components/charts/BarChart";
 import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { LineagePanel } from "@/components/reports/LineagePanel";
 import Sheet from "@/components/ui/Sheet";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale } from "@/lib/money";
 import { anchorFromTypedIdentifier, type LineageAnchor } from "@/lib/lineage";
 import type { AccountLineageResponse } from "@/lib/types";
 

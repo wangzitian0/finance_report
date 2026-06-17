@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { amountToChartNumber, formatAmount } from "@/lib/currency";
+import { amountToChartNumber, formatAmount } from "@/lib/money";
 import { AllocationBreakdown } from "@/lib/types";
 import { PieChart } from "@/components/charts/PieChart";
 

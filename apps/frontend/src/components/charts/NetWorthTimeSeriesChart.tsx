@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 
 import { apiFetch } from "@/lib/api";
-import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
+import { amountToChartNumber, formatCurrencyLocale } from "@/lib/money";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import type { NetWorthRange, NetWorthTimeSeriesResponse } from "@/lib/types";
 

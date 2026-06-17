@@ -14,3 +14,23 @@ export {
   type AmountInput,
   type RoundingName,
 } from "./money";
+// Display/formatting + Decimal helpers (consolidated from the former lib/currency.ts,
+// #1167). Behaviour-preserving move so the frontend has one money module; display
+// formatting keeps its conventional rounding (money *value* rounding lives in the
+// value types above and is conformance-locked to the backend's banker's rounding).
+export {
+  type MonetaryInput,
+  parseAmount,
+  toDecimal,
+  amountToChartNumber,
+  formatAmount,
+  formatQuantity,
+  sumAmounts,
+  subtractAmounts,
+  multiplyAmount,
+  divideAmount,
+  compareAmounts,
+  isAmountZero,
+  formatCurrency,
+  formatCurrencyLocale,
+} from "./format";
