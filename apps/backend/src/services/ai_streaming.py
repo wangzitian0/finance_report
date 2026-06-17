@@ -14,11 +14,10 @@ from typing import Any
 from uuid import UUID
 
 from src.config import settings
-from src.llm.client import estimate_cost_usd, litellm_stream, resolve_provider_and_model
-from src.llm.common import LLMBudgetExceeded, LLMConfigError, LLMError, ProviderRef
+from src.llm.client import cost_from_usage, litellm_stream, resolve_provider_and_model
+from src.llm.common import LLMBudgetExceeded, LLMConfigError, LLMError, ProviderRef, ReasoningEffort
 from src.llm.env_config import _protocol_for
 from src.llm.factory import get_budget_meter, get_config_source
-from src.llm.routing import build_call
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -78,6 +77,7 @@ async def _stream_ai_base(
     connect_timeout: float = 10.0,
     max_tokens: int | None = None,
     temperature: float | None = None,
+    reasoning: ReasoningEffort | None = None,
     do_sample: bool | None = None,
     seed: int | None = None,
     thinking: dict[str, Any] | None = None,
@@ -119,7 +119,7 @@ async def _stream_ai_base(
     if thinking is not None:
         extra_body["thinking"] = thinking
 
-    collected: list[str] = []
+    usage_sink: dict[str, Any] = {}
     try:
         async for content in litellm_stream(
             messages,
@@ -127,11 +127,12 @@ async def _stream_ai_base(
             model_id=model,
             max_tokens=max_tokens,
             temperature=temperature,
+            reasoning=reasoning,
             seed=seed,
             extra_body=extra_body or None,
             timeout=timeout,
+            usage_sink=usage_sink,
         ):
-            collected.append(content)
             yield content
     except LLMError as exc:
         logger.error(
@@ -145,11 +146,19 @@ async def _stream_ai_base(
         )
         raise AIStreamError(str(exc), retryable=exc.retryable) from exc
     else:
-        # Record best-effort spend so the daily ceiling actually accumulates.
-        # Cost/telemetry must never break a completed stream.
+        # Record real spend from the streamed token usage so the daily ceiling
+        # actually accumulates. Cost/telemetry must never break a completed stream.
         try:
-            cost = estimate_cost_usd(build_call(provider, model).model, messages, "".join(collected))
-            await meter.record_cost(model, cost, scene=mode_label)
+            # Price and record under the same (litellm-prefixed) model id so spend
+            # telemetry matches what was billed and provider-prefixed models don't
+            # collapse onto a bare name.
+            priced_model = usage_sink.get("model") or model
+            cost = cost_from_usage(
+                priced_model,
+                usage_sink.get("prompt_tokens", 0),
+                usage_sink.get("completion_tokens", 0),
+            )
+            await meter.record_cost(priced_model, cost, scene=mode_label)
         except Exception:  # noqa: BLE001 - spend telemetry is not correctness
             logger.debug("llm spend recording skipped", exc_info=True)
 
@@ -193,15 +202,22 @@ async def stream_ai_chat(
     api_key: str | None = None,
     base_url: str | None = None,
     user_id: UUID | None = None,
+    reasoning: ReasoningEffort | None = None,
+    max_tokens: int | None = None,
     timeout: float = 120.0,
 ) -> AsyncIterator[str]:
-    """Stream chat completions without JSON mode (plain text)."""
+    """Stream chat completions without JSON mode (plain text).
+
+    ``reasoning``/``max_tokens`` let a caller apply a scene binding's configured
+    reasoning depth and token cap (EPIC-023 AC23.4.5)."""
     async for chunk in _stream_ai_base(
         messages=messages,
         model=model,
         api_key=api_key,
         base_url=base_url,
         user_id=user_id,
+        reasoning=reasoning,
+        max_tokens=max_tokens,
         timeout=timeout,
         mode_label="chat mode",
     ):

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.llm.client import LitellmClient
 from src.llm.common import ConfigSource, ProviderRef, Scene, SceneBinding
 from src.llm.cost import DailyBudgetMeter
 from src.llm.db_config import DbConfigSource
@@ -75,8 +74,3 @@ def get_config_source(user_id: UUID | None = None) -> ConfigSource:
     against the DB (see :class:`LayeredConfigSource`).
     """
     return LayeredConfigSource(DbConfigSource(user_id=user_id), EnvConfigSource())
-
-
-def get_llm_client(user_id: UUID | None = None) -> LitellmClient:
-    """The scene-keyed client for a user, with the shared daily budget guard wired in."""
-    return LitellmClient(get_config_source(user_id), cost_meter=get_budget_meter())
