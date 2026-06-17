@@ -133,6 +133,12 @@ async def test_AC23_4_2_delete_non_uuid_is_not_found(client: AsyncClient) -> Non
         "http://localhost.",
         "https://vault.internal.",
         "https://metadata.google.internal./computeMetadata/v1/",
+        # legacy integer/hex/octal/short IPv4 encodings libc/curl accept
+        "http://2130706433/",
+        "http://0x7f000001/",
+        "http://0177.0.0.1/",
+        "http://127.1/",
+        "http://0/",
     ],
 )
 async def test_AC23_4_9_provider_rejects_ssrf_api_base(client: AsyncClient, cipher, api_base: str) -> None:
