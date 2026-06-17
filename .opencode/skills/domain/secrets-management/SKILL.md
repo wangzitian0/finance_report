@@ -123,7 +123,8 @@ DOKPLOY_API_KEY        # Deployment automation
 DOKPLOY_URL
 VAULT_ADDR             # Vault server URL
 VAULT_ROOT_TOKEN       # Admin operations only
-VAULT_APP_TOKEN        # Per-service read-only
+VAULT_ROLE_ID          # Per-service AppRole credential (runtime read-only)
+VAULT_SECRET_ID        # Per-service AppRole credential (runtime read-only)
 VPS_HOST               # Production server
 ```
 
@@ -178,7 +179,7 @@ Backend reads this when it needs to generate links back to the frontend (e.g., O
        ▼
 ┌─────────────────┐
 │  Application    │  Reads from /etc/vault/secrets (env file)
-│  Container      │  or directly from Vault via VAULT_APP_TOKEN
+│  Container      │  (vault-agent authenticates via AppRole)
 └─────────────────┘
 ```
 
@@ -199,14 +200,14 @@ S3_ACCESS_KEY={{ with .Data.data.S3_ACCESS_KEY }}{{ printf "%q" . }}{{ else }}""
 
 ### Vault Auth Credentials
 
-The finance_report app authenticates to Vault via **AppRole** (`role_id` + `secret_id`) — it's the AppRole **pilot**. The `VAULT_APP_TOKEN` periodic-token model is being retired but is **not gone**: IaC Runner (infra2 `bootstrap.iac_runner.md` §6.4) and some legacy deploy paths/services still use it during the migration (e.g. the app's bash deploy preflight in `common/shell/common.sh`).
+The finance_report app authenticates to Vault via **AppRole** (`role_id` + `secret_id`) — it was the AppRole **pilot**, and every infra2 service has since migrated too (iac_runner included). The `VAULT_APP_TOKEN` periodic-token model is **retired**: no live service uses it. The only remaining reference is the app's legacy bash deploy-preflight (`common/shell/common.sh` `verify_vault_app_token`), which will go away with the deploy_v2 cutover of staging/prod.
 
 | Credential | Purpose | Scope | Storage |
 |------------|---------|-------|---------|
 | `VAULT_ROOT_TOKEN` | Admin operations | All paths, write access | 1Password (`op://Infra2/.../Token`) |
 | `VAULT_ROLE_ID` + `VAULT_SECRET_ID` | Runtime AppRole login → secret reading | Read-only, per-project/env/service | Dokploy ENV per service (injected by `invoke vault.setup-approle`) |
 | `VAULT_ADDR` | vault-agent connect address | non-secret, but **required** (missing → agent hangs) | Dokploy project-level ENV |
-| `VAULT_APP_TOKEN` *(legacy)* | Runtime secret reading | Read-only, per service | Dokploy ENV — being retired; still used by IaC Runner + some legacy paths (`invoke vault.setup-tokens`) |
+| `VAULT_APP_TOKEN` *(retired)* | — | — | Old periodic-token model; no live service uses it (only a vestigial app bash deploy-preflight remains) |
 
 **Security Rule**: Never use `VAULT_ROOT_TOKEN` in application containers. Only for `invoke vault.setup-approle` / `setup-tokens` and manual admin tasks.
 
@@ -357,7 +358,7 @@ moon run :dev -- --check -- --critical-only
 ✅ Validate all variables at startup (Pydantic Settings)  
 ✅ Use `Field(validation_alias=...)` for case variations  
 ✅ Store secrets in Vault, never in `.env.example`  
-✅ Use per-service `VAULT_APP_TOKEN` (read-only)  
+✅ Use per-service AppRole creds (`VAULT_ROLE_ID`/`VAULT_SECRET_ID`, read-only)  
 ✅ Rotate `SECRET_KEY` and `VAULT_ROOT_TOKEN` regularly  
 
 ### DON'T
@@ -365,7 +366,7 @@ moon run :dev -- --check -- --critical-only
 ❌ Commit `.env` files to git (add to `.gitignore`)  
 ❌ Use `VAULT_ROOT_TOKEN` in application containers  
 ❌ Hardcode secrets in `config.py` defaults  
-❌ Share `VAULT_APP_TOKEN` across services  
+❌ Share AppRole creds (`VAULT_ROLE_ID`/`VAULT_SECRET_ID`) across services  
 ❌ Use generic container names in shared networks  
 ❌ Skip CI validation (`check_env_keys.py`)  
 ❌ Modify Vault secrets without updating `secrets.ctmpl`  
