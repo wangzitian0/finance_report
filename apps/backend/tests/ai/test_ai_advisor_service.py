@@ -239,7 +239,9 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     service.fallback_models = ["fallback"]
     calls: list[str] = []
 
-    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None):
+    async def fake_stream_model(
+        model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None
+    ):
         calls.append(model)
         if model == "primary":
             raise AIStreamError(message="fail primary", retryable=True)
@@ -263,7 +265,9 @@ async def test_stream_openrouter_raises_when_all_fail(
     service.primary_model = "primary"
     service.fallback_models = ["fallback"]
 
-    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None):
+    async def fake_stream_model(
+        model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None
+    ):
         raise AIStreamError(message=f"fail {model}", retryable=True)
         yield  # pragma: no cover
 
@@ -923,7 +927,9 @@ async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.Monkey
     service.fallback_models = []
     called_with: list[str] = []
 
-    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None):
+    async def fake_stream_model(
+        model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None
+    ):
         called_with.append(model)
         yield "ok"
 
