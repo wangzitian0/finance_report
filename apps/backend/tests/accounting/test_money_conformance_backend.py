@@ -25,6 +25,7 @@ _VECTORS = json.loads((Path(__file__).resolve().parents[4] / "common/money/confo
 @ac_proof(
     proof_id="test_backend_to_money_quantum",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_backend_to_money_matches_standard_quantum():
@@ -36,6 +37,7 @@ def test_AC2_20_1_backend_to_money_matches_standard_quantum():
 @ac_proof(
     proof_id="test_backend_to_money_rounding",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 @pytest.mark.parametrize(

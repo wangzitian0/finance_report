@@ -28,6 +28,7 @@ from common.testing.ac_proof import ac_proof
 @ac_proof(
     proof_id="test_money_rejects_float",
     ac_ids=["AC2.19.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_money_rejects_float_amount():
@@ -44,6 +45,7 @@ def test_AC2_19_1_money_rejects_float_amount():
 @ac_proof(
     proof_id="test_money_accepts_decimal_and_int",
     ac_ids=["AC2.19.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_money_is_decimal_backed():
@@ -56,6 +58,7 @@ def test_AC2_19_1_money_is_decimal_backed():
 @ac_proof(
     proof_id="test_money_is_immutable",
     ac_ids=["AC2.19.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_money_is_immutable():
@@ -68,6 +71,7 @@ def test_AC2_19_1_money_is_immutable():
 @ac_proof(
     proof_id="test_currency_rejects_non_iso",
     ac_ids=["AC2.19.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_currency_rejects_non_iso():
@@ -85,6 +89,7 @@ def test_AC2_19_1_currency_rejects_non_iso():
 @ac_proof(
     proof_id="test_same_currency_arithmetic",
     ac_ids=["AC2.19.2"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_2_same_currency_add_and_subtract():
@@ -100,6 +105,7 @@ def test_AC2_19_2_same_currency_add_and_subtract():
 @ac_proof(
     proof_id="test_cross_currency_arithmetic_raises",
     ac_ids=["AC2.19.2"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_2_cross_currency_arithmetic_raises():
@@ -120,6 +126,7 @@ def test_AC2_19_2_cross_currency_arithmetic_raises():
 @ac_proof(
     proof_id="test_convert_applies_rate_and_target",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_applies_rate_and_changes_currency():
@@ -132,6 +139,7 @@ def test_AC2_20_1_convert_applies_rate_and_changes_currency():
 @ac_proof(
     proof_id="test_convert_rejects_float_rate",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_rejects_float_rate():
@@ -143,6 +151,7 @@ def test_AC2_20_1_convert_rejects_float_rate():
 @ac_proof(
     proof_id="test_convert_rounds_half_even_at_boundary",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_rounds_half_even_at_boundary():
@@ -164,6 +173,7 @@ def test_AC2_20_1_convert_rounds_half_even_at_boundary():
 @ac_proof(
     proof_id="test_convert_round_trip",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_20_1_convert_round_trip_within_boundary():
@@ -180,6 +190,7 @@ def test_AC2_20_1_convert_round_trip_within_boundary():
 @ac_proof(
     proof_id="test_currency_balances_multi_currency",
     ac_ids=["AC2.21.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_multi_currency_balance_is_not_a_scalar():
@@ -206,6 +217,7 @@ def test_AC2_21_1_multi_currency_balance_is_not_a_scalar():
 @ac_proof(
     proof_id="test_currency_balances_reject_mismatch",
     ac_ids=["AC2.21.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
@@ -235,6 +247,7 @@ def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
 @ac_proof(
     proof_id="test_currency_balances_jsonb_round_trip",
     ac_ids=["AC2.21.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_currency_balances_jsonb_round_trip():
@@ -255,6 +268,7 @@ def test_AC2_21_1_currency_balances_jsonb_round_trip():
 @ac_proof(
     proof_id="test_money_surface_helpers",
     ac_ids=["AC2.19.1", "AC2.19.2"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_money_surface_helpers_and_comparisons():
@@ -283,6 +297,7 @@ def test_AC2_19_money_surface_helpers_and_comparisons():
 @ac_proof(
     proof_id="test_currency_balances_surface",
     ac_ids=["AC2.21.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_21_1_currency_balances_surface_and_parsing():
