@@ -27,10 +27,14 @@ class LlmConfigStatusResponse(BaseModel):
 class LlmProviderCreate(BaseModel):
     """Create a provider instance for the current user. ``api_key`` is write-only."""
 
-    label: str = Field(min_length=1, max_length=100)
-    protocol: ProtocolFamily
-    api_key: str = Field(min_length=1, repr=False)
-    api_base: str | None = Field(default=None, max_length=500)
+    label: str = Field(min_length=1, max_length=100, description="Human-readable name for this provider instance.")
+    protocol: ProtocolFamily = Field(description="The wire protocol family this provider speaks.")
+    api_key: str = Field(
+        min_length=1, repr=False, description="Provider API key; encrypted at rest and never returned."
+    )
+    api_base: str | None = Field(
+        default=None, max_length=500, description="Custom API base URL for OpenAI-compatible endpoints."
+    )
 
 
 class LlmProviderResponse(BaseResponse):
@@ -49,6 +53,13 @@ class LlmProviderResponse(BaseResponse):
 
 class LlmProviderListResponse(BaseModel):
     providers: list[LlmProviderResponse]
+
+
+class LlmProviderDeleteResponse(BaseModel):
+    """Confirmation that a provider (and its cascaded bindings) was deleted."""
+
+    id: UUID = Field(description="The id of the deleted provider.")
+    deleted: bool = Field(default=True, description="Always true when the provider was deleted.")
 
 
 class LlmModelResponse(BaseModel):
@@ -70,13 +81,17 @@ class LlmCatalogResponse(BaseModel):
 class LlmSceneBindingItem(BaseModel):
     """A scene→model binding (model + reasoning depth + fallbacks)."""
 
-    scene: Scene
-    provider_id: UUID
-    model: str = Field(min_length=1, max_length=200)
-    reasoning: ReasoningEffort = ReasoningEffort.NONE
-    prefer_free: bool = False
-    fallback_model_ids: list[str] = Field(default_factory=list)
-    max_tokens: int | None = Field(default=None, gt=0)
+    scene: Scene = Field(description="The fixed call site this binding configures.")
+    provider_id: UUID = Field(description="The provider instance (owned by the user) serving this scene.")
+    model: str = Field(min_length=1, max_length=200, description="The model id to use for this scene.")
+    reasoning: ReasoningEffort = Field(
+        default=ReasoningEffort.NONE, description="Reasoning-effort depth for this scene."
+    )
+    prefer_free: bool = Field(default=False, description="Prefer a free-tier model when resolving this scene.")
+    fallback_model_ids: list[str] = Field(
+        default_factory=list, description="Ordered fallback model ids tried if the primary fails."
+    )
+    max_tokens: int | None = Field(default=None, gt=0, description="Optional max output tokens for this scene.")
 
 
 class LlmScenesResponse(BaseModel):

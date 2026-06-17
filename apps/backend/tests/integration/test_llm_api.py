@@ -71,7 +71,9 @@ async def test_AC23_4_2_provider_create_encrypts_and_never_returns_key(
     # The ciphertext still round-trips back to the original secret.
     from src.llm.common import Encrypted
 
-    assert cipher.decrypt(Encrypted(ciphertext=row.api_key_ciphertext, key_version=row.api_key_version)) == "sk-secret-123"
+    assert (
+        cipher.decrypt(Encrypted(ciphertext=row.api_key_ciphertext, key_version=row.api_key_version)) == "sk-secret-123"
+    )
 
 
 async def test_AC23_4_2_provider_create_fails_closed_without_encryption_keys(client: AsyncClient) -> None:
@@ -93,7 +95,8 @@ async def test_AC23_4_2_provider_list_and_delete(client: AsyncClient, cipher) ->
     assert all("api_key" not in p for p in listed.json()["providers"])
 
     deleted = await client.delete(f"/llm/providers/{created['id']}")
-    assert deleted.status_code == 204
+    assert deleted.status_code == 200
+    assert deleted.json() == {"id": created["id"], "deleted": True}
     after = await client.get("/llm/providers")
     assert created["id"] not in [p["id"] for p in after.json()["providers"]]
 
@@ -154,7 +157,9 @@ async def test_AC23_4_4_scenes_rejects_foreign_provider(client: AsyncClient, cip
     assert resp.status_code == 400
 
 
-async def test_AC23_4_5_user_binding_drives_resolution(client: AsyncClient, db: AsyncSession, test_user: User, cipher) -> None:
+async def test_AC23_4_5_user_binding_drives_resolution(
+    client: AsyncClient, db: AsyncSession, test_user: User, cipher
+) -> None:
     """AC23.4.5: the user's binding selects the scene's model on the resolution path."""
     provider = await _create_provider(client)
     await client.put(

@@ -4981,21 +4981,25 @@
                 "type": "null"
               }
             ],
+            "description": "Custom API base URL for OpenAI-compatible endpoints.",
             "title": "Api Base"
           },
           "api_key": {
+            "description": "Provider API key; encrypted at rest and never returned.",
             "minLength": 1,
             "title": "Api Key",
             "type": "string"
           },
           "label": {
+            "description": "Human-readable name for this provider instance.",
             "maxLength": 100,
             "minLength": 1,
             "title": "Label",
             "type": "string"
           },
           "protocol": {
-            "$ref": "#/components/schemas/ProtocolFamily"
+            "$ref": "#/components/schemas/ProtocolFamily",
+            "description": "The wire protocol family this provider speaks."
           }
         },
         "required": [
@@ -5004,6 +5008,28 @@
           "api_key"
         ],
         "title": "LlmProviderCreate",
+        "type": "object"
+      },
+      "LlmProviderDeleteResponse": {
+        "description": "Confirmation that a provider (and its cascaded bindings) was deleted.",
+        "properties": {
+          "deleted": {
+            "default": true,
+            "description": "Always true when the provider was deleted.",
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "The id of the deleted provider.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "LlmProviderDeleteResponse",
         "type": "object"
       },
       "LlmProviderListResponse": {
@@ -5078,6 +5104,7 @@
         "description": "A scene→model binding (model + reasoning depth + fallbacks).",
         "properties": {
           "fallback_model_ids": {
+            "description": "Ordered fallback model ids tried if the primary fails.",
             "items": {
               "type": "string"
             },
@@ -5094,9 +5121,11 @@
                 "type": "null"
               }
             ],
+            "description": "Optional max output tokens for this scene.",
             "title": "Max Tokens"
           },
           "model": {
+            "description": "The model id to use for this scene.",
             "maxLength": 200,
             "minLength": 1,
             "title": "Model",
@@ -5104,20 +5133,24 @@
           },
           "prefer_free": {
             "default": false,
+            "description": "Prefer a free-tier model when resolving this scene.",
             "title": "Prefer Free",
             "type": "boolean"
           },
           "provider_id": {
+            "description": "The provider instance (owned by the user) serving this scene.",
             "format": "uuid",
             "title": "Provider Id",
             "type": "string"
           },
           "reasoning": {
             "$ref": "#/components/schemas/ReasoningEffort",
-            "default": "none"
+            "default": "none",
+            "description": "Reasoning-effort depth for this scene."
           },
           "scene": {
-            "$ref": "#/components/schemas/Scene"
+            "$ref": "#/components/schemas/Scene",
+            "description": "The fixed call site this binding configures."
           }
         },
         "required": [
@@ -15377,7 +15410,14 @@
           }
         ],
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmProviderDeleteResponse"
+                }
+              }
+            },
             "description": "Successful Response"
           },
           "400": {

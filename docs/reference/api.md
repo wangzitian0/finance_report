@@ -6,7 +6,7 @@
 - API title: `Finance Report API`
 - API version: `0.1.0`
 - Endpoint count: `134`
-- Schema count: `241`
+- Schema count: `242`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -138,7 +138,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/llm/config/status` | yes | - | - | `200` `LlmConfigStatusResponse` | Get Config Status |
 | `GET` | `/llm/providers` | yes | - | - | `200` `LlmProviderListResponse` | List Providers |
 | `POST` | `/llm/providers` | yes | - | `LlmProviderCreate` | `201` `LlmProviderResponse` | Create Provider |
-| `DELETE` | `/llm/providers/{provider_id}` | yes | `provider_id`* (path) | - | `204` - | Delete Provider |
+| `DELETE` | `/llm/providers/{provider_id}` | yes | `provider_id`* (path) | - | `200` `LlmProviderDeleteResponse` | Delete Provider |
 | `GET` | `/llm/scenes` | yes | - | - | `200` `LlmScenesResponse` | Get Scenes |
 | `PUT` | `/llm/scenes` | yes | - | `LlmScenesUpdate` | `200` `LlmScenesResponse` | Put Scenes |
 

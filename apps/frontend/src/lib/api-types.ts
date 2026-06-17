@@ -4585,13 +4585,41 @@ export interface components {
          * @description Create a provider instance for the current user. ``api_key`` is write-only.
          */
         LlmProviderCreate: {
-            /** Api Base */
+            /**
+             * Api Base
+             * @description Custom API base URL for OpenAI-compatible endpoints.
+             */
             api_base?: string | null;
-            /** Api Key */
+            /**
+             * Api Key
+             * @description Provider API key; encrypted at rest and never returned.
+             */
             api_key: string;
-            /** Label */
+            /**
+             * Label
+             * @description Human-readable name for this provider instance.
+             */
             label: string;
+            /** @description The wire protocol family this provider speaks. */
             protocol: components["schemas"]["ProtocolFamily"];
+        };
+        /**
+         * LlmProviderDeleteResponse
+         * @description Confirmation that a provider (and its cascaded bindings) was deleted.
+         */
+        LlmProviderDeleteResponse: {
+            /**
+             * Deleted
+             * @description Always true when the provider was deleted.
+             * @default true
+             */
+            deleted: boolean;
+            /**
+             * Id
+             * Format: uuid
+             * @description The id of the deleted provider.
+             */
+            id: string;
         };
         /** LlmProviderListResponse */
         LlmProviderListResponse: {
@@ -4634,24 +4662,39 @@ export interface components {
          * @description A scene→model binding (model + reasoning depth + fallbacks).
          */
         LlmSceneBindingItem: {
-            /** Fallback Model Ids */
+            /**
+             * Fallback Model Ids
+             * @description Ordered fallback model ids tried if the primary fails.
+             */
             fallback_model_ids?: string[];
-            /** Max Tokens */
+            /**
+             * Max Tokens
+             * @description Optional max output tokens for this scene.
+             */
             max_tokens?: number | null;
-            /** Model */
+            /**
+             * Model
+             * @description The model id to use for this scene.
+             */
             model: string;
             /**
              * Prefer Free
+             * @description Prefer a free-tier model when resolving this scene.
              * @default false
              */
             prefer_free: boolean;
             /**
              * Provider Id
              * Format: uuid
+             * @description The provider instance (owned by the user) serving this scene.
              */
             provider_id: string;
-            /** @default none */
+            /**
+             * @description Reasoning-effort depth for this scene.
+             * @default none
+             */
             reasoning: components["schemas"]["ReasoningEffort"];
+            /** @description The fixed call site this binding configures. */
             scene: components["schemas"]["Scene"];
         };
         /** LlmScenesResponse */
@@ -10820,11 +10863,13 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["LlmProviderDeleteResponse"];
+                };
             };
             /** @description Bad request */
             400: {

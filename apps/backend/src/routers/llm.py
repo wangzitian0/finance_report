@@ -27,6 +27,7 @@ from src.schemas.llm import (
     LlmConfigStatusResponse,
     LlmModelResponse,
     LlmProviderCreate,
+    LlmProviderDeleteResponse,
     LlmProviderListResponse,
     LlmProviderResponse,
     LlmSceneBindingItem,
@@ -52,8 +53,10 @@ async def get_config_status(user_id: CurrentUserId) -> LlmConfigStatusResponse:
 async def list_providers(db: DbSession, user_id: CurrentUserId) -> LlmProviderListResponse:
     """List the current user's provider instances (keys never returned)."""
     rows = (
-        await db.execute(select(LlmProvider).where(LlmProvider.user_id == user_id).order_by(LlmProvider.created_at))
-    ).scalars().all()
+        (await db.execute(select(LlmProvider).where(LlmProvider.user_id == user_id).order_by(LlmProvider.created_at)))
+        .scalars()
+        .all()
+    )
     return LlmProviderListResponse(providers=[LlmProviderResponse.model_validate(r) for r in rows])
 
 
@@ -89,18 +92,18 @@ async def create_provider(
     return LlmProviderResponse.model_validate(provider)
 
 
-@router.delete("/providers/{provider_id}", status_code=204)
-async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserId) -> None:
+@router.delete("/providers/{provider_id}", response_model=LlmProviderDeleteResponse)
+async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserId) -> LlmProviderDeleteResponse:
     """Delete one of the current user's providers (cascades to its bindings)."""
     row = (
-        await db.execute(
-            select(LlmProvider).where(LlmProvider.id == provider_id, LlmProvider.user_id == user_id)
-        )
+        await db.execute(select(LlmProvider).where(LlmProvider.id == provider_id, LlmProvider.user_id == user_id))
     ).scalar_one_or_none()
     if row is None:
         raise_not_found("Provider")
+    deleted_id = row.id
     await db.delete(row)
     await db.commit()
+    return LlmProviderDeleteResponse(id=deleted_id, deleted=True)
 
 
 @router.get("/catalog", response_model=LlmCatalogResponse)
@@ -128,9 +131,7 @@ async def get_catalog(
 @router.get("/scenes", response_model=LlmScenesResponse)
 async def get_scenes(db: DbSession, user_id: CurrentUserId) -> LlmScenesResponse:
     """The current user's scene→model bindings."""
-    rows = (
-        await db.execute(select(LlmSceneBinding).where(LlmSceneBinding.user_id == user_id))
-    ).scalars().all()
+    rows = (await db.execute(select(LlmSceneBinding).where(LlmSceneBinding.user_id == user_id))).scalars().all()
     bindings = [
         LlmSceneBindingItem(
             scene=r.scene,
@@ -161,9 +162,7 @@ async def put_scenes(
     if len(scenes) != len(set(scenes)):
         raise_bad_request("Duplicate scene in bindings.")
 
-    owned = set(
-        (await db.execute(select(LlmProvider.id).where(LlmProvider.user_id == user_id))).scalars().all()
-    )
+    owned = set((await db.execute(select(LlmProvider.id).where(LlmProvider.user_id == user_id))).scalars().all())
     for b in payload.bindings:
         if b.provider_id not in owned:
             raise_bad_request(f"Provider {b.provider_id} is not owned by the current user.")

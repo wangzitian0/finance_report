@@ -80,9 +80,7 @@ class DbConfigSource:
     async def list_providers(self) -> list[ProviderRef]:
         async with self._maker() as session:
             scope = await self._scope(session)
-            rows = (
-                await session.execute(select(LlmProvider).where(LlmProvider.user_id == scope))
-            ).scalars().all()
+            rows = (await session.execute(select(LlmProvider).where(LlmProvider.user_id == scope))).scalars().all()
             if not rows:
                 return []
             cipher = self._cipher()
