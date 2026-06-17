@@ -54,7 +54,7 @@ concepts:
   base_packages:
     owner: docs/ssot/base-packages.md
     description: The family of value-type narrow-waist base packages (money, ratio, ...) and the canonical structure each follows (#1167).
-    family: foundation
+    family: platform
     kind: concept
     authority: documented_contract
     cross_refs:
