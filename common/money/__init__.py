@@ -6,9 +6,10 @@ and a per-currency balance container (:class:`CurrencyBalances`) that makes a
 multi-currency statement structurally inexpressible as a scalar.
 
 Dependency-light (stdlib + dataclasses + Decimal only) so it is importable from
-the backend, e2e, frontend helpers and tooling alike. The canonical money
-rounding (:func:`to_money`) also lives here; ``apps/backend/src/utils/money.py``
-re-exports it for backward compatibility.
+tooling, tests and the conformance suite. The canonical money rounding
+(:func:`to_money`) also lives here; the backend keeps its own self-contained copy
+for its runtime until adoption (#1171), and the conformance suite keeps the two
+in lockstep.
 
 Contract: ``docs/ssot/accounting.md#money-type`` (#1167).
 """

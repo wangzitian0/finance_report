@@ -212,6 +212,9 @@ def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
     """AC2.21.1: a bucket's amounts must match its currency; no duplicate currencies."""
     from common.money.errors import MoneyError
 
+    # Wrong type for opening/closing fails with a typed MoneyError, not AttributeError.
+    with pytest.raises(MoneyError):
+        CurrencyBalance(Currency("USD"), "100.00", Money(Decimal("1"), "USD"))  # type: ignore[arg-type]
     with pytest.raises(MoneyError):
         CurrencyBalance(
             Currency("USD"), Money(Decimal("1"), "SGD"), Money(Decimal("1"), "USD")

@@ -16,7 +16,9 @@ from common.money.errors import InvalidCurrencyError
 # Active ISO-4217 alphabetic codes. Deliberately a static, dependency-light set
 # (no network / no third-party package) so ``common/money`` stays importable
 # everywhere. Fund codes and the precious-metals X-codes most relevant to
-# personal finance (XAU/XAG) are included; obsolete codes are not.
+# personal finance (XAU/XAG) are included; codes withdrawn from active use are
+# excluded (e.g. HRK — Croatia adopted EUR in 2023). This set is mirrored to the
+# conformance vectors and the frontend, so any change here must regenerate both.
 ISO_4217_CODES: frozenset[str] = frozenset(
     {
         "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN",
@@ -24,7 +26,7 @@ ISO_4217_CODES: frozenset[str] = frozenset(
         "BSD", "BTN", "BWP", "BYN", "BZD", "CAD", "CDF", "CHF", "CLP", "CNY",
         "COP", "CRC", "CUP", "CVE", "CZK", "DJF", "DKK", "DOP", "DZD", "EGP",
         "ERN", "ETB", "EUR", "FJD", "FKP", "GBP", "GEL", "GHS", "GIP", "GMD",
-        "GNF", "GTQ", "GYD", "HKD", "HNL", "HRK", "HTG", "HUF", "IDR", "ILS",
+        "GNF", "GTQ", "GYD", "HKD", "HNL", "HTG", "HUF", "IDR", "ILS",
         "INR", "IQD", "IRR", "ISK", "JMD", "JOD", "JPY", "KES", "KGS", "KHR",
         "KMF", "KPW", "KRW", "KWD", "KYD", "KZT", "LAK", "LBP", "LKR", "LRD",
         "LSL", "LYD", "MAD", "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU",
