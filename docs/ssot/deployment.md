@@ -310,7 +310,7 @@ so there is no 7-day token to renew or repair — the agent re-authenticates its
 | Property | Value |
 |----------|-------|
 | Auth method | AppRole (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`) |
-| Secrets file path | `/vault/secrets/.env` |
+| Secrets file path | `/secrets/.env` (vault-agent renders to `/vault/secrets`; shared volume mounts into the app as `/secrets`) |
 | Staleness threshold | 1 hour (bootloader warning) |
 
 The AppRole creds are owned by infra2 and injected into the Dokploy compose env.
