@@ -1,0 +1,65 @@
+name: Notify infra2 — deploy report-branch-main
+
+# The APP-repo SENDER half of the one auto deploy target (infra2 SSOT §4.6): when app `main`
+# moves, tell infra2 to re-deploy the report-branch-main preview slot so it always reflects
+# "what main looks like right now". Everything else (staging / prod) is manual + a pinned
+# release tag and is NOT triggered here.
+#
+# Receiver: infra2 `.github/workflows/deploy-report-main.yml` (repository_dispatch type
+# `deploy-report-main`), which runs `deploy_v2 --service finance_report/app --type
+# preview/branch --version-ref main --iac-ref main`. This closes the cross-repo half (#370 /
+# finance_report#1072): the receiver previously only fired on manual dispatch.
+#
+# Auth: INFRA2_PAT — a PAT with `repo` scope on wangzitian0/infra2 (GITHUB_TOKEN cannot
+# dispatch cross-repo). Stored as an app-repo secret.
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {} # manual re-trigger of a report-branch-main deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  # Collapse bursts of main pushes into one in-flight dispatch; the infra2 receiver also
+  # serializes the actual preview deploy (cancel-in-progress on its own slot).
+  group: notify-infra2-report-main
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    name: dispatch report-branch-main deploy to infra2
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch repository_dispatch to infra2
+        env:
+          INFRA2_PAT: ${{ secrets.INFRA2_PAT }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${INFRA2_PAT:-}" ]]; then
+            echo "::error::INFRA2_PAT is required to dispatch the report-branch-main deploy to infra2."
+            exit 1
+          fi
+
+          payload="$(jq -nc --arg sha "$GITHUB_SHA" \
+            '{event_type: "deploy-report-main", client_payload: {sha: $sha, ref: "main"}}')"
+
+          http_status="$(curl -sS -o /tmp/infra2_dispatch_resp -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${INFRA2_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            https://api.github.com/repos/wangzitian0/infra2/dispatches \
+            -d "$payload")"
+
+          echo "infra2 repository_dispatch -> HTTP $http_status (sha=$GITHUB_SHA)"
+          # GitHub returns 204 No Content on a successful dispatch.
+          if [[ "$http_status" != "204" ]]; then
+            sed 's/^/  /' /tmp/infra2_dispatch_resp 2>/dev/null || true
+            echo "::error::infra2 repository_dispatch failed (expected HTTP 204). Check INFRA2_PAT scope/expiry."
+            exit 1
+          fi
