@@ -1,22 +1,25 @@
 """Server-side OpenPanel product-analytics emitter (BE->OpenPanel).
 
-The backend half of the OpenPanel integration, symmetric with the frontend's
-official ``@openpanel/nextjs`` SDK: this uses the official ``openpanel`` Python
-package (not a hand-rolled HTTP client) so both sides speak OpenPanel through its
-base SDK.
+The backend half of the OpenPanel integration. Why a thin REST client and NOT the
+official ``openpanel`` Python SDK (which the frontend's ``@openpanel/nextjs`` mirrors)?
 
-Why a backend emitter at all (the frontend already tracks)? Server-side events
-are *authoritative* — they fire from the backend regardless of the browser
-(adblock / no-JS / closed tab), so a conversion the server actually completed
-(e.g. a report package persisted) is never under-counted. This complements, not
-replaces, the FE analytics.
+  The only published ``openpanel`` PyPI package is v0.0.1 and it ALWAYS sends
+  ``"profileId": null`` in the track payload. Our self-hosted OpenPanel validates
+  the body with Zod and rejects null (``Expected string, received null`` -> HTTP 400),
+  and the SDK gives no way to omit the field. Proven against the live instance: the
+  SDK payload 400s; the same payload without ``profileId`` is accepted (200). So the
+  SDK is non-functional here and the documented HTTP ``/track`` contract is the only
+  working server-side path. Revisit if OpenPanel ships a fixed Python SDK.
 
-Config-gated: when ``OPENPANEL_CLIENT_ID`` is unset (local / CI / preview without
-a project) every call is a complete no-op — same posture as the FE SDK and the
-OTel exporter. Failures are swallowed so analytics can never break a request.
+Why a backend emitter at all (the frontend already tracks)? Server-side events are
+*authoritative* — they fire from the backend regardless of the browser (adblock /
+no-JS / closed tab), so a conversion the server actually completed is never
+under-counted. Complements, not replaces, the FE analytics.
 
-Our OpenPanel clients are configured ``ignoreCorsAndSecret=true``, so no
-``client_secret`` is required (the SDK accepts ``client_id`` + ``api_url`` alone).
+Config-gated (no ``OPENPANEL_CLIENT_ID`` => complete no-op), non-blocking (the POST
+runs on a daemon thread so it never sits on the request's critical path), and never
+raises — analytics can never break a request. Our OpenPanel clients are
+``ignoreCorsAndSecret=true``, so the public client-id alone authorizes the write.
 """
 
 from __future__ import annotations
@@ -25,14 +28,13 @@ import logging
 import threading
 from typing import Any
 
+import httpx
+
 from src.config import settings
 
 logger = logging.getLogger(__name__)
 
-# The OpenPanel SDK runs its own background daemon thread + send queue, so we keep
-# ONE module-level client (never one-per-event). Lazily built on first use.
-_client: Any = None
-_client_lock = threading.Lock()
+_TIMEOUT_SECONDS = 5.0
 
 
 def is_configured() -> bool:
@@ -40,49 +42,52 @@ def is_configured() -> bool:
     return bool((settings.openpanel_client_id or "").strip() and (settings.openpanel_api_url or "").strip())
 
 
-def _get_client() -> Any:
-    """Return the shared OpenPanel client, or None when analytics is unconfigured.
+def _track_endpoint() -> str:
+    return (settings.openpanel_api_url or "").strip().rstrip("/") + "/track"
 
-    Built once (double-checked lock) because constructing it spins a daemon thread.
-    ``set_global_properties`` stamps every event with source=backend + the
-    deployment environment, mirroring the FE event contract.
-    """
-    global _client
-    if not is_configured():
-        return None
-    if _client is None:
-        with _client_lock:
-            if _client is None:
-                from openpanel import OpenPanel
 
-                client = OpenPanel(
-                    client_id=settings.openpanel_client_id.strip(),
-                    api_url=settings.openpanel_api_url.strip(),
-                )
-                env = (settings.openpanel_environment or "").strip() or settings.environment
-                try:
-                    client.set_global_properties({"source": "backend", "deployment_environment": env})
-                except Exception as exc:  # noqa: BLE001 — never let analytics setup break a request
-                    logger.debug("OpenPanel set_global_properties failed: %s", exc)
-                _client = client
-    return _client
+def build_payload(event: str, properties: dict[str, Any] | None) -> dict[str, Any]:
+    """OpenPanel ``/track`` body. ``source=backend`` distinguishes server-side events
+    from browser ones; ``deployment_environment`` carries the env for per-env filtering.
+    Deliberately omits ``profileId`` — our OpenPanel rejects a null one (module docstring)."""
+    env = (settings.openpanel_environment or "").strip() or settings.environment
+    return {
+        "type": "track",
+        "payload": {
+            "name": event,
+            "properties": {
+                "source": "backend",
+                "deployment_environment": env,
+                **(properties or {}),
+            },
+        },
+    }
+
+
+def _post(payload: dict[str, Any], client_id: str, endpoint: str) -> None:
+    """Best-effort single POST. Never raises — a telemetry hiccup must not surface."""
+    try:
+        with httpx.Client(timeout=_TIMEOUT_SECONDS) as client:
+            response = client.post(endpoint, json=payload, headers={"openpanel-client-id": client_id})
+        response.raise_for_status()
+    except Exception as exc:  # noqa: BLE001 — analytics must never break a request
+        logger.debug("OpenPanel backend track failed for %r: %s", payload.get("payload", {}).get("name"), exc)
 
 
 def track(event: str, properties: dict[str, Any] | None = None) -> bool:
-    """Emit one OpenPanel event from the backend via the official SDK.
+    """Emit one OpenPanel event from the backend. Returns True if dispatched.
 
-    Returns True if the event was handed to the SDK (which sends it on its own
-    background thread), False when unconfigured. Config-gated and NEVER raises —
-    any error is logged at debug and swallowed so a telemetry hiccup cannot fail
-    the caller's request. Pair with FastAPI ``BackgroundTasks`` to keep even the
-    one-time lazy client init off the response path.
+    Config-gated (no-op + False when no project is wired). The HTTP POST runs on a
+    daemon thread so this is safe to call inline from an async request handler without
+    blocking the event loop or the response, and it never raises.
     """
-    client = _get_client()
-    if client is None:
+    client_id = (settings.openpanel_client_id or "").strip()
+    if not is_configured():
         return False
-    try:
-        client.track(event, properties or {})
-        return True
-    except Exception as exc:  # noqa: BLE001 — analytics must never break a request
-        logger.debug("OpenPanel backend track failed for %r: %s", event, exc)
-        return False
+    payload = build_payload(event, properties)
+    threading.Thread(
+        target=_post,
+        args=(payload, client_id, _track_endpoint()),
+        daemon=True,
+    ).start()
+    return True
