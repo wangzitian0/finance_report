@@ -456,16 +456,21 @@ extension adds an **application-layer value type** above the DB double-entry
 invariant floor (AC2.14): one authoritative `Money` type, a validated `Currency`,
 a single `convert()` FX primitive, and a per-currency `CurrencyBalances`
 container — so bad money states become *unrepresentable*, not merely
-tested-against. Canonical home: `common/money/` (the shared waist). #1170 ships
-the library; backend call-sites adopt it in #1171 (which packages `common` and
-ships it into the backend image — see the dependency note below). Contract:
-[accounting.md#money-type](../ssot/accounting.md#money-type).
+tested-against. Contract: [accounting.md#money-type](../ssot/accounting.md#money-type).
 
-> **Dependency note.** `common/` is currently a repo-root *build-time / test-time*
-> toolkit (consumed by `tools/` and tests via the repo root on `sys.path`); it is
-> not packaged into the deployed app images. So #1170 leaves the backend runtime
-> untouched, and making `common.money` a real runtime dependency (package +
-> image) is part of adoption in #1171.
+The standard is **cross-language**: `common/money/` holds the language-neutral
+**interface** (`contract/money.contract.md`) and **conformance data**
+(`conformance/vectors.json`). The Python reference impl (#1170) and the frontend
+TS impl (#1171's FE sibling) each load the **same** vectors and must reproduce
+every value — so every end stays consistent (this closes the live
+banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
+
+> **Dependency note.** `common/` is a repo-root *build-time / test-time* toolkit
+> (consumed by `tools/` and tests via the repo root on `sys.path`); it is **not
+> packaged into any deployed app image**. The shared artifact is the standard
+> (contract + conformance **data**), consumed at test time — not runtime code. So
+> each end keeps its own implementation in its own deployable, and backend
+> adoption (#1171) needs **no Docker/build-context change**.
 
 ### AC2.19: Money / Currency value types
 

@@ -43,9 +43,12 @@ concepts:
     cross_refs:
       - docs/project/EPIC-002.double-entry-core.md
       - common/money/__init__.py
+      - common/money/contract/money.contract.md
+      - common/money/conformance/vectors.json
       - apps/backend/src/utils/money.py
     proofs:
       - tests/tooling/test_money_value_type.py
+      - tests/tooling/test_money_conformance.py
 
   accounting_equation:
     owner: docs/ssot/accounting.md#accounting-equation

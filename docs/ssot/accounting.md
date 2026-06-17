@@ -137,7 +137,17 @@ produces it anymore.)
         scalar accessor**, so a multi-currency statement cannot collapse onto one
         currency (closes the #1139/#1123 representation gap); round-trips the
         `StatementSummary.currency_balances` JSONB shape.
-    -   **Guardrail (AC2.19–AC2.21)**: `tests/tooling/test_money_value_type.py`.
+    -   **Cross-language standard**: money behaviour is consistent across **every
+        end** via a language-neutral conformance suite —
+        `common/money/conformance/vectors.json` (rounding/convert/currency cases)
+        plus the interface in `common/money/contract/money.contract.md`. The
+        Python impl and the frontend TS impl (`apps/frontend/src/lib/money/`) both
+        load the **same** vectors and must reproduce every value, so the two ends
+        cannot diverge (e.g. banker's rounding vs `decimal.js` HALF_UP). The suite
+        is **dev/test-time only** — it is never shipped into a runtime image, which
+        is why no app needs `common/` packaged into its container.
+    -   **Guardrail (AC2.19–AC2.21)**: `tests/tooling/test_money_value_type.py`,
+        `tests/tooling/test_money_conformance.py`.
 
 <a id="entry-balance"></a>
 
