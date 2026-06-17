@@ -660,6 +660,14 @@ jobs:
         run: npm run test:e2e -- --reporter=line,html
         working-directory: apps/frontend
 
+      - name: Run Frontend Telemetry-Emission E2E (#1169 / EPIC-024 AC24.2)
+        # Real-browser proof that browser OTel spans export to /v1/traces and
+        # OpenPanel events dispatch. Runs under its own config because it injects
+        # the OTel + OpenPanel config via webServer.env (hermetic: every
+        # telemetry destination is intercepted in-test).
+        run: npm run test:e2e:telemetry
+        working-directory: apps/frontend
+
       - name: Upload frontend coverage
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
