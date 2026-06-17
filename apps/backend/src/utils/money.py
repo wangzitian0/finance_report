@@ -1,14 +1,11 @@
-"""Canonical monetary rounding policy.
+"""Canonical monetary rounding policy (backward-compatible re-export).
 
-Currency amounts are quantized to 2 decimal places using banker's rounding
-(``ROUND_HALF_EVEN``). This is the single source of truth for money rounding;
-see ``docs/ssot/accounting.md#decimal-rule``.
+The backend money value types + rounding now live in :mod:`src.money` (the
+backend's shippable "end" of the cross-language money standard, #1167). This
+module re-exports them so existing ``from src.utils.money import to_money`` /
+``MONEY_QUANTUM`` imports keep working.
 
-The richer money *value types* (``Money``/``Currency``/``convert``/
-``CurrencyBalances``) live in ``common/money/`` (#1167). Backend call-sites adopt
-them in #1171, at which point ``common`` is packaged and shipped into the backend
-image; until then this module stays self-contained so the runtime has no
-build-context dependency on the repo-root ``common`` toolkit.
+See ``docs/ssot/accounting.md#decimal-rule`` and ``#money-type``.
 
 Out of scope (deliberately use their own quantization):
 - FX rates and security prices: 6 dp (``services/market_data.py``).
@@ -18,17 +15,22 @@ Out of scope (deliberately use their own quantization):
 
 from __future__ import annotations
 
-from decimal import ROUND_HALF_EVEN, Decimal
+from src.money import (
+    MONEY_QUANTUM,
+    Currency,
+    CurrencyBalance,
+    CurrencyBalances,
+    Money,
+    convert,
+    to_money,
+)
 
-# 2-decimal-place currency quantum.
-MONEY_QUANTUM: Decimal = Decimal("0.01")
-
-
-def to_money(value: Decimal) -> Decimal:
-    """Quantize a Decimal currency amount to 2 dp using banker's rounding.
-
-    Banker's rounding (round-half-to-even) is the project-wide canonical policy
-    for currency amounts. Pass a ``Decimal`` (never ``float`` — see the decimal
-    rule in the accounting SSOT).
-    """
-    return value.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_EVEN)
+__all__ = [
+    "MONEY_QUANTUM",
+    "Currency",
+    "CurrencyBalance",
+    "CurrencyBalances",
+    "Money",
+    "convert",
+    "to_money",
+]

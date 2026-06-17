@@ -34,6 +34,7 @@ from uuid import UUID
 
 from src.models.fx_conversion import FxConversion
 from src.models.journal import JournalEntrySourceType
+from src.money import Money
 from src.schemas.base import normalize_currency_code
 from src.utils.money import to_money
 
@@ -80,6 +81,16 @@ class TransferLeg:
         # failure is a clear, local FxTransferError instead.
         if self.occurred_at.tzinfo is None or self.occurred_at.utcoffset() is None:
             raise FxTransferError("transfer leg occurred_at must be timezone-aware")
+
+    @property
+    def money(self) -> Money:
+        """This leg's amount as a typed :class:`Money` (#1167 / #1171 AC2.22.4).
+
+        The single typed representation of a leg's value — so callers compare and
+        combine legs through the money value type (same-currency-only) instead of
+        passing a bare ``(Decimal, str)`` pair. Pairing/rate math is unchanged.
+        """
+        return Money(self.amount, self.currency)
 
 
 @dataclass(frozen=True)

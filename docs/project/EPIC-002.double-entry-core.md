@@ -447,7 +447,7 @@ disclosure decisions must not be embedded into posting logic.
 ## 🧩 Extension: Money value types — narrow waist ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
 
 > **Status**: 🚧 In Progress (extension; the original EPIC-002 scope above stays ✅ Complete)
-> **Tracking**: #1170 (value types + governance), #1171 (adoption), #1172 (CI guard + L2/L3 promotion)
+> **Tracking**: #1170 (value types + governance), #1171 (adoption), #1172 (narrow-waist CI guard). The L2/L3 score-baseline promotion of the money invariants is tracked in #1103 (descoped from #1172 to avoid destabilizing the behavioral ratchet).
 
 The recent audit cycle showed the arithmetic was never wrong — bugs lived in the
 *representation*: a scalar `(opening, closing, currency)` collapsed multi-currency
@@ -491,6 +491,31 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 |----|-----------|---------------|------|----------|
 | AC2.21.1 | `CurrencyBalances` holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the `StatementSummary.currency_balances` JSONB shape; closes the representation gap behind #1139/#1123 | `test_AC2_21_1_multi_currency_balance_is_not_a_scalar` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
 
+### AC2.22: Materiality adoption ([#1171](https://github.com/wangzitian0/finance_report/issues/1171))
+
+Route the highest-value call-sites through the value types, behaviour-preserving.
+The backend runs its own shippable `src/money` "end" (mirrors `common/money`, kept
+in lockstep by the shared conformance vectors + the #1172 guard), because the
+backend image does not ship `common/`.
+
+The hot-path arithmetic (reconciliation, reporting net-worth) is routed through
+the value types via byte-identical adoption helpers (`src/money/adopt.py`): they
+go through `Money`/`convert` when both currencies are valid ISO codes and fall
+back to the *identical* Decimal arithmetic for the reconciliation `"*"` sentinel /
+non-ISO codes (crypto / withdrawn), so totals are byte-identical for every input
+and there is no regression on currencies outside the active ISO set.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/accounting/test_money_backend_module.py` | P1 |
+| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/accounting/test_money_adopt.py` | P0 |
+| AC2.22.3 | Reporting net-worth restatement routes through the `convert` primitive (`restate`/`restate_unrounded`); restated totals are byte-identical to `to_money(amount*rate)` / `amount*rate` | `test_AC2_22_3_restate_is_byte_identical` (+ `restate_unrounded`) | `apps/backend/tests/accounting/test_money_adopt.py` | P0 |
+| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/accounting/test_money_backend_module.py` | P1 |
+
+> The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
+> The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)
+> double-check the restatement totals end-to-end in CI.
+
 ### AC2.23: Narrow-waist CI guard ([#1172](https://github.com/wangzitian0/finance_report/issues/1172))
 
 A CI guard keeps the money standard from eroding: the money modules stay
@@ -500,11 +525,6 @@ narrow waist cannot silently decay back into ad-hoc money handling.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC2.23.1 | The guard flags a money-shaped `float` violation on an injected sample and reports none on the real money modules; each stack (Python reference, shipped backend, frontend) keeps a conformance suite | `test_AC2_23_1_guard_flags_injected_float_violation` (+ siblings) | `tests/tooling/test_money_narrow_waist_guard.py` | P0 |
-
-> **Deferred to sibling issue (not yet started):** AC2.22 (route materiality
-> call-sites through `Money` — #1171). The L2/L3 *score-baseline* promotion of the
-> money invariants is tracked in its established home #1103 (the assurance
-> backlog). Registered when that work starts, per the EPIC→AC→Test→Code→Doc order.
 
 ---
 

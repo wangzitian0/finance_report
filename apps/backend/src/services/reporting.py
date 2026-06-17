@@ -30,6 +30,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     PositionStatus,
 )
+from src.money.adopt import restate, restate_unrounded
 from src.schemas.provenance import DataProvenance
 from src.services import fx
 from src.services.assets import AssetService
@@ -611,7 +612,7 @@ async def _internal_transfer_adjustment(
                     conversion_date=conversion.conversion_date,
                 )
                 continue
-            converted_fee = to_money(classification.fee_amount * fee_rate)
+            converted_fee = restate(classification.fee_amount, fee_currency, fee_rate, target_currency)
             fee_total += converted_fee
             # Attribute the fee to the account it was effectively paid from so it can
             # be materialised as a real expense line (#1162 CR2).
@@ -738,7 +739,7 @@ async def _aggregate_net_income_sql(
         fx_rate = fx_rate_map.get(currency_upper)
         if fx_rate is None:
             raise ReportError(f"Missing FX rate for {currency_upper}/{target_currency} - data consistency error")
-        converted = Decimal(str(row.total)) * fx_rate
+        converted = restate_unrounded(row.total, currency_upper, fx_rate, target_currency)
         # Net income sign convention: both income and expense types are credit-normal.
         # - Income CREDIT = +, Income DEBIT = -
         # - Expense DEBIT = - (expenses reduce net income), Expense CREDIT = +
