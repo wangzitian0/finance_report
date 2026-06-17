@@ -9,6 +9,16 @@ export type MoneyValue = DecimalValue;
 export type DataProvenance = "imported" | "manual" | "derived";
 export const MONEY_VALUE_CONTRACT = "decimal-string" as const;
 
+/**
+ * Single source of truth for the paginated list envelope returned by every
+ * `GET /…` collection endpoint. Per-entity list responses derive from this
+ * (`ListResponse<Account>`, …) instead of re-declaring `{ items; total }`.
+ */
+export interface ListResponse<T> {
+  items: T[];
+  total: number;
+}
+
 export interface Account {
   id: string;
   name: string;
@@ -21,10 +31,7 @@ export interface Account {
   balance?: MoneyValue;
 }
 
-export interface AccountListResponse {
-  items: Account[];
-  total: number;
-}
+export type AccountListResponse = ListResponse<Account>;
 
 export interface JournalLine {
   id: string;
@@ -50,10 +57,7 @@ export interface JournalEntry {
 
 export type JournalEntrySummary = Schemas["JournalEntrySummary"];
 
-export interface JournalEntryListResponse {
-  items: JournalEntry[];
-  total: number;
-}
+export type JournalEntryListResponse = ListResponse<JournalEntry>;
 
 export interface BankStatementTransaction {
   id: string;
@@ -109,10 +113,7 @@ export interface BankStatement {
   transactions: BankStatementTransaction[];
 }
 
-export interface BankStatementListResponse {
-  items: BankStatement[];
-  total: number;
-}
+export type BankStatementListResponse = ListResponse<BankStatement>;
 
 export type ReportLine = Schemas["ReportLine"];
 
@@ -432,10 +433,7 @@ export type ValuationComponentsResponse = Schemas["ValuationComponentsResponse"]
 
 export type ReconciliationStatsResponse = Schemas["ReconciliationStatsResponse"];
 
-export interface UnmatchedTransactionsResponse {
-  items: BankStatementTransactionSummary[];
-  total: number;
-}
+export type UnmatchedTransactionsResponse = ListResponse<BankStatementTransactionSummary>;
 
 export interface TrendPoint {
   period_start: string;
@@ -494,10 +492,7 @@ export interface ReconciliationMatchResponse {
   entries: JournalEntrySummary[];
 }
 
-export interface ReconciliationMatchListResponse {
-  items: ReconciliationMatchResponse[];
-  total: number;
-}
+export type ReconciliationMatchListResponse = ListResponse<ReconciliationMatchResponse>;
 
 export interface ManagedPosition {
   id: string;
@@ -516,10 +511,7 @@ export interface ManagedPosition {
   account_name?: string | null;
 }
 
-export interface ManagedPositionListResponse {
-  items: ManagedPosition[];
-  total: number;
-}
+export type ManagedPositionListResponse = ListResponse<ManagedPosition>;
 
 export interface ReconcilePositionsResponse {
   message: string;
@@ -590,10 +582,7 @@ export interface ManualValuationSnapshot {
   updated_at: string;
 }
 
-export interface ManualValuationSnapshotListResponse {
-  items: ManualValuationSnapshot[];
-  total: number;
-}
+export type ManualValuationSnapshotListResponse = ListResponse<ManualValuationSnapshot>;
 
 // ── Portfolio Management (EPIC-017) ──────────────────────────────────
 
@@ -721,10 +710,7 @@ export type ProcessingSummaryResponse = Schemas["ProcessingSummaryResponse"];
 
 export type ProcessingPendingItem = Schemas["ProcessingPendingItem"];
 
-export interface ProcessingPendingListResponse {
-  items: ProcessingPendingItem[];
-  total: number;
-}
+export type ProcessingPendingListResponse = ListResponse<ProcessingPendingItem>;
 
 // ── Brokerage Import (EPIC-017 / statement import completion) ─────────────
 

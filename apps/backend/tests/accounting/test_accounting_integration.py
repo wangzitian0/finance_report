@@ -41,12 +41,6 @@ from tests.factories import UserFactory
 
 
 @pytest.fixture
-async def test_user_id(test_user):
-    """Test user ID — a real persisted users row so production FKs resolve (#991)."""
-    return test_user.id
-
-
-@pytest.fixture
 async def bank_account(db: AsyncSession, test_user_id):
     """Create a test bank account."""
     account = Account(

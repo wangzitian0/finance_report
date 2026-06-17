@@ -38,11 +38,6 @@ from tests.accounting._ledger_helpers import create_valid_posted_entry
 from tests.factories import UserFactory
 
 
-@pytest.fixture
-async def test_user_id(test_user):
-    return test_user.id
-
-
 async def test_calculate_account_balance_errors(db: AsyncSession, test_user_id):
     with pytest.raises(ValidationError, match="not found"):
         await calculate_account_balance(db, uuid4(), test_user_id)

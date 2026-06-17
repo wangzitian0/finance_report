@@ -392,6 +392,16 @@ async def test_user(db: AsyncSession):
     return user
 
 
+@pytest.fixture(scope="function")
+def test_user_id(test_user):
+    """Test user ID — a real persisted users row so production FKs resolve (#991).
+
+    Shared single definition (EPIC-025 / #1158); previously re-declared
+    identically in every accounting/reporting test module.
+    """
+    return test_user.id
+
+
 @pytest_asyncio.fixture(scope="function")
 async def client(db_engine, test_user, test_database_url):
     """Create async test client with database initialized."""

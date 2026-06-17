@@ -737,12 +737,12 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     # in #1099 (AC12.29.5); drive the same state transition via the service layer.
     statement_id = created_ids[0]
 
-    approved = await statements_router.approve_statement_svc(db, statement_id, test_user.id)
+    approved = await statement_validation_mod.approve_statement(db, statement_id, test_user.id)
     await db.commit()
     assert approved.status == BankStatementStatus.APPROVED
 
     # Test reject (state transitions are allowed on the same statement).
-    rejected = await statements_router.reject_statement_svc(db, statement_id, test_user.id, reason="Incorrect data")
+    rejected = await statement_validation_mod.reject_statement(db, statement_id, test_user.id, reason="Incorrect data")
     await db.commit()
     assert rejected.status == BankStatementStatus.REJECTED
 
@@ -1156,7 +1156,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
     await upload_file.close()
     await wait_for_background_tasks()
 
-    rejected = await statements_router.reject_statement_svc(db, created.id, test_user.id, reason="Low confidence")
+    rejected = await statement_validation_mod.reject_statement(db, created.id, test_user.id, reason="Low confidence")
     await db.commit()
     assert rejected.status == BankStatementStatus.REJECTED
 
@@ -1222,7 +1222,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     await upload_file.close()
     await wait_for_background_tasks()
 
-    rejected = await statements_router.reject_statement_svc(db, created.id, test_user.id, reason="Low confidence")
+    rejected = await statement_validation_mod.reject_statement(db, created.id, test_user.id, reason="Low confidence")
     await db.commit()
     assert rejected.status == BankStatementStatus.REJECTED
 
@@ -3133,7 +3133,7 @@ async def test_AC16_34_2_reject_clears_conflict_resolution(db, test_user):
     await db.refresh(statement)
     assert statement.stage1_conflicts_resolved_at is not None
 
-    await statements_router.reject_statement_svc(db, statement_id, test_user.id, reason="reparse")
+    await statement_validation_mod.reject_statement(db, statement_id, test_user.id, reason="reparse")
     await db.commit()
     await db.refresh(statement)
     assert statement.stage1_conflicts_resolved_at is None

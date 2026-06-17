@@ -28,11 +28,6 @@ from src.services.reporting import (
 
 
 @pytest.fixture
-def test_user_id(test_user):
-    return test_user.id
-
-
-@pytest.fixture
 async def multi_currency_accounts(db: AsyncSession, test_user_id):
     """Create accounts in different currencies."""
     accounts = [
