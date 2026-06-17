@@ -491,10 +491,20 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 |----|-----------|---------------|------|----------|
 | AC2.21.1 | `CurrencyBalances` holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the `StatementSummary.currency_balances` JSONB shape; closes the representation gap behind #1139/#1123 | `test_AC2_21_1_multi_currency_balance_is_not_a_scalar` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
 
-> **Deferred to sibling issues (not in #1170):** AC2.22 (route materiality
-> call-sites through `Money` — #1171) and AC2.23 (narrow-waist CI guard + L2/L3
-> promotion — #1172). They are registered when that work starts, per the
-> EPIC→AC→Test→Code→Doc order.
+### AC2.23: Narrow-waist CI guard ([#1172](https://github.com/wangzitian0/finance_report/issues/1172))
+
+A CI guard keeps the money standard from eroding: the money modules stay
+`float`-free and every stack keeps a conformance suite, so the cross-language
+narrow waist cannot silently decay back into ad-hoc money handling.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.23.1 | The guard flags a money-shaped `float` violation on an injected sample and reports none on the real money modules; each stack (Python reference, shipped backend, frontend) keeps a conformance suite | `test_AC2_23_1_guard_flags_injected_float_violation` (+ siblings) | `tests/tooling/test_money_narrow_waist_guard.py` | P0 |
+
+> **Deferred to sibling issue (not yet started):** AC2.22 (route materiality
+> call-sites through `Money` — #1171). The L2/L3 *score-baseline* promotion of the
+> money invariants is tracked in its established home #1103 (the assurance
+> backlog). Registered when that work starts, per the EPIC→AC→Test→Code→Doc order.
 
 ---
 
