@@ -1,4 +1,4 @@
-import { compareAmounts, divideAmount, multiplyAmount, sumAmounts } from "./currency";
+import { compareAmounts, divideAmount, multiplyAmount, sumAmounts } from "./money";
 import type { InvestmentPerformanceReportSchedule } from "./types";
 
 /**

@@ -12,7 +12,7 @@ import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import { CurrencyFilterControl, DateFilterControl } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
-import { amountToChartNumber, formatCurrencyLocale } from "@/lib/currency";
+import { amountToChartNumber, formatCurrencyLocale } from "@/lib/money";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";

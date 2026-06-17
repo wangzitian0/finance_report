@@ -2,7 +2,7 @@
 
 import { FileText, Link2 } from "lucide-react";
 
-import { compareAmounts, formatCurrencyLocale, formatAmount } from "@/lib/currency";
+import { compareAmounts, formatCurrencyLocale, formatAmount } from "@/lib/money";
 import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 

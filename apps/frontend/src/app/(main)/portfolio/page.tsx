@@ -11,7 +11,7 @@ import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
-import { amountToChartNumber, formatAmount, formatCurrencyLocale, sumAmounts } from "@/lib/currency";
+import { amountToChartNumber, formatAmount, formatCurrencyLocale, sumAmounts } from "@/lib/money";
 import type { InvestmentPerformanceReportSchedule, NetWorthAllocationResponse, NetWorthAllocationRow } from "@/lib/types";
 
 const REPORT_CURRENCY = "SGD";

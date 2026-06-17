@@ -2,7 +2,7 @@
 
 import DetailDialog from "@/components/ui/DetailDialog";
 import AuditTrailPanel from "@/components/AuditTrailPanel";
-import { formatAmount, formatCurrencyLocale, multiplyAmount, sumAmounts } from "@/lib/currency";
+import { formatAmount, formatCurrencyLocale, multiplyAmount, sumAmounts } from "@/lib/money";
 import { formatDateDisplay } from "@/lib/date";
 import { JournalEntry, JournalLine } from "@/lib/types";
 

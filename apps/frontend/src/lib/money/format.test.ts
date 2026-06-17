@@ -12,7 +12,7 @@ import {
   isAmountZero,
   formatCurrency,
   formatCurrencyLocale,
-} from './currency';
+} from './format';
 
 describe('parseAmount', () => {
   describe('valid inputs', () => {

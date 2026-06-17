@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Sheet from "@/components/ui/Sheet";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale } from "@/lib/money";
 import { Account, JournalEntryListResponse } from "@/lib/types";
 
 interface AccountDetailsSidebarProps {

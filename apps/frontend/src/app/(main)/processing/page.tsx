@@ -6,7 +6,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { apiFetch } from "@/lib/api";
 import { ProcessingPendingItem, ProcessingPendingListResponse } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale } from "@/lib/money";
 
 export default function ProcessingPage() {
   const [data, setData] = useState<ProcessingPendingListResponse | null>(null);

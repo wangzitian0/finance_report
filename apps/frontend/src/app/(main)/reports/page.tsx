@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { BarChart2, TrendingUp, DollarSign, FileText, CalendarClock, ShieldCheck, ChevronDown } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale } from "@/lib/currency";
+import { formatCurrencyLocale } from "@/lib/money";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import type { AnnualizedIncomeResponse, ReconciliationStatsResponse } from "@/lib/types";
 
