@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from src.models.statement_enums import BankStatementStatus
+from src.money.adopt import balance_check
 
 BALANCE_TOLERANCE = Decimal("0.10")
 IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
@@ -161,7 +162,9 @@ def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
     per_currency: list[dict[str, Any]] = []
     for bucket in buckets:
         ccy = bucket["currency"]
-        result = validate_balance_explicit(bucket["opening"], bucket["closing"], nets.get(ccy, Decimal("0")))
+        result = validate_balance_explicit(
+            bucket["opening"], bucket["closing"], nets.get(ccy, Decimal("0")), currency=ccy
+        )
         result["currency"] = ccy
         result["declared_balance"] = True
         per_currency.append(result)
@@ -174,7 +177,7 @@ def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
     for ccy in nets:
         if ccy in declared:
             continue
-        result = validate_balance_explicit(Decimal("0"), Decimal("0"), nets[ccy])
+        result = validate_balance_explicit(Decimal("0"), Decimal("0"), nets[ccy], currency=ccy)
         result["currency"] = ccy
         result["declared_balance"] = False
         if result["notes"] is None:
@@ -188,10 +191,20 @@ def validate_balance_per_currency(extracted: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def validate_balance_explicit(opening: Decimal, closing: Decimal, net_transactions: Decimal) -> dict[str, Any]:
-    """Validate balance using explicit Decimal values."""
-    expected_closing = (opening or Decimal("0")) + (net_transactions or Decimal("0"))
-    diff = abs((closing or Decimal("0")) - expected_closing)
+def validate_balance_explicit(
+    opening: Decimal,
+    closing: Decimal,
+    net_transactions: Decimal,
+    currency: str | None = None,
+) -> dict[str, Any]:
+    """Validate balance using explicit Decimal values.
+
+    When ``currency`` is a valid ISO-4217 code the per-currency arithmetic is
+    routed through same-currency :class:`Money` (#1171 AC2.22.2) so a multi-currency
+    statement cannot cross-sum; the ``"*"`` sentinel / non-ISO codes use the
+    identical Decimal arithmetic. Byte-identical either way.
+    """
+    expected_closing, diff = balance_check(opening, closing, net_transactions, currency)
     balance_valid = diff <= BALANCE_TOLERANCE
 
     return {

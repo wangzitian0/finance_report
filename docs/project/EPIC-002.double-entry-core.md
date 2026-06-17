@@ -498,18 +498,23 @@ The backend runs its own shippable `src/money` "end" (mirrors `common/money`, ke
 in lockstep by the shared conformance vectors + the #1172 guard), because the
 backend image does not ship `common/`.
 
+The hot-path arithmetic (reconciliation, reporting net-worth) is routed through
+the value types via byte-identical adoption helpers (`src/money/adopt.py`): they
+go through `Money`/`convert` when both currencies are valid ISO codes and fall
+back to the *identical* Decimal arithmetic for the reconciliation `"*"` sentinel /
+non-ISO codes (crypto / withdrawn), so totals are byte-identical for every input
+and there is no regression on currencies outside the active ISO set.
+
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `accounting/test_money_backend_module.py` | P1 |
+| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `accounting/test_money_adopt.py` | P0 |
+| AC2.22.3 | Reporting net-worth restatement routes through the `convert` primitive (`restate`/`restate_unrounded`); restated totals are byte-identical to `to_money(amount*rate)` / `amount*rate` | `test_AC2_22_3_restate_is_byte_identical` (+ `restate_unrounded`) | `accounting/test_money_adopt.py` | P0 |
 | AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `accounting/test_money_backend_module.py` | P1 |
 
-> **Follow-up (not yet registered):** routing the reconciliation per-currency and
-> reporting net-worth restatement *hot-path arithmetic* through `Money` (the
-> remaining AC2.22 sub-criteria) needs non-ISO-currency-tolerant handling first
-> (crypto / withdrawn codes), because `Money`'s ISO-4217 validation is stricter
-> than today's currency handling — adopting them naively would risk a production
-> regression. Registered when that hardening lands.
 > The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
+> The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)
+> double-check the restatement totals end-to-end in CI.
 
 ### AC2.23: Narrow-waist CI guard ([#1172](https://github.com/wangzitian0/finance_report/issues/1172))
 
