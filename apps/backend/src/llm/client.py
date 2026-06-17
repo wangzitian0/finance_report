@@ -179,8 +179,9 @@ def cost_from_usage(model: str, prompt_tokens: int, completion_tokens: int) -> D
     except Exception:  # noqa: BLE001 - unpriced model -> not metered (telemetry, not correctness)
         logger.debug("no litellm price for model; spend not metered", model=model)
         return None
-    total = (prompt_cost or 0) + (completion_cost or 0)
-    return Decimal(str(total)) if total else None
+    # Convert each component to Decimal before summing (litellm returns floats).
+    total = Decimal(str(prompt_cost or 0)) + Decimal(str(completion_cost or 0))
+    return total if total else None
 
 
 async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:

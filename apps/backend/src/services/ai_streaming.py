@@ -149,12 +149,16 @@ async def _stream_ai_base(
         # Record real spend from the streamed token usage so the daily ceiling
         # actually accumulates. Cost/telemetry must never break a completed stream.
         try:
+            # Price and record under the same (litellm-prefixed) model id so spend
+            # telemetry matches what was billed and provider-prefixed models don't
+            # collapse onto a bare name.
+            priced_model = usage_sink.get("model") or model
             cost = cost_from_usage(
-                usage_sink.get("model") or model,
+                priced_model,
                 usage_sink.get("prompt_tokens", 0),
                 usage_sink.get("completion_tokens", 0),
             )
-            await meter.record_cost(model, cost, scene=mode_label)
+            await meter.record_cost(priced_model, cost, scene=mode_label)
         except Exception:  # noqa: BLE001 - spend telemetry is not correctness
             logger.debug("llm spend recording skipped", exc_info=True)
 
