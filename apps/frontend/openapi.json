@@ -1,104 +1,6 @@
 {
   "components": {
     "schemas": {
-      "AIModel": {
-        "description": "Normalized AI model entry for UI selection.",
-        "properties": {
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
-          "input_modalities": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Input Modalities",
-            "type": "array"
-          },
-          "is_free": {
-            "default": false,
-            "title": "Is Free",
-            "type": "boolean"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "pricing": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ModelPricing"
-              },
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "type": "object"
-              }
-            ],
-            "default": {},
-            "title": "Pricing"
-          }
-        },
-        "title": "AIModel",
-        "type": "object"
-      },
-      "AIModelCatalogResponse": {
-        "description": "Response for the AI model catalog endpoint.",
-        "properties": {
-          "default_model": {
-            "title": "Default Model",
-            "type": "string"
-          },
-          "fallback_models": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Fallback Models",
-            "type": "array"
-          },
-          "models": {
-            "items": {
-              "$ref": "#/components/schemas/AIModel"
-            },
-            "title": "Models",
-            "type": "array"
-          }
-        },
-        "required": [
-          "default_model",
-          "fallback_models",
-          "models"
-        ],
-        "title": "AIModelCatalogResponse",
-        "type": "object"
-      },
       "AccountCoverageCadence": {
         "enum": [
           "monthly",
@@ -4975,6 +4877,323 @@
         "title": "ListResponse[UserResponse]",
         "type": "object"
       },
+      "LlmCatalogResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/LlmModelResponse"
+            },
+            "title": "Models",
+            "type": "array"
+          }
+        },
+        "required": [
+          "models"
+        ],
+        "title": "LlmCatalogResponse",
+        "type": "object"
+      },
+      "LlmConfigStatusResponse": {
+        "description": "Whether the current user has a usable LLM configuration (drives first-run).",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "LlmConfigStatusResponse",
+        "type": "object"
+      },
+      "LlmModelResponse": {
+        "description": "One catalogue entry, enriched with litellm pricing / free-tier flag.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_price_per_mtok": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per Mtok"
+          },
+          "is_free": {
+            "title": "Is Free",
+            "type": "boolean"
+          },
+          "modalities": {
+            "items": {
+              "$ref": "#/components/schemas/Modality"
+            },
+            "title": "Modalities",
+            "type": "array"
+          },
+          "output_price_per_mtok": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per Mtok"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "supports_reasoning": {
+            "default": false,
+            "title": "Supports Reasoning",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "provider_id",
+          "modalities",
+          "is_free"
+        ],
+        "title": "LlmModelResponse",
+        "type": "object"
+      },
+      "LlmProviderCreate": {
+        "description": "Create a provider instance for the current user. ``api_key`` is write-only.",
+        "properties": {
+          "api_base": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Custom API base URL for OpenAI-compatible endpoints.",
+            "title": "Api Base"
+          },
+          "api_key": {
+            "description": "Provider API key; encrypted at rest and never returned.",
+            "minLength": 1,
+            "title": "Api Key",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human-readable name for this provider instance.",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolFamily",
+            "description": "The wire protocol family this provider speaks."
+          }
+        },
+        "required": [
+          "label",
+          "protocol",
+          "api_key"
+        ],
+        "title": "LlmProviderCreate",
+        "type": "object"
+      },
+      "LlmProviderDeleteResponse": {
+        "description": "Confirmation that a provider (and its cascaded bindings) was deleted.",
+        "properties": {
+          "deleted": {
+            "default": true,
+            "description": "Always true when the provider was deleted.",
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "The id of the deleted provider.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "LlmProviderDeleteResponse",
+        "type": "object"
+      },
+      "LlmProviderListResponse": {
+        "properties": {
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/LlmProviderResponse"
+            },
+            "title": "Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers"
+        ],
+        "title": "LlmProviderListResponse",
+        "type": "object"
+      },
+      "LlmProviderResponse": {
+        "description": "A configured provider. The API key is never returned — only its presence.",
+        "properties": {
+          "api_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Base"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "has_api_key": {
+            "default": true,
+            "title": "Has Api Key",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolFamily"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "protocol",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "LlmProviderResponse",
+        "type": "object"
+      },
+      "LlmSceneBindingItem": {
+        "description": "A scene→model binding (model + reasoning depth + fallbacks).",
+        "properties": {
+          "fallback_model_ids": {
+            "description": "Ordered fallback model ids tried if the primary fails.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Fallback Model Ids",
+            "type": "array"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional max output tokens for this scene.",
+            "title": "Max Tokens"
+          },
+          "model": {
+            "description": "The model id to use for this scene.",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "prefer_free": {
+            "default": false,
+            "description": "Prefer a free-tier model when resolving this scene.",
+            "title": "Prefer Free",
+            "type": "boolean"
+          },
+          "provider_id": {
+            "description": "The provider instance (owned by the user) serving this scene.",
+            "format": "uuid",
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "reasoning": {
+            "$ref": "#/components/schemas/ReasoningEffort",
+            "default": "none",
+            "description": "Reasoning-effort depth for this scene."
+          },
+          "scene": {
+            "$ref": "#/components/schemas/Scene",
+            "description": "The fixed call site this binding configures."
+          }
+        },
+        "required": [
+          "scene",
+          "provider_id",
+          "model"
+        ],
+        "title": "LlmSceneBindingItem",
+        "type": "object"
+      },
+      "LlmScenesResponse": {
+        "properties": {
+          "bindings": {
+            "items": {
+              "$ref": "#/components/schemas/LlmSceneBindingItem"
+            },
+            "title": "Bindings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "bindings"
+        ],
+        "title": "LlmScenesResponse",
+        "type": "object"
+      },
+      "LlmScenesUpdate": {
+        "description": "Replace the current user's scene bindings with this set (PUT semantics).",
+        "properties": {
+          "bindings": {
+            "items": {
+              "$ref": "#/components/schemas/LlmSceneBindingItem"
+            },
+            "title": "Bindings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "bindings"
+        ],
+        "title": "LlmScenesUpdate",
+        "type": "object"
+      },
       "LoginRequest": {
         "description": "Schema for user login.",
         "properties": {
@@ -5663,57 +5882,16 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "ModelPricing": {
-        "additionalProperties": true,
-        "description": "Pricing information for an AI model.",
-        "properties": {
-          "completion": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completion"
-          },
-          "image": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image"
-          },
-          "prompt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prompt"
-          },
-          "request": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Request"
-          }
-        },
-        "title": "ModelPricing",
-        "type": "object"
+      "Modality": {
+        "description": "Input modalities a model accepts.",
+        "enum": [
+          "text",
+          "image",
+          "pdf",
+          "file"
+        ],
+        "title": "Modality",
+        "type": "string"
       },
       "NetWorthAllocationResponse": {
         "description": "Net-worth allocation schedule response.",
@@ -7438,6 +7616,16 @@
         "title": "ProcessingSummaryResponse",
         "type": "object"
       },
+      "ProtocolFamily": {
+        "description": "Axis 1 — the wire protocol a provider speaks.\n\nConcrete vendors map onto exactly one family; e.g. Z.AI/GLM and DeepSeek are\n``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``.",
+        "enum": [
+          "openai-compatible",
+          "anthropic-compatible",
+          "openrouter-compatible"
+        ],
+        "title": "ProtocolFamily",
+        "type": "string"
+      },
       "ProviderDisagreementResponse": {
         "description": "Provider disagreement payload.",
         "properties": {
@@ -7562,6 +7750,17 @@
         ],
         "title": "RealizedLotResponse",
         "type": "object"
+      },
+      "ReasoningEffort": {
+        "description": "Per-scene reasoning depth, mapped onto each provider by the client.\n\n``NONE`` means \"do not request extended reasoning\"; the others map to the\nlitellm ``reasoning_effort`` parameter (which in turn maps to Anthropic\nthinking budgets / OpenAI reasoning levels).",
+        "enum": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "title": "ReasoningEffort",
+        "type": "string"
       },
       "ReconcilePositionsResponse": {
         "description": "Response for position reconciliation.",
@@ -8235,6 +8434,18 @@
         },
         "title": "ReviewConflictsResponse",
         "type": "object"
+      },
+      "Scene": {
+        "description": "Axis 3 — a code-defined call site. Adding one is a contract change.\n\nThe value is the stable identifier persisted in bindings; keep it in sync\nwith ``docs/ssot/llm.md``.",
+        "enum": [
+          "extraction.ocr",
+          "extraction.vision",
+          "extraction.json",
+          "advisor.chat",
+          "statement.summary"
+        ],
+        "title": "Scene",
+        "type": "string"
       },
       "SetOpeningBalanceRequest": {
         "properties": {
@@ -10985,139 +11196,6 @@
         "summary": "Create Ai Feedback",
         "tags": [
           "ai-feedback"
-        ]
-      }
-    },
-    "/ai/models": {
-      "get": {
-        "operationId": "list_models_ai_models_get",
-        "parameters": [
-          {
-            "description": "Filter by modality",
-            "in": "query",
-            "name": "modality",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by modality",
-              "title": "Modality"
-            }
-          },
-          {
-            "description": "Return only free models",
-            "in": "query",
-            "name": "free_only",
-            "required": false,
-            "schema": {
-              "default": false,
-              "description": "Return only free models",
-              "title": "Free Only",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AIModelCatalogResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "List Models",
-        "tags": [
-          "ai"
         ]
       }
     },
@@ -14874,6 +14952,775 @@
         "summary": "Void Entry",
         "tags": [
           "journal-entries"
+        ]
+      }
+    },
+    "/llm/catalog": {
+      "get": {
+        "description": "The dynamic model catalogue (configured models + litellm pricing).",
+        "operationId": "get_catalog_llm_catalog_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "modality",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Modality"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Modality"
+            }
+          },
+          {
+            "in": "query",
+            "name": "free_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Free Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmCatalogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get Catalog",
+        "tags": [
+          "llm"
+        ]
+      }
+    },
+    "/llm/config/status": {
+      "get": {
+        "description": "Whether the current user has a usable config (their own, the deployment\ndefault, or the env fallback). Drives the first-run modal.",
+        "operationId": "get_config_status_llm_config_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmConfigStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Config Status",
+        "tags": [
+          "llm"
+        ]
+      }
+    },
+    "/llm/providers": {
+      "get": {
+        "description": "List the current user's provider instances (keys never returned).",
+        "operationId": "list_providers_llm_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmProviderListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Providers",
+        "tags": [
+          "llm"
+        ]
+      },
+      "post": {
+        "description": "Create a provider for the current user, encrypting the API key at rest.\n\nFails closed when secret encryption is not configured (``LLM_ENCRYPTION_KEYS``\nunset) — a DB-stored key must never be persisted in plaintext.",
+        "operationId": "create_provider_llm_providers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LlmProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmProviderResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Provider",
+        "tags": [
+          "llm"
+        ]
+      }
+    },
+    "/llm/providers/{provider_id}": {
+      "delete": {
+        "description": "Delete one of the current user's providers (cascades to its bindings).",
+        "operationId": "delete_provider_llm_providers__provider_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmProviderDeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Delete Provider",
+        "tags": [
+          "llm"
+        ]
+      }
+    },
+    "/llm/scenes": {
+      "get": {
+        "description": "The current user's scene→model bindings.",
+        "operationId": "get_scenes_llm_scenes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmScenesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Scenes",
+        "tags": [
+          "llm"
+        ]
+      },
+      "put": {
+        "description": "Replace the current user's scene bindings (PUT semantics).\n\nValidates that each binding references one of the user's own providers and\nthat no scene appears twice, then atomically swaps the binding set.",
+        "operationId": "put_scenes_llm_scenes_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LlmScenesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmScenesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Put Scenes",
+        "tags": [
+          "llm"
         ]
       }
     },
@@ -23108,7 +23955,7 @@
     },
     "/statements/upload": {
       "post": {
-        "description": "Upload a financial statement and enqueue parsing.\n\nSupported file types: PDF, CSV, PNG, JPG. Model is optional for PDF/image uploads;\nomitted model uses the OCR-first default pipeline.\nInstitution is optional - AI will auto-detect from document if not provided.",
+        "description": "Upload a financial statement and enqueue parsing.\n\nSupported file types: PDF, CSV, PNG, JPG. Model is optional for PDF/image uploads;\nomitted model uses the OCR-first default pipeline.\n\nInstitution is optional for PDF/image uploads (AI auto-detects it from the\ndocument). It is **required** for CSV uploads — the institution cannot be\nauto-detected from CSV content, so a missing institution is rejected\nsynchronously with HTTP 400 rather than accepted and rejected asynchronously\nby the parse worker (#1141 / #1087).",
         "operationId": "upload_statement_statements_upload_post",
         "requestBody": {
           "content": {

@@ -759,3 +759,25 @@ export interface CurrentUser {
   name: string | null;
   created_at: string;
 }
+
+// ── LLM configuration (EPIC-023 PR4) ───────────────────────────────────────
+//
+// Frozen LLM contract surfaced to the frontend. Provider API keys are
+// write-only and never returned by the backend, so `LlmProviderResponse`
+// only carries `has_api_key`. Mirrors backend schemas in
+// `apps/backend/src/schemas/llm.py`.
+
+export type LlmModality = Schemas["Modality"];
+export type LlmProtocolFamily = Schemas["ProtocolFamily"];
+export type LlmReasoningEffort = Schemas["ReasoningEffort"];
+export type LlmScene = Schemas["Scene"];
+
+export type LlmConfigStatusResponse = Schemas["LlmConfigStatusResponse"];
+export type LlmProviderResponse = Schemas["LlmProviderResponse"];
+export type LlmProviderListResponse = Schemas["LlmProviderListResponse"];
+export type LlmProviderCreate = Schemas["LlmProviderCreate"];
+export type LlmModelResponse = Schemas["LlmModelResponse"];
+export type LlmCatalogResponse = Schemas["LlmCatalogResponse"];
+export type LlmSceneBindingItem = Schemas["LlmSceneBindingItem"];
+export type LlmScenesResponse = Schemas["LlmScenesResponse"];
+export type LlmScenesUpdate = Schemas["LlmScenesUpdate"];

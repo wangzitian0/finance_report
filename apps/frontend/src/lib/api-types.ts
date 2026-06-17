@@ -168,23 +168,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ai/models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Models */
-        get: operations["list_models_ai_models_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/ai/suggestions": {
         parameters: {
             query?: never;
@@ -691,6 +674,121 @@ export interface paths {
         put?: never;
         /** Void Entry */
         post: operations["void_entry_journal_entries__entry_id__voidings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/llm/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog
+         * @description The dynamic model catalogue (configured models + litellm pricing).
+         */
+        get: operations["get_catalog_llm_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/llm/config/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Config Status
+         * @description Whether the current user has a usable config (their own, the deployment
+         *     default, or the env fallback). Drives the first-run modal.
+         */
+        get: operations["get_config_status_llm_config_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/llm/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Providers
+         * @description List the current user's provider instances (keys never returned).
+         */
+        get: operations["list_providers_llm_providers_get"];
+        put?: never;
+        /**
+         * Create Provider
+         * @description Create a provider for the current user, encrypting the API key at rest.
+         *
+         *     Fails closed when secret encryption is not configured (``LLM_ENCRYPTION_KEYS``
+         *     unset) — a DB-stored key must never be persisted in plaintext.
+         */
+        post: operations["create_provider_llm_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/llm/providers/{provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Provider
+         * @description Delete one of the current user's providers (cascades to its bindings).
+         */
+        delete: operations["delete_provider_llm_providers__provider_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/llm/scenes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scenes
+         * @description The current user's scene→model bindings.
+         */
+        get: operations["get_scenes_llm_scenes_get"];
+        /**
+         * Put Scenes
+         * @description Replace the current user's scene bindings (PUT semantics).
+         *
+         *     Validates that each binding references one of the user's own providers and
+         *     that no scene appears twice, then atomically swaps the binding set.
+         */
+        put: operations["put_scenes_llm_scenes_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1926,7 +2024,12 @@ export interface paths {
          *
          *     Supported file types: PDF, CSV, PNG, JPG. Model is optional for PDF/image uploads;
          *     omitted model uses the OCR-first default pipeline.
-         *     Institution is optional - AI will auto-detect from document if not provided.
+         *
+         *     Institution is optional for PDF/image uploads (AI auto-detects it from the
+         *     document). It is **required** for CSV uploads — the institution cannot be
+         *     auto-detected from CSV content, so a missing institution is rejected
+         *     synchronously with HTTP 400 rather than accepted and rejected asynchronously
+         *     by the parse worker (#1141 / #1087).
          */
         post: operations["upload_statement_statements_upload_post"];
         delete?: never;
@@ -2328,45 +2431,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * AIModel
-         * @description Normalized AI model entry for UI selection.
-         */
-        AIModel: {
-            /** Id */
-            id?: string | null;
-            /**
-             * Input Modalities
-             * @default []
-             */
-            input_modalities: string[];
-            /**
-             * Is Free
-             * @default false
-             */
-            is_free: boolean;
-            /** Name */
-            name?: string | null;
-            /**
-             * Pricing
-             * @default {}
-             */
-            pricing: components["schemas"]["ModelPricing"] | {
-                [key: string]: string | null;
-            };
-        };
-        /**
-         * AIModelCatalogResponse
-         * @description Response for the AI model catalog endpoint.
-         */
-        AIModelCatalogResponse: {
-            /** Default Model */
-            default_model: string;
-            /** Fallback Models */
-            fallback_models: string[];
-            /** Models */
-            models: components["schemas"]["AIModel"][];
-        };
         /**
          * AccountCoverageCadence
          * @enum {string}
@@ -4480,6 +4544,172 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** LlmCatalogResponse */
+        LlmCatalogResponse: {
+            /** Models */
+            models: components["schemas"]["LlmModelResponse"][];
+        };
+        /**
+         * LlmConfigStatusResponse
+         * @description Whether the current user has a usable LLM configuration (drives first-run).
+         */
+        LlmConfigStatusResponse: {
+            /** Configured */
+            configured: boolean;
+        };
+        /**
+         * LlmModelResponse
+         * @description One catalogue entry, enriched with litellm pricing / free-tier flag.
+         */
+        LlmModelResponse: {
+            /** Id */
+            id: string;
+            /** Input Price Per Mtok */
+            input_price_per_mtok?: string | null;
+            /** Is Free */
+            is_free: boolean;
+            /** Modalities */
+            modalities: components["schemas"]["Modality"][];
+            /** Output Price Per Mtok */
+            output_price_per_mtok?: string | null;
+            /** Provider Id */
+            provider_id: string;
+            /**
+             * Supports Reasoning
+             * @default false
+             */
+            supports_reasoning: boolean;
+        };
+        /**
+         * LlmProviderCreate
+         * @description Create a provider instance for the current user. ``api_key`` is write-only.
+         */
+        LlmProviderCreate: {
+            /**
+             * Api Base
+             * @description Custom API base URL for OpenAI-compatible endpoints.
+             */
+            api_base?: string | null;
+            /**
+             * Api Key
+             * @description Provider API key; encrypted at rest and never returned.
+             */
+            api_key: string;
+            /**
+             * Label
+             * @description Human-readable name for this provider instance.
+             */
+            label: string;
+            /** @description The wire protocol family this provider speaks. */
+            protocol: components["schemas"]["ProtocolFamily"];
+        };
+        /**
+         * LlmProviderDeleteResponse
+         * @description Confirmation that a provider (and its cascaded bindings) was deleted.
+         */
+        LlmProviderDeleteResponse: {
+            /**
+             * Deleted
+             * @description Always true when the provider was deleted.
+             * @default true
+             */
+            deleted: boolean;
+            /**
+             * Id
+             * Format: uuid
+             * @description The id of the deleted provider.
+             */
+            id: string;
+        };
+        /** LlmProviderListResponse */
+        LlmProviderListResponse: {
+            /** Providers */
+            providers: components["schemas"]["LlmProviderResponse"][];
+        };
+        /**
+         * LlmProviderResponse
+         * @description A configured provider. The API key is never returned — only its presence.
+         */
+        LlmProviderResponse: {
+            /** Api Base */
+            api_base?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Has Api Key
+             * @default true
+             */
+            has_api_key: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            protocol: components["schemas"]["ProtocolFamily"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * LlmSceneBindingItem
+         * @description A scene→model binding (model + reasoning depth + fallbacks).
+         */
+        LlmSceneBindingItem: {
+            /**
+             * Fallback Model Ids
+             * @description Ordered fallback model ids tried if the primary fails.
+             */
+            fallback_model_ids?: string[];
+            /**
+             * Max Tokens
+             * @description Optional max output tokens for this scene.
+             */
+            max_tokens?: number | null;
+            /**
+             * Model
+             * @description The model id to use for this scene.
+             */
+            model: string;
+            /**
+             * Prefer Free
+             * @description Prefer a free-tier model when resolving this scene.
+             * @default false
+             */
+            prefer_free: boolean;
+            /**
+             * Provider Id
+             * Format: uuid
+             * @description The provider instance (owned by the user) serving this scene.
+             */
+            provider_id: string;
+            /**
+             * @description Reasoning-effort depth for this scene.
+             * @default none
+             */
+            reasoning: components["schemas"]["ReasoningEffort"];
+            /** @description The fixed call site this binding configures. */
+            scene: components["schemas"]["Scene"];
+        };
+        /** LlmScenesResponse */
+        LlmScenesResponse: {
+            /** Bindings */
+            bindings: components["schemas"]["LlmSceneBindingItem"][];
+        };
+        /**
+         * LlmScenesUpdate
+         * @description Replace the current user's scene bindings with this set (PUT semantics).
+         */
+        LlmScenesUpdate: {
+            /** Bindings */
+            bindings: components["schemas"]["LlmSceneBindingItem"][];
+        };
         /**
          * LoginRequest
          * @description Schema for user login.
@@ -4728,21 +4958,11 @@ export interface components {
             [key: string]: unknown;
         };
         /**
-         * ModelPricing
-         * @description Pricing information for an AI model.
+         * Modality
+         * @description Input modalities a model accepts.
+         * @enum {string}
          */
-        ModelPricing: {
-            /** Completion */
-            completion?: string | null;
-            /** Image */
-            image?: string | null;
-            /** Prompt */
-            prompt?: string | null;
-            /** Request */
-            request?: string | null;
-        } & {
-            [key: string]: unknown;
-        };
+        Modality: "text" | "image" | "pdf" | "file";
         /**
          * NetWorthAllocationResponse
          * @description Net-worth allocation schedule response.
@@ -5550,6 +5770,15 @@ export interface components {
             pending_total: string;
         };
         /**
+         * ProtocolFamily
+         * @description Axis 1 — the wire protocol a provider speaks.
+         *
+         *     Concrete vendors map onto exactly one family; e.g. Z.AI/GLM and DeepSeek are
+         *     ``OPENAI_COMPATIBLE`` (custom ``api_base``), Claude is ``ANTHROPIC_COMPATIBLE``.
+         * @enum {string}
+         */
+        ProtocolFamily: "openai-compatible" | "anthropic-compatible" | "openrouter-compatible";
+        /**
          * ProviderDisagreementResponse
          * @description Provider disagreement payload.
          */
@@ -5604,6 +5833,16 @@ export interface components {
              */
             sold_date: string;
         };
+        /**
+         * ReasoningEffort
+         * @description Per-scene reasoning depth, mapped onto each provider by the client.
+         *
+         *     ``NONE`` means "do not request extended reasoning"; the others map to the
+         *     litellm ``reasoning_effort`` parameter (which in turn maps to Anthropic
+         *     thinking budgets / OpenAI reasoning levels).
+         * @enum {string}
+         */
+        ReasoningEffort: "none" | "low" | "medium" | "high";
         /**
          * ReconcilePositionsResponse
          * @description Response for position reconciliation.
@@ -5907,6 +6146,15 @@ export interface components {
             /** Transfer Pairs */
             transfer_pairs?: components["schemas"]["ReviewConflictCandidate"][];
         };
+        /**
+         * Scene
+         * @description Axis 3 — a code-defined call site. Adding one is a contract change.
+         *
+         *     The value is the stable identifier persisted in bindings; keep it in sync
+         *     with ``docs/ssot/llm.md``.
+         * @enum {string}
+         */
+        Scene: "extraction.ocr" | "extraction.vision" | "extraction.json" | "advisor.chat" | "statement.summary";
         /** SetOpeningBalanceRequest */
         SetOpeningBalanceRequest: {
             /** Opening Balance */
@@ -7409,103 +7657,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiFeedbackResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_models_ai_models_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by modality */
-                modality?: string | null;
-                /** @description Return only free models */
-                free_only?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AIModelCatalogResponse"];
                 };
             };
             /** @description Bad request */
@@ -10267,6 +10418,636 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalEntryResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_catalog_llm_catalog_get: {
+        parameters: {
+            query?: {
+                modality?: components["schemas"]["Modality"] | null;
+                free_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmCatalogResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_config_status_llm_config_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmConfigStatusResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_providers_llm_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProviderListResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_provider_llm_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlmProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProviderResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_provider_llm_providers__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmProviderDeleteResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_scenes_llm_scenes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmScenesResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_scenes_llm_scenes_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlmScenesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmScenesResponse"];
                 };
             };
             /** @description Bad request */

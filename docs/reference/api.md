@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `128`
-- Schema count: `231`
+- Endpoint count: `134`
+- Schema count: `242`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -15,7 +15,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Group | Endpoints |
 |---|---:|
 | `accounts` | 10 |
-| `ai` | 1 |
 | `ai-feedback` | 2 |
 | `assets` | 11 |
 | `audit` | 1 |
@@ -25,6 +24,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `evidence` | 1 |
 | `income` | 1 |
 | `journal-entries` | 6 |
+| `llm` | 7 |
 | `market-data` | 3 |
 | `metrics` | 3 |
 | `portfolio` | 13 |
@@ -53,12 +53,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/accounts/{account_id}` | yes | `account_id`* (path) | - | `200` `AccountResponse` | Get Account |
 | `PUT` | `/accounts/{account_id}` | yes | `account_id`* (path) | `AccountUpdate` | `200` `AccountResponse` | Update Account |
 | `DELETE` | `/accounts/{account_id}` | yes | `account_id`* (path) | - | `204` - | Delete Account |
-
-### ai
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/ai/models` | no | `modality` (query), `free_only` (query) | - | `200` `AIModelCatalogResponse` | List Models |
 
 ### ai-feedback
 
@@ -135,6 +129,18 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `DELETE` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `204` - | Delete Journal Entry |
 | `POST` | `/journal-entries/{entry_id}/postings` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
 | `POST` | `/journal-entries/{entry_id}/voidings` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
+
+### llm
+
+| Method | Path | Auth | Params | Request | Success responses | Summary |
+|---|---|---|---|---|---|---|
+| `GET` | `/llm/catalog` | no | `modality` (query), `free_only` (query) | - | `200` `LlmCatalogResponse` | Get Catalog |
+| `GET` | `/llm/config/status` | yes | - | - | `200` `LlmConfigStatusResponse` | Get Config Status |
+| `GET` | `/llm/providers` | yes | - | - | `200` `LlmProviderListResponse` | List Providers |
+| `POST` | `/llm/providers` | yes | - | `LlmProviderCreate` | `201` `LlmProviderResponse` | Create Provider |
+| `DELETE` | `/llm/providers/{provider_id}` | yes | `provider_id`* (path) | - | `200` `LlmProviderDeleteResponse` | Delete Provider |
+| `GET` | `/llm/scenes` | yes | - | - | `200` `LlmScenesResponse` | Get Scenes |
+| `PUT` | `/llm/scenes` | yes | - | `LlmScenesUpdate` | `200` `LlmScenesResponse` | Put Scenes |
 
 ### market-data
 

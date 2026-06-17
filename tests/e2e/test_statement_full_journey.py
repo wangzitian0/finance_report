@@ -134,7 +134,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     # Fetch the default model from the backend API and select it explicitly.
     # Selecting by value ensures we always use the backend-configured OCR model.
     models_resp = await page.evaluate(
-        "async () => { const r = await fetch('/api/ai/models?modality=image'); return r.json(); }"
+        "async () => { const r = await fetch('/api/llm/catalog?modality=image'); return r.json(); }"
     )
     default_model: str = models_resp.get("default_model") or models_resp["models"][0]["id"]
     model_select = page.locator("select#ai-model")

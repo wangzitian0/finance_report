@@ -102,3 +102,24 @@ parallel once PR1 merges.
 |---|---|---|---|
 | AC23.3.1 | `DbConfigSource` reads provider instances (decrypting the at-rest API key) and scene bindings (qualified by provider id) from `llm_providers` / `llm_scene_bindings` | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
 | AC23.3.2 | Config resolves DB-first with an env fallback; `is_configured()` is true when either has a provider and false when both are empty (driving the first-run modal) | `apps/backend/tests/integration/test_llm_db_config.py` | P1 |
+
+### AC23.4 — `/llm` config API, per-user model selection & legacy retirement
+> PR4 slice. Puts `LitellmCatalog`/`LitellmClient` on the live path behind a
+> `/llm` API, makes model selection **per-user** (each user configures their own
+> providers + scene→model bindings, with the deployment default as fallback and
+> an OpenRouter free-tier suggestion when nothing is configured), and retires the
+> legacy `services/ai_models.py` / `routers/ai_models.py` catalogue.
+>
+> Per-user is additive over PR3: a nullable `user_id` is added to
+> `llm_providers` / `llm_scene_bindings` — `NULL` rows remain the deployment
+> default (preserving AC23.3 behaviour), non-null rows are owned by that user.
+> Config resolves user rows → deployment-default rows → env fallback.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC23.4.1 | `GET /llm/config/status` reports `{configured}` for the current user from the layered (user → deployment → env) config source, driving the first-run modal | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.2 | `GET/POST/DELETE /llm/providers` is scoped to the current user; POST encrypts the API key via `build_cipher` before persist and the response **never** returns or logs the plaintext key; with `LLM_ENCRYPTION_KEYS` unset, POST fails closed | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.3 | `GET /llm/catalog` lists models via `LitellmCatalog` enriched with pricing/free-tier and filtered by `modality`/`free_only` | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.4 | `GET/PUT /llm/scenes` round-trips the current user's scene→model bindings (model + reasoning + fallbacks), validated against their providers | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.5 | Per-user config resolves through the scene-keyed seam: `get_config_source(user_id)` / `get_llm_client(user_id)` resolve a user's binding for a scene (qualified by provider id), falling back to the deployment default then the env model. (Threading `user_id` into the legacy `ai_streaming`/`extraction` transport call sites is the EPIC-023 follow-up noted under Scope Slices — it migrates transport-coupled tests and is verified via the post-merge AI/OCR gate.) | `apps/backend/tests/integration/test_llm_api.py` | P1 |
+| AC23.4.6 | The legacy `services/ai_models.py` + `routers/ai_models.py` are removed; remaining model lookups (`statements`, `chat`) resolve through `LitellmCatalog`, and the dead `AI_MODEL_CATALOG_SOURCE` config is dropped | `apps/backend/tests/integration/test_llm_api.py` | P1 |

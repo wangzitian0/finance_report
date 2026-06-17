@@ -37,8 +37,10 @@ describe("navigation metadata", () => {
       "Processing",
       "Confidence Trend",
       "AI Settings",
+      "LLM Models",
     ]);
     expect(advancedNavItems.find((item) => item.label === "AI Settings")?.href).toBe("/settings/ai");
+    expect(advancedNavItems.find((item) => item.label === "LLM Models")?.href).toBe("/settings/llm");
 
     // AC22.1.4: the legacy "Upload Pipeline" label is gone from the nav model.
     const allLabels = [...primaryWorkflowNavItems, ...advancedNavItems].map((item) => item.label);
@@ -73,6 +75,7 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/processing").label).toBe("Processing");
     expect(getRouteConfig("/chat").label).toBe("Chat");
     expect(getRouteConfig("/settings/ai").label).toBe("AI Settings");
+    expect(getRouteConfig("/settings/llm").label).toBe("LLM Models");
     expect(getRouteConfig("/").label).toBe("Home");
     expect(getRouteConfig("/upload").label).toBe("Upload");
     expect(getRouteConfig("/notifications").label).toBe("Notifications");

@@ -178,7 +178,7 @@ not balance proof and must not satisfy the auto-approve precondition.
 | POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
 | POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
 | POST | `/api/statements/{id}/reject` | Deprecated compatibility endpoint (proxies to Stage 1 reject) |
-| GET | `/api/ai/models` | Configured AI provider model catalog for UI selection |
+| GET | `/api/llm/catalog` | Configured AI provider model catalog for UI selection (EPIC-023; supersedes the retired `/api/ai/models`) |
 
 ## Supported Institutions
 
@@ -406,7 +406,7 @@ slice is registered.
 - **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
 - **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
-- **Catalog**: `/api/ai/models` returns the configured provider catalog for UI dropdowns (filterable by modality).
+- **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_
 - **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5-turbo,glm-5`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
 - **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-4.5v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
 

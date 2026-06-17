@@ -24,6 +24,12 @@ vi.mock("@/hooks/useSessionBootstrap", () => ({
   useSessionBootstrap: vi.fn(),
 }))
 
+// The first-run LLM modal (EPIC-023 PR4) is mounted app-wide; it has its own
+// dedicated test, so stub it here to keep the shell tests focused on layout.
+vi.mock("@/components/llm/FirstRunModal", () => ({
+  FirstRunModal: () => null,
+}))
+
 vi.mock("@/hooks/useWorkspace", () => ({
   WorkspaceProvider: ({ children }: { children: ReactNode }) => <div data-testid="workspace-provider">{children}</div>,
   useWorkspace: () => ({ isCollapsed: true }),

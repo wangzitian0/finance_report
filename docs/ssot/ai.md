@@ -203,7 +203,7 @@ application state and points to safe next actions.
 
 ### SOP-004: Model Selection
 
-1. UI pulls available models from `/api/ai/models`.
+1. UI pulls available models from `/api/llm/catalog` (EPIC-023; supersedes the retired `/api/ai/models`).
 2. Client sends the selected `model` in `POST /api/chat`.
 3. If omitted, the service uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS` for chat responses.
 4. Statement OCR uses `OCR_MODEL`; if it is separate from `VISION_MODEL`, the provider layout parsing API runs first, otherwise the shared vision OCR path is used directly.

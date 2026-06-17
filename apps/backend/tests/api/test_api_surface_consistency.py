@@ -107,7 +107,9 @@ def test_AC12_29_4_no_route_or_tag_collisions() -> None:
         return out
 
     assert {"statements", "review"} <= _tags_under_prefix("/statements")
-    assert {"ai", "ai-feedback"} <= _tags_under_prefix("/ai")
+    # EPIC-023 retired the legacy `ai`-tagged `/ai/models` router; `/ai/feedback`
+    # (tag `ai-feedback`) is the remaining surface under the `/ai` prefix.
+    assert {"ai-feedback"} <= _tags_under_prefix("/ai")
 
 
 def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:

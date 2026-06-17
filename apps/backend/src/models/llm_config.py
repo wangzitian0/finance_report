@@ -1,18 +1,21 @@
-"""DB-backed LLM provider configuration (EPIC-023 EPIC B).
+"""DB-backed LLM provider configuration (EPIC-023 EPIC B / PR4).
 
 These tables hold the *operational* LLM config the SSOT vocabulary
 (``docs/ssot/llm.md``) describes: provider instances (with their API key
-encrypted at rest) and the scene→model bindings. They are deployment-scoped
-(not user-owned) — a single per-deployment configuration, edited via the
-``/llm`` API / first-run modal. The Python enums are reused from
-``src/llm/common`` so the DB and the runtime contract can never drift.
+encrypted at rest) and the scene→model bindings. The Python enums are reused
+from ``src/llm/common`` so the DB and the runtime contract can never drift.
+
+Since PR4 they are **per-user with a deployment default** (EPIC-023 AC23.4):
+``user_id`` is nullable — ``NULL`` rows are the deployment default (the original
+deployment-scoped behaviour), non-null rows belong to that user. Config resolves
+a user's rows first, then the deployment default, then the env fallback.
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,10 +29,20 @@ def _enum_values(enum_cls: type) -> list[str]:
 
 
 class LlmProvider(Base, UUIDMixin, TimestampMixin):
-    """A configured provider instance; the API key is stored encrypted."""
+    """A configured provider instance; the API key is stored encrypted.
+
+    ``user_id`` scopes the provider: ``NULL`` is the deployment default, a
+    non-null id is owned by that user (EPIC-023 AC23.4).
+    """
 
     __tablename__ = "llm_providers"
 
+    user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     label: Mapped[str] = mapped_column(String(100), nullable=False)
     protocol: Mapped[ProtocolFamily] = mapped_column(
         Enum(
@@ -48,14 +61,40 @@ class LlmProvider(Base, UUIDMixin, TimestampMixin):
 
 
 class LlmSceneBinding(Base, UUIDMixin, TimestampMixin):
-    """Which provider+model (and how) a scene resolves to. One row per scene."""
+    """Which provider+model (and how) a scene resolves to.
+
+    One binding per scene *within a scope*: partial unique indexes enforce one
+    row per ``(user_id, scene)`` for user-owned bindings and one row per
+    ``scene`` for the deployment default (``user_id IS NULL``).
+    """
 
     __tablename__ = "llm_scene_bindings"
 
+    __table_args__ = (
+        Index(
+            "uq_llm_scene_bindings_user_scene",
+            "user_id",
+            "scene",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_llm_scene_bindings_default_scene",
+            "scene",
+            unique=True,
+            postgresql_where=text("user_id IS NULL"),
+        ),
+    )
+
+    user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     scene: Mapped[Scene] = mapped_column(
         Enum(Scene, name="llm_scene_enum", values_callable=_enum_values),
         nullable=False,
-        unique=True,
     )
     provider_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),

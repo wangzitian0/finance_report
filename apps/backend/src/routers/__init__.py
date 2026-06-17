@@ -2,13 +2,13 @@
 
 from src.routers import (
     accounts,
-    ai_models,
     assets,
     auth,
     chat,
     evidence,
     income,
     journal,
+    llm,
     market_data,
     reconciliation,
     reports,
@@ -18,13 +18,13 @@ from src.routers import (
 
 __all__ = [
     "accounts",
-    "ai_models",
     "assets",
     "auth",
     "chat",
     "evidence",
     "income",
     "journal",
+    "llm",
     "market_data",
     "reconciliation",
     "reports",

@@ -11,7 +11,7 @@
 - `apps/backend/src/routers/statements.py` - Upload request and background task logging
 - `apps/backend/src/routers/reconciliation.py` - Reconciliation run audit checkpoints
 - `apps/backend/src/services/statement_parsing.py` - Async parse progress and brokerage import checkpoints
-- `apps/backend/src/routers/ai_models.py` - Model catalog request/response logging
+- `apps/backend/src/routers/llm.py` - LLM config + model catalog request/response logging (EPIC-023; replaced `routers/ai_models.py`)
 - `apps/backend/src/services/extraction.py` - Model selection and HTTP error logging
 - `apps/backend/src/services/ai_provider_models.py` - Cache and model lookup logging
 - `apps/backend/src/services/ai_provider_streaming.py` - Enhanced AI provider API error logging

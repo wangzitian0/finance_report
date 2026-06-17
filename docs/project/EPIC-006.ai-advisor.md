@@ -198,12 +198,16 @@ Clearly labeled "for reference only"
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC6.11.1 | Model catalog integration | `TestModelCatalogIntegration` class | `ai/test_ai_models_integration.py` | P1 |
-| AC6.11.2 | Model validation integration | `TestModelValidationIntegration` class | `ai/test_ai_models_integration.py` | P1 |
-| AC6.11.3 | Model catalog caching | `TestModelCatalogCaching` class | `ai/test_ai_models_integration.py` | P1 |
-| AC6.11.4 | Test filtering models with both modality and free_only filters. | `test_list_models_with_both_filters` | `api/test_ai_models_router.py` | P1 |
-| AC6.11.5 | Test error handling when model catalog is unavailable. | `test_list_models_error_handling` | `api/test_ai_models_router.py` | P1 |
-| AC6.11.6 | Entries with no id are skipped (covers id-filter branch in routers/ai_models.py L44). | `test_list_models_filters_out_entries_without_id` | `api/test_ai_models_router.py` | P1 |
+> _EPIC-023 retired the remote-fetch `services/ai_models` catalogue; AC6.11.x are
+> re-anchored onto the local `LitellmCatalog` (configured models + litellm pricing)
+> that supersedes it._
+
+| AC6.11.1 | Model catalogue integration: lists the configured models with pricing/capability fields. | `test_AC6_11_1_catalog_lists_configured_models` | `ai/test_model_catalog.py` | P1 |
+| AC6.11.2 | Model validation integration: a known model resolves, an unknown one is rejected. | `test_AC6_11_2_unknown_model_rejected` | `ai/test_model_catalog.py` | P1 |
+| AC6.11.3 | The catalogue is local/deterministic — repeated calls agree, no remote fetch. | `test_AC6_11_3_catalog_is_local_deterministic` | `ai/test_model_catalog.py` | P1 |
+| AC6.11.4 | Filtering models with both modality and free_only filters composed. | `test_AC6_11_4_catalog_modality_and_free_filters` | `ai/test_model_catalog.py` | P1 |
+| AC6.11.5 | Per-model modality lookup: the vision/OCR model accepts image input. | `test_AC6_11_5_model_modality_lookup` | `ai/test_model_catalog.py` | P1 |
+| AC6.11.6 | `get` resolves a model id whether bare or provider-qualified. | `test_AC6_11_6_catalog_get_bare_or_qualified` | `ai/test_model_catalog.py` | P1 |
 
 ### AC6.12: Must-Have Acceptance Criteria Traceability
 

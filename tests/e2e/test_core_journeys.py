@@ -482,20 +482,21 @@ async def test_ai_models_api(app_url, shared_auth_state):
     """
     EPIC-006 / AC6.11.1
 
-    Scenario: Test AI models listing endpoint.
+    Scenario: Test the model catalogue listing endpoint (EPIC-023 retired the
+    legacy /ai/models in favour of the local LitellmCatalog at /llm/catalog).
     Environment: All (read-only).
 
     Tests:
-    - GET /ai/models
+    - GET /llm/catalog
     """
     async with httpx.AsyncClient(verify=False, timeout=API_TIMEOUT) as client:
         headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
 
-        response = await client.get(f"{app_url}/api/ai/models", headers=headers)
-        assert response.status_code == 200, f"AI models failed: {response.text}"
-        models = response.json()
-        # Should return a list of available models
-        assert isinstance(models, list) or isinstance(models, dict)
+        response = await client.get(f"{app_url}/api/llm/catalog", headers=headers)
+        assert response.status_code == 200, f"LLM catalog failed: {response.text}"
+        payload = response.json()
+        # Should return the catalogue envelope with a list of models.
+        assert isinstance(payload, dict) and isinstance(payload.get("models"), list)
 
 
 @pytest.mark.e2e

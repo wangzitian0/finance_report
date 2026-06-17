@@ -254,43 +254,17 @@ class Bootloader:
 
     @staticmethod
     async def _check_ai_provider() -> ServiceStatus:
-        """Validate AI API key."""
+        """Report the configured AI provider (the model catalogue is local — see
+        ``src/llm/catalog.py`` — so there is no remote ``/models`` probe)."""
         api_key = getattr(settings, "ai_api_key", None)
         if not isinstance(api_key, str) or not api_key:
             return ServiceStatus("ai_provider", "skipped", "Not configured")
 
-        catalog_source = getattr(settings, "ai_model_catalog_source", "configured")
-        if catalog_source == "configured":
-            return ServiceStatus(
-                "ai_provider",
-                "ok",
-                f"Configured provider={settings.ai_provider}, primary={settings.primary_model}, ocr={settings.ocr_model}",
-            )
-
-        import httpx
-
-        start = time.perf_counter()
-        try:
-            base_url = getattr(settings, "ai_base_url", None)
-            if not isinstance(base_url, str) or not base_url:
-                return ServiceStatus("ai_provider", "error", "Base URL not configured")
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(
-                    f"{base_url.rstrip('/')}/models",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                )
-                if resp.status_code == 200:
-                    status = "ok"
-                    msg = "API Key valid"
-                else:
-                    status = "error"
-                    msg = f"HTTP {resp.status_code}"
-
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("ai_provider", status, msg, duration_ms)
-        except Exception as e:
-            duration_ms = (time.perf_counter() - start) * 1000
-            return ServiceStatus("ai_provider", "error", str(e), duration_ms)
+        return ServiceStatus(
+            "ai_provider",
+            "ok",
+            f"Configured provider={settings.ai_provider}, primary={settings.primary_model}, ocr={settings.ocr_model}",
+        )
 
     _check_openrouter = _check_ai_provider
 
