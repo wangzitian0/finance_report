@@ -4,11 +4,11 @@ Currency amounts are quantized to 2 decimal places using banker's rounding
 (``ROUND_HALF_EVEN``). This is the single source of truth for money rounding;
 see ``docs/ssot/accounting.md#decimal-rule``.
 
-The richer money *value types* (``Money``/``Currency``/``convert``/
-``CurrencyBalances``) live in ``common/money/`` (#1167). Backend call-sites adopt
-them in #1171, at which point ``common`` is packaged and shipped into the backend
-image; until then this module stays self-contained so the runtime has no
-build-context dependency on the repo-root ``common`` toolkit.
+This module is the canonical home for the cross-language standard, tooling and
+tests (it lives in ``common/`` so every end shares one definition). The backend
+keeps its **own** self-contained ``to_money`` in ``apps/backend/src/utils/money.py``
+for its runtime (``common/`` is not shipped into the image); the conformance
+suite proves the two stay identical. Runtime unification waits on adoption (#1171).
 
 Out of scope (deliberately use their own quantization):
 - FX rates and security prices: 6 dp (``services/market_data.py``).

@@ -109,6 +109,46 @@ produces it anymore.)
     -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): FX rates & security prices (6 dp), share quantities (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
     -   **Guardrail**: `apps/backend/tests/accounting/test_money.py`.
 
+<a id="money-type"></a>
+
+- **Rule A3 — Money value types (narrow waist)**: The application-layer money
+  primitives live in **`common/money/`** (the shared waist). They sit *above* the
+  DB double-entry invariant floor (`fr_validate_journal_entry_invariants`,
+  [schema.md](schema.md)) and make bad money states unrepresentable rather than
+  merely tested-against (#1167). Dependency-light (stdlib + `Decimal` only) so
+  backend, e2e, frontend helpers and tooling can share one definition. Backend
+  call-sites adopt these types in #1171 (which packages `common` and ships it
+  into the backend image); until then `apps/backend/src/utils/money.py` keeps its
+  own self-contained `to_money` so the service runtime has no dependency on the
+  repo-root `common` toolkit.
+    -   **`Money(amount, currency)`** — immutable, `Decimal`-backed; construction
+        **rejects `float`/`bool`** (the decimal red line, type-enforced) and stores
+        the *exact* `Decimal` (round explicitly via `Money.quantize()` / the FX
+        boundary, never force-quantized on construction).
+    -   **`Currency`** — a validated ISO-4217 alphabetic code (not a bare `str`);
+        normalises case and rejects unknown codes at construction.
+    -   **Arithmetic** — same-currency `+`/`-`/comparison only; any cross-currency
+        operation raises `CurrencyMismatchError`. No implicit conversion, no
+        implicit `float`.
+    -   **`convert(money, rate, *, to, rounding=ROUND_HALF_EVEN)`** — the **single**
+        FX conversion primitive: Decimal rate, explicit target currency, banker's
+        rounding at the 2-dp boundary; used for base-currency restatement.
+    -   **`CurrencyBalances`** — per-currency opening/closing container with **no
+        scalar accessor**, so a multi-currency statement cannot collapse onto one
+        currency (closes the #1139/#1123 representation gap); round-trips the
+        `StatementSummary.currency_balances` JSONB shape.
+    -   **Cross-language standard**: money behaviour is consistent across **every
+        end** via a language-neutral conformance suite —
+        `common/money/conformance/vectors.json` (rounding/convert/currency cases)
+        plus the interface in `common/money/contract/money.contract.md`. The
+        Python impl and the frontend TS impl (`apps/frontend/src/lib/money/`) both
+        load the **same** vectors and must reproduce every value, so the two ends
+        cannot diverge (e.g. banker's rounding vs `decimal.js` HALF_UP). The suite
+        is **dev/test-time only** — it is never shipped into a runtime image, which
+        is why no app needs `common/` packaged into its container.
+    -   **Guardrail (AC2.19–AC2.21)**: `tests/tooling/test_money_value_type.py`,
+        `tests/tooling/test_money_conformance.py`.
+
 <a id="entry-balance"></a>
 
 - **Anti-pattern B**: **NEVER** allow unbalanced debit/credit entries. See: `apps/backend/tests/accounting/test_accounting_integration.py::test_post_unbalanced_entry_rejected`

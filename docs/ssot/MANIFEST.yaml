@@ -34,6 +34,22 @@ concepts:
       - apps/backend/tests/accounting/test_decimal_safety.py
       - apps/backend/tests/accounting/test_money.py
 
+  money_value_type:
+    owner: docs/ssot/accounting.md#money-type
+    description: Money/Currency/convert/CurrencyBalances value types in common/money/ make bad money states unrepresentable (#1167).
+    family: accounting
+    kind: concept
+    authority: documented_contract
+    cross_refs:
+      - docs/project/EPIC-002.double-entry-core.md
+      - common/money/__init__.py
+      - common/money/contract/money.contract.md
+      - common/money/conformance/vectors.json
+      - apps/backend/src/utils/money.py
+    proofs:
+      - tests/tooling/test_money_value_type.py
+      - tests/tooling/test_money_conformance.py
+
   accounting_equation:
     owner: docs/ssot/accounting.md#accounting-equation
     description: "Assets = Liabilities + Equity + (Income - Expenses) invariant."
