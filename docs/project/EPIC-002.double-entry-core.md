@@ -491,6 +491,26 @@ banker's-rounding-vs-`decimal.js`-HALF_UP divergence).
 |----|-----------|---------------|------|----------|
 | AC2.21.1 | `CurrencyBalances` holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the `StatementSummary.currency_balances` JSONB shape; closes the representation gap behind #1139/#1123 | `test_AC2_21_1_multi_currency_balance_is_not_a_scalar` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
 
+### AC2.22: Materiality adoption ([#1171](https://github.com/wangzitian0/finance_report/issues/1171))
+
+Route the highest-value call-sites through the value types, behaviour-preserving.
+The backend runs its own shippable `src/money` "end" (mirrors `common/money`, kept
+in lockstep by the shared conformance vectors + the #1172 guard), because the
+backend image does not ship `common/`.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `accounting/test_money_backend_module.py` | P1 |
+| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `accounting/test_money_backend_module.py` | P1 |
+
+> **Follow-up (not yet registered):** routing the reconciliation per-currency and
+> reporting net-worth restatement *hot-path arithmetic* through `Money` (the
+> remaining AC2.22 sub-criteria) needs non-ISO-currency-tolerant handling first
+> (crypto / withdrawn codes), because `Money`'s ISO-4217 validation is stricter
+> than today's currency handling — adopting them naively would risk a production
+> regression. Registered when that hardening lands.
+> The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
+
 ### AC2.23: Narrow-waist CI guard ([#1172](https://github.com/wangzitian0/finance_report/issues/1172))
 
 A CI guard keeps the money standard from eroding: the money modules stay
@@ -500,11 +520,6 @@ narrow waist cannot silently decay back into ad-hoc money handling.
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
 | AC2.23.1 | The guard flags a money-shaped `float` violation on an injected sample and reports none on the real money modules; each stack (Python reference, shipped backend, frontend) keeps a conformance suite | `test_AC2_23_1_guard_flags_injected_float_violation` (+ siblings) | `tests/tooling/test_money_narrow_waist_guard.py` | P0 |
-
-> **Deferred to sibling issue (not yet started):** AC2.22 (route materiality
-> call-sites through `Money` — #1171). The L2/L3 *score-baseline* promotion of the
-> money invariants is tracked in its established home #1103 (the assurance
-> backlog). Registered when that work starts, per the EPIC→AC→Test→Code→Doc order.
 
 ---
 
