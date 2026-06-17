@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from src.money.errors import InvalidCurrencyError
 
 # Active ISO-4217 alphabetic codes. Deliberately a static, dependency-light set
-# (no network / no third-party package) so ``common/money`` stays importable
+# (no network / no third-party package) so the backend money module stays importable
 # everywhere. Fund codes and the precious-metals X-codes most relevant to
 # personal finance (XAU/XAG) are included; codes withdrawn from active use are
 # excluded (e.g. HRK — Croatia adopted EUR in 2023). This set is mirrored to the
@@ -191,7 +191,7 @@ class Currency:
     'USD'
     >>> Currency("XYZ")
     Traceback (most recent call last):
-    common.money.errors.InvalidCurrencyError: ...
+    src.money.errors.InvalidCurrencyError: ...
     """
 
     code: str

@@ -6,7 +6,7 @@ collapsed onto one currency. :class:`CurrencyBalances` makes that
 unrepresentable — it holds one :class:`CurrencyBalance` per currency and exposes
 **no** single scalar ``amount``/``currency`` that would stand in for "the
 balance" across currencies. Summing across currencies is intentionally not
-offered (it requires :func:`common.money.convert` and a chosen base currency).
+offered (it requires :func:`src.money.convert` and a chosen base currency).
 
 It round-trips the existing ``StatementSummary.currency_balances`` JSONB shape
 ``[{"currency", "opening", "closing"}]`` so adoption (PR2, #1171) is a typed

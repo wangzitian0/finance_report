@@ -7,12 +7,12 @@ states *unrepresentable*:
 - arithmetic is allowed only **within one currency** — cross-currency ``+``/``-``
   or comparison raises :class:`CurrencyMismatchError` instead of silently
   summing across currencies. Cross-currency math must route through the single
-  :func:`common.money.convert` primitive.
+  :func:`src.money.convert` primitive.
 
 Scope note: ``Money`` stores the *exact* Decimal it is given; it does not
 force-quantize on construction (intermediate calculations may carry sub-cent
 precision). Apply the canonical 2-dp banker's rounding explicitly via
-:meth:`Money.quantize` (and :func:`common.money.convert` quantizes at the FX
+:meth:`Money.quantize` (and :func:`src.money.convert` quantizes at the FX
 boundary).
 """
 

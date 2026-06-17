@@ -447,7 +447,7 @@ disclosure decisions must not be embedded into posting logic.
 ## 🧩 Extension: Money value types — narrow waist ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
 
 > **Status**: 🚧 In Progress (extension; the original EPIC-002 scope above stays ✅ Complete)
-> **Tracking**: #1170 (value types + governance), #1171 (adoption), #1172 (CI guard + L2/L3 promotion)
+> **Tracking**: #1170 (value types + governance), #1171 (adoption), #1172 (narrow-waist CI guard). The L2/L3 score-baseline promotion of the money invariants is tracked in #1103 (descoped from #1172 to avoid destabilizing the behavioral ratchet).
 
 The recent audit cycle showed the arithmetic was never wrong — bugs lived in the
 *representation*: a scalar `(opening, closing, currency)` collapsed multi-currency
@@ -507,10 +507,10 @@ and there is no regression on currencies outside the active ISO set.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `accounting/test_money_backend_module.py` | P1 |
-| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `accounting/test_money_adopt.py` | P0 |
-| AC2.22.3 | Reporting net-worth restatement routes through the `convert` primitive (`restate`/`restate_unrounded`); restated totals are byte-identical to `to_money(amount*rate)` / `amount*rate` | `test_AC2_22_3_restate_is_byte_identical` (+ `restate_unrounded`) | `accounting/test_money_adopt.py` | P0 |
-| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `accounting/test_money_backend_module.py` | P1 |
+| AC2.22.1 | `StatementSummary.typed_currency_balances()` reads the per-currency JSONB as a typed `CurrencyBalances` (no scalar collapse) | `test_AC2_22_1_statement_summary_typed_currency_balances` | `apps/backend/tests/accounting/test_money_backend_module.py` | P1 |
+| AC2.22.2 | Reconciliation per-currency balance check routes through same-currency `Money`; per-currency totals are byte-identical to the legacy arithmetic (incl. `"*"`/non-ISO fallback) | `test_AC2_22_2_per_currency_validation_totals_unchanged` (+ `balance_check`) | `apps/backend/tests/accounting/test_money_adopt.py` | P0 |
+| AC2.22.3 | Reporting net-worth restatement routes through the `convert` primitive (`restate`/`restate_unrounded`); restated totals are byte-identical to `to_money(amount*rate)` / `amount*rate` | `test_AC2_22_3_restate_is_byte_identical` (+ `restate_unrounded`) | `apps/backend/tests/accounting/test_money_adopt.py` | P0 |
+| AC2.22.4 | `TransferLeg.money` exposes a leg's value as a typed `Money` (same-currency-only combination) | `test_AC2_22_4_transfer_leg_exposes_typed_money` | `apps/backend/tests/accounting/test_money_backend_module.py` | P1 |
 
 > The L2/L3 *score-baseline* promotion of the money invariants stays in #1103.
 > The existing reporting net-worth E2E tests (internal-transfer fee / FX ledger)

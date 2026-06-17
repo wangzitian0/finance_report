@@ -31,5 +31,5 @@ class CurrencyMismatchError(MoneyError, ValueError):
     """An operation combined two different currencies without conversion.
 
     Same-currency ``+``/``-``/comparison is allowed; anything cross-currency must
-    route through :func:`common.money.convert`.
+    route through :func:`src.money.convert`.
     """
