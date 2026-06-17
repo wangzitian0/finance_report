@@ -191,7 +191,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 | AC ID | Description | Status |
 |-------|-------------|--------|
-| AC16.8.1 | `fetchAiModels` calls `/api/ai/models` with no params when no options provided | ⏳ |
+| AC16.8.1 | `fetchAiModels` calls `/api/llm/catalog` with no params when no options provided _(EPIC-023: repointed from the retired `/api/ai/models` to the local catalogue)_ | ⏳ |
 | AC16.8.2 | `fetchAiModels` appends `modality` query param when provided | ⏳ |
 | AC16.8.3 | `fetchAiModels` appends `free_only=true` when `freeOnly` is set | ⏳ |
 

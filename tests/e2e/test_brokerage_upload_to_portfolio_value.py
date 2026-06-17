@@ -84,7 +84,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 
 async def _default_image_model(client: httpx.AsyncClient) -> str:
-    response = await client.get(_api_url("/ai/models?modality=image"))
+    response = await client.get(_api_url("/llm/catalog?modality=image"))
     assert response.status_code == 200, f"model catalog request failed: {response.status_code} {response.text}"
     payload = response.json()
     return payload.get("default_model") or payload["models"][0]["id"]

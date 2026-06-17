@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 from sqlalchemy import delete, select
 
 from src.deps import CurrentUserId, DbSession
@@ -60,7 +60,7 @@ async def list_providers(db: DbSession, user_id: CurrentUserId) -> LlmProviderLi
     return LlmProviderListResponse(providers=[LlmProviderResponse.model_validate(r) for r in rows])
 
 
-@router.post("/providers", response_model=LlmProviderResponse, status_code=201)
+@router.post("/providers", response_model=LlmProviderResponse, status_code=status.HTTP_201_CREATED)
 async def create_provider(
     payload: LlmProviderCreate,
     db: DbSession,
