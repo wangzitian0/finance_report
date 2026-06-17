@@ -71,5 +71,6 @@ def test_AC12_9_1_dimensionless_arithmetic_and_compare():
     assert a < b and a <= b and b > a and b >= a
     assert str(Ratio(Decimal("0.5"))) == "50.00%"
     assert Ratio.zero() == Ratio(Decimal("0"))
-    with pytest.raises(FloatNotAllowedError):
+    # A non-Ratio operand is a TypeError (mirrors Money's cross-type guard).
+    with pytest.raises(TypeError):
         _ = a + 0.1  # type: ignore[operator]

@@ -62,5 +62,6 @@ def test_AC12_9_1_backend_value_type_laws():
     assert Ratio.from_percent(Decimal("50")).to_percent() == Decimal("50.00")
     assert str(a) == "10.00%"
     assert Ratio.zero().value == Decimal("0")
-    with pytest.raises(FloatNotAllowedError):
+    # A non-Ratio operand is a TypeError (mirrors Money's cross-type guard).
+    with pytest.raises(TypeError):
         _ = a - 0.1  # type: ignore[operator]

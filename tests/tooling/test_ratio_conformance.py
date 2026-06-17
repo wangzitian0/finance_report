@@ -37,4 +37,5 @@ def test_AC12_9_2_from_percent_round_trip():
         assert Ratio.from_percent(Decimal(case["percent"])).to_percent(2) == Decimal(
             case["expected_percent_2dp"]
         ), case
-    assert str(PERCENT_DP) and PERCENT_ROUNDING == VECTORS["percent_rounding"]
+    assert PERCENT_DP == VECTORS["percent_dp"]
+    assert PERCENT_ROUNDING == VECTORS["percent_rounding"]

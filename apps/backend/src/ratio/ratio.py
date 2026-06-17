@@ -120,5 +120,5 @@ class Ratio:
 
 def _as_ratio(other: object) -> Ratio:
     if not isinstance(other, Ratio):
-        raise FloatNotAllowedError(f"expected a Ratio, got {type(other).__name__}")
+        raise TypeError(f"expected a Ratio, got {type(other).__name__}")
     return other
