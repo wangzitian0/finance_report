@@ -14,8 +14,8 @@ from typing import Any
 from uuid import UUID
 
 from src.config import settings
-from src.llm.client import litellm_stream
-from src.llm.common import LLMError, ProviderRef
+from src.llm.client import litellm_stream, resolve_provider_and_model
+from src.llm.common import LLMConfigError, LLMError, ProviderRef
 from src.llm.env_config import _protocol_for
 from src.llm.factory import get_config_source
 from src.logger import get_logger
@@ -92,7 +92,16 @@ async def _stream_ai_base(
     litellm owns the transport. ``user_id`` scopes provider resolution to that
     user's configured provider (else deployment default, else env).
     """
-    provider = await _resolve_provider(api_key, base_url, user_id)
+    if api_key is None and user_id is not None:
+        # Per-user path: honour a binding's ``provider_id/model`` qualifier so a
+        # user with several providers resolves the exact one (the scene-less
+        # ``_resolve_provider`` fails closed on >1). ``model`` becomes the bare model.
+        try:
+            provider, model = await resolve_provider_and_model(get_config_source(user_id), model)
+        except LLMConfigError as exc:
+            raise AIStreamError(str(exc), retryable=False) from exc
+    else:
+        provider = await _resolve_provider(api_key, base_url, user_id)
 
     extra_body: dict[str, Any] = {}
     if do_sample is not None:

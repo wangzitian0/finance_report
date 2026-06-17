@@ -477,6 +477,7 @@ async def test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_an
         _cache_key: str,
         _preferred_model: str | None,
         _user_id=None,
+        _bound_model=None,
     ):
         captured_messages.extend(messages)
         yield "ok"
@@ -672,7 +673,9 @@ async def test_stream_and_store_records_response(db: AsyncSession, test_user, mo
     messages = [{"role": "user", "content": "Hello"}]
     ai_advisor_service._CACHE._store.clear()
 
-    async def fake_stream_openrouter(_messages: list[dict[str, str]], _preferred: str | None, _user_id=None):
+    async def fake_stream_openrouter(
+        _messages: list[dict[str, str]], _preferred: str | None, _user_id=None, _bound_model=None
+    ):
         yield "A" * 80, "test-model"
 
     monkeypatch.setattr(service, "_stream_openrouter", fake_stream_openrouter)
@@ -737,7 +740,9 @@ async def test_stream_and_store_raises_on_stream_error(
     session = await service._get_or_create_session(db, test_user.id, None, "Hello")
     messages = [{"role": "user", "content": "Hello"}]
 
-    async def fake_stream_openrouter(_messages: list[dict[str, str]], _preferred: str | None, _user_id=None):
+    async def fake_stream_openrouter(
+        _messages: list[dict[str, str]], _preferred: str | None, _user_id=None, _bound_model=None
+    ):
         raise RuntimeError("stream failed")
         yield  # pragma: no cover
 
@@ -962,11 +967,6 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
     service.fallback_models = ["env-fallback"]
     uid = uuid4()
 
-    async def fake_bound(_user_id):
-        return "user-glm-4.6"
-
-    monkeypatch.setattr(ai_advisor_service, "_bound_scene_model", fake_bound)
-
     tried: list[tuple[str, object]] = []
 
     async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None):
@@ -975,11 +975,14 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
-    async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None, uid):
+    # The resolved (qualified) bound model is passed in; it must be tried first and
+    # user_id threaded to the transport. Provider1/... resolution happens in ai_streaming.
+    async for _chunk, _model in service._stream_openrouter(
+        [{"role": "user", "content": "hi"}], None, uid, "provider1/user-glm-4.6"
+    ):
         pass
 
-    # The user's bound model is preferred over the env primary, and user_id reaches the transport.
-    assert tried[0] == ("user-glm-4.6", uid)
+    assert tried[0] == ("provider1/user-glm-4.6", uid)
 
 
 async def test_AC23_4_5_advisor_provider_resolution_is_user_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
