@@ -322,6 +322,8 @@ verify_vault_app_token() {
   local repair_env="${4:-staging}"
   local token=""
   local vault_addr=""
+  local role_id=""
+  local secret_id=""
   local lookup_file
   local error_file
   local http_code
@@ -332,8 +334,20 @@ verify_vault_app_token() {
     case "$line" in
       VAULT_APP_TOKEN=*) token="${line#VAULT_APP_TOKEN=}" ;;
       VAULT_ADDR=*) vault_addr="${line#VAULT_ADDR=}" ;;
+      VAULT_ROLE_ID=*) role_id="${line#VAULT_ROLE_ID=}" ;;
+      VAULT_SECRET_ID=*) secret_id="${line#VAULT_SECRET_ID=}" ;;
     esac
   done <<< "$env_content"
+
+  # AppRole services (VAULT_ROLE_ID/VAULT_SECRET_ID present) authenticate via approle
+  # login, not a static token. The AppRole migration retired VAULT_APP_TOKEN; any leftover
+  # is unused and may linger expired, so gating on its presence would hard-block an
+  # otherwise-healthy AppRole deploy. Skip the token preflight, fail-closed otherwise.
+  # Mirrors the infra2 Python preflight (repo/tools/deploy_primitive.py).
+  if [[ -n "$role_id" && -n "$secret_id" ]]; then
+    echo "$context: AppRole auth detected (VAULT_ROLE_ID/VAULT_SECRET_ID present); VAULT_APP_TOKEN is unused, skipping token preflight" >&2
+    return 0
+  fi
 
   if [[ -z "$token" ]]; then
     echo "ERROR: $context failed: VAULT_APP_TOKEN is missing" >&2
