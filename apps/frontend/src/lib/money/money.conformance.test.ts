@@ -71,11 +71,23 @@ describe("money value-type laws (TS rendering of the contract)", () => {
     expect(() => convert(new Money("1.00", "USD"), 1.2, "EUR")).toThrow(TypeError);
   });
 
-  it("is same-currency only for arithmetic", () => {
+  it("is same-currency only for arithmetic and comparison", () => {
     const usd = new Money("10.00", "USD");
     const sgd = new Money("10.00", "SGD");
     expect(usd.add(new Money("5", "USD")).amount.equals(new Decimal("15"))).toBe(true);
     expect(() => usd.add(sgd)).toThrow();
     expect(usd.equals(sgd)).toBe(false);
+
+    const a = new Money("1", "USD");
+    const b = new Money("2", "USD");
+    expect(a.lessThan(b)).toBe(true);
+    expect(b.greaterThanOrEqual(a)).toBe(true);
+    expect(a.compareTo(b)).toBe(-1);
+    expect(() => a.lessThan(sgd)).toThrow(); // cross-currency compare throws
+  });
+
+  it("rejects non-finite Decimal amounts and rates", () => {
+    expect(() => new Money(new Decimal(Infinity), "USD")).toThrow(TypeError);
+    expect(() => convert(new Money("1.00", "USD"), new Decimal(Infinity), "EUR")).toThrow(TypeError);
   });
 });

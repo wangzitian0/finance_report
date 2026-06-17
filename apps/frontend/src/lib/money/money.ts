@@ -28,15 +28,22 @@ export const DEFAULT_ROUNDING: RoundingName = "ROUND_HALF_EVEN";
 /** Amount input: a Decimal or a decimal STRING. Never a JS number (float). */
 export type AmountInput = Decimal | string;
 
-function coerceAmount(value: AmountInput): Decimal {
-  if (value instanceof Decimal) return value;
-  if (typeof value === "string") {
-    const d = new Decimal(value);
-    if (!d.isFinite()) throw new TypeError("Money amount must be finite");
-    return d;
+function coerceDecimal(value: Decimal | string, what: string): Decimal {
+  let d: Decimal;
+  if (value instanceof Decimal) {
+    d = value;
+  } else if (typeof value === "string") {
+    d = new Decimal(value);
+  } else {
+    // Deliberately reject `number` (and anything else) — JS numbers are IEEE-754 floats.
+    throw new TypeError(`${what} must be a Decimal or decimal string, not a number`);
   }
-  // Deliberately reject `number` — JS numbers are IEEE-754 floats.
-  throw new TypeError("Money amount must be a Decimal or decimal string, not a number");
+  if (!d.isFinite()) throw new TypeError(`${what} must be finite`);
+  return d;
+}
+
+function coerceAmount(value: AmountInput): Decimal {
+  return coerceDecimal(value, "Money amount");
 }
 
 /** An immutable amount in a single currency. */
@@ -81,6 +88,28 @@ export class Money {
     return this.currency.equals(other.currency) && this.amount.equals(other.amount);
   }
 
+  /** Same-currency ordering: -1 | 0 | 1. Cross-currency throws (no implicit FX). */
+  compareTo(other: Money): number {
+    this.requireSameCurrency(other, "compare");
+    return this.amount.comparedTo(other.amount);
+  }
+
+  lessThan(other: Money): boolean {
+    return this.compareTo(other) < 0;
+  }
+
+  lessThanOrEqual(other: Money): boolean {
+    return this.compareTo(other) <= 0;
+  }
+
+  greaterThan(other: Money): boolean {
+    return this.compareTo(other) > 0;
+  }
+
+  greaterThanOrEqual(other: Money): boolean {
+    return this.compareTo(other) >= 0;
+  }
+
   toString(): string {
     return `${this.amount.toString()} ${this.currency.code}`;
   }
@@ -93,9 +122,6 @@ export function convert(
   to: Currency | string,
   rounding: RoundingName = DEFAULT_ROUNDING,
 ): Money {
-  if (typeof rate === "number") {
-    throw new TypeError("FX rate must be a Decimal or decimal string, not a number");
-  }
-  const r = rate instanceof Decimal ? rate : new Decimal(rate);
+  const r = coerceDecimal(rate, "FX rate");
   return new Money(money.amount.times(r), to).quantize(rounding);
 }
