@@ -36,6 +36,10 @@ class CurrencyBalance:
         object.__setattr__(self, "currency", Currency.of(self.currency))
         for field_name in ("opening", "closing"):
             value = getattr(self, field_name)
+            if not isinstance(value, Money):
+                raise MoneyError(
+                    f"{field_name} must be a Money, got {type(value).__name__}"
+                )
             if value.currency != self.currency:
                 raise MoneyError(
                     f"{field_name} currency {value.currency.code} != bucket "
