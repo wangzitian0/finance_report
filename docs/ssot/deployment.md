@@ -300,29 +300,37 @@ symptoms, and flapping recovery proof.
 
 ---
 
-## Vault Token Lifecycle
+## Vault Auth (AppRole)
+
+Finance Report is the AppRole **pilot**: its vault-agent authenticates to Vault
+with `role_id` + `secret_id` (`VAULT_ROLE_ID` / `VAULT_SECRET_ID`), not the old
+periodic `VAULT_APP_TOKEN`. The AppRole secret-id is non-expiring (`secret_id_ttl=0`),
+so there is no 7-day token to renew or repair — the agent re-authenticates itself.
 
 | Property | Value |
 |----------|-------|
-| Token period | 168 hours (7 days), renewable by vault-agent |
-| Secrets file path | `/secrets/.env` |
+| Auth method | AppRole (`VAULT_ROLE_ID` + `VAULT_SECRET_ID`) |
+| Secrets file path | `/secrets/.env` (vault-agent renders to `/vault/secrets`; shared volume mounts into the app as `/secrets`) |
 | Staleness threshold | 1 hour (bootloader warning) |
 
-`VAULT_APP_TOKEN` is owned by infra2. Finance Report deploys only preflight the
-Dokploy token and must not receive `VAULT_ROOT_TOKEN`.
+The AppRole creds are owned by infra2 and injected into the Dokploy compose env.
+Finance Report deploys must not receive `VAULT_ROOT_TOKEN`. `VAULT_ADDR` is a
+non-secret address but **must be present** — a missing `VAULT_ADDR` makes the
+vault-agent hang (the deploy preflight fails closed on it).
 
-**Repair app token** (when expired):
+**(Re)inject app AppRole creds** (e.g. after a rotation, or if a deploy preflight
+reports missing `VAULT_ROLE_ID`/`VAULT_SECRET_ID`):
 
 ```bash
 # From local machine with infra2 repo
 cd /path/to/infra2
 export VAULT_ROOT_TOKEN="$(op read 'op://Infra2/dexluuvzg5paff3cltmtnlnosm/Token')"
-DEPLOY_ENV=staging invoke vault.setup-tokens --project=finance_report --service=app
+DEPLOY_ENV=staging invoke vault.setup-approle --project=finance_report --service=app --deploy
 ```
 
-The infra2 task updates the matching Dokploy compose env, triggers redeploy,
-tracks the new accessor, and revokes the previous accessor after a successful
-Dokploy update. For database sidecars use `--service=postgres` or
+The infra2 task writes the policy + approle role, fetches a fresh role_id/secret_id,
+updates the matching Dokploy compose env, and triggers a redeploy (waiting for the
+runtime deployment record). For database sidecars use `--service=postgres` or
 `--service=redis`.
 
 **Monitoring**: Bootloader `_check_vault_secrets()` runs in FULL mode and reports:
