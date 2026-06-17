@@ -42,3 +42,19 @@
 Conformance to 1–4 (for the deterministic cases) is enforced by the vectors; the
 construction-rejection laws are enforced by each stack's own unit tests against
 this contract.
+
+## Shared API surface (identifier parity)
+
+The vectors lock *behaviour*; `vectors.json["shared_api"]` locks the *identifier
+surface* so the two ends cannot drift in naming/coverage. Every name below MUST
+be exported by **both** `apps/backend/src/money` (`__all__`) and
+`apps/frontend/src/lib/money` (`index.ts`), enforced by
+`tests/tooling/test_money_api_parity.py`:
+
+`Money`, `Currency`, `convert`, `ISO_4217_CODES`, `MONEY_QUANTUM`, `MoneyError`,
+`FloatNotAllowedError`, `InvalidCurrencyError`, `CurrencyMismatchError`.
+
+Intentionally **per-end** (NOT part of the shared surface): backend-only
+`to_money`, `CurrencyBalance(s)`, the `adopt` helpers; frontend-only display
+formatters (`formatCurrencyLocale`, …) and the loose Decimal helpers
+(`sumAmounts`, …) inherited from the former `lib/currency`.

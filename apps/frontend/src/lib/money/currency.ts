@@ -3,14 +3,10 @@
 // reference impl in common/money/currency.py; both ends are kept in lockstep by
 // common/money/conformance/vectors.json.
 
+import { InvalidCurrencyError } from "./errors";
 import { ISO_4217_CODES } from "./iso4217";
 
-export class InvalidCurrencyError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "InvalidCurrencyError";
-  }
-}
+export { InvalidCurrencyError };
 
 /** Normalize (trim + upper-case) and validate an ISO-4217 alphabetic code. */
 export function normalizeCurrency(code: string): string {

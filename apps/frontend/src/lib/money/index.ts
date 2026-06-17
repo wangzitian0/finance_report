@@ -3,12 +3,15 @@
 // Proven consistent with the Python reference impl via the shared conformance
 // vectors (common/money/conformance/vectors.json), see money.conformance.test.ts.
 
-export { Currency, InvalidCurrencyError, normalizeCurrency } from "./currency";
+// Typed error hierarchy — mirrors common/money/errors.py / src.money.errors so
+// the frontend and backend expose the same money error surface (API-parity guard).
+export { MoneyError, FloatNotAllowedError, InvalidCurrencyError, CurrencyMismatchError } from "./errors";
+export { Currency, normalizeCurrency } from "./currency";
 export { ISO_4217_CODES } from "./iso4217";
 export {
   Money,
   convert,
-  CurrencyMismatchError,
+  MONEY_QUANTUM,
   MONEY_DP,
   DEFAULT_ROUNDING,
   type AmountInput,
