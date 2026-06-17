@@ -68,7 +68,14 @@ describe("ratio value-type laws (TS rendering of the contract)", () => {
     const a = new Ratio("0.1");
     const b = new Ratio("0.2");
     expect(a.add(b).value.equals(new Decimal("0.3"))).toBe(true);
+    expect(b.subtract(a).value.equals(new Decimal("0.1"))).toBe(true);
     expect(a.compareTo(b)).toBe(-1);
     expect(a.equals(new Ratio("0.1"))).toBe(true);
+    expect(Ratio.zero().value.equals(new Decimal("0"))).toBe(true);
+  });
+
+  it("renders percent strings (formatPercent / toString)", () => {
+    expect(new Ratio("0.125").formatPercent()).toBe("12.50%");
+    expect(String(new Ratio("0.5"))).toBe("50.00%");
   });
 });
