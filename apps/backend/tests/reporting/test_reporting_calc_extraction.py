@@ -33,10 +33,11 @@ def test_reporting_calc_extraction():
     assert reporting_calc._signed_amount(AccountType.INCOME, Direction.CREDIT, Decimal("5.00")) == Decimal("5.00")
     assert reporting_calc._signed_amount(AccountType.LIABILITY, Direction.DEBIT, Decimal("5.00")) == Decimal("-5.00")
 
-    # Money quantization stays at 2dp Decimal (never float).
+    # Money quantization stays at 2dp Decimal (never float), using the canonical
+    # ROUND_HALF_EVEN rule: 10.005 rounds to the even 10.00.
     quantized = reporting_calc._quantize_money(Decimal("10.005"))
     assert isinstance(quantized, Decimal)
-    assert quantized == Decimal("10.00") or quantized == Decimal("10.01")  # bankers' rounding tolerant
+    assert quantized == Decimal("10.00")
 
     # Income-bucket classification.
     assert reporting_calc.income_bucket("Monthly Salary") == "salary"

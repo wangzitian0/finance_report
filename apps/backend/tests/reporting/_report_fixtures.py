@@ -7,6 +7,8 @@ are identical (name, type, currency, order) to the inlined originals.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import Account, AccountType
@@ -23,7 +25,7 @@ STANDARD_CHART_SPEC: tuple[tuple[str, AccountType], ...] = (
 )
 
 
-async def build_standard_chart_of_accounts(db: AsyncSession, user_id, *, currency: str = "SGD") -> list[Account]:
+async def build_standard_chart_of_accounts(db: AsyncSession, user_id: UUID, *, currency: str = "SGD") -> list[Account]:
     """Create and persist the standard chart of accounts, returning them in spec order."""
     accounts = [
         Account(user_id=user_id, name=name, type=acct_type, currency=currency)
