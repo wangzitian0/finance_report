@@ -263,7 +263,10 @@ def test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline() -> None:
         assert "finance-report-backend" in text
 
     assert "alerting.shared.ensure-log-error-rule" in infra_alerting
-    assert "First live instance via shared rule automation" in infra_alerting
+    # The FR backend error-log alert is now defined-as-code and applied via the shared
+    # pipeline (infra2 #378), superseding the earlier "first live instance via shared rule
+    # automation" wording.
+    assert "fr-observability.shared.apply-alerts" in infra_alerting
 
 
 def test_AC10_4_3_main_instruments_fastapi_app_instance() -> None:
