@@ -1261,10 +1261,13 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     )
     assert "models-${IMAGE_TAG}" not in deploy_script
 
+    # The backend service must carry the deployed version metadata. Other sidecars
+    # (e.g. the vault-agent telemetry tags added in Infra-014 #360) may also stamp
+    # GIT_COMMIT_SHA, so assert the backend service block itself contains it rather
+    # than relying on a fragile global first-occurrence ordering.
     assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}" in app_compose
-    assert app_compose.index("backend:") < app_compose.index(
-        "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}"
-    )
+    backend_block = app_compose[app_compose.index("backend:") :]
+    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}" in backend_block
 
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
