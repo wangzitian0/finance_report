@@ -506,6 +506,46 @@ def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     )
 
 
+def _run_verify_vault_app_token(env_content: str) -> subprocess.CompletedProcess:
+    """Source common.sh and invoke verify_vault_app_token against env_content."""
+    script = (
+        'source "$1"\n'
+        'verify_vault_app_token "$2" "preflight" 172800 "staging"\n'
+    )
+    return subprocess.run(
+        ["bash", "-c", script, "bash", "common/shell/common.sh", env_content],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_AC8_13_11_deploy_preflight_skips_vault_token_for_approle_services() -> None:
+    """AC8.13.11: the Vault token preflight skips (does not hard-fail) when the
+    Dokploy compose authenticates via AppRole (VAULT_ROLE_ID/VAULT_SECRET_ID present)
+    and carries no VAULT_APP_TOKEN. The AppRole migration retired the static token, so
+    gating staging/production deploys on its presence would hard-block every deploy of
+    a migrated service. Mirrors the infra2 Python preflight tools/deploy_primitive.py."""
+    approle_env = (
+        "VAULT_ADDR=https://vault.zitian.party\n"
+        "VAULT_ROLE_ID=role-abc\n"
+        "VAULT_SECRET_ID=secret-xyz"
+    )
+    result = _run_verify_vault_app_token(approle_env)
+    assert result.returncode == 0, (
+        "AppRole compose (no VAULT_APP_TOKEN) must pass the preflight, got "
+        f"exit {result.returncode}: {result.stderr}"
+    )
+    assert "VAULT_APP_TOKEN is missing" not in result.stderr
+    assert "AppRole" in result.stderr
+
+    # A non-AppRole compose with no token still hard-fails (token-based auth path intact).
+    legacy_env = "VAULT_ADDR=https://vault.zitian.party"
+    legacy = _run_verify_vault_app_token(legacy_env)
+    assert legacy.returncode == 1
+    assert "VAULT_APP_TOKEN is missing" in legacy.stderr
+
+
 def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
     """AC8.13.12: AI/OCR gate failures include statement validation context."""
     conftest = read("tests/e2e/conftest.py")
