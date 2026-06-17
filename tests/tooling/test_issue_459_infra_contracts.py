@@ -183,7 +183,17 @@ def test_epic_010_observability_docs_and_templates() -> None:
     assert "otel" in app_readme.lower()
     assert "IAC_CONFIG_HASH" in app_compose
     assert "printf" in app_template
-    assert "default" not in app_template
+    # Genuine secrets must fall back to EMPTY (Vault-sourced), never a baked literal.
+    # Non-secret OTEL telemetry config (Infra-014 #360/#376) legitimately carries
+    # canonical defaults, so assert secret hygiene directly instead of banning the
+    # substring "default" outright (which now false-positives on the telemetry block).
+    for secret_key in ("SECRET_KEY", "S3_SECRET_KEY", "S3_ACCESS_KEY"):
+        secret_line = next(
+            line for line in app_template.splitlines() if line.startswith(f"{secret_key}=")
+        )
+        assert secret_line.endswith('{{ else }}""{{ end }}'), (
+            f"{secret_key} must fall back to empty (Vault-sourced), not a baked default: {secret_line}"
+        )
     assert "optional" in observability.lower()
     assert "redact" in observability.lower() or "sensitive" in observability.lower()
     assert "json" in observability.lower()
