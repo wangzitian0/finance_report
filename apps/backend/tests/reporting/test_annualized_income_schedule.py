@@ -21,7 +21,7 @@ from src.models.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
 )
-from src.services.reporting import income_bucket
+from src.services.reporting_calc import income_bucket
 
 
 def test_AC11_11_1_income_bucket_maps_report_package_income_accounts():

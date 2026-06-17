@@ -36,11 +36,6 @@ from src.services.fx_revaluation import (
 
 
 @pytest.fixture
-async def test_user_id(test_user):
-    return test_user.id
-
-
-@pytest.fixture
 async def usd_asset_account(db: AsyncSession, test_user_id):
     account = Account(
         user_id=test_user_id,

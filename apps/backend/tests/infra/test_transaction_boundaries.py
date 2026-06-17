@@ -26,6 +26,10 @@ ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
     ("statement_parsing.py", "parse_statement_background"),
     ("statement_parsing.py", "parse_statement_background.update_progress"),
     ("statement_parsing_supervisor.py", "reset_stale_parsing_jobs"),
+    # EPIC-025 AC25.2.1 (#1158): the Stage-1 approve/reject workflow owns its
+    # transaction boundary at the service layer so the router stays thin.
+    ("statement_workflow.py", "approve_statement_workflow"),
+    ("statement_workflow.py", "reject_statement_workflow"),
 }
 
 
