@@ -15,7 +15,7 @@ from src.llm.common.errors import (
     LLMError,
     ModelCatalogError,
 )
-from src.llm.common.protocols import CatalogProvider, CostMeter, LLMClient
+from src.llm.common.protocols import CatalogProvider, LLMClient
 from src.llm.common.secrets import FernetCipher, SecretCipher, build_cipher
 from src.llm.common.types import (
     ChatResult,
@@ -42,7 +42,6 @@ __all__ = [
     # service protocols
     "LLMClient",
     "CatalogProvider",
-    "CostMeter",
     # secrets
     "SecretCipher",
     "FernetCipher",

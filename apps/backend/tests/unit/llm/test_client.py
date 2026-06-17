@@ -2,18 +2,15 @@
 
 litellm is mocked so these run offline and deterministically — they pin the
 wiring (delta streaming, drop_params, seed/extra_body passthrough, error
-normalisation, provider resolution, cost-from-usage), not litellm's own
-behaviour.
+normalisation, provider resolution), not litellm's own behaviour.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import pytest
 
 import src.llm.client as client_mod
-from src.llm.client import cost_from_usage, litellm_stream, resolve_provider_and_model
+from src.llm.client import litellm_stream, resolve_provider_and_model
 from src.llm.common import LLMConfigError, LLMError, ProtocolFamily, ProviderRef
 
 
@@ -190,17 +187,3 @@ async def test_AC23_2_2_single_provider_keeps_slashed_openrouter_model():
     provider, model = await resolve_provider_and_model(_FakeConfig([p]), "deepseek/deepseek-chat")
     assert provider is p
     assert model == "deepseek/deepseek-chat"
-
-
-def test_AC23_2_6_cost_from_usage_prices_known_model_and_skips_unpriced(monkeypatch):
-    """AC23.2.6: a priced model yields a positive Decimal; an unpriced one yields None."""
-    monkeypatch.setattr(client_mod.litellm, "cost_per_token", lambda **kwargs: (0.001, 0.002))
-    priced = cost_from_usage("gpt-4o", prompt_tokens=10, completion_tokens=5)
-    assert isinstance(priced, Decimal)
-    assert priced > 0
-
-    def boom(**kwargs):
-        raise RuntimeError("no pricing")
-
-    monkeypatch.setattr(client_mod.litellm, "cost_per_token", boom)
-    assert cost_from_usage("glm-5.1", prompt_tokens=10, completion_tokens=5) is None

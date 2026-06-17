@@ -14,10 +14,11 @@ from typing import Any
 from uuid import UUID
 
 from src.config import settings
-from src.llm.client import cost_from_usage, litellm_stream, resolve_provider_and_model
-from src.llm.common import LLMBudgetExceeded, LLMConfigError, LLMError, ProviderRef, ReasoningEffort
+from src.llm.client import litellm_stream, resolve_provider_and_model
+from src.llm.common import LLMConfigError, LLMError, ProviderRef, ReasoningEffort
 from src.llm.env_config import _protocol_for
-from src.llm.factory import get_budget_meter, get_config_source
+from src.llm.factory import get_config_source, get_usage_meter
+from src.llm.usage import estimate_tokens, estimate_tokens_from_chars
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,6 +35,27 @@ class AIStreamError(Exception):
         """
         super().__init__(message)
         self.retryable = retryable
+
+
+def _estimate_prompt_tokens(messages: list[dict[str, Any]]) -> int:
+    """Estimate prompt tokens from the *text* of the messages only.
+
+    Multimodal messages carry base64 image payloads (a ``content`` list with
+    ``image_url`` parts); counting those as text would be meaningless, so only
+    string content and ``text`` parts are estimated. Image tokens are out of scope
+    for this usage stat."""
+    total = 0
+    for message in messages:
+        content = message.get("content")
+        if isinstance(content, str):
+            total += estimate_tokens(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    text = part.get("text")
+                    if isinstance(text, str):
+                        total += estimate_tokens(text)
+    return total
 
 
 async def _resolve_provider(api_key: str | None, base_url: str | None, user_id: UUID | None = None) -> ProviderRef:
@@ -104,22 +126,13 @@ async def _stream_ai_base(
     else:
         provider = await _resolve_provider(api_key, base_url, user_id)
 
-    # Enforce the daily spend ceiling on the live path (the scene-less transport
-    # never went through LitellmClient's meter). Best-effort: blocks once today's
-    # recorded spend reaches AI_DAILY_LIMIT_USD.
-    meter = get_budget_meter()
-    try:
-        await meter.check_budget()
-    except LLMBudgetExceeded as exc:
-        raise AIStreamError(str(exc), retryable=False) from exc
-
     extra_body: dict[str, Any] = {}
     if do_sample is not None:
         extra_body["do_sample"] = do_sample
     if thinking is not None:
         extra_body["thinking"] = thinking
 
-    usage_sink: dict[str, Any] = {}
+    completion_chars = 0
     try:
         async for content in litellm_stream(
             messages,
@@ -131,8 +144,9 @@ async def _stream_ai_base(
             seed=seed,
             extra_body=extra_body or None,
             timeout=timeout,
-            usage_sink=usage_sink,
         ):
+            # Tally length only — don't buffer the full response just to estimate tokens.
+            completion_chars += len(content)
             yield content
     except LLMError as exc:
         logger.error(
@@ -146,21 +160,17 @@ async def _stream_ai_base(
         )
         raise AIStreamError(str(exc), retryable=exc.retryable) from exc
     else:
-        # Record real spend from the streamed token usage so the daily ceiling
-        # actually accumulates. Cost/telemetry must never break a completed stream.
+        # Count the request + (estimated) token usage. Usage telemetry must never
+        # break a completed stream.
         try:
-            # Price and record under the same (litellm-prefixed) model id so spend
-            # telemetry matches what was billed and provider-prefixed models don't
-            # collapse onto a bare name.
-            priced_model = usage_sink.get("model") or model
-            cost = cost_from_usage(
-                priced_model,
-                usage_sink.get("prompt_tokens", 0),
-                usage_sink.get("completion_tokens", 0),
+            await get_usage_meter().record(
+                model,
+                mode_label,
+                _estimate_prompt_tokens(messages),
+                estimate_tokens_from_chars(completion_chars),
             )
-            await meter.record_cost(priced_model, cost, scene=mode_label)
-        except Exception:  # noqa: BLE001 - spend telemetry is not correctness
-            logger.debug("llm spend recording skipped", exc_info=True)
+        except Exception:  # noqa: BLE001 - usage telemetry is not correctness
+            logger.debug("llm usage recording skipped", exc_info=True)
 
 
 async def stream_ai_json(

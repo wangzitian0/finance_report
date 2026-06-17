@@ -13,7 +13,6 @@ from src.llm.common import (
     CatalogProvider,
     ChatResult,
     ConfigSource,
-    CostMeter,
     FernetCipher,
     LLMClient,
     Message,
@@ -64,14 +63,6 @@ class _FakeCatalog:
         return []
 
 
-class _FakeCostMeter:
-    async def check_budget(self) -> None:
-        return None
-
-    async def record(self, scene, model_id, usage, cost_usd) -> None:  # noqa: ANN001
-        return None
-
-
 class _NotAConfigSource:
     async def list_providers(self) -> list[ProviderRef]:
         return []
@@ -84,7 +75,6 @@ def test_AC23_1_5_conforming_implementations_satisfy_the_protocols():
     assert isinstance(_FakeConfigSource(), ConfigSource)
     assert isinstance(_FakeClient(), LLMClient)
     assert isinstance(_FakeCatalog(), CatalogProvider)
-    assert isinstance(_FakeCostMeter(), CostMeter)
 
 
 def test_AC23_1_5_fernet_cipher_is_a_secret_cipher():

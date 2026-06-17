@@ -8,10 +8,9 @@ Scenes call these; they never see a provider id or model string directly — the
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
-from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
-from src.llm.common.types import ChatResult, Message, Modality, ModelSpec, ReasoningEffort, Scene, Usage
+from src.llm.common.types import ChatResult, Message, Modality, ModelSpec, ReasoningEffort, Scene
 
 
 @runtime_checkable
@@ -65,17 +64,4 @@ class CatalogProvider(Protocol):
         free_only: bool = False,
     ) -> list[ModelSpec]:
         """Available models, optionally filtered by provider/modality/free-tier."""
-        ...
-
-
-@runtime_checkable
-class CostMeter(Protocol):
-    """Spend tracking + budget enforcement (replaces the daily-limit check)."""
-
-    async def check_budget(self) -> None:
-        """Raise :class:`~src.llm.common.errors.LLMBudgetExceeded` if over budget."""
-        ...
-
-    async def record(self, scene: Scene, model_id: str, usage: Usage, cost_usd: Decimal | None) -> None:
-        """Record spend for a completed call."""
         ...
