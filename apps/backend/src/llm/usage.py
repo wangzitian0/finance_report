@@ -18,11 +18,18 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
+def estimate_tokens_from_chars(char_count: int) -> int:
+    """Rough token estimate (~4 chars/token) from a character count. Streaming gives
+    no usage object and Z.AI/GLM rejects ``stream_options``, so token counts are
+    estimated — approximate by design (exact counts/pricing are out of scope). Taking
+    a count (not the text) lets callers tally streamed chunks without buffering them."""
+    return max(1, char_count // 4) if char_count > 0 else 0
+
+
 def estimate_tokens(text: str) -> int:
-    """Rough token estimate (~4 chars/token). Streaming gives no usage object and
-    Z.AI/GLM rejects ``stream_options``, so token counts are estimated from text —
-    approximate by design (exact counts/pricing are out of scope)."""
-    return max(1, len(text) // 4) if text else 0
+    """Rough token estimate (~4 chars/token) for a string. See
+    :func:`estimate_tokens_from_chars`."""
+    return estimate_tokens_from_chars(len(text)) if text else 0
 
 
 class LlmUsageMeter:

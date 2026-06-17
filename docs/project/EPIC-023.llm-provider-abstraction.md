@@ -43,7 +43,7 @@ provider routing, `drop_params` (auto-dropping unsupported fields),
 `reasoning_effort`, and fallback routing for free; this EPIC wraps it in a
 contract the rest of the app can depend on. Usage is observed (request + token
 counts per UTC day) rather than priced — per-token pricing and billing are too
-unreliable across providers to enforce a money ceiling on.
+unreliable across providers to support enforcing a money ceiling.
 
 ## Non-Goals
 

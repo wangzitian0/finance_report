@@ -18,7 +18,7 @@ from src.llm.client import litellm_stream, resolve_provider_and_model
 from src.llm.common import LLMConfigError, LLMError, ProviderRef, ReasoningEffort
 from src.llm.env_config import _protocol_for
 from src.llm.factory import get_config_source, get_usage_meter
-from src.llm.usage import estimate_tokens
+from src.llm.usage import estimate_tokens, estimate_tokens_from_chars
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,7 +52,9 @@ def _estimate_prompt_tokens(messages: list[dict[str, Any]]) -> int:
         elif isinstance(content, list):
             for part in content:
                 if isinstance(part, dict) and part.get("type") == "text":
-                    total += estimate_tokens(str(part.get("text", "")))
+                    text = part.get("text")
+                    if isinstance(text, str):
+                        total += estimate_tokens(text)
     return total
 
 
@@ -130,7 +132,7 @@ async def _stream_ai_base(
     if thinking is not None:
         extra_body["thinking"] = thinking
 
-    completion: list[str] = []
+    completion_chars = 0
     try:
         async for content in litellm_stream(
             messages,
@@ -143,7 +145,8 @@ async def _stream_ai_base(
             extra_body=extra_body or None,
             timeout=timeout,
         ):
-            completion.append(content)
+            # Tally length only — don't buffer the full response just to estimate tokens.
+            completion_chars += len(content)
             yield content
     except LLMError as exc:
         logger.error(
@@ -164,7 +167,7 @@ async def _stream_ai_base(
                 model,
                 mode_label,
                 _estimate_prompt_tokens(messages),
-                estimate_tokens("".join(completion)),
+                estimate_tokens_from_chars(completion_chars),
             )
         except Exception:  # noqa: BLE001 - usage telemetry is not correctness
             logger.debug("llm usage recording skipped", exc_info=True)
