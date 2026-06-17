@@ -105,7 +105,7 @@ produces it anymore.)
     -   **Guardrail**: `apps/backend/tests/accounting/test_decimal_safety.py` fuzzes models with float inputs to ensure strictness.
 
 - **Rule A2 — Canonical money rounding**: Currency amounts are quantized to **2 decimal places using banker's rounding (`ROUND_HALF_EVEN`)**. This is the single project-wide rounding mode for money.
-    -   **Enforcement**: round money through the one helper `apps/backend/src/utils/money.py::to_money()` (exposed as `src.utils.to_money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
+    -   **Enforcement**: round money through the one helper `src.money.to_money()` (the backend money module; mirrored from `common/money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
     -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): FX rates & security prices (6 dp), share quantities (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
     -   **Guardrail**: `apps/backend/tests/accounting/test_money.py`.
 
@@ -116,11 +116,12 @@ produces it anymore.)
   DB double-entry invariant floor (`fr_validate_journal_entry_invariants`,
   [schema.md](schema.md)) and make bad money states unrepresentable rather than
   merely tested-against (#1167). Dependency-light (stdlib + `Decimal` only) so
-  backend, e2e, frontend helpers and tooling can share one definition. Backend
-  call-sites adopt these types in #1171 (which packages `common` and ships it
-  into the backend image); until then `apps/backend/src/utils/money.py` keeps its
-  own self-contained `to_money` so the service runtime has no dependency on the
-  repo-root `common` toolkit.
+  backend, e2e, frontend helpers and tooling can share one definition. The
+  backend ships its own self-contained copy at **`apps/backend/src/money/`** (the
+  backend's "end"; `common/` is not shipped into the image), kept in lockstep
+  with the reference impl by the shared conformance vectors (#1171). Backend
+  call-sites import `src.money` directly (the former `src/utils/money.py`
+  re-export shim was retired).
     -   **`Money(amount, currency)`** — immutable, `Decimal`-backed; construction
         **rejects `float`/`bool`** (the decimal red line, type-enforced) and stores
         the *exact* `Decimal` (round explicitly via `Money.quantize()` / the FX

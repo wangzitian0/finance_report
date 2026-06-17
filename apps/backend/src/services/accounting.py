@@ -312,8 +312,8 @@ async def post_opening_balance_entry(
     """
     # Imported lazily so importing this module stays free of the FastAPI/util
     # dependency graph (tooling tests import accounting without those installed).
+    from src.money import to_money
     from src.services.account_service import get_or_create_opening_balance_equity_account
-    from src.utils.money import to_money
 
     if not balances:
         raise ValidationError("At least one opening balance is required")

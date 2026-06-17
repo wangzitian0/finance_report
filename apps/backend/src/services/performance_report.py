@@ -20,6 +20,7 @@ from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.market_data import StockPrice
 from src.models.portfolio import MarketDataOverride, PriceSource
+from src.money import to_money
 from src.schemas.portfolio import (
     HoldingResponse,
     InvestmentPerformanceAllocationRow,
@@ -31,7 +32,6 @@ from src.services import allocation, performance
 from src.services.fx import convert_amount
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, portfolio_service
-from src.utils.money import to_money
 
 
 def _money(value: Decimal) -> Decimal:

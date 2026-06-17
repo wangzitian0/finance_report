@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.utils.money import MONEY_QUANTUM, to_money
+from src.money import MONEY_QUANTUM, to_money
 
 pytestmark = pytest.mark.no_db
 

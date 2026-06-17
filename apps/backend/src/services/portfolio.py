@@ -21,6 +21,7 @@ from src.models.portfolio import (
     MarketDataOverride,
     PriceSource,
 )
+from src.money import to_money
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,
@@ -31,7 +32,6 @@ from src.schemas.portfolio import (
 )
 from src.schemas.provenance import DataProvenance
 from src.services import fx
-from src.utils.money import to_money
 
 logger = get_logger(__name__)
 

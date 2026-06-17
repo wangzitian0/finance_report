@@ -15,6 +15,7 @@ from src.models.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
 )
+from src.money import to_money
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -34,7 +35,6 @@ from src.services.fx import FxRateError
 from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.performance_report import build_investment_performance_report_schedule
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, portfolio_service
-from src.utils.money import to_money
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 logger = get_logger(__name__)

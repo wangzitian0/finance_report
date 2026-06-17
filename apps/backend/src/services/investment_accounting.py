@@ -18,8 +18,8 @@ from src.models.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
 )
+from src.money import to_money
 from src.services.accounting import create_journal_entry, post_journal_entry
-from src.utils.money import to_money
 
 QUANTITY = Decimal("0.000001")
 

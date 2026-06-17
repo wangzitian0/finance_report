@@ -9,12 +9,12 @@ from sqlalchemy import select
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.models import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.money import to_money
 from src.schemas.base import normalize_currency_code
 from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse
 from src.services.fx import FxRateError, convert_amount
 from src.services.reporting_calc import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.utils import raise_bad_request
-from src.utils.money import to_money
 
 router = APIRouter(prefix="/income", tags=["income"])
 

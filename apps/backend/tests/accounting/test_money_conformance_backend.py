@@ -3,7 +3,7 @@
 The cross-language standard lives in ``common/money/conformance/vectors.json`` and
 the Python reference impl (``common/money``) is proven against it in the tooling
 lane. This test proves the **actually-shipped backend rounding path**
-(``src.utils.money.to_money`` — imported by ~16 routers/services) also conforms to
+(``src.money.to_money`` — imported across routers/services) also conforms to
 the standard's HALF_EVEN rounding, so the deployed service cannot drift from the
 frontend even though it keeps its own self-contained implementation.
 """
@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.utils.money import MONEY_QUANTUM, to_money
+from src.money import MONEY_QUANTUM, to_money
 
 pytestmark = pytest.mark.no_db
 

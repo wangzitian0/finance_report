@@ -29,6 +29,7 @@ from src.models import (
     ChatSession,
     ChatSessionStatus,
 )
+from src.money import to_money
 from src.prompts.ai_advisor import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 from src.services.ai_streaming import stream_ai_chat
@@ -43,7 +44,6 @@ from src.services.reporting import (
     get_category_breakdown,
 )
 from src.services.workflow_events import get_workflow_status
-from src.utils.money import to_money
 
 logger = get_logger(__name__)
 
