@@ -45,7 +45,8 @@ concepts:
       - common/money/__init__.py
       - common/money/contract/money.contract.md
       - common/money/conformance/vectors.json
-      - apps/backend/src/utils/money.py
+      - apps/backend/src/money/__init__.py
+      - apps/frontend/src/lib/money/index.ts
     proofs:
       - tests/tooling/test_money_value_type.py
       - tests/tooling/test_money_conformance.py

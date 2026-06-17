@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.utils.money import MONEY_QUANTUM, to_money
+from src.money import MONEY_QUANTUM, to_money
 
 pytestmark = pytest.mark.no_db
 

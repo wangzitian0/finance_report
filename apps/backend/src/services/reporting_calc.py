@@ -26,10 +26,10 @@ from src.models import (
     JournalEntrySourceType,
     JournalLine,
 )
+from src.money import to_money
 from src.schemas.base import normalize_currency_code
 from src.schemas.provenance import DataProvenance
 from src.services.source_type_priority import normalize_source_type
-from src.utils.money import to_money
 
 _IMPORTED_SOURCE_TYPES = {
     JournalEntrySourceType.AUTO_PARSED,

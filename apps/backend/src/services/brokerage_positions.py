@@ -15,8 +15,8 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.layer2 import AssetType, AtomicPosition
+from src.money import to_money
 from src.services.assets import AssetService
-from src.utils.money import to_money
 
 
 @dataclass(frozen=True)

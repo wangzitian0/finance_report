@@ -33,6 +33,7 @@ from src.models import (
     StockPrice,
 )
 from src.models.layer2 import AssetType
+from src.money import to_money
 from src.schemas.reporting import (
     FrameworkPolicyResult,
     PersonalReportingFrameworkId,
@@ -42,7 +43,6 @@ from src.schemas.reporting import (
 )
 from src.services.framework_policy import derive_user_framework_policy_result
 from src.services.fx import FxRateError, convert_amount
-from src.utils.money import to_money
 
 PACKAGE_ID = "personal-financial-report-package"
 MARKET_DATA_STALE_AFTER_DAYS = 90

@@ -11,6 +11,7 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import AccountType, JournalLine
+from src.money import to_money
 from src.schemas import (
     AccountCoverageListResponse,
     AccountCreate,
@@ -42,7 +43,6 @@ from src.services.processing_account import (
     list_processing_transfer_legs,
 )
 from src.utils import raise_bad_request, raise_not_found
-from src.utils.money import to_money
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 logger = get_logger(__name__)

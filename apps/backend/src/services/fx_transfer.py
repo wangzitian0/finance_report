@@ -34,9 +34,8 @@ from uuid import UUID
 
 from src.models.fx_conversion import FxConversion
 from src.models.journal import JournalEntrySourceType
-from src.money import Money
+from src.money import Money, to_money
 from src.schemas.base import normalize_currency_code
-from src.utils.money import to_money
 
 # Default implied-rate tolerance: the implied rate (amount_from / amount_to) may
 # differ from the observed market rate by up to this fraction and still pair.
