@@ -183,8 +183,8 @@ or HK-like report classification, measurement, presentation, or disclosure.
 | AC3.5.19 | Retry parsing with stronger model succeeds. | `test_retry_statement_success` | `api/test_statements_router.py` | P1 |
 | AC3.5.20 | Retry extraction failure returns 422. | `test_retry_statement_extraction_failure` | `api/test_statements_router.py` | P1 |
 | AC3.5.21 | Upload rejects models not in the OpenRouter catalog. | `test_upload_statement_rejects_invalid_model` | `api/test_statements_router.py` | P1 |
-| AC3.5.22 | Upload returns 503 if model catalog fetch fails. | `test_upload_statement_catalog_unavailable` | `api/test_statements_router.py` | P1 |
-| AC3.5.23 | Retry returns 503 if model catalog fetch fails. | `test_retry_statement_catalog_unavailable` | `api/test_statements_router.py` | P1 |
+| AC3.5.22 | Upload rejects a model lacking image/PDF modality (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_ | `test_upload_statement_rejects_model_without_image_modality` | `api/test_statements_router.py` | P1 |
+| AC3.5.23 | Retry rejects a model not in the catalogue (400). _(EPIC-023: model validation now resolves through the local `LitellmCatalog`; the prior remote-catalog 503 path no longer exists.)_ | `test_retry_statement_rejects_invalid_model` | `api/test_statements_router.py` | P1 |
 | AC3.5.24 | Background parse error should be caught and logged. | `test_background_parse_error_logging` | `api/test_statements_router.py` | P1 |
 | AC3.5.25 | Background retry error should be caught and logged. | `test_background_retry_error_logging` | `api/test_statements_router.py` | P1 |
 

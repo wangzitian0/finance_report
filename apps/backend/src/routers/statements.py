@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.constants.error_ids import ErrorIds
 from src.deps import CurrentUserId, DbSession
+from src.llm.catalog import LitellmCatalog
+from src.llm.common import Modality
 from src.logger import get_logger
 from src.models import (
     Account,
@@ -44,7 +46,6 @@ from src.schemas.review import (
     StatementReviewResponse,
 )
 from src.services import StorageError, StorageService
-from src.services.ai_models import ModelCatalogError, get_model_info, model_matches_modality
 from src.services.brokerage_positions import BrokeragePositionImportService
 from src.services.brokerage_statement_payload import (
     _brokerage_import_not_ready_reason,
@@ -309,13 +310,10 @@ async def upload_statement(
 
     if extension != "csv":
         if model:
-            try:
-                model_info = await get_model_info(model)
-            except ModelCatalogError as exc:
-                raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
-            if not model_info:
-                raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
-            if not model_matches_modality(model_info, "image"):
+            spec = await LitellmCatalog().get(model)
+            if spec is None:
+                raise_bad_request("Invalid model selection. Choose a model from /llm/catalog.")
+            if not spec.accepts(Modality.IMAGE):
                 raise_bad_request("Selected model does not support image/PDF inputs.")
 
     statement_id = uuid4()
@@ -470,13 +468,10 @@ async def retry_statement_parsing(
     selected_model = model_override
 
     if model_override:
-        try:
-            model_info = await get_model_info(model_override)
-        except ModelCatalogError as exc:
-            raise_service_unavailable("Model catalog unavailable. Please try again.", cause=exc)
-        if not model_info:
-            raise_bad_request("Invalid model selection. Choose a model from /ai/models.")
-        if not model_matches_modality(model_info, "image"):
+        spec = await LitellmCatalog().get(model_override)
+        if spec is None:
+            raise_bad_request("Invalid model selection. Choose a model from /llm/catalog.")
+        if not spec.accepts(Modality.IMAGE):
             raise_bad_request("Selected model does not support image/PDF inputs.")
 
     # Reset status to PARSING before starting background task

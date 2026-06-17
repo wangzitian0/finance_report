@@ -496,8 +496,11 @@ async def test_chat_with_allowed_model():
 
     with (
         patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
     ):
+        mock_get = AsyncMock()
+        MockCatalog.return_value.get = mock_get
+
         mock_stream_obj = MagicMock()
         mock_stream_obj.session_id = uuid4()
         mock_stream_obj.stream = mock_stream()
@@ -517,7 +520,8 @@ async def test_chat_with_allowed_model():
         response = await chat_message(payload, mock_db, mock_user_id)
 
         assert response.headers.get("X-Model-Name") == "allowed_model"
-        mock_is_model_known.assert_not_called()
+        # An allowed model never hits the catalogue.
+        mock_get.assert_not_called()
         mock_service.chat_stream.assert_called_once()
 
 
@@ -534,9 +538,10 @@ async def test_chat_with_known_external_model():
 
     with (
         patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
     ):
-        mock_is_model_known.return_value = True
+        mock_get = AsyncMock(return_value=object())  # known model -> a catalogue entry
+        MockCatalog.return_value.get = mock_get
 
         mock_stream_obj = MagicMock()
         mock_stream_obj.session_id = uuid4()
@@ -557,7 +562,7 @@ async def test_chat_with_known_external_model():
         response = await chat_message(payload, mock_db, mock_user_id)
 
         assert response.headers.get("X-Model-Name") == "external_model"
-        mock_is_model_known.assert_called_once_with("external_model")
+        mock_get.assert_called_once_with("external_model")
         mock_service.chat_stream.assert_called_once()
 
 
@@ -572,9 +577,10 @@ async def test_chat_with_unknown_external_model():
 
     with (
         patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
     ):
-        mock_is_model_known.return_value = False
+        mock_get = AsyncMock(return_value=None)  # unknown model -> no catalogue entry
+        MockCatalog.return_value.get = mock_get
 
         mock_service = MagicMock()
         mock_service.primary_model = "allowed_model"
@@ -591,7 +597,7 @@ async def test_chat_with_unknown_external_model():
 
         assert exc_info.value.status_code == 400
         assert "Invalid model selection" in exc_info.value.detail
-        mock_is_model_known.assert_called_once_with("unknown_model")
+        mock_get.assert_called_once_with("unknown_model")
 
 
 async def test_chat_with_model_validation_error():
@@ -605,9 +611,10 @@ async def test_chat_with_model_validation_error():
 
     with (
         patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.is_model_known", new_callable=AsyncMock) as mock_is_model_known,
+        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
     ):
-        mock_is_model_known.side_effect = Exception("Some error")
+        mock_get = AsyncMock(side_effect=Exception("Some error"))
+        MockCatalog.return_value.get = mock_get
 
         mock_service = MagicMock()
         mock_service.primary_model = "allowed_model"
@@ -624,7 +631,7 @@ async def test_chat_with_model_validation_error():
 
         assert exc_info.value.status_code == 503
         assert "Unable to validate requested model" in exc_info.value.detail
-        mock_is_model_known.assert_called_once_with("unknown_model")
+        mock_get.assert_called_once_with("unknown_model")
 
 
 async def test_chat_history_returns_empty_sessions_for_no_rows() -> None:

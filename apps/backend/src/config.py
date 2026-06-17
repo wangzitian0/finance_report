@@ -314,12 +314,6 @@ class Settings(BaseSettings):
         description="Layout-parsing path appended to the AI base URL.",
         json_schema_extra={"group": "AI Provider"},
     )
-    ai_model_catalog_source: str = Field(
-        default="configured",
-        validation_alias="AI_MODEL_CATALOG_SOURCE",
-        description="Source of the AI model catalog.",
-        json_schema_extra={"group": "AI Provider"},
-    )
     primary_model: str = Field(
         default="glm-5.1",
         validation_alias="PRIMARY_MODEL",

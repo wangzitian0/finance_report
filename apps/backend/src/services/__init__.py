@@ -14,7 +14,6 @@ _SUBMODULES = {
     "account_service",
     "accounting",
     "ai_advisor",
-    "ai_models",
     "ai_streaming",
     "allocation",
     "anomaly",

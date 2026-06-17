@@ -32,7 +32,6 @@ from src.rate_limit import api_rate_limiter
 from src.routers import (
     accounts,
     ai_feedback,
-    ai_models,
     assets,
     audit,
     auth,
@@ -41,6 +40,7 @@ from src.routers import (
     evidence,
     income,
     journal,
+    llm,
     market_data,
     metrics,
     portfolio,
@@ -325,7 +325,6 @@ _router_kwargs = {"responses": COMMON_ERROR_RESPONSES}
 app.include_router(auth.router, **_router_kwargs)
 app.include_router(accounts.router, **_router_kwargs)
 app.include_router(ai_feedback.router, **_router_kwargs)
-app.include_router(ai_models.router, **_router_kwargs)
 app.include_router(audit.router, **_router_kwargs)
 app.include_router(assets.router, **_router_kwargs)
 app.include_router(chat.router, **_router_kwargs)
@@ -342,6 +341,7 @@ app.include_router(review.conflicts_router, **_router_kwargs)
 app.include_router(reconciliation_router, **_router_kwargs)
 app.include_router(users.router, **_router_kwargs)
 app.include_router(user_settings.router, **_router_kwargs)
+app.include_router(llm.router, **_router_kwargs)
 app.include_router(portfolio.router, **_router_kwargs)
 app.include_router(workflow.router, **_router_kwargs)
 

@@ -91,3 +91,11 @@ class LitellmCatalog:
         if free_only:
             specs = [s for s in specs if s.is_free]
         return specs
+
+    async def get(self, model_id: str) -> ModelSpec | None:
+        """The catalogue entry for ``model_id`` (bare or ``provider/model``), or None."""
+        bare = model_id.split("/")[-1]
+        for spec in _configured_specs():
+            if spec.id == model_id or spec.id == bare:
+                return spec
+        return None

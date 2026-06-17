@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from src.deps import CurrentUserId, DbSession
+from src.llm.catalog import LitellmCatalog
 from src.logger import get_logger
 from src.models import ChatMessage, ChatSession, ChatSessionStatus
 from src.schemas.chat import (
@@ -25,7 +26,6 @@ from src.schemas.chat import (
 )
 from src.schemas.streaming import ChatStreamEnvelope
 from src.services.ai_advisor import AIAdvisorError, AIAdvisorService, detect_language
-from src.services.ai_models import is_model_known
 from src.utils import raise_bad_request, raise_not_found, raise_service_unavailable
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -46,7 +46,7 @@ async def chat_message(
         allowed = payload.model in allowed_models
         if not allowed:
             try:
-                allowed = await is_model_known(payload.model)
+                allowed = await LitellmCatalog().get(payload.model) is not None
             except Exception as e:
                 logger.error("Failed to validate model", model=payload.model, error=str(e))
                 raise_service_unavailable("Unable to validate requested model at this time.", cause=e)

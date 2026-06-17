@@ -9,6 +9,8 @@ lets the DB-backed config land without breaking existing env-only deploys.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from src.llm.client import LitellmClient
 from src.llm.common import ConfigSource, ProviderRef, Scene, SceneBinding
 from src.llm.cost import DailyBudgetMeter
@@ -46,11 +48,18 @@ class LayeredConfigSource:
         return await self._primary.is_configured() or await self._fallback.is_configured()
 
 
-def get_config_source() -> ConfigSource:
-    """The deployment's config source: DB providers/bindings over env fallback."""
-    return LayeredConfigSource(DbConfigSource(), EnvConfigSource())
+def get_config_source(user_id: UUID | None = None) -> ConfigSource:
+    """The config source for a user: their DB providers/bindings, falling back to
+    the deployment default, then the env config.
+
+    ``user_id is None`` resolves the deployment default only (used by background /
+    user-less paths). The DB layer is all-or-nothing per scope (see
+    :class:`~src.llm.db_config.DbConfigSource`); the env fallback is all-or-nothing
+    against the DB (see :class:`LayeredConfigSource`).
+    """
+    return LayeredConfigSource(DbConfigSource(user_id=user_id), EnvConfigSource())
 
 
-def get_llm_client() -> LitellmClient:
-    """The shared scene-keyed client, with the daily budget guard wired in."""
-    return LitellmClient(get_config_source(), cost_meter=DailyBudgetMeter())
+def get_llm_client(user_id: UUID | None = None) -> LitellmClient:
+    """The scene-keyed client for a user, with the daily budget guard wired in."""
+    return LitellmClient(get_config_source(user_id), cost_meter=DailyBudgetMeter())

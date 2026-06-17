@@ -28,7 +28,6 @@ def mock_settings():
         mock.base_currency = "USD"
         mock.ai_provider = "zai"
         mock.ai_base_url = ZAI_CODING_BASE_URL
-        mock.ai_model_catalog_source = "remote"
         mock.primary_model = "test-model"
         mock.ocr_model = "glm-4.6v"
         mock.vision_model = "glm-4.6v"
@@ -416,66 +415,16 @@ class TestBootloaderOpenrouter:
         assert status.service == "ai_provider"
 
     async def test_check_openrouter_success(self, mock_settings):
+        # The model catalogue is local (src/llm/catalog.py): a configured api_key
+        # reports ok with the configured provider, no remote /models probe.
         mock_settings.ai_api_key = "test-key"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
-
-        with patch("httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_client.get = AsyncMock(return_value=mock_response)
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            status = await Bootloader._check_openrouter()
-
-            assert status.status == "ok"
-            assert status.service == "ai_provider"
-
-    async def test_check_openrouter_configured_catalog_skips_network_probe(self, mock_settings):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_model_catalog_source = "configured"
 
         status = await Bootloader._check_openrouter()
 
         assert status.status == "ok"
+        assert status.service == "ai_provider"
         assert "Configured provider=" in status.message
-
-    async def test_check_openrouter_remote_catalog_requires_base_url(self, mock_settings):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_base_url = None
-
-        status = await Bootloader._check_openrouter()
-
-        assert status.status == "error"
-        assert status.message == "Base URL not configured"
-
-    async def test_check_openrouter_auth_failure(self, mock_settings):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
-
-        with patch("httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response = MagicMock()
-            mock_response.status_code = 401
-            mock_client.get = AsyncMock(return_value=mock_response)
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            status = await Bootloader._check_openrouter()
-
-            assert status.status == "error"
-            assert "401" in status.message
-
-    async def test_check_openrouter_exception(self, mock_settings):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.ai_base_url = ZAI_CODING_BASE_URL
-
-        with patch("httpx.AsyncClient") as mock_client_class:
-            mock_client_class.return_value.__aenter__.side_effect = Exception("Network error")
-
-            status = await Bootloader._check_openrouter()
-
-            assert status.status == "error"
-            assert "Network error" in status.message
 
 
 class TestBootloaderFullMode:

@@ -54,37 +54,6 @@ def test_fx_rate_repr():
     assert "1.35" in repr_str
 
 
-def test_openrouter_model_normalize_entry():
-    """AC6.11.1: OpenRouter model normalize entry extracts modalities."""
-    from src.services.ai_models import normalize_model_entry
-
-    entry = {
-        "id": "test/model",
-        "name": "Test Model",
-        "pricing": {"prompt": "0", "completion": "0.001"},
-        "architecture": {"input_modalities": ["text", "image"]},
-    }
-
-    normalized = normalize_model_entry(entry)
-    assert normalized["id"] == "test/model"
-    assert normalized["is_free"] is False
-    assert "text" in normalized["input_modalities"]
-    assert "image" in normalized["input_modalities"]
-
-
-def test_openrouter_model_matches_modality():
-    """AC6.11.1: OpenRouter model matches modality filtering."""
-    from src.services.ai_models import model_matches_modality
-
-    text_model = {"input_modalities": ["text"]}
-    vision_model = {"input_modalities": ["text", "image"]}
-
-    assert model_matches_modality(text_model, "text") is True
-    assert model_matches_modality(text_model, "image") is False
-    assert model_matches_modality(vision_model, "image") is True
-    assert model_matches_modality(vision_model, None) is True
-
-
 def test_validation_route_by_threshold():
     from src.models.statement_enums import BankStatementStatus
     from src.services.validation import route_by_threshold
@@ -94,44 +63,6 @@ def test_validation_route_by_threshold():
     # #1141: balance-invalid bank statements route to PARSED (review), not UPLOADED.
     assert route_by_threshold(50, False) == BankStatementStatus.PARSED
     assert route_by_threshold(50, True) == BankStatementStatus.UPLOADED
-
-
-def test_to_decimal():
-    """AC6.11.1: Decimal conversion utility handles valid and invalid inputs."""
-    from decimal import Decimal
-
-    from src.services.ai_models import _to_decimal
-
-    assert _to_decimal("1.5") == Decimal("1.5")
-    assert _to_decimal("0") == Decimal("0")
-    assert _to_decimal("invalid") is None
-    assert _to_decimal(None) is None
-
-
-def test_openrouter_normalize_model_is_free():
-    """AC6.11.1: Free model identification via pricing fields."""
-    from src.services.ai_models import normalize_model_entry
-
-    free_model = {"id": "free/model", "name": "Free", "pricing": {"prompt": "0", "completion": "0"}}
-
-    paid_model = {
-        "id": "paid/model",
-        "name": "Paid",
-        "pricing": {"prompt": "0.001", "completion": "0"},
-    }
-
-    assert normalize_model_entry(free_model)["is_free"] is True
-    assert normalize_model_entry(paid_model)["is_free"] is False
-
-
-def test_openrouter_normalize_model_without_id():
-    """AC6.11.1: Model normalization handles missing ID."""
-    from src.services.ai_models import normalize_model_entry
-
-    model_no_id = {"name": "No ID Model", "pricing": {"prompt": "0", "completion": "0"}}
-
-    normalized = normalize_model_entry(model_no_id)
-    assert "id" not in normalized or normalized.get("id") is None
 
 
 def test_validation_confidence_with_invalid_amount():

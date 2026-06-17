@@ -27,6 +27,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from src.llm.common import Modality, ModelSpec
 from src.models import Account, AccountType, User
 from src.models.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.models.evidence import EvidenceEdge, EvidenceNode
@@ -100,10 +101,14 @@ def storage_stub(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def model_catalog_stub(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_get_model_info(model_id: str):
-        return {"id": model_id, "input_modalities": ["image"]}
+    async def fake_catalog_get(self, model_id):
+        return ModelSpec(
+            id=model_id,
+            provider_id="env",
+            modalities=frozenset({Modality.TEXT, Modality.IMAGE}),
+        )
 
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -565,10 +570,10 @@ async def test_AC10_8_3_statement_scoped_brokerage_import_audit_logs(db, test_us
 async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
     """AC3.5.8: Upload rejects models without image modalities."""
 
-    async def fake_get_model_info(model_id: str):
-        return {"id": model_id, "input_modalities": ["text"]}
+    async def fake_catalog_get(self, model_id):
+        return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     upload_file = make_upload_file("statement.pdf", b"content")
 
@@ -904,10 +909,10 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
     db.add(statement)
     await db.commit()
 
-    async def fake_get_model_info(model_id: str):
-        return {"id": model_id, "input_modalities": ["text"]}
+    async def fake_catalog_get(self, model_id):
+        return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
@@ -1257,10 +1262,10 @@ async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stu
     content = b"some content"
     upload_file = make_upload_file("statement.pdf", content)
 
-    async def fake_get_model_info(model_id: str):
+    async def fake_catalog_get(self, model_id):
         return None
 
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.upload_statement(
@@ -1276,17 +1281,15 @@ async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stu
     assert "Invalid model selection" in exc.value.detail
 
 
-async def test_upload_statement_catalog_unavailable(db, test_user, storage_stub, monkeypatch):
-    """AC3.5.22: Upload returns 503 if model catalog fetch fails."""
+async def test_upload_statement_rejects_model_without_image_modality(db, test_user, storage_stub, monkeypatch):
+    """AC3.5.22: Upload rejects a model lacking image/PDF modality (400)."""
     content = b"some content"
     upload_file = make_upload_file("statement.pdf", content)
 
-    async def fake_get_model_info_fail(model_id: str):
-        from src.services.ai_models import ModelCatalogError
+    async def fake_catalog_get(self, model_id):
+        return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
-        raise ModelCatalogError("Catalog down")
-
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info_fail)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.upload_statement(
@@ -1298,23 +1301,21 @@ async def test_upload_statement_catalog_unavailable(db, test_user, storage_stub,
         )
     await upload_file.close()
 
-    assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert "Model catalog unavailable" in exc.value.detail
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "does not support image" in exc.value.detail
 
 
-async def test_retry_statement_catalog_unavailable(db, test_user, monkeypatch, storage_stub):
-    """AC3.5.23: Retry returns 503 if model catalog fetch fails."""
+async def test_retry_statement_rejects_invalid_model(db, test_user, monkeypatch, storage_stub):
+    """AC3.5.23: Retry rejects a model not in the catalogue (400)."""
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
     db.add(statement)
     await db.commit()
 
-    async def fake_get_model_info_fail(model_id: str):
-        from src.services.ai_models import ModelCatalogError
+    async def fake_catalog_get(self, model_id):
+        return None
 
-        raise ModelCatalogError("Catalog down")
-
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info_fail)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     from src.schemas import RetryParsingRequest
 
@@ -1326,8 +1327,8 @@ async def test_retry_statement_catalog_unavailable(db, test_user, monkeypatch, s
             user_id=test_user.id,
         )
 
-    assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert "Model catalog unavailable" in exc.value.detail
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Invalid model selection" in exc.value.detail
 
 
 async def test_background_parse_error_logging(db, monkeypatch, test_user, storage_stub):
@@ -1343,11 +1344,15 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
         fake_parse_document_fail,
     )
 
-    # Use model_catalog_stub to pass validation
-    async def fake_get_model_info(model_id: str):
-        return {"id": model_id, "input_modalities": ["image"]}
+    # Patch the catalogue to return an image-capable model and pass validation.
+    async def fake_catalog_get(self, model_id):
+        return ModelSpec(
+            id=model_id,
+            provider_id="env",
+            modalities=frozenset({Modality.TEXT, Modality.IMAGE}),
+        )
 
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     upload_file = make_upload_file("statement.pdf", content)
     created = await statements_router.upload_statement(
@@ -1394,10 +1399,14 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
         lambda *args, **kwargs: b"content",
     )
 
-    async def fake_get_model_info(model_id: str):
-        return {"id": model_id, "input_modalities": ["image"]}
+    async def fake_catalog_get(self, model_id):
+        return ModelSpec(
+            id=model_id,
+            provider_id="env",
+            modalities=frozenset({Modality.TEXT, Modality.IMAGE}),
+        )
 
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     from src.schemas import RetryParsingRequest
 
@@ -3764,10 +3773,10 @@ async def test_retry_statement_invalid_model(db, monkeypatch, storage_stub, test
     db.add(statement)
     await db.commit()
 
-    async def fake_get_model_info(model_id: str):
+    async def fake_catalog_get(self, model_id):
         return None
 
-    monkeypatch.setattr(statements_router, "get_model_info", fake_get_model_info)
+    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
