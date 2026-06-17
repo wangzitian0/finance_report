@@ -970,6 +970,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "litellm" },
+    { name = "openpanel" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-instrumentation-fastapi" },
     { name = "opentelemetry-instrumentation-httpx" },
@@ -1024,6 +1025,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.111.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "litellm", specifier = ">=1.55.0" },
+    { name = "openpanel", specifier = ">=0.0.1" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.24.0" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.45b0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.45b0" },
@@ -2086,6 +2088,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/40/36/4c926a91554483977608951360c18c2e911592785eb87a6437813f6123f7/openai-2.41.1.tar.gz", hash = "sha256:23d617a0432457ad844973bee8f540be9da90894f7c5686852d2d365da058f57", size = 783584, upload-time = "2026-06-10T16:10:37.667Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/20/74/925d7b3892927e9804aaf58d374a45dc28e4420ff90e992272b77286343e/openai-2.41.1-py3-none-any.whl", hash = "sha256:a939565f350cb7443cb843b801b88c716ac8024b492fb94ca269d5f6b1bbefd6", size = 1353380, upload-time = "2026-06-10T16:10:35.756Z" },
+]
+
+[[package]]
+name = "openpanel"
+version = "0.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/42/d2/1ca167988225113a2162fcc528ef309715f348e1ee2bcaa8405222fea08c/openpanel-0.0.1.tar.gz", hash = "sha256:96a27848d670218c03a75528b95b8e3efbd4898665d57b3ee9c81c4b3c06f922", size = 3721, upload-time = "2024-10-16T14:19:41.923Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/73/44ad513438c56d3e9c8dbdbea647a2f79e8be03a80967eeaa873f29a0527/openpanel-0.0.1-py3-none-any.whl", hash = "sha256:c4d5a31694d4307975bbf70bbb2fa9fae920df0fb4b8ff97fa7b78ee8fe667b2", size = 15865, upload-time = "2024-10-22T19:27:53.139Z" },
 ]
 
 [[package]]
