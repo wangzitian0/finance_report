@@ -197,14 +197,18 @@ S3_ACCESS_KEY={{ with .Data.data.S3_ACCESS_KEY }}{{ printf "%q" . }}{{ else }}""
 - `{{ printf "%q" . }}` quotes values (handles special chars)
 - `{{ else }}""{{ end }}` provides fallback for missing keys
 
-### Vault Token Types
+### Vault Auth Credentials
 
-| Token Type | Purpose | Scope | Storage |
+Runtime services (incl. the finance_report app — the AppRole **pilot**) authenticate to Vault via **AppRole** (`role_id` + `secret_id`). The old `VAULT_APP_TOKEN` periodic-token model is retired; only IaC Runner still uses it (infra2 `bootstrap.iac_runner.md` §6.4).
+
+| Credential | Purpose | Scope | Storage |
 |------------|---------|-------|---------|
 | `VAULT_ROOT_TOKEN` | Admin operations | All paths, write access | 1Password (`op://Infra2/.../Token`) |
-| `VAULT_APP_TOKEN` | Runtime secret reading | Read-only, service-specific | Dokploy ENV per service |
+| `VAULT_ROLE_ID` + `VAULT_SECRET_ID` | Runtime AppRole login → secret reading | Read-only, per-project/env/service | Dokploy ENV per service (injected by `invoke vault.setup-approle`) |
+| `VAULT_ADDR` | vault-agent connect address | non-secret, but **required** (missing → agent hangs) | Dokploy project-level ENV |
+| `VAULT_APP_TOKEN` *(legacy)* | Runtime secret reading | Read-only, service-specific | Dokploy ENV — **IaC Runner only** (`invoke vault.setup-tokens`) |
 
-**Security Rule**: Never use `VAULT_ROOT_TOKEN` in application containers. Only for `invoke vault.setup-tokens` and manual admin tasks.
+**Security Rule**: Never use `VAULT_ROOT_TOKEN` in application containers. Only for `invoke vault.setup-approle` / `setup-tokens` and manual admin tasks.
 
 ---
 
