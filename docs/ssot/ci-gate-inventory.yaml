@@ -300,6 +300,18 @@ gates:
     artifacts: [pr-test-cleanup-context]
     failure_semantics: PR test cleanup failed after runner-local or preview work.
     action: keep
+  - id: release_images.promote
+    category: deploy_ops
+    workflow: .github/workflows/release-images.yml
+    job: promote
+    owner: release images workflow
+    triggers: [push]
+    blocks_workflow: true
+    inputs: [release_tag, main_ci_sha_images]
+    outputs: [release_tag_images]
+    artifacts: []
+    failure_semantics: Release tag image promotion or digest verification failed.
+    action: keep
   - id: production_release.build
     category: deploy_ops
     workflow: .github/workflows/production-release.yml
