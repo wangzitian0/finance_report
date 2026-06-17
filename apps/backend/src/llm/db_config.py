@@ -92,7 +92,13 @@ class DbConfigSource:
         except (ValueError, TypeError):
             return None
         async with self._maker() as session:
-            row = await session.get(LlmProvider, pid)
+            # Scope the lookup to the same scope bindings are read from (the user's
+            # own rows, else the deployment default). Resolving by bare primary key
+            # would return — and decrypt — another tenant's provider key.
+            scope = await self._scope(session)
+            row = (
+                await session.execute(select(LlmProvider).where(LlmProvider.id == pid, LlmProvider.user_id == scope))
+            ).scalar_one_or_none()
         if row is None:
             return None
         return self._to_ref(row, self._cipher())

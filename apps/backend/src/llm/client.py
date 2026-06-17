@@ -35,6 +35,20 @@ from src.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+def _harden_litellm_logging() -> None:
+    """Stop litellm from printing request bodies (which carry the provider api_key
+    + prompt) to stdout. Best-effort + guarded so a renamed attribute in a future
+    litellm version can never break import."""
+    for attr, value in (("turn_off_message_logging", True), ("set_verbose", False), ("suppress_debug_info", True)):
+        try:
+            setattr(litellm, attr, value)
+        except Exception:  # noqa: BLE001 - logging hardening is never fatal
+            pass
+
+
+_harden_litellm_logging()
+
 # litellm exception names that represent transient conditions worth retrying.
 _RETRYABLE_EXC = frozenset(
     {"RateLimitError", "Timeout", "APIConnectionError", "ServiceUnavailableError", "InternalServerError"}

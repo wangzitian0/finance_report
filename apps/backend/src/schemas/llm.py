@@ -8,6 +8,7 @@ so the API and the runtime contract can never drift.
 
 from __future__ import annotations
 
+import ipaddress
 from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -17,6 +18,27 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.llm.common import Modality, ProtocolFamily, ReasoningEffort, Scene
 from src.schemas.base import BaseResponse
+
+# Hostnames that resolve to the host/loopback or local-only zones, rejected for
+# ``api_base`` so a user-supplied provider endpoint cannot point the backend at
+# internal services (SSRF). IP literals are checked structurally below.
+_BLOCKED_API_BASE_HOSTS = frozenset({"localhost", "metadata.google.internal", "metadata"})
+
+
+def _api_base_host_is_blocked(host: str) -> bool:
+    """True if ``host`` is loopback/link-local/private/reserved or a local-only name.
+
+    Structural check only (IP-literal ranges + a name denylist); it does not resolve
+    DNS — egress-time SSRF protection (DNS rebinding) belongs at the HTTP-client
+    layer. This rejects the common foot-guns at config-write time."""
+    h = host.lower().strip("[]")  # tolerate bracketed IPv6
+    if h in _BLOCKED_API_BASE_HOSTS or h.endswith((".internal", ".local")):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+    except ValueError:
+        return False  # a regular hostname (not an IP literal)
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified
 
 
 class LlmConfigStatusResponse(BaseModel):
@@ -55,6 +77,9 @@ class LlmProviderCreate(BaseModel):
         parsed = urlparse(trimmed)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
             raise ValueError("api_base must be an absolute http(s) URL")
+        host = parsed.hostname
+        if host is None or _api_base_host_is_blocked(host):
+            raise ValueError("api_base host is not allowed (loopback/private/link-local/metadata)")
         return trimmed
 
 

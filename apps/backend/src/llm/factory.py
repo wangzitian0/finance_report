@@ -48,6 +48,23 @@ class LayeredConfigSource:
         return await self._primary.is_configured() or await self._fallback.is_configured()
 
 
+_budget_meter: DailyBudgetMeter | None = None
+
+
+def get_budget_meter() -> DailyBudgetMeter:
+    """The process-wide daily budget meter.
+
+    The meter accumulates spend in memory, so it MUST be a singleton — a fresh
+    ``DailyBudgetMeter()`` per request would reset ``spent_today`` to zero and the
+    ``AI_DAILY_LIMIT_USD`` ceiling would never be enforced. (Per-process is still
+    a floor: separate workers each keep their own tally — see ``DailyBudgetMeter``.)
+    """
+    global _budget_meter
+    if _budget_meter is None:
+        _budget_meter = DailyBudgetMeter()
+    return _budget_meter
+
+
 def get_config_source(user_id: UUID | None = None) -> ConfigSource:
     """The config source for a user: their DB providers/bindings, falling back to
     the deployment default, then the env config.
@@ -61,5 +78,5 @@ def get_config_source(user_id: UUID | None = None) -> ConfigSource:
 
 
 def get_llm_client(user_id: UUID | None = None) -> LitellmClient:
-    """The scene-keyed client for a user, with the daily budget guard wired in."""
-    return LitellmClient(get_config_source(user_id), cost_meter=DailyBudgetMeter())
+    """The scene-keyed client for a user, with the shared daily budget guard wired in."""
+    return LitellmClient(get_config_source(user_id), cost_meter=get_budget_meter())

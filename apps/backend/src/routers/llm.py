@@ -13,7 +13,8 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from src.deps import CurrentUserId, DbSession
 from src.llm.catalog import LitellmCatalog
@@ -35,11 +36,15 @@ from src.schemas.llm import (
     LlmScenesResponse,
     LlmScenesUpdate,
 )
-from src.utils import raise_bad_request, raise_not_found, raise_service_unavailable
+from src.utils import raise_bad_request, raise_conflict, raise_not_found, raise_service_unavailable
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/llm", tags=["llm"])
+
+# Per-user provider ceiling: providers are cheap to create (one encrypt + INSERT),
+# so cap them to keep an authenticated user from growing the table unbounded.
+MAX_PROVIDERS_PER_USER = 25
 
 
 @router.get("/config/status", response_model=LlmConfigStatusResponse)
@@ -78,6 +83,12 @@ async def create_provider(
         # Never store a plaintext key: refuse the write rather than degrade.
         raise_service_unavailable("LLM secret encryption is not configured.", cause=exc)
 
+    count = (
+        await db.execute(select(func.count()).select_from(LlmProvider).where(LlmProvider.user_id == user_id))
+    ).scalar_one()
+    if count >= MAX_PROVIDERS_PER_USER:
+        raise_conflict(f"Provider limit reached ({MAX_PROVIDERS_PER_USER}); delete one before adding another.")
+
     sealed = cipher.encrypt(payload.api_key)
     provider = LlmProvider(
         user_id=user_id,
@@ -88,7 +99,11 @@ async def create_provider(
         api_base=payload.api_base,
     )
     db.add(provider)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise_conflict("Provider could not be created due to a conflict.", cause=exc)
     await db.refresh(provider)
     return LlmProviderResponse.model_validate(provider)
 
@@ -187,5 +202,11 @@ async def put_scenes(
                 max_tokens=b.max_tokens,
             )
         )
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # Concurrent writes for the same user can collide on the per-scope unique
+        # index; surface a retryable conflict rather than a 500.
+        await db.rollback()
+        raise_conflict("Scene bindings could not be saved due to a concurrent update; retry.", cause=exc)
     return await get_scenes(db, user_id)

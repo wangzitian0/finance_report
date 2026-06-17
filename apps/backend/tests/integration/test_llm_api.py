@@ -122,6 +122,31 @@ async def test_AC23_4_2_delete_non_uuid_is_not_found(client: AsyncClient) -> Non
     assert resp.status_code == 404
 
 
+@pytest.mark.parametrize(
+    "api_base",
+    ["http://localhost:8080", "http://169.254.169.254/latest/meta-data", "http://10.0.0.5", "https://vault.internal"],
+)
+async def test_AC23_4_2_provider_rejects_ssrf_api_base(client: AsyncClient, cipher, api_base: str) -> None:
+    """AC23.4.9: api_base pointing at loopback/private/link-local/metadata/.internal is rejected (422)."""
+    resp = await client.post(
+        "/llm/providers",
+        json={"label": "x", "protocol": "openai-compatible", "api_key": "sk-x", "api_base": api_base},
+    )
+    assert resp.status_code == 422
+
+
+async def test_AC23_4_2_provider_count_capped(client: AsyncClient, cipher, monkeypatch) -> None:
+    """AC23.4.10: creating providers beyond the per-user cap returns 409."""
+    monkeypatch.setattr("src.routers.llm.MAX_PROVIDERS_PER_USER", 2)
+    await _create_provider(client, label="p1")
+    await _create_provider(client, label="p2")
+    resp = await client.post(
+        "/llm/providers",
+        json={"label": "p3", "protocol": "openai-compatible", "api_key": "sk-x"},
+    )
+    assert resp.status_code == 409
+
+
 async def test_AC23_4_3_catalog_lists_models_with_filters(client: AsyncClient) -> None:
     """AC23.4.3: the catalogue lists configured models and honours modality/free filters."""
     resp = await client.get("/llm/catalog")
