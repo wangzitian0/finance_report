@@ -210,6 +210,22 @@ def _safe_cost(response: Any) -> Decimal | None:
     return Decimal(str(value))
 
 
+def estimate_cost_usd(model: str, messages: Sequence[Message], completion_text: str) -> Decimal | None:
+    """Best-effort USD cost for a streamed call from prompt + completion text.
+
+    Streaming yields no usage object, so the budget meter would never accumulate on
+    the live path. litellm's pricing table maps many models (it returns ``None`` /
+    raises for ones it doesn't know — e.g. a self-hosted vLLM — in which case spend
+    simply isn't counted for that model). Never raises."""
+    try:
+        value = litellm.completion_cost(model=model, messages=list(messages), completion=completion_text)
+    except Exception:  # noqa: BLE001 - cost is telemetry, not correctness
+        return None
+    if not value:
+        return None
+    return Decimal(str(value))
+
+
 class LitellmClient:
     """Scene-keyed ``LLMClient`` resolving config through a ``ConfigSource``."""
 

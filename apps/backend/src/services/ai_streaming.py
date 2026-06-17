@@ -14,10 +14,11 @@ from typing import Any
 from uuid import UUID
 
 from src.config import settings
-from src.llm.client import litellm_stream
-from src.llm.common import LLMError, ProviderRef
+from src.llm.client import estimate_cost_usd, litellm_stream
+from src.llm.common import LLMBudgetExceeded, LLMError, ProviderRef
 from src.llm.env_config import _protocol_for
-from src.llm.factory import get_config_source
+from src.llm.factory import get_budget_meter, get_config_source
+from src.llm.routing import build_call
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -94,12 +95,22 @@ async def _stream_ai_base(
     """
     provider = await _resolve_provider(api_key, base_url, user_id)
 
+    # Enforce the daily spend ceiling on the live path (the scene-less transport
+    # never went through LitellmClient's meter). Best-effort: blocks once today's
+    # recorded spend reaches AI_DAILY_LIMIT_USD.
+    meter = get_budget_meter()
+    try:
+        await meter.check_budget()
+    except LLMBudgetExceeded as exc:
+        raise AIStreamError(str(exc), retryable=False) from exc
+
     extra_body: dict[str, Any] = {}
     if do_sample is not None:
         extra_body["do_sample"] = do_sample
     if thinking is not None:
         extra_body["thinking"] = thinking
 
+    collected: list[str] = []
     try:
         async for content in litellm_stream(
             messages,
@@ -111,6 +122,7 @@ async def _stream_ai_base(
             extra_body=extra_body or None,
             timeout=timeout,
         ):
+            collected.append(content)
             yield content
     except LLMError as exc:
         logger.error(
@@ -123,6 +135,14 @@ async def _stream_ai_base(
             retryable=exc.retryable,
         )
         raise AIStreamError(str(exc), retryable=exc.retryable) from exc
+    else:
+        # Record best-effort spend so the daily ceiling actually accumulates.
+        # Cost/telemetry must never break a completed stream.
+        try:
+            cost = estimate_cost_usd(build_call(provider, model).model, messages, "".join(collected))
+            await meter.record_cost(model, cost, scene=mode_label)
+        except Exception:  # noqa: BLE001 - spend telemetry is not correctness
+            logger.debug("llm spend recording skipped", exc_info=True)
 
 
 async def stream_ai_json(
