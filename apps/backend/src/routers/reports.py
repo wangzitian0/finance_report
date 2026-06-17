@@ -11,7 +11,7 @@ from io import StringIO
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, union
 
@@ -380,7 +380,6 @@ async def _build_personal_report_package_snapshot_data(
 async def generate_personal_report_package_snapshot(
     db: DbSession,
     user_id: CurrentUserId,
-    background_tasks: BackgroundTasks,
     request: PersonalReportPackageGenerateRequest | None = None,
     framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
     start_date: date | None = None,
@@ -432,10 +431,11 @@ async def generate_personal_report_package_snapshot(
     await ConfidenceMetricService().record_snapshot(db, user_id)
     await db.commit()
     # BE->OpenPanel: server-authoritative `report_generated` (fires even if the
-    # browser event is blocked). Non-blocking (after the response) + config-gated +
-    # never raises, so analytics can't add latency or break report generation.
-    background_tasks.add_task(
-        _track_analytics,
+    # browser event is blocked). The official SDK's track() is itself non-blocking
+    # (its own daemon send-thread), config-gated + never raises — so calling it
+    # inline can't add latency or break report generation, and the handler stays
+    # safe to call directly (tests) without a FastAPI BackgroundTasks instance.
+    _track_analytics(
         "report_generated",
         {"framework_id": framework_id.value, "currency": target_currency},
     )
