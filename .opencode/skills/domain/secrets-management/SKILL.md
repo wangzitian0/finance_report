@@ -123,10 +123,13 @@ DOKPLOY_API_KEY        # Deployment automation
 DOKPLOY_URL
 VAULT_ADDR             # Vault server URL
 VAULT_ROOT_TOKEN       # Admin operations only
-VAULT_ROLE_ID          # Per-service AppRole credential (runtime read-only)
-VAULT_SECRET_ID        # Per-service AppRole credential (runtime read-only)
 VPS_HOST               # Production server
 ```
+
+> **NOT direnv-managed:** the per-service runtime AppRole creds `VAULT_ROLE_ID` /
+> `VAULT_SECRET_ID` are sensitive and are **injected by infra2 into each service's
+> Dokploy ENV** (`invoke vault.setup-approle`). Never put them in `.envrc`, a local
+> `.env`, or commit them anywhere.
 
 ---
 
@@ -200,14 +203,16 @@ S3_ACCESS_KEY={{ with .Data.data.S3_ACCESS_KEY }}{{ printf "%q" . }}{{ else }}""
 
 ### Vault Auth Credentials
 
-The finance_report app authenticates to Vault via **AppRole** (`role_id` + `secret_id`) — it was the AppRole **pilot**, and every infra2 service has since migrated too (iac_runner included). The `VAULT_APP_TOKEN` periodic-token model is **retired**: no live service uses it. The only remaining reference is the app's legacy bash deploy-preflight (`common/shell/common.sh` `verify_vault_app_token`), which will go away with the deploy_v2 cutover of staging/prod.
+The finance_report app authenticates to Vault via **AppRole** (`role_id` + `secret_id`) — it was the AppRole **pilot**, and every infra2 service has since migrated too (iac_runner included). The `VAULT_APP_TOKEN` periodic-token model is **retired for runtime auth** — no vault-agent uses it anymore.
+
+> ⚠️ **It is still operationally load-bearing — do NOT delete it yet.** The legacy bash deploy path (`tools/_lib/shell/dokploy_deploy.sh` → `common/shell/common.sh` `verify_vault_app_token`, asserted by `test_AC8_13_11`) requires `VAULT_APP_TOKEN` to be present in the app's Dokploy ENV, or the staging/prod deploy **fails the preflight**. It can only be removed once the deploy_v2 cutover replaces that bash path.
 
 | Credential | Purpose | Scope | Storage |
 |------------|---------|-------|---------|
 | `VAULT_ROOT_TOKEN` | Admin operations | All paths, write access | 1Password (`op://Infra2/.../Token`) |
 | `VAULT_ROLE_ID` + `VAULT_SECRET_ID` | Runtime AppRole login → secret reading | Read-only, per-project/env/service | Dokploy ENV per service (injected by `invoke vault.setup-approle`) |
 | `VAULT_ADDR` | vault-agent connect address | non-secret, but **required** (missing → agent hangs) | Dokploy project-level ENV |
-| `VAULT_APP_TOKEN` *(retired)* | — | — | Old periodic-token model; no live service uses it (only a vestigial app bash deploy-preflight remains) |
+| `VAULT_APP_TOKEN` *(legacy)* | Runtime auth: **retired**. Still required by the bash deploy-preflight (`test_AC8_13_11`) | Must remain present in the app's Dokploy ENV | Dokploy ENV — keep until the deploy_v2 cutover removes the bash path |
 
 **Security Rule**: Never use `VAULT_ROOT_TOKEN` in application containers. Only for `invoke vault.setup-approle` / `setup-tokens` and manual admin tasks.
 
