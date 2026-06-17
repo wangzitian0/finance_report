@@ -486,7 +486,7 @@ class TestBootloaderVaultSecrets:
         assert status.status == "warning"
         assert status.service == "vault_secrets"
         assert "not found" in status.message
-        assert "invoke vault.setup-tokens" in status.message
+        assert "invoke vault.setup-approle" in status.message
 
     def test_vault_secrets_file_stale(self):
         with (

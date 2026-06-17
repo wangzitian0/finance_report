@@ -492,7 +492,7 @@ def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
     assert "VAULT_APP_TOKEN is not renewable" in common
     assert "ttl ${ttl}s is below required" in common
     assert (
-        "DEPLOY_ENV=${repair_env} invoke vault.setup-tokens --project=finance_report --service=app"
+        "DEPLOY_ENV=${repair_env} invoke vault.setup-approle --project=finance_report --service=app --deploy"
         in common
     )
     assert "Do not add VAULT_ROOT_TOKEN to GitHub Actions" in common

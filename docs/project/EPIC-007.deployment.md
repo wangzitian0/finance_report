@@ -107,7 +107,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
     - S3_BUCKET
     - ZAI_API_KEY
   ```
-- [x] Generate service tokens via `invoke vault.setup-tokens`
+- [x] Provision service AppRole creds via `invoke vault.setup-approle`
 
 ### Phase 6: Deployment & Verification
 
@@ -171,7 +171,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.5.2 | REDIS_URL in Vault | Manual verification | Vault secret path | P0 |
 | AC7.5.3 | S3_* keys in Vault | Manual verification | Vault secret path | P0 |
 | AC7.5.4 | ZAI_API_KEY in Vault | Manual verification | Vault secret path | P0 |
-| AC7.5.5 | Vault tokens generated | Manual verification | `invoke vault.setup-tokens` | P0 |
+| AC7.5.5 | Vault AppRole creds provisioned | Manual verification | `invoke vault.setup-approle` | P0 |
 
 ### AC7.6: Backend Configuration & Secrets Sync
 

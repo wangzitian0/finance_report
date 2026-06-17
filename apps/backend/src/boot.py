@@ -279,8 +279,9 @@ class Bootloader:
                 "vault_secrets",
                 "warning",
                 f"Secrets file not found at {VAULT_SECRETS_FILE_PATH}. "
-                "If in staging/production, check if Vault token has expired. "
-                "Run: invoke vault.setup-tokens --project=finance_report",
+                "If in staging/production, the vault-agent failed to render secrets. "
+                "Re-provision AppRole creds (from infra2): DEPLOY_ENV=<env> invoke "
+                "vault.setup-approle --project=finance_report --service=app --deploy",
                 duration_ms,
             )
 

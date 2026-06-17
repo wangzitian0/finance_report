@@ -307,10 +307,10 @@ print_vault_app_token_repair_hint() {
   local repair_env="${1:-staging}"
 
   {
-    echo "Repair VAULT_APP_TOKEN from infra2:"
+    echo "This service should use AppRole; (re)provision its creds from infra2:"
     echo "  cd /path/to/infra2"
     echo "  export VAULT_ROOT_TOKEN=\"\$(op read 'op://Infra2/dexluuvzg5paff3cltmtnlnosm/Token')\""
-    echo "  DEPLOY_ENV=${repair_env} invoke vault.setup-tokens --project=finance_report --service=app"
+    echo "  DEPLOY_ENV=${repair_env} invoke vault.setup-approle --project=finance_report --service=app --deploy"
     echo "Do not add VAULT_ROOT_TOKEN to GitHub Actions; finance_report deploy only preflights the token."
   } >&2
 }
