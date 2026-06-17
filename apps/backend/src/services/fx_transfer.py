@@ -22,7 +22,7 @@ moves + FX revaluation; internal transfers cancel (minus fees).**
 
 All money is :class:`~decimal.Decimal` (never ``float`` — see the decimal rule in
 ``docs/ssot/accounting.md``). FX rates carry 6 dp; currency amounts quantize to
-2 dp via :func:`src.utils.money.to_money`.
+2 dp via :func:`src.money.to_money`.
 """
 
 from __future__ import annotations

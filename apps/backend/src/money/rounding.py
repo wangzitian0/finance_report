@@ -5,8 +5,8 @@ Currency amounts are quantized to 2 decimal places using banker's rounding
 see ``docs/ssot/accounting.md#decimal-rule``.
 
 This is the backend's runtime money rounding (the backend's shippable "end" of the
-cross-language standard, #1171); ``apps/backend/src/utils/money.py`` re-exports
-``to_money``/``MONEY_QUANTUM`` from here. It mirrors the reference impl in
+cross-language standard, #1171); ``src.utils`` re-exports ``to_money``/
+``MONEY_QUANTUM`` from here for convenience. It mirrors the reference impl in
 ``common/money`` — kept identical by the shared conformance vectors — because
 ``common/`` is not shipped into the backend image.
 
