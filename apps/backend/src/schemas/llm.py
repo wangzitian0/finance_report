@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.llm.common import Modality, ProtocolFamily, ReasoningEffort, Scene
 from src.schemas.base import BaseResponse
@@ -35,6 +36,26 @@ class LlmProviderCreate(BaseModel):
     api_base: str | None = Field(
         default=None, max_length=500, description="Custom API base URL for OpenAI-compatible endpoints."
     )
+
+    @field_validator("api_base", mode="before")
+    @classmethod
+    def _validate_api_base(cls, value: object) -> str | None:
+        """Blank → ``None``; otherwise require an absolute ``http(s)`` URL.
+
+        ``api_base`` becomes an outbound endpoint, so reject non-URLs / non-http(s)
+        schemes / whitespace here rather than letting a malformed value reach the
+        HTTP client (a reliability + SSRF footgun)."""
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("api_base must be a string")
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        parsed = urlparse(trimmed)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("api_base must be an absolute http(s) URL")
+        return trimmed
 
 
 class LlmProviderResponse(BaseResponse):

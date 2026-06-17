@@ -101,6 +101,27 @@ async def test_AC23_4_2_provider_list_and_delete(client: AsyncClient, cipher) ->
     assert created["id"] not in [p["id"] for p in after.json()["providers"]]
 
 
+async def test_AC23_4_2_provider_rejects_non_http_api_base(client: AsyncClient, cipher) -> None:
+    """AC23.4.2: a non-http(s) ``api_base`` is rejected at the schema boundary (422)."""
+    resp = await client.post(
+        "/llm/providers",
+        json={"label": "x", "protocol": "openai-compatible", "api_key": "sk-x", "api_base": "not-a-url"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_AC23_4_2_provider_blank_api_base_persists_as_null(client: AsyncClient, db: AsyncSession, cipher) -> None:
+    """AC23.4.2: a blank ``api_base`` normalises to NULL rather than an empty string."""
+    created = await _create_provider(client, api_base="   ")
+    assert created["api_base"] is None
+
+
+async def test_AC23_4_2_delete_non_uuid_is_not_found(client: AsyncClient) -> None:
+    """AC23.4.2: a non-UUID provider id deletes as 404, not a 500 from the UUID cast."""
+    resp = await client.delete("/llm/providers/not-a-uuid")
+    assert resp.status_code == 404
+
+
 async def test_AC23_4_3_catalog_lists_models_with_filters(client: AsyncClient) -> None:
     """AC23.4.3: the catalogue lists configured models and honours modality/free filters."""
     resp = await client.get("/llm/catalog")

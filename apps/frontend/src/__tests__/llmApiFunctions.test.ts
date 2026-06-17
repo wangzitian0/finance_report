@@ -102,7 +102,8 @@ describe("LLM api wrappers (EPIC-023 PR4)", () => {
   });
 
   it("deleteLlmProvider DELETEs /api/llm/providers/{id}", async () => {
-    const fetchMock = makeFetchMock(204, null);
+    // The backend returns 200 with a JSON confirmation body ({id, deleted}).
+    const fetchMock = makeFetchMock(200, { id: "p1", deleted: true });
     vi.stubGlobal("fetch", fetchMock);
 
     const { deleteLlmProvider } = await import("../lib/api");
@@ -128,10 +129,10 @@ describe("LLM api wrappers (EPIC-023 PR4)", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { fetchLlmCatalog } = await import("../lib/api");
-    await fetchLlmCatalog({ modality: "vision" as never, freeOnly: true });
+    await fetchLlmCatalog({ modality: "image", freeOnly: true });
 
     const url = String(fetchMock.mock.calls[0][0]);
-    expect(url).toContain("modality=vision");
+    expect(url).toContain("modality=image");
     expect(url).toContain("free_only=true");
   });
 

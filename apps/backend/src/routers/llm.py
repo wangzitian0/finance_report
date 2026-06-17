@@ -10,6 +10,7 @@ catalogue and scene bindings feed the scene×model settings page.
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import delete, select
@@ -95,8 +96,13 @@ async def create_provider(
 @router.delete("/providers/{provider_id}", response_model=LlmProviderDeleteResponse)
 async def delete_provider(provider_id: str, db: DbSession, user_id: CurrentUserId) -> LlmProviderDeleteResponse:
     """Delete one of the current user's providers (cascades to its bindings)."""
+    try:
+        pid = UUID(provider_id)
+    except (ValueError, TypeError):
+        # A non-UUID path param is a not-found, not a 500 from the UUID column cast.
+        raise_not_found("Provider")
     row = (
-        await db.execute(select(LlmProvider).where(LlmProvider.id == provider_id, LlmProvider.user_id == user_id))
+        await db.execute(select(LlmProvider).where(LlmProvider.id == pid, LlmProvider.user_id == user_id))
     ).scalar_one_or_none()
     if row is None:
         raise_not_found("Provider")
