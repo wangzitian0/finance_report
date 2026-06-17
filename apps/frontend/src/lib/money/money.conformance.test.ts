@@ -1,10 +1,12 @@
 // Frontend side of the cross-language money conformance suite (#1167).
 //
-// Loads the SAME language-neutral standard the Python reference impl uses
-// (common/money/conformance/vectors.json) and asserts the TS implementation
-// reproduces every value. If the frontend ever drifts from the backend on a
-// rounding boundary, a conversion, a currency validation, or the ISO-4217 set,
-// this test fails. See common/money/conformance/README.md.
+// Proves the frontend rendering of the money standard: AC2.19.1 (Currency
+// validation), AC2.20.1 (rounding + convert), AC2.21.1 (the value-type laws).
+// These are the same ACs the Python reference impl proves in tests/tooling; here
+// they are asserted against the SAME language-neutral standard the backend uses
+// (common/money/conformance/vectors.json), so the frontend cannot drift from the
+// backend on a rounding boundary, a conversion, a currency validation, or the
+// ISO-4217 set. See common/money/conformance/README.md.
 
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
