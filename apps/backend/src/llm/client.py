@@ -1,11 +1,11 @@
-"""litellm-backed transport + scene client (EPIC-023 EPIC A).
+"""litellm-backed transport (EPIC-023 EPIC A).
 
-``litellm_stream`` / ``litellm_complete`` are the single chokepoint that talks to
-litellm; everything provider-specific is resolved by :mod:`src.llm.routing`, and
-``drop_params=True`` lets litellm silently drop fields a given model rejects
-(e.g. Z.AI/GLM rejecting ``seed`` — the quirk that previously needed bespoke
-handling). :class:`LitellmClient` is the scene-keyed surface implementing the
-``LLMClient`` protocol on top of a ``ConfigSource``.
+``litellm_stream`` is the single chokepoint that talks to litellm; everything
+provider-specific is resolved by :mod:`src.llm.routing`, and ``drop_params=True``
+lets litellm silently drop fields a given model rejects (e.g. Z.AI/GLM rejecting
+``seed`` — the quirk that previously needed bespoke handling). Provider/model
+selection is shared via :func:`resolve_provider_and_model`; spend is priced via
+:func:`cost_from_usage`. The service-facing entry point is ``services.ai_streaming``.
 """
 
 from __future__ import annotations
@@ -18,18 +18,13 @@ from typing import Any
 import litellm
 
 from src.llm.common import (
-    ChatResult,
     ConfigSource,
     LLMConfigError,
     LLMError,
     Message,
     ProviderRef,
     ReasoningEffort,
-    Scene,
-    SceneBinding,
-    Usage,
 )
-from src.llm.common.protocols import CostMeter
 from src.llm.routing import build_call
 from src.logger import get_logger
 
@@ -108,8 +103,13 @@ async def litellm_stream(
     seed: int | None = None,
     extra_body: dict[str, Any] | None = None,
     timeout: float | None = None,
+    usage_sink: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
-    """Stream text delta chunks for one completion via litellm."""
+    """Stream text delta chunks for one completion via litellm.
+
+    When ``usage_sink`` is given, the final chunk's token usage is written to it
+    (``prompt_tokens`` / ``completion_tokens`` / ``model``) so the caller can record
+    real spend — streaming otherwise exposes no usage object."""
     kwargs = _base_kwargs(
         provider=provider,
         model_id=model_id,
@@ -121,6 +121,9 @@ async def litellm_stream(
         extra_body=extra_body,
     )
     kwargs["stream"] = True
+    if usage_sink is not None:
+        # Ask litellm to emit a final usage-bearing chunk (OpenAI stream_options).
+        kwargs["stream_options"] = {"include_usage": True}
     if timeout is not None:
         kwargs["timeout"] = timeout
 
@@ -130,6 +133,11 @@ async def litellm_stream(
     try:
         response = await litellm.acompletion(**kwargs)
         async for chunk in response:
+            raw_usage = getattr(chunk, "usage", None)
+            if raw_usage is not None and usage_sink is not None:
+                usage_sink["prompt_tokens"] = int(getattr(raw_usage, "prompt_tokens", 0) or 0)
+                usage_sink["completion_tokens"] = int(getattr(raw_usage, "completion_tokens", 0) or 0)
+                usage_sink["model"] = kwargs.get("model")
             choices = getattr(chunk, "choices", None) or []
             if not choices:
                 continue
@@ -156,74 +164,23 @@ async def litellm_stream(
         )
 
 
-async def litellm_complete(
-    messages: Sequence[Message],
-    *,
-    provider: ProviderRef,
-    model_id: str,
-    max_tokens: int | None = None,
-    temperature: float | None = None,
-    reasoning: ReasoningEffort | None = None,
-    extra_body: dict[str, Any] | None = None,
-) -> ChatResult:
-    """Non-streaming completion returning text + usage + cost."""
-    kwargs = _base_kwargs(
-        provider=provider,
-        model_id=model_id,
-        messages=messages,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        reasoning=reasoning,
-        seed=None,
-        extra_body=extra_body,
-    )
+def cost_from_usage(model: str, prompt_tokens: int, completion_tokens: int) -> Decimal | None:
+    """USD cost from real token usage via litellm's price table, or ``None``.
+
+    Returns ``None`` (logging at debug) for models litellm doesn't price — notably
+    Z.AI/GLM — so the budget simply isn't metered for them rather than guessing.
+    Add a per-model price to enforce the ceiling for those providers. Never raises."""
+    if not prompt_tokens and not completion_tokens:
+        return None
     try:
-        response = await litellm.acompletion(**kwargs)
-    except LLMError:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise _wrap(exc) from exc
-
-    choices = getattr(response, "choices", None) or []
-    text = ""
-    if choices:
-        msg = getattr(choices[0], "message", None)
-        text = (getattr(msg, "content", None) or "") if msg is not None else ""
-
-    raw_usage = getattr(response, "usage", None)
-    usage = Usage(
-        prompt_tokens=int(getattr(raw_usage, "prompt_tokens", 0) or 0),
-        completion_tokens=int(getattr(raw_usage, "completion_tokens", 0) or 0),
-    )
-    cost = _safe_cost(response)
-    return ChatResult(text=text, model_id=kwargs["model"], usage=usage, cost_usd=cost)
-
-
-def _safe_cost(response: Any) -> Decimal | None:
-    """Best-effort USD cost from litellm; never let cost telemetry break a call."""
-    try:
-        value = litellm.completion_cost(completion_response=response)
-    except Exception:  # noqa: BLE001 - cost is telemetry, not correctness
+        prompt_cost, completion_cost = litellm.cost_per_token(
+            model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+        )
+    except Exception:  # noqa: BLE001 - unpriced model -> not metered (telemetry, not correctness)
+        logger.debug("no litellm price for model; spend not metered", model=model)
         return None
-    if value is None:
-        return None
-    return Decimal(str(value))
-
-
-def estimate_cost_usd(model: str, messages: Sequence[Message], completion_text: str) -> Decimal | None:
-    """Best-effort USD cost for a streamed call from prompt + completion text.
-
-    Streaming yields no usage object, so the budget meter would never accumulate on
-    the live path. litellm's pricing table maps many models (it returns ``None`` /
-    raises for ones it doesn't know — e.g. a self-hosted vLLM — in which case spend
-    simply isn't counted for that model). Never raises."""
-    try:
-        value = litellm.completion_cost(model=model, messages=list(messages), completion=completion_text)
-    except Exception:  # noqa: BLE001 - cost is telemetry, not correctness
-        return None
-    if not value:
-        return None
-    return Decimal(str(value))
+    total = (prompt_cost or 0) + (completion_cost or 0)
+    return Decimal(str(total)) if total else None
 
 
 async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:
@@ -237,9 +194,9 @@ async def resolve_provider_and_model(config_source: ConfigSource, model_id: str)
     several providers an unqualified or unknown-provider id is a config error,
     never a silent fallback to the wrong credentials.
 
-    Shared by :class:`LitellmClient` and the ``ai_streaming`` transport so the
-    per-user binding's provider qualifier is honoured everywhere (a user with
-    several providers must not fail closed on a qualified binding).
+    Used by the ``ai_streaming`` transport so the per-user binding's provider
+    qualifier is honoured everywhere (a user with several providers must not fail
+    closed on a qualified binding).
     """
     providers = await config_source.list_providers()
     if not providers:
@@ -255,65 +212,3 @@ async def resolve_provider_and_model(config_source: ConfigSource, model_id: str)
     if len(providers) == 1:
         return providers[0], model_id
     raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider_id/model")
-
-
-class LitellmClient:
-    """Scene-keyed ``LLMClient`` resolving config through a ``ConfigSource``."""
-
-    def __init__(self, config_source: ConfigSource, cost_meter: CostMeter | None = None) -> None:
-        self._config = config_source
-        self._cost = cost_meter
-
-    async def _resolve(self, scene: Scene) -> tuple[ProviderRef, str, SceneBinding]:
-        binding = await self._config.get_binding(scene)
-        if binding is None:
-            raise LLMConfigError(f"No model bound for scene {scene.value!r}")
-        provider, model = await self._resolve_provider(binding.model_id)
-        return provider, model, binding
-
-    async def _resolve_provider(self, model_id: str) -> tuple[ProviderRef, str]:
-        return await resolve_provider_and_model(self._config, model_id)
-
-    def stream(
-        self, scene: Scene, messages: Sequence[Message], *, reasoning: ReasoningEffort | None = None
-    ) -> AsyncIterator[str]:
-        return self._stream(scene, messages, reasoning=reasoning)
-
-    def stream_json(
-        self, scene: Scene, messages: Sequence[Message], *, reasoning: ReasoningEffort | None = None
-    ) -> AsyncIterator[str]:
-        # JSON mode is prompt-driven (no response_format) — same rationale as the
-        # legacy path: several providers reject it with multimodal inputs.
-        return self._stream(scene, messages, reasoning=reasoning)
-
-    async def _stream(
-        self, scene: Scene, messages: Sequence[Message], *, reasoning: ReasoningEffort | None
-    ) -> AsyncIterator[str]:
-        if self._cost is not None:
-            await self._cost.check_budget()
-        provider, model, binding = await self._resolve(scene)
-        async for chunk in litellm_stream(
-            messages,
-            provider=provider,
-            model_id=model,
-            max_tokens=binding.max_tokens,
-            reasoning=reasoning or binding.reasoning,
-        ):
-            yield chunk
-
-    async def complete(
-        self, scene: Scene, messages: Sequence[Message], *, reasoning: ReasoningEffort | None = None
-    ) -> ChatResult:
-        if self._cost is not None:
-            await self._cost.check_budget()
-        provider, model, binding = await self._resolve(scene)
-        result = await litellm_complete(
-            messages,
-            provider=provider,
-            model_id=model,
-            max_tokens=binding.max_tokens,
-            reasoning=reasoning or binding.reasoning,
-        )
-        if self._cost is not None:
-            await self._cost.record(scene, result.model_id, result.usage, result.cost_usd)
-        return result

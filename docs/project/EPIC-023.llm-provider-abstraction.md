@@ -85,7 +85,7 @@ parallel once PR1 merges.
 | AC ID | Description | Verification | Priority |
 |---|---|---|---|
 | AC23.2.1 | Provider routing maps each protocol family onto the correct litellm call — `openai`/`anthropic`/`openrouter` prefix, custom `api_base` for OpenAI-compatible endpoints, OpenRouter attribution headers — and normalises an already-qualified model id | `apps/backend/tests/unit/llm/test_routing.py` | P1 |
-| AC23.2.2 | The litellm client streams and completes via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd), resolves a scene's provider/model through the `ConfigSource`, and returns text + token usage + USD cost | `apps/backend/tests/unit/llm/test_client.py` | P1 |
+| AC23.2.2 | The litellm transport streams via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd) and resolves a binding's provider/model through the `ConfigSource` (`resolve_provider_and_model`, honouring the `provider_id/model` qualifier); streamed token usage is captured for spend accounting | `apps/backend/tests/unit/llm/test_client.py` | P1 |
 | AC23.2.3 | Provider failures are normalised to `LLMError` with a retryable verdict (rate-limit/5xx/timeout → retryable; others not) | `apps/backend/tests/unit/llm/test_client.py` | P1 |
 | AC23.2.4 | `EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal | `apps/backend/tests/unit/llm/test_env_config.py` | P1 |
 | AC23.2.5 | The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free | `apps/backend/tests/unit/llm/test_catalog.py` | P1 |

@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
-from src.llm.common import Scene
+from src.llm.common import ReasoningEffort, Scene, SceneBinding
 from src.llm.factory import get_config_source
 from src.logger import get_logger
 from src.models import (
@@ -300,23 +300,21 @@ class StreamRedactor:
         return output
 
 
-async def _bound_scene_model(user_id: UUID | None) -> str | None:
-    """The model a user bound to ``advisor.chat`` (EPIC-023 AC23.4.5), or None.
+async def _bound_scene_binding(user_id: UUID | None) -> SceneBinding | None:
+    """The user's ``advisor.chat`` binding (EPIC-023 AC23.4.5), or None.
 
-    Returns the binding's **qualified** ``provider_id/model`` so the transport can
-    resolve the exact provider — even when the user has several providers (the
-    scene-less resolver fails closed on >1). Best-effort: ``user_id is None`` or any
-    config-resolution error falls back to the env model list rather than breaking
-    chat."""
+    Carries the **qualified** ``provider_id/model`` (so the transport resolves the
+    exact provider even with several configured) plus the configured reasoning depth
+    and ``max_tokens``. Best-effort: ``user_id is None`` or any config-resolution
+    error falls back to the env model list rather than breaking chat — and is logged
+    so a broken per-user config is diagnosable instead of silently ignored."""
     if user_id is None:
         return None
     try:
-        binding = await get_config_source(user_id).get_binding(Scene.ADVISOR_CHAT)
+        return await get_config_source(user_id).get_binding(Scene.ADVISOR_CHAT)
     except Exception:  # noqa: BLE001 - config issues must never break chat
+        logger.warning("advisor.chat binding resolution failed; using env models", exc_info=True)
         return None
-    if binding is None:
-        return None
-    return binding.model_id
 
 
 class AIAdvisorService:
@@ -367,10 +365,11 @@ class AIAdvisorService:
         context = await self.get_financial_context(db, user_id)
         metadata = self.build_chat_grounding_metadata(context, raw_message)
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-        # Resolve the user's advisor.chat bound model once (one DB round-trip) and
-        # reuse it for both the cache key and streaming, so the cached entry and the
-        # streamed response can never be keyed/generated under different models.
-        bound_model = await _bound_scene_model(user_id)
+        # Resolve the user's advisor.chat binding once (one DB round-trip) and reuse
+        # it for the cache key and streaming, so the cached entry and the streamed
+        # response can never be keyed/generated under different models.
+        bound = await _bound_scene_binding(user_id)
+        bound_model = bound.model_id if bound else None
         # The cache key must reflect the model that will actually answer: an explicit
         # per-message model, else the bound model, else the env primary.
         model_key = model or bound_model or self.primary_model
@@ -403,7 +402,7 @@ class AIAdvisorService:
                 cache_key,
                 model,
                 user_id,
-                bound_model,
+                bound,
             ),
             model_name=None,
             cached=False,
@@ -941,14 +940,14 @@ class AIAdvisorService:
         cache_key: str,
         preferred_model: str | None,
         user_id: UUID | None = None,
-        bound_model: str | None = None,
+        bound: SceneBinding | None = None,
     ) -> AsyncIterator[str]:
         redactor = StreamRedactor()
         chunks: list[str] = []
         model_used: str | None = None
 
         try:
-            async for chunk, model_name in self._stream_openrouter(messages, preferred_model, user_id, bound_model):
+            async for chunk, model_name in self._stream_openrouter(messages, preferred_model, user_id, bound):
                 model_used = model_name
                 safe_chunk = redactor.process(chunk)
                 if safe_chunk:
@@ -1008,25 +1007,30 @@ class AIAdvisorService:
         messages: list[dict[str, str]],
         preferred_model: str | None,
         user_id: UUID | None = None,
-        bound_model: str | None = None,
+        bound: SceneBinding | None = None,
     ) -> AsyncIterator[tuple[str, str]]:
         from src.constants.error_ids import ErrorIds
         from src.services.ai_streaming import AIStreamError
 
         models = [self.primary_model, *self.fallback_models]
+        # The binding's reasoning/max_tokens apply only when its model is used (no
+        # per-message override). They're hints/caps, harmless if a fallback ignores them.
+        reasoning = bound.reasoning if bound else None
+        max_tokens = bound.max_tokens if bound else None
         if preferred_model:
             models = [preferred_model, *models]
-        elif bound_model:
+            reasoning = max_tokens = None  # explicit per-message model: env defaults
+        elif bound is not None:
             # No per-message override: prefer the user's configured advisor.chat
             # model (EPIC-023 AC23.4.5) so /settings/llm actually takes effect. The
             # bound model is qualified (provider_id/model); ai_streaming resolves the
             # exact provider from the qualifier.
-            models = [bound_model, *models]
+            models = [bound.model_id, *models]
         last_error: Exception | None = None
 
         for i, model in enumerate(models):
             try:
-                async for chunk in self._stream_model(model, messages, user_id):
+                async for chunk in self._stream_model(model, messages, user_id, reasoning, max_tokens):
                     yield chunk, model
                 return
             except AIStreamError as exc:
@@ -1060,12 +1064,19 @@ class AIAdvisorService:
             raise last_error
 
     async def _stream_model(
-        self, model: str, messages: list[dict[str, str]], user_id: UUID | None = None
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        user_id: UUID | None = None,
+        reasoning: ReasoningEffort | None = None,
+        max_tokens: int | None = None,
     ) -> AsyncIterator[str]:
         async for chunk in stream_ai_chat(
             messages=messages,
             model=model,
             user_id=user_id,
+            reasoning=reasoning,
+            max_tokens=max_tokens,
             timeout=120.0,
         ):
             yield chunk

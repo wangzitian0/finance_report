@@ -1,17 +1,20 @@
-"""litellm transport + scene client (EPIC-023 AC23.2.2, AC23.2.3).
+"""litellm transport + provider resolution (EPIC-023 AC23.2.2, AC23.2.3).
 
 litellm is mocked so these run offline and deterministically — they pin the
 wiring (delta streaming, drop_params, seed/extra_body passthrough, error
-normalisation, scene resolution), not litellm's own behaviour.
+normalisation, provider resolution, cost-from-usage), not litellm's own
+behaviour.
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 import src.llm.client as client_mod
-from src.llm.client import LitellmClient, litellm_complete, litellm_stream
-from src.llm.common import LLMConfigError, LLMError, ProtocolFamily, ProviderRef, Scene, SceneBinding
+from src.llm.client import cost_from_usage, litellm_stream, resolve_provider_and_model
+from src.llm.common import LLMConfigError, LLMError, ProtocolFamily, ProviderRef
 
 
 class _Delta:
@@ -31,17 +34,6 @@ class _Chunk:
         self.choices = [_Choice(content)]
 
 
-class _Usage:
-    prompt_tokens = 10
-    completion_tokens = 5
-
-
-class _Response:
-    def __init__(self, content: str) -> None:
-        self.choices = [_Choice(content)]
-        self.usage = _Usage()
-
-
 def _provider() -> ProviderRef:
     return ProviderRef(
         id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k", api_base="https://api.z.ai"
@@ -55,17 +47,14 @@ def captured(monkeypatch):
 
     async def fake_acompletion(**kwargs):
         box["kwargs"] = kwargs
-        if kwargs.get("stream"):
 
-            async def gen():
-                for piece in ("Hel", "", "lo"):
-                    yield _Chunk(piece)
+        async def gen():
+            for piece in ("Hel", "", "lo"):
+                yield _Chunk(piece)
 
-            return gen()
-        return _Response("Hello")
+        return gen()
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", fake_acompletion)
-    monkeypatch.setattr(client_mod.litellm, "completion_cost", lambda completion_response=None: 0.0012)
     return box
 
 
@@ -96,16 +85,6 @@ async def test_AC23_2_2_stream_sets_drop_params_and_passes_seed_extra_body(captu
     assert kw["api_base"] == "https://api.z.ai"
 
 
-async def test_AC23_2_2_complete_returns_text_usage_and_cost(captured):
-    """AC23.2.2: litellm_complete maps text + token usage + USD cost."""
-    result = await litellm_complete([{"role": "user", "content": "hi"}], provider=_provider(), model_id="glm-5.1")
-    assert result.text == "Hello"
-    assert result.usage.prompt_tokens == 10
-    assert result.usage.completion_tokens == 5
-    assert result.usage.total_tokens == 15
-    assert str(result.cost_usd) == "0.0012"
-
-
 async def test_AC23_2_4_reasoning_max_tokens_temperature_passthrough(captured):
     """AC23.2.4: per-scene knobs (reasoning depth, max_tokens, temperature) reach litellm."""
     from src.llm.common import ReasoningEffort
@@ -123,34 +102,6 @@ async def test_AC23_2_4_reasoning_max_tokens_temperature_passthrough(captured):
     assert kw["max_tokens"] == 256
     assert kw["temperature"] == 0.0
     assert kw["reasoning_effort"] == "medium"
-
-
-async def test_AC23_2_2_complete_handles_empty_response_and_missing_cost(monkeypatch):
-    """AC23.2.2: a response with no choices/usage yields empty text + zero usage; cost stays None."""
-
-    class _Empty:
-        choices: list = []
-        usage = None
-
-    async def fake(**kwargs):
-        return _Empty()
-
-    def boom_cost(completion_response=None):
-        raise RuntimeError("no pricing")
-
-    monkeypatch.setattr(client_mod.litellm, "acompletion", fake)
-    monkeypatch.setattr(client_mod.litellm, "completion_cost", boom_cost)
-    result = await litellm_complete([{"role": "user", "content": "x"}], provider=_provider(), model_id="m")
-    assert result.text == ""
-    assert result.usage.total_tokens == 0
-    assert result.cost_usd is None
-
-
-async def test_AC23_2_2_complete_without_cost_meter(captured):
-    """AC23.2.2: a client without a cost meter still completes (no budget hooks)."""
-    cfg = _FakeConfig(SceneBinding(Scene.STATEMENT_SUMMARY, "glm-5.1"), [_provider()])
-    result = await LitellmClient(cfg).complete(Scene.STATEMENT_SUMMARY, [{"role": "user", "content": "hi"}])
-    assert result.text == "Hello"
 
 
 async def test_AC23_2_3_provider_error_is_normalised_to_llmerror(monkeypatch):
@@ -178,13 +129,13 @@ async def test_AC23_2_3_non_retryable_error_classified(monkeypatch):
 
     monkeypatch.setattr(client_mod.litellm, "acompletion", boom)
     with pytest.raises(LLMError) as ei:
-        await litellm_complete([{"role": "user", "content": "x"}], provider=_provider(), model_id="m")
+        async for _ in litellm_stream([{"role": "user", "content": "x"}], provider=_provider(), model_id="m"):
+            pass
     assert ei.value.retryable is False
 
 
 class _FakeConfig:
-    def __init__(self, binding: SceneBinding | None, providers: list[ProviderRef]) -> None:
-        self._binding = binding
+    def __init__(self, providers: list[ProviderRef]) -> None:
         self._providers = providers
 
     async def list_providers(self):
@@ -193,122 +144,63 @@ class _FakeConfig:
     async def get_provider(self, provider_id):
         return next((p for p in self._providers if p.id == provider_id), None)
 
-    async def get_binding(self, scene):
-        return self._binding
 
-    async def is_configured(self):
-        return bool(self._providers)
-
-
-async def test_AC23_2_2_scene_client_resolves_binding_and_streams(captured):
-    """AC23.2.2: LitellmClient resolves a scene's binding through the ConfigSource."""
-    cfg = _FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "glm-5.1"), [_provider()])
-    cli = LitellmClient(cfg)
-    out = [c async for c in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}])]
-    assert "".join(out) == "Hello"
-
-
-async def test_AC23_2_2_scene_client_stream_json_path(captured):
-    """AC23.2.2: stream_json resolves a scene and streams (prompt-driven JSON, no response_format)."""
-    cfg = _FakeConfig(SceneBinding(Scene.EXTRACTION_JSON, "glm-4.6v"), [_provider()])
-    out = [c async for c in LitellmClient(cfg).stream_json(Scene.EXTRACTION_JSON, [{"role": "user", "content": "x"}])]
-    assert "".join(out) == "Hello"
-    assert "response_format" not in captured["kwargs"]
-
-
-async def test_AC23_2_2_cost_is_none_when_litellm_returns_none(monkeypatch):
-    """AC23.2.2: a None cost from litellm surfaces as None (no spurious zero)."""
-    box: dict = {}
-
-    async def fake(**kwargs):
-        box["k"] = kwargs
-        return _Response("Hi")
-
-    monkeypatch.setattr(client_mod.litellm, "acompletion", fake)
-    monkeypatch.setattr(client_mod.litellm, "completion_cost", lambda completion_response=None: None)
-    result = await litellm_complete([{"role": "user", "content": "x"}], provider=_provider(), model_id="m")
-    assert result.cost_usd is None
-
-
-async def test_AC23_2_2_scene_client_raises_when_scene_unbound(captured):
-    """AC23.2.2: an unbound scene is a config error, not a silent no-op."""
-    cli = LitellmClient(_FakeConfig(None, [_provider()]))
-    with pytest.raises(LLMConfigError):
-        async for _ in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
-            pass
-
-
-async def test_AC23_2_2_scene_client_complete_records_cost(captured):
-    """AC23.2.2 / AC23.2.6: complete() runs the budget check and records spend via the meter."""
-    events: list[tuple] = []
-
-    class _Meter:
-        async def check_budget(self):
-            events.append(("check",))
-
-        async def record(self, scene, model_id, usage, cost_usd):
-            events.append(("record", scene, model_id, str(cost_usd)))
-
-    cfg = _FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "glm-5.1"), [_provider()])
-    cli = LitellmClient(cfg, cost_meter=_Meter())
-    result = await cli.complete(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}])
-    assert result.text == "Hello"
-    assert ("check",) in events
-    assert any(e[0] == "record" for e in events)
-
-
-async def test_AC23_2_2_resolves_provider_from_qualified_model(captured):
+async def test_AC23_2_2_resolves_provider_from_qualified_model():
     """AC23.2.2: a 'provider_id/model' binding selects that provider among several."""
     p_zai = _provider()
     p_or = ProviderRef(id="router", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k2")
-    cfg = _FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "router/deepseek-chat"), [p_zai, p_or])
-    cli = LitellmClient(cfg)
-    async for _ in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
-        pass
-    assert captured["kwargs"]["model"] == "openrouter/deepseek-chat"
+    provider, model = await resolve_provider_and_model(_FakeConfig([p_zai, p_or]), "router/deepseek-chat")
+    assert provider is p_or
+    assert model == "deepseek-chat"
 
 
-async def test_AC23_2_2_ambiguous_unqualified_model_with_many_providers_errors(captured):
+async def test_AC23_2_2_ambiguous_unqualified_model_with_many_providers_errors():
     """AC23.2.2: an unqualified model with >1 provider is rejected, not guessed."""
     p1 = _provider()
     p2 = ProviderRef(id="other", label="o", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2")
-    cli = LitellmClient(_FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "glm-5.1"), [p1, p2]))
     with pytest.raises(LLMConfigError):
-        async for _ in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
-            pass
+        await resolve_provider_and_model(_FakeConfig([p1, p2]), "glm-5.1")
 
 
-async def test_AC23_2_2_no_provider_configured_errors(captured):
-    """AC23.2.2: streaming with zero providers is a config error."""
-    cli = LitellmClient(_FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "glm-5.1"), []))
+async def test_AC23_2_2_no_provider_configured_errors():
+    """AC23.2.2: resolving with zero providers is a config error."""
     with pytest.raises(LLMConfigError):
-        async for _ in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
-            pass
+        await resolve_provider_and_model(_FakeConfig([]), "glm-5.1")
 
 
-async def test_AC23_2_2_unknown_qualified_provider_raises_not_silently_falls_back(captured):
+async def test_AC23_2_2_unknown_qualified_provider_raises_not_silently_falls_back():
     """AC23.2.2: a provider_id-qualified model whose provider is unknown raises, not silently wrong creds."""
     p1 = _provider()
     p2 = ProviderRef(id="other", label="o", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2")
-    cli = LitellmClient(_FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "ghost/model"), [p1, p2]))
     with pytest.raises(LLMConfigError):
-        async for _ in cli.stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
-            pass
+        await resolve_provider_and_model(_FakeConfig([p1, p2]), "ghost/model")
 
 
-async def test_AC23_2_2_single_provider_honours_db_style_qualified_binding(captured):
+async def test_AC23_2_2_single_provider_honours_db_style_qualified_binding():
     """AC23.2.2: a DB binding qualified as provider_id/model strips the id even with one provider."""
     p = ProviderRef(id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k", api_base="https://z")
-    cfg = _FakeConfig(SceneBinding(Scene.EXTRACTION_JSON, "env/glm-5.1"), [p])
-    async for _ in LitellmClient(cfg).stream(Scene.EXTRACTION_JSON, [{"role": "user", "content": "x"}]):
-        pass
-    assert captured["kwargs"]["model"] == "openai/glm-5.1"
+    provider, model = await resolve_provider_and_model(_FakeConfig([p]), "env/glm-5.1")
+    assert provider is p
+    assert model == "glm-5.1"
 
 
-async def test_AC23_2_2_single_provider_keeps_slashed_openrouter_model(captured):
+async def test_AC23_2_2_single_provider_keeps_slashed_openrouter_model():
     """AC23.2.2: with one provider an OpenRouter vendor/model id is used whole, not split as provider."""
     p = ProviderRef(id="env", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k")
-    cfg = _FakeConfig(SceneBinding(Scene.ADVISOR_CHAT, "deepseek/deepseek-chat"), [p])
-    async for _ in LitellmClient(cfg).stream(Scene.ADVISOR_CHAT, [{"role": "user", "content": "hi"}]):
-        pass
-    assert captured["kwargs"]["model"] == "openrouter/deepseek/deepseek-chat"
+    provider, model = await resolve_provider_and_model(_FakeConfig([p]), "deepseek/deepseek-chat")
+    assert provider is p
+    assert model == "deepseek/deepseek-chat"
+
+
+def test_AC23_2_6_cost_from_usage_prices_known_model_and_skips_unpriced(monkeypatch):
+    """AC23.2.6: a priced model yields a positive Decimal; an unpriced one yields None."""
+    monkeypatch.setattr(client_mod.litellm, "cost_per_token", lambda **kwargs: (0.001, 0.002))
+    priced = cost_from_usage("gpt-4o", prompt_tokens=10, completion_tokens=5)
+    assert isinstance(priced, Decimal)
+    assert priced > 0
+
+    def boom(**kwargs):
+        raise RuntimeError("no pricing")
+
+    monkeypatch.setattr(client_mod.litellm, "cost_per_token", boom)
+    assert cost_from_usage("glm-5.1", prompt_tokens=10, completion_tokens=5) is None

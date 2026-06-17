@@ -239,7 +239,7 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     service.fallback_models = ["fallback"]
     calls: list[str] = []
 
-    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None):
+    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None):
         calls.append(model)
         if model == "primary":
             raise AIStreamError(message="fail primary", retryable=True)
@@ -263,7 +263,7 @@ async def test_stream_openrouter_raises_when_all_fail(
     service.primary_model = "primary"
     service.fallback_models = ["fallback"]
 
-    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None):
+    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None):
         raise AIStreamError(message=f"fail {model}", retryable=True)
         yield  # pragma: no cover
 
@@ -923,7 +923,7 @@ async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.Monkey
     service.fallback_models = []
     called_with: list[str] = []
 
-    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None):
+    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None):
         called_with.append(model)
         yield "ok"
 
@@ -944,7 +944,7 @@ async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest
     service.primary_model = "primary"
     service.fallback_models = []
 
-    async def broken_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None):
+    async def broken_stream_model(model, _messages, _user_id=None, _reasoning=None, _max_tokens=None):
         raise ValueError("bad internal state")
         yield  # pragma: no cover
 
@@ -959,30 +959,35 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC23.4.5: with an advisor.chat binding and no per-message override, the user's
-    bound model is tried first and ``user_id`` is threaded to the transport."""
+    bound model is tried first, and its reasoning/max_tokens + user_id reach the transport."""
     from uuid import uuid4
+
+    from src.llm.common import ReasoningEffort, Scene, SceneBinding
 
     service = AIAdvisorService()
     service.primary_model = "env-primary"
     service.fallback_models = ["env-fallback"]
     uid = uuid4()
+    bound = SceneBinding(
+        scene=Scene.ADVISOR_CHAT,
+        model_id="provider1/user-glm-4.6",
+        reasoning=ReasoningEffort.HIGH,
+        max_tokens=4096,
+    )
 
-    tried: list[tuple[str, object]] = []
+    tried: list[tuple[str, object, object, object]] = []
 
-    async def fake_stream_model(model: str, _messages: list[dict[str, str]], _user_id=None):
-        tried.append((model, _user_id))
+    async def fake_stream_model(model, _messages, _user_id=None, _reasoning=None, _max_tokens=None):
+        tried.append((model, _user_id, _reasoning, _max_tokens))
         yield "ok"
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
-    # The resolved (qualified) bound model is passed in; it must be tried first and
-    # user_id threaded to the transport. Provider1/... resolution happens in ai_streaming.
-    async for _chunk, _model in service._stream_openrouter(
-        [{"role": "user", "content": "hi"}], None, uid, "provider1/user-glm-4.6"
-    ):
+    async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None, uid, bound):
         pass
 
-    assert tried[0] == ("provider1/user-glm-4.6", uid)
+    # Bound (qualified) model tried first, with the binding's reasoning/max_tokens + user_id.
+    assert tried[0] == ("provider1/user-glm-4.6", uid, ReasoningEffort.HIGH, 4096)
 
 
 async def test_AC23_4_5_advisor_provider_resolution_is_user_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
