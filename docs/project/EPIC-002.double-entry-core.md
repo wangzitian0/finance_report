@@ -444,6 +444,55 @@ disclosure decisions must not be embedded into posting logic.
 
 ---
 
+## 🧩 Extension: Money value types — narrow waist ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
+
+> **Status**: 🚧 In Progress (extension; the original EPIC-002 scope above stays ✅ Complete)
+> **Tracking**: #1170 (value types + governance), #1171 (adoption), #1172 (CI guard + L2/L3 promotion)
+
+The recent audit cycle showed the arithmetic was never wrong — bugs lived in the
+*representation*: a scalar `(opening, closing, currency)` collapsed multi-currency
+statements (#1139/#1123), and `float`-for-money was policed only by review. This
+extension adds an **application-layer value type** above the DB double-entry
+invariant floor (AC2.14): one authoritative `Money` type, a validated `Currency`,
+a single `convert()` FX primitive, and a per-currency `CurrencyBalances`
+container — so bad money states become *unrepresentable*, not merely
+tested-against. Canonical home: `common/money/` (the shared waist). #1170 ships
+the library; backend call-sites adopt it in #1171 (which packages `common` and
+ships it into the backend image — see the dependency note below). Contract:
+[accounting.md#money-type](../ssot/accounting.md#money-type).
+
+> **Dependency note.** `common/` is currently a repo-root *build-time / test-time*
+> toolkit (consumed by `tools/` and tests via the repo root on `sys.path`); it is
+> not packaged into the deployed app images. So #1170 leaves the backend runtime
+> untouched, and making `common.money` a real runtime dependency (package +
+> image) is part of adoption in #1171.
+
+### AC2.19: Money / Currency value types
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.19.1 | `Money(amount, currency)` rejects `float`/`bool`, is Decimal-backed and immutable; `Currency` rejects non-ISO-4217 codes and normalises case | `test_AC2_19_1_money_rejects_float_amount` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
+| AC2.19.2 | Same-currency `+`/`-`/compare works; cross-currency arithmetic or comparison raises a typed `CurrencyMismatchError` (no implicit float, no implicit conversion) | `test_AC2_19_2_cross_currency_arithmetic_raises` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
+
+### AC2.20: Single FX conversion primitive
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.20.1 | `convert(money, rate, *, to, rounding)` applies a Decimal rate into an explicit target currency, rejects float rates, quantizes with banker's rounding at the boundary, and round-trips at 2 dp | `test_AC2_20_1_convert_rounds_half_even_at_boundary` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
+
+### AC2.21: Per-currency balance container
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC2.21.1 | `CurrencyBalances` holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the `StatementSummary.currency_balances` JSONB shape; closes the representation gap behind #1139/#1123 | `test_AC2_21_1_multi_currency_balance_is_not_a_scalar` (+ siblings) | `tests/tooling/test_money_value_type.py` | P0 |
+
+> **Deferred to sibling issues (not in #1170):** AC2.22 (route materiality
+> call-sites through `Money` — #1171) and AC2.23 (narrow-waist CI guard + L2/L3
+> promotion — #1172). They are registered when that work starts, per the
+> EPIC→AC→Test→Code→Doc order.
+
+---
+
 ## 📝 Technical Debt
 
 | Item | Priority | Planned Resolution |
