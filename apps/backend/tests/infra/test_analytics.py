@@ -1,9 +1,9 @@
-"""BE->OpenPanel server-side analytics emitter contract (Infra-014 / EPIC-024).
+"""BE->OpenPanel server-side analytics emitter contract (EPIC-024 AC24.2.2).
 
-The 4th telemetry combination (backend product analytics). Uses the official
-``openpanel`` Python SDK (symmetric with the FE ``@openpanel/nextjs``); the
-contract here is the same posture as the FE: config-gated no-op, non-blocking,
-never raises.
+AC24.2.2 ("the analytics layer actually dispatches an OpenPanel event") realized
+SERVER-SIDE — the 4th telemetry combination (backend product analytics). Uses the
+official ``openpanel`` Python SDK (symmetric with the FE ``@openpanel/nextjs``);
+same posture as the FE: config-gated no-op, non-blocking, never raises.
 """
 
 from __future__ import annotations

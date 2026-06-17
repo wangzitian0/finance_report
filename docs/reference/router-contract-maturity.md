@@ -13,8 +13,8 @@ The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=
 | `POST` | `` | `chat_message` | apps/backend/src/routers/chat.py:37 |
 | `DELETE` | `/session/{session_id}` | `delete_session` | apps/backend/src/routers/chat.py:212 |
 | `DELETE` | `/{entry_id}` | `delete_journal_entry` | apps/backend/src/routers/journal.py:142 |
-| `GET` | `/package/snapshots/{snapshot_id}/export` | `export_personal_report_package_snapshot` | apps/backend/src/routers/reports.py:475 |
-| `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:755 |
+| `GET` | `/package/snapshots/{snapshot_id}/export` | `export_personal_report_package_snapshot` | apps/backend/src/routers/reports.py:485 |
+| `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:765 |
 | `GET` | `/{statement_id}/document` | `get_statement_document` | apps/backend/src/routers/statements.py:551 |
 | `DELETE` | `/{statement_id}` | `delete_statement` | apps/backend/src/routers/statements.py:689 |
 | `DELETE` | `/{user_id}` | `delete_user` | apps/backend/src/routers/users.py:102 |
