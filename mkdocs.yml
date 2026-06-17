@@ -92,6 +92,7 @@ nav:
       - Runtime Incident Response: ssot/runtime-incident-response.md
       - TDD Workflow: ssot/tdd.md
       - Accounting Model: ssot/accounting.md
+      - Base Packages: ssot/base-packages.md
       - Auth: ssot/auth.md
       - Reconciliation Engine: ssot/reconciliation.md
       - Confirmation Workflow: ssot/confirmation-workflow.md
