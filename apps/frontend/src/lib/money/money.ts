@@ -7,13 +7,9 @@
 import Decimal from "decimal.js";
 
 import { Currency } from "./currency";
+import { CurrencyMismatchError, FloatNotAllowedError } from "./errors";
 
-export class CurrencyMismatchError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "CurrencyMismatchError";
-  }
-}
+export { CurrencyMismatchError };
 
 export type RoundingName = "ROUND_HALF_EVEN" | "ROUND_HALF_UP";
 
@@ -23,6 +19,9 @@ const ROUNDING: Record<RoundingName, Decimal.Rounding> = {
 };
 
 export const MONEY_DP = 2;
+// Aligned with the backend `MONEY_QUANTUM` (Decimal("0.01")) so both ends expose
+// the same canonical money quantum identifier (the API-parity guard checks this).
+export const MONEY_QUANTUM = new Decimal("0.01");
 export const DEFAULT_ROUNDING: RoundingName = "ROUND_HALF_EVEN";
 
 /** Amount input: a Decimal or a decimal STRING. Never a JS number (float). */
@@ -36,9 +35,9 @@ function coerceDecimal(value: Decimal | string, what: string): Decimal {
     d = new Decimal(value);
   } else {
     // Deliberately reject `number` (and anything else) — JS numbers are IEEE-754 floats.
-    throw new TypeError(`${what} must be a Decimal or decimal string, not a number`);
+    throw new FloatNotAllowedError(`${what} must be a Decimal or decimal string, not a number`);
   }
-  if (!d.isFinite()) throw new TypeError(`${what} must be finite`);
+  if (!d.isFinite()) throw new FloatNotAllowedError(`${what} must be finite`);
   return d;
 }
 

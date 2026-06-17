@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 
-import { Currency, InvalidCurrencyError, ISO_4217_CODES } from "./index";
+import { Currency, FloatNotAllowedError, InvalidCurrencyError, ISO_4217_CODES } from "./index";
 import { Money, convert, type RoundingName } from "./money";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -68,9 +68,9 @@ describe("money conformance (cross-language standard #1167)", () => {
 describe("money value-type laws (TS rendering of the contract)", () => {
   it("rejects float (JS number) amounts and rates", () => {
     // @ts-expect-error number is intentionally not assignable to AmountInput
-    expect(() => new Money(10.0, "USD")).toThrow(TypeError);
+    expect(() => new Money(10.0, "USD")).toThrow(FloatNotAllowedError);
     // @ts-expect-error number rate is rejected
-    expect(() => convert(new Money("1.00", "USD"), 1.2, "EUR")).toThrow(TypeError);
+    expect(() => convert(new Money("1.00", "USD"), 1.2, "EUR")).toThrow(FloatNotAllowedError);
   });
 
   it("is same-currency only for arithmetic and comparison", () => {
@@ -89,7 +89,7 @@ describe("money value-type laws (TS rendering of the contract)", () => {
   });
 
   it("rejects non-finite Decimal amounts and rates", () => {
-    expect(() => new Money(new Decimal(Infinity), "USD")).toThrow(TypeError);
-    expect(() => convert(new Money("1.00", "USD"), new Decimal(Infinity), "EUR")).toThrow(TypeError);
+    expect(() => new Money(new Decimal(Infinity), "USD")).toThrow(FloatNotAllowedError);
+    expect(() => convert(new Money("1.00", "USD"), new Decimal(Infinity), "EUR")).toThrow(FloatNotAllowedError);
   });
 });

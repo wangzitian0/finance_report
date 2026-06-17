@@ -2,6 +2,17 @@
   "_comment": "Language-neutral money standard (#1167). The SINGLE financial standard every end must honour. Both the Python reference impl (common/money) and the TypeScript impl (apps/frontend/src/lib/money) load THIS file and must reproduce every expected value exactly. Divergence turns CI red on either end. Amounts and rates are decimal STRINGS (never JSON floats). See common/money/conformance/README.md and docs/ssot/accounting.md#money-type.",
   "money_quantum": "0.01",
   "default_rounding": "ROUND_HALF_EVEN",
+  "shared_api": [
+    "Money",
+    "Currency",
+    "convert",
+    "ISO_4217_CODES",
+    "MONEY_QUANTUM",
+    "MoneyError",
+    "FloatNotAllowedError",
+    "InvalidCurrencyError",
+    "CurrencyMismatchError"
+  ],
   "iso4217": [
     "AED",
     "AFN",
