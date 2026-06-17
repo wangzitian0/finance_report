@@ -137,6 +137,19 @@ This EPIC addresses technical debt in the foundational libraries that all module
 | AC12.8.3 | Log exception without traceback | `test_log_exception_without_traceback()` | `infra/test_logger.py` | P0 |
 | AC12.8.4 | Log exception with custom level | `test_log_exception_custom_level()` | `infra/test_logger.py` | P0 |
 
+### AC12.9: Ratio / percent value type ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
+
+The second base-element value type after `money` (see
+[base-packages.md](../ssot/base-packages.md)): a dimensionless `Ratio` with ONE
+percent-display policy (2 dp, **ROUND_HALF_UP**), shared FE/BE via conformance
+vectors, so performance ratios / allocation shares / confidence proportions stop
+diverging across the codebase and across ends.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.9.1 | `Ratio` rejects float, is Decimal-backed/immutable; `fraction(part, whole)` builds it (zero whole undefined → raises); percent display is the canonical 2 dp / ROUND_HALF_UP; dimensionless arithmetic | `test_AC12_9_1_ratio_rejects_float_and_is_decimal_backed` (+ siblings) | `tests/tooling/test_ratio_value_type.py`, `apps/backend/tests/accounting/test_ratio_backend.py` | P1 |
+| AC12.9.2 | Cross-language conformance: the Python reference, shipped backend `src.ratio`, and frontend `lib/ratio` reproduce the same `vectors.json` (to_percent / percent_of / from_percent) and export the same `shared_api` (identifier-parity guard) | `test_AC12_9_2_to_percent_matches_standard` (+ siblings) | `tests/tooling/test_ratio_conformance.py`, `tests/tooling/test_ratio_api_parity.py` | P1 |
+
 ### AC12.10: Logging - Build Processors
 
 | ID | Test Case | Test Function | File | Priority |
