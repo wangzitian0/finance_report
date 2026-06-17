@@ -73,9 +73,7 @@ class DailyBudgetMeter:
         *,
         today: date | None = None,
     ) -> None:
-        await self.record_cost(
-            model_id, cost_usd, today=today, scene=scene.value, tokens=usage.total_tokens
-        )
+        await self.record_cost(model_id, cost_usd, today=today, scene=scene.value, tokens=usage.total_tokens)
 
     async def record_cost(
         self,
