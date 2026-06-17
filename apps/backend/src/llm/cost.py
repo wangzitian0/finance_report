@@ -73,6 +73,19 @@ class DailyBudgetMeter:
         *,
         today: date | None = None,
     ) -> None:
+        await self.record_cost(model_id, cost_usd, today=today, scene=scene.value, tokens=usage.total_tokens)
+
+    async def record_cost(
+        self,
+        model_id: str,
+        cost_usd: Decimal | None,
+        *,
+        today: date | None = None,
+        scene: str | None = None,
+        tokens: int | None = None,
+    ) -> None:
+        """Accumulate spend without requiring a ``Scene`` — used by the scene-less
+        ``ai_streaming`` transport so the daily ceiling is enforced on the live path."""
         if cost_usd is None:
             return
         async with self._lock:
@@ -80,9 +93,9 @@ class DailyBudgetMeter:
             self._spent += Decimal(str(cost_usd))
         logger.info(
             "llm spend recorded",
-            scene=scene.value,
+            scene=scene,
             model=model_id,
-            tokens=usage.total_tokens,
+            tokens=tokens,
             cost_usd=str(cost_usd),
             spent_today=str(self._spent),
             limit_usd=str(self._limit) if self._limit is not None else None,

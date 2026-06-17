@@ -139,6 +139,24 @@ async def test_stream_fails_closed_with_multiple_providers(monkeypatch):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
 
 
+async def test_AC23_4_7_budget_exceeded_blocks_live_stream(litellm_stub, monkeypatch):
+    """AC23.4.7: the live transport enforces the daily ceiling — once today's spend
+    reaches the limit, a stream is refused (non-retryable) instead of calling out."""
+    from decimal import Decimal
+
+    from src.llm.cost import DailyBudgetMeter, _utc_today
+
+    meter = DailyBudgetMeter(Decimal("1"))
+    meter._day = _utc_today()  # pin today so the rollover doesn't reset spent
+    meter._spent = Decimal("5")  # already over the daily limit
+    monkeypatch.setattr(ai_streaming, "get_budget_meter", lambda: meter)
+
+    with pytest.raises(AIStreamError) as ei:
+        await accumulate_stream(stream_ai_chat([{"role": "user", "content": "x"}], "glm-5.1", api_key="k"))
+    assert "budget" in str(ei.value).lower()
+    assert ei.value.retryable is False
+
+
 async def test_AC23_4_5_user_qualified_model_resolves_exact_provider_with_many(litellm_stub, monkeypatch):
     """AC23.4.5 / C1: a user with several providers + a qualified binding (provider_id/model)
     resolves the exact provider instead of failing closed."""
@@ -164,6 +182,7 @@ async def test_AC23_4_5_user_qualified_model_resolves_exact_provider_with_many(l
     assert text == '{"ok": true}'
     assert litellm_stub["kwargs"]["model"] == "openai/glm-4.6"
     assert litellm_stub["kwargs"]["api_base"] == "https://b"
+    # Budget check ran with spent under the default limit, so the stream proceeded.
 
 
 async def test_litellm_error_becomes_retryable_aistreamerror(monkeypatch):

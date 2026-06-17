@@ -384,6 +384,7 @@ class ExtractionService:
                     file_url=file_url,
                     force_model=force_model,
                     filename=original_filename or (file_path.name if file_path else None),
+                    user_id=user_id,
                 )
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
@@ -818,6 +819,7 @@ class ExtractionService:
         file_url: str | None,
         force_model: str | None,
         filename: str | None,
+        user_id: UUID | None = None,
     ) -> dict[str, Any]:
         """Re-extract until the running-balance chain reconciles (#989 Step B).
 
@@ -850,6 +852,7 @@ class ExtractionService:
                     force_model=force_model,
                     seed_override=seed_override,
                     filename=filename,
+                    user_id=user_id,
                 )
             except ExtractionError as exc:
                 # A transient error on one attempt must not fail an upload that
@@ -991,6 +994,7 @@ class ExtractionService:
         has_content: bool,
         has_url: bool,
         seed_override: int | None = None,
+        user_id: UUID | None = None,
     ) -> dict[str, Any]:
         """Stream JSON extraction through the configured chat models."""
         last_error: ExtractionError | None = None
@@ -1011,6 +1015,7 @@ class ExtractionService:
                 stream = stream_ai_json(
                     messages=messages,
                     model=model,
+                    user_id=user_id,
                     timeout=settings.ai_json_timeout_seconds,
                     max_tokens=settings.ai_json_max_tokens,
                     temperature=0.0,
@@ -1170,6 +1175,7 @@ class ExtractionService:
         force_model: str | None = None,
         seed_override: int | None = None,
         filename: str | None = None,
+        user_id: UUID | None = None,
     ) -> dict[str, Any]:
         """Extract structured statement data using OCR + chat models."""
         if file_content is None and not file_url:
@@ -1241,6 +1247,7 @@ class ExtractionService:
                 has_content=bool(file_content),
                 has_url=bool(file_url),
                 seed_override=seed_override,
+                user_id=user_id,
             )
 
         if self._uses_dedicated_layout_ocr():
@@ -1262,6 +1269,7 @@ class ExtractionService:
                     has_content=bool(file_content),
                     has_url=bool(file_url),
                     seed_override=seed_override,
+                    user_id=user_id,
                 )
             except ExtractionError as ocr_error:
                 logger.warning(
@@ -1307,6 +1315,7 @@ class ExtractionService:
             has_content=bool(file_content),
             has_url=bool(file_url),
             seed_override=seed_override,
+            user_id=user_id,
         )
 
     async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:
