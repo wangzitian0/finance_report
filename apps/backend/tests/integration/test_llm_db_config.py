@@ -80,6 +80,39 @@ async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
     assert binding.max_tokens == 8192
 
 
+async def test_AC23_4_8_get_provider_is_user_scoped_no_cross_tenant_key_disclosure(db, cipher):
+    """AC23.4.8: get_provider must not resolve — or decrypt — another user's provider by id."""
+    from uuid import uuid4
+
+    from src.models import User
+
+    user_a = User(email=f"a-{uuid4()}@example.com", hashed_password="x")
+    user_b = User(email=f"b-{uuid4()}@example.com", hashed_password="x")
+    db.add_all([user_a, user_b])
+    await db.flush()
+
+    sealed = cipher.encrypt("sk-user-a-secret")
+    provider_a = LlmProvider(
+        user_id=user_a.id,
+        label="a-provider",
+        protocol=ProtocolFamily.OPENAI_COMPATIBLE,
+        api_key_ciphertext=sealed.ciphertext,
+        api_key_version=sealed.key_version,
+    )
+    db.add(provider_a)
+    await db.flush()
+
+    # User B's source must not see user A's provider, by id or in the list.
+    source_b = DbConfigSource(user_id=user_b.id, session_maker=_same_session_maker(db), cipher=cipher)
+    assert await source_b.get_provider(str(provider_a.id)) is None
+    assert all(p.id != str(provider_a.id) for p in await source_b.list_providers())
+
+    # User A's own source resolves it (and decrypts) — the scope is per-owner, not global.
+    source_a = DbConfigSource(user_id=user_a.id, session_maker=_same_session_maker(db), cipher=cipher)
+    ref = await source_a.get_provider(str(provider_a.id))
+    assert ref is not None and ref.api_key == "sk-user-a-secret"
+
+
 async def test_AC23_3_2_layered_uses_db_first_then_env(db, cipher, monkeypatch):
     """AC23.3.2: with no DB binding for a scene, the layered source falls back to env config."""
     monkeypatch.setattr(settings, "ai_api_key", "env-key", raising=False)
