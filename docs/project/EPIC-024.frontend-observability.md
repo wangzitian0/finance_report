@@ -61,6 +61,9 @@ triaging issues.
 - **Opt-in by default**: no endpoint → no SDK behavior.
 - **PII scrubbing** of URLs and attributes.
 - **OpenPanel query CLI** for frontend product-analytics triage.
+- **Automated emission proof** that, when configured, browser OTel spans are
+  actually exported to `/v1/traces` and OpenPanel events are actually dispatched
+  (hermetic: collector + OpenPanel stubbed).
 
 ---
 
@@ -95,13 +98,22 @@ triaging issues.
 ### Documentation
 - [x] Document `NEXT_PUBLIC_OTEL_*` and `OPENPANEL_API_KEY` env vars (PR body).
 
+### Emission Proof (#1169)
+- [x] Hermetic integration test driving the real exporter + `track()` and
+  asserting the OTLP `/v1/traces` POST and the OpenPanel `window.op` dispatch
+  (`src/__tests__/telemetryEmission.test.ts`).
+- [x] Real-browser Playwright smoke confirming the same wiring end-to-end with
+  a stubbed collector + OpenPanel script (`playwright/telemetry-emission.spec.ts`).
+
 ---
 
 ## 🧪 Test Cases
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
 > **Coverage**: See `apps/frontend/src/__tests__/otel.test.ts`,
-> `apps/frontend/src/__tests__/frontendTelemetry.test.tsx`, and
+> `apps/frontend/src/__tests__/frontendTelemetry.test.tsx`,
+> `apps/frontend/src/__tests__/telemetryEmission.test.ts`,
+> `apps/frontend/playwright/telemetry-emission.spec.ts`, and
 > `tests/tooling/test_openpanel_query.py`.
 
 ### AC24.1: Browser OTel + OpenPanel Query CLI
@@ -112,6 +124,21 @@ triaging issues.
 | AC24.1.2 | The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted | `otel.test.ts` | P1 |
 | AC24.1.3 | Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL | `otel.test.ts` | P1 |
 | AC24.1.4 | The OpenPanel query CLI exists, reads its API key from `OPENPANEL_API_KEY` (never a CLI flag), and supports events/funnels with an `--env` filter | `test_openpanel_query.py` | P1 |
+
+### AC24.2: FE Telemetry + Analytics Emission Is Proven by an Automated Test
+
+The AC24.1 tests verify the *wiring contract* against a mocked SDK (no span
+ever leaves the exporter, no event ever reaches OpenPanel). AC24.2 closes that
+gap with an end-to-end emission proof: when telemetry is configured, the
+browser OTel exporter actually POSTs an OTLP payload to the `/v1/traces`
+endpoint, and the analytics layer actually dispatches an OpenPanel
+event/page-view — both asserted hermetically (collector + OpenPanel stubbed, no
+real SigNoz/OpenPanel contacted).
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC24.2.1 | With the OTLP endpoint configured, the real browser OTel exporter emits an outbound `POST` to the `/v1/traces` collector endpoint (span actually exported, not merely wired); asserted against a stubbed collector so the test is hermetic | `emits a browser OTel span as an OTLP POST to the /v1/traces endpoint (AC24.2.1)` | `playwright/telemetry-emission.spec.ts`, `src/__tests__/telemetryEmission.test.ts` | P1 |
+| AC24.2.2 | With the OpenPanel client id configured, the analytics layer actually dispatches an OpenPanel event/page-view (`window.op('track'\|'screenView', …)` invoked); asserted against a stubbed `window.op`/endpoint so the test is hermetic | `dispatches an OpenPanel event via window.op when configured (AC24.2.2)` | `playwright/telemetry-emission.spec.ts`, `src/__tests__/telemetryEmission.test.ts` | P1 |
 
 ---
 

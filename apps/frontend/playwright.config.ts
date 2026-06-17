@@ -2,6 +2,11 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './playwright',
+  // The #1169 telemetry-emission spec (EPIC-024 AC24.2) needs the browser-OTel
+  // and OpenPanel config injected via `webServer.env`; it runs under its own
+  // `playwright.telemetry.config.ts` and would be a no-op (telemetry disabled)
+  // under this default server, so it is excluded here.
+  testIgnore: 'telemetry-emission.spec.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
