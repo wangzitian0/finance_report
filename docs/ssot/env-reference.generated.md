@@ -51,6 +51,9 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `S3_REGION` | `us-east-1` |  |  | S3 / MinIO Storage | S3 region. |
 | `S3_SECRET_KEY` | `minio_local_secret` | `<YOUR_S3_SECRET_KEY>` | yes | S3 / MinIO Storage | S3 / MinIO secret key. |
 | `STATEMENT_REVIEW_PRESIGN_EXPIRY_SECONDS` | `120` |  |  | S3 / MinIO Storage | Short-lived PDF preview URL TTL for Stage 1 statement review. |
+| `OPENPANEL_API_URL` |  |  |  | Observability | OpenPanel API base URL (e.g. https://openpanel.zitian.party/api). |
+| `OPENPANEL_CLIENT_ID` |  |  |  | Observability | Per-env OpenPanel project client-id for server-side events (empty = analytics off). |
+| `OPENPANEL_ENVIRONMENT` |  |  |  | Observability | Canonical OpenPanel environment label (falls back to `environment`). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` |  | `http://platform-signoz-otel-collector:4318` | yes | Observability | OTLP exporter endpoint. Optional: set in production to ship logs to SigNoz. |
 | `OTEL_RESOURCE_ATTRIBUTES` |  | `deployment.environment=development` | yes | Observability | OpenTelemetry resource attributes (comma-separated key=value pairs). |
 | `OTEL_SERVICE_NAME` | `finance-report-backend` |  | yes | Observability | OpenTelemetry service name. |

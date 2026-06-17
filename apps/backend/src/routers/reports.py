@@ -15,6 +15,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, union
 
+from src.analytics import track as _track_analytics
 from src.config import settings
 from src.constants.report_package import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
@@ -429,6 +430,15 @@ async def generate_personal_report_package_snapshot(
     # vision's cadence), so the low-confidence-proportion trend accumulates.
     await ConfidenceMetricService().record_snapshot(db, user_id)
     await db.commit()
+    # BE->OpenPanel: server-authoritative `report_generated` (fires even if the
+    # browser event is blocked). The official SDK's track() is itself non-blocking
+    # (its own daemon send-thread), config-gated + never raises — so calling it
+    # inline can't add latency or break report generation, and the handler stays
+    # safe to call directly (tests) without a FastAPI BackgroundTasks instance.
+    _track_analytics(
+        "report_generated",
+        {"framework_id": framework_id.value, "currency": target_currency},
+    )
     return _package_snapshot_response(snapshot)
 
 
