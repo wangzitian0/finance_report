@@ -12,9 +12,9 @@ from __future__ import annotations
 from uuid import UUID
 
 from src.llm.common import ConfigSource, ProviderRef, Scene, SceneBinding
-from src.llm.cost import DailyBudgetMeter
 from src.llm.db_config import DbConfigSource
 from src.llm.env_config import EnvConfigSource
+from src.llm.usage import LlmUsageMeter
 
 
 class LayeredConfigSource:
@@ -47,21 +47,19 @@ class LayeredConfigSource:
         return await self._primary.is_configured() or await self._fallback.is_configured()
 
 
-_budget_meter: DailyBudgetMeter | None = None
+_usage_meter: LlmUsageMeter | None = None
 
 
-def get_budget_meter() -> DailyBudgetMeter:
-    """The process-wide daily budget meter.
+def get_usage_meter() -> LlmUsageMeter:
+    """The process-wide LLM usage counter.
 
-    The meter accumulates spend in memory, so it MUST be a singleton — a fresh
-    ``DailyBudgetMeter()`` per request would reset ``spent_today`` to zero and the
-    ``AI_DAILY_LIMIT_USD`` ceiling would never be enforced. (Per-process is still
-    a floor: separate workers each keep their own tally — see ``DailyBudgetMeter``.)
-    """
-    global _budget_meter
-    if _budget_meter is None:
-        _budget_meter = DailyBudgetMeter()
-    return _budget_meter
+    A singleton so request/token tallies accumulate across calls (a fresh meter per
+    request would reset the running totals). Per-process by design — the structured
+    ``llm_usage`` log is the cross-worker source of truth."""
+    global _usage_meter
+    if _usage_meter is None:
+        _usage_meter = LlmUsageMeter()
+    return _usage_meter
 
 
 def get_config_source(user_id: UUID | None = None) -> ConfigSource:

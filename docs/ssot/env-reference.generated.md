@@ -23,7 +23,6 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `REDIS_URL` |  |  |  | App Settings | Optional Redis URL for staging/production background coordination. |
 | `AI_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` |  |  | AI Provider | AI provider base URL (provider-neutral; default targets Z.AI/GLM). |
 | `AI_CHAT_COMPLETIONS_PATH` | `/chat/completions` |  |  | AI Provider | Chat completions path appended to the AI base URL. |
-| `AI_DAILY_LIMIT_USD` | `2` |  |  | AI Provider | Daily AI spend limit in USD (None to disable). |
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
 | `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Disable provider 'thinking' mode for AI JSON completion calls. |
 | `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |

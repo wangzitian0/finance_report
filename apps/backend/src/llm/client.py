@@ -4,15 +4,14 @@
 provider-specific is resolved by :mod:`src.llm.routing`, and ``drop_params=True``
 lets litellm silently drop fields a given model rejects (e.g. Z.AI/GLM rejecting
 ``seed`` — the quirk that previously needed bespoke handling). Provider/model
-selection is shared via :func:`resolve_provider_and_model`; spend is priced via
-:func:`cost_from_usage`. The service-facing entry point is ``services.ai_streaming``.
+selection is shared via :func:`resolve_provider_and_model`; the service-facing
+entry point is ``services.ai_streaming`` (which counts request/token usage).
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import AsyncIterator, Sequence
-from decimal import Decimal
 from typing import Any
 
 import litellm
@@ -103,13 +102,13 @@ async def litellm_stream(
     seed: int | None = None,
     extra_body: dict[str, Any] | None = None,
     timeout: float | None = None,
-    usage_sink: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
     """Stream text delta chunks for one completion via litellm.
 
-    When ``usage_sink`` is given, the final chunk's token usage is written to it
-    (``prompt_tokens`` / ``completion_tokens`` / ``model``) so the caller can record
-    real spend — streaming otherwise exposes no usage object."""
+    Note: we deliberately do NOT request ``stream_options={"include_usage": True}`` —
+    Z.AI/GLM rejects unknown params with HTTP 400 and litellm won't drop it (it's a
+    supported openai-compatible field). Token usage is estimated by the caller from
+    text instead (see ``services.ai_streaming``)."""
     kwargs = _base_kwargs(
         provider=provider,
         model_id=model_id,
@@ -121,9 +120,6 @@ async def litellm_stream(
         extra_body=extra_body,
     )
     kwargs["stream"] = True
-    if usage_sink is not None:
-        # Ask litellm to emit a final usage-bearing chunk (OpenAI stream_options).
-        kwargs["stream_options"] = {"include_usage": True}
     if timeout is not None:
         kwargs["timeout"] = timeout
 
@@ -133,11 +129,6 @@ async def litellm_stream(
     try:
         response = await litellm.acompletion(**kwargs)
         async for chunk in response:
-            raw_usage = getattr(chunk, "usage", None)
-            if raw_usage is not None and usage_sink is not None:
-                usage_sink["prompt_tokens"] = int(getattr(raw_usage, "prompt_tokens", 0) or 0)
-                usage_sink["completion_tokens"] = int(getattr(raw_usage, "completion_tokens", 0) or 0)
-                usage_sink["model"] = kwargs.get("model")
             choices = getattr(chunk, "choices", None) or []
             if not choices:
                 continue
@@ -162,26 +153,6 @@ async def litellm_stream(
             duration_ms=round((time.perf_counter() - start) * 1000, 2),
             total_chars=chars,
         )
-
-
-def cost_from_usage(model: str, prompt_tokens: int, completion_tokens: int) -> Decimal | None:
-    """USD cost from real token usage via litellm's price table, or ``None``.
-
-    Returns ``None`` (logging at debug) for models litellm doesn't price — notably
-    Z.AI/GLM — so the budget simply isn't metered for them rather than guessing.
-    Add a per-model price to enforce the ceiling for those providers. Never raises."""
-    if not prompt_tokens and not completion_tokens:
-        return None
-    try:
-        prompt_cost, completion_cost = litellm.cost_per_token(
-            model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
-        )
-    except Exception:  # noqa: BLE001 - unpriced model -> not metered (telemetry, not correctness)
-        logger.debug("no litellm price for model; spend not metered", model=model)
-        return None
-    # Convert each component to Decimal before summing (litellm returns floats).
-    total = Decimal(str(prompt_cost or 0)) + Decimal(str(completion_cost or 0))
-    return total if total else None
 
 
 async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:

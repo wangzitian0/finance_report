@@ -380,12 +380,6 @@ class Settings(BaseSettings):
         description="Disable provider 'thinking' mode for AI JSON completion calls.",
         json_schema_extra={"group": "AI Provider"},
     )
-    ai_daily_limit_usd: int | None = Field(
-        default=2,
-        validation_alias="AI_DAILY_LIMIT_USD",
-        description="Daily AI spend limit in USD (None to disable).",
-        json_schema_extra={"group": "AI Provider"},
-    )
     # Deterministic decoding for OCR/extraction (#989): a fixed seed makes the
     # provider decode reproducibly so the same statement does not sometimes
     # reconcile and sometimes not. Set AI_JSON_SEED= (empty) to omit it for
