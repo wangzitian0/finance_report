@@ -1,9 +1,10 @@
 """BE->OpenPanel server-side analytics emitter contract (EPIC-024 AC24.2.2).
 
 AC24.2.2 ("the analytics layer actually dispatches an OpenPanel event") realized
-SERVER-SIDE — the 4th telemetry combination (backend product analytics). Uses the
-official ``openpanel`` Python SDK (symmetric with the FE ``@openpanel/nextjs``);
-same posture as the FE: config-gated no-op, non-blocking, never raises.
+SERVER-SIDE — the 4th telemetry combination (backend product analytics). A thin REST
+client (NOT the official openpanel SDK, which sends profileId=null and 400s against our
+self-hosted instance — see src/analytics.py). Same posture as the FE: config-gated
+no-op, non-blocking, never raises.
 """
 
 from __future__ import annotations
@@ -16,86 +17,79 @@ from src import analytics
 from src.config import settings
 
 
-class _FakeOpenPanel:
-    """Stand-in for the official openpanel SDK client. Records init args, global
-    properties, and track() calls (the SDK sends on its own thread; here it's sync)."""
+class _ImmediateThread:
+    """Run the daemon-thread target synchronously so the POST is observable in-test."""
 
-    instances: list[_FakeOpenPanel] = []
+    def __init__(self, target=None, args=(), daemon=None, **_kw: Any) -> None:
+        self._target = target
+        self._args = args
 
-    def __init__(self, *, client_id: str, api_url: str | None = None, **kwargs: Any) -> None:
-        self.client_id = client_id
-        self.api_url = api_url
-        self.global_properties: dict[str, Any] = {}
-        self.tracked: list[tuple[str, dict[str, Any]]] = []
-        type(self).instances.append(self)
-
-    def set_global_properties(self, props: dict[str, Any]) -> None:
-        self.global_properties.update(props)
-
-    def track(self, name: str, properties: dict[str, Any] | None = None) -> None:
-        self.tracked.append((name, properties or {}))
+    def start(self) -> None:
+        self._target(*self._args)
 
 
 @pytest.fixture(autouse=True)
-def _reset(monkeypatch):
-    # the emitter caches one module-level client; reset between tests
-    monkeypatch.setattr(analytics, "_client", None)
-    _FakeOpenPanel.instances = []
-    # patch the official SDK symbol the module imports lazily
-    import openpanel
-
-    monkeypatch.setattr(openpanel, "OpenPanel", _FakeOpenPanel)
-    yield
-    monkeypatch.setattr(analytics, "_client", None)
+def _sync_threads(monkeypatch):
+    monkeypatch.setattr(analytics.threading, "Thread", _ImmediateThread)
 
 
-def _configure(monkeypatch, *, client_id="6e8f9d85-test", api_url="https://openpanel.example/api", env="production"):
+def _configure(monkeypatch, *, client_id="62d5cfe0-test", api_url="https://openpanel.example/api", env="production"):
     monkeypatch.setattr(settings, "openpanel_client_id", client_id)
     monkeypatch.setattr(settings, "openpanel_api_url", api_url)
     monkeypatch.setattr(settings, "openpanel_environment", env)
 
 
 def test_track_is_noop_when_unconfigured(monkeypatch) -> None:
-    """No client-id (local/CI/preview) => complete no-op, SDK never built, returns False."""
+    """No client-id (local/CI/preview) => complete no-op, no POST, returns False."""
     _configure(monkeypatch, client_id="")
+    posted: list[Any] = []
+    monkeypatch.setattr(analytics, "_post", lambda *a: posted.append(a))
     assert analytics.track("report_generated") is False
-    assert _FakeOpenPanel.instances == []
+    assert posted == []
     assert analytics.is_configured() is False
 
 
-def test_track_uses_official_sdk_with_global_source_and_env(monkeypatch) -> None:
-    """Configured => builds one SDK client (client_id + self-hosted api_url),
-    stamps source=backend + deployment_environment globally, and tracks the event."""
+def test_track_posts_to_track_endpoint_with_client_id_and_no_profileid(monkeypatch) -> None:
+    """Configured => POSTs {type:track, payload:{name, properties}} to <api>/track with the
+    openpanel-client-id header; tags source=backend + deployment_environment; and crucially
+    OMITS profileId (the field the official SDK sends as null, which our OpenPanel 400s on)."""
     _configure(monkeypatch)
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        analytics,
+        "_post",
+        lambda payload, cid, endpoint: calls.append({"payload": payload, "cid": cid, "endpoint": endpoint}),
+    )
 
     assert analytics.track("report_generated", {"framework_id": "us_gaap_like"}) is True
-
-    assert len(_FakeOpenPanel.instances) == 1
-    client = _FakeOpenPanel.instances[0]
-    assert client.client_id == "6e8f9d85-test"
-    assert client.api_url == "https://openpanel.example/api"
-    assert client.global_properties == {"source": "backend", "deployment_environment": "production"}
-    assert client.tracked == [("report_generated", {"framework_id": "us_gaap_like"})]
-
-
-def test_client_is_built_once_across_calls(monkeypatch) -> None:
-    """The SDK spins a daemon thread; the emitter must reuse ONE client, not one-per-event."""
-    _configure(monkeypatch)
-    analytics.track("a")
-    analytics.track("b")
-    assert len(_FakeOpenPanel.instances) == 1
-    assert [n for n, _ in _FakeOpenPanel.instances[0].tracked] == ["a", "b"]
+    assert len(calls) == 1
+    c = calls[0]
+    assert c["endpoint"] == "https://openpanel.example/api/track"
+    assert c["cid"] == "62d5cfe0-test"
+    body = c["payload"]
+    assert body["type"] == "track"
+    assert "profileId" not in body["payload"]
+    assert body["payload"]["name"] == "report_generated"
+    props = body["payload"]["properties"]
+    assert props["source"] == "backend"
+    assert props["deployment_environment"] == "production"
+    assert props["framework_id"] == "us_gaap_like"
 
 
-def test_track_never_raises_when_sdk_errors(monkeypatch) -> None:
-    """An SDK error is swallowed (returns False) — analytics must never break the request."""
+def test_track_never_raises_on_transport_error(monkeypatch) -> None:
+    """A transport/HTTP error inside _post is swallowed — analytics must never break the
+    request that scheduled it (track still returns True; the failure is logged at debug)."""
     _configure(monkeypatch)
 
-    class _BoomOpenPanel(_FakeOpenPanel):
-        def track(self, *a: Any, **k: Any) -> None:
-            raise RuntimeError("sdk boom")
+    class _BoomClient:
+        def __enter__(self):
+            return self
 
-    import openpanel
+        def __exit__(self, *a):
+            return False
 
-    monkeypatch.setattr(openpanel, "OpenPanel", _BoomOpenPanel)
-    assert analytics.track("report_generated") is False
+        def post(self, *a: Any, **k: Any):
+            raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(analytics.httpx, "Client", lambda *a, **k: _BoomClient())
+    assert analytics.track("report_generated") is True

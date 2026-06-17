@@ -30,7 +30,6 @@ dependencies = [
     "pymupdf>=1.24.0",
     "cryptography>=42.0.0",
     "litellm>=1.55.0",
-    "openpanel>=0.0.1",
 ]
 
 [project.optional-dependencies]
