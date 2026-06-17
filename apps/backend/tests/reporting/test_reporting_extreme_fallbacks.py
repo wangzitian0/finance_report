@@ -27,11 +27,6 @@ from src.services.reporting import (
 )
 
 
-@pytest.fixture
-def test_user_id(test_user):
-    return test_user.id
-
-
 async def test_reporting_extreme_fallbacks_failure_reporting(db: AsyncSession, test_user_id):
     """Cover lines 270-277 and 426-433 where all FX fallbacks fail."""
     acc_usd = Account(user_id=test_user_id, name="USD Cash", type=AccountType.ASSET, currency="USD")

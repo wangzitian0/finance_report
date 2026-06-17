@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
-    Account,
     AccountType,
     Direction,
     JournalEntry,
@@ -31,54 +30,13 @@ from src.services.reporting import (
     get_account_trend,
     get_category_breakdown,
 )
-
-
-@pytest.fixture
-def test_user_id(test_user):
-    """Test user ID — a real persisted users row so production FKs resolve (#991)."""
-    return test_user.id
+from tests.reporting._report_fixtures import build_standard_chart_of_accounts
 
 
 @pytest.fixture
 async def chart_of_accounts(db: AsyncSession, test_user_id):
-    """Create a minimal chart of accounts for reporting."""
-    accounts = [
-        Account(
-            user_id=test_user_id,
-            name="Cash",
-            type=AccountType.ASSET,
-            currency="SGD",
-        ),
-        Account(
-            user_id=test_user_id,
-            name="Credit Card",
-            type=AccountType.LIABILITY,
-            currency="SGD",
-        ),
-        Account(
-            user_id=test_user_id,
-            name="Owner Equity",
-            type=AccountType.EQUITY,
-            currency="SGD",
-        ),
-        Account(
-            user_id=test_user_id,
-            name="Salary",
-            type=AccountType.INCOME,
-            currency="SGD",
-        ),
-        Account(
-            user_id=test_user_id,
-            name="Dining",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        ),
-    ]
-    db.add_all(accounts)
-    await db.commit()
-    for account in accounts:
-        await db.refresh(account)
-    return accounts
+    """Create a minimal chart of accounts for reporting (shared builder, #1158)."""
+    return await build_standard_chart_of_accounts(db, test_user_id)
 
 
 async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_user_id):

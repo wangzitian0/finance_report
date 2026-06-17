@@ -39,12 +39,6 @@ from src.services.accounting import (
 
 
 @pytest.fixture
-def test_user_id(test_user):
-    """Test user ID — a real persisted users row so production FKs resolve (#991)."""
-    return test_user.id
-
-
-@pytest.fixture
 async def asset_account(db: AsyncSession, test_user_id):
     """Create a test asset account (Bank)."""
     account = Account(

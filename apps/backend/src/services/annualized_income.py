@@ -27,7 +27,7 @@ from src.schemas import (
     AnnualizedIncomeScheduleResponse,
 )
 from src.services.fx import FxRateError, convert_amount
-from src.services.reporting import income_bucket
+from src.services.reporting_calc import income_bucket
 from src.utils import raise_bad_request
 from src.utils.money import to_money
 

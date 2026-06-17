@@ -54,14 +54,13 @@ from src.services.brokerage_statement_payload import (
 from src.services.statement_pipeline import submit_parse_pipeline
 from src.services.statement_posting import auto_create_posted_entries_for_statement, resolve_statement_posting_account
 from src.services.statement_validation import (
-    approve_statement as approve_statement_svc,
     edit_and_approve,
     pending_stage1_review_filter,
-    reject_statement as reject_statement_svc,
     resolve_statement_transactions,
     set_opening_balance,
     validate_balance_chain,
 )
+from src.services.statement_workflow import approve_statement_workflow, reject_statement_workflow
 from src.utils import (
     raise_bad_request,
     raise_internal_error,
@@ -805,9 +804,7 @@ async def approve_statement_stage1(
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)
 
-        statement = await approve_statement_svc(db, statement_id, user_id)
-        created_count = await auto_create_posted_entries_for_statement(db, statement, user_id)
-        await db.commit()
+        created_count = await approve_statement_workflow(db, statement_id, user_id)
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -826,9 +823,7 @@ async def reject_statement_stage1(
 ) -> BankStatementResponse:
     """Stage 1: Reject statement."""
     try:
-        statement = await reject_statement_svc(db, statement_id, user_id, reason=decision.notes)
-        await db.commit()
-        await db.refresh(statement)
+        statement = await reject_statement_workflow(db, statement_id, user_id, reason=decision.notes)
         await _queue_statement_reparse(db, statement, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

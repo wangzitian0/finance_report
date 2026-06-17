@@ -36,6 +36,7 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/portfolio/__init__.py` | Package marker |
 | `apps/backend/tests/reconciliation/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/__init__.py` | Package marker |
+| `apps/backend/tests/reporting/_report_fixtures.py` | Shared reporting chart-of-accounts test builder |
 | `tests/tooling/__init__.py` | Package marker |
 | `tests/tooling/conftest.py` | Shared tooling-test fixtures |
 | `tests/e2e/conftest.py` | Shared top-level E2E fixtures |

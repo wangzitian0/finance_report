@@ -151,6 +151,7 @@ nav:
           - "EPIC-022: Everyday-User IA": project/EPIC-022.everyday-user-ia.md
           - "EPIC-023: LLM Provider Abstraction": project/EPIC-023.llm-provider-abstraction.md
           - "EPIC-024: Frontend Browser Observability": project/EPIC-024.frontend-observability.md
+          - "EPIC-025: DRY/SSOT Simplification": project/EPIC-025.dry-ssot-simplification.md
 
 extra:
   social:

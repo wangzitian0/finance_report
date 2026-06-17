@@ -17,7 +17,7 @@ from src.services.investment_accounting import (
     InvestmentAccountingService,
     InvestmentAccountingValidationError,
 )
-from src.services.reporting import (
+from src.services.reporting_calc import (
     _provenance_from_source_type,
     _quantize_money,
     income_bucket,
