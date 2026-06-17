@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import * as currency from "@/lib/money";
+import * as money from "@/lib/money";
 import { TransactionTable } from "@/components/review/TransactionTable";
 import type { BankStatementTransaction } from "@/lib/types";
 
@@ -131,7 +131,7 @@ describe("TransactionTable (read-only)", () => {
     });
 
     it("calls formatCurrencyLocale for each transaction amount", () => {
-        const spy = vi.spyOn(currency, "formatCurrencyLocale");
+        const spy = vi.spyOn(money, "formatCurrencyLocale");
 
         const mixed: BankStatementTransaction[] = [
             sample[0],
