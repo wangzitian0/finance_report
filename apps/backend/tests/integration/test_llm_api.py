@@ -124,9 +124,18 @@ async def test_AC23_4_2_delete_non_uuid_is_not_found(client: AsyncClient) -> Non
 
 @pytest.mark.parametrize(
     "api_base",
-    ["http://localhost:8080", "http://169.254.169.254/latest/meta-data", "http://10.0.0.5", "https://vault.internal"],
+    [
+        "http://localhost:8080",
+        "http://169.254.169.254/latest/meta-data",
+        "http://10.0.0.5",
+        "https://vault.internal",
+        # trailing-dot FQDNs resolve to the same host and must not bypass the guard
+        "http://localhost.",
+        "https://vault.internal.",
+        "https://metadata.google.internal./computeMetadata/v1/",
+    ],
 )
-async def test_AC23_4_2_provider_rejects_ssrf_api_base(client: AsyncClient, cipher, api_base: str) -> None:
+async def test_AC23_4_9_provider_rejects_ssrf_api_base(client: AsyncClient, cipher, api_base: str) -> None:
     """AC23.4.9: api_base pointing at loopback/private/link-local/metadata/.internal is rejected (422)."""
     resp = await client.post(
         "/llm/providers",
@@ -135,7 +144,7 @@ async def test_AC23_4_2_provider_rejects_ssrf_api_base(client: AsyncClient, ciph
     assert resp.status_code == 422
 
 
-async def test_AC23_4_2_provider_count_capped(client: AsyncClient, cipher, monkeypatch) -> None:
+async def test_AC23_4_10_provider_count_capped(client: AsyncClient, cipher, monkeypatch) -> None:
     """AC23.4.10: creating providers beyond the per-user cap returns 409."""
     monkeypatch.setattr("src.routers.llm.MAX_PROVIDERS_PER_USER", 2)
     await _create_provider(client, label="p1")

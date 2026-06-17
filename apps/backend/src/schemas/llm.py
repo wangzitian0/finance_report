@@ -32,6 +32,7 @@ def _api_base_host_is_blocked(host: str) -> bool:
     DNS — egress-time SSRF protection (DNS rebinding) belongs at the HTTP-client
     layer. This rejects the common foot-guns at config-write time."""
     h = host.lower().strip("[]")  # tolerate bracketed IPv6
+    h = h.rstrip(".")  # a trailing-dot FQDN (localhost. / vault.internal.) resolves the same
     if h in _BLOCKED_API_BASE_HOSTS or h.endswith((".internal", ".local")):
         return True
     try:

@@ -80,7 +80,7 @@ async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
     assert binding.max_tokens == 8192
 
 
-async def test_get_provider_is_user_scoped_no_cross_tenant_key_disclosure(db, cipher):
+async def test_AC23_4_8_get_provider_is_user_scoped_no_cross_tenant_key_disclosure(db, cipher):
     """AC23.4.8: get_provider must not resolve — or decrypt — another user's provider by id."""
     from uuid import uuid4
 
