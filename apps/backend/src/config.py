@@ -520,10 +520,11 @@ class Settings(BaseSettings):
         },
     )
 
-    # OpenPanel product analytics (BE -> OpenPanel). Per-env client-id, injected at
-    # deploy from the single source tools/openpanel_clients.py (same value the
-    # frontend uses for its project). Empty (local/CI/preview) => analytics is a
-    # complete no-op. The client-id is a non-secret public value.
+    # OpenPanel product analytics (BE -> OpenPanel). The per-env client-id is issued by
+    # infra2 deploy tooling and injected at deploy as OPENPANEL_CLIENT_ID (same value the
+    # frontend project uses); the App only READS this one env var and never enumerates
+    # environments. Empty (local/CI/preview) => analytics is a complete no-op. The
+    # client-id is a non-secret public value.
     openpanel_client_id: str = Field(
         default="",
         validation_alias="OPENPANEL_CLIENT_ID",
