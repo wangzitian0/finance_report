@@ -20,7 +20,7 @@
  * Hermetic by construction: no real SigNoz collector and no real OpenPanel SDK
  * script are contacted.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 // Real exporter/provider — the exact classes wired in src/lib/otel.ts.
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http"
@@ -38,17 +38,20 @@ describe("AC24.2 FE telemetry + analytics emission (#1169)", () => {
   })
 
   // AC24.2.1 — a finished browser span is actually emitted through the real
-  // OTLP/HTTP exporter that `src/lib/otel.ts` ships, targeting /v1/traces.
-  it("emits a browser OTel span as an OTLP POST to the /v1/traces endpoint (AC24.2.1)", async () => {
+  // OTLP/HTTP exporter that `src/lib/otel.ts` ships. This asserts the pipeline
+  // hands the span to `OTLPTraceExporter.export()` (the in-browser POST origin);
+  // the real `POST /v1/traces` over the wire is asserted end-to-end in the
+  // companion `playwright/telemetry-emission.spec.ts`.
+  it("emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)", async () => {
     // The SAME exporter class the app uses, pointed at a /v1/traces endpoint.
     const exporter = new OTLPTraceExporter({ url: OTLP_TRACES_ENDPOINT })
     // Spy on the emission boundary: every finished span the pipeline drains is
-    // handed to export() — this is where a real OTLP POST is issued in-browser.
-    // We short-circuit the success callback so forceFlush() resolves
-    // deterministically: happy-dom's fetch/transport cannot drain the real HTTP
-    // export (that POST is asserted for real in the Playwright companion), but
-    // the call to export() proves the pipeline emitted the span to the OTLP
-    // exporter the app ships.
+    // handed to export(), which is where the real OTLP POST WOULD be issued in a
+    // real browser run. Here export() is mocked — we short-circuit the success
+    // callback so forceFlush() resolves deterministically (happy-dom's
+    // fetch/transport cannot drain the real HTTP export; that POST is asserted
+    // for real in the Playwright companion). The export() call itself proves the
+    // pipeline emitted the span to the OTLP exporter the app ships.
     const exportSpy = vi
       .spyOn(exporter, "export")
       .mockImplementation((_spans, resultCallback) => {
@@ -63,7 +66,9 @@ describe("AC24.2 FE telemetry + analytics emission (#1169)", () => {
     provider.getTracer("ac24.2.1-emission-test").startSpan("web-vital.LCP").end()
     await provider.forceFlush()
 
-    // The exporter actually received a finished span to emit to /v1/traces.
+    // The exporter actually received a finished span to emit (the POST to
+    // /v1/traces is what export() performs in a real browser; asserted for real
+    // in the Playwright companion).
     expect(exportSpy).toHaveBeenCalledTimes(1)
     const [exportedSpans] = exportSpy.mock.calls[0]
     expect(exportedSpans).toHaveLength(1)

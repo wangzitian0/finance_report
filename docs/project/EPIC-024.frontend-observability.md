@@ -100,10 +100,12 @@ triaging issues.
 
 ### Emission Proof (#1169)
 - [x] Hermetic integration test driving the real exporter + `track()` and
-  asserting the OTLP `/v1/traces` POST and the OpenPanel `window.op` dispatch
+  asserting the span reaches `OTLPTraceExporter.export()` (the in-browser POST
+  origin) and the OpenPanel `window.op` dispatch fires
   (`src/__tests__/telemetryEmission.test.ts`).
-- [x] Real-browser Playwright smoke confirming the same wiring end-to-end with
-  a stubbed collector + OpenPanel script (`playwright/telemetry-emission.spec.ts`).
+- [x] Real-browser Playwright smoke asserting the actual outbound `POST
+  /v1/traces` (and OpenPanel dispatch) end-to-end against a stubbed collector +
+  OpenPanel script (`playwright/telemetry-emission.spec.ts`).
 
 ---
 
@@ -137,7 +139,7 @@ real SigNoz/OpenPanel contacted).
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC24.2.1 | With the OTLP endpoint configured, the real browser OTel exporter emits an outbound `POST` to the `/v1/traces` collector endpoint (span actually exported, not merely wired); asserted against a stubbed collector so the test is hermetic | `emits a browser OTel span as an OTLP POST to the /v1/traces endpoint (AC24.2.1)` | `playwright/telemetry-emission.spec.ts`, `src/__tests__/telemetryEmission.test.ts` | P1 |
+| AC24.2.1 | With the OTLP endpoint configured, the real browser OTel exporter emits a span (span actually exported, not merely wired): the vitest proof asserts the span reaches `OTLPTraceExporter.export()`, and the Playwright spec asserts the actual outbound `POST /v1/traces` over the wire; both hermetic against a stubbed collector | vitest `emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)` + Playwright `POST /v1/traces` spec | `playwright/telemetry-emission.spec.ts`, `src/__tests__/telemetryEmission.test.ts` | P1 |
 | AC24.2.2 | With the OpenPanel client id configured, the analytics layer actually dispatches an OpenPanel event/page-view (`window.op('track'\|'screenView', …)` invoked); asserted against a stubbed `window.op`/endpoint so the test is hermetic | `dispatches an OpenPanel event via window.op when configured (AC24.2.2)` | `playwright/telemetry-emission.spec.ts`, `src/__tests__/telemetryEmission.test.ts` | P1 |
 
 ---
