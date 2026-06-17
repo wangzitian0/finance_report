@@ -67,3 +67,19 @@ def test_money_quantum_matches_standard():
 
     assert str(MONEY_QUANTUM) == VECTORS["money_quantum"]
     assert VECTORS["default_rounding"] == "ROUND_HALF_EVEN"
+
+
+@ac_proof(
+    proof_id="test_money_conformance_iso_set_parity",
+    ac_ids=["AC2.19.1"],
+    issue="#1170",
+)
+def test_AC2_19_1_iso_currency_set_matches_standard():
+    """AC2.19.1: the Python ISO-4217 set equals the shared canonical set.
+
+    Guarantees the two ends accept/reject the SAME currencies (not just the
+    sampled normalise/invalid cases) — the frontend asserts the same parity.
+    """
+    from common.money.currency import ISO_4217_CODES
+
+    assert ISO_4217_CODES == set(VECTORS["iso4217"])
