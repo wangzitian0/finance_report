@@ -520,6 +520,29 @@ class Settings(BaseSettings):
         },
     )
 
+    # OpenPanel product analytics (BE -> OpenPanel). Per-env client-id, injected at
+    # deploy from the single source tools/openpanel_clients.py (same value the
+    # frontend uses for its project). Empty (local/CI/preview) => analytics is a
+    # complete no-op. The client-id is a non-secret public value.
+    openpanel_client_id: str = Field(
+        default="",
+        validation_alias="OPENPANEL_CLIENT_ID",
+        description="Per-env OpenPanel project client-id for server-side events (empty = analytics off).",
+        json_schema_extra={"group": "Observability"},
+    )
+    openpanel_api_url: str = Field(
+        default="",
+        validation_alias="OPENPANEL_API_URL",
+        description="OpenPanel API base URL (e.g. https://openpanel.zitian.party/api).",
+        json_schema_extra={"group": "Observability"},
+    )
+    openpanel_environment: str = Field(
+        default="",
+        validation_alias="OPENPANEL_ENVIRONMENT",
+        description="Canonical OpenPanel environment label (falls back to `environment`).",
+        json_schema_extra={"group": "Observability"},
+    )
+
     # Feature Flags for AI-Driven Pipeline (EPIC-018)
     enable_ai_reconciliation: bool = Field(
         default=False,
