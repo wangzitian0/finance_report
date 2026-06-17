@@ -1544,7 +1544,7 @@ def test_iter_periods_daily_limit():
     """Test that _iter_periods respects the MAX_TREND_POINTS limit."""
     from datetime import date, timedelta
 
-    from src.services.reporting import MAX_TREND_POINTS, _iter_periods
+    from src.services.reporting_calc import MAX_TREND_POINTS, _iter_periods
 
     # 1000 days span
     start = date(2020, 1, 1)
