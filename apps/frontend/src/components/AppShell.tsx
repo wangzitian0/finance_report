@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
 import { ToastProvider } from "@/components/ui/Toast";
 import { WorkflowNotificationCenter } from "@/components/workflow/WorkflowNotifications";
+import { FirstRunModal } from "@/components/llm/FirstRunModal";
 
 interface AppShellProps {
     children: ReactNode;
@@ -47,6 +48,10 @@ function AppShellContent({ children }: AppShellProps) {
                     {children}
                 </main>
             </div>
+
+            {/* First-run LLM provider prompt (EPIC-023 PR4): app-wide so it
+                surfaces wherever the user lands while unconfigured. */}
+            <FirstRunModal />
         </div>
     );
 }

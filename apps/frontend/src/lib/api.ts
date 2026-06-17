@@ -1,8 +1,16 @@
-import { getAccessToken, getUserId } from "./auth";
+import { getAccessToken } from "./auth";
 import type {
   ConfidenceNorthStarResponse,
   CorrectionLoopReplayResponse,
   CurrentUser,
+  LlmCatalogResponse,
+  LlmConfigStatusResponse,
+  LlmModality,
+  LlmProviderCreate,
+  LlmProviderListResponse,
+  LlmProviderResponse,
+  LlmScenesResponse,
+  LlmScenesUpdate,
   UserAiSettings,
   UserAiSettingsUpdate,
   WorkflowEventListResponse,
@@ -400,4 +408,66 @@ export async function patchUserSettings(
 /** The authenticated identity backing the current session cookie/token. */
 export async function fetchCurrentUser(): Promise<CurrentUser> {
   return apiFetch<CurrentUser>("/api/auth/me");
+}
+
+// ── LLM configuration (EPIC-023 PR4) ───────────────────────────────────────
+
+/** Whether the current user has a usable LLM configuration (drives first-run). */
+export async function fetchLlmConfigStatus(): Promise<LlmConfigStatusResponse> {
+  return apiFetch<LlmConfigStatusResponse>("/api/llm/config/status");
+}
+
+/** The current user's configured providers (API keys are never returned). */
+export async function fetchLlmProviders(): Promise<LlmProviderListResponse> {
+  return apiFetch<LlmProviderListResponse>("/api/llm/providers");
+}
+
+/** Create a provider instance for the current user (api_key is write-only). */
+export async function createLlmProvider(
+  body: LlmProviderCreate
+): Promise<LlmProviderResponse> {
+  return apiFetch<LlmProviderResponse>("/api/llm/providers", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Delete a configured provider by id. */
+export async function deleteLlmProvider(id: string): Promise<void> {
+  return apiDelete(`/api/llm/providers/${id}`);
+}
+
+export interface FetchLlmCatalogOptions {
+  modality?: LlmModality;
+  freeOnly?: boolean;
+}
+
+/** The model catalogue, optionally filtered by modality and free-tier. */
+export async function fetchLlmCatalog(
+  options: FetchLlmCatalogOptions = {}
+): Promise<LlmCatalogResponse> {
+  const params = new URLSearchParams();
+  if (options.modality) params.set("modality", options.modality);
+  if (options.freeOnly !== undefined) {
+    params.set("free_only", String(options.freeOnly));
+  }
+  const query = params.toString();
+  return apiFetch<LlmCatalogResponse>(
+    `/api/llm/catalog${query ? `?${query}` : ""}`
+  );
+}
+
+/** The current user's scene→model bindings. */
+export async function fetchLlmScenes(): Promise<LlmScenesResponse> {
+  return apiFetch<LlmScenesResponse>("/api/llm/scenes");
+}
+
+/** Replace the current user's scene bindings (PUT semantics). */
+export async function putLlmScenes(
+  body: LlmScenesUpdate
+): Promise<LlmScenesResponse> {
+  return apiFetch<LlmScenesResponse>("/api/llm/scenes", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
 }
