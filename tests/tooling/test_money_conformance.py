@@ -20,6 +20,7 @@ VECTORS = load_vectors()
 @ac_proof(
     proof_id="test_money_conformance_rounding",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 @pytest.mark.parametrize("case", VECTORS["rounding"], ids=lambda c: f"{c['amount']}/{c['rounding']}")
@@ -32,6 +33,7 @@ def test_AC2_20_1_conformance_rounding(case):
 @ac_proof(
     proof_id="test_money_conformance_convert",
     ac_ids=["AC2.20.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 @pytest.mark.parametrize("case", VECTORS["convert"], ids=lambda c: f"{c['amount']}*{c['rate']}")
@@ -50,6 +52,7 @@ def test_AC2_20_1_conformance_convert(case):
 @ac_proof(
     proof_id="test_money_conformance_currency",
     ac_ids=["AC2.19.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_conformance_currency_validation():
@@ -72,6 +75,7 @@ def test_money_quantum_matches_standard():
 @ac_proof(
     proof_id="test_money_conformance_iso_set_parity",
     ac_ids=["AC2.19.1"],
+    ci_tier="pr_ci",
     issue="#1170",
 )
 def test_AC2_19_1_iso_currency_set_matches_standard():
