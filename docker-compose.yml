@@ -21,7 +21,7 @@ services:
   postgres:
     image: postgres:15.14-alpine
     container_name: finance-report-db${ENV_SUFFIX:-}
-    restart: ${RESTART_POLICY:-unless-stopped}
+    restart: "${RESTART_POLICY:-unless-stopped}"
     logging: *json-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -45,7 +45,7 @@ services:
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: finance-report-minio${ENV_SUFFIX:-}
-    restart: ${RESTART_POLICY:-unless-stopped}
+    restart: "${RESTART_POLICY:-unless-stopped}"
     logging: *json-logging
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
@@ -102,7 +102,7 @@ services:
         UV_IMAGE: ${UV_IMAGE:-ghcr.io/astral-sh/uv:0.9.18}
         GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
     container_name: finance-report-backend${ENV_SUFFIX:-}
-    restart: ${RESTART_POLICY:-unless-stopped}
+    restart: "${RESTART_POLICY:-unless-stopped}"
     logging: *json-logging
     # Dependencies depend on profile! 
     # Docker Compose handles this: if postgres is not started (profile off), depends_on is ignored or handled gracefully?
@@ -169,7 +169,7 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
     container_name: finance-report-frontend${ENV_SUFFIX:-}
-    restart: ${RESTART_POLICY:-unless-stopped}
+    restart: "${RESTART_POLICY:-unless-stopped}"
     logging: *json-logging
     environment:
       NODE_ENV: production
