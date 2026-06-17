@@ -38,6 +38,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database import Base
 from src.models.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 from src.models.statement_enums import BankStatementStatus, Stage1Status
+from src.money import CurrencyBalances
 
 
 class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
@@ -139,3 +140,15 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         comment="When the reviewer resolved Stage-1 duplicate/transfer-pair candidates (#962)",
     )
     extraction_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
+
+    def typed_currency_balances(self) -> CurrencyBalances:
+        """Per-currency balances as a typed :class:`CurrencyBalances` (#1167 / #1171 AC2.22.1).
+
+        Parses the ``currency_balances`` JSONB (``[{currency, opening, closing}]``,
+        amounts persisted as strings) into the typed container, so a multi-currency
+        statement is read as one balance *per currency* and is structurally
+        incapable of collapsing onto a single scalar. Returns an empty container
+        when ``currency_balances`` is NULL/empty (the single-currency degenerate
+        case still lives in the scalar ``opening_balance``/``closing_balance``).
+        """
+        return CurrencyBalances.from_jsonb(self.currency_balances)

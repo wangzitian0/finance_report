@@ -9,6 +9,7 @@ so the API and the runtime contract can never drift.
 from __future__ import annotations
 
 import ipaddress
+import socket
 from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -35,10 +36,17 @@ def _api_base_host_is_blocked(host: str) -> bool:
     h = h.rstrip(".")  # a trailing-dot FQDN (localhost. / vault.internal.) resolves the same
     if h in _BLOCKED_API_BASE_HOSTS or h.endswith((".internal", ".local")):
         return True
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None
     try:
         ip = ipaddress.ip_address(h)
     except ValueError:
-        return False  # a regular hostname (not an IP literal)
+        # Catch legacy IPv4 encodings the dotted-quad parser rejects but libc /
+        # curl accept: integer (2130706433), hex (0x7f000001), octal (0177.0.0.1),
+        # short forms (127.1). inet_aton normalises them all to packed bytes.
+        try:
+            ip = ipaddress.IPv4Address(socket.inet_aton(h))
+        except (OSError, ValueError):
+            return False  # a regular hostname (not any IP literal)
     return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified
 
 

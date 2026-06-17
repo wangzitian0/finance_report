@@ -42,6 +42,7 @@ TEST_DB_PREFIX = test_isolation.TEST_DB_PREFIX
 MAX_NAMESPACE_LENGTH = test_isolation.MAX_NAMESPACE_LENGTH
 MAX_S3_BUCKET_LENGTH = test_isolation.MAX_S3_BUCKET_LENGTH
 
+
 # ANSI Colors
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -393,6 +394,10 @@ def test_database(ephemeral=False):
     env.setdefault("DB_PORTS", "127.0.0.1::5432")
     env.setdefault("MINIO_API_PORTS", "127.0.0.1::9000")
     env.setdefault("MINIO_CONSOLE_PORTS", "127.0.0.1::9001")
+    # Test infra is throwaway — never let containers auto-restart into long-lived
+    # background services (the local podman heat/leak). A caller can still
+    # override RESTART_POLICY for an intentionally persistent stack.
+    env.setdefault("RESTART_POLICY", "no")
 
     compose_cmd = [runtime, "compose", "-p", project_name, "-f", str(COMPOSE_FILE)]
 

@@ -5,6 +5,15 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
+# Local infrastructure is for dev/test, not a long-lived service. Default the
+# compose restart policy to "no" so postgres/minio do NOT auto-resurrect on the
+# next podman start and quietly accumulate as background services (the root
+# cause of local podman heat/leak across worktree clones). Override with
+# RESTART_POLICY=unless-stopped for an intentionally persistent local stack;
+# prod/staging set RESTART_POLICY explicitly in their own deploy env.
+: "${RESTART_POLICY:=no}"
+export RESTART_POLICY
+
 usage() {
   cat <<'EOF'
 Usage: tools/infra.sh [up|down|logs|foreground]

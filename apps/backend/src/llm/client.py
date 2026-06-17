@@ -226,6 +226,37 @@ def estimate_cost_usd(model: str, messages: Sequence[Message], completion_text: 
     return Decimal(str(value))
 
 
+async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:
+    """Resolve ``model_id`` against ``config_source`` to ``(provider, bare_model)``.
+
+    A binding may qualify its model as ``provider_id/model`` (DB-backed config
+    always does, so the exact provider is selected even with several configured).
+    If the leading segment is a known provider id, it is used and stripped — for
+    any provider count. Otherwise: with a single provider the whole ``model_id``
+    is the model (it may contain slashes — OpenRouter's ``vendor/model``); with
+    several providers an unqualified or unknown-provider id is a config error,
+    never a silent fallback to the wrong credentials.
+
+    Shared by :class:`LitellmClient` and the ``ai_streaming`` transport so the
+    per-user binding's provider qualifier is honoured everywhere (a user with
+    several providers must not fail closed on a qualified binding).
+    """
+    providers = await config_source.list_providers()
+    if not providers:
+        raise LLMConfigError("No LLM provider configured")
+    if "/" in model_id:
+        provider_id, _, model = model_id.partition("/")
+        provider = await config_source.get_provider(provider_id)
+        if provider is not None:
+            return provider, model
+        if len(providers) == 1:
+            return providers[0], model_id
+        raise LLMConfigError(f"Unknown provider id {provider_id!r} in model {model_id!r}")
+    if len(providers) == 1:
+        return providers[0], model_id
+    raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider_id/model")
+
+
 class LitellmClient:
     """Scene-keyed ``LLMClient`` resolving config through a ``ConfigSource``."""
 
@@ -241,31 +272,7 @@ class LitellmClient:
         return provider, model, binding
 
     async def _resolve_provider(self, model_id: str) -> tuple[ProviderRef, str]:
-        """Resolve ``model_id`` to ``(provider, bare_model)``.
-
-        A binding may qualify its model as ``provider_id/model`` (DB-backed config
-        always does, so the exact provider is selected even with several
-        configured). If the leading segment is a known provider id, it is used and
-        stripped — for any provider count. Otherwise: with a single provider the
-        whole ``model_id`` is the model (it may contain slashes — OpenRouter's
-        ``vendor/model``); with several providers an unqualified or
-        unknown-provider id is a config error, never a silent fallback to the
-        wrong credentials.
-        """
-        providers = await self._config.list_providers()
-        if not providers:
-            raise LLMConfigError("No LLM provider configured")
-        if "/" in model_id:
-            provider_id, _, model = model_id.partition("/")
-            provider = await self._config.get_provider(provider_id)
-            if provider is not None:
-                return provider, model
-            if len(providers) == 1:
-                return providers[0], model_id
-            raise LLMConfigError(f"Unknown provider id {provider_id!r} in model {model_id!r}")
-        if len(providers) == 1:
-            return providers[0], model_id
-        raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider_id/model")
+        return await resolve_provider_and_model(self._config, model_id)
 
     def stream(
         self, scene: Scene, messages: Sequence[Message], *, reasoning: ReasoningEffort | None = None

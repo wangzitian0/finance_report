@@ -157,6 +157,34 @@ async def test_AC23_4_7_budget_exceeded_blocks_live_stream(litellm_stub, monkeyp
     assert ei.value.retryable is False
 
 
+async def test_AC23_4_5_user_qualified_model_resolves_exact_provider_with_many(litellm_stub, monkeypatch):
+    """AC23.4.5 / C1: a user with several providers + a qualified binding (provider_id/model)
+    resolves the exact provider instead of failing closed."""
+    from uuid import uuid4
+
+    prov_a = ProviderRef(
+        id="a", label="a", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k1", api_base="https://a"
+    )
+    prov_b = ProviderRef(
+        id="b", label="b", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2", api_base="https://b"
+    )
+
+    class _MultiScoped:
+        async def list_providers(self):
+            return [prov_a, prov_b]
+
+        async def get_provider(self, provider_id):
+            return {"a": prov_a, "b": prov_b}.get(provider_id)
+
+    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _MultiScoped())
+    # Qualified model "b/glm-4.6" + a real user_id -> provider b is selected, bare model sent.
+    text = await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hi"}], "b/glm-4.6", user_id=uuid4()))
+    assert text == '{"ok": true}'
+    assert litellm_stub["kwargs"]["model"] == "openai/glm-4.6"
+    assert litellm_stub["kwargs"]["api_base"] == "https://b"
+    # Budget check ran with spent under the default limit, so the stream proceeded.
+
+
 async def test_litellm_error_becomes_retryable_aistreamerror(monkeypatch):
     """A litellm provider failure surfaces as a retryable AIStreamError."""
     _explicit_provider(monkeypatch)
