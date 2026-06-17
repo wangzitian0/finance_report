@@ -106,7 +106,7 @@ async def test_stream_resolves_default_provider_from_config(litellm_stub, monkey
                 )
             ]
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", lambda: _Cfg())
+    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _Cfg())
     text = await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hi"}], "glm-5.1"))
     assert text == '{"ok": true}'
     assert litellm_stub["kwargs"]["model"] == "openai/glm-5.1"
@@ -119,7 +119,7 @@ async def test_stream_raises_when_no_provider_configured(monkeypatch):
         async def list_providers(self):
             return []
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", lambda: _Empty())
+    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _Empty())
     with pytest.raises(AIStreamError):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
 
@@ -134,7 +134,7 @@ async def test_stream_fails_closed_with_multiple_providers(monkeypatch):
                 ProviderRef(id="b", label="b", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k2"),
             ]
 
-    monkeypatch.setattr(ai_streaming, "get_config_source", lambda: _Multi())
+    monkeypatch.setattr(ai_streaming, "get_config_source", lambda *_a, **_k: _Multi())
     with pytest.raises(AIStreamError):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
 

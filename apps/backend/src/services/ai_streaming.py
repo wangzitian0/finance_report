@@ -11,6 +11,7 @@ handles provider routing + dropping model-rejected params (e.g. Z.AI/GLM
 
 from collections.abc import AsyncIterator
 from typing import Any
+from uuid import UUID
 
 from src.config import settings
 from src.llm.client import litellm_stream
@@ -35,11 +36,14 @@ class AIStreamError(Exception):
         self.retryable = retryable
 
 
-async def _resolve_provider(api_key: str | None, base_url: str | None) -> ProviderRef:
+async def _resolve_provider(api_key: str | None, base_url: str | None, user_id: UUID | None = None) -> ProviderRef:
     """Resolve the provider for a transport call.
 
     Explicit ``api_key`` wins (its protocol is taken from ``AI_PROVIDER``);
-    otherwise resolve the configured default provider (DB-first, env fallback).
+    otherwise resolve the configured default provider for ``user_id`` — the user's
+    own provider if they configured one, else the deployment default, else the env
+    fallback (see :func:`get_config_source`). ``user_id=None`` keeps the original
+    deployment/env-only behaviour for background/user-less callers.
     """
     if api_key:
         return ProviderRef(
@@ -49,7 +53,7 @@ async def _resolve_provider(api_key: str | None, base_url: str | None) -> Provid
             api_key=api_key,
             api_base=base_url or getattr(settings, "ai_base_url", None) or None,
         )
-    providers = await get_config_source().list_providers()
+    providers = await get_config_source(user_id).list_providers()
     if not providers:
         raise AIStreamError("AI provider not configured", retryable=False)
     if len(providers) > 1:
@@ -68,6 +72,7 @@ async def _stream_ai_base(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
+    user_id: UUID | None = None,
     timeout: float,
     connect_timeout: float = 10.0,
     max_tokens: int | None = None,
@@ -84,9 +89,10 @@ async def _stream_ai_base(
     ``extra_body``; ``seed`` is a native param litellm drops for models that
     reject it. ``response_format`` and ``connect_timeout`` are accepted for
     signature compatibility but unused — JSON mode stays prompt-driven and
-    litellm owns the transport.
+    litellm owns the transport. ``user_id`` scopes provider resolution to that
+    user's configured provider (else deployment default, else env).
     """
-    provider = await _resolve_provider(api_key, base_url)
+    provider = await _resolve_provider(api_key, base_url, user_id)
 
     extra_body: dict[str, Any] = {}
     if do_sample is not None:
@@ -125,6 +131,7 @@ async def stream_ai_json(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
+    user_id: UUID | None = None,
     timeout: float = 180.0,
     max_tokens: int | None = None,
     temperature: float | None = None,
@@ -138,6 +145,7 @@ async def stream_ai_json(
         model=model,
         api_key=api_key,
         base_url=base_url,
+        user_id=user_id,
         timeout=timeout,
         max_tokens=max_tokens,
         temperature=temperature,
@@ -155,6 +163,7 @@ async def stream_ai_chat(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
+    user_id: UUID | None = None,
     timeout: float = 120.0,
 ) -> AsyncIterator[str]:
     """Stream chat completions without JSON mode (plain text)."""
@@ -163,6 +172,7 @@ async def stream_ai_chat(
         model=model,
         api_key=api_key,
         base_url=base_url,
+        user_id=user_id,
         timeout=timeout,
         mode_label="chat mode",
     ):
