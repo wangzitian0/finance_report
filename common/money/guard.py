@@ -43,12 +43,19 @@ def scan_text_for_float(text: str) -> list[str]:
         # float(...) cast
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "float":
             offending.append(f"{node.lineno}: float as cast")
-        # def f(x: float) / -> float
-        elif isinstance(node, ast.FunctionDef):
+        # def / async def f(x: float, *args: float, **kwargs: float) -> float
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if _annotation_is_float(node.returns):
                 offending.append(f"{node.lineno}: float as return annotation")
-            for arg in [*node.args.args, *node.args.posonlyargs, *node.args.kwonlyargs]:
-                if _annotation_is_float(arg.annotation):
+            args = node.args
+            for arg in [
+                *args.args,
+                *args.posonlyargs,
+                *args.kwonlyargs,
+                args.vararg,
+                args.kwarg,
+            ]:
+                if arg is not None and _annotation_is_float(arg.annotation):
                     offending.append(f"{arg.lineno}: float as parameter annotation")
         # x: float = ...
         elif isinstance(node, ast.AnnAssign) and _annotation_is_float(node.annotation):

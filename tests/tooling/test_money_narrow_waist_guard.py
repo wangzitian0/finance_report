@@ -28,6 +28,9 @@ rate: float = 1.0  # money-shaped float at module level
 def bad(amount: float, currency: str) -> float:  # money-shaped float pair
     total = float(amount)  # cast back to float
     return total
+
+async def worse(*args: float, **kwargs: float) -> float:  # async + *args/**kwargs float
+    return 0
 """
 
 
