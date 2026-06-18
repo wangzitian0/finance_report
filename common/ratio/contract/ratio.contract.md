@@ -19,6 +19,7 @@
 | `from_percent(p)` | `p / 100` |
 | `to_percent(dp=2, rounding=HALF_UP)` | percentage value quantized to `dp` with the canonical policy |
 | `format_percent(dp=2)` | `"12.50%"` string |
+| `is_zero()` / `isZero()` | typed zero predicate; call-sites should not compare `Ratio` to naked numeric zero |
 | `add`/`sub`/`compare`/`neg`/`*scalar` | dimensionless arithmetic (ratios share one implicit unit) |
 
 ## Invariants (every end)
@@ -28,6 +29,8 @@
    passed. This is the one project-wide percent policy; it is intentionally NOT
    money's `ROUND_HALF_EVEN` (a percentage is not a currency amount).
 3. **Zero whole is undefined** — `fraction(x, 0)` raises, never silently 0.
+4. **Typed zero checks** — compare ratio values with `Ratio`/`is_zero`, not with
+   `0`, `0.0`, or raw `Decimal("0")` at call-sites.
 
 ## Shared API surface (identifier parity)
 

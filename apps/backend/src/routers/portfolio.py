@@ -1,7 +1,7 @@
 """Portfolio management API router."""
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -16,6 +16,7 @@ from src.models.portfolio import (
     InvestmentTransactionType,
 )
 from src.money import to_money
+from src.ratio import Ratio
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -46,6 +47,11 @@ _MAX_LIST_LIMIT = 500
 
 _portfolio_service = portfolio_service
 _brokerage_import_service = BrokeragePositionImportService()
+
+
+def _canonical_percent(value: Decimal) -> Decimal:
+    percent_ratio = Ratio.from_percent(value)
+    return percent_ratio.to_percent()
 
 
 class AllocationBreakdownResponse(BaseModel):
@@ -359,10 +365,9 @@ async def get_performance(
     except PerformanceError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
 
-    _two_dp = Decimal("0.01")
-    xirr = xirr.quantize(_two_dp, rounding=ROUND_HALF_UP)
-    twr = twr.quantize(_two_dp, rounding=ROUND_HALF_UP)
-    mwr = mwr.quantize(_two_dp, rounding=ROUND_HALF_UP)
+    xirr = _canonical_percent(xirr)
+    twr = _canonical_percent(twr)
+    mwr = _canonical_percent(mwr)
     logger.info("Performance calculated", xirr=float(xirr), twr=float(twr), mwr=float(mwr))
     return PerformanceMetricsResponse(xirr=xirr, time_weighted_return=twr, money_weighted_return=mwr)
 

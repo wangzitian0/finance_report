@@ -7,8 +7,9 @@ import { useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types";
-import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/money";
+import { compareAmounts, formatCurrencyLocale, formatQuantity } from "@/lib/money";
 import { formatDateDisplay } from "@/lib/date";
+import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
 
 function getPnlColor(value: string): string {
     const comparison = compareAmounts(value, "0");
@@ -17,8 +18,7 @@ function getPnlColor(value: string): string {
 }
 
 function formatPnlPercent(value: string): string {
-    const sign = compareAmounts(value, "0") > 0 ? "+" : "";
-    return `${sign}${formatAmount(value, 2)}%`;
+    return formatSignedPercentFromPercentValue(value);
 }
 
 export default function HoldingDetailPage() {

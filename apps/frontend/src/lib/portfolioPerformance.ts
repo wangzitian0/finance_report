@@ -1,4 +1,5 @@
-import { compareAmounts, divideAmount, multiplyAmount, sumAmounts } from "./money";
+import { compareAmounts, sumAmounts } from "./money";
+import { formatPercentValueFromParts } from "@/lib/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "./types";
 
 /**
@@ -31,10 +32,7 @@ export function computeMarketValuePerformance(
 
     let returnOnCostPercent: string | null = null;
     if (compareAmounts(totalCostBasis, "0") !== 0) {
-        returnOnCostPercent = multiplyAmount(
-            divideAmount(schedule.unrealized_pnl, totalCostBasis),
-            "100",
-        ).toFixed(2);
+        returnOnCostPercent = formatPercentValueFromParts(schedule.unrealized_pnl, totalCostBasis.toString());
     }
 
     return {

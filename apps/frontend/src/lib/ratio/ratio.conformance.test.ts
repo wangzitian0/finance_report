@@ -72,6 +72,8 @@ describe("ratio value-type laws (TS rendering of the contract)", () => {
     expect(a.compareTo(b)).toBe(-1);
     expect(a.equals(new Ratio("0.1"))).toBe(true);
     expect(Ratio.zero().value.equals(new Decimal("0"))).toBe(true);
+    expect(Ratio.zero().isZero()).toBe(true);
+    expect(a.isZero()).toBe(false);
   });
 
   it("renders percent strings (formatPercent / toString)", () => {

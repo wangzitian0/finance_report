@@ -11,7 +11,7 @@ failure (the router maps it to HTTP 422). Behavior unchanged.
 from __future__ import annotations
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from sqlalchemy import select
 
@@ -21,6 +21,7 @@ from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.market_data import StockPrice
 from src.models.portfolio import MarketDataOverride, PriceSource
 from src.money import to_money
+from src.ratio import Ratio
 from src.schemas.portfolio import (
     HoldingResponse,
     InvestmentPerformanceAllocationRow,
@@ -42,7 +43,8 @@ def _money(value: Decimal) -> Decimal:
 def _percent(value: Decimal | None) -> Decimal | None:
     if value is None:
         return None
-    return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    percent_ratio = Ratio.from_percent(value)
+    return percent_ratio.to_percent()
 
 
 def _source_document_links(source_documents: object) -> list[str]:
@@ -248,17 +250,15 @@ async def build_investment_performance_report_schedule(
                 current_value, current_count = grouped.get(category, (Decimal("0.00"), 0))
                 grouped[category] = (current_value + row.market_value, current_count + 1)
             for category, (value, count) in grouped.items():
-                percentage = Decimal("0.00")
-                if total_market_value:
-                    percentage = (value / total_market_value * Decimal("100")).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
+                allocation_ratio = (
+                    Ratio.fraction(value, total_market_value) if total_market_value != Decimal("0.00") else Ratio.zero()
+                )
                 allocation_rows.append(
                     InvestmentPerformanceAllocationRow(
                         dimension=dimension,
                         category=category,
                         value=_money(value),
-                        percentage=percentage,
+                        percentage=allocation_ratio.to_percent(),
                         count=count,
                     )
                 )

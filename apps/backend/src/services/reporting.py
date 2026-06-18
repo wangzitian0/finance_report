@@ -32,6 +32,7 @@ from src.models.layer3 import (
 )
 from src.money import to_money
 from src.money.adopt import restate, restate_unrounded
+from src.ratio import Ratio
 from src.schemas.provenance import DataProvenance
 from src.services import fx
 from src.services.assets import AssetService
@@ -1304,7 +1305,8 @@ def _add_liability_allocation_line(
 def _allocation_percentage(value: Decimal, net_worth: Decimal) -> Decimal | None:
     if net_worth == Decimal("0.00"):
         return None
-    return (value / net_worth * Decimal("100")).quantize(Decimal("0.01"))
+    allocation_ratio = Ratio.fraction(value, net_worth)
+    return allocation_ratio.to_percent()
 
 
 async def get_net_worth_allocation_schedule(

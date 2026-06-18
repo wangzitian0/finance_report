@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { PortfolioHolding } from "@/lib/types";
-import { compareAmounts, formatAmount, formatCurrencyLocale, formatQuantity } from "@/lib/money";
+import { compareAmounts, formatCurrencyLocale, formatQuantity } from "@/lib/money";
 import { formatDateDisplay } from "@/lib/date";
+import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 
 interface HoldingsTableProps {
@@ -18,8 +19,7 @@ function getPnlColor(value: string): string {
 }
 
 function formatPnlPercent(value: string): string {
-    const sign = compareAmounts(value, "0") > 0 ? "+" : "";
-    return `${sign}${formatAmount(value, 2)}%`;
+    return formatSignedPercentFromPercentValue(value);
 }
 
 export function HoldingsTable({ holdings, showDisposed = false }: HoldingsTableProps) {

@@ -11,28 +11,18 @@ import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
-import { amountToChartNumber, formatAmount, formatCurrencyLocale, sumAmounts } from "@/lib/money";
+import { amountToChartNumber, formatCurrencyLocale, sumAmounts } from "@/lib/money";
+import { clampPercentWidthFromPercentValue, formatPercentFromPercentValue } from "@/lib/ratio/format";
 import type { InvestmentPerformanceReportSchedule, NetWorthAllocationResponse, NetWorthAllocationRow } from "@/lib/types";
 
 const REPORT_CURRENCY = "SGD";
 
 function allocationBarWidth(percentage: string | null): string {
-    if (percentage === null) return "0%";
-    try {
-        const value = Math.abs(amountToChartNumber(percentage));
-        return `${Math.min(100, Math.max(0, value))}%`;
-    } catch {
-        return "0%";
-    }
+    return clampPercentWidthFromPercentValue(percentage);
 }
 
 function formatAllocationPercent(percentage: string | null): string {
-    if (percentage === null) return "N/A";
-    try {
-        return `${formatAmount(percentage, 1)}%`;
-    } catch {
-        return "N/A";
-    }
+    return formatPercentFromPercentValue(percentage, { dp: 1 });
 }
 
 function formatAllocationLabel(value: string): string {
