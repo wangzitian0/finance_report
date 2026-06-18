@@ -157,6 +157,7 @@ whatever infra2 injects and fast-fails if a required value is absent.
 |----------|--------------|
 | App starts without SigNoz | Run backend with no OTEL vars; logs appear in stdout |
 | Logs export to SigNoz | Set OTEL vars; confirm logs appear in SigNoz UI |
+| Metrics export to SigNoz | Set OTEL vars; RED, saturation, and business metrics use the OTLP metrics exporter |
 | Sensitive data excluded | Review log payloads for keys like `password`, `token` |
 | Environment filtering works | Filter by `deployment.environment=production` in SigNoz |
 | App alert readiness is visible | `/health.observability` and startup logs expose service `finance-report-backend`, rule `FinanceReportBackendErrorLogs`, and no collector/webhook URL |
@@ -175,6 +176,7 @@ Required fields:
 | `otel_exporter_configured` | Whether OTLP export is configured at runtime |
 | `logs_export_enabled` | Whether structured logs should be exported to SigNoz |
 | `traces_export_enabled` | Whether traces should be exported to SigNoz |
+| `metrics_export_enabled` | Whether the OTEL metrics provider/exporter was actually initialized |
 | `service_name` | OTEL service name; production value is `finance-report-backend` |
 | `deployment_environment` | Effective environment from `deployment.environment` or app environment fallback |
 | `resource_attributes` | Parsed non-secret OTEL resource attributes |

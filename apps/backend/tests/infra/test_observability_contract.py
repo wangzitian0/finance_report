@@ -10,7 +10,11 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from src import logger as logger_module, observability as observability_module
+from src import (
+    logger as logger_module,
+    observability as observability_module,
+    telemetry_metrics as telemetry_metrics_module,
+)
 from src.config import Settings
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -181,12 +185,14 @@ def test_AC10_9_1_observability_status_is_redacted_and_alert_ready(monkeypatch) 
         "deployment.environment=production,team=finance-report",
     )
     monkeypatch.setattr(observability_module.settings, "environment", "production")
+    telemetry_metrics_module.mark_metrics_export_active(False)
 
     status = observability_module.get_observability_status()
 
     assert status["otel_exporter_configured"] is True
     assert status["logs_export_enabled"] is True
     assert status["traces_export_enabled"] is True
+    assert status["metrics_export_enabled"] is False
     assert status["service_name"] == "finance-report-backend"
     assert status["deployment_environment"] == "production"
     assert status["resource_attributes"] == {
@@ -206,6 +212,7 @@ def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -
     monkeypatch.setattr(observability_module.settings, "otel_service_name", "finance-report-backend")
     monkeypatch.setattr(observability_module.settings, "otel_resource_attributes", None)
     monkeypatch.setattr(observability_module.settings, "environment", "staging")
+    telemetry_metrics_module.mark_metrics_export_active(False)
     mock_logger = Mock()
 
     observability_module.log_observability_startup(mock_logger)
@@ -215,6 +222,7 @@ def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -
     fields = mock_logger.info.call_args.kwargs
     assert event == "Observability runtime configured"
     assert fields["otel_exporter_configured"] is False
+    assert fields["metrics_export_enabled"] is False
     assert fields["deployment_environment"] == "staging"
     assert fields["alert_rule_name"] == "FinanceReportBackendErrorLogs"
     assert "otel_exporter_otlp_endpoint" not in fields

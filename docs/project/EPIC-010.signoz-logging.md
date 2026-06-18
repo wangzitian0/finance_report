@@ -170,6 +170,15 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.9.3 | `/health` includes the same redacted observability status so deploy checks can prove app-side alert readiness | `test_AC10_9_3_health_response_includes_redacted_observability_status()` | `infra/test_observability_contract.py` | P0 |
 | AC10.9.4 | Finance Report docs declare the app-owned alerting contract while infra2 remains the shared SigNoz/Lark automation owner | `test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline()` | `infra/test_observability_contract.py` | P0 |
 
+### AC10.10: Backend OTEL Metrics Pillar
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC10.10.1 | MeterProvider and OTLP metric exporter are endpoint-gated and no-op safe when unset | `test_AC10_10_1_configure_metrics_is_noop_without_endpoint()`, `test_AC10_10_1_configure_metrics_creates_otlp_provider()` | `infra/test_telemetry_metrics.py` | P0 |
+| AC10.10.2 | RED request-count and request-duration metrics use low-cardinality route/status labels | `test_AC10_10_2_red_metrics_record_low_cardinality_labels()` | `infra/test_telemetry_metrics.py` | P0 |
+| AC10.10.3 | DB pool and async parse in-flight gauges expose current saturation values | `test_AC10_10_3_saturation_gauges_observe_current_values()` | `infra/test_telemetry_metrics.py` | P0 |
+| AC10.10.4 | Business metric helpers cover parse, AI-provider, reconciliation, and confidence signals | `test_AC10_10_4_business_metric_helpers_record_outcomes()` | `infra/test_telemetry_metrics.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
