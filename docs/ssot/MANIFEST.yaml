@@ -36,7 +36,7 @@ concepts:
 
   money_value_type:
     owner: docs/ssot/accounting.md#money-type
-    description: Money/Currency/convert/CurrencyBalances value types in common/money/ make bad money states unrepresentable (#1167).
+    description: Money/Currency/ExchangeRate/convert/CurrencyBalances value types in common/money/ make bad money states unrepresentable (#1167).
     family: accounting
     kind: concept
     authority: documented_contract
@@ -53,7 +53,7 @@ concepts:
 
   base_packages:
     owner: docs/ssot/base-packages.md
-    description: The family of value-type narrow-waist base packages (money, ratio, ...) and the canonical structure each follows (#1167).
+    description: The family of value-type narrow-waist base packages (money, ratio, quantity) and the canonical structure each follows (#1167 / AC12.30).
     family: platform
     kind: concept
     authority: documented_contract
@@ -61,13 +61,21 @@ concepts:
       - common/ratio/__init__.py
       - common/ratio/contract/ratio.contract.md
       - common/ratio/conformance/vectors.json
+      - common/quantity/__init__.py
+      - common/quantity/contract/quantity.contract.md
+      - common/quantity/conformance/vectors.json
       - apps/backend/src/ratio/__init__.py
+      - apps/backend/src/quantity/__init__.py
       - apps/frontend/src/lib/ratio/index.ts
+      - apps/frontend/src/lib/quantity/index.ts
       - docs/project/EPIC-012.foundation-libs.md
     proofs:
       - tests/tooling/test_ratio_value_type.py
       - tests/tooling/test_ratio_conformance.py
       - tests/tooling/test_ratio_api_parity.py
+      - tests/tooling/test_quantity_value_type.py
+      - tests/tooling/test_quantity_conformance.py
+      - tests/tooling/test_quantity_api_parity.py
 
   accounting_equation:
     owner: docs/ssot/accounting.md#accounting-equation

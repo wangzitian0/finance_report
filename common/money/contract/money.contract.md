@@ -17,6 +17,10 @@
   - `amount` is an arbitrary-precision decimal. **`float` is rejected** at
     construction (IEEE-754 precision loss). The exact value is stored — no
     force-quantize on construction.
+- **`ExchangeRate`** — an immutable directed FX rate `(base, quote, rate)`.
+  - `rate` is expressed as `amount_quote = amount_base * rate`.
+  - `base` / `quote` are validated `Currency` values.
+  - `rate` is a finite positive Decimal. **`float` is rejected**.
 
 ## Operations & laws
 
@@ -27,16 +31,17 @@
 | `compare` (`<`,`≤`,`>`,`≥`) | same-currency only; cross-currency ⇒ typed error |
 | `equals` | cross-currency compares **unequal**, never an implicit collapse |
 | `quantize(rounding)` | 2 dp; default **banker's rounding** (`ROUND_HALF_EVEN`) |
-| `convert(money, rate, to, rounding)` | the **single** FX primitive; decimal `rate`, explicit `to`, quantized at the 2-dp boundary; rejects float `rate` |
+| `convert(money, exchange_rate, rounding)` | the **single** FX primitive; `exchange_rate.base` must equal `money.currency`; result currency is `exchange_rate.quote`; quantized at the 2-dp boundary |
 | per-currency balances | a container with **no scalar accessor** — a multi-currency balance cannot collapse onto one currency |
 
 ## Invariants that must hold on every end
 
-1. **No float anywhere in money paths.** Amounts and rates are decimal.
+1. **No float anywhere in money paths.** Amounts and exchange rates are decimal.
 2. **Rounding is `ROUND_HALF_EVEN` at 2 dp** unless an explicit mode is passed.
    (This is the contract point the frontend `decimal.js` default `ROUND_HALF_UP`
    violates today — convergence onto this contract closes the gap.)
-3. **No cross-currency arithmetic** without an explicit `convert`.
+3. **No cross-currency arithmetic** without an explicit `convert` and typed
+   `ExchangeRate`; a naked Decimal rate is not a conversion boundary.
 4. **Currencies are validated ISO-4217**, not bare strings.
 
 Conformance to 1–4 (for the deterministic cases) is enforced by the vectors; the
@@ -51,8 +56,9 @@ be exported by **both** `apps/backend/src/money` (`__all__`) and
 `apps/frontend/src/lib/money` (`index.ts`), enforced by
 `tests/tooling/test_money_api_parity.py`:
 
-`Money`, `Currency`, `convert`, `ISO_4217_CODES`, `MONEY_QUANTUM`, `MoneyError`,
-`FloatNotAllowedError`, `InvalidCurrencyError`, `CurrencyMismatchError`.
+`Money`, `Currency`, `ExchangeRate`, `convert`, `ISO_4217_CODES`,
+`MONEY_QUANTUM`, `MoneyError`, `FloatNotAllowedError`,
+`InvalidCurrencyError`, `InvalidExchangeRateError`, `CurrencyMismatchError`.
 
 Intentionally **per-end** (NOT part of the shared surface): backend-only
 `to_money`, `CurrencyBalance(s)`, the `adopt` helpers; frontend-only display

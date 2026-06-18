@@ -23,7 +23,7 @@ import pytest
 from common.testing.ac_proof import ac_proof
 
 from src.models.statement_summary import StatementSummary
-from src.money import Currency, CurrencyMismatchError, Money, convert
+from src.money import Currency, CurrencyMismatchError, ExchangeRate, Money, convert
 from src.services.fx_transfer import TransferLeg
 
 pytestmark = pytest.mark.no_db
@@ -55,12 +55,44 @@ def test_AC2_20_1_backend_money_module_matches_convert(case):
     """AC2.20.1: src.money.convert reproduces the shared FX standard."""
     result = convert(
         Money(Decimal(case["amount"]), case["from"]),
-        Decimal(case["rate"]),
-        to=case["to"],
+        ExchangeRate(case["from"], case["to"], Decimal(case["rate"])),
         rounding=case["rounding"],
     )
     assert result.amount == Decimal(case["expected"])
     assert result.currency.code == case["to"]
+
+
+@ac_proof(
+    proof_id="test_backend_money_typed_exchange_rate",
+    ac_ids=["AC12.30.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_30_3_backend_convert_accepts_typed_exchange_rate():
+    """AC12.30.3: src.money.convert takes ExchangeRate, not a naked Decimal rate."""
+    result = convert(Money(Decimal("100.00"), "USD"), ExchangeRate("USD", "SGD", Decimal("1.35")))
+    assert result == Money(Decimal("135.00"), "SGD")
+
+
+@ac_proof(
+    proof_id="test_backend_money_exchange_rate_mismatch",
+    ac_ids=["AC12.30.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_30_3_backend_exchange_rate_source_mismatch_raises():
+    """AC12.30.3: src.money.convert rejects a rate whose base does not match money.currency."""
+    with pytest.raises(CurrencyMismatchError):
+        convert(Money(Decimal("100.00"), "EUR"), ExchangeRate("USD", "SGD", Decimal("1.35")))
+
+
+@ac_proof(
+    proof_id="test_backend_money_convert_rejects_naked_decimal_rate",
+    ac_ids=["AC12.30.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_30_3_backend_convert_rejects_naked_decimal_rate():
+    """AC12.30.3: src.money.convert rejects the old naked-Decimal rate boundary."""
+    with pytest.raises(TypeError):
+        convert(Money(Decimal("100.00"), "USD"), Decimal("1.35"))  # type: ignore[arg-type]
 
 
 @ac_proof(

@@ -7,7 +7,7 @@
 import Decimal from "decimal.js";
 
 import { Currency } from "./currency";
-import { CurrencyMismatchError, FloatNotAllowedError } from "./errors";
+import { CurrencyMismatchError, FloatNotAllowedError, InvalidExchangeRateError } from "./errors";
 
 export { CurrencyMismatchError };
 
@@ -114,13 +114,38 @@ export class Money {
   }
 }
 
-/** The single FX conversion primitive: decimal rate, explicit target, 2-dp rounding. */
-export function convert(
-  money: Money,
-  rate: Decimal | string,
-  to: Currency | string,
-  rounding: RoundingName = DEFAULT_ROUNDING,
-): Money {
-  const r = coerceDecimal(rate, "FX rate");
-  return new Money(money.amount.times(r), to).quantize(rounding);
+/** A directed FX rate: amount_quote = amount_base * rate. */
+export class ExchangeRate {
+  readonly base: Currency;
+  readonly quote: Currency;
+  readonly rate: Decimal;
+
+  constructor(base: Currency | string, quote: Currency | string, rate: AmountInput) {
+    this.base = Currency.of(base);
+    this.quote = Currency.of(quote);
+    this.rate = coerceDecimal(rate, "FX rate");
+    if (this.rate.lessThanOrEqualTo(0)) {
+      throw new InvalidExchangeRateError("FX rate must be finite and positive");
+    }
+    Object.freeze(this);
+  }
+
+  inverse(): ExchangeRate {
+    return new ExchangeRate(this.quote, this.base, new Decimal(1).dividedBy(this.rate));
+  }
+
+  toString(): string {
+    return `${this.base.code}/${this.quote.code} ${this.rate.toString()}`;
+  }
+}
+
+/** The single FX conversion primitive: typed directed rate, 2-dp rounding. */
+export function convert(money: Money, rate: ExchangeRate, rounding: RoundingName = DEFAULT_ROUNDING): Money {
+  if (!(rate instanceof ExchangeRate)) {
+    throw new FloatNotAllowedError(`convert rate must be ExchangeRate`);
+  }
+  if (!money.currency.equals(rate.base)) {
+    throw new CurrencyMismatchError(`cannot convert ${money.currency.code} with ${rate.base.code}/${rate.quote.code} rate`);
+  }
+  return new Money(money.amount.times(rate.rate), rate.quote).quantize(rounding);
 }

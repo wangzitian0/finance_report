@@ -5,12 +5,14 @@
   "shared_api": [
     "Money",
     "Currency",
+    "ExchangeRate",
     "convert",
     "ISO_4217_CODES",
     "MONEY_QUANTUM",
     "MoneyError",
     "FloatNotAllowedError",
     "InvalidCurrencyError",
+    "InvalidExchangeRateError",
     "CurrencyMismatchError"
   ],
   "iso4217": [

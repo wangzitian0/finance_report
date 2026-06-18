@@ -242,7 +242,8 @@ workspace packages. Each layer lives under `apps/frontend/src/`:
 | Layer | Lives in | Responsibility |
 |-------|----------|----------------|
 | **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiFetch`, `apiUpload`, `apiDownload`, `apiStream`, `apiDelete`, and typed endpoint helpers. |
-| **Money boundary** | `lib/currency.ts` | Decimal-safe parsing, arithmetic, and formatting (`decimal.js`). |
+| **Money boundary** | `lib/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). |
+| **Quantity boundary** | `lib/quantity` | Decimal-safe quantity value type and quantity formatting. |
 | **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useDashboardData`, `useReportFilters`, `useCurrencies`). |
 | **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges). |
 | **Feature modules** | `components/<feature>/*` | Domain UI that composes primitives + hooks (e.g. `components/reports/*`). |
@@ -257,7 +258,7 @@ app routes
       -> transport (lib/api)
         -> shared API types (lib/types)
     -> UI primitives (components/ui/*)
-    -> money boundary (lib/currency)
+    -> money/quantity boundaries (lib/money, lib/quantity)
 ```
 
 ### Rules
@@ -269,12 +270,13 @@ app routes
 - **`lib/api` must not import React or UI.** The transport layer is
   framework-agnostic; it depends only on `lib/auth` and `lib/types`. It must not
   import React, hooks, or anything under `components/`.
-- **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/currency`) but not on
-  route components.** A hook may call `apiFetch` and shape data, but it must not
-  import `app/**/page.tsx` or otherwise depend on a specific route.
+- **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/money` /
+  `lib/quantity` when needed) but not on route components.** A hook may call
+  `apiFetch` and shape data, but it must not import `app/**/page.tsx` or
+  otherwise depend on a specific route.
 - **Feature modules compose UI primitives, query hooks, and domain logic.** This
-  is where `components/ui/*`, `hooks/*`, and `lib/currency` are wired together
-  for a concrete workflow.
+  is where `components/ui/*`, `hooks/*`, and `lib/money` / `lib/quantity` are
+  wired together for a concrete workflow.
 - **Route pages stay thin.** Pages should compose feature modules and express
   page-level intent. They should not own raw endpoint construction or repeated
   loading/error/empty/retry markup — push those into hooks and primitives.
@@ -297,15 +299,16 @@ import-path rules in this section as the contract.
 
 ## 8. Monetary Amounts
 
-Frontend monetary display and arithmetic must use `decimal.js` through `src/lib/currency.ts`.
+Frontend monetary display and arithmetic must use `decimal.js` through
+`src/lib/money`. Frontend quantities must use `src/lib/quantity`.
 
 **Rules:**
 - Do not convert money with `Number()`, `parseFloat()`, or `toFixed()` in page/component code.
 - Use `formatCurrencyLocale()` for currency display; it formats from Decimal/string values without JS number precision loss.
-- Use `formatQuantity()` for portfolio and asset quantities; page/component code must not parse Decimal quantity strings through JS `number`.
+- Use `formatQuantity()` from `src/lib/quantity` for portfolio and asset quantities; page/component code must not parse Decimal quantity strings through JS `number`.
 - Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons.
 - Shared API types must represent decimal-bearing payload fields with `MoneyValue` or `DecimalValue`, not bare `number` field declarations.
-- `MoneyValue` and `DecimalValue` are serialized strings at the API boundary. Components may accept `number` only at rendering/chart boundaries after explicit conversion through `src/lib/currency.ts`.
+- `MoneyValue` and `DecimalValue` are serialized strings at the API boundary. Components may accept `number` only at rendering/chart boundaries after explicit conversion through `src/lib/money`.
 - Do not calculate or display cross-currency allocation percentages from raw nominal amounts. Show per-currency amounts until the backend provides a single-currency FX-converted total.
 - Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
 

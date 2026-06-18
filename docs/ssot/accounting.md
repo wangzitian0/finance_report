@@ -106,7 +106,7 @@ produces it anymore.)
 
 - **Rule A2 — Canonical money rounding**: Currency amounts are quantized to **2 decimal places using banker's rounding (`ROUND_HALF_EVEN`)**. This is the single project-wide rounding mode for money.
     -   **Enforcement**: round money through the one helper `src.money.to_money()` (the backend money module; mirrored from `common/money`). Do not hand-roll `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` for currency.
-    -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): FX rates & security prices (6 dp), share quantities (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
+    -   **Scope**: currency amounts only. Intentionally **out of scope** (they keep their own quantization/rounding): typed `ExchangeRate` values, security prices (6 dp), `Quantity` values (6 dp), and percentages / performance ratios (XIRR, TWR, MWR, allocation %).
     -   **Guardrail**: `apps/backend/tests/accounting/test_money.py`.
 
 <a id="money-type"></a>
@@ -128,12 +128,16 @@ produces it anymore.)
         boundary, never force-quantized on construction).
     -   **`Currency`** — a validated ISO-4217 alphabetic code (not a bare `str`);
         normalises case and rejects unknown codes at construction.
+    -   **`ExchangeRate(base, quote, rate)`** — the typed directed FX conversion
+        parameter. `base` / `quote` are validated currencies; `rate` is finite,
+        positive Decimal; **`float`/`bool` are rejected**.
     -   **Arithmetic** — same-currency `+`/`-`/comparison only; any cross-currency
         operation raises `CurrencyMismatchError`. No implicit conversion, no
         implicit `float`.
-    -   **`convert(money, rate, *, to, rounding=ROUND_HALF_EVEN)`** — the **single**
-        FX conversion primitive: Decimal rate, explicit target currency, banker's
-        rounding at the 2-dp boundary; used for base-currency restatement.
+    -   **`convert(money, exchange_rate, rounding=ROUND_HALF_EVEN)`** — the
+        **single** FX conversion primitive: `exchange_rate.base` must equal
+        `money.currency`; the result currency is `exchange_rate.quote`; banker's
+        rounding applies at the 2-dp boundary; used for base-currency restatement.
     -   **`CurrencyBalances`** — per-currency opening/closing container with **no
         scalar accessor**, so a multi-currency statement cannot collapse onto one
         currency (closes the #1139/#1123 representation gap); round-trips the

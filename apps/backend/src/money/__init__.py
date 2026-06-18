@@ -19,8 +19,10 @@ from src.money.errors import (
     CurrencyMismatchError,
     FloatNotAllowedError,
     InvalidCurrencyError,
+    InvalidExchangeRateError,
     MoneyError,
 )
+from src.money.exchange_rate import ExchangeRate
 from src.money.money import Money
 from src.money.rounding import MONEY_QUANTUM, to_money
 
@@ -31,7 +33,9 @@ __all__ = [
     "CurrencyBalance",
     "CurrencyBalances",
     "CurrencyMismatchError",
+    "ExchangeRate",
     "FloatNotAllowedError",
+    "InvalidExchangeRateError",
     "InvalidCurrencyError",
     "Money",
     "MoneyError",

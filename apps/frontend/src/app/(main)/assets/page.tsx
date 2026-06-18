@@ -7,7 +7,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
 import { TableSkeleton } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
-import { formatCurrencyLocale, formatQuantity, parseAmount } from "@/lib/money";
+import { formatCurrencyLocale, parseAmount } from "@/lib/money";
+import { formatQuantity } from "@/lib/quantity";
 import { formatDateDisplay } from "@/lib/date";
 import {
     ManagedPosition,

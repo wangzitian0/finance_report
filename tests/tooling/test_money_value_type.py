@@ -16,6 +16,7 @@ from common.money import (
     CurrencyBalance,
     CurrencyBalances,
     CurrencyMismatchError,
+    ExchangeRate,
     FloatNotAllowedError,
     InvalidCurrencyError,
     Money,
@@ -131,7 +132,7 @@ def test_AC2_19_2_cross_currency_arithmetic_raises():
 )
 def test_AC2_20_1_convert_applies_rate_and_changes_currency():
     """AC2.20.1: convert applies a Decimal rate and restates into the target."""
-    result = convert(Money(Decimal("100.00"), "USD"), Decimal("1.35"), to="SGD")
+    result = convert(Money(Decimal("100.00"), "USD"), ExchangeRate("USD", "SGD", Decimal("1.35")))
     assert result == Money(Decimal("135.00"), "SGD")
     assert result.currency == Currency("SGD")
 
@@ -145,7 +146,7 @@ def test_AC2_20_1_convert_applies_rate_and_changes_currency():
 def test_AC2_20_1_convert_rejects_float_rate():
     """AC2.20.1: convert rejects a float rate (no implicit float in money math)."""
     with pytest.raises(FloatNotAllowedError):
-        convert(Money(Decimal("100.00"), "USD"), 1.35, to="SGD")  # type: ignore[arg-type]
+        ExchangeRate("USD", "SGD", 1.35)  # type: ignore[arg-type]
 
 
 @ac_proof(
@@ -157,16 +158,18 @@ def test_AC2_20_1_convert_rejects_float_rate():
 def test_AC2_20_1_convert_rounds_half_even_at_boundary():
     """AC2.20.1: convert quantizes to 2 dp with banker's rounding at the boundary."""
     # 1.005 -> half to even -> 1.00 (HALF_UP would give 1.01).
-    assert convert(Money(Decimal("1.00"), "USD"), Decimal("1.005"), to="EUR") == Money(
+    assert convert(Money(Decimal("1.00"), "USD"), ExchangeRate("USD", "EUR", Decimal("1.005"))) == Money(
         Decimal("1.00"), "EUR"
     )
     # 1.015 -> half to even -> 1.02.
-    assert convert(Money(Decimal("1.00"), "USD"), Decimal("1.015"), to="EUR") == Money(
+    assert convert(Money(Decimal("1.00"), "USD"), ExchangeRate("USD", "EUR", Decimal("1.015"))) == Money(
         Decimal("1.02"), "EUR"
     )
     # An explicit non-default rounding mode is honoured.
     assert convert(
-        Money(Decimal("1.00"), "USD"), Decimal("1.005"), to="EUR", rounding="ROUND_HALF_UP"
+        Money(Decimal("1.00"), "USD"),
+        ExchangeRate("USD", "EUR", Decimal("1.005")),
+        rounding="ROUND_HALF_UP",
     ) == Money(Decimal("1.01"), "EUR")
 
 
@@ -180,10 +183,46 @@ def test_AC2_20_1_convert_round_trip_within_boundary():
     """AC2.20.1: convert there-and-back returns the original at the 2-dp boundary."""
     rate = Decimal("1.25")
     original = Money(Decimal("80.00"), "USD")
-    there = convert(original, rate, to="SGD")
-    back = convert(there, Decimal("1") / rate, to="USD")
+    there_rate = ExchangeRate("USD", "SGD", rate)
+    there = convert(original, there_rate)
+    back = convert(there, there_rate.inverse())
     assert back == original
     assert ROUND_HALF_EVEN  # documents the default rounding mode used
+
+
+@ac_proof(
+    proof_id="test_money_typed_exchange_rate",
+    ac_ids=["AC12.30.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_30_3_convert_accepts_typed_exchange_rate():
+    """AC12.30.3: convert takes an ExchangeRate carrying source/target currency."""
+    rate = ExchangeRate("usd", "sgd", Decimal("1.35"))
+    assert rate.base == Currency("USD")
+    assert rate.quote == Currency("SGD")
+    assert convert(Money(Decimal("100.00"), "USD"), rate) == Money(Decimal("135.00"), "SGD")
+
+
+@ac_proof(
+    proof_id="test_money_exchange_rate_mismatch",
+    ac_ids=["AC12.30.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_30_3_exchange_rate_source_mismatch_raises():
+    """AC12.30.3: a rate whose base currency does not match the money source raises."""
+    with pytest.raises(CurrencyMismatchError):
+        convert(Money(Decimal("100.00"), "EUR"), ExchangeRate("USD", "SGD", Decimal("1.35")))
+
+
+@ac_proof(
+    proof_id="test_money_convert_rejects_naked_decimal_rate",
+    ac_ids=["AC12.30.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_30_3_convert_rejects_naked_decimal_rate():
+    """AC12.30.3: convert rejects the old naked-Decimal rate boundary."""
+    with pytest.raises(TypeError):
+        convert(Money(Decimal("100.00"), "USD"), Decimal("1.35"))  # type: ignore[arg-type]
 
 
 # ── AC2.21.1: per-currency balance container ────────────────────────────
@@ -198,10 +237,14 @@ def test_AC2_21_1_multi_currency_balance_is_not_a_scalar():
     balances = CurrencyBalances(
         (
             CurrencyBalance(
-                Currency("USD"), Money(Decimal("100"), "USD"), Money(Decimal("150"), "USD")
+                Currency("USD"),
+                Money(Decimal("100"), "USD"),
+                Money(Decimal("150"), "USD"),
             ),
             CurrencyBalance(
-                Currency("SGD"), Money(Decimal("200"), "SGD"), Money(Decimal("250"), "SGD")
+                Currency("SGD"),
+                Money(Decimal("200"), "SGD"),
+                Money(Decimal("250"), "SGD"),
             ),
         )
     )
@@ -228,17 +271,19 @@ def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
     with pytest.raises(MoneyError):
         CurrencyBalance(Currency("USD"), "100.00", Money(Decimal("1"), "USD"))  # type: ignore[arg-type]
     with pytest.raises(MoneyError):
-        CurrencyBalance(
-            Currency("USD"), Money(Decimal("1"), "SGD"), Money(Decimal("1"), "USD")
-        )
+        CurrencyBalance(Currency("USD"), Money(Decimal("1"), "SGD"), Money(Decimal("1"), "USD"))
     with pytest.raises(MoneyError):
         CurrencyBalances(
             (
                 CurrencyBalance(
-                    Currency("USD"), Money(Decimal("1"), "USD"), Money(Decimal("1"), "USD")
+                    Currency("USD"),
+                    Money(Decimal("1"), "USD"),
+                    Money(Decimal("1"), "USD"),
                 ),
                 CurrencyBalance(
-                    Currency("USD"), Money(Decimal("2"), "USD"), Money(Decimal("2"), "USD")
+                    Currency("USD"),
+                    Money(Decimal("2"), "USD"),
+                    Money(Decimal("2"), "USD"),
                 ),
             )
         )
@@ -289,9 +334,7 @@ def test_AC2_19_money_surface_helpers_and_comparisons():
     with pytest.raises(InvalidCurrencyError):
         Currency(123)  # type: ignore[arg-type]
     # Explicit non-default quantize rounding mode.
-    assert Money(Decimal("1.005"), "USD").quantize("ROUND_HALF_UP") == Money(
-        Decimal("1.01"), "USD"
-    )
+    assert Money(Decimal("1.005"), "USD").quantize("ROUND_HALF_UP") == Money(Decimal("1.01"), "USD")
 
 
 @ac_proof(
@@ -302,17 +345,13 @@ def test_AC2_19_money_surface_helpers_and_comparisons():
 )
 def test_AC2_21_1_currency_balances_surface_and_parsing():
     """AC2.21.1: container iteration, lookup miss, and amount parsing variants."""
-    bal = CurrencyBalance(
-        Currency("USD"), Money(Decimal("1"), "USD"), Money(Decimal("2"), "USD")
-    )
+    bal = CurrencyBalance(Currency("USD"), Money(Decimal("1"), "USD"), Money(Decimal("2"), "USD"))
     balances = CurrencyBalances((bal,))
     assert list(iter(balances)) == [bal]
     assert not balances.is_multi_currency()
     assert balances.get("SGD") is None
     # Amount parsing accepts Decimal / int / str; rejects float and other types.
-    parsed = CurrencyBalances.from_jsonb(
-        [{"currency": "USD", "opening": Decimal("1"), "closing": 2}]
-    )
+    parsed = CurrencyBalances.from_jsonb([{"currency": "USD", "opening": Decimal("1"), "closing": 2}])
     assert parsed.get("USD").closing == Money(Decimal("2"), "USD")
     with pytest.raises(FloatNotAllowedError):
         CurrencyBalances.from_jsonb([{"currency": "USD", "opening": 1.0, "closing": 2}])
@@ -323,6 +362,6 @@ def test_AC2_21_1_currency_balances_surface_and_parsing():
 
 
 def test_convert_rejects_non_decimal_rate_type():
-    """convert rejects a non-Decimal/int rate (e.g. str) — single FX primitive guard."""
+    """ExchangeRate rejects a non-Decimal/int rate (e.g. str) — single FX primitive guard."""
     with pytest.raises(FloatNotAllowedError):
-        convert(Money(Decimal("1"), "USD"), "1.2", to="EUR")  # type: ignore[arg-type]
+        ExchangeRate("USD", "EUR", "1.2")  # type: ignore[arg-type]

@@ -10,7 +10,7 @@ mirror) fails. See ``common/money/conformance/README.md``.
 from decimal import Decimal
 
 import pytest
-from common.money import Currency, InvalidCurrencyError, Money, convert
+from common.money import Currency, ExchangeRate, InvalidCurrencyError, Money, convert
 from common.money.conformance import load_vectors
 from common.testing.ac_proof import ac_proof
 
@@ -23,7 +23,9 @@ VECTORS = load_vectors()
     ci_tier="pr_ci",
     issue="#1170",
 )
-@pytest.mark.parametrize("case", VECTORS["rounding"], ids=lambda c: f"{c['amount']}/{c['rounding']}")
+@pytest.mark.parametrize(
+    "case", VECTORS["rounding"], ids=lambda c: f"{c['amount']}/{c['rounding']}"
+)
 def test_AC2_20_1_conformance_rounding(case):
     """AC2.20.1: Python quantize matches the shared rounding standard."""
     got = Money(Decimal(case["amount"]), "USD").quantize(case["rounding"]).amount
@@ -36,13 +38,14 @@ def test_AC2_20_1_conformance_rounding(case):
     ci_tier="pr_ci",
     issue="#1170",
 )
-@pytest.mark.parametrize("case", VECTORS["convert"], ids=lambda c: f"{c['amount']}*{c['rate']}")
+@pytest.mark.parametrize(
+    "case", VECTORS["convert"], ids=lambda c: f"{c['amount']}*{c['rate']}"
+)
 def test_AC2_20_1_conformance_convert(case):
     """AC2.20.1: Python convert matches the shared FX standard."""
     result = convert(
         Money(Decimal(case["amount"]), case["from"]),
-        Decimal(case["rate"]),
-        to=case["to"],
+        ExchangeRate(case["from"], case["to"], Decimal(case["rate"])),
         rounding=case["rounding"],
     )
     assert result.amount == Decimal(case["expected"]), case
