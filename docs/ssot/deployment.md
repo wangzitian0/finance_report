@@ -94,45 +94,48 @@ Smoke:   ❌ Not run (unit tests only)
 ### staging-deploy.yml
 
 ```yaml
-Trigger: Manual dispatch only (workflow_dispatch with a `ref` input)
-Flow:    promote SHA images -> deploy -> smoke/non-LLM E2E -> AI/OCR gate
+Trigger: Manual dispatch only (workflow_dispatch with a required `tag` input)
+Flow:    deploy release tag via deploy_v2 -> smoke/non-LLM E2E -> AI/OCR gate
 URL:     https://report-staging.zitian.party
 ```
 
 Staging deploy is manual: it runs only on `workflow_dispatch` and does not
-auto-follow main CI. The deploy job checks out the dispatched `ref` (falling back
-to `github.sha`) and never polls or waits for CI inside the job. Staging deploys
-reuse SHA-tagged backend and frontend images built by main `push`/`workflow_dispatch`
-CI; if a SHA image is missing, staging falls back to building only the missing
-image before promotion. Provider-backed AI/OCR tests run after deploy health in
-the same serialized dispatch workflow unit, and can also be invoked on demand via
-`staging-ai-ocr-gate.yml`.
+auto-follow main CI. The deploy job checks out the dispatched release `tag`,
+never polls or waits for CI inside the job, and deploys only images that already
+exist under that release tag. `release-images.yml` must have promoted the
+main-CI SHA images to `:vX.Y.Z` before staging is dispatched. Provider-backed
+AI/OCR tests run after deploy health in the same serialized dispatch workflow
+unit, and can also be invoked on demand via `staging-ai-ocr-gate.yml`.
 
-The production release workflow strictly promotes the staging-validated image digest to the release version tag (`vX.Y.Z`) instead of rebuilding from source. This creates a promote-not-rebuild consistency ladder: `pr (SHA image) → staging (promotes SHA to staging tag, validates digest) → prod (promotes staging-validated SHA to version tag)`. By keeping the exact same image digest across all three environments, we eliminate drift from base images, build-time dependencies, or workflow changes, ensuring that production only runs artifacts that have been fully tested and validated.
+The release process keeps a promote-not-rebuild consistency ladder:
+`main CI (:<sha7>) -> release-images.yml (:vX.Y.Z) -> staging deploy_v2
+(:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `release-images.yml` is the only
+tag-push promotion path; staging and production both consume the retained release
+tag without rebuilding or retagging. By keeping the exact same image digest from
+main CI through production, we eliminate drift from base images, build-time
+dependencies, or workflow changes.
 
 The staging deploy gate separates platform rollout from application readiness.
-`tools/dokploy_deploy.sh` updates the allowlisted Dokploy environment, triggers
-`compose.deploy`, then waits up to 600 seconds for a new Dokploy deployment
-record to reach `done` before `tools/health_check.sh` starts polling
-`/api/health` for the target SHA. `running` only proves Dokploy's worker has
-started; it does not prove Docker containers and Traefik routes have
-materialized the target SHA. A deployment that reuses an existing deployment id
-and advances it to `done` is accepted as ready state; if no record appears and
-no existing record advances, a missing or unfinished deployment record after
-that worker-queue window is a platform rollout failure, not an application
-health timeout.
+`.github/workflows/staging-deploy.yml` invokes `repo/tools/deploy_v2.py`, which
+routes fixed staging/prod deploys through `repo/tools/deploy_primitive.py`.
+The primitive updates the allowlisted Dokploy environment, snapshots deployment
+ids before mutation, triggers `compose.deploy`, and waits up to 600 seconds for
+a new Dokploy deployment record to reach a terminal-good status (`done`,
+`success`, or `successful`) before `tools/health_check.sh` starts polling
+`/api/health` for the target release tag. `running` only proves Dokploy's worker
+has started; it does not prove Docker containers and Traefik routes have
+materialized the target tag. No terminal new deployment record means a platform
+rollout failure, not an application health timeout.
 
 ### production-release.yml
 
 ```yaml
 Triggers:
-  - Tag push (v*.*.*): Promote staging-validated images
-  - Manual dispatch:   Deploy to production
-  - Manual dry-run:    Validate release prerequisites without deploy
+  - Manual dispatch: Deploy existing release tag to production
+  - Manual dry-run:  Validate release prerequisites without deploy
 
-Build job:  Tag → Verify successful main CI for SHA → Verify successful staging run → Release lint → Promote staging-validated SHA images to version tag → Skip rebuild
-Dry-run:    Manual → Verify successful main CI for SHA → Verify successful staging run → Release lint → Verify SHA images exist and fetch digests → Skip promotion and rebuild
-Deploy job: Verify images → Deploy → Health (4min) → Smoke test
+Dry-run:    Manual -> Resolve release tag -> Verify main CI, release-images, staging -> Release lint -> Verify release image digests -> Skip production mutation
+Deploy job: Manual -> Resolve release tag -> Verify main CI, release-images, staging -> Verify release image digests -> deploy_v2 -> Health -> Smoke/E2E
 
 URL: https://report.zitian.party
 ```
@@ -145,21 +148,26 @@ URL: https://report.zitian.party
 # Create release tag
 git tag -a v1.2.3 -m "Release v1.2.3"
 git push origin v1.2.3
-# → Triggers production-release.yml (build job)
-# → Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
+# -> Triggers release-images.yml
+# -> Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
 
-# Deploy to production (manual)
-# → Actions → Production Release → Run workflow → Select v1.2.3
+# Deploy to staging (manual)
+# -> Actions -> Deploy Staging -> Run workflow -> tag=v1.2.3
+
+# Deploy to production (manual, after staging passes)
+# -> Actions -> Production Release -> Run workflow -> version=v1.2.3
 
 # Dry-run production release proof (manual, no production mutation)
-# → Actions → Production Release → Run workflow → dry_run=true
+# -> Actions -> Production Release -> Run workflow -> dry_run=true
 ```
 
 Production app deploys must keep the image tag, Dokploy runtime
 `GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes
-the tag into backend images, and `tools/dokploy_deploy.sh` refreshes
-`IAC_CONFIG_HASH` on every deploy attempt so Dokploy restarts the app even when
-redeploying the same tag.
+the tag into backend/frontend image names by manifest-copying main-CI images in
+`release-images.yml`. `deploy_v2` then deploys that tag through
+`deploy_primitive`, which sets runtime `IMAGE_TAG`, `GIT_COMMIT_SHA`, and a fresh
+per-deploy `IAC_CONFIG_HASH` so Dokploy restarts the app even when redeploying
+the same tag.
 Before mutating production, the release workflow probes the current production
 health endpoint and records the pre-deploy version in the deploy context. The
 same artifact records deploy-health, smoke, read-only E2E, and failure-domain
@@ -167,9 +175,13 @@ fields so a stale-version production failure can be triaged without rerunning
 business-correctness gates in production.
 
 Dokploy deploy diagnostics must never print raw API response bodies. The shared
-deploy helper reports only endpoint, HTTP status, safe message fields, and an
-allowlisted effective environment diff for `IMAGE_TAG`, `GIT_COMMIT_SHA`,
-`IAC_CONFIG_HASH`, `ENV_SUFFIX`, and `COMPOSE_PROFILES`.
+shell helper still redacts raw response bodies for preview/cleanup operations.
+The fixed staging/prod deploy path uses the infra2 Python Dokploy client, whose
+errors include method, endpoint, status, and reason phrase but not response
+bodies, auth headers, or full environment payloads. The fixed path writes only
+the allowlisted env keys needed for deploy (`IMAGE_TAG`, `GIT_COMMIT_SHA`,
+`IAC_CONFIG_HASH`, `ENV_SUFFIX`, `COMPOSE_PROFILES`, routing, telemetry, and
+optional model overrides).
 
 ### Stale effective app env failure mode (issue #575)
 
@@ -180,27 +192,21 @@ reads the stale version for its whole window. Triggering the deploy and seeing
 the rollout reach `done` is therefore **not** proof that the requested release is
 effective.
 
-To close this gap, after the rollout reaches `done` but **before** the long
-health wait, `tools/dokploy_deploy.sh` re-fetches `compose.one` and verifies the
-**effective** remote app env against the requested release via
-`verify_effective_remote_app_env` (allowlisted `IMAGE_TAG`, `GIT_COMMIT_SHA`,
-`IAC_CONFIG_HASH`; secret env values are never echoed):
+To close this gap, after the rollout reaches a terminal-good deployment record
+but **before** the long health wait, `deploy_primitive` re-fetches the effective
+compose env and verifies `IAC_CONFIG_HASH` with `verify_effective_config_hash`
+(secret env values are never echoed):
 
 - **Match** → proceed to the health wait.
 - **Stale** → fail fast with diagnostics that name each stale value
-  (`expected=… actual=…`), and attempt one **guarded automated recovery** path
-  before failing the deploy.
+  (`expected=... last=...`) before public health starts.
 
-The automated recovery is `force_recreate_stateless_app`, gated behind the
-explicit `DOKPLOY_ALLOW_FORCE_RECREATE=true` opt-in. It refreshes the release
-token with a fresh `IAC_CONFIG_HASH` (forcing Dokploy to recreate the stateless
-app containers even for an unchanged image tag), re-pushes the corrected env, and
-forces a `compose.redeploy`. The recreate also resolves the fixed
-`container_name` (`finance_report-{backend,frontend}${ENV_SUFFIX}`) conflict by
-replacing the stale stateless containers; postgres/redis are never touched. The
-deploy then re-verifies the effective env and fails the release if it is still
-stale. This replaces the previous manual SSH + stateless container recreate
-recovery.
+There is no automated force-recreate escape hatch in the fixed staging/prod
+release workflow. Recovery is fail-closed: correct the Dokploy/env issue, then
+perform a manual rerun of the same `deploy_v2` workflow for the release tag. The
+rerun generates a fresh `IAC_CONFIG_HASH`, snapshots deployment ids before
+mutation again, and must pass rollout plus effective-config verification before
+health/smoke/E2E run.
 
 Dokploy API and CLI usage should stay minimal and state-oriented. Use whichever
 surface exposes the required operation, then prove correctness by comparing the

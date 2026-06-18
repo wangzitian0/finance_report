@@ -171,8 +171,9 @@ PR validation is split into two independent things (issue #839):
 |---------------|-------------|---------|---------|
 | `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
 | `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync | Build images, deploy to Dokploy, cleanup on close |
-| `.github/workflows/staging-deploy.yml` | Staging | Manual (`workflow_dispatch`) | Build images (`:staging` tag), deploy |
-| `.github/workflows/production-release.yml` | Production | Tag `v*.*.*` or manual | Build release images, deploy on manual trigger |
+| `.github/workflows/release-images.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
+| `.github/workflows/staging-deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release tag via deploy_v2, then smoke/E2E/AI-OCR gates |
+| `.github/workflows/production-release.yml` | Production | Manual (`workflow_dispatch`) | Dry-run or deploy an existing release tag via deploy_v2 |
 
 ---
 

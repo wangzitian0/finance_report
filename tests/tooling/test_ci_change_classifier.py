@@ -281,7 +281,7 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "apps/frontend/src/app/page.tsx",
         "docker-compose.yml",
         "repo",
-        "tools/dokploy_deploy.sh",
+        "repo/tools/deploy_v2.py",
         "tools/health_check.sh",
         "docs/ssot/ci-cd.md",
     ):
@@ -327,9 +327,9 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "docker-compose.yml",
         ".github/workflows/staging-deploy.yml",
         ".github/workflows/staging-ai-ocr-gate.yml",
+        ".github/workflows/release-images.yml",
         ".github/workflows/ci.yml",
         ".github/actions/setup-e2e-tests/action.yml",
-        "tools/dokploy_deploy.sh",
         "tools/health_check.sh",
         "tools/smoke_test.sh",
         "tools/generate_pdf_fixtures.py",
@@ -340,6 +340,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         ".python-version",
         ".node-version",
         "repo",
+        "repo/tools/deploy_v2.py",
         "repo/docker-compose.yml",
     ):
         assert is_staging_relevant(path) is True

@@ -3,18 +3,18 @@
 # Trigger: MANUAL ONLY (workflow_dispatch). Staging no longer auto-follows main.
 # Per docs/ssot/environments.md, staging and prod are deployed manually;
 # CI is the quality gate for development, not an auto-deploy trigger.
-# Actions: Build images → Deploy to staging → Smoke/E2E → AI/OCR gate
+# Actions: Deploy release tag via deploy_v2 → Smoke/E2E → AI/OCR gate
 # Data is persisted between deployments.
 
 name: Deploy Staging
+run-name: Deploy Staging ${{ inputs.tag }}
 
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Commit SHA, branch, or tag to deploy to staging (default: main)"
-        required: false
-        default: main
+      tag:
+        description: "Release tag to deploy to staging (vX.Y.Z; must already be published by release-images.yml)"
+        required: true
         type: string
 
 concurrency:
@@ -25,8 +25,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  DOKPLOY_API_URL: https://cloud.zitian.party/api
-  STAGING_COMPOSE_ID: A6V-hbJlgHMwgPDoTDnhH
   STAGING_E2E_PRIMARY_MODEL: glm-5.1
   STAGING_E2E_OCR_MODEL: glm-4.6v
   STAGING_E2E_VISION_MODEL: glm-4.6v
@@ -35,16 +33,17 @@ env:
 
 jobs:
   build-and-deploy:
-    name: Build and Deploy
+    name: Deploy Staging
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
       actions: read
       contents: read
-      packages: write
+      packages: read
     outputs:
       commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}
       commit_sha: ${{ steps.get_sha.outputs.short_sha }}
+      deployed_tag: ${{ inputs.tag }}
       staging_required: ${{ steps.gates.outputs.staging_required }}
       staging_reason: ${{ steps.gates.outputs.staging_reason }}
       provider_gate_required: ${{ steps.gates.outputs.provider_gate_required }}
@@ -60,8 +59,9 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
+          submodules: recursive
 
       - name: Get Commit SHA
         id: get_sha
@@ -139,9 +139,9 @@ jobs:
             echo ""
             echo "- Staging deploy required: \`${{ steps.gates.outputs.staging_required }}\`"
             echo "- Staging reason: \`${{ steps.gates.outputs.staging_reason }}\`"
-            echo "- Target main SHA: \`${{ steps.get_sha.outputs.short_sha }}\`"
+            echo "- Target release tag: \`${{ inputs.tag }}\`"
             echo ""
-            echo "No image promotion, Dokploy mutation, smoke/E2E, or AI/OCR validation ran."
+            echo "No deploy_v2 mutation, smoke/E2E, or AI/OCR validation ran."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Probe current staging version
@@ -176,14 +176,9 @@ jobs:
             echo ""
             echo "- Health URL: $STAGING_HEALTH_URL"
             echo "- Health probe succeeded: $healthy"
-            echo "- Current staging SHA: $staging_sha"
-            echo "- Target main SHA: ${{ steps.get_sha.outputs.short_sha }}"
+            echo "- Current staging version: $staging_sha"
+            echo "- Target release tag: ${{ inputs.tag }}"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Install moon
-        id: install_moon
-        if: steps.gates.outputs.staging_required == 'true'
-        uses: moonrepo/setup-toolchain@v0
 
       - name: Install uv
         id: install_uv
@@ -199,107 +194,51 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Log in to Container registry
-        id: registry_login
+      - name: Install deploy_v2 dependencies
+        id: install_deploy_v2
         if: steps.gates.outputs.staging_required == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        id: setup_buildx
-        if: steps.gates.outputs.staging_required == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Resolve Backend Image
-        if: steps.gates.outputs.staging_required == 'true'
-        id: backend_image
-        run: |
-          bash tools/check_ghcr_image_tag.sh \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
-
-      - name: Build and push Backend
-        id: build_backend
-        if: steps.gates.outputs.staging_required == 'true' && steps.backend_image.outputs.build_required == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/backend
-          push: true
-          # Plain single-manifest image (legacy docker hosts can't pull attestation indexes).
-          provenance: false
-          sbom: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
-
-      - name: Resolve Frontend Image
-        if: steps.gates.outputs.staging_required == 'true'
-        id: frontend_image
-        run: |
-          bash tools/check_ghcr_image_tag.sh \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
-
-      - name: Build and push Frontend
-        id: build_frontend
-        if: steps.gates.outputs.staging_required == 'true' && steps.frontend_image.outputs.build_required == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./apps/frontend
-          push: true
-          provenance: false
-          sbom: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ steps.get_sha.outputs.short_sha }}
-            NEXT_PUBLIC_API_URL=https://report-staging.zitian.party
-            NEXT_PUBLIC_APP_URL=https://report-staging.zitian.party
-
-      - name: Promote Backend Image to Staging Tag
-        id: promote_backend
-        if: steps.gates.outputs.staging_required == 'true'
-        run: |
-          docker buildx imagetools create \
-            --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:staging" \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
-
-      - name: Promote Frontend Image to Staging Tag
-        id: promote_frontend
-        if: steps.gates.outputs.staging_required == 'true'
-        run: |
-          docker buildx imagetools create \
-            --tag "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:staging" \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
+        run: python -m pip install httpx python-dotenv rich
 
       - name: Deploy to Staging
         id: deploy_staging
         if: steps.gates.outputs.staging_required == 'true'
+        working-directory: repo
         env:
-          IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
           DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}
           DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}
           DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}
-          DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "300"
-          HEALTH_CHECK_MAX_SHA_MISMATCH_ATTEMPTS: "18"
         run: |
-          bash tools/dokploy_deploy.sh \
-            "${{ env.STAGING_COMPOSE_ID }}" \
-            "$IMAGE_TAG" \
-            "https://report-staging.zitian.party"
-          
-          echo "Deployment triggered. Waiting for backend to become healthy..."
+          set -euo pipefail
+          # Staging deploys the release tag through the infra2 deploy_v2 front door
+          # (deploy_primitive -> Dokploy compose). The :<tag> images were published by
+          # release-images.yml on the tag push; deploy_v2 pulls them (promote-not-rebuild).
+          # --iac-ref is the pinned infra2 submodule sha so staging uses the same IaC the
+          # app was tested against (and that prod will promote on the same tag).
+          tag="${{ inputs.tag }}"
+          iac_ref="$(git rev-parse HEAD)"
+          echo "Deploying staging via deploy_v2: type=staging version-ref=$tag iac-ref=$iac_ref"
+          python -m tools.deploy_v2 \
+            --service finance_report/app \
+            --type staging \
+            --version-ref "$tag" \
+            --iac-ref "$iac_ref" \
+            --domain zitian.party \
+            --timeout 600
+
+      - name: Confirm staging backend health
+        id: staging_health
+        if: steps.gates.outputs.staging_required == 'true'
+        run: |
+          # deploy_v2 waits on the Dokploy rollout; this confirms Traefik serves the new
+          # image publicly. The backend reports GIT_COMMIT_SHA=<tag> (deploy_primitive sets
+          # it to the image tag), so the health gate matches on the release tag.
+          echo "Confirming staging serves the deployed tag..."
           bash tools/health_check.sh \
             "https://report-staging.zitian.party/api/health" \
             "staging" \
             60 \
-            "$IMAGE_TAG"
+            "${{ inputs.tag }}"
 
       - name: Wait for frontend readiness
         id: frontend_ready
@@ -361,7 +300,9 @@ jobs:
           TEST_ENV: staging
           SKIP_UI_TESTS: false
           STRICT_E2E_GATES: true
-          EXPECTED_SHA: ${{ steps.get_sha.outputs.short_sha }}
+          # Backend /api/health reports GIT_COMMIT_SHA=<tag> in the tag-based model, so the
+          # E2E version check (tests/e2e/test_version_check.py) gates on the release tag.
+          EXPECTED_SHA: ${{ inputs.tag }}
           RUN_MARKET_DATA_PROVIDER_E2E: true
           MARKET_DATA_E2E_DATE: "2024-06-03"
         run: |
@@ -438,11 +379,6 @@ jobs:
             failure_domain="not-required"
             failed_step="classification"
             failure_summary="staging deploy was skipped by change classification"
-          elif [ "${{ steps.install_moon.outcome }}" = "failure" ]; then
-            classify_failure \
-              "install_moon" \
-              "toolchain/moon-install" \
-              "Moon toolchain setup failed before image resolution."
           elif [ "${{ steps.install_uv.outcome }}" = "failure" ]; then
             classify_failure \
               "install_uv" \
@@ -453,51 +389,21 @@ jobs:
               "setup_python" \
               "toolchain/python-setup" \
               "Python setup failed before deploy tooling could run."
-          elif [ "${{ steps.registry_login.outcome }}" = "failure" ]; then
+          elif [ "${{ steps.install_deploy_v2.outcome }}" = "failure" ]; then
             classify_failure \
-              "registry_login" \
-              "registry/login" \
-              "Container registry login failed before image resolution."
-          elif [ "${{ steps.setup_buildx.outcome }}" = "failure" ]; then
-            classify_failure \
-              "setup_buildx" \
-              "runner/docker-buildx-bootstrap" \
-              "Docker Buildx bootstrap failed before image resolution; inspect the Set up Docker Buildx log for runner or Docker Hub errors."
-          elif [ "${{ steps.backend_image.outcome }}" = "failure" ]; then
-            classify_failure \
-              "backend_image" \
-              "registry/backend-image-resolution" \
-              "Backend SHA image lookup failed before build or promotion."
-          elif [ "${{ steps.build_backend.outcome }}" = "failure" ]; then
-            classify_failure \
-              "build_backend" \
-              "image-build/backend" \
-              "Backend image build or push failed."
-          elif [ "${{ steps.frontend_image.outcome }}" = "failure" ]; then
-            classify_failure \
-              "frontend_image" \
-              "registry/frontend-image-resolution" \
-              "Frontend SHA image lookup failed before build or promotion."
-          elif [ "${{ steps.build_frontend.outcome }}" = "failure" ]; then
-            classify_failure \
-              "build_frontend" \
-              "image-build/frontend" \
-              "Frontend image build or push failed."
-          elif [ "${{ steps.promote_backend.outcome }}" = "failure" ]; then
-            classify_failure \
-              "promote_backend" \
-              "registry/backend-staging-tag" \
-              "Backend staging tag promotion failed."
-          elif [ "${{ steps.promote_frontend.outcome }}" = "failure" ]; then
-            classify_failure \
-              "promote_frontend" \
-              "registry/frontend-staging-tag" \
-              "Frontend staging tag promotion failed."
+              "install_deploy_v2" \
+              "toolchain/deploy-v2-deps" \
+              "deploy_v2 dependency install failed before the staging deploy."
           elif [ "${{ steps.deploy_staging.outcome }}" = "failure" ]; then
             classify_failure \
               "deploy_staging" \
-              "dokploy-rollout-or-health" \
-              "Dokploy rollout, route readiness, or target SHA health check failed."
+              "deploy-v2-rollout" \
+              "deploy_v2 staging deploy failed (ref-form/vault contract preflight, Dokploy rollout, or effective-config verify)."
+          elif [ "${{ steps.staging_health.outcome }}" = "failure" ]; then
+            classify_failure \
+              "staging_health" \
+              "staging-route-health" \
+              "Staging public health gate failed: Traefik did not serve the deployed tag in time."
           elif [ "${{ steps.frontend_ready.outcome }}" = "failure" ]; then
             classify_failure \
               "frontend_ready" \
@@ -549,16 +455,14 @@ jobs:
             echo "sha=${{ github.sha }}"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
-            echo "deploy_input_ref=${{ inputs.ref }}"
+            echo "deploy_input_tag=${{ inputs.tag }}"
             echo "deployed_full_sha=${{ steps.get_sha.outputs.full_sha }}"
             echo "target_short_sha=${{ steps.get_sha.outputs.short_sha }}"
             echo "app_url=${APP_URL}"
-            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
-            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
+            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ inputs.tag }}"
+            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ inputs.tag }}"
             echo "staging_before_healthy=${{ steps.staging_before.outputs.healthy }}"
             echo "staging_before_sha=${{ steps.staging_before.outputs.staging_sha }}"
-            echo "backend_image_build_required=${{ steps.backend_image.outputs.build_required }}"
-            echo "frontend_image_build_required=${{ steps.frontend_image.outputs.build_required }}"
             echo "staging_e2e_outcome=${{ steps.staging_e2e_tests.outcome }}"
             echo "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}"
             echo "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}"
@@ -612,7 +516,7 @@ jobs:
         id: ai_provider_connectivity
         timeout-minutes: 10
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
         run: |
           set -uo pipefail
           mkdir -p test-results
@@ -664,7 +568,7 @@ jobs:
       - name: Write provider gate context
         if: ${{ always() }}
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
         run: |
           mkdir -p ci-context
           {
@@ -723,7 +627,7 @@ jobs:
         id: staging_ai_ocr_tests
         timeout-minutes: 22
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
         run: |
           run_timed_phase() {
             local phase_name="$1"
@@ -753,7 +657,7 @@ jobs:
               echo ""
               echo "- Environment: staging"
               echo "- GitHub run ID: ${{ github.run_id }}"
-              echo "- Expected SHA: ${EXPECTED_SHA}"
+              echo "- Expected version: ${EXPECTED_SHA}"
               echo "- Backend image tag: ${REGISTRY}/${IMAGE_PREFIX}-backend:${EXPECTED_SHA}"
               echo "- Frontend image tag: ${REGISTRY}/${IMAGE_PREFIX}-frontend:${EXPECTED_SHA}"
               echo "- App URL: ${APP_URL}"
@@ -789,7 +693,7 @@ jobs:
               echo ""
               echo "- Environment: staging"
               echo "- GitHub run ID: ${{ github.run_id }}"
-              echo "- Expected SHA: ${EXPECTED_SHA}"
+              echo "- Expected version: ${EXPECTED_SHA}"
               echo "- Gate status: ${status}"
               echo "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}"
               echo "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
@@ -842,7 +746,7 @@ jobs:
       - name: Write staging AI/OCR context
         if: ${{ always() }}
         env:
-          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
         run: |
           mkdir -p ci-context
           {
@@ -854,7 +758,7 @@ jobs:
             echo "sha=${{ github.sha }}"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
-            echo "expected_sha=${EXPECTED_SHA}"
+            echo "expected_version=${EXPECTED_SHA}"
             echo "app_url=${APP_URL}"
             echo "primary_model=${STAGING_E2E_PRIMARY_MODEL}"
             echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
@@ -902,6 +806,7 @@ jobs:
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           target_sha="${{ needs.build-and-deploy.outputs.commit_full_sha || github.sha }}"
           target_short="${target_sha:0:7}"
+          target_version="${{ needs.build-and-deploy.outputs.deployed_tag || inputs.tag }}"
           failed=false
           delivery_status="passed"
           failure_reason="none"
@@ -929,6 +834,7 @@ jobs:
             echo ""
             echo "- Delivery status: ${delivery_status}"
             echo "- Failure reason: ${failure_reason}"
+            echo "- Target release tag: ${target_version}"
             echo "- Target SHA: ${target_sha}"
             echo "- Target short SHA: ${target_short}"
             echo "- Run URL: ${run_url}"

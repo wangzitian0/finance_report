@@ -205,14 +205,14 @@ S3_ACCESS_KEY={{ with .Data.data.S3_ACCESS_KEY }}{{ printf "%q" . }}{{ else }}""
 
 The finance_report app authenticates to Vault via **AppRole** (`role_id` + `secret_id`) — it was the AppRole **pilot**, and every infra2 service has since migrated too (iac_runner included). The `VAULT_APP_TOKEN` periodic-token model is **retired for runtime auth** — no vault-agent uses it anymore.
 
-> ℹ️ The legacy bash deploy path (`tools/_lib/shell/dokploy_deploy.sh` → `common/shell/common.sh` `verify_vault_app_token`, `test_AC8_13_11`) **skips** the token preflight when AppRole creds (`VAULT_ROLE_ID`/`VAULT_SECRET_ID`) are present (#1192). So `VAULT_APP_TOKEN` is only a legacy fallback for a non-AppRole env; for AppRole services (all of them today) it is unused. It disappears entirely with the deploy_v2 cutover of the bash path.
+> Note: fixed staging/production deploys run through infra2 `deploy_v2` / `deploy_primitive`. The primitive skips legacy static-token preflight when AppRole creds (`VAULT_ROLE_ID`/`VAULT_SECRET_ID`) are present, and only checks `VAULT_APP_TOKEN` when a non-AppRole compose still carries one. `VAULT_APP_TOKEN` is a legacy fallback only and is unused by current AppRole services.
 
 | Credential | Purpose | Scope | Storage |
 |------------|---------|-------|---------|
 | `VAULT_ROOT_TOKEN` | Admin operations | All paths, write access | 1Password (`op://Infra2/.../Token`) |
 | `VAULT_ROLE_ID` + `VAULT_SECRET_ID` | Runtime AppRole login → secret reading | Read-only, per-project/env/service | Dokploy ENV per service (injected by `invoke vault.setup-approle`) |
 | `VAULT_ADDR` | vault-agent connect address | non-secret, but **required** (missing → agent hangs) | Dokploy project-level ENV |
-| `VAULT_APP_TOKEN` *(legacy)* | Runtime auth retired; bash deploy-preflight **skips** it when AppRole creds present (#1192) — only a fallback for non-AppRole envs | Unused by AppRole services (all of them today) | Dokploy ENV — legacy fallback only |
+| `VAULT_APP_TOKEN` *(legacy)* | Runtime auth retired; deploy_v2 skips it when AppRole creds are present and checks it only for non-AppRole envs | Unused by AppRole services (all of them today) | Dokploy ENV — legacy fallback only |
 
 **Security Rule**: Never use `VAULT_ROOT_TOKEN` in application containers. Only for `invoke vault.setup-approle` and manual admin tasks.
 
@@ -406,8 +406,16 @@ vault kv put secret/data/finance_report/production/app \
   S3_ACCESS_KEY="new-key" \
   S3_SECRET_KEY="new-secret"
 
-# 3. Restart service (vault-agent auto-renders)
-bash tools/dokploy_deploy.sh <compose_id> <image_tag> https://report.zitian.party
+# 3. Restart service by rerunning the fixed production deploy for the current release tag
+cd repo
+python -m tools.deploy_v2 \
+  --service finance_report/app \
+  --type prod \
+  --version-ref vX.Y.Z \
+  --iac-ref "$(git rev-parse HEAD)" \
+  --domain zitian.party \
+  --staging-validated \
+  --code-reviewed
 
 # 4. Verify
 python tools/debug.py logs backend --env production --tail 20
@@ -426,7 +434,8 @@ vault kv put secret/data/finance_report/qa/app \
 # Set ENV=qa in service environment
 
 # 3. Deploy
-bash tools/dokploy_deploy.sh <qa_compose_id> <image_tag> https://report-qa.zitian.party
+# First register the fixed QA environment in infra2's service registry, then run the
+# corresponding deploy_v2 front door. Do not call the retired app-side Dokploy bash path.
 
 # 4. Container will render secrets from secret/data/finance_report/qa/app
 ```
@@ -443,7 +452,15 @@ vault kv patch secret/data/finance_report/production/app \
 
 # 3. Rolling restart (to avoid downtime)
 # Old tokens valid until ACCESS_TOKEN_EXPIRE_MINUTES
-bash tools/dokploy_deploy.sh <compose_id> <image_tag> https://report.zitian.party
+cd repo
+python -m tools.deploy_v2 \
+  --service finance_report/app \
+  --type prod \
+  --version-ref vX.Y.Z \
+  --iac-ref "$(git rev-parse HEAD)" \
+  --domain zitian.party \
+  --staging-validated \
+  --code-reviewed
 
 # 4. Verify
 curl -H "Authorization: Bearer <old-token>" https://report.zitian.party/api/accounts
@@ -473,13 +490,13 @@ curl -H "Authorization: Bearer <old-token>" https://report.zitian.party/api/acco
 
 ```yaml
 # .github/workflows/pr-test.yml
-- name: Deploy Test Environment
+- name: Deploy preview lifecycle
   env:
     ENV: pr-${{ github.event.pull_request.number }}
   run: |
-    # Dokploy creates ephemeral containers
+    # PR preview lifecycle owns ephemeral Dokploy resources
     # Vault path: secret/data/finance_report/pr-47/app
-    bash tools/dokploy_deploy.sh "$COMPOSE_ID" "$IMAGE_TAG" "$APP_URL"
+    python tools/pr_preview_lifecycle.py --action deploy --pr "${{ github.event.pull_request.number }}"
 ```
 
 ---

@@ -113,12 +113,12 @@ PR_PREVIEW_ONLY_EXACT = frozenset(
 STAGING_ONLY_EXACT = frozenset(
     {
         ".github/workflows/ci.yml",
+        ".github/workflows/release-images.yml",
         ".github/workflows/staging-deploy.yml",
         ".github/workflows/staging-ai-ocr-gate.yml",
         ".node-version",
         ".python-version",
         "tools/check_ghcr_image_tag.sh",
-        "tools/dokploy_deploy.sh",
         "tools/health_check.sh",
         "toolchain.toml",
         "repo",

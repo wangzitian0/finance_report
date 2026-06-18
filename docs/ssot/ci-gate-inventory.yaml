@@ -312,18 +312,6 @@ gates:
     artifacts: []
     failure_semantics: Release tag image promotion or digest verification failed.
     action: keep
-  - id: production_release.build
-    category: deploy_ops
-    workflow: .github/workflows/production-release.yml
-    job: build
-    owner: production release workflow
-    triggers: [push]
-    blocks_workflow: true
-    inputs: [version_tag, source_tree, production_image_contexts]
-    outputs: [production_images, release_build_context]
-    artifacts: [production-release-build-context]
-    failure_semantics: Production image build or tag validation failed.
-    action: keep
   - id: production_release.dry_run
     category: deploy_ops
     workflow: .github/workflows/production-release.yml
@@ -331,9 +319,9 @@ gates:
     owner: production release workflow
     triggers: [workflow_dispatch]
     blocks_workflow: true
-    inputs: [target_version, source_tree]
-    outputs: [dry_run_context]
-    artifacts: [production-release-dry-run-context]
+    inputs: [target_version, release_tag_images, staging_validation]
+    outputs: [dry_run_context, release_image_digests]
+    artifacts: [production-dry-run-context]
     failure_semantics: Production release dry-run validation failed.
     action: keep
   - id: production_release.deploy
@@ -343,10 +331,10 @@ gates:
     owner: production release workflow
     triggers: [workflow_dispatch]
     blocks_workflow: true
-    inputs: [target_version, production_environment]
-    outputs: [production_deployment, prod_safe_smoke]
-    artifacts: [production-release-deploy-context]
-    failure_semantics: Production deployment or prod-safe smoke failed.
+    inputs: [target_version, release_tag_images, staging_validation, production_environment]
+    outputs: [production_deployment, prod_safe_smoke, production_deploy_context]
+    artifacts: [production-deploy-test-context]
+    failure_semantics: Production deploy_v2 rollout, route health, or prod-safe smoke failed.
     action: keep
   - id: staging_ai_ocr_gate.ai_ocr_gate
     category: deploy_ops
@@ -367,10 +355,10 @@ gates:
     owner: staging deployment workflow
     triggers: [workflow_dispatch]
     blocks_workflow: true
-    inputs: [source_tree, staging_image_contexts, dokploy_staging]
+    inputs: [release_tag, release_tag_images, dokploy_staging]
     outputs: [staging_deployment, staging_smoke]
-    artifacts: [staging-deploy-context]
-    failure_semantics: Staging build, push, deploy, or smoke failed.
+    artifacts: [staging-deploy-test-context]
+    failure_semantics: Staging deploy_v2 rollout, route health, smoke, or E2E failed.
     action: keep
   - id: staging_deploy.provider_gate
     category: deploy_ops
