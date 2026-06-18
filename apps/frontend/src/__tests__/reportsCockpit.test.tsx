@@ -179,12 +179,12 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
   })
 
   it("AC5.37.1 renders non-blocked readiness states without blocker copy", async () => {
-    for (const [state, label] of [
-      ["ready", "Ready"],
-      ["generated", "Generated"],
-      ["processing", "Processing"],
-      ["stale", "Stale"],
-      ["draft", "Draft"],
+    for (const [state, label, badgeClass] of [
+      ["ready", "Ready", "badge-success"],
+      ["generated", "Generated", "badge-success"],
+      ["processing", "Processing", "badge-warning"],
+      ["stale", "Stale", "badge-error"],
+      ["draft", "Draft", "badge-muted"],
     ] as const) {
       mockedApiFetch.mockImplementation((path: string) => {
         if (path === "/api/income/annualized") {
@@ -218,6 +218,10 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
       const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
       expect(cockpit).toHaveTextContent(`Current package state is ${label.toLowerCase()}.`)
       expect(cockpit).toHaveTextContent("unknown source")
+      const statusBadge = Array.from(cockpit.querySelectorAll(".badge")).find(
+        (badge) => badge.textContent === label,
+      )
+      expect(statusBadge).toHaveClass(badgeClass)
       expect(screen.getByRole("link", { name: "Open readiness path" })).toHaveAttribute("href", "/reports/package")
       view.unmount()
     }

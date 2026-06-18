@@ -18,7 +18,7 @@ const MORE_REPORTS = [
     { id: "personal-package", title: "Personal Report Package", description: "Stable package contract for statements, schedules, notes, and traceability", icon: FileText, href: "/reports/package" },
 ];
 
-type ReadinessLoadState = "loading" | "ready" | "error";
+type ReadinessLoadState = "loading" | "loaded" | "error";
 
 const SOURCE_CLASS_LABELS: Record<string, string> = {
     bank_statement: "Bank statements",
@@ -55,10 +55,9 @@ function readinessVariant(state?: PersonalReportPackageReadinessResponse["state"
         case "generated":
             return "success";
         case "blocked":
+        case "stale":
             return "error";
         case "processing":
-            return "info";
-        case "stale":
             return "warning";
         case "draft":
         default:
@@ -103,7 +102,7 @@ export default function ReportsPage() {
                 }
                 if (active) {
                     setReadiness(data);
-                    setReadinessState("ready");
+                    setReadinessState("loaded");
                 }
             })
             .catch(() => {
