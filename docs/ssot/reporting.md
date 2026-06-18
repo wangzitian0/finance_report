@@ -444,6 +444,12 @@ Package readiness:
 - Purpose: return the user-scoped readiness state and blocker links before the
   report package renders output. This endpoint is the package-owned fact source;
   workflow summary APIs may aggregate it but must not duplicate its derivation.
+- Reports landing consumption: `/reports` may show a trust-first cockpit before
+  report navigation by reading this endpoint through the shared frontend API
+  client. The landing page may summarize `state`, `blocking_count`,
+  `blockers`, and `source_trust_summary.gap_source_classes`, but it must not
+  reimplement readiness priority, source-trust classification, or blocker
+  derivation in frontend code.
 - Response contract:
   - `package_id`: always `personal-financial-report-package`
   - `state`: closed enum of `draft`, `processing`, `blocked`, `ready`,
