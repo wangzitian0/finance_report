@@ -95,9 +95,11 @@ jobs:
           echo "Found backend SHA image digest: $backend_sha_digest"
           echo "Found frontend SHA image digest: $frontend_sha_digest"
 
-          # Promote (manifest copy, zero rebuild).
-          docker buildx imagetools create --tag "$backend_version_image" "$backend_sha_image"
-          docker buildx imagetools create --tag "$frontend_version_image" "$frontend_sha_image"
+          # Promote (manifest copy, zero rebuild). Keep single-platform manifests
+          # as manifests instead of wrapping them into new OCI indexes, otherwise
+          # the release tag gets a different top-level digest from the source tag.
+          docker buildx imagetools create --prefer-index=false --tag "$backend_version_image" "$backend_sha_image"
+          docker buildx imagetools create --prefer-index=false --tag "$frontend_version_image" "$frontend_sha_image"
 
           # Verify the promoted digests match the source digests exactly.
           backend_promoted_digest="$(docker buildx imagetools inspect "$backend_version_image" | grep -i '^Digest:' | awk '{print $2}')"
