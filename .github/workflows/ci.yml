@@ -563,11 +563,15 @@ jobs:
         run: |
           cd apps/backend
           mkdir -p test-results
+          pytest_extra_args=()
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            pytest_extra_args+=(--maxfail=1)
+          fi
           uv run pytest -v \
             --override-ini addopts="" \
             tests/e2e/test_core_journeys.py \
             -m "e2e and not slow and not integration and not perf" \
-            --maxfail=1 \
+            "${pytest_extra_args[@]}" \
             --junit-xml=test-results/backend-tier1-e2e.xml
 
       - name: Upload backend Tier-1 E2E test context
@@ -807,6 +811,9 @@ jobs:
     needs: [changes, backend, frontend, tooling-coverage]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -934,10 +941,6 @@ jobs:
           retention-days: 14
 
 
-      # Note: baseline auto-push removed — branch protection requires PRs.
-      # Update unified-coverage.json manually via PR when raising the threshold.
-
-
       - name: Build line-only Coveralls LCOV
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -951,6 +954,77 @@ jobs:
           file: coverage/coveralls-unified.lcov
           flag-name: unified
           base-path: .
+
+  unified-coverage-baseline-pr:
+    name: Open Unified Coverage Baseline PR
+    needs: [changes, unified-coverage]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download unified coverage context
+        uses: actions/download-artifact@v4
+        with:
+          name: unified-coverage-context
+          path: coverage-context
+
+      # Note: baseline auto-push removed — branch protection requires PRs.
+      # Main pushes open/update a reviewed baseline PR when the measured baseline rises.
+      - name: Open unified coverage baseline PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASELINE_BRANCH: automation/unified-coverage-baseline
+        run: |
+          set -euo pipefail
+          if [ ! -f coverage-context/unified-coverage.json ]; then
+            echo "::error::unified-coverage-context did not contain unified-coverage.json"
+            exit 1
+          fi
+
+          git switch -C "$BASELINE_BRANCH"
+          cp coverage-context/unified-coverage.json unified-coverage.json
+          if git diff --quiet -- unified-coverage.json; then
+            echo "Unified coverage baseline is unchanged."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add unified-coverage.json
+          git commit -m "chore(ci): update unified coverage baseline"
+          git push --force-with-lease origin "HEAD:$BASELINE_BRANCH"
+
+          pr_body="$(mktemp)"
+          cat > "$pr_body" <<'EOF'
+          ## What
+
+          Updates `unified-coverage.json` from the latest successful main CI coverage calculation.
+
+          ## Why
+
+          The no-regression gate still uses the committed baseline. This PR keeps branch protection intact while removing manual baseline file edits after coverage rises.
+          EOF
+
+          if gh pr view "$BASELINE_BRANCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh pr edit "$BASELINE_BRANCH" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "chore(ci): update unified coverage baseline" \
+              --body-file "$pr_body"
+          else
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BASELINE_BRANCH" \
+              --title "chore(ci): update unified coverage baseline" \
+              --body-file "$pr_body"
+          fi
 
   ac-traceability:
     name: AC Traceability Check

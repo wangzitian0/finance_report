@@ -563,7 +563,9 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     assert 'run_timed_phase "Phase 2: Core Flow Validation (Python)"' in workflow
     assert "in-job FIFO" not in ci_cd
     assert "workflow-level singleton concurrency" in ci_cd
-    assert "No two `Deploy Staging` workflow runs mutate staging concurrently" not in ci_cd
+    assert (
+        "No two `Deploy Staging` workflow runs mutate staging concurrently" not in ci_cd
+    )
     assert "only one `Deploy Staging` run mutates staging at a time" in ci_cd
     assert "75-minute deploy-health job timeout" in ci_cd
     assert "22-minute E2E step timeout" in ci_cd
@@ -793,7 +795,10 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
         in staging
     )
-    assert "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging" in staging
+    assert (
+        "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging"
+        in staging
+    )
     assert "github.run_id=${{ github.run_id }}" in staging
     assert "staging-ai-ocr-test-context" in staging
     assert "test-results/staging-ai-ocr-version.xml" in staging
@@ -1194,6 +1199,27 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     )
 
 
+def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -> None:
+    """AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+
+    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
+        "  frontend:",
+        1,
+    )[0]
+
+    assert 'if [ "${{ github.event_name }}" = "pull_request" ]; then' in tier1_block
+    assert "pytest_extra_args+=(--maxfail=1)" in tier1_block
+    assert '"${pytest_extra_args[@]}"' in tier1_block
+    assert " --maxfail=1 \\" not in tier1_block
+    assert "--junit-xml=test-results/backend-tier1-e2e.xml" in tier1_block
+    assert "push/main Tier-1 E2E runs without `--maxfail=1`" in ci_cd
+    assert "id: ci.backend_e2e_tier1" in inventory
+    assert "category: runtime_test" in inventory
+
+
 def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
     """AC8.13.68: CI gates product E2E tests and project EPIC ownership."""
     workflow = read(".github/workflows/ci.yml")
@@ -1262,6 +1288,73 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
         assert mutating_token not in prod_smoke
 
 
+def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure() -> (
+    None
+):
+    """AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
+    workflow = read(".github/workflows/production-release.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+
+    rollback_block = workflow.split(
+        "- name: Roll back production after post-deploy failure", 1
+    )[1].split("- name: Warn when production rollback cannot run", 1)[0]
+    rollback_unavailable_block = workflow.split(
+        "- name: Warn when production rollback cannot run", 1
+    )[1].split("- name: Write production deploy context", 1)[0]
+    probe_block = workflow.split("- name: Probe current production version", 1)[
+        1
+    ].split("- name: Deploy with deploy_v2", 1)[0]
+
+    assert "id: production_rollback" in rollback_block
+    assert "failure()" in rollback_block
+    assert "steps.deploy_v2.outcome == 'success'" in rollback_block
+    assert "steps.production_before.outputs.rollback_ref != ''" in rollback_block
+    for step_id in (
+        "deploy_health",
+        "production_infra_smoke",
+        "production_smoke",
+        "production_readonly_e2e",
+    ):
+        assert f"steps.{step_id}.outcome == 'failure'" in rollback_block
+    assert "rollback_ref" in probe_block
+    assert "health_version" in probe_block
+    assert "git_sha" in probe_block
+    assert (
+        'rollback_ref="${{ steps.production_before.outputs.rollback_ref }}"'
+        in rollback_block
+    )
+    assert "pre-deploy version" not in rollback_block
+    assert "is not a release tag" not in rollback_block
+    assert "python -m tools.deploy_v2" in rollback_block
+    assert "--type prod" in rollback_block
+    assert '--version-ref "$rollback_ref"' in rollback_block
+    assert "--staging-validated" in rollback_block
+    assert "--code-reviewed" in rollback_block
+    assert "bash ../tools/health_check.sh" in rollback_block
+    assert '"$rollback_ref"' in rollback_block
+    assert (
+        "steps.production_before.outputs.rollback_ref == ''"
+        in rollback_unavailable_block
+    )
+    assert "deploy_v2/prod-compatible release tag" in rollback_unavailable_block
+    assert "dokploy_deploy.sh" not in rollback_block
+    assert (
+        "production_rollback_outcome=${{ steps.production_rollback.outcome }}"
+        in workflow
+    )
+    assert (
+        "production_rollback_unavailable_outcome=${{ steps.production_rollback_unavailable.outcome }}"
+        in workflow
+    )
+    assert (
+        "production_before_rollback_ref=${{ steps.production_before.outputs.rollback_ref }}"
+        in workflow
+    )
+    assert "Production release rollback uses deploy_v2" in ci_cd
+    assert "production_rollback" in inventory
+
+
 def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     """AC8.13.67: Production release preserves deployed version metadata."""
     workflow = read(".github/workflows/production-release.yml")
@@ -1312,7 +1405,9 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     deployment = read("docs/ssot/deployment.md")
 
     # AC7.10.1: release-images promotes main-CI SHA images instead of rebuilding.
-    assert "docker buildx imagetools create --prefer-index=false --tag" in release_images
+    assert (
+        "docker buildx imagetools create --prefer-index=false --tag" in release_images
+    )
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
     assert 'short_sha="${full_sha:0:7}"' in workflow
@@ -1368,18 +1463,13 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
         "DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}" in workflow
     )
     assert (
-        '"PRIMARY_MODEL": os.getenv("DEPLOY_PRIMARY_MODEL_OVERRIDE", "")'
-        in primitive
+        '"PRIMARY_MODEL": os.getenv("DEPLOY_PRIMARY_MODEL_OVERRIDE", "")' in primitive
     )
+    assert '"OCR_MODEL": os.getenv("DEPLOY_OCR_MODEL_OVERRIDE", "")' in primitive
+    assert '"VISION_MODEL": os.getenv("DEPLOY_VISION_MODEL_OVERRIDE", "")' in primitive
     assert (
-        '"OCR_MODEL": os.getenv("DEPLOY_OCR_MODEL_OVERRIDE", "")'
-        in primitive
+        "env_vars.update({k: v for k, v in model_overrides.items() if v})" in primitive
     )
-    assert (
-        '"VISION_MODEL": os.getenv("DEPLOY_VISION_MODEL_OVERRIDE", "")'
-        in primitive
-    )
-    assert "env_vars.update({k: v for k, v in model_overrides.items() if v})" in primitive
     assert '"IAC_CONFIG_HASH": config_hash' in primitive
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
@@ -1539,7 +1629,9 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
     # Checkout uses the dispatched release tag, and that checkout happens before
     # deploy_v2 consumes the already-published release images.
     assert "ref: ${{ inputs.tag }}" in workflow
-    assert workflow.index("ref: ${{ inputs.tag }}") < workflow.index("Deploy to Staging")
+    assert workflow.index("ref: ${{ inputs.tag }}") < workflow.index(
+        "Deploy to Staging"
+    )
     assert "Build and push Backend" not in workflow
     assert "Build and push Frontend" not in workflow
     assert "Promote Backend Image to Staging Tag" not in workflow
@@ -1592,7 +1684,9 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "tags: ['v[0-9]+.[0-9]+.[0-9]+']" in release_workflow
     assert 'full_sha="$(git rev-parse "$GITHUB_SHA")"' in release_workflow
     assert 'short_sha="${full_sha:0:7}"' in release_workflow
-    assert "docker buildx imagetools create --prefer-index=false --tag" in release_workflow
+    assert (
+        "docker buildx imagetools create --prefer-index=false --tag" in release_workflow
+    )
     assert "Backend digests differ!" in release_workflow
     assert "Frontend digests differ!" in release_workflow
 
@@ -1608,14 +1702,18 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert deploy_workflow.index("ref: ${{ inputs.tag }}") < deploy_workflow.index(
         "Deploy to Staging"
     )
-    assert "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ inputs.tag }}" in deploy_workflow
-    assert "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ inputs.tag }}" in deploy_workflow
+    assert (
+        "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ inputs.tag }}"
+        in deploy_workflow
+    )
+    assert (
+        "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ inputs.tag }}"
+        in deploy_workflow
+    )
 
     assert "SHA-tagged images" in ci_cd
     assert "release-images.yml" in ci_cd
-    assert (
-        "promotes main-CI SHA images to the immutable release tag" in ci_cd
-    )
+    assert "promotes main-CI SHA images to the immutable release tag" in ci_cd
     assert "staging deploy consumes the release tag without rebuilding" in ci_cd
 
 
@@ -2048,6 +2146,53 @@ def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
     assert "raw line-count inputs" in ci_cd
 
 
+def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push() -> (
+    None
+):
+    """AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
+    workflow = read(".github/workflows/ci.yml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+
+    unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
+        "  unified-coverage-baseline-pr:", 1
+    )[0]
+    baseline_job_block = workflow.split("  unified-coverage-baseline-pr:", 1)[1].split(
+        "  ac-traceability:", 1
+    )[0]
+    baseline_block = baseline_job_block.split(
+        "- name: Open unified coverage baseline PR", 1
+    )[1]
+
+    assert "permissions:" in unified_coverage_block
+    assert "contents: read" in unified_coverage_block
+    assert "contents: write" not in unified_coverage_block
+    assert "pull-requests: write" not in unified_coverage_block
+    assert "needs: [changes, unified-coverage]" in baseline_job_block
+    assert "contents: write" in baseline_job_block
+    assert "pull-requests: write" in baseline_job_block
+    assert (
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'"
+        in baseline_job_block
+    )
+    assert "name: unified-coverage-context" in baseline_job_block
+    assert (
+        "cp coverage-context/unified-coverage.json unified-coverage.json"
+        in baseline_block
+    )
+    assert "BASELINE_BRANCH: automation/unified-coverage-baseline" in baseline_block
+    assert "git diff --quiet -- unified-coverage.json" in baseline_block
+    assert "git push --force-with-lease origin" in baseline_block
+    assert "gh pr create" in baseline_block
+    assert "gh pr edit" in baseline_block
+    assert "HEAD:main" not in baseline_block
+    assert "[skip ci]" not in baseline_block
+    assert "unified-coverage-baseline-pr" not in workflow.split("  finish:", 1)[1]
+    assert "automatic baseline PR" in ci_cd
+    assert "category: evidence_fan_in" in inventory
+    assert "baseline_update_pr_on_main" in inventory
+
+
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     """AC8.13.66: Main Coveralls reporting uses the unified line-only metric."""
     workflow = read(".github/workflows/ci.yml")
@@ -2247,7 +2392,10 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
     assert "before_ids" in primitive
     assert "client.update_compose_env" in primitive
     assert "client.deploy_compose" in primitive
-    assert "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)" in primitive
+    assert (
+        "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)"
+        in primitive
+    )
     assert 'if status == "error":' in primitive
     assert 'status in {"done", "success", "successful"}' in primitive
     assert "TimeoutError" in primitive
@@ -2266,11 +2414,20 @@ def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> N
     dokploy_client = read("repo/libs/dokploy.py")
     primitive = read("repo/tools/deploy_primitive.py")
 
-    assert "def get_compose_deployments(self, compose_id: str) -> list[dict]" in dokploy_client
+    assert (
+        "def get_compose_deployments(self, compose_id: str) -> list[dict]"
+        in dokploy_client
+    )
     assert '"deployment.allByCompose?composeId={compose_id}"' in dokploy_client
-    assert "deployments = self.get_compose(compose_id).get(\"deployments\")" in dokploy_client
+    assert (
+        'deployments = self.get_compose(compose_id).get("deployments")'
+        in dokploy_client
+    )
     assert "if isinstance(deployments, list):" in dokploy_client
-    assert "return [item for item in deployments if isinstance(item, dict)]" in dokploy_client
+    assert (
+        "return [item for item in deployments if isinstance(item, dict)]"
+        in dokploy_client
+    )
     assert 'for key in ("deployments", "data", "items"):' in dokploy_client
     assert "if isinstance(items, list):" in dokploy_client
     assert "return []" in dokploy_client
@@ -2278,7 +2435,7 @@ def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> N
     assert "def _deployment_ids(deployments) -> set[str]:" in primitive
     assert "return {_dep_id(d) for d in (deployments or []) if _dep_id(d)}" in primitive
     assert "client.get_compose_deployments(compose_id) or []" in primitive
-    assert "status = str(d.get(\"status\") or \"\").lower()" in primitive
+    assert 'status = str(d.get("status") or "").lower()' in primitive
     assert 'if status == "error":' in primitive
     assert 'if status in {"done", "success", "successful"}:' in primitive
 
@@ -2291,7 +2448,10 @@ def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> 
 
     assert "deploy rollout did not finish within {timeout}s" in primitive
     assert "raise TimeoutError" in primitive
-    assert "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)" in primitive
+    assert (
+        "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)"
+        in primitive
+    )
     assert "Confirm staging backend health" in workflow
     assert workflow.index("- name: Deploy to Staging") < workflow.index(
         "- name: Confirm staging backend health"

@@ -101,6 +101,8 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ✅ Install pre-commit hooks: `make install`
 - ✅ Run `moon run :lint && moon run :test` before pushing
 - ✅ A mergeable PR must resolve all Copilot auto-review comments (either by fixing them or providing a justification for not doing so). Once resolved, resolve the comment threads on GitHub.
+- ✅ For implementation work, the final deliverable is not complete until a ready PR is pushed and the final report includes PR URL, branch, commit SHA, draft status, `mergeable`, `mergeStateStatus`, and required-check summary.
+- ✅ If GitHub does not report `mergeable=MERGEABLE` and `mergeStateStatus=CLEAN`, the task is not a mergeable-PR delivery; report the blocker, the failing/pending check or review thread, and the next action instead of calling the work complete.
 
 ---
 

@@ -162,7 +162,20 @@ gates:
     inputs: [backend_lcov, frontend_lcov, common_lcov, tools_lcov, unified-coverage.json]
     outputs: [unified_coverage_decision, coveralls_lcov_on_main]
     artifacts: [unified-coverage-context]
-    failure_semantics: Coverage policy audit or no-regression calculation failed after consuming producer artifacts.
+    failure_semantics: Coverage policy audit, no-regression calculation, artifact upload, or main-only Coveralls reporting failed after consuming producer artifacts.
+    action: keep
+  - id: ci.unified_coverage_baseline_pr
+    category: evidence_fan_in
+    workflow: .github/workflows/ci.yml
+    job: unified-coverage-baseline-pr
+    owner: unified-coverage.json
+    triggers: [push]
+    required_by_finish: false
+    blocks_workflow: true
+    inputs: [unified-coverage-context, unified-coverage.json]
+    outputs: [baseline_update_pr_on_main]
+    artifacts: []
+    failure_semantics: Main-only automatic baseline PR update failed after the read-only unified coverage job produced a changed baseline artifact.
     action: keep
   - id: ci.ac_traceability
     category: audit_artifact
@@ -332,9 +345,9 @@ gates:
     triggers: [workflow_dispatch]
     blocks_workflow: true
     inputs: [target_version, release_tag_images, staging_validation, production_environment]
-    outputs: [production_deployment, prod_safe_smoke, production_deploy_context]
+    outputs: [production_deployment, prod_safe_smoke, production_rollback, production_deploy_context]
     artifacts: [production-deploy-test-context]
-    failure_semantics: Production deploy_v2 rollout, route health, or prod-safe smoke failed.
+    failure_semantics: Production deploy_v2 rollout, route health, prod-safe smoke, or rollback-to-previous-version failed.
     action: keep
   - id: staging_ai_ocr_gate.ai_ocr_gate
     category: deploy_ops

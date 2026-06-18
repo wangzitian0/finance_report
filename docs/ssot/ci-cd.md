@@ -21,6 +21,7 @@ changes (Classify Changes) ──→ backend shards ───────┬→ 
                          ├────→ frontend ─────────────┼→ unified-coverage ───────┤→ finish
                          ├────→ tooling-coverage ─────┘                          │
                          └────→ container-images ────────────────────────────────┘
+main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by finish)
 ```
 
 ### Job Details
@@ -32,11 +33,12 @@ changes (Classify Changes) ──→ backend shards ───────┬→ 
 | **schema-migrations** | Run Alembic `upgrade head` followed by `alembic check` against an ephemeral Postgres service before merge | `needs: [changes]` |
 | **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
-| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override | `needs: [changes]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
 | **frontend** | Frontend build + Vitest + Playwright tests when heavy CI is required | `needs: [changes]` |
 | **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes]` |
 | **tooling-coverage** | Run root tooling tests with common/tools coverage and upload LCOV inputs | `needs: [changes]` |
-| **unified-coverage** | Merge backend, frontend, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, update Coveralls when heavy CI is required | `needs: [changes, backend, frontend, tooling-coverage]` |
+| **unified-coverage** | Merge backend, frontend, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, upload the coverage context artifact, and update Coveralls on `main` when heavy CI is required | `needs: [changes, backend, frontend, tooling-coverage]` |
+| **unified-coverage-baseline-pr** | Main-only automation that downloads `unified-coverage-context`, commits a changed `unified-coverage.json` to `automation/unified-coverage-baseline`, and opens or updates the reviewed baseline PR. This job owns write-scoped GitHub token permissions; PR coverage calculation remains read-only. | `needs: [changes, unified-coverage]` |
 | **ac-traceability** | Verify generated AC registries, E2E EPIC ownership, the uploaded AC traceability audit, and the reconciliation audit for all PR/main changes, including docs-only changes | None |
 | **ac-behavioral-ratchet** | Aggregate JUnit AC evidence from backend/frontend test stages and enforce the persisted per-AC behavioral score floor | `needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend]` |
 | **finish** | Aggregate all required and skipped job results | `needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]` |
@@ -52,7 +54,7 @@ changes (Classify Changes) ──→ backend shards ───────┬→ 
 6. **Generated API reference is code-owned**: Static API reference docs are generated from FastAPI OpenAPI by `tools/generate_api_reference.py`. PR CI runs `python ../../tools/generate_api_reference.py --check` inside the backend uv environment after dependencies are installed, so endpoint paths, parameters, request schemas, response schemas, and enum values cannot drift into hand-written Markdown.
 7. **Generated DB schema reference is code-owned**: Static DB schema docs are generated from SQLAlchemy model metadata by `tools/generate_db_schema_reference.py`. The generated page is intentionally gitignored and is materialized by the MkDocs build hook in `docs/hooks.py`. PR CI generates it inside the backend uv environment and then runs `python ../../tools/generate_db_schema_reference.py --check`, so table, column, enum, index, constraint, and foreign-key inventory stays code-owned instead of duplicated in prose.
 8. **Backend stages are explicit and split**: Backend fast-path remains shard stage (`backend`) with `-m "not slow and not e2e and not integration"`. Standalone gates start immediately: `lint` and `ac-traceability` have no `needs` dependency and run in parallel with change classification. Deterministic test, schema migration, and image jobs start after change classification and do not wait for lint, AC traceability, or behavior-only backend gates. Behavior-only backend gates run in parallel as explicit `backend-integration` and `backend-e2e-tier1` stages, and finish remains the authoritative aggregate gate for lint, AC traceability, AC behavioral score ratchet, schema migrations, tests, image validation, coverage, and skipped heavy-job semantics.
-9. **Coverage Debug Context Is Always Uploaded**: The `tooling-coverage` job uploads `coverage-tooling` with `coverage/common.lcov` and `coverage/tools.lcov`; the `unified-coverage` job downloads that artifact and uploads `unified-coverage-context` on success and failure. The unified artifact contains `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov`, the current `unified-coverage.json`, and `coverage/coverage-context.txt` with raw line-count inputs, commit/event/run metadata, toolchain versions, and input hashes. Coverage regressions must be diagnosed from these artifacts before treating a percentage delta as nondeterminism.
+9. **Coverage Debug Context Is Always Uploaded**: The `tooling-coverage` job uploads `coverage-tooling` with `coverage/common.lcov` and `coverage/tools.lcov`; the read-only `unified-coverage` job downloads that artifact and uploads `unified-coverage-context` on success and failure. The unified artifact contains `coverage/backend.lcov`, `coverage/frontend.lcov`, `coverage/common.lcov`, `coverage/tools.lcov`, the current `unified-coverage.json`, and `coverage/coverage-context.txt` with raw line-count inputs, commit/event/run metadata, toolchain versions, and input hashes. Coverage regressions must be diagnosed from these artifacts before treating a percentage delta as nondeterminism. On `push` to `main`, the separate `unified-coverage-baseline-pr` job is the only CI job with `contents: write` / `pull-requests: write` for automatic baseline PR updates; PR coverage calculation does not receive write-scoped token permissions.
 10. **CI Observability Artifacts Are Failure-Path Owned**: Backend shard, backend integration, backend Tier-1 E2E, frontend Vitest, frontend Playwright, schema migrations, tooling/common coverage, AC traceability, PR preview, staging, manual AI/OCR, production release, and scheduled cleanup gates publish CI observability artifacts with `if: always()`. These artifacts include JUnit XML where pytest or Vitest/Playwright can produce it, raw coverage/report inputs where relevant, and a small context file with repository/event/ref/SHA/run metadata plus target environment/version fields. Step summaries remain human-readable status pages; artifacts are the replayable evidence for both success and failure.
 11. **Coveralls Is Main-Only Reporting**: Pull requests do not call Coveralls and therefore do not publish external Coveralls status contexts. CI pass/fail is decided by local gates (`tools/check_ci_metrics_contract.py`, `tools/check_coverage_policy.py`, `tools/calculate_unified_coverage.py`) aggregated by `finish`. Main pushes upload only the unified line-only LCOV report to Coveralls for badge and trend reporting after the local coverage gate passes. Backend/frontend per-flag Coveralls uploads are intentionally absent so a single commit has one reporting denominator.
 12. **Single CI Metrics Contract**: `tools/check_ci_metrics_contract.py` is the single CI metrics contract. It runs in `lint` and validates that source-root discovery, `common/coverage/policy.py`, workflow gates, and AC traceability semantics stay aligned before coverage jobs finish.
@@ -144,7 +146,7 @@ file.
 | Unit (fast/shard) | `backend` job, 6 shards immediately after change classification | `-m "not slow and not e2e and not integration"` | Feeds unified line coverage (backend component) | Keep as deterministic base and expand shards if needed |
 | Integration (backend marker) | `backend-integration` job (`-m "integration"`) | `apps/backend/tests/**/*` marker-scoped integration suites with service-backed env | Not part of unified line baseline yet | Add sharding when count growth justifies it; keep explicit marker gate in CI |
 | Tooling/common contracts | `tooling-coverage` job | `tests/tooling/` with `--cov=common --cov=tools` | Feeds unified line coverage (common/tools components) | Keep parallel to app tests so tooling failures and LCOV inputs are independently visible |
-| Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
+| Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness; PR runs use `--maxfail=1`, while push/main Tier-1 E2E runs without `--maxfail=1` so one JUnit artifact reports all failing journeys | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
 | Tier 2 HTTP E2E | PR/staging/prod HTTP command windows | Not in unified coverage baseline | Behavioral proof only | Introduce marker-pinned CI smoke before post-merge where network stability allows |
 | Frontend Playwright | `frontend` job | Provider-free browser UI specs under `apps/frontend/playwright` | Behavioral proof only; not in unified line coverage | Env-gated specs stay non-required until their env is provided in CI |
 | Tier 3 Browser E2E | Staging/PR preview/prod smoke jobs | Playwright/HTTP deployment suites (`smoke`, `e2e`, `llm` split) | Behavioral/prod-risk proof only | Keep provider-dependent `llm` in post-merge; split provider-free subset for PR preview |
@@ -213,8 +215,9 @@ The CI workflow enforces a **no-regression policy** for test coverage.
 ### How It Works
 
 1. **Baseline Storage**: `unified-coverage.json` at repo root.
-   - Updated manually through PR when the coverage policy or measured baseline changes
-   - Not auto-committed by CI because branch protection requires reviewed PRs
+   - PR CI reads the committed file as the no-regression floor.
+   - Main CI writes the current measured file inside the read-only `unified-coverage` job artifact. A separate main-only `unified-coverage-baseline-pr` job downloads that artifact and opens or updates an automatic baseline PR when that file differs.
+   - CI never pushes directly to `main`; branch protection still requires the reviewed baseline PR to merge.
 
 2. **Comparison Logic**:
    - Reads `unified-coverage.json` before calculating final coverage
@@ -245,15 +248,17 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
    - `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`; baseline comparison is primary gate)
 
-### Manual Baseline Reset
+### Baseline Reset / Raise
 
 ```bash
-# Option 1: Update baseline to current state
+# Option 1: Prefer the automatic baseline PR opened by main CI after coverage rises.
+
+# Option 2: Update baseline to current state manually when repairing automation
 git pull origin main
 # Make your changes, then:
 git add unified-coverage.json && git commit -m "chore: manually reset coverage baseline" && git push
 
-# Option 2: Remove baseline temporarily
+# Option 3: Remove baseline temporarily
 git rm unified-coverage.json && git commit -m "chore: remove coverage baseline for testing" && git push
 ```
 
@@ -464,7 +469,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Tag pushes promote versioned release images only through `.github/workflows/release-images.yml`. Manual dispatch with `dry_run=false` remains the production deploy path for an existing version.
 - Production backend release images are addressed by the release version tag, and deploy_v2 injects the release version tag as runtime `IMAGE_TAG` / `GIT_COMMIT_SHA` so `/api/health` can prove the deployed version even after a same-tag redeploy.
 - Production deploys run `tools/production_infra_smoke.py` after health check. That gate verifies the deployed version, `/api/health` dependency checks for database and S3, read-only `/api/ping`, frontend reachability, and the shared SigNoz health/version endpoints before production smoke and read-only E2E run.
-- Production deploy context records the pre-deploy health status and `production_before_version`, image verification outcome, deploy-health outcome, infrastructure smoke outcome, application smoke outcome, read-only E2E outcome, and a small failure-domain classification. Production still proves release integrity and health only; first-time business correctness remains owned by PR and staging gates.
+- Production release rollback uses deploy_v2: when deploy_v2 mutates production successfully but route health, infrastructure smoke, application smoke, or read-only E2E fails, the workflow deploys the recorded `production_before_rollback_ref` back to prod and confirms `/api/health` reports that release tag. If pre-deploy health exposes only a SHA or another non-release value, the workflow warns and leaves the original post-deploy failure as the authoritative failure instead of failing the rollback step on an invalid prod `version_ref`.
+- Production deploy context records the pre-deploy health status, `production_before_version`, `production_before_health_version`, `production_before_git_sha`, `production_before_rollback_ref`, image verification outcome, deploy-health outcome, infrastructure smoke outcome, application smoke outcome, read-only E2E outcome, rollback outcome, rollback-unavailable outcome, and a small failure-domain classification. Production still proves release integrity and health only; first-time business correctness remains owned by PR and staging gates.
 
 The remaining higher-risk CI and post-merge optimization candidates are tracked
 in the delivery-engine recommendation note instead of being mixed into routine
