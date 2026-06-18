@@ -64,7 +64,7 @@ jobs:
           git checkout --detach "$tag"
           git submodule update --init --recursive
           full_sha="$(git rev-parse HEAD)"
-          short_sha="$(git rev-parse --short HEAD)"
+          short_sha="${full_sha:0:7}"
           {
             echo "tag=$tag"
             echo "full_sha=$full_sha"
@@ -315,7 +315,7 @@ jobs:
           git checkout --detach "$tag"
           git submodule update --init --recursive
           full_sha="$(git rev-parse HEAD)"
-          short_sha="$(git rev-parse --short HEAD)"
+          short_sha="${full_sha:0:7}"
           {
             echo "tag=$tag"
             echo "full_sha=$full_sha"

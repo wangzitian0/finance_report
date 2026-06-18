@@ -111,9 +111,10 @@ The release process keeps a promote-not-rebuild consistency ladder:
 `main CI (:<sha7>) -> release-images.yml (:vX.Y.Z) -> staging deploy_v2
 (:vX.Y.Z) -> production deploy_v2 (:vX.Y.Z)`. `release-images.yml` is the only
 tag-push promotion path; staging and production both consume the retained release
-tag without rebuilding or retagging. By keeping the exact same image digest from
-main CI through production, we eliminate drift from base images, build-time
-dependencies, or workflow changes.
+tag without rebuilding or retagging. The `sha7` tag is fixed to the first 7 hex
+characters of the release commit rather than Git's adaptive short length. By
+keeping the exact same image digest from main CI through production, we eliminate
+drift from base images, build-time dependencies, or workflow changes.
 
 The staging deploy gate separates platform rollout from application readiness.
 `.github/workflows/staging-deploy.yml` invokes `repo/tools/deploy_v2.py`, which

@@ -67,7 +67,7 @@ jobs:
         id: get_sha
         run: |
           full_sha=$(git rev-parse HEAD)
-          short_sha=$(git rev-parse --short HEAD)
+          short_sha="${full_sha:0:7}"
           echo "full_sha=$full_sha" >> "$GITHUB_OUTPUT"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Deploying commit: $short_sha"

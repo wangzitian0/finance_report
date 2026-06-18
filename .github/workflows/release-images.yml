@@ -73,7 +73,8 @@ jobs:
       - name: Promote SHA images to release tag
         id: promote
         run: |
-          short_sha="$(git rev-parse --short "$GITHUB_SHA")"
+          full_sha="$(git rev-parse "$GITHUB_SHA")"
+          short_sha="${full_sha:0:7}"
           tag="${{ steps.version.outputs.tag }}"
 
           backend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${short_sha}"
