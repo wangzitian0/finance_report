@@ -326,7 +326,7 @@ infra2/platform (repo submodule)
 
 | Gap | Risk | Mitigation |
 |-----|------|------------|
-| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from SigNoz if collector ingestion or rule automation drifts | Production smoke verifies the app-side observability contract; SigNoz log queries and Lark delivery remain manual live gates |
+| **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from SigNoz if collector ingestion or rule automation drifts | Production smoke verifies the app-side observability contract; deploy contexts include SigNoz log/trace pivots by service, environment, version, and GitHub run |
 | **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
 | **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `tools/check_env_keys.py` + pre-commit |
 | **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |
@@ -339,6 +339,9 @@ After staging or production deploys, keep observability verification narrow:
    environment, alert rule, and alerting pipeline without secret URLs or keys.
 2. Confirm SigNoz has recent `finance-report-backend` logs for the target
    `deployment.environment`.
+   Deploy contexts and failure summaries include pre-built SigNoz log/trace
+   query links carrying `service.name`, `deployment.environment`,
+   `service.version`, and `github.run_id`.
 3. If logs or alerts are missing during an incident, route through
    [runtime-incident-response.md](./runtime-incident-response.md) instead of
    adding environment-specific debugging steps here.
