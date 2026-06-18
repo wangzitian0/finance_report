@@ -182,6 +182,15 @@ def _manual_valuation_allocation_asset_class(component_type: str) -> str:
     }:
         return "real_estate"
     if component_type in {
+        ManualValuationComponentType.CPF_BALANCE.value,
+        ManualValuationComponentType.RETIREMENT_ACCOUNT.value,
+        ManualValuationComponentType.SOCIAL_SECURITY_PERSONAL_ACCOUNT.value,
+        ManualValuationComponentType.LONG_TERM_BENEFIT_ASSET.value,
+        ManualValuationComponentType.LONG_TERM_SAVINGS.value,
+        ManualValuationComponentType.INSURANCE_CASH_VALUE.value,
+    }:
+        return "retirement_and_benefit_assets"
+    if component_type in {
         ManualValuationComponentType.ESOP.value,
         ManualValuationComponentType.RSU.value,
         ManualValuationComponentType.STOCK_OPTIONS.value,

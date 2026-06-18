@@ -256,6 +256,21 @@ the PATCH endpoint is the documented next slice; see #918.)
 | AC11.19.1 | Correcting a manual valuation appends a new version and preserves the prior fact unedited as a retrievable superseded version | `test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history()` | `assets/test_manual_valuation_snapshots.py` | P1 |
 | AC11.19.2 | Heads-only reads use the current version so a corrected valuation is never double-counted in net worth or listings | `test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth()` | `assets/test_manual_valuation_snapshots.py` | P1 |
 
+### AC11.20: Retirement and Benefit Assets
+
+Retirement accounts, personal social-security balances, CPF-style balances,
+long-term benefit accounts, and insurance cash value are assets. They are not
+insurance coverage or future benefits; only the attributable/account value is
+recorded. By default they are restricted assets, included in full net-worth
+views and grouped separately from liquid cash, public equity, property, and
+restricted compensation.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.20.1 | Retirement accounts, social-security personal balances, legacy CPF, and insurance cash value default to restricted assets and contribute to full balance-sheet assets | `test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_balance_sheet()` | `reporting/test_reporting_net_worth_components.py` | P1 |
+| AC11.20.2 | Net-worth allocation groups retirement accounts, social-security personal balances, legacy CPF, and insurance cash value under the retirement-and-benefit asset class | `test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_assets()` | `reporting/test_reporting_net_worth_components.py` | P1 |
+| AC11.20.3 | The assets page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value | `test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels()` | `apps/frontend/src/__tests__/assetsPage.test.tsx` | P1 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

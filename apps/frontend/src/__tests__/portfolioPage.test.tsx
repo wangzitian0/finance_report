@@ -75,7 +75,7 @@ const mockHolding2: PortfolioHolding = {
   sector: "Automotive",
 }
 
-type NetWorthAllocationMode = "default" | "empty" | "error" | "pending"
+type NetWorthAllocationMode = "default" | "retirement_benefit" | "empty" | "error" | "pending"
 
 function mockPortfolioApi(
   holdings: PortfolioHolding[] = [mockHolding],
@@ -157,7 +157,25 @@ function mockPortfolioApi(
         total_assets: "2100.00",
         total_liabilities: "100.00",
         net_worth: "2000.00",
-        rows: netWorthAllocationMode === "empty" ? [] : [
+        rows: netWorthAllocationMode === "empty" ? [] : netWorthAllocationMode === "retirement_benefit" ? [
+          {
+            asset_class: "retirement_and_benefit_assets",
+            liquidity_class: "restricted",
+            source_currency: "SGD",
+            value: "185000.00",
+            percentage_of_net_worth: "100.00",
+            source_line_count: 1,
+            source_lines: [
+              {
+                source_type: "manual_valuation",
+                source_id: null,
+                label: "401k statement",
+                value: "185000.00",
+                href: "/assets/valuation-components",
+              },
+            ],
+          },
+        ] : [
           {
             asset_class: "public_equity",
             liquidity_class: "liquid",
@@ -390,6 +408,20 @@ describe("PortfolioPage", () => {
     expect(within(panel).getByText("-5.0%")).toBeInTheDocument()
     expect(within(panel).getByText("2 sources")).toBeInTheDocument()
     expect(within(panel).getAllByText("1 source").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("AC11.20.3 labels retirement and benefit assets in net-worth allocation", async () => {
+    mockPortfolioApi([mockHolding], "100.00", "USD", "retirement_benefit")
+
+    render(<PortfolioPage />, { wrapper: createWrapper() })
+
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" })
+    expect(await within(panel).findByText("Retirement & Benefit Assets")).toBeInTheDocument()
+    expect(within(panel).getByText("Restricted")).toBeInTheDocument()
+    expect(within(panel).getByRole("link", { name: "401k statement" })).toHaveAttribute(
+      "href",
+      "/assets/valuation-components"
+    )
   })
 
   it("AC17.14.3 shows the net-worth allocation loading state", () => {

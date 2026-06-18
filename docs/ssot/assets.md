@@ -183,7 +183,15 @@ migration code; link to the generated DB reference from docs.
 
 ### Manual Valuation Snapshots
 
-Manual snapshots cover property value, mortgage or loan balance, CPF or long-term savings, tax payable/refund, insurance cash value, ESOP, RSU, stock options, and generic assets/liabilities. The value is always stored as a positive `Decimal`; the liquidity class determines whether it contributes to assets, liabilities, restricted, or illiquid net worth presentation.
+Manual snapshots cover property value, mortgage or loan balance, CPF/provident
+fund balances, retirement accounts, personal social-security account balances,
+long-term benefit assets, legacy long-term savings, tax payable/refund,
+insurance cash value, ESOP, RSU, stock options, and generic assets/liabilities.
+Insurance is represented only by its attributable cash/surrender value; coverage
+amounts and future benefits are not recorded as assets. The value is always
+stored as a positive `Decimal`; the liquidity class determines whether it
+contributes to assets, liabilities, restricted, or illiquid net worth
+presentation.
 Reminder cadence is optional; when present, `recurrence_days` is positive.
 
 Manual snapshot capture uses a controlled source vocabulary for new frontend submissions:

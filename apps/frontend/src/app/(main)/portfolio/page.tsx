@@ -26,6 +26,10 @@ function formatAllocationPercent(percentage: string | null): string {
 }
 
 function formatAllocationLabel(value: string): string {
+    const labels: Record<string, string> = {
+        retirement_and_benefit_assets: "Retirement & Benefit Assets",
+    };
+    if (labels[value]) return labels[value];
     return value
         .replace(/[_-]+/g, " ")
         .replace(/\b\w/g, (letter) => letter.toUpperCase());
