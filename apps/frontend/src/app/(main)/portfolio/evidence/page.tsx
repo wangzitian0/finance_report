@@ -8,9 +8,23 @@
  * API via the typed client inside the form component.
  */
 
-import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
+import { useSearchParams } from "next/navigation";
+
+import GuidedEvidenceForm, {
+  SOURCE_CLASS_CONFIGS,
+  type EvidenceSourceClass,
+} from "@/components/assets/GuidedEvidenceForm";
+
+function sourceClassFromQuery(value: string | null): EvidenceSourceClass | undefined {
+  return SOURCE_CLASS_CONFIGS.some((config) => config.value === value)
+    ? (value as EvidenceSourceClass)
+    : undefined;
+}
 
 export default function GuidedEvidencePage() {
+  const searchParams = useSearchParams();
+  const initialSourceClass = sourceClassFromQuery(searchParams.get("source_class"));
+
   return (
     <div className="p-6">
       <div className="page-header">
@@ -21,7 +35,7 @@ export default function GuidedEvidencePage() {
           labelled manual-trusted across reports and the traceability appendix.
         </p>
       </div>
-      <GuidedEvidenceForm />
+      <GuidedEvidenceForm initialSourceClass={initialSourceClass} />
     </div>
   );
 }

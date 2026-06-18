@@ -455,6 +455,20 @@ insert now runs inside a SAVEPOINT and recovers the existing row on conflict, mi
 | AC19.14.2 | A duplicate `(user_id, dedupe_key)` insert recovers via savepoint, returns the existing row, and leaves the outer transaction usable for subsequent reads/flushes | `test_AC19_14_2_duplicate_insert_does_not_poison_outer_transaction` | P0 |
 | AC19.14.3 | Concurrent `sync_workflow_events_for_user` runs over the same source state do not 500 on the workflow-event dedupe key and create the derived uploaded event exactly once | `test_AC19_14_3_sync_tolerates_concurrent_event_creation` | P0 |
 
+### AC19.15 — Source Intake Checklist For Report Coverage (issue #1208)
+
+The Upload entry must no longer imply that report readiness is only about bank
+statements. It should expose every required source class from
+`docs/ssot/source-coverage-matrix.yaml`, point each class to the existing intake
+path, and keep manual-trusted inputs clearly distinct from uploaded/imported
+sources. This slice is UI guidance only; it does not introduce new parsers or
+change backend source-trust decisions.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC19.15.1 | The Upload page renders a source intake checklist covering bank statements, brokerage statements, settlement notes, ESOP/RSU plans, property statements, liability statements, CSV exports, and manual records, with each item linked to its existing intake path | `AC19.15.1 renders every required source class with intake links` | P1 |
+| AC19.15.2 | Source intake status labels treat readiness gaps as action-required, identify manual-trusted classes separately, and never claim manual evidence is imported automatically | `AC19.15.2 labels readiness gaps and manual-trusted source classes` | P1 |
+
 ## How To Build It
 
 ### Backend

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
+import { SourceIntakeChecklist } from "@/components/source-intake/SourceIntakeChecklist";
 import StatementUploader from "@/components/statements/StatementUploader";
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { InfoHint } from "@/components/ui/InfoHint";
@@ -104,12 +105,16 @@ export default function UploadPage() {
         <div className="p-6">
             <PageHeader
                 title="Upload"
-                description="Upload a bank statement — we parse it, then you review and approve it to update your reports."
+                description="Upload statements, add guided evidence, and keep every report source class visible before you read reports."
                 className="sm:block"
             />
 
             <div className="mb-6">
                 <FlowStepBanner current="upload" />
+            </div>
+
+            <div className="mb-6">
+                <SourceIntakeChecklist />
             </div>
 
             {/* Upload Section */}
