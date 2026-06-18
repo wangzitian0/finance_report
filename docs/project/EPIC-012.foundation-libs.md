@@ -472,6 +472,20 @@ the previous naked-`Decimal` rate boundary.
 | AC12.30.3 | Money conversion uses typed `ExchangeRate(base, quote, rate)` instead of a naked rate; source/target mismatch raises and the Python/backend/frontend conformance vectors route through `ExchangeRate` | `test_AC12_30_3_convert_accepts_typed_exchange_rate` (+ siblings) | `tests/tooling/test_money_value_type.py`, `tests/tooling/test_money_conformance.py`, `apps/backend/tests/accounting/test_money_backend_module.py`, `apps/frontend/src/lib/money/money.conformance.test.ts` | P1 |
 | AC12.30.4 | Quantity adoption: frontend quantity formatting is public only from `lib/quantity`, and targeted backend quantity hot paths use `Quantity` for 6-dp quantization/zero checks instead of local naked-`Decimal` quantity helpers | `test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money`, `test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type` | `tests/tooling/test_quantity_adoption.py` | P1 |
 
+### AC12.31: Decimal Boundary Policy and Migration
+
+Raw `Decimal` remains the storage/interchange substrate, but it is no longer a
+domain concept by itself. The base-element narrow waists own business semantics:
+`Money` for currency amounts, `Ratio` for dimensionless proportions, and
+`Quantity` for shares/units/contracts. New service code must either cross an
+explicit boundary or use the typed value package.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.31.1 | The SSOT declares a MECE raw-`Decimal` boundary policy: allowed at base packages, DB/schema/API contracts, parser/provider adapters, generated code, and tests/fixtures; forbidden as naked business semantics in migrated service/application hot paths | `test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced` | `tests/tooling/test_decimal_boundary_policy.py` | P1 |
+| AC12.31.2 | The FX service preserves the legacy `Decimal` return contract for DB/API callers but routes cross-currency conversion through `Money(amount, source)` plus `ExchangeRate(source, target, rate)` | `test_AC12_31_2_convert_amount_routes_through_money_exchange_rate` | `apps/backend/tests/market_data/test_fx.py` | P1 |
+| AC12.31.3 | Migrated quantity/reporting/application hotspots use `Quantity` helpers instead of naked quantity-zero comparisons or `quantity * price`, and frontend app pages do not import `decimal.js` types directly | `test_AC12_31_3_migrated_hotspots_use_base_packages` | `tests/tooling/test_decimal_boundary_policy.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

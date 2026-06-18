@@ -5,12 +5,14 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from common.testing.ac_proof import ac_proof
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.models import FxRate
+from src.money import ExchangeRate, Money
 from src.services import fx as fx_service, market_data
 from src.services.fx import (
     FxRateError,
@@ -547,7 +549,7 @@ async def test_get_average_rate(db: AsyncSession):
 
 
 async def test_convert_amount(db: AsyncSession):
-    """Convert amount should apply FX rate without rounding prematurely."""
+    """Convert amount should apply the stored FX rate."""
     rate = FxRate(
         base_currency="USD",
         quote_currency="SGD",
@@ -564,6 +566,42 @@ async def test_convert_amount(db: AsyncSession):
     result = await convert_amount(db, amount, "USD", "SGD", date(2025, 1, 1))
 
     assert result == expected
+
+
+@ac_proof(
+    proof_id="test_fx_convert_amount_uses_typed_money_exchange_rate",
+    ac_ids=["AC12.31.2"],
+    ci_tier="pr_ci",
+)
+async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    """AC12.31.2: service boundary wraps storage Decimal in Money + ExchangeRate."""
+    rate = FxRate(
+        base_currency="USD",
+        quote_currency="SGD",
+        rate=Decimal("1.200000"),
+        rate_date=date(2025, 1, 1),
+        source="test",
+    )
+    db.add(rate)
+    await db.commit()
+
+    calls: list[tuple[Money, ExchangeRate]] = []
+
+    def fake_convert(money: Money, rate: ExchangeRate) -> Money:
+        calls.append((money, rate))
+        return Money(Decimal("120.00"), "SGD")
+
+    monkeypatch.setattr(fx_service, "convert_money", fake_convert)
+
+    result = await convert_amount(db, Decimal("100.00"), "USD", "SGD", date(2025, 1, 1))
+
+    assert result == Decimal("120.00")
+    assert len(calls) == 1
+    money, typed_rate = calls[0]
+    assert money == Money(Decimal("100.00"), "USD")
+    assert typed_rate == ExchangeRate("USD", "SGD", Decimal("1.200000"))
 
 
 async def test_get_exchange_rate_same_currency(db: AsyncSession):
