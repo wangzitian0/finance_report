@@ -33,10 +33,12 @@ into any image).
 - **`rounding`** — `amount` quantized to 2 dp under `rounding` ⇒ `expected`.
   Includes the half-to-even cases that distinguish banker's rounding from
   HALF_UP (the real FE/BE divergence this standard closes).
-- **`convert`** — `amount` in `from` × `rate` into `to` under `rounding` ⇒
-  `expected` (the single FX primitive).
+- **`convert`** — `amount` in `from` × typed `ExchangeRate(from, to, rate)` under
+  `rounding` ⇒ `expected` (the single FX primitive).
 - **`currency_normalize`** — `input` ⇒ canonical ISO-4217 `expected`.
 - **`currency_invalid`** — codes that MUST be rejected.
 
 All amounts/rates are decimal **strings** (never JSON floats), per the decimal
-red line.
+red line. Runtime conversion uses the typed `ExchangeRate` wrapper; the vector
+keeps `from`, `to`, and `rate` separate so every stack constructs the same
+directed rate.

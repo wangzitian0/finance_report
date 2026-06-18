@@ -18,6 +18,7 @@ from src.money import (
     CurrencyBalance,
     CurrencyBalances,
     CurrencyMismatchError,
+    ExchangeRate,
     FloatNotAllowedError,
     InvalidCurrencyError,
     Money,
@@ -132,7 +133,7 @@ def test_AC2_19_2_cross_currency_arithmetic_raises():
 )
 def test_AC2_20_1_convert_applies_rate_and_changes_currency():
     """AC2.20.1: convert applies a Decimal rate and restates into the target."""
-    result = convert(Money(Decimal("100.00"), "USD"), Decimal("1.35"), to="SGD")
+    result = convert(Money(Decimal("100.00"), "USD"), ExchangeRate("USD", "SGD", Decimal("1.35")))
     assert result == Money(Decimal("135.00"), "SGD")
     assert result.currency == Currency("SGD")
 
@@ -146,7 +147,7 @@ def test_AC2_20_1_convert_applies_rate_and_changes_currency():
 def test_AC2_20_1_convert_rejects_float_rate():
     """AC2.20.1: convert rejects a float rate (no implicit float in money math)."""
     with pytest.raises(FloatNotAllowedError):
-        convert(Money(Decimal("100.00"), "USD"), 1.35, to="SGD")  # type: ignore[arg-type]
+        ExchangeRate("USD", "SGD", 1.35)  # type: ignore[arg-type]
 
 
 @ac_proof(
@@ -158,13 +159,17 @@ def test_AC2_20_1_convert_rejects_float_rate():
 def test_AC2_20_1_convert_rounds_half_even_at_boundary():
     """AC2.20.1: convert quantizes to 2 dp with banker's rounding at the boundary."""
     # 1.005 -> half to even -> 1.00 (HALF_UP would give 1.01).
-    assert convert(Money(Decimal("1.00"), "USD"), Decimal("1.005"), to="EUR") == Money(Decimal("1.00"), "EUR")
-    # 1.015 -> half to even -> 1.02.
-    assert convert(Money(Decimal("1.00"), "USD"), Decimal("1.015"), to="EUR") == Money(Decimal("1.02"), "EUR")
-    # An explicit non-default rounding mode is honoured.
-    assert convert(Money(Decimal("1.00"), "USD"), Decimal("1.005"), to="EUR", rounding="ROUND_HALF_UP") == Money(
-        Decimal("1.01"), "EUR"
+    assert convert(Money(Decimal("1.00"), "USD"), ExchangeRate("USD", "EUR", Decimal("1.005"))) == Money(
+        Decimal("1.00"), "EUR"
     )
+    # 1.015 -> half to even -> 1.02.
+    assert convert(Money(Decimal("1.00"), "USD"), ExchangeRate("USD", "EUR", Decimal("1.015"))) == Money(
+        Decimal("1.02"), "EUR"
+    )
+    # An explicit non-default rounding mode is honoured.
+    assert convert(
+        Money(Decimal("1.00"), "USD"), ExchangeRate("USD", "EUR", Decimal("1.005")), rounding="ROUND_HALF_UP"
+    ) == Money(Decimal("1.01"), "EUR")
 
 
 @ac_proof(
@@ -177,8 +182,9 @@ def test_AC2_20_1_convert_round_trip_within_boundary():
     """AC2.20.1: convert there-and-back returns the original at the 2-dp boundary."""
     rate = Decimal("1.25")
     original = Money(Decimal("80.00"), "USD")
-    there = convert(original, rate, to="SGD")
-    back = convert(there, Decimal("1") / rate, to="USD")
+    there_rate = ExchangeRate("USD", "SGD", rate)
+    there = convert(original, there_rate)
+    back = convert(there, there_rate.inverse())
     assert back == original
     assert ROUND_HALF_EVEN  # documents the default rounding mode used
 
@@ -304,6 +310,6 @@ def test_AC2_21_1_currency_balances_surface_and_parsing():
 
 
 def test_convert_rejects_non_decimal_rate_type():
-    """convert rejects a non-Decimal/int rate (e.g. str) — single FX primitive guard."""
+    """ExchangeRate rejects a non-Decimal/int rate (e.g. str) — single FX primitive guard."""
     with pytest.raises(FloatNotAllowedError):
-        convert(Money(Decimal("1"), "USD"), "1.2", to="EUR")  # type: ignore[arg-type]
+        ExchangeRate("USD", "EUR", "1.2")  # type: ignore[arg-type]

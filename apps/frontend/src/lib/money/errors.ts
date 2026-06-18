@@ -32,3 +32,11 @@ export class CurrencyMismatchError extends MoneyError {
     this.name = "CurrencyMismatchError";
   }
 }
+
+/** An exchange rate is zero, negative, non-finite, or otherwise invalid. */
+export class InvalidExchangeRateError extends MoneyError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidExchangeRateError";
+  }
+}

@@ -25,6 +25,7 @@ from decimal import Decimal
 from src.money.convert import convert
 from src.money.currency import Currency
 from src.money.errors import InvalidCurrencyError
+from src.money.exchange_rate import ExchangeRate
 from src.money.money import Money
 from src.money.rounding import to_money
 
@@ -49,7 +50,7 @@ def restate(amount: Decimal, from_ccy: str, rate: Decimal, to_ccy: str) -> Decim
     at the boundary); otherwise it falls back to that exact Decimal computation.
     """
     if _iso(from_ccy, to_ccy):
-        return convert(Money(amount, from_ccy), rate, to=to_ccy).amount
+        return convert(Money(amount, from_ccy), ExchangeRate(from_ccy, to_ccy, rate)).amount
     return to_money(amount * Decimal(rate))
 
 

@@ -22,6 +22,7 @@ from src.models.portfolio import (
     PriceSource,
 )
 from src.money import to_money
+from src.quantity import Quantity
 from src.ratio import Ratio
 from src.schemas.portfolio import (
     HoldingResponse,
@@ -36,11 +37,25 @@ from src.services import fx
 
 logger = get_logger(__name__)
 
+PORTFOLIO_QUANTITY_UNIT = "units"
+
 
 def _ratio_or_zero(part: Decimal, whole: Decimal) -> Ratio:
     if whole == Decimal("0"):
         return Ratio.zero()
     return Ratio.fraction(part, whole)
+
+
+def _quantity(value: Decimal) -> Quantity:
+    return Quantity(value, PORTFOLIO_QUANTITY_UNIT)
+
+
+def _quantity_is_zero(value: Decimal) -> bool:
+    return _quantity(value).quantize() == Quantity.zero(PORTFOLIO_QUANTITY_UNIT)
+
+
+def _quantity_value(value: Decimal) -> Decimal:
+    return _quantity(value).quantize().value
 
 
 def _derive_provenance(source_documents: object) -> DataProvenance | None:
@@ -151,7 +166,7 @@ class PortfolioService:
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
             # Calculate market value
-            market_value = position.quantity * latest_price
+            market_value = _quantity_value(position.quantity) * latest_price
 
             # Convert to base currency if needed
             if position.currency != settings.base_currency:
@@ -259,7 +274,7 @@ class PortfolioService:
 
         holdings: list[HoldingResponse] = []
         for snapshot in snapshots:
-            status = PositionStatus.DISPOSED if snapshot.quantity == Decimal("0") else PositionStatus.ACTIVE
+            status = PositionStatus.DISPOSED if _quantity_is_zero(snapshot.quantity) else PositionStatus.ACTIVE
             if status == PositionStatus.DISPOSED and not include_disposed:
                 continue
 
@@ -274,8 +289,8 @@ class PortfolioService:
                 continue
 
             synced_price = await self._get_latest_synced_stock_price(db, snapshot.asset_identifier, as_of_date)
-            if synced_price is not None and snapshot.quantity != Decimal("0"):
-                market_value = synced_price.price * snapshot.quantity
+            if synced_price is not None and not _quantity_is_zero(snapshot.quantity):
+                market_value = synced_price.price * _quantity_value(snapshot.quantity)
                 market_value_currency = synced_price.currency
                 cost_basis = position.cost_basis
                 cost_basis_currency = position.currency
@@ -438,7 +453,7 @@ class PortfolioService:
             # disposal_date is guaranteed non-None by the isnot(None) filter above
             assert position.disposal_date is not None
             disposal_price = await self._get_latest_price(db, position, position.disposal_date, user_id)
-            disposal_value = position.quantity * disposal_price
+            disposal_value = _quantity_value(position.quantity) * disposal_price
 
             # Convert to base currency if needed
             if position.currency != settings.base_currency:
@@ -545,7 +560,7 @@ class PortfolioService:
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
             # Calculate market value
-            market_value = position.quantity * latest_price
+            market_value = _quantity_value(position.quantity) * latest_price
 
             # Convert to base currency if needed
             if position.currency != settings.base_currency:
@@ -799,8 +814,8 @@ class PortfolioService:
 
         if snapshot:
             # Return per-unit price (market_value is total position value)
-            if snapshot.quantity != Decimal("0"):
-                return snapshot.market_value / snapshot.quantity
+            if not _quantity_is_zero(snapshot.quantity):
+                return snapshot.market_value / _quantity_value(snapshot.quantity)
             return snapshot.market_value
 
         # No price data available

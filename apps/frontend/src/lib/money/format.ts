@@ -38,24 +38,6 @@ export function formatAmount(value: MonetaryInput, decimals = 2): string {
   return new Decimal(value).toFixed(decimals);
 }
 
-export function formatQuantity(value: MonetaryInput): string {
-  const amount = new Decimal(value);
-  if (!amount.isFinite()) return "0";
-
-  const { group } = getLocaleSeparators("en-US");
-  const sign = amount.isNegative() ? "-" : "";
-  const [integerPart, rawFractionPart = ""] = amount.abs().toFixed().split(".");
-  const groupedInteger = groupIntegerPart(integerPart, group, true);
-  const fractionPart = rawFractionPart.replace(/0+$/, "");
-
-  if (!fractionPart) {
-    return `${sign}${groupedInteger}`;
-  }
-
-  const paddedFraction = fractionPart.length === 1 ? `${fractionPart}0` : fractionPart;
-  return `${sign}${groupedInteger}.${paddedFraction}`;
-}
-
 export function sumAmounts(amounts: MonetaryInput[]): Decimal {
   return amounts.reduce<Decimal>((sum, val) => sum.add(new Decimal(val)), new Decimal(0));
 }

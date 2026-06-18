@@ -33,3 +33,7 @@ class CurrencyMismatchError(MoneyError, ValueError):
     Same-currency ``+``/``-``/comparison is allowed; anything cross-currency must
     route through :func:`src.money.convert`.
     """
+
+
+class InvalidExchangeRateError(MoneyError, ValueError):
+    """An exchange rate is zero, negative, non-finite, or otherwise invalid."""

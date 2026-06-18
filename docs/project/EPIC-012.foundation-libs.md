@@ -457,6 +457,21 @@ backend + frontend (`/reconciliation/run`→`/runs`, `/market-data/sync/{fx,stoc
 | AC12.29.4 | No two API operations collide on (method, path); every router maps to exactly one OpenAPI tag (the deliberately shared `/statements` and `/ai` prefixes carry distinct tags and are documented) | `test_AC12_29_4_no_route_or_tag_collisions` | `api/test_api_surface_consistency.py` | P1 |
 | AC12.29.5 | The deprecated `POST /statements/{id}/approve` and `/reject` are removed (return 404/405); the `/statements/{id}/review/*` variants remain the supported path | `test_AC12_29_5_deprecated_statement_decision_endpoints_removed` | `api/test_api_surface_consistency.py` | P1 |
 
+### AC12.30: Base Element Completion — Money / Ratio / Quantity
+
+The base-element family is intentionally MECE: `Money` owns amounts and
+currency-aware arithmetic, `Ratio` owns dimensionless percentages/proportions,
+and `Quantity` owns shares/units/contracts. `ExchangeRate` is not a fourth base
+element; it is the typed conversion parameter inside `money.convert`, replacing
+the previous naked-`Decimal` rate boundary.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.30.1 | `Quantity(value, unit)` rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, supports same-unit arithmetic/comparison, and derives `Ratio` from same-unit quantities | `test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed` (+ siblings) | `tests/tooling/test_quantity_value_type.py`, `apps/backend/tests/accounting/test_quantity_backend.py` | P1 |
+| AC12.30.2 | Cross-language conformance: Python reference, shipped backend `src.quantity`, and frontend `lib/quantity` reproduce the same `vectors.json` and export the same `shared_api` | `test_AC12_30_2_quantity_quantize_matches_standard` (+ siblings) | `tests/tooling/test_quantity_conformance.py`, `tests/tooling/test_quantity_api_parity.py` | P1 |
+| AC12.30.3 | Money conversion uses typed `ExchangeRate(base, quote, rate)` instead of a naked rate; source/target mismatch raises and the Python/backend/frontend conformance vectors route through `ExchangeRate` | `test_AC12_30_3_convert_accepts_typed_exchange_rate` (+ siblings) | `tests/tooling/test_money_value_type.py`, `tests/tooling/test_money_conformance.py`, `apps/backend/tests/accounting/test_money_backend_module.py`, `apps/frontend/src/lib/money/money.conformance.test.ts` | P1 |
+| AC12.30.4 | Quantity adoption: frontend quantity formatting is public only from `lib/quantity`, and targeted backend quantity hot paths use `Quantity` for 6-dp quantization/zero checks instead of local naked-`Decimal` quantity helpers | `test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money`, `test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type` | `tests/tooling/test_quantity_adoption.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

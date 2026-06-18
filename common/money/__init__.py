@@ -22,9 +22,11 @@ from common.money.currency import ISO_4217_CODES, Currency
 from common.money.errors import (
     CurrencyMismatchError,
     FloatNotAllowedError,
+    InvalidExchangeRateError,
     InvalidCurrencyError,
     MoneyError,
 )
+from common.money.exchange_rate import ExchangeRate
 from common.money.money import Money
 from common.money.rounding import MONEY_QUANTUM, to_money
 
@@ -35,7 +37,9 @@ __all__ = [
     "CurrencyBalance",
     "CurrencyBalances",
     "CurrencyMismatchError",
+    "ExchangeRate",
     "FloatNotAllowedError",
+    "InvalidExchangeRateError",
     "InvalidCurrencyError",
     "Money",
     "MoneyError",

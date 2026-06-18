@@ -5,11 +5,18 @@
 
 // Typed error hierarchy — mirrors common/money/errors.py / src.money.errors so
 // the frontend and backend expose the same money error surface (API-parity guard).
-export { MoneyError, FloatNotAllowedError, InvalidCurrencyError, CurrencyMismatchError } from "./errors";
+export {
+  MoneyError,
+  FloatNotAllowedError,
+  InvalidCurrencyError,
+  InvalidExchangeRateError,
+  CurrencyMismatchError,
+} from "./errors";
 export { Currency, normalizeCurrency } from "./currency";
 export { ISO_4217_CODES } from "./iso4217";
 export {
   Money,
+  ExchangeRate,
   convert,
   MONEY_QUANTUM,
   MONEY_DP,
@@ -27,7 +34,6 @@ export {
   toDecimal,
   amountToChartNumber,
   formatAmount,
-  formatQuantity,
   sumAmounts,
   subtractAmounts,
   multiplyAmount,

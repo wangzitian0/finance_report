@@ -7,7 +7,8 @@ import { useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types";
-import { compareAmounts, formatCurrencyLocale, formatQuantity } from "@/lib/money";
+import { compareAmounts, formatCurrencyLocale } from "@/lib/money";
+import { formatQuantity } from "@/lib/quantity";
 import { formatDateDisplay } from "@/lib/date";
 import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
 
