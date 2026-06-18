@@ -30,6 +30,21 @@ blockers, notes, and source links. If an input is missing, stale, ambiguous, or
 outside the implemented contract, the report must disclose the limitation or
 block readiness instead of silently filling the gap.
 
+### 1.1.1 Source Intake UI Contract
+
+The Upload surface may consume the required source classes from
+`docs/ssot/source-coverage-matrix.yaml` as a user-facing checklist before
+statement upload. Frontend routes may map those backend ingestion paths to the
+existing user workflows (`/upload`, `/portfolio/evidence`, `/journal`), but the
+frontend does not own source-trust classification. Package readiness and
+source-trust endpoints remain authoritative for whether a source class is a gap,
+manual-trusted, imported/supported, or ready for trusted report output.
+
+Manual evidence classes such as ESOP/RSU plans, property statements, liability
+statements, and manual records must stay visibly manual-trusted. The Upload UI
+must not imply they are automatically imported or parsed when the underlying
+contract is an explicit user-entered evidence path.
+
 ### 1.2 Report Snapshot Determinism
 
 `report_snapshots` stores generated ADS report payloads. Regeneration may keep

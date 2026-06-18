@@ -17,6 +17,16 @@ import type {
 } from "@/lib/types"
 
 const showToastMock = vi.fn()
+const navigationState = vi.hoisted(() => ({
+  sourceClass: null as string | null,
+}))
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () =>
+    new URLSearchParams(
+      navigationState.sourceClass ? { source_class: navigationState.sourceClass } : undefined,
+    ),
+}))
 
 vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
@@ -101,6 +111,7 @@ describe("GuidedEvidenceForm", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
+    navigationState.sourceClass = null
   })
 
   afterEach(() => {
@@ -464,6 +475,14 @@ describe("GuidedEvidenceForm", () => {
     expect(
       screen.getByRole("form", { name: "Guided evidence form" }),
     ).toBeInTheDocument()
+  })
+
+  it("AC19.15.1 opens guided evidence at the requested source class", () => {
+    navigationState.sourceClass = "liability_statement"
+    mockListOnly()
+    render(<GuidedEvidencePage />, { wrapper: createWrapper() })
+
+    expect(screen.getByLabelText("Source class")).toHaveValue("liability_statement")
   })
 
   it("covers all three guided source classes and seven valuation bases", () => {
