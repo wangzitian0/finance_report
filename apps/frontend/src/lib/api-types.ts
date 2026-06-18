@@ -4790,7 +4790,7 @@ export interface components {
          * @description Manual net worth component type.
          * @enum {string}
          */
-        ManualValuationComponentType: "property_value" | "mortgage_balance" | "cpf_balance" | "long_term_savings" | "tax_payable" | "tax_refund" | "insurance_cash_value" | "esop" | "rsu" | "stock_options" | "other_asset" | "other_liability";
+        ManualValuationComponentType: "property_value" | "mortgage_balance" | "cpf_balance" | "retirement_account" | "social_security_personal_account" | "long_term_benefit_asset" | "long_term_savings" | "tax_payable" | "tax_refund" | "insurance_cash_value" | "esop" | "rsu" | "stock_options" | "other_asset" | "other_liability";
         /**
          * ManualValuationLiquidityClass
          * @description How a manual valuation should be presented in net worth views.

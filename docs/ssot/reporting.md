@@ -238,9 +238,12 @@ Row rules:
 - Portfolio ledger-backed cost basis is grouped with `public_equity`; broker
   account residual value after cost-basis split remains `cash`.
 - Manual valuation component types map to allocation asset classes:
-  property and mortgage components are `real_estate`; ESOP, RSU, and stock
-  options are `restricted_comp`; tax refunds are `cash`; tax payable and generic
-  liabilities are `liability`; other manual components are `other`.
+  property and mortgage components are `real_estate`; CPF/provident fund
+  balances, retirement accounts, personal social-security account balances,
+  long-term benefit assets, legacy long-term savings, and insurance cash value
+  are `retirement_and_benefit_assets`; ESOP, RSU, and stock options are
+  `restricted_comp`; tax refunds are `cash`; tax payable and generic liabilities
+  are `liability`; other manual components are `other`.
 - Asset-dashboard allocation surfaces that claim net-worth reconciliation use
   this report-owned schedule. The portfolio performance schedule remains the
   source for period return, unrealized market-value gain/loss, price freshness,
@@ -701,7 +704,7 @@ The balance sheet combines three source classes:
 |--------|------|
 | Journal lines | Aggregate posted/reconciled asset, liability, and equity account balances through the report date |
 | Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - ledger-backed position cost basis`; current-day reports may use the latest imported brokerage snapshot date to match `/portfolio/holdings` |
-| Manual valuation snapshots | Add latest in-scope asset/liability snapshots from `/assets/valuation-components` as synthetic report lines |
+| Manual valuation snapshots | Add latest in-scope asset/liability snapshots from `/assets/valuation-components` as synthetic report lines; restricted retirement/benefit assets contribute when `include_restricted=true` |
 
 Portfolio adjustments prevent double counting without removing broker cash. If position cost basis already exists as a debit to the broker account, only the market-value delta is added to assets. If no cost-basis journal exists, the full market value is added.
 

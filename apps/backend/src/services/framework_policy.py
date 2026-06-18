@@ -356,6 +356,9 @@ def _manual_domain_and_instrument(snapshot: ManualValuationSnapshot) -> tuple[Po
     manual_asset_component_instruments = {
         ManualValuationComponentType.PROPERTY_VALUE: "property",
         ManualValuationComponentType.CPF_BALANCE: "manual_asset",
+        ManualValuationComponentType.RETIREMENT_ACCOUNT: "manual_asset",
+        ManualValuationComponentType.SOCIAL_SECURITY_PERSONAL_ACCOUNT: "manual_asset",
+        ManualValuationComponentType.LONG_TERM_BENEFIT_ASSET: "manual_asset",
         ManualValuationComponentType.LONG_TERM_SAVINGS: "manual_asset",
         ManualValuationComponentType.TAX_REFUND: "manual_asset",
         ManualValuationComponentType.INSURANCE_CASH_VALUE: "manual_asset",

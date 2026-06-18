@@ -422,7 +422,7 @@ describe("AssetsPage", () => {
 
     await waitFor(() => expect(screen.getByText(/Historical CPF statement/)).toBeInTheDocument())
     expect(screen.getByText("Manual Valuations")).toBeInTheDocument()
-    expect(screen.getAllByText("CPF Balance").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("CPF / Provident Fund Balance").length).toBeGreaterThan(0)
     expect(screen.getByText("Restricted")).toBeInTheDocument()
     expect(screen.queryByRole("textbox", { name: "Source" })).not.toBeInTheDocument()
     const sourceSelect = screen.getByRole("combobox", { name: "Source" }) as HTMLSelectElement
@@ -455,6 +455,48 @@ describe("AssetsPage", () => {
       })
     )
     expect(showToastMock).toHaveBeenCalledWith("Manual valuation saved", "success")
+  })
+
+  it("AC11.20.3 test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/assets/valuation-snapshots")) {
+        return Promise.resolve({
+          items: [
+            {
+              id: "v-benefit",
+              user_id: "u1",
+              component_type: "social_security_personal_account",
+              liquidity_class: "restricted",
+              as_of_date: "2026-06-18",
+              value: "12000.00",
+              currency: "SGD",
+              source: "Government statement",
+              provenance: "manual",
+              notes: null,
+              recurrence_days: null,
+              reminder_date: null,
+              created_at: "2026-06-18T00:00:00Z",
+              updated_at: "2026-06-18T00:00:00Z",
+            },
+          ],
+          total: 1,
+        } satisfies ManualValuationSnapshotListResponse)
+      }
+      return Promise.resolve({ items: [], total: 0 } satisfies ManagedPositionListResponse)
+    })
+
+    render(<AssetsPage />, { wrapper: createWrapper() })
+
+    await waitFor(() => expect(screen.getByText("Social Security Personal Account")).toBeInTheDocument())
+    expect(screen.getByText("Property, retirement benefits, tax, insurance cash value, and equity awards")).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Retirement Account" })).toHaveValue("retirement_account")
+    expect(screen.getByRole("option", { name: "Social Security Personal Account" })).toHaveValue(
+      "social_security_personal_account"
+    )
+    expect(screen.getByRole("option", { name: "Long-term Benefit Asset" })).toHaveValue("long_term_benefit_asset")
+    expect(screen.getByRole("option", { name: "Insurance Cash Value (not coverage)" })).toHaveValue(
+      "insurance_cash_value"
+    )
   })
 
   it("test_AC8_13_48 shows an error toast when manual valuation creation fails", async () => {

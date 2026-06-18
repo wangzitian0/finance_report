@@ -22,11 +22,14 @@ const STATUS_FILTERS = ["All", "active", "disposed"] as const;
 const VALUATION_TYPES: Array<{ value: ManualValuationComponentType; label: string }> = [
     { value: "property_value", label: "Property Value" },
     { value: "mortgage_balance", label: "Mortgage Balance" },
-    { value: "cpf_balance", label: "CPF Balance" },
+    { value: "cpf_balance", label: "CPF / Provident Fund Balance" },
+    { value: "retirement_account", label: "Retirement Account" },
+    { value: "social_security_personal_account", label: "Social Security Personal Account" },
+    { value: "long_term_benefit_asset", label: "Long-term Benefit Asset" },
     { value: "long_term_savings", label: "Long-term Savings" },
     { value: "tax_payable", label: "Tax Payable" },
     { value: "tax_refund", label: "Tax Refund" },
-    { value: "insurance_cash_value", label: "Insurance Cash Value" },
+    { value: "insurance_cash_value", label: "Insurance Cash Value (not coverage)" },
     { value: "esop", label: "ESOP" },
     { value: "rsu", label: "RSU" },
     { value: "stock_options", label: "Stock Options" },
@@ -232,7 +235,9 @@ export default function AssetsPage() {
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                     <div className="flex-1">
                         <p className="text-xs text-muted uppercase tracking-wide">Manual Valuations</p>
-                        <h2 className="font-semibold mt-1 mb-2">Property, CPF, tax, insurance, and equity awards</h2>
+                        <h2 className="font-semibold mt-1 mb-2">
+                            Property, retirement benefits, tax, insurance cash value, and equity awards
+                        </h2>
                         <p className="text-xs text-muted mb-4">
                             For ESOP/RSU, property, and liability records, use the{" "}
                             <Link href="/portfolio/evidence" className="text-[var(--accent)] underline">

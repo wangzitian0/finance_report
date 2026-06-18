@@ -457,6 +457,17 @@ def test_AC20_5_1_manual_valuation_components_map_to_supported_policy_instrument
     fixtures = [
         (ManualValuationComponentType.PROPERTY_VALUE, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"),
         (ManualValuationComponentType.CPF_BALANCE, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (ManualValuationComponentType.RETIREMENT_ACCOUNT, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
+        (
+            ManualValuationComponentType.SOCIAL_SECURITY_PERSONAL_ACCOUNT,
+            PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE,
+            "manual_asset",
+        ),
+        (
+            ManualValuationComponentType.LONG_TERM_BENEFIT_ASSET,
+            PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE,
+            "manual_asset",
+        ),
         (ManualValuationComponentType.LONG_TERM_SAVINGS, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
         (ManualValuationComponentType.TAX_REFUND, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),
         (ManualValuationComponentType.INSURANCE_CASH_VALUE, PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "manual_asset"),

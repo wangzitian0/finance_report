@@ -33,6 +33,7 @@ from src.models.layer3 import (
     RuleType,
     TransactionClassification,
 )
+from src.services.assets import AssetService
 from src.services.reporting import (
     ReportError,
     generate_balance_sheet,
@@ -538,6 +539,108 @@ async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_asset
     assert liquid_report["total_liabilities"] == Decimal("600000.00")
     assert full_report["total_assets"] == Decimal("1243200.00")
     assert full_report["total_liabilities"] == Decimal("600000.00")
+
+
+async def test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_balance_sheet(
+    db: AsyncSession,
+    test_user,
+):
+    """AC11.20.1: Retirement and benefit account values are restricted assets in full net worth."""
+    report_date = date(2026, 6, 18)
+    service = AssetService()
+    fixtures = [
+        (ManualValuationComponentType.RETIREMENT_ACCOUNT, "401k statement", Decimal("100000.00")),
+        (
+            ManualValuationComponentType.SOCIAL_SECURITY_PERSONAL_ACCOUNT,
+            "China social security personal account",
+            Decimal("12000.00"),
+        ),
+        (ManualValuationComponentType.CPF_BALANCE, "CPF statement", Decimal("50000.00")),
+        (ManualValuationComponentType.LONG_TERM_BENEFIT_ASSET, "Supplementary retirement plan", Decimal("15000.00")),
+        (ManualValuationComponentType.INSURANCE_CASH_VALUE, "Whole life cash surrender value", Decimal("8000.00")),
+    ]
+
+    snapshots = [
+        await service.create_valuation_snapshot(
+            db,
+            test_user.id,
+            component_type=component_type,
+            as_of_date=report_date,
+            value=value,
+            currency="SGD",
+            source=source,
+        )
+        for component_type, source, value in fixtures
+    ]
+    await db.commit()
+
+    assert {snapshot.liquidity_class for snapshot in snapshots} == {ManualValuationLiquidityClass.RESTRICTED}
+
+    liquid_report = await generate_balance_sheet(
+        db,
+        test_user.id,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=False,
+    )
+    full_report = await generate_balance_sheet(
+        db,
+        test_user.id,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=True,
+    )
+
+    assert liquid_report["total_assets"] == Decimal("0.00")
+    assert full_report["total_assets"] == Decimal("185000.00")
+    assert full_report["net_worth_adjustment_gain_loss"] == Decimal("185000.00")
+
+
+async def test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_assets(
+    db: AsyncSession,
+    test_user,
+):
+    """AC11.20.2: Retirement and benefit values have a dedicated allocation asset class."""
+    report_date = date(2026, 6, 18)
+    fixtures = [
+        (ManualValuationComponentType.RETIREMENT_ACCOUNT, "401k statement", Decimal("100000.00")),
+        (
+            ManualValuationComponentType.SOCIAL_SECURITY_PERSONAL_ACCOUNT,
+            "China social security personal account",
+            Decimal("12000.00"),
+        ),
+        (ManualValuationComponentType.CPF_BALANCE, "CPF statement", Decimal("50000.00")),
+        (ManualValuationComponentType.LONG_TERM_BENEFIT_ASSET, "Supplementary retirement plan", Decimal("15000.00")),
+        (ManualValuationComponentType.INSURANCE_CASH_VALUE, "Whole life cash surrender value", Decimal("8000.00")),
+    ]
+    for component_type, source, value in fixtures:
+        await _create_valuation(
+            db,
+            test_user.id,
+            component_type=component_type,
+            component_name=source,
+            liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+            value=value,
+            currency="SGD",
+            as_of_date=report_date,
+        )
+    await db.commit()
+
+    schedule = await get_net_worth_allocation_schedule(
+        db,
+        test_user.id,
+        as_of_date=report_date,
+        currency="SGD",
+        include_restricted=True,
+    )
+
+    rows = {(row["asset_class"], row["liquidity_class"], row["source_currency"]): row for row in schedule["rows"]}
+    row = rows[("retirement_and_benefit_assets", "restricted", "SGD")]
+    assert schedule["total_assets"] == Decimal("185000.00")
+    assert schedule["net_worth"] == Decimal("185000.00")
+    assert row["value"] == Decimal("185000.00")
+    assert row["percentage_of_net_worth"] == Decimal("100.00")
+    assert row["source_line_count"] == 5
 
 
 async def test_manual_valuation_uses_as_of_historical_fx_rate(db: AsyncSession, test_user):
