@@ -7,9 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from tools import staging_ai_ocr_gate_contract as contract
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -131,7 +129,9 @@ def test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users() -> None:
             used_fixtures = {arg.arg for arg in node.args.args}
             shared = sorted(used_fixtures & shared_user_fixtures)
             if shared:
-                offenders.append(f"{relative_path}::{node.name} uses {', '.join(shared)}")
+                offenders.append(
+                    f"{relative_path}::{node.name} uses {', '.join(shared)}"
+                )
 
     assert offenders == []
 
@@ -163,6 +163,101 @@ def test_AC8_13_109_ai_ocr_gate_tests_avoid_networkidle_waits() -> None:
         source = (ROOT / relative_path).read_text(encoding="utf-8")
         if "networkidle" in source:
             offenders.append(f"{relative_path} waits for networkidle")
+
+    assert offenders == []
+
+
+def test_AC8_13_109_ai_ocr_gate_httpx_calls_use_absolute_api_urls() -> None:
+    """AC8.13.109: Httpx-backed deployed E2E calls must not use relative URLs."""
+    offenders: list[str] = []
+    relative_prefixes = ("/api/", "/assets/")
+
+    def relative_url_prefix(node: ast.expr) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr) and node.values:
+            first_value = node.values[0]
+            if isinstance(first_value, ast.Constant) and isinstance(
+                first_value.value, str
+            ):
+                return first_value.value
+        return None
+
+    for relative_path in contract.gate_files():
+        tree = ast.parse((ROOT / relative_path).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr not in {"get", "post", "put", "patch", "delete"}:
+                continue
+            if not node.args:
+                continue
+            first_arg = node.args[0]
+            url_prefix = relative_url_prefix(first_arg)
+            if url_prefix and url_prefix.startswith(relative_prefixes):
+                offenders.append(
+                    f"{relative_path}:{node.lineno} uses relative API URL {url_prefix!r}"
+                )
+
+    assert offenders == []
+
+
+def test_AC8_13_109_ai_ocr_gate_dashboard_analytics_locator_is_exact() -> None:
+    """AC8.13.109: Dashboard checks must not also match loading status labels."""
+    offenders: list[str] = []
+
+    for relative_path in contract.gate_files():
+        tree = ast.parse((ROOT / relative_path).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr != "get_by_label":
+                continue
+            if not node.args:
+                continue
+            first_arg = node.args[0]
+            exact_keyword = next(
+                (kw for kw in node.keywords if kw.arg == "exact"),
+                None,
+            )
+            is_dashboard_analytics = (
+                isinstance(first_arg, ast.Constant)
+                and first_arg.value == "Dashboard analytics"
+            )
+            is_exact = (
+                exact_keyword is not None
+                and isinstance(exact_keyword.value, ast.Constant)
+                and exact_keyword.value.value is True
+            )
+            if is_dashboard_analytics and not is_exact:
+                offenders.append(
+                    f"{relative_path}:{node.lineno} uses inexact Dashboard analytics label"
+                )
+
+    assert offenders == []
+
+
+def test_AC8_13_109_ai_ocr_gate_does_not_assert_hidden_statement_overlay_links() -> (
+    None
+):
+    """AC8.13.109: Statement list checks use visible text/API state, not overlay links."""
+    offenders: list[str] = []
+    forbidden_snippets = [
+        'locator("a").filter(has_text=',
+        "locator('a').filter(has_text=",
+        "locator(f'a[href=",
+        'locator(f"a[href=',
+    ]
+
+    for relative_path in contract.gate_files():
+        source = (ROOT / relative_path).read_text(encoding="utf-8")
+        for snippet in forbidden_snippets:
+            if snippet in source:
+                offenders.append(f"{relative_path} contains {snippet}")
 
     assert offenders == []
 
@@ -212,4 +307,10 @@ def test_AC8_13_137_summarize_junit_tolerates_missing_xml(tmp_path: Path) -> Non
     """AC8.13.137: a missing/unreadable XML yields an empty summary, never a crash,
     so the gate's reporting step can't itself fail the workflow."""
     summary = contract.summarize_junit([tmp_path / "does-not-exist.xml"])
-    assert summary == {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "failed_tests": []}
+    assert summary == {
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "failed_tests": [],
+    }

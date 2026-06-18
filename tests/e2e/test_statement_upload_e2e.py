@@ -96,6 +96,10 @@ async def _find_statement_by_institution(page: Page, institution: str) -> dict |
     return None
 
 
+def _statement_row(page: Page, institution: str):
+    return page.locator(".relative.block").filter(has_text=institution).first
+
+
 @pytest.mark.e2e
 @pytest.mark.llm
 async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> None:
@@ -130,8 +134,7 @@ async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> No
     statement_id = upload_body.get("id")
     assert statement_id, f"Upload response missing 'id' field: {upload_body}"
     # Statement row appears in the list with the institution name we provided.
-    statement_row = page.locator("a").filter(has_text="E2E Upload Test Bank").first
-    await expect(statement_row).to_be_visible(timeout=15_000)
+    await expect(_statement_row(page, "E2E Upload Test Bank")).to_be_visible(timeout=15_000)
     # Verify the statement is immediately accessible via the API. Playwright's
     # context request shares the browser cookie jar used by the page.
     api_resp = await page.request.get(_get_url(f"/api/statements/{statement_id}"))
@@ -183,8 +186,13 @@ async def test_model_selection_and_upload(authenticated_page_unique: Page) -> No
         f"Upload endpoint returned unexpected status {upload_resp.status} — "
         f"expected 2xx. Response body: {await upload_resp.text()}"
     )
+    upload_body = await upload_resp.json()
+    statement_id = upload_body.get("id")
+    assert statement_id, f"Upload response missing 'id' field: {upload_body}"
 
-    await expect(page.locator("a").filter(has_text="E2E Model Test Bank").first).to_be_visible(timeout=15_000)
+    await expect(_statement_row(page, "E2E Model Test Bank")).to_be_visible(timeout=15_000)
+    statement = await _find_statement_by_institution(page, "E2E Model Test Bank")
+    assert statement and statement.get("id") == statement_id
 
 
 @pytest.mark.e2e

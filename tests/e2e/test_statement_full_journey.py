@@ -36,6 +36,10 @@ def _get_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}{path}"
 
 
+def _statement_row(page: Page, institution: str):
+    return page.locator(".relative.block").filter(has_text=institution).first
+
+
 def _get_dbs_pdf_path() -> Path:
     """
     Locate (or generate) the pre-built DBS mock PDF fixture.
@@ -159,11 +163,11 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     assert statement_id, f"Upload response missing 'id' field: {upload_body}"
     # === AC8.13.2: Poll until "parsed" status badge appears in the list ===
     # The list page polls via TanStack Query every 3 s — we wait up to PARSING_TIMEOUT_MS.
-    statement_row = page.locator(f'a[href="/statements/{statement_id}"]')
+    statement_row = _statement_row(page, INSTITUTION_LABEL)
     await expect(statement_row).to_be_visible(timeout=15_000)
 
-    parsed_badge = statement_row.locator("span.badge", has_text="parsed")
-    rejected_badge = statement_row.locator("span.badge", has_text="rejected")
+    parsed_badge = statement_row.locator("span.badge", has_text=re.compile(r"^Parsed$", re.I))
+    rejected_badge = statement_row.locator("span.badge", has_text=re.compile(r"^Rejected$", re.I))
     # Poll the statement API by ID until parsed, but fail fast with the stored
     # validation error if the AI/OCR provider rejects parsing.
     # This avoids waiting the full PARSING_TIMEOUT_MS when the AI service fails.
@@ -197,7 +201,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
         )
 
     # === AC8.13.3: Detail page shows transactions ===
-    await statement_row.click()
+    await page.goto(_get_url(f"/statements/{statement_id}"))
     # Wait for navigation to /statements/{id} explicitly; generic load-state
     # waits can resolve before the Next.js router commits the URL change.
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
@@ -219,9 +223,11 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
 
     await page.goto(_get_url("/statements"))
     await expect(page).to_have_url(re.compile(r"/statements$"), timeout=15_000)
-    approved_row = page.locator(f'a[href="/statements/{statement_id}"]')
+    approved_row = _statement_row(page, INSTITUTION_LABEL)
     await expect(approved_row).to_be_visible(timeout=15_000)
-    await expect(approved_row.locator("span.badge", has_text="approved")).to_be_visible(timeout=15_000)
+    await expect(approved_row.locator("span.badge", has_text=re.compile(r"^Approved$", re.I))).to_be_visible(
+        timeout=15_000
+    )
 
     # === AC8.13.5: Balance sheet report loads ===
     await page.goto(_get_url("/reports/balance-sheet"))

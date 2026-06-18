@@ -405,7 +405,9 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
     assert "# === AC8.13.1: Upload PDF ===" in test_body
     assert "Upload & Parse Statement" in test_body
     assert "# === AC8.13.2: Poll until" in test_body
-    assert 'a[href="/statements/{statement_id}"]' in test_body
+    assert "_statement_row(page, INSTITUTION_LABEL)" in test_body
+    assert '_get_url(f"/statements/{statement_id}")' in test_body
+    assert 'a[href="/statements/{statement_id}"]' not in test_body
     assert "filter(has_text=INSTITUTION_LABEL).first" not in test_body
     assert '"parsed"' in test_body
     assert "# === AC8.13.3: Detail page shows transactions ===" in test_body

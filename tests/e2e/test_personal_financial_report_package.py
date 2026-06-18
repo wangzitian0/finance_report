@@ -27,9 +27,8 @@ from uuid import uuid4
 import httpx
 import pytest
 from common.testing.ac_proof import ac_proof
-from playwright.async_api import Page, expect
-
 from conftest import fail_or_skip_ai_ocr_gate
+from playwright.async_api import Page, expect
 from tools._lib.fixtures.personal_report_package import REPRESENTATIVE_PACKAGE_FIXTURE
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
@@ -89,10 +88,7 @@ async def _auth_headers(page: Page) -> dict[str, str]:
 
 def _statement_timeout_message(statement_id: str, last_payload: dict | None) -> str:
     if not last_payload:
-        return (
-            f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; "
-            "no poll payload was returned"
-        )
+        return f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; no poll payload was returned"
 
     status = last_payload.get("status")
     parsing_progress = last_payload.get("parsing_progress")
@@ -182,7 +178,7 @@ def _get_pdf_path(source: str) -> Path:
 
 def _unique_pdf_copy(src: Path) -> Path:
     tmp = Path(tempfile.mkdtemp())
-    suffix = int((time() * 1000)) % 1_000_000
+    suffix = int(time() * 1000) % 1_000_000
     dest = tmp / f"{src.stem}_{suffix}{src.suffix}"
     shutil.copy2(src, dest)
     with dest.open("ab") as fh:
@@ -581,7 +577,9 @@ async def test_personal_financial_report_package_post_merge_journey(
         await expect(
             page.get_by_text("Investment Performance Report Schedule")
         ).to_be_visible()
-        await expect(page.get_by_text("investment_performance", exact=True)).to_be_visible()
+        await expect(
+            page.get_by_text("investment_performance", exact=True)
+        ).to_be_visible()
 
         property_snapshot = await _create_manual_snapshot(
             client,
@@ -659,7 +657,9 @@ async def test_personal_financial_report_package_post_merge_journey(
         )
 
         snapshots_response = await client.get(
-            f"/assets/valuation-snapshots?as_of_date={fixture_period_end.isoformat()}"
+            _api_url(
+                f"/assets/valuation-snapshots?as_of_date={fixture_period_end.isoformat()}"
+            )
         )
         assert snapshots_response.status_code == 200, (
             f"valuation snapshot list failed: {snapshots_response.status_code} {snapshots_response.text}"
@@ -673,7 +673,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert notes_by_source[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
 
         restricted_response = await client.get(
-            f"/assets/restricted?as_of_date={fixture_period_end.isoformat()}"
+            _api_url(f"/assets/restricted?as_of_date={fixture_period_end.isoformat()}")
         )
         assert restricted_response.status_code == 200, (
             f"restricted holdings check failed: {restricted_response.status_code} {restricted_response.text}"
@@ -867,7 +867,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert _money(cash_flow["summary"]["ending_cash"]) == _money(expected_bank_cash)
 
         bs_export = await client.get(
-            "/api/reports/export",
+            _api_url("/reports/export"),
             params={
                 "report_type": "balance-sheet",
                 "format": "csv",
@@ -889,7 +889,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         )
 
         income_export = await client.get(
-            "/api/reports/export",
+            _api_url("/reports/export"),
             params={
                 "report_type": "income-statement",
                 "format": "csv",
@@ -920,7 +920,9 @@ async def test_personal_financial_report_package_post_merge_journey(
     await expect(page.get_by_text("Loading upload-to-report workflow...")).to_be_hidden(
         timeout=30_000
     )
-    await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=10_000)
+    await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(
+        timeout=10_000
+    )
 
     await page.goto(
         _get_url(
