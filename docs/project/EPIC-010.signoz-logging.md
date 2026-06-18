@@ -188,6 +188,14 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.11.2 | Financial mutations emit stable audit logs for journal post/void and reconciliation accept operations | `test_AC10_11_2_financial_mutation_audit_helpers_and_callsites()` | `infra/test_observability_contract.py` | P0 |
 | AC10.11.3 | Provider/error-body logging uses bounded safe summaries and rejects raw risky payload fields | `test_AC10_11_3_provider_error_body_logging_is_redacted()` | `infra/test_observability_contract.py` | P0 |
 
+### AC10.12: Async Parse Failure Visibility
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC10.12.1 | Failed async statement parse tasks emit a low-cardinality failure metric and safe structured log context | `test_AC10_12_1_async_parse_tracking_records_failures()` | `infra/test_telemetry_metrics.py` | P0 |
+| AC10.12.2 | In-process fallback and Prefect flow wrappers pass statement/request context into async parse tracking | `test_AC10_12_2_async_parse_tracking_receives_statement_context()` | `infra/test_telemetry_metrics.py` | P0 |
+| AC10.12.3 | Parse failure handling still marks statements rejected and emits the existing safe `statement.parse.failed` contract | `test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved()` | `infra/test_telemetry_metrics.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.

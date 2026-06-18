@@ -7,12 +7,14 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from src.config import parse_key_value_pairs, settings
+from src.logger import get_logger
 
 _metrics_export_active = False
 _meter: Any | None = None
 _instruments: dict[str, Any] = {}
 _async_parse_in_flight = 0
 _db_pool_observer: Callable[[], dict[str, int]] | None = None
+logger = get_logger(__name__)
 
 
 def _build_otel_resource() -> Any:
@@ -126,6 +128,11 @@ def _create_instruments(meter: Any) -> None:
         unit="1",
         description="Rate-limit rejections by low-cardinality scope.",
     )
+    _instruments["async_parse_failure"] = meter.create_counter(
+        "finance.async_parse.failure",
+        unit="1",
+        description="Async statement parse task failures.",
+    )
     meter.create_observable_gauge(
         "finance.async_parse.in_flight",
         callbacks=[_observe_async_parse_in_flight],
@@ -174,11 +181,45 @@ def increment_async_parse_in_flight(delta: int = 1) -> None:
     set_async_parse_in_flight(_async_parse_in_flight + delta)
 
 
-async def run_with_async_parse_tracking(awaitable: Awaitable[None]) -> None:
+def _safe_error_message(message: str | None, *, limit: int = 300) -> str | None:
+    if not message:
+        return message
+    compact = " ".join(str(message).split())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit]}..."
+
+
+def record_async_parse_failure(*, error_type: str, task_name: str = "statement_parse") -> None:
+    counter = _instruments.get("async_parse_failure")
+    if counter is not None:
+        counter.add(1, {"task": task_name, "error_type": error_type})
+
+
+async def run_with_async_parse_tracking(
+    awaitable: Awaitable[None],
+    *,
+    statement_id: object | None = None,
+    request_id: str | None = None,
+    task_name: str = "statement_parse",
+) -> None:
     """Track one in-process async statement parse until it completes or fails."""
     increment_async_parse_in_flight(1)
     try:
         await awaitable
+    except Exception as exc:
+        error_type = type(exc).__name__
+        record_async_parse_failure(error_type=error_type, task_name=task_name)
+        logger.exception(
+            "statement.parse.async_task.failed",
+            audit_event="statement.parse.async_task.failed",
+            statement_id=str(statement_id) if statement_id is not None else None,
+            request_id=request_id,
+            task_name=task_name,
+            error_type=error_type,
+            safe_error_message=_safe_error_message(str(exc)),
+        )
+        raise
     finally:
         increment_async_parse_in_flight(-1)
 

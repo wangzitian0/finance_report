@@ -305,6 +305,55 @@ async def test_AC10_10_3_async_parse_tracking_increments_until_done() -> None:
     assert observation_values(telemetry_metrics._observe_async_parse_in_flight()) == [0]
 
 
+async def test_AC10_12_1_async_parse_tracking_records_failures(monkeypatch) -> None:
+    """AC10.12.1: failed async parse tasks emit a metric and safe log context."""
+    meter = install_fake_otel(monkeypatch)
+    monkeypatch.setattr(
+        telemetry_metrics.settings,
+        "otel_exporter_otlp_endpoint",
+        "http://collector:4318",
+    )
+    telemetry_metrics.configure_otel_metrics()
+    exception_calls: list[tuple[str, dict[str, object]]] = []
+
+    def capture_exception(event: str, **kwargs: object) -> None:
+        exception_calls.append((event, kwargs))
+
+    monkeypatch.setattr(
+        telemetry_metrics,
+        "logger",
+        types.SimpleNamespace(exception=capture_exception),
+    )
+
+    async def parse_work() -> None:
+        raise RuntimeError("provider failed with a compact safe summary")
+
+    with pytest.raises(RuntimeError):
+        await telemetry_metrics.run_with_async_parse_tracking(
+            parse_work(),
+            statement_id="statement-123",
+            request_id="request-123",
+        )
+
+    assert observation_values(telemetry_metrics._observe_async_parse_in_flight()) == [0]
+    assert meter.counters["finance.async_parse.failure"].add_calls == [
+        (1, {"task": "statement_parse", "error_type": "RuntimeError"})
+    ]
+    assert exception_calls == [
+        (
+            "statement.parse.async_task.failed",
+            {
+                "audit_event": "statement.parse.async_task.failed",
+                "statement_id": "statement-123",
+                "request_id": "request-123",
+                "task_name": "statement_parse",
+                "error_type": "RuntimeError",
+                "safe_error_message": "provider failed with a compact safe summary",
+            },
+        )
+    ]
+
+
 def test_AC10_10_3_async_parse_tracking_has_runtime_call_sites() -> None:
     """AC10.10.3: async parse tracking is wired outside tests."""
     pipeline = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_pipeline.py").read_text(
@@ -314,6 +363,28 @@ def test_AC10_10_3_async_parse_tracking_has_runtime_call_sites() -> None:
 
     assert "run_with_async_parse_tracking" in pipeline
     assert "run_with_async_parse_tracking" in flow
+
+
+def test_AC10_12_2_async_parse_tracking_receives_statement_context() -> None:
+    """AC10.12.2: runtime async parse wrappers carry statement/request context."""
+    pipeline = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_pipeline.py").read_text(
+        encoding="utf-8"
+    )
+    flow = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_flow.py").read_text(encoding="utf-8")
+
+    assert "statement_id=statement_id" in pipeline
+    assert "request_id=request_id" in pipeline
+    assert "statement_id=statement_id" in flow
+    assert "request_id=request_id" in flow
+
+
+def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved() -> None:
+    """AC10.12.3: parse failures still reject statements and emit structured logs."""
+    source = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_parsing.py").read_text(encoding="utf-8")
+
+    assert "refreshed.status = BankStatementStatus.REJECTED" in source
+    assert '"statement.parse.failed"' in source
+    assert "safe_error_message=_safe_error_message(message)" in source
 
 
 def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:

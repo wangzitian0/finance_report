@@ -130,6 +130,7 @@ counts plus a non-zero failure marker for fast triage.
 | `statement.parse.extraction_completed` | `request_id`, `statement_id`, `model_to_use`, `file_type` | Replaces misleading enqueue wording after extraction returns |
 | `statement.parse.completed` | `request_id`, `statement_id`, `phase`, `progress`, `duration_ms`, `transactions_count` | Marks parse finalization success |
 | `statement.parse.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `error_type`, `safe_error_message` | Marks parse failure without leaking source content |
+| `statement.parse.async_task.failed` | `request_id`, `statement_id`, `task_name`, `error_type`, `safe_error_message` | Marks failure of the background task wrapper so fire-and-forget failures are queryable |
 | `statement.brokerage_import.started` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `broker`, `parsed_positions` when known | Shows brokerage import was attempted |
 | `statement.brokerage_import.completed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `broker`, `parsed_positions`, `created_atomic_positions`, `existing_atomic_positions`, `reconcile_created`, `reconcile_updated`, `reconcile_disposed` | Shows brokerage import result counts |
 | `statement.brokerage_import.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `error_type`, `safe_error_message` | Shows brokerage import failure without leaking payload |
@@ -186,6 +187,13 @@ Audit queries should exclude health checks, SQL echo, and repeated per-day FX or
 portfolio valuation detail logs by default. High-frequency FX valuation detail
 belongs at `debug`; staging audit views should prioritize the events above and
 phase timing lines from GitHub Actions.
+
+### Async Failure Metric
+
+`finance.async_parse.failure` is a counter emitted by the statement parse task
+wrapper. It uses low-cardinality attributes only: `task` and `error_type`.
+Per-statement correlation stays in `statement.parse.async_task.failed` logs via
+`statement_id` and `request_id`; those identifiers must not become metric labels.
 
 ---
 

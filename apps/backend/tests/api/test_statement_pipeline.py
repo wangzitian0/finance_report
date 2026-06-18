@@ -57,6 +57,45 @@ async def test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset(monke
     assert seen["session_maker"] == "session-maker"
 
 
+async def test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback(monkeypatch):
+    """AC19.13.1: fallback tasks retrieve failures after structured telemetry logs them."""
+    monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", None)
+
+    class FakeTask:
+        def __init__(self) -> None:
+            self.callbacks: list[object] = []
+
+        def add_done_callback(self, callback) -> None:  # noqa: ANN001
+            self.callbacks.append(callback)
+
+    task = FakeTask()
+
+    async def fake_background(**_kwargs):
+        return None
+
+    def fake_tracking(awaitable, **_kwargs):
+        awaitable.close()
+
+        async def noop() -> None:
+            return None
+
+        return noop()
+
+    def fake_create_task(coro):
+        coro.close()
+        return task
+
+    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
+    monkeypatch.setattr(statement_pipeline, "run_with_async_parse_tracking", fake_tracking)
+    monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
+    monkeypatch.setattr(statement_pipeline.asyncio, "create_task", fake_create_task)
+
+    result = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
+
+    assert result is task
+    assert task.callbacks == [statement_pipeline._consume_background_task_exception]
+
+
 async def test_AC19_13_2_dispatch_submits_serializable_params_to_prefect(monkeypatch):
     """AC19.13.2: PREFECT_API_URL set → submit flow run with serializable params only."""
     monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", "http://prefect:4200/api")
