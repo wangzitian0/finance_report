@@ -1269,7 +1269,10 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 
     # In the promote-not-rebuild pattern, release-images publishes the retained tag
     # once. Production consumes the tag through deploy_v2 and never re-promotes it.
-    promote_blocks = re.findall(r"docker buildx imagetools create --tag", release_images)
+    promote_blocks = re.findall(
+        r"docker buildx imagetools create --prefer-index=false --tag",
+        release_images,
+    )
     assert len(promote_blocks) == 2
     assert "docker buildx imagetools create --tag" not in workflow
 
@@ -1307,7 +1310,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     deployment = read("docs/ssot/deployment.md")
 
     # AC7.10.1: release-images promotes main-CI SHA images instead of rebuilding.
-    assert "docker buildx imagetools create --tag" in release_images
+    assert "docker buildx imagetools create --prefer-index=false --tag" in release_images
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
     assert 'short_sha="${full_sha:0:7}"' in workflow
@@ -1587,7 +1590,7 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "tags: ['v[0-9]+.[0-9]+.[0-9]+']" in release_workflow
     assert 'full_sha="$(git rev-parse "$GITHUB_SHA")"' in release_workflow
     assert 'short_sha="${full_sha:0:7}"' in release_workflow
-    assert "docker buildx imagetools create --tag" in release_workflow
+    assert "docker buildx imagetools create --prefer-index=false --tag" in release_workflow
     assert "Backend digests differ!" in release_workflow
     assert "Frontend digests differ!" in release_workflow
 
