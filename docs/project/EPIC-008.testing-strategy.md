@@ -77,7 +77,7 @@ Integration tests and E2E tests are intentionally different in this project:
 | Integration (backend) | Backend tests marked `integration` | Explicit CI stage: `backend-integration` job, marker-scoped and service-backed | Not included in unified coverage by default; AC proof channel only |
 | Tier 1 API E2E (`-m e2e`) | `apps/backend/tests/e2e/test_core_journeys.py` ASGI/API contract flows | Explicit CI stage: `backend-e2e-tier1` job with marker override and explicit Tier-1 scope | Behavioral proof for ACs and regression risk; **not included in unified line coverage** |
 | Frontend Playwright | Provider-free specs under `apps/frontend/playwright` | Explicit CI stage inside the `frontend` job after build and Vitest; env-gated specs are not required proof | Browser UI behavioral proof only, not part of unified line coverage |
-| Tier 2 HTTP E2E | Deploy-aware HTTP-level flows in staging/prod | Not a CI-shard job today; kept for staged/manual/prod smoke command evolution | Behavioral proof only, not part of unified line coverage |
+| Tier 2 HTTP E2E | Deploy-aware HTTP-level flows through `tools/tier2_http_e2e.py` | Staging deploy after shell smoke and before broader deployed E2E | Behavioral proof only, not part of unified line coverage |
 | Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates and PR preview where appropriate | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
 
 ### Stage-by-Stage Semantics
@@ -492,6 +492,20 @@ The operator entry point is `tools/purge_test_accounts.py` (dry-run by default;
 `--apply` to delete; runbook in `docs/contributing/staging-test-account-cleanup.md`).
 
 ---
+
+### AC8.18: Tier 2 Deployed HTTP E2E Proof Semantics
+
+Tier 2 is the lightweight deployed-HTTP lane between Tier 1 in-process API E2E
+and Tier 3 browser/provider-heavy E2E. It proves the deployed URL, routing,
+version, public API reachability, frontend reachability, and unauthenticated
+protection boundary through real HTTP. It is not a line-coverage input and a
+not-run/env-gated advisory report is never proof eligible.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.18.1 | The Tier 2 command fails closed unless a deployed base URL and expected deployed version are supplied | `test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
+| AC8.18.2 | Tier 2 reports carry `proof_tier=tier2_http`; advisory/env-gated not-run output is marked `proof_eligible=false`, while passing reports require concrete HTTP checks | `test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible`, `test_AC8_18_2_tier2_http_success_report_requires_real_http_checks`, `test_AC8_18_2_tier2_http_handles_non_object_health_json`, `test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
+| AC8.18.3 | Staging runs Tier 2 after shell smoke and before Tier 3/browser E2E, and the execution matrix names `deployment_tier2_http_e2e` separately | `test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e`, `test_AC8_18_3_test_execution_matrix_names_tier2_http_stage` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
 
 ## 5. E2E Suite Ownership
 

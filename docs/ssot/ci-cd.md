@@ -147,7 +147,7 @@ file.
 | Integration (backend marker) | `backend-integration` job (`-m "integration"`) | `apps/backend/tests/**/*` marker-scoped integration suites with service-backed env | Not part of unified line baseline yet | Add sharding when count growth justifies it; keep explicit marker gate in CI |
 | Tooling/common contracts | `tooling-coverage` job | `tests/tooling/` with `--cov=common --cov=tools` | Feeds unified line coverage (common/tools components) | Keep parallel to app tests so tooling failures and LCOV inputs are independently visible |
 | Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness; PR runs use `--maxfail=1`, while push/main Tier-1 E2E runs without `--maxfail=1` so one JUnit artifact reports all failing journeys | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
-| Tier 2 HTTP E2E | PR/staging/prod HTTP command windows | Not in unified coverage baseline | Behavioral proof only | Introduce marker-pinned CI smoke before post-merge where network stability allows |
+| Tier 2 HTTP E2E | `tools/tier2_http_e2e.py` against deployed PR/staging/prod URLs | Not in unified coverage baseline | Behavioral proof only; reports carry `proof_tier=tier2_http` | Keep the command strict in deployed gates; advisory/env-gated not-run reports are never proof eligible |
 | Frontend Playwright | `frontend` job | Provider-free browser UI specs under `apps/frontend/playwright` | Behavioral proof only; not in unified line coverage | Env-gated specs stay non-required until their env is provided in CI |
 | Tier 3 Browser E2E | Staging/PR preview/prod smoke jobs | Playwright/HTTP deployment suites (`smoke`, `e2e`, `llm` split) | Behavioral/prod-risk proof only | Keep provider-dependent `llm` in post-merge; split provider-free subset for PR preview |
 
@@ -205,6 +205,27 @@ migration risk contract classifies the risk and required evidence so staging is
 used for the issues it can realistically catch, while production residual risk
 is handled through preflight, backup, feature-flag, idempotency, and
 post-deploy controls.
+
+### Tier 2 HTTP E2E Command
+
+Tier 2 deployed HTTP proof runs through:
+
+```bash
+python3 tools/tier2_http_e2e.py \
+  --base-url "$APP_URL" \
+  --expected-sha "$EXPECTED_SHA" \
+  --mode staging \
+  --json-report test-results/staging-tier2-http.json \
+  --junit-xml test-results/staging-tier2-http.xml
+```
+
+The staging deploy workflow runs this command after `tools/smoke_test.sh` and
+before the broader `pytest tests/e2e` deployed suite. Missing `--base-url` or
+`--expected-sha` is a hard command failure in deployed gates. Local advisory
+usage may opt into `--advisory-if-missing`, but that report is explicitly
+`proof_eligible=false` and cannot satisfy AC proof. The JSON and JUnit reports
+carry `proof_tier=tier2_http` so dashboards can distinguish unit, integration,
+Tier 1, Tier 2, and Tier 3 evidence.
 
 ---
 

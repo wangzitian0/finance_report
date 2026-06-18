@@ -333,6 +333,14 @@ jobs:
           
           run_timed_phase "Phase 1: Smoke Check (Shell)" \
             bash tools/smoke_test.sh "$APP_URL" staging
+
+          run_timed_phase "Phase 1b: Tier 2 HTTP E2E (Python)" \
+            python3 tools/tier2_http_e2e.py \
+              --base-url "$APP_URL" \
+              --expected-sha "$EXPECTED_SHA" \
+              --mode staging \
+              --json-report test-results/staging-tier2-http.json \
+              --junit-xml test-results/staging-tier2-http.xml
           
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.
