@@ -17,6 +17,7 @@ from src.database import async_session_maker
 from src.logger import get_logger
 from src.services import StorageService
 from src.services.statement_parsing import parse_statement_background
+from src.telemetry_metrics import run_with_async_parse_tracking
 
 logger = get_logger(__name__)
 
@@ -47,16 +48,18 @@ async def parse_statement_flow(
     )
     storage = StorageService()
     content = await run_in_threadpool(storage.get_object, storage_key)
-    await parse_statement_background(
-        statement_id=UUID(statement_id),
-        filename=filename,
-        institution=institution,
-        user_id=UUID(user_id),
-        account_id=UUID(account_id) if account_id else None,
-        file_hash=file_hash,
-        storage_key=storage_key,
-        content=content,
-        model=model,
-        session_maker=async_session_maker,
-        request_id=request_id,
+    await run_with_async_parse_tracking(
+        parse_statement_background(
+            statement_id=UUID(statement_id),
+            filename=filename,
+            institution=institution,
+            user_id=UUID(user_id),
+            account_id=UUID(account_id) if account_id else None,
+            file_hash=file_hash,
+            storage_key=storage_key,
+            content=content,
+            model=model,
+            session_maker=async_session_maker,
+            request_id=request_id,
+        )
     )

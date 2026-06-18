@@ -2,14 +2,28 @@
 
 from __future__ import annotations
 
+import builtins
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
 from src import telemetry_metrics
 
 pytestmark = pytest.mark.no_db
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+@pytest.fixture(autouse=True)
+def reset_metrics_state():
+    telemetry_metrics._clear_metrics_state()
+    telemetry_metrics.set_async_parse_in_flight(0)
+    telemetry_metrics.set_db_pool_observer(None)
+    yield
+    telemetry_metrics._clear_metrics_state()
+    telemetry_metrics.set_async_parse_in_flight(0)
+    telemetry_metrics.set_db_pool_observer(None)
 
 
 class FakeInstrument:
@@ -106,6 +120,10 @@ def install_fake_otel(monkeypatch: pytest.MonkeyPatch) -> FakeMeter:
     return meter
 
 
+def observation_values(observations: list[object]) -> list[object]:
+    return [item[0] if isinstance(item, tuple) else getattr(item, "value") for item in observations]
+
+
 def test_AC10_10_1_configure_metrics_is_noop_without_endpoint(monkeypatch) -> None:
     """AC10.10.1: metrics export is disabled when OTEL endpoint is absent."""
     monkeypatch.setattr(telemetry_metrics.settings, "otel_exporter_otlp_endpoint", None)
@@ -114,6 +132,7 @@ def test_AC10_10_1_configure_metrics_is_noop_without_endpoint(monkeypatch) -> No
     telemetry_metrics.configure_otel_metrics()
 
     assert telemetry_metrics.is_metrics_export_active() is False
+    assert telemetry_metrics._instruments == {}
 
 
 def test_AC10_10_1_configure_metrics_creates_otlp_provider(monkeypatch) -> None:
@@ -138,6 +157,62 @@ def test_AC10_10_1_configure_metrics_creates_otlp_provider(monkeypatch) -> None:
     assert "http.server.request.duration" in meter.histograms
     assert "db.pool.size" in meter.gauges
     assert "finance.async_parse.in_flight" in meter.gauges
+
+
+def test_AC10_10_1_reconfigure_failure_clears_stale_instruments(monkeypatch) -> None:
+    """AC10.10.1: disabled or failed reconfiguration does not keep stale instruments."""
+    meter = install_fake_otel(monkeypatch)
+    monkeypatch.setattr(
+        telemetry_metrics.settings,
+        "otel_exporter_otlp_endpoint",
+        "http://collector:4318",
+    )
+    telemetry_metrics.configure_otel_metrics()
+    telemetry_metrics.record_http_request(
+        method="GET",
+        route="/api/health",
+        status_code=200,
+        duration_ms=1.0,
+    )
+    assert meter.counters["http.server.request.count"].add_calls
+
+    monkeypatch.setattr(telemetry_metrics.settings, "otel_exporter_otlp_endpoint", None)
+    telemetry_metrics.configure_otel_metrics()
+    telemetry_metrics.record_http_request(
+        method="GET",
+        route="/api/health",
+        status_code=200,
+        duration_ms=1.0,
+    )
+
+    assert telemetry_metrics.is_metrics_export_active() is False
+    assert telemetry_metrics._instruments == {}
+    assert len(meter.counters["http.server.request.count"].add_calls) == 1
+
+
+def test_AC10_10_1_import_failure_clears_stale_instruments(monkeypatch) -> None:
+    """AC10.10.1: importer failures also clear stale metric instruments."""
+    install_fake_otel(monkeypatch)
+    monkeypatch.setattr(
+        telemetry_metrics.settings,
+        "otel_exporter_otlp_endpoint",
+        "http://collector:4318",
+    )
+    telemetry_metrics.configure_otel_metrics()
+    assert telemetry_metrics._instruments
+
+    real_import = builtins.__import__
+
+    def fail_metric_exporter_import(name, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        if name == "opentelemetry.exporter.otlp.proto.http.metric_exporter":
+            raise ImportError("blocked")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_metric_exporter_import)
+    telemetry_metrics.configure_otel_metrics()
+
+    assert telemetry_metrics.is_metrics_export_active() is False
+    assert telemetry_metrics._instruments == {}
 
 
 def test_AC10_10_2_red_metrics_record_low_cardinality_labels(monkeypatch) -> None:
@@ -172,6 +247,15 @@ def test_AC10_10_2_red_metrics_record_low_cardinality_labels(monkeypatch) -> Non
     assert histogram.record_calls[0][0] == 12.5
 
 
+def test_AC10_10_2_unmatched_routes_use_low_cardinality_fallback() -> None:
+    """AC10.10.2: unmatched request paths do not become raw http.route labels."""
+    route = types.SimpleNamespace(path="/api/accounts/{account_id}")
+
+    assert telemetry_metrics.http_route_label_from_scope({"route": route}) == "/api/accounts/{account_id}"
+    assert telemetry_metrics.http_route_label_from_scope({"route": None}) == "__unmatched__"
+    assert telemetry_metrics.http_route_label_from_scope({}) == "__unmatched__"
+
+
 def test_AC10_10_3_saturation_gauges_observe_current_values(monkeypatch) -> None:
     """AC10.10.3: async and DB pool gauges expose current saturation values."""
     install_fake_otel(monkeypatch)
@@ -184,6 +268,52 @@ def test_AC10_10_3_saturation_gauges_observe_current_values(monkeypatch) -> None
     assert telemetry_metrics._observe_db_pool_overflow() == [(1, {})]
 
     telemetry_metrics.set_db_pool_observer(None)
+
+
+def test_AC10_10_3_db_pool_gauges_bind_to_sqlalchemy_engine() -> None:
+    """AC10.10.3: DB pool gauges read the runtime SQLAlchemy pool."""
+
+    class Pool:
+        def size(self) -> int:
+            return 7
+
+        def checkedout(self) -> int:
+            return 3
+
+        def overflow(self) -> int:
+            return 1
+
+    engine = types.SimpleNamespace(sync_engine=types.SimpleNamespace(pool=Pool()))
+
+    telemetry_metrics.configure_database_pool_metrics(engine)
+
+    assert observation_values(telemetry_metrics._observe_db_pool_size()) == [7]
+    assert observation_values(telemetry_metrics._observe_db_pool_checkedout()) == [3]
+    assert observation_values(telemetry_metrics._observe_db_pool_overflow()) == [1]
+
+
+async def test_AC10_10_3_async_parse_tracking_increments_until_done() -> None:
+    """AC10.10.3: async parse in-flight gauge follows the task lifecycle."""
+    observed: list[list[object]] = []
+
+    async def parse_work() -> None:
+        observed.append(observation_values(telemetry_metrics._observe_async_parse_in_flight()))
+
+    await telemetry_metrics.run_with_async_parse_tracking(parse_work())
+
+    assert observed == [[1]]
+    assert observation_values(telemetry_metrics._observe_async_parse_in_flight()) == [0]
+
+
+def test_AC10_10_3_async_parse_tracking_has_runtime_call_sites() -> None:
+    """AC10.10.3: async parse tracking is wired outside tests."""
+    pipeline = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_pipeline.py").read_text(
+        encoding="utf-8"
+    )
+    flow = (REPO_ROOT / "apps" / "backend" / "src" / "services" / "statement_flow.py").read_text(encoding="utf-8")
+
+    assert "run_with_async_parse_tracking" in pipeline
+    assert "run_with_async_parse_tracking" in flow
 
 
 def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:

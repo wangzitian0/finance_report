@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from src.config import parse_key_value_pairs, settings
@@ -39,6 +39,13 @@ def mark_metrics_export_active(active: bool = True) -> None:
     _metrics_export_active = active
 
 
+def _clear_metrics_state() -> None:
+    global _meter
+    _meter = None
+    _instruments.clear()
+    mark_metrics_export_active(False)
+
+
 def is_metrics_export_active() -> bool:
     return _metrics_export_active
 
@@ -47,7 +54,7 @@ def configure_otel_metrics() -> None:
     """Configure OTLP metric export when the shared OTEL endpoint is present."""
     global _meter
     if not settings.otel_exporter_otlp_endpoint:
-        mark_metrics_export_active(False)
+        _clear_metrics_state()
         return
 
     try:
@@ -62,7 +69,7 @@ def configure_otel_metrics() -> None:
             "OTEL metric exporter not available",
             exc_info=True,
         )
-        mark_metrics_export_active(False)
+        _clear_metrics_state()
         return
 
     exporter = OTLPMetricExporter(endpoint=_build_otlp_metrics_endpoint(settings.otel_exporter_otlp_endpoint))
@@ -72,6 +79,15 @@ def configure_otel_metrics() -> None:
     _meter = metrics.get_meter("finance-report-backend")
     _create_instruments(_meter)
     mark_metrics_export_active(True)
+
+
+def http_route_label_from_scope(scope: dict[str, Any]) -> str:
+    """Return a low-cardinality route label for FastAPI/Starlette request scopes."""
+    route = scope.get("route")
+    route_path = getattr(route, "path", None)
+    if isinstance(route_path, str) and route_path:
+        return route_path
+    return "__unmatched__"
 
 
 def _create_instruments(meter: Any) -> None:
@@ -149,9 +165,48 @@ def set_async_parse_in_flight(count: int) -> None:
     _async_parse_in_flight = max(0, count)
 
 
+def increment_async_parse_in_flight(delta: int = 1) -> None:
+    set_async_parse_in_flight(_async_parse_in_flight + delta)
+
+
+async def run_with_async_parse_tracking(awaitable: Awaitable[None]) -> None:
+    """Track one in-process async statement parse until it completes or fails."""
+    increment_async_parse_in_flight(1)
+    try:
+        await awaitable
+    finally:
+        increment_async_parse_in_flight(-1)
+
+
 def set_db_pool_observer(observer: Callable[[], dict[str, int]] | None) -> None:
     global _db_pool_observer
     _db_pool_observer = observer
+
+
+def configure_database_pool_metrics(async_engine: Any) -> None:
+    """Wire DB pool gauges to a SQLAlchemy engine when pool stats are available."""
+    sync_engine = getattr(async_engine, "sync_engine", async_engine)
+    pool = getattr(sync_engine, "pool", None)
+    if pool is None:
+        set_db_pool_observer(None)
+        return
+
+    set_db_pool_observer(
+        lambda: {
+            "size": _pool_stat(pool, "size"),
+            "checkedout": _pool_stat(pool, "checkedout"),
+            "overflow": _pool_stat(pool, "overflow"),
+        }
+    )
+
+
+def _pool_stat(pool: Any, name: str) -> int:
+    value = getattr(pool, name, 0)
+    try:
+        resolved = value() if callable(value) else value
+        return max(0, int(resolved or 0))
+    except Exception:
+        return 0
 
 
 def _db_pool_values() -> dict[str, int]:
