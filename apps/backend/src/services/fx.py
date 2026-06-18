@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.logger import get_logger
 from src.models import FxRate
+from src.money import ExchangeRate, Money, convert as convert_money
 
 logger = get_logger(__name__)
 
@@ -84,6 +85,10 @@ def _normalize_currency(code: str) -> str:
 def _append_fx_warning(fx_warnings: list[FxWarning] | None, warning: FxWarning) -> None:
     if fx_warnings is not None and warning not in fx_warnings:
         fx_warnings.append(warning)
+
+
+def _convert_money_amount(amount: Decimal, source: str, target: str, rate: Decimal) -> Decimal:
+    return convert_money(Money(amount, source), ExchangeRate(source, target, rate)).amount
 
 
 async def get_exchange_rate(
@@ -229,7 +234,7 @@ async def convert_amount(
     else:
         rate = await get_exchange_rate(db, source, target, rate_date, lazy_load=lazy_load)
 
-    return amount * rate
+    return _convert_money_amount(amount, source, target, rate)
 
 
 async def convert_to_base(

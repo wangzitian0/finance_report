@@ -84,10 +84,13 @@ class InvestmentAccountingService:
         self._validate_positive(quantity, "quantity")
         self._validate_non_negative(unit_price, "unit_price")
         self._validate_non_negative(fees, "fees")
+        trade_quantity = _quantized_quantity(quantity)
+        if _quantity_is_zero(trade_quantity):
+            raise InvestmentAccountingValidationError("quantity must round to a non-zero quantity")
 
         cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
         investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
-        amount = _money(quantity * unit_price + fees)
+        amount = _money(trade_quantity * unit_price + fees)
         if amount <= Decimal("0"):
             raise InvestmentAccountingValidationError("buy amount must be positive")
 
@@ -139,7 +142,7 @@ class InvestmentAccountingService:
             transaction_date=transaction_date,
             transaction_type=InvestmentTransactionType.BUY,
             asset_identifier=asset_identifier,
-            quantity=_quantized_quantity(quantity),
+            quantity=trade_quantity,
             unit_price=_quantized_unit_rate(unit_price),
             gross_amount=amount,
             fees=_money(fees),
@@ -157,14 +160,14 @@ class InvestmentAccountingService:
             opening_transaction_id=transaction.id,
             asset_identifier=asset_identifier,
             acquisition_date=transaction_date,
-            original_quantity=_quantized_quantity(quantity),
-            remaining_quantity=_quantized_quantity(quantity),
-            unit_cost=_quantized_unit_rate(amount / quantity),
+            original_quantity=trade_quantity,
+            remaining_quantity=trade_quantity,
+            unit_cost=_quantized_unit_rate(amount / trade_quantity),
             currency=currency,
         )
         db.add(lot)
 
-        position.quantity = _quantized_quantity(position.quantity + quantity)
+        position.quantity = _quantized_quantity(position.quantity + trade_quantity)
         position.cost_basis = _money(position.cost_basis + amount)
         position.cost_basis_method = cost_basis_method
         position.status = PositionStatus.ACTIVE
@@ -196,6 +199,9 @@ class InvestmentAccountingService:
         self._validate_positive(quantity, "quantity")
         self._validate_non_negative(unit_price, "unit_price")
         self._validate_non_negative(fees, "fees")
+        trade_quantity = _quantized_quantity(quantity)
+        if _quantity_is_zero(trade_quantity):
+            raise InvestmentAccountingValidationError("quantity must round to a non-zero quantity")
 
         cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
         investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
@@ -207,14 +213,14 @@ class InvestmentAccountingService:
             asset_identifier=asset_identifier,
         )
 
-        proceeds = _money(quantity * unit_price - fees)
+        proceeds = _money(trade_quantity * unit_price - fees)
         if proceeds <= Decimal("0"):
             raise InvestmentAccountingValidationError("sell proceeds must be positive")
         cost_basis = await self._consume_lots(
             db,
             user_id=user_id,
             position=position,
-            quantity=quantity,
+            quantity=trade_quantity,
             method=cost_basis_method,
             disposal_date=transaction_date,
         )
@@ -276,7 +282,7 @@ class InvestmentAccountingService:
         )
         posted = await self._post_and_load(db, entry.id, user_id)
 
-        position.quantity = _quantized_quantity(position.quantity - quantity)
+        position.quantity = _quantized_quantity(position.quantity - trade_quantity)
         position.cost_basis = _money(position.cost_basis - cost_basis)
         position.realized_pnl = _money((position.realized_pnl or Decimal("0.00")) + realized_pnl)
         position.cost_basis_method = cost_basis_method
@@ -292,7 +298,7 @@ class InvestmentAccountingService:
             transaction_date=transaction_date,
             transaction_type=InvestmentTransactionType.SELL,
             asset_identifier=asset_identifier,
-            quantity=_quantized_quantity(quantity),
+            quantity=trade_quantity,
             unit_price=_quantized_unit_rate(unit_price),
             gross_amount=proceeds,
             fees=_money(fees),
@@ -469,7 +475,7 @@ class InvestmentAccountingService:
             user_id=user_id,
             account_id=account_id,
             asset_identifier=asset_identifier,
-            quantity=Decimal("0.000000"),
+            quantity=Quantity.zero(INVESTMENT_QUANTITY_UNIT).quantize().value,
             cost_basis=Decimal("0.00"),
             currency=currency,
             acquisition_date=transaction_date,
@@ -518,7 +524,11 @@ class InvestmentAccountingService:
 
         if method == CostBasisMethod.AVGCOST:
             avg_unit_cost = _quantized_unit_rate(
-                sum((lot.remaining_quantity * lot.unit_cost for lot in lots), Decimal("0.00")) / total_available
+                sum(
+                    (_quantized_quantity(lot.remaining_quantity) * lot.unit_cost for lot in lots),
+                    Decimal("0.00"),
+                )
+                / total_available
             )
             for lot in lots:
                 lot.unit_cost = avg_unit_cost
@@ -526,14 +536,14 @@ class InvestmentAccountingService:
         remaining_to_sell = _quantized_quantity(quantity)
         cost_basis = Decimal("0.00")
         for lot in lots:
-            if remaining_to_sell <= Decimal("0"):
+            if remaining_to_sell <= Quantity.zero(INVESTMENT_QUANTITY_UNIT).value:
                 break
-            consumed = min(lot.remaining_quantity, remaining_to_sell)
-            cost_basis += consumed * lot.unit_cost
-            lot.remaining_quantity = _quantized_quantity(lot.remaining_quantity - consumed)
+            consumed_quantity = min(_quantized_quantity(lot.remaining_quantity), remaining_to_sell)
+            cost_basis += consumed_quantity * lot.unit_cost
+            lot.remaining_quantity = _quantized_quantity(lot.remaining_quantity - consumed_quantity)
             if _quantity_is_zero(lot.remaining_quantity):
                 lot.disposed_date = disposal_date
-            remaining_to_sell = _quantized_quantity(remaining_to_sell - consumed)
+            remaining_to_sell = _quantized_quantity(remaining_to_sell - consumed_quantity)
 
         await db.flush()
         return _money(cost_basis)
@@ -550,7 +560,7 @@ class InvestmentAccountingService:
             select(InvestmentLot)
             .where(InvestmentLot.user_id == user_id)
             .where(InvestmentLot.position_id == position_id)
-            .where(InvestmentLot.remaining_quantity > Decimal("0"))
+            .where(InvestmentLot.remaining_quantity > Quantity.zero(INVESTMENT_QUANTITY_UNIT).value)
         )
         if method == CostBasisMethod.LIFO:
             query = query.order_by(InvestmentLot.acquisition_date.desc(), InvestmentLot.created_at.desc())

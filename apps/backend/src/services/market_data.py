@@ -25,9 +25,11 @@ from src.models.account import Account
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
+from src.quantity import Quantity
 
 logger = get_logger(__name__)
 
+MARKET_DATA_QUANTITY_UNIT = "units"
 _RATE_QUANT = Decimal("0.000001")
 _PRICE_QUANT = Decimal("0.000001")
 _DEFAULT_INCREMENTAL_LOOKBACK_DAYS = 7
@@ -44,6 +46,10 @@ _STOOQ_DAILY_URL = "https://stooq.com/q/d/l/"
 # which is not a ticker and would 404 against Yahoo on every lookup.
 _TICKER_MAX_LENGTH = 15
 _TICKER_PATTERN = re.compile(r"^\^?[A-Za-z0-9]+([.\-=][A-Za-z0-9]+)*$")
+
+
+def _quantity_zero() -> Decimal:
+    return Quantity.zero(MARKET_DATA_QUANTITY_UNIT).value
 
 
 @dataclass(frozen=True)
@@ -862,7 +868,7 @@ async def _active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[
     stmt = (
         select(ManagedPosition.asset_identifier)
         .where(ManagedPosition.status == PositionStatus.ACTIVE)
-        .where(ManagedPosition.quantity != Decimal("0"))
+        .where(ManagedPosition.quantity != _quantity_zero())
         .order_by(ManagedPosition.asset_identifier)
     )
     if user_id is not None:
@@ -1161,9 +1167,11 @@ _FX_SYNC_SPEC = _MarketSyncSpec(
     ),
     persist_observation=_persist_fx_rate,
     observation_date=_observation_date,
-    observation_matches_scope=lambda observation, scope: isinstance(observation, FxRateObservation)
-    and _normalize_currency(observation.base_currency) == scope[0]
-    and _normalize_currency(observation.quote_currency) == scope[1],
+    observation_matches_scope=lambda observation, scope: (
+        isinstance(observation, FxRateObservation)
+        and _normalize_currency(observation.base_currency) == scope[0]
+        and _normalize_currency(observation.quote_currency) == scope[1]
+    ),
 )
 
 
@@ -1180,8 +1188,9 @@ _STOCK_SYNC_SPEC = _MarketSyncSpec(
     ),
     persist_observation=_persist_stock_price,
     observation_date=_observation_date,
-    observation_matches_scope=lambda observation, scope: isinstance(observation, StockPriceObservation)
-    and _normalize_symbol(observation.symbol) == scope,
+    observation_matches_scope=lambda observation, scope: (
+        isinstance(observation, StockPriceObservation) and _normalize_symbol(observation.symbol) == scope
+    ),
 )
 
 

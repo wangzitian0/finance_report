@@ -48,6 +48,7 @@ const VALUATION_SOURCES: Array<{ value: ManualValuationSource; label: string }> 
     { value: "property_valuation", label: "Property valuation" },
     { value: "other_document", label: "Other source document" },
 ];
+type AmountValue = ReturnType<typeof parseAmount>;
 
 function labelForValuationType(type: ManualValuationComponentType): string {
     return VALUATION_TYPES.find((item) => item.value === type)?.label ?? type;
@@ -147,7 +148,7 @@ export default function AssetsPage() {
         const existing = totals[currency] ?? parseAmount(0);
         totals[currency] = existing.add(parseAmount(pos.cost_basis));
         return totals;
-    }, {} as Record<string, import("decimal.js").Decimal>);
+    }, {} as Record<string, AmountValue>);
     const allocationByCurrency = Object.entries(totalsByCurrency)
         .sort((a, b) => b[1].comparedTo(a[1]))
         .map(([currency, total]) => ({
@@ -452,7 +453,7 @@ export default function AssetsPage() {
                             const existing = totals[currency] ?? parseAmount(0);
                             totals[currency] = existing.add(parseAmount(p.cost_basis));
                             return totals;
-                        }, {} as Record<string, import("decimal.js").Decimal>);
+                        }, {} as Record<string, AmountValue>);
                         return (
                             <div key={broker} className="card">
                                 <div className="card-header flex items-center justify-between">
