@@ -1,256 +1,122 @@
-"""Issue #575: production deploy must verify effective remote app env.
+"""Issue #575 / AC7.14: fixed-env deploys verify effective remote app config.
 
-A Dokploy deploy can report success while the effective production app
-configuration remains on the previous release (stale ``IMAGE_TAG`` /
-``GIT_COMMIT_SHA`` / ``IAC_CONFIG_HASH``). The deploy script must read back the
-effective remote app env *before* the long health wait, fail fast with
-diagnostics that name the stale values (never secrets), and expose a guarded
-force-recreate / reconcile path for stateless app containers.
-
-These are behavioral contract tests: they source the relevant function block
-out of ``tools/_lib/shell/dokploy_deploy.sh`` and run it under bash with the
-Dokploy API calls stubbed, mirroring
-``test_post_merge_e2e_gates.py::test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast``.
+The legacy shell deploy path has been retired. The contract now lives in infra2's
+Python fixed-compose primitive, which deploy_v2 calls for staging and production.
+These tests pin the cross-repo contract from the app repo: each deploy writes a
+fresh IAC_CONFIG_HASH, waits for a new Dokploy rollout record, and then reads the
+effective Dokploy env back before the public health wait.
 """
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEPLOY_SCRIPT = ROOT / "tools" / "_lib" / "shell" / "dokploy_deploy.sh"
 
 
-def _function_block(start: str, end: str) -> str:
-    """Extract the source text from ``start`` (inclusive) up to ``end``."""
-    text = DEPLOY_SCRIPT.read_text(encoding="utf-8")
-    assert start in text, f"{start} missing from deploy script"
-    assert end in text, f"{end} missing from deploy script"
-    return start + text.split(start, 1)[1].split(end, 1)[0]
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
 
 
-# A minimal harness: the verification function plus stubs for the common-shell
-# helpers it relies on (env_value / render_allowlisted_env_diff style readback).
-_HARNESS_HELPERS = r"""
-env_value() {
-  printf "%s\n" "$1" | awk -F= -v key="$2" '$1 == key { sub(/^[^=]*=/, ""); print }'
-}
-# Stub dokploy_api_call: write the queued response body to the output file.
-dokploy_api_call() {
-  local method="$1" endpoint="$2" data="$3" output_file="$4"
-  printf "%s" "$STUB_EFFECTIVE_RESPONSE" > "$output_file"
-  return 0
-}
-safe_jq() {
-  local filter="$1" json="$2"
-  printf "%s" "$json" | jq -r "$filter"
-}
-"""
+def test_AC7_14_1_verify_runs_after_rollout_and_before_health() -> None:
+    """AC7.14.1 AC7.14.4: effective-config verification gates fixed-env deploy success."""
+    primitive = read("repo/tools/deploy_primitive.py")
+    staging = read(".github/workflows/staging-deploy.yml")
+    production = read(".github/workflows/production-release.yml")
+    primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
 
-
-def _run(snippet: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["bash", "-c", snippet],
-        cwd=ROOT,
-        env={"PATH": "/usr/bin:/bin:/usr/local/bin", **env},
-        text=True,
-        capture_output=True,
-        check=False,
+    assert "def verify_effective_config_hash(" in primitive
+    assert "client.get_compose_env(compose_id)" in primitive
+    assert '"IAC_CONFIG_HASH"' in primitive
+    assert "verify_config: bool = False" in primitive
+    assert "verify_effective_config_hash(" in primitive
+    assert primitive.index("client.deploy_compose(cfg.compose_id)") < primitive.index(
+        "verify_effective_config_hash(\n            client"
     )
 
-
-def test_AC7_14_1_verify_passes_when_effective_env_matches() -> None:
-    """AC7.14.1 AC7.14.2: matching effective remote env proceeds (exit 0)."""
-    block = _function_block(
-        "verify_effective_remote_app_env()", "force_recreate_stateless_app()"
+    assert "python -m tools.deploy_v2" in staging
+    assert "- name: Confirm staging backend health" in staging
+    assert staging.index("python -m tools.deploy_v2") < staging.index(
+        "- name: Confirm staging backend health"
     )
-    response = (
-        '{"env":"IMAGE_TAG=v0.1.5\\nGIT_COMMIT_SHA=v0.1.5\\n'
-        'IAC_CONFIG_HASH=deploy-v0.1.5-123\\nVAULT_APP_TOKEN=hvs.secret"}'
-    )
-    snippet = (
-        _HARNESS_HELPERS
-        + block
-        + '\nverify_effective_remote_app_env "cid" "v0.1.5" "deploy-v0.1.5-123"\n'
-    )
-    result = _run(snippet, {"STUB_EFFECTIVE_RESPONSE": response})
-    assert result.returncode == 0, result.stdout + result.stderr
-    out = result.stdout + result.stderr
-    assert "effective_env_verification: match" in out
-    # Never echo secret env values.
-    assert "hvs.secret" not in out
-
-
-def test_AC7_14_2_verify_fails_fast_and_names_stale_values() -> None:
-    """AC7.14.2 AC7.14.4: stale effective env fails fast naming the stale keys."""
-    block = _function_block(
-        "verify_effective_remote_app_env()", "force_recreate_stateless_app()"
-    )
-    # Dokploy reported success but the effective env is still on v0.1.4.
-    response = (
-        '{"env":"IMAGE_TAG=v0.1.4\\nGIT_COMMIT_SHA=v0.1.4\\n'
-        'IAC_CONFIG_HASH=deploy-v0.1.4-000\\nVAULT_APP_TOKEN=hvs.secret"}'
-    )
-    snippet = (
-        _HARNESS_HELPERS
-        + block
-        + '\nverify_effective_remote_app_env "cid" "v0.1.5" "deploy-v0.1.5-123"\n'
-    )
-    result = _run(snippet, {"STUB_EFFECTIVE_RESPONSE": response})
-    out = result.stdout + result.stderr
-    assert result.returncode != 0, out
-    assert "effective_env_verification: stale" in out
-    # Diagnostics must name each stale value (expected vs actual), no secrets.
-    assert "IMAGE_TAG: expected=v0.1.5 actual=v0.1.4" in out
-    assert "GIT_COMMIT_SHA: expected=v0.1.5 actual=v0.1.4" in out
-    assert "IAC_CONFIG_HASH: expected=deploy-v0.1.5-123 actual=deploy-v0.1.4-000" in out
-    assert "hvs.secret" not in out
-
-
-def test_AC7_14_3_force_recreate_path_exists_and_is_guarded() -> None:
-    """AC7.14.3 AC7.14.4: a guarded force-recreate reconcile path exists.
-
-    The reconcile path must (a) be guarded by an explicit opt-in env flag,
-    (b) refresh the release token (new IAC_CONFIG_HASH), and (c) handle the
-    fixed ``container_name`` conflict for stateless app containers.
-    """
-    script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
-    assert "force_recreate_stateless_app()" in script
-    assert "verify_effective_remote_app_env" in script
-    # Verification happens before the long health wait: the call site precedes
-    # the script returning success.
-    assert script.index('verify_effective_remote_app_env "$COMPOSE_ID"') < script.index(
-        'echo "Deployment triggered successfully"'
-    )
-    # Guarded reconcile: explicit opt-in flag, forced token refresh, and
-    # container_name conflict handling.
-    assert "DOKPLOY_ALLOW_FORCE_RECREATE" in script
-    assert "IAC_CONFIG_HASH" in script
-    assert "container_name" in script.lower()
-    # Force-recreate is only attempted on a detected stale-env mismatch.
-    assert "force_recreate_stateless_app" in script
-
-
-def test_AC7_14_6_rollout_baseline_snapshotted_before_force_recreate() -> None:
-    """AC7.14.6: the rollout-wait baseline is the PRE-reconcile snapshot.
-
-    Regression guard for the Copilot ordering bug: ``previous_deployment_ids`` /
-    ``previous_deployment_signatures`` (the baseline passed to
-    ``wait_for_dokploy_deployment_rollout``) must be captured from the
-    pre-reconcile ``compose.one`` snapshot, *before*
-    ``force_recreate_stateless_app`` triggers ``compose.redeploy``. Capturing
-    them after the redeploy lets a fast redeploy's freshly-created deployment
-    record leak into the baseline, so the waiter sees no "new" deployment and
-    spuriously times out with "did not create a new deployment".
-    """
-    script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
-
-    # The baseline capture from the pre-reconcile snapshot must precede the
-    # force-recreate call that triggers compose.redeploy.
-    baseline_capture = 'previous_deployment_ids=$(deployment_ids_from_response "$reconcile_response")'
-    force_recreate_call = 'force_recreate_stateless_app "$COMPOSE_ID" "$IMAGE_TAG"'
-    assert baseline_capture in script, "pre-reconcile baseline capture missing"
-    assert force_recreate_call in script, "force-recreate call missing"
-    assert script.index(baseline_capture) < script.index(force_recreate_call), (
-        "rollout baseline must be snapshotted BEFORE force_recreate triggers redeploy"
+    assert "python -m tools.deploy_v2" in production
+    assert "- name: Confirm production backend health" in production
+    assert production.index("python -m tools.deploy_v2") < production.index(
+        "- name: Confirm production backend health"
     )
 
-    # The pre-reconcile snapshot must feed the rollout wait, and a stale
-    # post-reconcile snapshot must NOT be used as the rollout baseline.
-    assert (
-        'previous_deployment_signatures=$(deployment_signature_map_from_response "$reconcile_response")'
-        in script
-    ), "pre-reconcile signature baseline missing"
-    assert (
-        "Post-reconcile deployment snapshot" not in script
-    ), "post-reconcile snapshot must not be used as the rollout baseline"
+    assert "test_verify_effective_config_hash_returns_on_match" in primitive_tests
+    assert "test_verify_effective_config_hash_raises_if_never_advances" in primitive_tests
+    assert "test_deploy_verify_config_confirms_pushed_hash_rolled_out" in primitive_tests
 
 
-def test_AC7_14_6_fast_redeploy_detected_as_new_with_pre_reconcile_baseline() -> None:
-    """AC7.14.6: a fast redeploy is still recognized as a new deployment.
+def test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo() -> None:
+    """AC7.14.2: stale effective config raises a named failure, not a late health 404."""
+    primitive = read("repo/tools/deploy_primitive.py")
+    dokploy_client = read("repo/libs/dokploy.py")
+    primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
 
-    Behavioral regression test exercising the real
-    ``wait_for_dokploy_deployment_rollout`` with the pre-reconcile baseline.
-    The pre-reconcile snapshot has a single deployment ``d1``. By the time the
-    rollout waiter probes, the fast redeploy has already created ``d2``
-    (status ``done``). Using the pre-reconcile baseline ({d1}) the waiter sees
-    ``d2`` as new and succeeds. If the (buggy) post-reconcile baseline
-    ({d1,d2}) were used, ``d2`` would not be "new" and the waiter would time
-    out -- so this asserts the correct ordering end-to-end.
-    """
-    helpers = _function_block(
-        "deployment_ids_from_response()", "redact_dokploy_diagnostic_value()"
-    )
-    waiter = _function_block(
-        "wait_for_dokploy_deployment_rollout()", "deploy_compose()"
-    )
+    verify_block = primitive.split("def verify_effective_config_hash(", 1)[1].split(
+        "\ndef ", 1
+    )[0]
+    assert "post-deploy config verify failed" in verify_block
+    assert "effective IAC_CONFIG_HASH" in verify_block
+    assert "expected_hash" in verify_block
+    assert "last" in verify_block
+    assert "raise RuntimeError" in verify_block
+    assert "VAULT_APP_TOKEN" not in verify_block
+    assert "DATABASE_URL" not in verify_block
 
-    # Pre-reconcile snapshot: only d1 exists.
-    pre_snapshot = '{"deployments":[{"deploymentId":"d1","status":"done","createdAt":"1"}]}'
-    # Rollout probe response: fast redeploy already created d2 (done).
-    rollout_resp = (
-        '{"composeStatus":"done","deployments":['
-        '{"deploymentId":"d1","status":"done","createdAt":"1"},'
-        '{"deploymentId":"d2","status":"done","createdAt":"2"}]}'
-    )
-
-    harness = r"""
-response_file=$(mktemp)
-safe_jq() { printf "%s" "$2" | jq -r "$1"; }
-render_dokploy_rollout_summary() { :; }
-# Sequenced stub: first call returns the pre-reconcile snapshot, every
-# subsequent (rollout probe) call returns the post-redeploy rollout response.
-__CALLS=0
-dokploy_api_call() {
-  local output_file="$4"
-  __CALLS=$((__CALLS + 1))
-  if [[ "$__CALLS" -eq 1 ]]; then
-    printf "%s" "$PRE_SNAPSHOT" > "$output_file"
-  else
-    printf "%s" "$ROLLOUT_RESP" > "$output_file"
-  fi
-  return 0
-}
-"""
-
-    # Reconstruct the fixed reconcile ordering: capture baseline from the
-    # pre-reconcile snapshot BEFORE the (stubbed) redeploy, then wait.
-    driver = r"""
-dokploy_api_call "GET" "compose.one?composeId=cid" "" "$response_file" "Pre-reconcile env snapshot"
-reconcile_response=$(cat "$response_file")
-previous_deployment_ids=$(deployment_ids_from_response "$reconcile_response")
-previous_deployment_signatures=$(deployment_signature_map_from_response "$reconcile_response")
-# (force_recreate -> compose.redeploy happens here; the fast redeploy created d2)
-wait_for_dokploy_deployment_rollout "cid" "$previous_deployment_ids" "$previous_deployment_signatures"
-echo "RECONCILE_ROLLOUT_OK"
-"""
-
-    snippet = helpers + waiter + harness + driver
-    result = _run(
-        snippet,
-        {
-            "PRE_SNAPSHOT": pre_snapshot,
-            "ROLLOUT_RESP": rollout_resp,
-            "DOKPLOY_ROLLOUT_INTERVAL_SECONDS": "0",
-            "DOKPLOY_ROLLOUT_TIMEOUT_SECONDS": "5",
-            "DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS": "5",
-        },
-    )
-    out = result.stdout + result.stderr
-    assert result.returncode == 0, out
-    # The new deployment d2 must be detected as new (not hidden by the baseline).
-    assert "new_deployment_ids=d2" in out, out
-    assert "RECONCILE_ROLLOUT_OK" in out, out
-    assert "did not create a new deployment" not in out, out
+    assert "get_compose_env(self, compose_id: str) -> str" in dokploy_client
+    assert "return compose.get(\"env\") or \"\"" in dokploy_client
+    assert "test_verify_effective_config_hash_raises_if_never_advances" in primitive_tests
 
 
-def test_AC7_14_5_deployment_doc_describes_stale_env_failure_and_recovery() -> None:
-    """AC7.14.5: deployment SSOT documents the stale-env failure mode + recovery."""
-    doc = (ROOT / "docs" / "ssot" / "deployment.md").read_text(encoding="utf-8")
+def test_AC7_14_3_no_force_recreate_escape_hatch_remains() -> None:
+    """AC7.14.3: stale effective config is fail-closed; reruns use deploy_v2."""
+    primitive = read("repo/tools/deploy_primitive.py")
+    production = read(".github/workflows/production-release.yml")
+    deployment_doc = read("docs/ssot/deployment.md")
+
+    assert "DOKPLOY_ALLOW_FORCE_RECREATE" not in primitive
+    assert "force_recreate_stateless_app" not in primitive
+    assert "compose.redeploy" not in primitive
+    assert "compose.redeploy" not in production
+    assert "--no-verify-config" not in production
+    assert "manual rerun" in deployment_doc.lower()
+    assert "deploy_v2" in deployment_doc
+
+
+def test_AC7_14_6_rollout_baseline_is_snapshotted_before_mutation() -> None:
+    """AC7.14.6: rollout wait compares against the pre-mutation deployment ids."""
+    primitive = read("repo/tools/deploy_primitive.py")
+    primitive_tests = read("repo/libs/tests/test_deploy_primitive.py")
+
+    baseline = "before_ids = ("
+    update = "client.update_compose_env(cfg.compose_id, env_vars=env_vars)"
+    deploy = "client.deploy_compose(cfg.compose_id)"
+    wait = "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)"
+
+    assert baseline in primitive
+    assert update in primitive
+    assert deploy in primitive
+    assert wait in primitive
+    assert primitive.index(baseline) < primitive.index(update)
+    assert primitive.index(update) < primitive.index(deploy)
+    assert primitive.index(deploy) < primitive.index(wait)
+
+    assert "test_wait_for_rollout_ignores_pre_existing_records" in primitive_tests
+    assert "test_wait_for_rollout_returns_when_a_new_record_reaches_done" in primitive_tests
+    assert "test_wait_for_rollout_times_out_if_no_new_record_finishes" in primitive_tests
+
+
+def test_AC7_14_5_deployment_doc_describes_effective_config_failure_and_recovery() -> None:
+    """AC7.14.5: deployment SSOT documents stale effective-config failure + recovery."""
+    doc = read("docs/ssot/deployment.md")
     lowered = doc.lower()
+
     assert "stale" in lowered
     assert "effective" in lowered and "verif" in lowered
-    assert "force" in lowered and "recreate" in lowered
     assert "iac_config_hash" in lowered
-    assert "dokploy_allow_force_recreate" in lowered
+    assert "deploy_v2" in lowered
+    assert "manual rerun" in lowered

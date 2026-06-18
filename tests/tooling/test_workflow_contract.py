@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 _CONTRACT_INPUTS = (
     ".github/workflows/ci.yml",
     ".github/workflows/staging-deploy.yml",
+    ".github/workflows/release-images.yml",
     ".github/workflows/production-release.yml",
     ".github/workflows/docs.yml",
     "docs/ssot/ci-cd.md",

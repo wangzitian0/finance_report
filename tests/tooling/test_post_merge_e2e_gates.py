@@ -482,68 +482,30 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
 
 
 def test_AC8_13_11_deploy_preflights_vault_token_before_redeploy() -> None:
-    """AC8.13.11: Staging deploy fails before redeploy when Vault token is invalid."""
-    common = read("common/shell/common.sh")
-    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    """AC8.13.11: deploy_v2 fails before rollout on invalid legacy Vault tokens."""
+    primitive = read("repo/tools/deploy_primitive.py")
+    deploy_v2 = read("repo/tools/deploy_v2.py")
+    staging_workflow = read(".github/workflows/staging-deploy.yml")
+    production_workflow = read(".github/workflows/production-release.yml")
 
-    assert "verify_vault_app_token()" in common
-    assert "auth/token/lookup-self" in common
-    assert "VAULT_APP_TOKEN is invalid or expired" in common
-    assert "VAULT_APP_TOKEN is not renewable" in common
-    assert "ttl ${ttl}s is below required" in common
-    assert (
-        "DEPLOY_ENV=${repair_env} invoke vault.setup-approle --project=finance_report --service=app --deploy"
-        in common
-    )
-    assert "Do not add VAULT_ROOT_TOKEN to GitHub Actions" in common
-    assert (
-        'verify_vault_app_token "$current_env" "Dokploy VAULT_APP_TOKEN preflight" 172800 "$vault_repair_env"'
-        in deploy_script
-    )
-    assert 'vault_repair_env="staging"' in deploy_script
-    assert deploy_script.index("verify_vault_app_token") < deploy_script.index(
-        'dokploy_api_call "POST" "compose.update"'
+    assert "def preflight_vault_token(" in primitive
+    assert "verify_vault_token(" in primitive
+    assert "VAULT_APP_TOKEN preflight failed" in primitive
+    assert "min_ttl_hours: int = 48" in primitive
+    assert "remove it from the service's Dokploy env" in primitive
+
+    assert '_env_value(env_text, "VAULT_ROLE_ID")' in primitive
+    assert '_env_value(env_text, "VAULT_SECRET_ID")' in primitive
+    assert "AppRole auth -> any leftover VAULT_APP_TOKEN is unused" in primitive
+    assert primitive.index("preflight_vault_token(client") < primitive.index(
+        "client.update_compose_env"
     )
 
-
-def _run_verify_vault_app_token(env_content: str) -> subprocess.CompletedProcess:
-    """Source common.sh and invoke verify_vault_app_token against env_content."""
-    script = (
-        'source "$1"\n'
-        'verify_vault_app_token "$2" "preflight" 172800 "staging"\n'
-    )
-    return subprocess.run(
-        ["bash", "-c", script, "bash", "common/shell/common.sh", env_content],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-
-
-def test_AC8_13_11_deploy_preflight_skips_vault_token_for_approle_services() -> None:
-    """AC8.13.11: the Vault token preflight skips (does not hard-fail) when the
-    Dokploy compose authenticates via AppRole (VAULT_ROLE_ID/VAULT_SECRET_ID present)
-    and carries no VAULT_APP_TOKEN. The AppRole migration retired the static token, so
-    gating staging/production deploys on its presence would hard-block every deploy of
-    a migrated service. Mirrors the infra2 Python preflight tools/deploy_primitive.py."""
-    approle_env = (
-        "VAULT_ADDR=https://vault.zitian.party\n"
-        "VAULT_ROLE_ID=role-abc\n"
-        "VAULT_SECRET_ID=secret-xyz"
-    )
-    result = _run_verify_vault_app_token(approle_env)
-    assert result.returncode == 0, (
-        "AppRole compose (no VAULT_APP_TOKEN) must pass the preflight, got "
-        f"exit {result.returncode}: {result.stderr}"
-    )
-    assert "VAULT_APP_TOKEN is missing" not in result.stderr
-    assert "AppRole" in result.stderr
-
-    # A non-AppRole compose with no token still hard-fails (token-based auth path intact).
-    legacy_env = "VAULT_ADDR=https://vault.zitian.party"
-    legacy = _run_verify_vault_app_token(legacy_env)
-    assert legacy.returncode == 1
-    assert "VAULT_APP_TOKEN is missing" in legacy.stderr
+    assert "verify_vault: bool = True" in deploy_v2
+    assert "verify_vault=verify_vault" in deploy_v2
+    assert "--skip-vault-check" in deploy_v2
+    assert "--skip-vault-check" not in staging_workflow
+    assert "--skip-vault-check" not in production_workflow
 
 
 def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
@@ -635,12 +597,13 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     )
     assert "name: Staging AI/OCR Gate" in deploy_workflow
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
+    assert "deployed_tag: ${{ inputs.tag }}" in deploy_workflow
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
     )
     assert "PARSING_TIMEOUT_MS: 480000" in deploy_workflow
     assert (
-        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}"
+        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}"
         in deploy_workflow
     )
     assert 'run_timed_phase "Staging AI/OCR Gate' in deploy_workflow
@@ -681,7 +644,10 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
         assert "## Staging Audit Replay Summary" in workflow
         assert "- Environment: staging" in workflow
         assert "- GitHub run ID: ${{ github.run_id }}" in workflow
-        assert "- Expected SHA: ${EXPECTED_SHA}" in workflow
+        assert (
+            "- Expected SHA: ${EXPECTED_SHA}" in workflow
+            or "- Expected version: ${EXPECTED_SHA}" in workflow
+        )
         assert "- Backend image tag:" in workflow
         assert "- Frontend image tag:" in workflow
         assert (
@@ -836,7 +802,6 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     assert "ci-context/staging-ai-ocr-context.txt" in manual_ai
     assert "test-results/staging-ai-ocr-gate.xml" in manual_ai
 
-    assert "production-release-build-context" in production
     assert "production-dry-run-context" in production
     assert "production-deploy-test-context" in production
     assert "test-results/production-readonly-e2e.xml" in production
@@ -863,8 +828,12 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
     assert "workflow_run" not in triggers, (
         "staging deploy must NOT auto-follow CI (manual-only)"
     )
-    assert "ref" in (triggers["workflow_dispatch"].get("inputs") or {}), (
-        "manual dispatch must accept a `ref` input to deploy any commit"
+    inputs = triggers["workflow_dispatch"].get("inputs") or {}
+    assert "tag" in inputs, (
+        "manual dispatch must accept a `tag` input to deploy a published release"
+    )
+    assert inputs["tag"].get("required") is True, (
+        "staging deploy must require an explicit published release tag"
     )
     # The deploy job still must not poll/wait for CI inside the job.
     assert "wait_for_github_ci.py" not in workflow
@@ -997,7 +966,7 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
     staging = workflows[0]
     assert "Performance Benchmark" not in staging
     assert "Don't block deploy, but report issues" not in staging
-    assert "Deploy dependency preflight lives in `tools/dokploy_deploy.sh`" in ci_cd
+    assert "Deploy dependency preflight lives in `repo/tools/deploy_v2.py`" in ci_cd
 
 
 def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> None:
@@ -1011,19 +980,31 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     assert "github.event_name == 'workflow_dispatch' && inputs.dry_run" in workflow
     assert "moon run :lint" in workflow
     assert "moon run :test" not in workflow
+    assert "Resolve release tag" in workflow
     assert "Verify source CI passed" in workflow
     assert "--workflow ci.yml" in workflow
-    assert '--commit "$GITHUB_SHA"' in workflow
+    assert '--commit "$RELEASE_SHA"' in workflow
     assert '.headBranch == "main"' in workflow
-    assert "Verify SHA Images Dry Run" in workflow
+    assert "Verify release images workflow passed" in workflow
+    assert "Verify staging passed" in workflow
+    assert "Verify Release Images Dry Run" in workflow
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
     assert "environment:" not in dry_run_section
     assert "dokploy_deploy.sh" not in dry_run_section
     assert "inputs.dry_run" in workflow.split("deploy:", 1)[1].split("steps:", 1)[0]
     assert "Production release dry-run" in ci_cd
-    assert "Verify SHA Images Dry Run" in workflow
+    assert "Verify Release Images Dry Run" in workflow
     assert "docker buildx imagetools create" not in dry_run_section
+
+
+def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
+    """AC8.13.52: Production release requires staging validation for the exact tag."""
+    workflow = read(".github/workflows/production-release.yml")
+
+    assert 'expected_title = f"Deploy Staging {release_tag}"' in workflow
+    assert workflow.count('run.get("displayTitle") == expected_title') == 2
+    assert 'release_tag in (run.get("displayTitle") or "")' not in workflow
 
 
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
@@ -1282,24 +1263,32 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
 def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     """AC8.13.67: Production release preserves deployed version metadata."""
     workflow = read(".github/workflows/production-release.yml")
-    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    release_images = read(".github/workflows/release-images.yml")
+    primitive = read("repo/tools/deploy_primitive.py")
     app_compose = read("repo/finance_report/finance_report/10.app/compose.yaml")
 
-    # In the promote-not-rebuild pattern, we promote staging-validated images instead of rebuilding.
-    # We verify that promotion uses docker buildx imagetools create.
-    promote_blocks = re.findall(r"docker buildx imagetools create --tag", workflow)
+    # In the promote-not-rebuild pattern, release-images publishes the retained tag
+    # once. Production consumes the tag through deploy_v2 and never re-promotes it.
+    promote_blocks = re.findall(r"docker buildx imagetools create --tag", release_images)
     assert len(promote_blocks) == 2
+    assert "docker buildx imagetools create --tag" not in workflow
 
     assert "Verify staging passed" in workflow
-    assert "Verify SHA Images Dry Run" in workflow
+    assert "Verify Release Images Dry Run" in workflow
 
-    config_hash_update = 'new_env=$(update_env_var "$new_env" "IAC_CONFIG_HASH" "deploy-${IMAGE_TAG}-$(date +%s)")'
-    assert config_hash_update in deploy_script
-    assert deploy_script.count('update_env_var "$new_env" "IAC_CONFIG_HASH"') == 1
-    assert deploy_script.index(config_hash_update) < deploy_script.index(
-        'dokploy_api_call "POST" "compose.update"'
+    config_hash_update = 'config_hash = f"deploy-{image_tag}-{int(_now() * 1000)}"'
+    assert config_hash_update in primitive
+    assert primitive.count('"IAC_CONFIG_HASH": config_hash') == 1
+    assert primitive.index('"IAC_CONFIG_HASH": config_hash') < primitive.index(
+        "client.update_compose_env"
     )
-    assert "models-${IMAGE_TAG}" not in deploy_script
+    assert primitive.index("client.update_compose_env") < primitive.index(
+        "client.deploy_compose"
+    )
+    assert primitive.index("client.deploy_compose") < primitive.index(
+        "verify_effective_config_hash(\n            client"
+    )
+    assert "models-${IMAGE_TAG}" not in primitive
 
     # The backend service must carry the deployed version metadata. Other sidecars
     # (e.g. the vault-agent telemetry tags added in Infra-014 #360) may also stamp
@@ -1313,23 +1302,27 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     """AC7.10.1 - AC7.10.5: Production release promotes staging-validated SHA image and fails closed on drift."""
     workflow = read(".github/workflows/production-release.yml")
+    release_images = read(".github/workflows/release-images.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
     deployment = read("docs/ssot/deployment.md")
 
-    # AC7.10.1: promotes staging-validated image instead of rebuilding
-    assert "docker buildx imagetools create --tag" in workflow
-    assert "docker/build-push-action" not in workflow
+    # AC7.10.1: release-images promotes main-CI SHA images instead of rebuilding.
+    assert "docker buildx imagetools create --tag" in release_images
+    assert "docker/build-push-action" not in release_images
+    assert "docker buildx imagetools create --tag" not in workflow
 
     # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
     assert "Verify staging passed" in workflow
+    assert "Verify release images workflow passed" in workflow
     assert "docker buildx imagetools inspect" in workflow
-    assert 'backend_sha_digest" != "$backend_promoted_digest' in workflow
-    assert 'frontend_sha_digest" != "$frontend_promoted_digest' in workflow
+    assert "main-CI SHA images not found" in release_images
+    assert 'backend_sha_digest" != "$backend_promoted_digest' in release_images
+    assert 'frontend_sha_digest" != "$frontend_promoted_digest' in release_images
 
     # AC7.10.3: summary records released commit, source CI run, digest, and no rebuild
-    assert "Released commit: ${{ github.sha }}" in workflow
-    assert "Source CI run: ${{ env.staging_run_id }}" in workflow
-    assert "Promoted backend image digest" in workflow
+    assert "Released commit: ${{ steps.version.outputs.full_sha }}" in workflow
+    assert "Source CI run: ${{ steps.source_ci.outputs.run_id }}" in workflow
+    assert "Backend release image digest" in workflow
     assert "No rebuild occurred" in workflow
 
     # AC7.10.4: SSOTs document promote-not-rebuild consistency ladder
@@ -1337,7 +1330,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     assert "promote-not-rebuild consistency ladder" in ci_cd
 
     # AC7.10.5: workflow_dispatch dry-run proves promote path without mutating
-    assert "Verify SHA Images Dry Run" in workflow
+    assert "Verify Release Images Dry Run" in workflow
     assert "dry_run:" in workflow
 
 
@@ -1350,7 +1343,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
-    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    primitive = read("repo/tools/deploy_primitive.py")
     preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle.py")
 
     assert "post-merge-train-turn:" not in workflow
@@ -1368,18 +1361,19 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
         "DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}" in workflow
     )
     assert (
-        'update_env_var "$new_env" "PRIMARY_MODEL" "$DEPLOY_PRIMARY_MODEL_OVERRIDE"'
-        in deploy_script
+        '"PRIMARY_MODEL": os.getenv("DEPLOY_PRIMARY_MODEL_OVERRIDE", "")'
+        in primitive
     )
     assert (
-        'update_env_var "$new_env" "OCR_MODEL" "$DEPLOY_OCR_MODEL_OVERRIDE"'
-        in deploy_script
+        '"OCR_MODEL": os.getenv("DEPLOY_OCR_MODEL_OVERRIDE", "")'
+        in primitive
     )
     assert (
-        'update_env_var "$new_env" "VISION_MODEL" "$DEPLOY_VISION_MODEL_OVERRIDE"'
-        in deploy_script
+        '"VISION_MODEL": os.getenv("DEPLOY_VISION_MODEL_OVERRIDE", "")'
+        in primitive
     )
-    assert 'update_env_var "$new_env" "IAC_CONFIG_HASH"' in deploy_script
+    assert "env_vars.update({k: v for k, v in model_overrides.items() if v})" in primitive
+    assert '"IAC_CONFIG_HASH": config_hash' in primitive
     assert '-m "(smoke or e2e) and not llm" -n 4' in workflow
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
     # Staging is manual-only; no workflow_run auto-trigger remains.
@@ -1514,8 +1508,8 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     assert "inherits the deploy workflow's `workflow_dispatch` trigger" in ci_cd
 
 
-def test_AC8_13_22_staging_deploy_builds_from_dispatched_ref() -> None:
-    """AC8.13.22: Staging deploy builds and deploys the manually dispatched `ref`."""
+def test_AC8_13_22_staging_deploys_manually_dispatched_release_tag() -> None:
+    """AC8.13.22: Staging deploys the manually dispatched published release tag."""
     workflow = read(".github/workflows/staging-deploy.yml")
 
     parsed = yaml.safe_load(workflow)
@@ -1527,27 +1521,31 @@ def test_AC8_13_22_staging_deploy_builds_from_dispatched_ref() -> None:
 
     assert "actions: read" in workflow
     assert "contents: read" in workflow
-    assert "packages: write" in workflow
+    assert "packages: read" in workflow
     # workflow_dispatch is the sole trigger, so the build-and-deploy job runs only
     # on a manual dispatch without a redundant (always-true) job-level `if`.
     assert list(triggers.keys()) == ["workflow_dispatch"]
     assert "Wait for matching CI success" not in workflow
-    # Checkout uses the dispatched ref (falling back to the triggering SHA), and
-    # that checkout happens before any build or deploy.
-    assert "ref: ${{ inputs.ref || github.sha }}" in workflow
-    assert workflow.index("ref: ${{ inputs.ref || github.sha }}") < workflow.index(
-        "Build and push Backend"
-    )
-    assert workflow.index("ref: ${{ inputs.ref || github.sha }}") < workflow.index(
-        "Deploy to Staging"
-    )
+    inputs = triggers["workflow_dispatch"].get("inputs") or {}
+    assert "tag" in inputs
+    assert inputs["tag"].get("required") is True
+    # Checkout uses the dispatched release tag, and that checkout happens before
+    # deploy_v2 consumes the already-published release images.
+    assert "ref: ${{ inputs.tag }}" in workflow
+    assert workflow.index("ref: ${{ inputs.tag }}") < workflow.index("Deploy to Staging")
+    assert "Build and push Backend" not in workflow
+    assert "Build and push Frontend" not in workflow
+    assert "Promote Backend Image to Staging Tag" not in workflow
+    assert "python -m tools.deploy_v2" in workflow
+    assert "--type staging" in workflow
+    assert '--version-ref "$tag"' in workflow
 
 
 def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
-    """AC8.13.36: Main CI builds SHA images and staging reuses them on manual dispatch."""
+    """AC8.13.36: Main CI builds SHA images, release-images tags them, staging deploys the tag."""
     ci_workflow = read(".github/workflows/ci.yml")
+    release_workflow = read(".github/workflows/release-images.yml")
     deploy_workflow = read(".github/workflows/staging-deploy.yml")
-    check_script = read("tools/_lib/shell/check_ghcr_image_tag.sh")
     ci_cd = read("docs/ssot/ci-cd.md")
 
     assert "container-images:" in ci_workflow
@@ -1581,41 +1579,31 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "backend:staging" not in ci_workflow
     assert "frontend:staging" not in ci_workflow
 
-    assert "Resolve Backend Image" in deploy_workflow
-    assert "Resolve Frontend Image" in deploy_workflow
-    assert "tools/check_ghcr_image_tag.sh" in deploy_workflow
-    assert "steps.backend_image.outputs.build_required == 'true'" in deploy_workflow
-    assert "steps.frontend_image.outputs.build_required == 'true'" in deploy_workflow
-    assert "Promote Backend Image to Staging Tag" in deploy_workflow
-    assert "Promote Frontend Image to Staging Tag" in deploy_workflow
-    assert "ref: ${{ inputs.ref || github.sha }}" in deploy_workflow
-    assert deploy_workflow.index(
-        "ref: ${{ inputs.ref || github.sha }}"
-    ) < deploy_workflow.index("Resolve Backend Image")
-    assert deploy_workflow.index("Resolve Backend Image") < deploy_workflow.index(
-        "Build and push Backend"
-    )
-    assert deploy_workflow.index("Resolve Frontend Image") < deploy_workflow.index(
-        "Build and push Frontend"
-    )
-    assert deploy_workflow.index("Build and push Frontend") < deploy_workflow.index(
-        "Promote Backend Image to Staging Tag"
-    )
-    assert deploy_workflow.index(
-        "Promote Backend Image to Staging Tag"
-    ) < deploy_workflow.index("Deploy to Staging")
+    assert "Release Images" in release_workflow
+    assert "tags: ['v[0-9]+.[0-9]+.[0-9]+']" in release_workflow
+    assert "docker buildx imagetools create --tag" in release_workflow
+    assert "Backend digests differ!" in release_workflow
+    assert "Frontend digests differ!" in release_workflow
 
-    assert "docker buildx imagetools inspect" in check_script
-    assert "docker buildx imagetools create" not in check_script
-    assert 'write_output "build_required" "false"' in check_script
-    assert 'write_output "build_required" "true"' in check_script
-    assert "SHA-tagged staging images" in ci_cd
-    assert "falls back to building only the missing image" in ci_cd
-    assert (
-        "promotes existing SHA images to the moving `staging` tag on a manual "
-        "dispatch" in ci_cd
+    assert "Resolve Backend Image" not in deploy_workflow
+    assert "Resolve Frontend Image" not in deploy_workflow
+    assert "tools/check_ghcr_image_tag.sh" not in deploy_workflow
+    assert "Build and push Backend" not in deploy_workflow
+    assert "Build and push Frontend" not in deploy_workflow
+    assert "Promote Backend Image to Staging Tag" not in deploy_workflow
+    assert "ref: ${{ inputs.tag }}" in deploy_workflow
+    assert deploy_workflow.index("ref: ${{ inputs.tag }}") < deploy_workflow.index(
+        "Deploy to Staging"
     )
-    assert "when the `:<sha>` image already exists from CI" in ci_cd
+    assert "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ inputs.tag }}" in deploy_workflow
+    assert "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ inputs.tag }}" in deploy_workflow
+
+    assert "SHA-tagged images" in ci_cd
+    assert "release-images.yml" in ci_cd
+    assert (
+        "promotes main-CI SHA images to the immutable release tag" in ci_cd
+    )
+    assert "staging deploy consumes the release tag without rebuilding" in ci_cd
 
 
 def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
@@ -1758,11 +1746,12 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
         in deploy_workflow
     )
     assert "commit_full_sha: ${{ steps.get_sha.outputs.full_sha }}" in deploy_workflow
+    assert "deployed_tag: ${{ inputs.tag }}" in deploy_workflow
     assert (
         "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
     )
     assert (
-        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.commit_sha }}"
+        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}"
         in deploy_workflow
     )
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
@@ -2081,7 +2070,9 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
     # The ONLY trigger is a manual dispatch: no workflow_run / push / schedule path
     # can mutate staging.
     assert list(triggers.keys()) == ["workflow_dispatch"]
-    assert "ref" in (triggers["workflow_dispatch"].get("inputs") or {})
+    inputs = triggers["workflow_dispatch"].get("inputs") or {}
+    assert "tag" in inputs
+    assert inputs["tag"].get("required") is True
 
     # The retired auto-deploy machinery (the dedicated "CI Workflow Run Ignored"
     # skip-summary job that fired on a non-success CI workflow_run) is gone.
@@ -2100,12 +2091,11 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
     ].split("Write staging deploy context", 1)[0]
     for expected_line in [
         "id: deploy_failure_context",
-        '"runner/docker-buildx-bootstrap"',
-        '"registry/backend-image-resolution"',
-        '"image-build/backend"',
-        '"registry/frontend-image-resolution"',
-        '"image-build/frontend"',
-        '"dokploy-rollout-or-health"',
+        '"toolchain/uv-install"',
+        '"toolchain/python-setup"',
+        '"toolchain/deploy-v2-deps"',
+        '"deploy-v2-rollout"',
+        '"staging-route-health"',
         '"application-smoke-e2e"',
         "Failure domain: ${failure_domain}",
         "Failed step: ${failed_step}",
@@ -2212,55 +2202,46 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
 def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> None:
     """AC8.13.72 AC8.13.106: staging proof checks health git_sha, not just Dokploy trigger."""
     workflow = read(".github/workflows/staging-deploy.yml")
-    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    deploy_v2 = read("repo/tools/deploy_v2.py")
+    primitive = read("repo/tools/deploy_primitive.py")
     health_check = read("tools/_lib/shell/health_check.sh")
 
     deploy_block = workflow.split("- name: Deploy to Staging", 1)[1].split(
-        "- name: Setup E2E Tests", 1
+        "- name: Confirm staging backend health", 1
+    )[0]
+    health_block = workflow.split("- name: Confirm staging backend health", 1)[1].split(
+        "- name: Wait for frontend readiness", 1
     )[0]
 
-    assert "IMAGE_TAG: ${{ steps.get_sha.outputs.short_sha }}" in deploy_block
-    assert "bash tools/dokploy_deploy.sh" in deploy_block
-    assert "bash tools/health_check.sh" in deploy_block
-    assert deploy_block.index("bash tools/dokploy_deploy.sh") < deploy_block.index(
-        "bash tools/health_check.sh"
+    assert "python -m tools.deploy_v2" in deploy_block
+    assert "--type staging" in deploy_block
+    assert '--version-ref "$tag"' in deploy_block
+    assert '--iac-ref "$iac_ref"' in deploy_block
+    assert "bash tools/health_check.sh" in health_block
+    assert '"https://report-staging.zitian.party/api/health"' in health_block
+    assert '"${{ inputs.tag }}"' in health_block
+    assert workflow.index("- name: Deploy to Staging") < workflow.index(
+        "- name: Confirm staging backend health"
     )
-    assert "wait_for_dokploy_deployment_rollout" in deploy_script
-    assert "previous_deployment_ids" in deploy_script
-    assert "render_dokploy_rollout_summary" in deploy_script
-    assert "latest_deployment_logPath:" in deploy_script
-    assert "raw_deployment_printed: false" in deploy_script
-    assert "Dokploy deployment observed" in deploy_script
-    assert "DOKPLOY_ROLLOUT_TIMEOUT_SECONDS:-600" in deploy_script
-    assert "DOKPLOY_NEW_DEPLOYMENT_TIMEOUT_SECONDS:-120" in deploy_script
-    assert "did not create a new deployment before readiness polling" in deploy_script
-    assert "retrying with compose.redeploy" in deploy_script
-    assert 'deploy_compose "compose.redeploy" "Redeployment trigger"' in deploy_script
-    assert "Dokploy redeploy did not expose a new deployment record" in deploy_script
-    assert "proceeding to target SHA health check" not in deploy_script
-    assert "entered error before creating a new deployment record" in deploy_script
-    assert "return 3" in deploy_script
-    assert 'rollout_status" -eq 2 || "$rollout_status" -eq 3' in deploy_script
-    assert (
-        "Dokploy redeploy left compose in error without a new deployment record"
-        in deploy_script
+    assert workflow.index("- name: Confirm staging backend health") < workflow.index(
+        "- name: Setup E2E Tests"
     )
-    assert "render_dokploy_rollout_summary" in deploy_script
-    assert "raw_deployment_printed: false" in deploy_script
-    assert 'latest_status" == "done"' in deploy_script
-    assert (
-        'latest_status" == "running" || "$latest_status" == "done"' not in deploy_script
-    )
-    assert deploy_script.index('deploy_compose "compose.deploy"') < deploy_script.index(
-        'wait_for_dokploy_deployment_rollout "$COMPOSE_ID" "$previous_deployment_ids"'
-    )
-    assert '"https://report-staging.zitian.party/api/health"' in deploy_block
-    assert '"$IMAGE_TAG"' in deploy_block
+    assert "EXPECTED_SHA: ${{ inputs.tag }}" in workflow
+
+    assert "verify_vault / verify_config / model_overrides" in deploy_v2
+    assert "verify_config=verify_config" in deploy_v2
+    assert "def wait_for_rollout(" in primitive
+    assert "before_ids" in primitive
+    assert "client.update_compose_env" in primitive
+    assert "client.deploy_compose" in primitive
+    assert "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)" in primitive
+    assert 'if status == "error":' in primitive
+    assert 'status in {"done", "success", "successful"}' in primitive
+    assert "TimeoutError" in primitive
     assert (
         'actual_sha=$(echo "$health_response" | jq -r \'.git_sha // .version // ""\')'
         in health_check
     )
-    assert 'HEALTH_CHECK_MAX_SHA_MISMATCH_ATTEMPTS: "18"' in deploy_block
     assert "MAX_SHA_MISMATCH_ATTEMPTS" in health_check
     assert "Stable mismatch attempts" in health_check
     assert "Git SHA Mismatch" in health_check
@@ -2269,107 +2250,38 @@ def test_AC8_13_72_staging_deploy_proves_health_sha_after_dokploy_trigger() -> N
 
 def test_AC8_13_72_staging_dokploy_rollout_parsing_is_typed_and_fail_fast() -> None:
     """AC8.13.72: staging rollout parsing handles Dokploy shape drift clearly."""
-    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
-    function_block = (
-        "deployment_ids_from_response()"
-        + deploy_script.split("deployment_ids_from_response()", 1)[1].split(
-            "wait_for_dokploy_deployment_rollout()", 1
-        )[0]
-    )
+    dokploy_client = read("repo/libs/dokploy.py")
+    primitive = read("repo/tools/deploy_primitive.py")
 
-    response = json.dumps(
-        {
-            "deployments": [
-                {
-                    "deploymentId": 123,
-                    "status": "running",
-                    "createdAt": "2026-01-01T00:00:00Z",
-                },
-                "not-a-deployment-object",
-                {
-                    "deploymentId": "dep-456",
-                    "status": "done",
-                    "finishedAt": "2026-01-01T00:01:00Z",
-                },
-            ]
-        }
-    )
-    non_array_response = json.dumps({"deployments": {"deploymentId": "ignored"}})
-    probe = subprocess.run(
-        [
-            "bash",
-            "-e",
-            "-u",
-            "-o",
-            "pipefail",
-            "-c",
-            function_block
-            + """
-response="$DOKPLOY_RESPONSE"
-non_array_response="$DOKPLOY_NON_ARRAY_RESPONSE"
-printf 'ids=%s\\n' "$(deployment_ids_from_response "$response")"
-printf 'new=%s\\n' "$(new_deployment_ids_from_response "$response" "123")"
-printf 'latest=%s\\n' "$(latest_new_deployment_status_from_response "$response" "dep-456")"
-printf 'count=%s\\n' "$(deployment_count_from_response "$response")"
-printf 'non_array=%s\\n' "$(deployment_ids_from_response "$non_array_response")"
-printf 'non_array_count=%s\\n' "$(deployment_count_from_response "$non_array_response")"
-""",
-        ],
-        cwd=ROOT,
-        env={
-            "DOKPLOY_RESPONSE": response,
-            "DOKPLOY_NON_ARRAY_RESPONSE": non_array_response,
-        },
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    assert "def get_compose_deployments(self, compose_id: str) -> list[dict]" in dokploy_client
+    assert '"deployment.allByCompose?composeId={compose_id}"' in dokploy_client
+    assert "deployments = self.get_compose(compose_id).get(\"deployments\")" in dokploy_client
+    assert "if isinstance(deployments, list):" in dokploy_client
+    assert "return [item for item in deployments if isinstance(item, dict)]" in dokploy_client
+    assert 'for key in ("deployments", "data", "items"):' in dokploy_client
+    assert "if isinstance(items, list):" in dokploy_client
+    assert "return []" in dokploy_client
 
-    assert probe.stdout.splitlines() == [
-        "ids=123,dep-456",
-        "new=dep-456",
-        "latest=done",
-        "count=2",
-        "non_array=",
-        "non_array_count=0",
-    ]
-    assert 'select(type == "object")' in deploy_script
-    assert "local deploy_payload" in deploy_script
-    assert (
-        'new_deployment_ids=$(new_deployment_ids_from_response "$rollout_response" "$previous_deployment_ids") || exit 1'
-        in deploy_script
-    )
-    assert (
-        'latest_status=$(latest_new_deployment_status_from_response "$rollout_response" "$new_deployment_ids") || exit 1'
-        in deploy_script
-    )
-    assert (
-        'previous_deployment_ids=$(deployment_ids_from_response "$effective_response") || exit 1'
-        in deploy_script
-    )
-    assert (
-        'deployment_count=$(deployment_count_from_response "$rollout_response") || exit 1'
-        in deploy_script
-    )
+    assert "def _deployment_ids(deployments) -> set[str]:" in primitive
+    assert "return {_dep_id(d) for d in (deployments or []) if _dep_id(d)}" in primitive
+    assert "client.get_compose_deployments(compose_id) or []" in primitive
+    assert "status = str(d.get(\"status\") or \"\").lower()" in primitive
+    assert 'if status == "error":' in primitive
+    assert 'if status in {"done", "success", "successful"}:' in primitive
 
 
 def test_AC8_13_72_staging_dokploy_noop_after_redeploy_fails_before_health() -> None:
     """AC8.13.72: staging fails when Dokploy accepts deploys without rollout records."""
-    deploy_script = read("tools/_lib/shell/dokploy_deploy.sh")
+    primitive = read("repo/tools/deploy_primitive.py")
+    workflow = read(".github/workflows/staging-deploy.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    assert "Dokploy redeploy did not expose a new deployment record" in deploy_script
-    assert (
-        "target SHA health check"
-        not in deploy_script.split('if [[ "$rollout_status" -eq 2 ]]; then', 1)[
-            1
-        ].split('elif [[ "$rollout_status" -eq 3 ]]; then', 1)[0]
-    )
-    assert (
-        'exit "$rollout_status"'
-        in deploy_script.split('if [[ "$rollout_status" -eq 2 ]]; then', 1)[1].split(
-            'elif [[ "$rollout_status" -eq 3 ]]; then', 1
-        )[0]
+    assert "deploy rollout did not finish within {timeout}s" in primitive
+    assert "raise TimeoutError" in primitive
+    assert "wait_for_rollout(client, cfg.compose_id, before_ids, timeout=timeout)" in primitive
+    assert "Confirm staging backend health" in workflow
+    assert workflow.index("- name: Deploy to Staging") < workflow.index(
+        "- name: Confirm staging backend health"
     )
     assert (
         "fails before application readiness when no deployment record materializes"
@@ -2390,11 +2302,11 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
         "checkout",
         "get_sha",
         "classify",
-        "install_moon",
         "install_uv",
         "setup_python",
-        "registry_login",
-        "setup_buildx",
+        "install_deploy_v2",
+        "deploy_staging",
+        "staging_health",
     ]:
         assert f"id: {step_id}" in workflow
 
@@ -2404,10 +2316,11 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
         "Change classification failed before staging relevance could be trusted."
         in failure_context
     )
-    assert '"toolchain/moon-install"' in failure_context
     assert '"toolchain/uv-install"' in failure_context
     assert '"toolchain/python-setup"' in failure_context
-    assert '"registry/login"' in failure_context
+    assert '"toolchain/deploy-v2-deps"' in failure_context
+    assert '"deploy-v2-rollout"' in failure_context
+    assert '"staging-route-health"' in failure_context
     assert '"unclassified-build-deploy-failure"' in failure_context
     assert (
         "A build/deploy job step failed outside the known failure map."
@@ -2653,7 +2566,8 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     assert "production_before_version" in production
     assert "deploy_health_outcome" in production
     assert "failure_domain=${failure_domain}" in production
-    assert "production-deploy-health-or-version" in production
+    assert "deploy-v2-rollout" in production
+    assert "production-route-health" in production
 
     assert "finance-report-vps-host-hygiene" in hygiene
     assert "docker builder prune" in hygiene

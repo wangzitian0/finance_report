@@ -53,15 +53,24 @@ gates:
     blocking: false
     image_free: false
     description: >
-      Manual staging deploy. Builds/promotes the :<sha> image for the dispatched ref
-      and rolls staging. Staging is a pre-prod canary (≈ prod, slightly ahead); deploys
-      are manual (CI is the dev quality gate, not auto-deploy).
+      Manual staging deploy. Consumes an existing release tag through deploy_v2 and
+      rolls staging. Staging is a pre-prod canary (approx prod, slightly ahead);
+      deploys are manual (CI is the dev quality gate, not auto-deploy).
+
+  - id: release-images
+    workflow: .github/workflows/release-images.yml
+    job: promote
+    trigger: tag                   # vX.Y.Z release tag push
+    blocking: false
+    image_free: true              # manifest-copy of existing main-CI :<sha7> images
+    description: >
+      Promote main-CI SHA images to immutable release tags with digest verification.
 
   - id: production-release
     workflow: .github/workflows/production-release.yml
     job: deploy
-    trigger: tag                   # vX.Y.Z release tag (manual dispatch is a recovery path)
+    trigger: workflow_dispatch
     blocking: false
-    image_free: true              # pure promote of an existing :<sha> digest — no rebuild
+    image_free: true              # consumes existing release tag images; no rebuild
     description: >
-      Promote the staging-validated digest to a release (staging-first, promote-not-rebuild).
+      Deploy an existing staging-validated release tag to production via deploy_v2.

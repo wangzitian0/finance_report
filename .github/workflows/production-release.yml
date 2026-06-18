@@ -1,25 +1,21 @@
-# Production Release & Deployment
-# 
-# Triggers: 
-#   - Tag push (v*.*.*) → Build images
-#   - Manual dispatch → Deploy existing version
-#   - Manual dispatch with dry_run=true → Validate release without deploying
+# Production Release Deployment
 #
-# Workflow: Tag push builds images, then manually trigger to deploy
+# Trigger: MANUAL ONLY (workflow_dispatch).
+# release-images.yml owns tag-push image publication. This workflow consumes an
+# existing release tag, validates source CI + staging + release images, and then
+# deploys production through infra2 deploy_v2.
 
 name: Production Release
 
 on:
-  push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to deploy (leave empty for latest tag)'
+        description: "Version to deploy (leave empty for latest vX.Y.Z tag)"
         required: false
         type: string
       dry_run:
-        description: 'Validate release prerequisites without deploying production'
+        description: "Validate release prerequisites without deploying production"
         required: false
         default: false
         type: boolean
@@ -28,31 +24,53 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  DOKPLOY_API_URL: https://cloud.zitian.party/api
-  PRODUCTION_COMPOSE_ID: lNn9gVS1Zyw79Jzw5dlbu
   PYTHON_VERSION: "3.12.12"
   NODE_VERSION: "20.19.0"
   UV_VERSION: "0.9.18"
 
 jobs:
-  build:
-    if: github.event_name == 'push'
+  dry-run:
+    name: Production Release Dry Run
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
-      packages: write
-    
-
-    
+      packages: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
 
-      - name: Extract version
+      - name: Resolve release tag
         id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin 'refs/tags/*:refs/tags/*'
+          tag="${{ github.event.inputs.version }}"
+          if [ -z "$tag" ]; then
+            tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
+          fi
+          if [ -z "$tag" ]; then
+            echo "::error::No release tag found. Push a vX.Y.Z tag first so release-images.yml can publish images."
+            exit 1
+          fi
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid release tag '$tag'; expected vX.Y.Z."
+            exit 1
+          fi
+          git checkout --detach "$tag"
+          git submodule update --init --recursive
+          full_sha="$(git rev-parse HEAD)"
+          short_sha="$(git rev-parse --short HEAD)"
+          {
+            echo "tag=$tag"
+            echo "full_sha=$full_sha"
+            echo "short_sha=$short_sha"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved production dry-run tag: $tag ($short_sha)"
 
       - name: Install moon
         uses: moonrepo/setup-toolchain@v0
@@ -79,52 +97,102 @@ jobs:
         working-directory: apps/frontend
 
       - name: Verify source CI passed
+        id: source_ci
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
         run: |
+          set -euo pipefail
           run_id="$(
             gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow ci.yml \
-              --commit "$GITHUB_SHA" \
-              --limit 20 \
+              --commit "$RELEASE_SHA" \
+              --limit 30 \
               --json databaseId,status,conclusion,event,headBranch \
               --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
           )"
           if [ -z "$run_id" ]; then
-            echo "::error::No successful main CI run found for $GITHUB_SHA"
+            echo "::error::No successful main CI run found for $RELEASE_SHA"
             exit 1
           fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "Using successful main CI run: $run_id"
 
-      - name: Verify staging passed
+      - name: Verify release images workflow passed
+        id: release_images_run
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
         run: |
-          staging_run_id="$(
+          set -euo pipefail
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow release-images.yml \
+              --commit "$RELEASE_SHA" \
+              --limit 30 \
+              --json databaseId,status,conclusion,event \
+              --jq '[.[] | select(.event == "push" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful release-images.yml run found for $RELEASE_SHA"
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Using successful release-images.yml run: $run_id"
+
+      - name: Verify staging passed
+        id: staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          runs_json="$(
             gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow staging-deploy.yml \
-              --commit "$GITHUB_SHA" \
-              --limit 20 \
-              --json databaseId,status,conclusion \
-              --jq '[.[] | select(.status == "completed" and .conclusion == "success")][0].databaseId // ""'
+              --limit 50 \
+              --json databaseId,status,conclusion,displayTitle,url
+          )"
+          staging_run_id="$(
+            RUNS_JSON="$runs_json" python - <<'PY'
+          import json
+          import os
+
+          release_tag = os.environ["RELEASE_TAG"]
+          expected_title = f"Deploy Staging {release_tag}"
+          runs = json.loads(os.environ["RUNS_JSON"])
+          for run in runs:
+              if (
+                  run.get("status") == "completed"
+                  and run.get("conclusion") == "success"
+                  and run.get("displayTitle") == expected_title
+              ):
+                  print(run["databaseId"])
+                  break
+          PY
           )"
           if [ -z "$staging_run_id" ]; then
-            echo "::error::No successful Deploy Staging run found for $GITHUB_SHA"
+            echo "::error::No successful Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
             exit 1
           fi
+          echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
           echo "Using successful Deploy Staging run: $staging_run_id"
-          echo "staging_run_id=$staging_run_id" >> "$GITHUB_ENV"
 
       - name: Verify Release Codebase
         env:
-          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_SHA: ${{ steps.version.outputs.full_sha }}
         run: |
+          set -euo pipefail
           moon run :lint
-          
-          # Clean up artifacts before build
-          rm -rf .venv
+
+      - name: Validate Migration Risk Contract
+        run: |
+          mkdir -p ci-context
+          uv run --with pyyaml python tools/check_migration_risk.py \
+            --summary ci-context/production-migration-risk-context.md
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -136,224 +204,35 @@ jobs:
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Promote Images
-        id: promote
-        run: |
-          short_sha=$(git rev-parse --short "$GITHUB_SHA")
-          tag="${{ steps.version.outputs.tag }}"
-          
-          backend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${short_sha}"
-          frontend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${short_sha}"
-          
-          backend_version_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${tag}"
-          frontend_version_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${tag}"
-          
-          # Inspect and check SHA images exist
-          backend_sha_digest="$(docker buildx imagetools inspect "$backend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
-          frontend_sha_digest="$(docker buildx imagetools inspect "$frontend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
-          
-          if [ -z "$backend_sha_digest" ] || [ -z "$frontend_sha_digest" ]; then
-            echo "::error::Staging-validated SHA images not found for SHA $short_sha"
-            exit 1
-          fi
-          
-          echo "Found backend SHA image digest: $backend_sha_digest"
-          echo "Found frontend SHA image digest: $frontend_sha_digest"
-          
-          # Promote images
-          docker buildx imagetools create --tag "$backend_version_image" "$backend_sha_image"
-          docker buildx imagetools create --tag "$frontend_version_image" "$frontend_sha_image"
-          
-          # Verify digests
-          backend_promoted_digest="$(docker buildx imagetools inspect "$backend_version_image" | grep -i '^Digest:' | awk '{print $2}')"
-          frontend_promoted_digest="$(docker buildx imagetools inspect "$frontend_version_image" | grep -i '^Digest:' | awk '{print $2}')"
-          
-          if [ "$backend_sha_digest" != "$backend_promoted_digest" ]; then
-            echo "::error::Backend digests differ! Expected $backend_sha_digest, got $backend_promoted_digest"
-            exit 1
-          fi
-          
-          if [ "$frontend_sha_digest" != "$frontend_promoted_digest" ]; then
-            echo "::error::Frontend digests differ! Expected $frontend_sha_digest, got $frontend_promoted_digest"
-            exit 1
-          fi
-          
-          echo "backend_digest=$backend_sha_digest" >> "$GITHUB_OUTPUT"
-          echo "frontend_digest=$frontend_sha_digest" >> "$GITHUB_OUTPUT"
-          echo "✅ Release $tag promoted successfully"
-
-      - name: Summary
-        run: |
-          {
-            echo "## Production Release Promoted"
-            echo ""
-            echo "- Released commit: ${{ github.sha }}"
-            echo "- Source CI run: ${{ env.staging_run_id }}"
-            echo "- Promoted backend image digest: ${{ steps.promote.outputs.backend_digest }}"
-            echo "- Promoted frontend image digest: ${{ steps.promote.outputs.frontend_digest }}"
-            echo "- No rebuild occurred: true"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Write production release build context
-        if: ${{ always() }}
-        run: |
-          mkdir -p ci-context
-          {
-            echo "Production Release Build Context"
-            echo "================================"
-            echo "repository=${{ github.repository }}"
-            echo "event_name=${{ github.event_name }}"
-            echo "ref=${{ github.ref }}"
-            echo "sha=${{ github.sha }}"
-            echo "run_id=${{ github.run_id }}"
-            echo "run_attempt=${{ github.run_attempt }}"
-            echo "tag=${{ steps.version.outputs.tag }}"
-            echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
-            echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
-            echo "backend_digest=${{ steps.promote.outputs.backend_digest }}"
-            echo "frontend_digest=${{ steps.promote.outputs.frontend_digest }}"
-            echo "no_rebuild=true"
-          } > ci-context/production-release-build-context.txt
-
-      - name: Upload production release build context
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-release-build-context
-          path: ci-context/production-release-build-context.txt
-          retention-days: 14
-
-  dry-run:
-    name: Production Release Dry Run
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Resolve dry-run tag
-        id: version
-        run: |
-          tag="${{ github.event.inputs.version }}"
-          if [ -z "$tag" ]; then
-            tag="dry-run-$(git rev-parse --short HEAD)"
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Dry-run tag: $tag"
-
-      - name: Install moon
-        uses: moonrepo/setup-toolchain@v0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: ${{ env.UV_VERSION }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: apps/frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: apps/frontend
-
-      - name: Verify source CI passed
+      - name: Verify Release Images Dry Run
+        id: release_images
         env:
-          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.tag }}
         run: |
-          run_id="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow ci.yml \
-              --commit "$GITHUB_SHA" \
-              --limit 20 \
-              --json databaseId,status,conclusion,event,headBranch \
-              --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
-          )"
-          if [ -z "$run_id" ]; then
-            echo "::error::No successful main CI run found for $GITHUB_SHA"
-            exit 1
-          fi
-          echo "Using successful main CI run: $run_id"
-
-      - name: Verify staging passed
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          staging_run_id="$(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow staging-deploy.yml \
-              --commit "$GITHUB_SHA" \
-              --limit 20 \
-              --json databaseId,status,conclusion \
-              --jq '[.[] | select(.status == "completed" and .conclusion == "success")][0].databaseId // ""'
-          )"
-          if [ -z "$staging_run_id" ]; then
-            echo "::error::No successful Deploy Staging run found for $GITHUB_SHA"
-            exit 1
-          fi
-          echo "Using successful Deploy Staging run: $staging_run_id"
-          echo "staging_run_id=$staging_run_id" >> "$GITHUB_ENV"
-
-      - name: Verify Release Codebase
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          moon run :lint
-
-      - name: Validate Migration Risk Contract
-        run: |
-          mkdir -p ci-context
-          uv run --with pyyaml python tools/check_migration_risk.py \
-            --summary ci-context/production-migration-risk-context.md
-
-      - name: Setup Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Verify SHA Images Dry Run
-        id: promote_dry
-        run: |
-          short_sha=$(git rev-parse --short "$GITHUB_SHA")
-          backend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${short_sha}"
-          frontend_sha_image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${short_sha}"
-          
-          # Inspect and check SHA images exist
-          backend_sha_digest="$(docker buildx imagetools inspect "$backend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
-          frontend_sha_digest="$(docker buildx imagetools inspect "$frontend_sha_image" | grep -i '^Digest:' | awk '{print $2}')"
-          
-          if [ -z "$backend_sha_digest" ] || [ -z "$frontend_sha_digest" ]; then
-            echo "::error::Staging-validated SHA images not found for SHA $short_sha"
-            exit 1
-          fi
-          
-          echo "Found backend SHA image digest: $backend_sha_digest"
-          echo "Found frontend SHA image digest: $frontend_sha_digest"
-          
-          echo "backend_digest=$backend_sha_digest" >> "$GITHUB_OUTPUT"
-          echo "frontend_digest=$frontend_sha_digest" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          for service in backend frontend; do
+            image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION"
+            digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
+            if [ -z "$digest" ]; then
+              echo "::error::Release image not found: $image"
+              exit 1
+            fi
+            echo "Found ${service} release image digest: $digest"
+            echo "${service}_digest=$digest" >> "$GITHUB_OUTPUT"
+          done
 
       - name: Summary
         run: |
           {
             echo "## Production Release Dry Run"
             echo ""
-            echo "- Released commit: ${{ github.sha }}"
-            echo "- Source CI run: ${{ env.staging_run_id }}"
-            echo "- Promoted backend image digest: ${{ steps.promote_dry.outputs.backend_digest }}"
-            echo "- Promoted frontend image digest: ${{ steps.promote_dry.outputs.frontend_digest }}"
+            echo "- Release tag: ${{ steps.version.outputs.tag }}"
+            echo "- Released commit: ${{ steps.version.outputs.full_sha }}"
+            echo "- Source CI run: ${{ steps.source_ci.outputs.run_id }}"
+            echo "- Release images run: ${{ steps.release_images_run.outputs.run_id }}"
+            echo "- Staging run: ${{ steps.staging.outputs.run_id }}"
+            echo "- Backend release image digest: ${{ steps.release_images.outputs.backend_digest }}"
+            echo "- Frontend release image digest: ${{ steps.release_images.outputs.frontend_digest }}"
             echo "- No rebuild occurred: true"
             echo "- Production mutation skipped: true"
             echo ""
@@ -375,11 +254,16 @@ jobs:
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
             echo "tag=${{ steps.version.outputs.tag }}"
+            echo "release_full_sha=${{ steps.version.outputs.full_sha }}"
+            echo "release_short_sha=${{ steps.version.outputs.short_sha }}"
+            echo "source_ci_run_id=${{ steps.source_ci.outputs.run_id }}"
+            echo "release_images_run_id=${{ steps.release_images_run.outputs.run_id }}"
+            echo "staging_run_id=${{ steps.staging.outputs.run_id }}"
             echo "production_mutation_skipped=true"
             echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
             echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
-            echo "backend_digest=${{ steps.promote_dry.outputs.backend_digest }}"
-            echo "frontend_digest=${{ steps.promote_dry.outputs.frontend_digest }}"
+            echo "backend_digest=${{ steps.release_images.outputs.backend_digest }}"
+            echo "frontend_digest=${{ steps.release_images.outputs.frontend_digest }}"
             echo "no_rebuild=true"
           } > ci-context/production-dry-run-context.txt
 
@@ -394,29 +278,135 @@ jobs:
           retention-days: 14
 
   deploy:
+    name: Production Deploy
     if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       packages: read
     environment:
       name: production
       url: https://report.zitian.party
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
 
-      - name: Determine version
+      - name: Resolve release tag
         id: version
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*")
-            [ -z "$VERSION" ] && { echo "::error::No tags found"; exit 1; }
+          set -euo pipefail
+          git fetch --force --tags origin 'refs/tags/*:refs/tags/*'
+          tag="${{ github.event.inputs.version }}"
+          if [ -z "$tag" ]; then
+            tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
           fi
-          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ -z "$tag" ]; then
+            echo "::error::No release tag found. Push a vX.Y.Z tag first so release-images.yml can publish images."
+            exit 1
+          fi
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid release tag '$tag'; expected vX.Y.Z."
+            exit 1
+          fi
+          git checkout --detach "$tag"
+          git submodule update --init --recursive
+          full_sha="$(git rev-parse HEAD)"
+          short_sha="$(git rev-parse --short HEAD)"
+          {
+            echo "tag=$tag"
+            echo "full_sha=$full_sha"
+            echo "short_sha=$short_sha"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved production deploy tag: $tag ($short_sha)"
+
+      - name: Verify source CI passed
+        id: source_ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
+        run: |
+          set -euo pipefail
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --commit "$RELEASE_SHA" \
+              --limit 30 \
+              --json databaseId,status,conclusion,event,headBranch \
+              --jq '[.[] | select(.event == "push" and .headBranch == "main" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful main CI run found for $RELEASE_SHA"
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Using successful main CI run: $run_id"
+
+      - name: Verify release images workflow passed
+        id: release_images_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.version.outputs.full_sha }}
+        run: |
+          set -euo pipefail
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow release-images.yml \
+              --commit "$RELEASE_SHA" \
+              --limit 30 \
+              --json databaseId,status,conclusion,event \
+              --jq '[.[] | select(.event == "push" and .status == "completed" and .conclusion == "success")][0].databaseId // ""'
+          )"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful release-images.yml run found for $RELEASE_SHA"
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Using successful release-images.yml run: $run_id"
+
+      - name: Verify staging passed
+        id: staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          runs_json="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow staging-deploy.yml \
+              --limit 50 \
+              --json databaseId,status,conclusion,displayTitle,url
+          )"
+          staging_run_id="$(
+            RUNS_JSON="$runs_json" python - <<'PY'
+          import json
+          import os
+
+          release_tag = os.environ["RELEASE_TAG"]
+          expected_title = f"Deploy Staging {release_tag}"
+          runs = json.loads(os.environ["RUNS_JSON"])
+          for run in runs:
+              if (
+                  run.get("status") == "completed"
+                  and run.get("conclusion") == "success"
+                  and run.get("displayTitle") == expected_title
+              ):
+                  print(run["databaseId"])
+                  break
+          PY
+          )"
+          if [ -z "$staging_run_id" ]; then
+            echo "::error::No successful Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
+            exit 1
+          fi
+          echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
+          echo "Using successful Deploy Staging run: $staging_run_id"
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -425,20 +415,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify images
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verify release images
         id: verify_images
         env:
           VERSION: ${{ steps.version.outputs.tag }}
         run: |
+          set -euo pipefail
           for service in backend frontend; do
             image="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${service}:$VERSION"
-            docker manifest inspect "$image" &>/dev/null || {
-              echo "::error::Image not found: $image"
-              echo "Run: git push origin $VERSION"
+            digest="$(docker buildx imagetools inspect "$image" 2>/dev/null | awk '/^Digest:/ {print $2; exit}' || true)"
+            if [ -z "$digest" ]; then
+              echo "::error::Release image not found: $image"
               exit 1
-            }
+            fi
+            echo "Found ${service} release image digest: $digest"
+            echo "${service}_digest=$digest" >> "$GITHUB_OUTPUT"
           done
-          echo "✅ Images verified"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install deploy_v2 dependencies
+        id: install_deploy_v2
+        run: python -m pip install httpx python-dotenv rich
 
       - name: Probe current production version
         id: production_before
@@ -482,23 +486,35 @@ jobs:
             echo "probe_error=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Deploy & Health Check
-        id: deploy_health
+      - name: Deploy with deploy_v2
+        id: deploy_v2
+        working-directory: repo
         env:
-          IMAGE_TAG: ${{ steps.version.outputs.tag }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DOKPLOY_API_URL: ${{ env.DOKPLOY_API_URL }}
         run: |
-          bash tools/dokploy_deploy.sh \
-            "$PRODUCTION_COMPOSE_ID" \
-            "$IMAGE_TAG" \
-            "https://report.zitian.party"
-          
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          iac_ref="$(git rev-parse HEAD)"
+          echo "Deploying production via deploy_v2: type=prod version-ref=$tag iac-ref=$iac_ref"
+          python -m tools.deploy_v2 \
+            --service finance_report/app \
+            --type prod \
+            --version-ref "$tag" \
+            --iac-ref "$iac_ref" \
+            --domain zitian.party \
+            --staging-validated \
+            --code-reviewed \
+            --timeout 600
+
+      - name: Confirm production backend health
+        id: deploy_health
+        run: |
+          set -euo pipefail
           bash tools/health_check.sh \
             "https://report.zitian.party/api/health" \
             "production" \
             24 \
-            "$IMAGE_TAG"
+            "${{ steps.version.outputs.tag }}"
 
       - name: Production Infrastructure Smoke
         id: production_infra_smoke
@@ -534,14 +550,34 @@ jobs:
           failure_domain="none"
           failed_step="none"
           failure_summary="Production release deploy completed."
-          if [ "${{ steps.verify_images.outcome }}" = "failure" ]; then
+          if [ "${{ steps.source_ci.outcome }}" = "failure" ]; then
+            failure_domain="source-ci"
+            failed_step="source_ci"
+            failure_summary="No successful main CI run was found for the release commit."
+          elif [ "${{ steps.release_images_run.outcome }}" = "failure" ]; then
+            failure_domain="release-images-run"
+            failed_step="release_images_run"
+            failure_summary="No successful release-images.yml run was found for the release commit."
+          elif [ "${{ steps.staging.outcome }}" = "failure" ]; then
+            failure_domain="staging-validation"
+            failed_step="staging"
+            failure_summary="No successful staging deploy run was found for the release tag."
+          elif [ "${{ steps.verify_images.outcome }}" = "failure" ]; then
             failure_domain="registry-release-image"
             failed_step="verify_images"
             failure_summary="Version-tagged release image was missing before production mutation."
+          elif [ "${{ steps.install_deploy_v2.outcome }}" = "failure" ]; then
+            failure_domain="toolchain/deploy-v2-deps"
+            failed_step="install_deploy_v2"
+            failure_summary="deploy_v2 dependency install failed before production mutation."
+          elif [ "${{ steps.deploy_v2.outcome }}" = "failure" ]; then
+            failure_domain="deploy-v2-rollout"
+            failed_step="deploy_v2"
+            failure_summary="deploy_v2 production deploy failed (data-lane red lines, staging validation, Dokploy rollout, or effective-config verify)."
           elif [ "${{ steps.deploy_health.outcome }}" = "failure" ]; then
-            failure_domain="production-deploy-health-or-version"
+            failure_domain="production-route-health"
             failed_step="deploy_health"
-            failure_summary="Dokploy deploy or production health/version check failed."
+            failure_summary="Production public health gate failed: Traefik did not serve the deployed tag in time."
           elif [ "${{ steps.production_infra_smoke.outcome }}" = "failure" ]; then
             failure_domain="production-infra-smoke"
             failed_step="production_infra_smoke"
@@ -565,13 +601,21 @@ jobs:
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
             echo "tag=${{ steps.version.outputs.tag }}"
+            echo "release_full_sha=${{ steps.version.outputs.full_sha }}"
+            echo "release_short_sha=${{ steps.version.outputs.short_sha }}"
+            echo "source_ci_run_id=${{ steps.source_ci.outputs.run_id }}"
+            echo "release_images_run_id=${{ steps.release_images_run.outputs.run_id }}"
+            echo "staging_run_id=${{ steps.staging.outputs.run_id }}"
             echo "app_url=https://report.zitian.party"
             echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.version.outputs.tag }}"
             echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.version.outputs.tag }}"
+            echo "backend_digest=${{ steps.verify_images.outputs.backend_digest }}"
+            echo "frontend_digest=${{ steps.verify_images.outputs.frontend_digest }}"
             echo "production_before_http_status=${{ steps.production_before.outputs.http_status }}"
             echo "production_before_version=${{ steps.production_before.outputs.version }}"
             echo "production_before_probe_error=${{ steps.production_before.outputs.probe_error }}"
             echo "verify_images_outcome=${{ steps.verify_images.outcome }}"
+            echo "deploy_v2_outcome=${{ steps.deploy_v2.outcome }}"
             echo "deploy_health_outcome=${{ steps.deploy_health.outcome }}"
             echo "production_infra_smoke_outcome=${{ steps.production_infra_smoke.outcome }}"
             echo "production_smoke_outcome=${{ steps.production_smoke.outcome }}"

@@ -58,9 +58,14 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         "jobs": ("build-and-deploy",),
         "triggers": ("workflow_dispatch",),
     },
+    ".github/workflows/release-images.yml": {
+        # Tag-push image promotion lives here; production-release consumes the tag.
+        "jobs": ("promote",),
+        "triggers": ("push",),
+    },
     ".github/workflows/production-release.yml": {
-        "jobs": ("build",),
-        "triggers": ("push", "workflow_dispatch"),
+        "jobs": ("dry-run", "deploy"),
+        "triggers": ("workflow_dispatch",),
     },
     ".github/workflows/docs.yml": {
         "jobs": ("build",),
@@ -72,6 +77,7 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
 # specific drift #531 fixes: the staging workflow must stay manual-only.
 WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {
     ".github/workflows/staging-deploy.yml": ("push", "pull_request"),
+    ".github/workflows/production-release.yml": ("push", "pull_request"),
 }
 
 # Stale prose that must never reappear in the CI/deploy SSOT, keyed by file.

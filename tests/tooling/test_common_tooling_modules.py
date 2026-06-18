@@ -244,7 +244,6 @@ def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
         "check_ghcr_image_tag.sh",
         "check_repo_submodule.sh",
         "cleanup_dev_resources.sh",
-        "dokploy_deploy.sh",
         "health_check.sh",
         "infra.sh",
         "smoke_test.sh",

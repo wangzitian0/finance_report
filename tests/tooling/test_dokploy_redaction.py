@@ -56,18 +56,25 @@ JSON
     assert "api-secret" not in combined
 
 
-def test_AC8_13_72_deploy_script_logs_allowlisted_env_diff_only() -> None:
-    deploy_script = (ROOT / "tools/_lib/shell/dokploy_deploy.sh").read_text()
+def test_AC8_13_72_deploy_v2_updates_allowlisted_env_only() -> None:
+    primitive = (ROOT / "repo/tools/deploy_primitive.py").read_text()
     common_shell = (ROOT / "common/shell/common.sh").read_text()
 
-    assert "render_allowlisted_env_diff" in deploy_script
-    assert "IMAGE_TAG" in deploy_script
-    assert "GIT_COMMIT_SHA" in deploy_script
-    assert "IAC_CONFIG_HASH" in deploy_script
-    assert "ENV_SUFFIX" in deploy_script
-    assert "COMPOSE_PROFILES" in deploy_script
-    assert "cat \"$response_file\"" in deploy_script
-    assert "echo \"$current_env\"" not in deploy_script
+    assert "env_vars = {" in primitive
+    for key in (
+        "IMAGE_TAG",
+        "GIT_COMMIT_SHA",
+        "IAC_CONFIG_HASH",
+        "ENV_SUFFIX",
+        "COMPOSE_PROFILES",
+        "TRAEFIK_ENABLE",
+        "INTERNAL_DOMAIN",
+    ):
+        assert f'"{key}"' in primitive
+    assert "client.update_compose_env(cfg.compose_id, env_vars=env_vars)" in primitive
+    assert "print(env_vars)" not in primitive
+    assert "client.get_compose_env" in primitive
+    assert "print(client.get_compose_env" not in primitive
     assert '-H "x-api-key: $DOKPLOY_API_KEY"' not in common_shell
     assert '-d "$data"' not in common_shell
     assert "--connect-timeout" in common_shell
@@ -76,24 +83,25 @@ def test_AC8_13_72_deploy_script_logs_allowlisted_env_diff_only() -> None:
     assert "--data-binary \"@$data_file\"" in common_shell
 
 
-def test_AC8_13_72_rollout_diagnostics_redact_deployment_fields() -> None:
-    script = r'''
-      export LC_ALL=C
-      export LANG=C
-      source <(sed -n '/^redact_dokploy_diagnostic_value()/,/^wait_for_dokploy_deployment_rollout()/p' tools/_lib/shell/dokploy_deploy.sh | sed '$d')
-      response='{"composeStatus":"error","deployments":[{"deploymentId":"dep-1","status":"error","message":"token=hvs.secret password=pw-secret","errorMessage":"safe reason","env":"PASSWORD=hidden"}]}'
-      render_dokploy_rollout_summary "$response" "unit-test"
-    '''
+def test_AC8_13_72_deploy_v2_dokploy_client_does_not_log_raw_response_bodies() -> None:
+    dokploy_client = (ROOT / "repo/libs/dokploy.py").read_text()
+    primitive = (ROOT / "repo/tools/deploy_primitive.py").read_text()
 
-    result = run_bash(script)
+    request_block = dokploy_client.split("def _request(", 1)[1].split(
+        "    # Project endpoints", 1
+    )[0]
 
-    combined = result.stdout + result.stderr
-    assert "Dokploy rollout summary (unit-test)" in combined
-    assert "env_present: false" in combined
-    assert "latest_deployment_message: token=<redacted> password=<redacted>" in combined
-    assert "latest_deployment_errorMessage: safe reason" in combined
-    assert "raw_compose_printed: false" in combined
-    assert "raw_deployment_printed: false" in combined
-    assert "hvs.secret" not in combined
-    assert "pw-secret" not in combined
-    assert "PASSWORD=hidden" not in combined
+    assert "resp.raise_for_status()" in request_block
+    assert "status code {exc.response.status_code}" in request_block
+    assert "{exc.response.reason_phrase}" in request_block
+    error_block = request_block.split("except httpx.HTTPStatusError", 1)[1]
+    assert "exc.response.text" not in error_block
+    assert "resp.text" not in error_block
+    assert "resp.content" not in error_block
+    assert "headers" not in request_block.split("raise httpx.HTTPStatusError", 1)[1]
+    assert "x-api-key" not in request_block.split("raise httpx.HTTPStatusError", 1)[1]
+
+    assert "deploy rollout entered error" in primitive
+    assert "deploy rollout did not finish" in primitive
+    assert "client.get_compose_env" in primitive
+    assert "print(client.get_compose_env" not in primitive

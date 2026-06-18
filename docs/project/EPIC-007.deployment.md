@@ -257,16 +257,17 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 > The production deploy must verify the effective remote app env (`IMAGE_TAG`,
 > `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`) before the long health wait and fail fast
-> on a stale Dokploy env, with a guarded automated reconcile path (#575).
+> on stale Dokploy config. The fixed staging/prod path is now infra2
+> `deploy_v2` / `deploy_primitive`, not the retired app-side bash deploy script.
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.14.1 | The production deploy verifies the effective remote app state (`IMAGE_TAG`, `GIT_COMMIT_SHA`, `IAC_CONFIG_HASH`) before the long health wait; a matching effective env proceeds | `test_AC7_14_1_verify_passes_when_effective_env_matches` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.2 | If Dokploy reports success but the effective app env / compose config is stale, the deploy fails fast with diagnostics that name the stale values (never secrets) | `test_AC7_14_2_verify_fails_fast_and_names_stale_values` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.3 | A safe automated reconcile / force-recreate path for the stateless app containers exists, is guarded by an explicit opt-in, and handles the fixed `container_name` conflict | `test_AC7_14_3_force_recreate_path_exists_and_is_guarded` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.4 | `tools/_lib/shell/dokploy_deploy.sh` has contract coverage for stale remote env detection and forced release-token refresh | `test_AC7_14_2_verify_fails_fast_and_names_stale_values`, `test_AC7_14_3_force_recreate_path_exists_and_is_guarded` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.5 | Production deployment docs describe the stale-env failure mode and the automated recovery path | `test_AC7_14_5_deployment_doc_describes_stale_env_failure_and_recovery` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
-| AC7.14.6 | The post-reconcile rollout-wait baseline (`previous_deployment_ids` / `previous_deployment_signatures`) is snapshotted from the pre-reconcile compose state, *before* `force_recreate_stateless_app` triggers `compose.redeploy`, so a fast redeploy's freshly-created deployment is still detected as new (no spurious "did not create a new deployment" timeout) | `test_AC7_14_6_rollout_baseline_snapshotted_before_force_recreate`, `test_AC7_14_6_fast_redeploy_detected_as_new_with_pre_reconcile_baseline` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
+| AC7.14.1 | The fixed staging/prod deploy path verifies the effective remote app config (`IAC_CONFIG_HASH`) after Dokploy rollout and before the public health wait; a matching effective config proceeds | `test_AC7_14_1_verify_runs_after_rollout_and_before_health` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
+| AC7.14.2 | If Dokploy reports success but the effective app env / compose config is stale, the deploy fails fast with diagnostics that name the stale `IAC_CONFIG_HASH` without echoing secrets | `test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
+| AC7.14.3 | Stale effective config is fail-closed on the unified deploy_v2 path; the retired force-recreate escape hatch is absent from production release, and recovery is a manual rerun after the Dokploy/env issue is corrected | `test_AC7_14_3_no_force_recreate_escape_hatch_remains` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
+| AC7.14.4 | `repo/tools/deploy_primitive.py` and infra2 primitive tests have contract coverage for rollout wait, Vault preflight, effective config verification, and forced per-deploy `IAC_CONFIG_HASH` refresh | `test_AC7_14_1_verify_runs_after_rollout_and_before_health`, `test_AC7_14_2_stale_effective_config_fails_fast_without_secret_echo`, `test_AC7_14_6_rollout_baseline_is_snapshotted_before_mutation` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
+| AC7.14.5 | Production deployment docs describe the stale effective-config failure mode and deploy_v2 manual rerun recovery path | `test_AC7_14_5_deployment_doc_describes_effective_config_failure_and_recovery` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
+| AC7.14.6 | The rollout-wait baseline (`before_ids`) is snapshotted before `update_compose_env` / `deploy_compose`, so fast new deployments are detected as new records and no-op deploys fail before readiness | `test_AC7_14_6_rollout_baseline_is_snapshotted_before_mutation` | `tests/tooling/test_issue_575_effective_env_verify.py` | P0 |
 
 ### AC7.15: CI/Deploy Workflow Contract vs SSOT (#531)
 
