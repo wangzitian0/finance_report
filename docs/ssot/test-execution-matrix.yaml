@@ -24,6 +24,9 @@ rules:
   - path: tests/tooling/
     stage: tooling_ci
     ci_required: true
+  - path: tools/tier2_http_e2e.py
+    stage: deployment_tier2_http_e2e
+    ci_required: false
   - path: tests/e2e/
     stage: deployment_e2e
     ci_required: true

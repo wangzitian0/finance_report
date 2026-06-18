@@ -6,10 +6,15 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+if str(ROOT_DIR) in sys.path:
+    sys.path.remove(str(ROOT_DIR))
+sys.path.insert(0, str(ROOT_DIR))
 
 from tools._lib.fixtures.generate_fixtures import main  # noqa: E402
+
+if str(ROOT_DIR) in sys.path:
+    sys.path.remove(str(ROOT_DIR))
+sys.path.insert(0, str(ROOT_DIR))
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(main())
