@@ -62,10 +62,18 @@ from src.schemas.errors import (
 from src.services.market_data_scheduler import run_market_data_scheduler
 from src.services.statement_parsing_supervisor import run_parsing_supervisor
 from src.services.storage_sweep import run_storage_sweep
+from src.telemetry_metrics import (
+    configure_database_pool_metrics,
+    configure_otel_metrics,
+    http_route_label_from_scope,
+    record_http_request,
+)
 from src.utils.exceptions import BaseAppException
 
 # Initialize logging early
 configure_logging()
+configure_otel_metrics()
+configure_database_pool_metrics(engine)
 logger = get_logger(__name__)
 
 
@@ -191,12 +199,24 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
             status_code=response.status_code,
             duration_ms=round(duration * 1000, 2),
         )
+        record_http_request(
+            method=request.method,
+            route=http_route_label_from_scope(request.scope),
+            status_code=response.status_code,
+            duration_ms=round(duration * 1000, 2),
+        )
 
         # Inject Request-ID into response headers
         response.headers["X-Request-ID"] = request_id
         return response
     except Exception as exc:
         duration = time.perf_counter() - start_time
+        record_http_request(
+            method=request.method,
+            route=http_route_label_from_scope(request.scope),
+            status_code=500,
+            duration_ms=round(duration * 1000, 2),
+        )
         logger.exception(
             "HTTP Request Failed",
             duration_ms=round(duration * 1000, 2),

@@ -40,11 +40,18 @@ def get_observability_status() -> dict[str, Any]:
     """
     resource_attributes = parse_key_value_pairs(settings.otel_resource_attributes)
     exporter_configured = bool(settings.otel_exporter_otlp_endpoint)
+    try:
+        from src.telemetry_metrics import is_metrics_export_active
+
+        metrics_export_enabled = is_metrics_export_active()
+    except Exception:  # pragma: no cover - defensive import guard
+        metrics_export_enabled = False
 
     return {
         "otel_exporter_configured": exporter_configured,
         "logs_export_enabled": exporter_configured,
         "traces_export_enabled": exporter_configured,
+        "metrics_export_enabled": metrics_export_enabled,
         # Real init state: True only when FastAPI request instrumentation was
         # actually applied to the app instance (not merely configured).
         "request_instrumentation_active": _fastapi_instrumentation_active,

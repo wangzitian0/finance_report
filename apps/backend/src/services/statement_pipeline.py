@@ -28,6 +28,7 @@ from src.config import settings
 from src.database import create_session_maker_from_db
 from src.logger import get_logger
 from src.services.statement_parsing import parse_statement_background
+from src.telemetry_metrics import run_with_async_parse_tracking
 
 logger = get_logger(__name__)
 
@@ -89,17 +90,19 @@ async def submit_parse_pipeline(
         return None
 
     return asyncio.create_task(
-        parse_statement_background(
-            statement_id=statement_id,
-            filename=filename,
-            institution=institution,
-            user_id=user_id,
-            account_id=account_id,
-            file_hash=file_hash,
-            storage_key=storage_key,
-            content=content,
-            model=model,
-            session_maker=create_session_maker_from_db(db),
-            request_id=request_id,
+        run_with_async_parse_tracking(
+            parse_statement_background(
+                statement_id=statement_id,
+                filename=filename,
+                institution=institution,
+                user_id=user_id,
+                account_id=account_id,
+                file_hash=file_hash,
+                storage_key=storage_key,
+                content=content,
+                model=model,
+                session_maker=create_session_maker_from_db(db),
+                request_id=request_id,
+            )
         )
     )
