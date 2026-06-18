@@ -793,6 +793,8 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
         in staging
     )
+    assert "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=staging" in staging
+    assert "github.run_id=${{ github.run_id }}" in staging
     assert "staging-ai-ocr-test-context" in staging
     assert "test-results/staging-ai-ocr-version.xml" in staging
     assert "test-results/staging-ai-ocr-gate.xml" in staging

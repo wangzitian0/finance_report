@@ -623,6 +623,8 @@ jobs:
             echo "failure_domain=${failure_domain}"
             echo "failed_step=${failed_step}"
             echo "failure_summary=${failure_summary}"
+            echo "signoz_logs_query_url=https://signoz.zitian.party/logs?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.version.outputs.tag }}&github.run_id=${{ github.run_id }}"
+            echo "signoz_traces_query_url=https://signoz.zitian.party/traces?service.name=finance-report-backend&deployment.environment=production&service.version=${{ steps.version.outputs.tag }}&github.run_id=${{ github.run_id }}"
             echo "marker=prod_safe"
           } > ci-context/production-deploy-context.txt
 

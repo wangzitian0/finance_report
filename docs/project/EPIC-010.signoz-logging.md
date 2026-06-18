@@ -169,6 +169,7 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.9.2 | Startup logs emit one structured observability runtime event for SigNoz/Lark alert triage | `test_AC10_9_2_observability_startup_log_uses_runtime_contract()` | `infra/test_observability_contract.py` | P0 |
 | AC10.9.3 | `/health` includes the same redacted observability status so deploy checks can prove app-side alert readiness | `test_AC10_9_3_health_response_includes_redacted_observability_status()` | `infra/test_observability_contract.py` | P0 |
 | AC10.9.4 | Finance Report docs declare the app-owned alerting contract while infra2 remains the shared SigNoz/Lark automation owner | `test_AC10_9_4_observability_docs_declare_shared_alerting_pipeline()` | `infra/test_observability_contract.py` | P0 |
+| AC10.9.5 | Deploy failure snapshots and deploy contexts include non-secret platform health fields plus run-to-SigNoz log/trace query links | `test_AC10_9_5_snapshot_includes_platform_health_and_signoz_links()`, `test_AC10_9_5_main_missing_inputs_still_prints_signoz_links()` | `tests/tooling/test_dokploy_failure_snapshot.py` | P0 |
 
 ## 📏 Acceptance Criteria
 
