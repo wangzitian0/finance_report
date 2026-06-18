@@ -705,7 +705,8 @@ jobs:
       - name: Get Commit SHA
         id: get_sha
         run: |
-          short_sha=$(git rev-parse --short HEAD)
+          full_sha=$(git rev-parse HEAD)
+          short_sha="${full_sha:0:7}"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "Building staging images for commit: $short_sha"
 

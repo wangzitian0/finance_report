@@ -1310,6 +1310,8 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     assert "docker buildx imagetools create --tag" in release_images
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
+    assert 'short_sha="${full_sha:0:7}"' in workflow
+    assert workflow.count('short_sha="${full_sha:0:7}"') == 2
 
     # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
     assert "Verify staging passed" in workflow
@@ -1564,6 +1566,8 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "packages: write" in ci_workflow
     assert "Build Backend SHA image" in ci_workflow
     assert "Build Frontend SHA image" in ci_workflow
+    assert "full_sha=$(git rev-parse HEAD)" in ci_workflow
+    assert 'short_sha="${full_sha:0:7}"' in ci_workflow
     assert (
         "push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}"
         in ci_workflow
@@ -1581,6 +1585,8 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
 
     assert "Release Images" in release_workflow
     assert "tags: ['v[0-9]+.[0-9]+.[0-9]+']" in release_workflow
+    assert 'full_sha="$(git rev-parse "$GITHUB_SHA")"' in release_workflow
+    assert 'short_sha="${full_sha:0:7}"' in release_workflow
     assert "docker buildx imagetools create --tag" in release_workflow
     assert "Backend digests differ!" in release_workflow
     assert "Frontend digests differ!" in release_workflow
@@ -1592,6 +1598,8 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     assert "Build and push Frontend" not in deploy_workflow
     assert "Promote Backend Image to Staging Tag" not in deploy_workflow
     assert "ref: ${{ inputs.tag }}" in deploy_workflow
+    assert "full_sha=$(git rev-parse HEAD)" in deploy_workflow
+    assert 'short_sha="${full_sha:0:7}"' in deploy_workflow
     assert deploy_workflow.index("ref: ${{ inputs.tag }}") < deploy_workflow.index(
         "Deploy to Staging"
     )
