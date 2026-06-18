@@ -37,7 +37,7 @@
 | **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
-| **4** | **PR Preview** | `http://localhost:8080` inside GitHub runner<br>**No persistent Dokploy URL** | PR push — synchronous `pull_request`<br>`pr-test.yml` (not async `workflow_run`) | Runner compose stack<br>(local build, no registry push) | GitHub runner containers<br>(Per run) | Ephemeral Postgres/MinIO | `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>` |
+| **4** | **PR Preview** | Required gate: `http://localhost:8080` inside GitHub runner<br>Manual inspection: optional `report-pr-<N>.zitian.party` | PR push — synchronous `pull_request` runner E2E<br>Manual `workflow_dispatch` persistent preview | Runner compose stack for merge gate<br>On-demand Dokploy host-build for inspection | GitHub runner containers for merge gate<br>Optional Dokploy preview compose | Ephemeral Postgres/MinIO | Runner `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>`<br>Dokploy `report-pr-<N>` alias |
 | **5** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`staging-deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
 | **6** | **Production** | `report.zitian.party` | Manual release<br>`production-release.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
@@ -110,22 +110,27 @@ PR validation is split into two independent things (issue #839):
 - **Image-free at registry level**: builds locally in the runner and pushes
   nothing; no PR preview image, no GHCR tag, no Dokploy deploy, no shared VPS,
   and no SSL wait. This is what keeps E2E coverage cheap and fast.
-- **No persistent Dokploy URL**: the workflow comments the validation result on
-  the PR instead of publishing a click-through preview URL.
+- **No automatic persistent Dokploy URL**: the pull-request gate comments the
+  validation result on the PR instead of publishing a click-through preview URL.
 
-**Legacy PR Preview (Dokploy)** — cleanup-only compatibility:
-- Historical PR previews may still exist from the former Dokploy flow. The
-  current workflow removes those resources on PR close/merge, failed CI,
-  cancelled CI, timed-out CI, and before a new successful runner preview.
+**Persistent PR Preview (Dokploy)** — manual, non-blocking inspection:
+- The `deploy-preview` job still exists, but runs only by manual
+  `workflow_dispatch` after the in-runner E2E gate passes. It is not merge
+  authority.
+- It currently uses the app-side `tools/pr_preview_lifecycle.py` path:
+  Dokploy clones the PR branch and builds from source on the host. It does not
+  pull a GHCR PR image and it is not the infra2 `deploy_v2 preview/*` path.
 - Cleanup uses `tools/pr_preview_lifecycle.py --action cleanup`, is idempotent,
-  and does not build, push, preflight, or delete PR preview images.
-- Scheduled `PR Preview Cleanup` remains as bounded reconciliation for stale
-  historical Dokploy resources.
+  and removes the persistent Dokploy compose on PR close/manual cleanup. Scheduled
+  `PR Preview Cleanup` remains as bounded reconciliation for stale Dokploy
+  resources.
 
 ### Production Environments (Staging + Production)
 
-**Staging** — Manually deployed from a chosen commit:
-- **Image deployment**: Built from the dispatched `ref` (defaults to latest `main`)
+**Staging** — Manually deployed from a release tag:
+- **Image deployment**: `staging-deploy.yml` requires an existing `vX.Y.Z`
+  release tag. `release-images.yml` promotes main-CI SHA images to that retained
+  release tag, then staging deploys it via `deploy_v2`.
 - Deployed to Dokploy **manually** via `staging-deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
 - Persistent data, stable environment for QA
 - Uses dedicated DB/Redis + shared Platform (SigNoz, MinIO with bucket isolation)
@@ -170,7 +175,7 @@ PR validation is split into two independent things (issue #839):
 | Workflow File | Environment | Trigger | Actions |
 |---------------|-------------|---------|---------|
 | `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
-| `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync | Build images, deploy to Dokploy, cleanup on close |
+| `.github/workflows/pr-test.yml` | PR Preview | PR opened/sync; manual dispatch for persistent preview | Run runner-local E2E as merge gate; optionally deploy/cleanup a non-blocking persistent Dokploy preview |
 | `.github/workflows/release-images.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
 | `.github/workflows/staging-deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release tag via deploy_v2, then smoke/E2E/AI-OCR gates |
 | `.github/workflows/production-release.yml` | Production | Manual (`workflow_dispatch`) | Dry-run or deploy an existing release tag via deploy_v2 |
@@ -207,7 +212,7 @@ This App doc does not enumerate those values.
 | **Local Dev** | None (manual testing) | Fast iteration | — |
 | **Local CI** | Unit + integration with coverage policy from `common/coverage/policy.py` | Pre-push validation | ~30s |
 | **GitHub CI** | Lint, AC traceability, unit + integration with unified coverage for heavy changes | Quality gate | ~7min heavy / lightweight skips heavy jobs |
-| **PR Preview** | Health check + non-LLM E2E against per-PR Dokploy environment | Opt-in on-demand inspection (not a per-PR gate) | ~3-5min when enabled |
+| **PR Preview** | Runner-local health check + non-LLM E2E; optional manual Dokploy inspection | Merge validation + opt-in inspection | ~3-5min when enabled |
 | **Staging** | Image deploy, smoke, non-LLM E2E, performance; AI/OCR gate runs separately | **Deployment validation** + full validation | ~6min deploy + variable AI/OCR gate |
 | **Production** | Health check only | Availability check | ~10s |
 
@@ -215,25 +220,29 @@ This App doc does not enumerate those values.
 
 ## Data Axis & Red Lines
 
-An environment is **(code × data)**. The sections above cover the *code* side
-(which image runs where); this section owns the *data* side — **which data an
-environment runs on**. Data is the second input to the deploy primitive
-`deploy(env, code, data)`. Most of this project's risk (financial correctness,
-Alembic migrations) lives here, so the constraints below are **red lines**, not
-preferences.
+An environment still has a **code artifact** and a **data lane**, but data is
+not a public `deploy_v2` coordinate. The current deploy front door is
+`deploy_v2(service, type, version_ref, iac_ref)`; `type` derives the environment,
+and the execution layer derives `data_lane` from `EnvConfig.data_default` before
+checking red-line predicates. Most of this project's risk (financial correctness,
+Alembic migrations) lives on the data side, so the constraints below are **red
+lines**, not preferences.
 
 ### Data sources
 
 | Source | What it is | Used by (environment) |
 |--------|------------|---------|
-| **empty** | migrations freshly applied, seed/fixtures only | GitHub CI, PR Preview |
-| **staging** | data accumulated by testing | Staging |
-| **anonymized prod snapshot** | the *shape* of real data, with amounts/PII anonymized | Staging, and `rehearsal` *(planned, #893)* — fed by `snapshot-sync` |
+| **empty** | migrations freshly applied, seed/fixtures only | GitHub CI and runner-local E2E; new preview DBs start empty even when their derived lane label is `staging` |
+| **staging** | non-prod operator lane / data accumulated by testing | Current `deploy_v2` default data lane for Staging and Preview |
+| **anonymized prod snapshot** | the *shape* of real data, with amounts/PII anonymized | Planned `rehearsal` / staging data feed (#893) — fed by `snapshot-sync` |
 | *(real prod data)* | live data | **Production only** |
 
-**Default is safe-on-failure**: a non-prod environment defaults to **empty /
-synthetic** data. The anonymized snapshot is an additive opt-in — if anonymization
-ever breaks, the degrade lands on empty/synthetic, **never** on real data.
+**Current default**: `deploy_v2` derives the data lane from env config:
+Staging → `staging`, Preview → `staging`, Production → `prod`. This is a
+red-line classification input, not a public deploy parameter. The #893
+snapshot-sync work must keep failure safe: a broken anonymizer may fall back to
+empty/synthetic rehearsal data, but must never expose real prod data outside the
+prod boundary.
 
 ### Data red lines
 

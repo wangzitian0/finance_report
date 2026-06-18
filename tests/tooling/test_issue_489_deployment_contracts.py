@@ -342,7 +342,7 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
 
     env_doc = read("docs/ssot/environments.md")
     assert "pull_request" in env_doc
-    assert "No persistent Dokploy URL" in env_doc
+    assert "No automatic persistent Dokploy URL" in env_doc
 
 
 def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:

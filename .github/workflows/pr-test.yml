@@ -4,9 +4,11 @@
 # stack inside the GitHub runner, runs provider-free smoke/E2E, and destroys the
 # stack in the same job. As a synchronous required check it must pass before merge —
 # the old workflow_run trigger fired only after CI and a fast/auto merge could outrun
-# it (a skipped required check counts as passed). It is image-free, builds no PR
-# preview images, and creates no persistent Dokploy URL. PR close triggers cleanup of
-# legacy Dokploy preview resources.
+# it (a skipped required check counts as passed). It is image-free and builds no
+# PR preview images. The automatic pull_request path creates no persistent Dokploy
+# URL; a separate manual workflow_dispatch can still deploy a non-blocking
+# persistent preview for inspection. PR close triggers cleanup of Dokploy preview
+# resources.
 
 name: PR Test Environment
 
@@ -219,8 +221,8 @@ jobs:
     # Run workflow -> PR number), after the in-runner E2E gate passes, then builds the
     # PR's source on the Dokploy host and persists until the PR is closed. It never
     # blocks the PR: the in-runner E2E is the merge authority; this job reports the
-    # preview URL via PR comment. (The host-build is the remaining D1; it becomes a
-    # pull of the published :<sha> image when the deploy primitive lands in P2/#883.)
+    # preview URL via PR comment. This app-side persistent PR preview path is not the
+    # infra2 deploy_v2 preview/* front door used by report-branch-main/canary slots.
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.e2e.result == 'success' && github.event_name == 'workflow_dispatch'
     needs: [setup, e2e]
     runs-on: ubuntu-latest
