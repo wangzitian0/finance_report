@@ -200,6 +200,34 @@ def test_AC10_9_5_main_missing_inputs_still_prints_signoz_links(capsys) -> None:
     assert "github.run_id=456" in out
 
 
+def test_AC10_9_5_main_does_not_emit_empty_github_run_filter(capsys) -> None:
+    """AC10.9.5: SigNoz pivots require a concrete GitHub run id."""
+    rc = snapshot.main(
+        [
+            "--compose-id",
+            "",
+            "--api-url",
+            "",
+            "--api-key",
+            "",
+            "--signoz-url",
+            "https://signoz.zitian.party",
+            "--deployment-environment",
+            "production",
+            "--service-version",
+            "v0.1.3",
+            "--github-run-id",
+            "",
+        ]
+    )
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "snapshot-skipped-missing-inputs" in out
+    assert "signoz_logs_query_url" not in out
+    assert "github.run_id=" not in out
+
+
 def test_build_snapshot_no_deployments(monkeypatch) -> None:
     monkeypatch.setattr(
         snapshot,

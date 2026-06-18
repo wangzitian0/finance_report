@@ -207,7 +207,10 @@ def main(argv: list[str] | None = None) -> int:
             service_version=args.service_version,
             github_run_id=args.github_run_id,
         )
-        if args.signoz_url and args.deployment_environment and args.service_version
+        if args.signoz_url
+        and args.deployment_environment
+        and args.service_version
+        and args.github_run_id
         else {}
     )
 
