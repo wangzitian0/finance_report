@@ -2,7 +2,7 @@ import { Download, FileJson, Printer, Save } from "lucide-react";
 
 import type { PersonalReportPackageSnapshotSummary } from "@/lib/types";
 
-import { formatSnapshotTimestamp, snapshotDownloadLabel } from "./shared";
+import { formatSnapshotTimestamp, FRAMEWORK_LABELS, snapshotDownloadLabel } from "./shared";
 
 export function PackageSnapshotsCard({
   snapshots,
@@ -78,8 +78,8 @@ export function PackageSnapshotsCard({
                         {snapshot.status === "trusted" ? "Trusted" : "Draft"}
                       </span>
                     </td>
-                    <td className="py-3 pr-4 font-mono text-xs">
-                      {snapshot.framework_id}
+                    <td className="py-3 pr-4">
+                      {FRAMEWORK_LABELS[snapshot.framework_id] ?? snapshot.framework_id}
                     </td>
                     <td className="py-3 pr-4 font-mono text-xs">
                       {snapshot.start_date} to {snapshot.end_date}

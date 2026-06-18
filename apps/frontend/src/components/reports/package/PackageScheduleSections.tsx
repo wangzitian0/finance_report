@@ -5,7 +5,7 @@ import type {
   PersonalReportPackageNotesResponse,
 } from "@/lib/types";
 
-import { formatScheduleCurrency, sectionAnchorId } from "./shared";
+import { formatScheduleCurrency, FRAMEWORK_LABELS, sectionAnchorId } from "./shared";
 
 export function PackageSectionCards({
   sections,
@@ -27,16 +27,6 @@ export function PackageSectionCards({
             <span className="badge badge-muted">{section.status}</span>
           </div>
           <dl className="mt-4 space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted">Owner</dt>
-              <dd className="font-medium">{section.owner_epic}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted">Endpoint</dt>
-              <dd className="font-mono text-xs text-right">
-                {section.source_endpoint}
-              </dd>
-            </div>
             {section.blocking_issue ? (
               <div className="flex justify-between gap-3">
                 <dt className="text-muted">Follow-up</dt>
@@ -44,6 +34,25 @@ export function PackageSectionCards({
               </div>
             ) : null}
           </dl>
+          <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+            <summary className="cursor-pointer font-medium">Section audit details</summary>
+            <dl className="mt-3 space-y-2">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Section ID</dt>
+                <dd className="font-mono text-xs text-right">{section.section_id}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Owner</dt>
+                <dd className="font-medium">{section.owner_epic}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted">Endpoint</dt>
+                <dd className="font-mono text-xs text-right">
+                  {section.source_endpoint}
+                </dd>
+              </div>
+            </dl>
+          </details>
         </section>
       ))}
     </div>
@@ -229,20 +238,19 @@ export function PackageExportContractSection({
   policy: FrameworkPolicyResult;
   evidenceReferences: string[];
 }) {
+  const frameworkLabel = FRAMEWORK_LABELS[policy.framework_id] ?? policy.framework_id;
+
   return (
     <section id="package-export-contract" className="card p-5">
-      <h2 className="font-semibold">Export Contract</h2>
+      <h2 className="font-semibold">Export Options</h2>
+      <p className="mt-2 text-sm text-muted">
+        Snapshot exports are built from the selected reporting basis and evidence references.
+      </p>
       <dl className="mt-4 space-y-2 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-muted">Formats</dt>
           <dd className="font-medium">
             {contract.export_contract.formats.join(", ")}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted">CSV Columns</dt>
-          <dd className="font-mono text-xs text-right">
-            {contract.export_contract.csv_columns.join(", ")}
           </dd>
         </div>
         <div className="flex justify-between gap-3">
@@ -252,22 +260,37 @@ export function PackageExportContractSection({
           </dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="text-muted">Framework Policy Result</dt>
-          <dd className="max-w-md break-words font-mono text-xs text-right">
-            {policy.result_id}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted">Framework Policy Matrix Version</dt>
-          <dd className="font-medium">{policy.matrix_version}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted">Evidence Bundle References</dt>
-          <dd className="max-w-md break-words font-mono text-xs text-right">
-            {evidenceReferences.join(", ") || "none"}
-          </dd>
+          <dt className="text-muted">Reporting basis</dt>
+          <dd className="font-medium">{frameworkLabel}</dd>
         </div>
       </dl>
+      <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+        <summary className="cursor-pointer font-medium">Export audit details</summary>
+        <dl className="mt-3 space-y-2">
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">CSV Columns</dt>
+            <dd className="font-mono text-xs text-right">
+              {contract.export_contract.csv_columns.join(", ")}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Framework Policy Result</dt>
+            <dd className="max-w-md break-words font-mono text-xs text-right">
+              {policy.result_id}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Framework Policy Matrix Version</dt>
+            <dd className="font-medium">{policy.matrix_version}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Evidence Bundle References</dt>
+            <dd className="max-w-md break-words font-mono text-xs text-right">
+              {evidenceReferences.join(", ") || "none"}
+            </dd>
+          </div>
+        </dl>
+      </details>
     </section>
   );
 }

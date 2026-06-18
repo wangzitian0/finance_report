@@ -581,6 +581,16 @@ function expectPackageDates(path: string, reportDate: string, startDate: string)
   expect(params.get("as_of_date")).toBe(reportDate);
 }
 
+function expectInsideClosedAuditDetails(text: string | RegExp) {
+  const node = screen.getAllByText(text)[0];
+  expect(node).toBeDefined();
+  const details = node.closest("details");
+  expect(details).not.toBeNull();
+  expect(details).not.toHaveAttribute("open");
+  expect(within(details as HTMLElement).getByText(/audit details/i)).toBeInTheDocument();
+  return details as HTMLElement;
+}
+
 describe("PersonalReportPackagePage", () => {
   afterEach(() => {
     mockedApiDownload.mockReset();
@@ -749,19 +759,15 @@ describe("PersonalReportPackagePage", () => {
       ),
       expect.objectContaining({ signal: expect.any(Object) }),
     );
-    expect(await screen.findByText("Framework Policy")).toBeInTheDocument();
+    expect(await screen.findByText("Reporting Basis")).toBeInTheDocument();
     expect(
-      screen.getAllByText("personal_us_gaap_like").length,
+      screen.getAllByText("US-like").length,
     ).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getAllByText(
-        "policy-result:personal_us_gaap_like:2025-05-20:2026-05-20:fixture",
-      ).length,
-    ).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getByText("assets.marketable_securities"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("unsupported_policy_domain")).toBeInTheDocument();
+    expectInsideClosedAuditDetails(
+      "policy-result:personal_us_gaap_like:2025-05-20:2026-05-20:fixture",
+    );
+    expectInsideClosedAuditDetails("assets.marketable_securities");
+    expectInsideClosedAuditDetails("unsupported_policy_domain");
   });
 
   it("AC20.6.1 keeps framework package sections pinned to the selected report date", async () => {
@@ -770,7 +776,7 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("Framework Policy");
+    await screen.findByText("Reporting Basis");
 
     fireEvent.change(screen.getByLabelText("Package report date"), {
       target: { value: "2026-04-30" },
@@ -807,7 +813,7 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("Framework Policy");
+    await screen.findByText("Reporting Basis");
 
     fireEvent.change(screen.getByLabelText("Package report date"), {
       target: { value: "2024-03-01" },
@@ -850,7 +856,7 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("Framework Policy");
+    await screen.findByText("Reporting Basis");
 
     const callCountBeforeEmptyDate = mockedApiFetch.mock.calls.length;
     fireEvent.change(screen.getByLabelText("Package report date"), {
@@ -1069,12 +1075,13 @@ describe("PersonalReportPackagePage", () => {
     expect(
       screen.getByText("HK-like selected for this package."),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("personal_hkfrs_like").length).toBeGreaterThan(
+    expect(screen.getAllByText("HK-like").length).toBeGreaterThan(
       0,
     );
-    expect(await screen.findByText("Framework Policy")).toBeInTheDocument();
+    expect(await screen.findByText("Reporting Basis")).toBeInTheDocument();
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("none")).toBeInTheDocument();
+    expectInsideClosedAuditDetails("personal_hkfrs_like");
+    expectInsideClosedAuditDetails("none");
   });
 
   it("AC20.6.1 ignores stale framework package responses when selection changes", async () => {
@@ -1156,6 +1163,9 @@ describe("PersonalReportPackagePage", () => {
         )
       ).length,
     ).toBeGreaterThanOrEqual(1);
+    expectInsideClosedAuditDetails(
+      "policy-result:personal_hkfrs_like:2025-05-20:2026-05-20:fixture",
+    );
     expect(
       screen.queryByText(
         "policy-result:personal_us_gaap_like:2025-05-20:2026-05-20:fixture",
@@ -1206,10 +1216,10 @@ describe("PersonalReportPackagePage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     // Wait for the framework package output to load, then assert the sections.
-    await screen.findByText("Source Trust");
+    await screen.findByText("Evidence Coverage");
 
     // Human section titles are present...
-    for (const heading of ["Report Readiness", "Source Trust", "Framework Policy", "Traceability Appendix"]) {
+    for (const heading of ["Report Readiness", "Evidence Coverage", "Reporting Basis", "Traceability Summary"]) {
       expect(screen.getAllByText(heading).length).toBeGreaterThanOrEqual(1);
     }
     // ...and the raw snake_case section eyebrows are gone.
@@ -1243,10 +1253,10 @@ describe("PersonalReportPackagePage", () => {
     });
     for (const [label, href] of [
       ["Report Readiness", "#package-readiness"],
-      ["Source Trust", "#package-source-trust"],
-      ["Framework Policy", "#package-framework-policy"],
+      ["Evidence Coverage", "#package-source-trust"],
+      ["Reporting Basis", "#package-framework-policy"],
       ["Balance Sheet ready", "#package-section-balance_sheet"],
-      ["Traceability Appendix ready", "#package-section-traceability_appendix"],
+      ["Traceability Summary", "#package-traceability-detail"],
     ] as const) {
       expect(within(toc).getByRole("link", { name: label })).toHaveAttribute(
         "href",
@@ -1309,7 +1319,7 @@ describe("PersonalReportPackagePage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Pending source review")).toBeInTheDocument();
-    expect(screen.getByText("pending_review")).toBeInTheDocument();
+    expectInsideClosedAuditDetails("pending_review");
     expect(screen.getByText("Balance validation mismatch")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -1347,32 +1357,100 @@ describe("PersonalReportPackagePage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
-    const sourceTrust = await screen.findByText("Source Trust");
+    const sourceTrust = await screen.findByText("Evidence Coverage");
     // The traceability section is titled by its human label (AC22.8.1), not the
     // raw section_id; it must render after the source-trust summary.
-    const traceability = (await screen.findAllByText("Traceability Appendix")).at(-1)!;
+    const traceability = await screen.findByRole("heading", { name: "Traceability Summary" });
     expect(traceability).toBeDefined();
     expect(
       sourceTrust.compareDocumentPosition(traceability) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByText("7 classes")).toBeInTheDocument();
+    expect(screen.getByText("7 evidence classes")).toBeInTheDocument();
+    expect(screen.getByText("Verified by automated checks")).toBeInTheDocument();
+    expect(screen.getByText("Verified with live extraction checks")).toBeInTheDocument();
+    expect(screen.getByText("Manual evidence")).toBeInTheDocument();
+    expect(screen.getByText("Missing or unsupported evidence")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "bank_statement, brokerage_statement, property_statement, liability_statement, esop_rsu_plan, csv_export, manual_record",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("bank_statement, brokerage_statement"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "property_statement, liability_statement, esop_rsu_plan, manual_record",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("missing_source_coverage, pending_review"),
-    ).toBeInTheDocument();
+      screen.getAllByText(
+        "Bank statements, Brokerage statements, Property statements, Liability statements, ESOP / RSU plans, CSV exports, Manual records",
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+    expectInsideClosedAuditDetails("bank_statement, brokerage_statement");
+    expectInsideClosedAuditDetails(
+      "property_statement, liability_statement, esop_rsu_plan, manual_record",
+    );
+    expectInsideClosedAuditDetails("missing_source_coverage, pending_review");
+  });
+
+  it("AC22.19.1 renders the loaded package with reader-first labels before proof internals", async () => {
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    expect(await screen.findByRole("heading", { name: "Evidence Coverage" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Traceability Summary" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Framework Policy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Source Trust" })).not.toBeInTheDocument();
+    expect(screen.getByText("Missing or unsupported evidence")).toBeInTheDocument();
+    expect(screen.getByText("Report lines with evidence")).toBeInTheDocument();
+    expect(screen.getByText("Reporting gaps")).toBeInTheDocument();
+
+    expectInsideClosedAuditDetails("Deterministic PR");
+    expectInsideClosedAuditDetails("Post-merge LLM/OCR");
+    expectInsideClosedAuditDetails("Framework Policy Result");
+    expectInsideClosedAuditDetails("unsupported_policy_domain");
+    expectInsideClosedAuditDetails("pending_review");
+  });
+
+  it("AC22.19.2 keeps proof and policy internals in keyboard-reachable audit details", async () => {
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Reporting Basis" });
+
+    for (const summary of [
+      "Readiness audit details",
+      "Evidence audit details",
+      "Reporting basis audit details",
+      "Traceability audit details",
+      "Export audit details",
+    ]) {
+      const details = screen.getByText(summary).closest("details");
+      expect(details).not.toBeNull();
+      expect(details).not.toHaveAttribute("open");
+      fireEvent.click(screen.getByText(summary));
+      expect(details).toHaveAttribute("open");
+    }
+
+    expect(screen.getByText("Matrix Version")).toBeInTheDocument();
+    expect(screen.getByText("balance_sheet.total_assets")).toBeInTheDocument();
+    expect(screen.getByText("trusted_or_explicit_manual_input")).toBeInTheDocument();
+    expect(screen.getAllByText("TRUSTED").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("hybrid")).toBeInTheDocument();
+    expect(screen.getByText("static_contract_note")).toBeInTheDocument();
+  });
+
+  it("AC22.19.3 keeps export proof metadata behind a print-hidden export audit disclosure", async () => {
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Export Options" });
+
+    expect(screen.queryByRole("heading", { name: "Export Contract" })).not.toBeInTheDocument();
+    expect(screen.getByText("Snapshot exports are built from the selected reporting basis and evidence references.")).toBeInTheDocument();
+    const exportAudit = screen.getByText("Export audit details").closest("details");
+    expect(exportAudit).not.toBeNull();
+    expect(exportAudit).toHaveClass("print:hidden");
+    expectInsideClosedAuditDetails("Framework Policy Matrix Version");
+    expectInsideClosedAuditDetails(/atomic_position:private-token/);
   });
 
   it("AC5.9.4 renders export contract metadata", async () => {
@@ -1381,14 +1459,12 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByRole("heading", { name: "Export Contract" });
+    await screen.findByRole("heading", { name: "Export Options" });
     expect(screen.getByText("json, csv")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "package_id, section_id, line_id, label, amount, currency, source_state, selected_framework_id, framework_policy_result_id, framework_policy_matrix_version, evidence_bundle_references",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Framework Policy Result")).toBeInTheDocument();
+    expectInsideClosedAuditDetails(
+      "package_id, section_id, line_id, label, amount, currency, source_state, selected_framework_id, framework_policy_result_id, framework_policy_matrix_version, evidence_bundle_references",
+    );
+    expectInsideClosedAuditDetails("Framework Policy Result");
     expect(screen.getAllByText("1.0").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("string")).toBeInTheDocument();
     expect(
@@ -1448,40 +1524,35 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("balance_sheet.total_assets");
+    await screen.findByRole("heading", { name: "Traceability Summary" });
     expect(
-      screen.getAllByText("Traceability Appendix").length,
+      screen.getAllByText("Traceability Summary").length,
     ).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getByText("posted_reconciled_journal_lines_and_manual_valuations"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("bank_statement, manual_valuation_snapshot"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        `statement_transaction:${statementTxnId}, manual_valuation_snapshot:val-456`,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("posted, reconciled")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        `journal_entry:${journalEntryId}, journal_line:${journalLineId}`,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("trusted_or_explicit_manual_input"),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText("Total Assets").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Source available").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Ledger available").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("4 evidence anchors")).toBeInTheDocument();
+    expectInsideClosedAuditDetails("balance_sheet.total_assets");
+    expectInsideClosedAuditDetails(
+      "posted_reconciled_journal_lines_and_manual_valuations",
+    );
+    expectInsideClosedAuditDetails("bank_statement, manual_valuation_snapshot");
+    expectInsideClosedAuditDetails(
+      `statement_transaction:${statementTxnId}, manual_valuation_snapshot:val-456`,
+    );
+    expectInsideClosedAuditDetails("posted, reconciled");
+    expectInsideClosedAuditDetails(
+      `journal_entry:${journalEntryId}, journal_line:${journalLineId}`,
+    );
+    expectInsideClosedAuditDetails("trusted_or_explicit_manual_input");
     expect(screen.getAllByText("TRUSTED").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("hybrid")).toBeInTheDocument();
-    expect(screen.getByText("4 anchors")).toBeInTheDocument();
-    expect(screen.getByText("unclassified")).toBeInTheDocument();
-    expect(screen.getByText("0 anchors")).toBeInTheDocument();
-    expect(screen.getByText("static_contract_note")).toBeInTheDocument();
-    expect(screen.getByText("manual_only_source")).toBeInTheDocument();
-    expect(
-      screen.getByText("explicit_manual_input_required"),
-    ).toBeInTheDocument();
+    expectInsideClosedAuditDetails("hybrid");
+    expectInsideClosedAuditDetails("4 anchors");
+    expectInsideClosedAuditDetails("unclassified");
+    expectInsideClosedAuditDetails("0 anchors");
+    expectInsideClosedAuditDetails("static_contract_note");
+    expectInsideClosedAuditDetails("manual_only_source");
+    expectInsideClosedAuditDetails("explicit_manual_input_required");
   });
 
   it("AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability", async () => {
@@ -1490,11 +1561,11 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("balance_sheet.total_assets");
+    await screen.findByRole("heading", { name: "Traceability Summary" });
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Trace lineage for balance_sheet.total_assets",
+        name: "Trace evidence for Total Assets",
       }),
     );
 
@@ -1541,10 +1612,10 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("balance_sheet.total_assets");
+    await screen.findByRole("heading", { name: "Traceability Summary" });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Trace lineage for balance_sheet.total_assets",
+        name: "Trace evidence for Total Assets",
       }),
     );
 
@@ -1568,10 +1639,10 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("balance_sheet.total_assets");
+    await screen.findByRole("heading", { name: "Traceability Summary" });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Trace lineage for balance_sheet.total_assets",
+        name: "Trace evidence for Total Assets",
       }),
     );
 
@@ -1622,10 +1693,10 @@ describe("PersonalReportPackagePage", () => {
       const { unmount } = renderPackagePage();
 
       fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-      await screen.findByText("balance_sheet.total_assets");
+      await screen.findByRole("heading", { name: "Traceability Summary" });
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Trace lineage for balance_sheet.total_assets",
+          name: "Trace evidence for Total Assets",
         }),
       );
 

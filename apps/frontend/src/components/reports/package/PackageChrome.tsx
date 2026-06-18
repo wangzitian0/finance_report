@@ -189,30 +189,41 @@ export function PackageFrameworkSelection({
         </div>
       </div>
       {selectedFrameworkId ? (
-        <dl className="mt-5 grid md:grid-cols-4 gap-3 text-sm">
-          <div>
-            <dt className="text-xs text-muted">Selected Framework</dt>
-            <dd className="mt-1 font-mono text-xs">{selectedFrameworkId}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Report Period</dt>
-            <dd className="mt-1 font-mono text-xs">
-              {reportPeriodStart(reportDate)} to {reportDate}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Policy Endpoint</dt>
-            <dd className="mt-1 font-mono text-xs">
-              {contract.framework_policy_endpoint}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Supported Frameworks</dt>
-            <dd className="mt-1 font-mono text-xs">
-              {contract.supported_frameworks.join(", ")}
-            </dd>
-          </div>
-        </dl>
+        <>
+          <dl className="mt-5 grid gap-3 text-sm md:grid-cols-2">
+            <div>
+              <dt className="text-xs text-muted">Reporting basis</dt>
+              <dd className="mt-1 font-semibold">{selectedFrameworkLabel}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Report period</dt>
+              <dd className="mt-1 font-medium">
+                {reportPeriodStart(reportDate)} to {reportDate}
+              </dd>
+            </div>
+          </dl>
+          <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+            <summary className="cursor-pointer font-medium">Framework setup audit details</summary>
+            <dl className="mt-3 grid gap-3 md:grid-cols-2">
+              <div>
+                <dt className="text-xs text-muted">Selected Framework</dt>
+                <dd className="mt-1 font-mono text-xs">{selectedFrameworkId}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Policy Endpoint</dt>
+                <dd className="mt-1 font-mono text-xs">
+                  {contract.framework_policy_endpoint}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Supported Frameworks</dt>
+                <dd className="mt-1 font-mono text-xs">
+                  {contract.supported_frameworks.join(", ")}
+                </dd>
+              </div>
+            </dl>
+          </details>
+        </>
       ) : null}
     </section>
   );

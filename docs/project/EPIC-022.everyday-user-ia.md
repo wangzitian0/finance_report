@@ -418,3 +418,16 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.18.1 | The legacy `/events` alias is removed from `ROUTE_CONFIG` so `/notifications` is the single canonical path/label; the `/events`→`/notifications` redirect is unchanged | `navigation.test.ts`, `nextConfigRedirects.test.ts` | P1 |
 | AC22.18.2 | A typed `track(event, props)` analytics wrapper dispatches through the OpenPanel command queue, is strictly non-blocking (never throws, no-op when unconfigured), exposes a taxonomy of ≥6 named product events, and strips PII (emails, monetary amounts, account numbers) from event properties before sending | `analyticsTrack.test.ts` | P1 |
 | AC22.18.3 | The core product funnel is instrumented through the wrapper — signup, statement upload started/succeeded/failed, Stage-1 review approved, and report generated — with tests asserting `track()` is invoked on each action | `loginPage.test.tsx`, `StatementUploader.test.tsx`, `statementReviewPage.test.tsx`, `personalReportPackagePage.test.tsx` | P1 |
+
+### AC22.19 — Reader-First Report Package With Audit Details
+
+> #1210 follow-up slice. The Personal Report Package must read as a terminal
+> user deliverable by default. Low-level proof and framework-policy internals
+> remain available for audit review, but they are not the primary reading layer
+> of the loaded package.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.19.1 | The loaded report package uses reader-facing labels for evidence coverage, reporting basis, and traceability summary, with proof-system labels such as `Deterministic PR`, `Post-merge LLM/OCR`, `Framework Policy`, raw gap codes, raw blocker codes, and policy result IDs kept out of the primary visible layer | `personalReportPackagePage.test.tsx` | P1 |
+| AC22.19.2 | Explicit `Audit details` disclosures keep the same source-trust, framework-policy, traceability, blocker, matrix-version, line-id, confidence, review-state, and evidence-reference details keyboard reachable and screen-reader comprehensible | `personalReportPackagePage.test.tsx` | P1 |
+| AC22.19.3 | Print/save and export metadata default to the reader-first hierarchy; raw CSV columns, policy result IDs, matrix version, and evidence bundle references are available only in an explicit audit/export-details disclosure | `personalReportPackagePage.test.tsx` | P1 |

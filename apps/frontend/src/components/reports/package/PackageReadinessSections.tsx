@@ -5,7 +5,13 @@ import type {
   PersonalReportPackageReadinessResponse,
 } from "@/lib/types";
 
-import { renderCsv } from "./shared";
+import {
+  countLabel,
+  FRAMEWORK_LABELS,
+  humanizeIdentifier,
+  renderCsv,
+  renderSourceClasses,
+} from "./shared";
 
 type SourceTrustSummary = NonNullable<
   PersonalReportPackageReadinessResponse["source_trust_summary"]
@@ -65,9 +71,6 @@ export function PackageReadinessSection({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-medium">{blocker.label}</p>
-                  <p className="text-xs font-mono text-muted mt-1">
-                    {blocker.code}
-                  </p>
                 </div>
                 <Link
                   className="badge badge-muted"
@@ -81,6 +84,42 @@ export function PackageReadinessSection({
           ))}
         </div>
       ) : null}
+      <details className="mt-5 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+        <summary className="cursor-pointer font-medium">Readiness audit details</summary>
+        <dl className="mt-3 grid gap-3 md:grid-cols-2">
+          <div>
+            <dt className="text-xs text-muted">Package state</dt>
+            <dd className="mt-1 font-mono text-xs">{readiness.state}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Action href</dt>
+            <dd className="mt-1 font-mono text-xs">{readiness.action_href}</dd>
+          </div>
+        </dl>
+        {readiness.blockers.length ? (
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {readiness.blockers.map((blocker) => (
+              <article key={blocker.code} className="rounded border border-[var(--border)] p-3">
+                <p className="font-mono text-xs">{blocker.code}</p>
+                <dl className="mt-2 space-y-1 text-xs">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted">Blocker code</dt>
+                    <dd className="font-mono text-right">{blocker.code}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted">Severity</dt>
+                    <dd className="font-mono text-right">{blocker.severity}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted">Action href</dt>
+                    <dd className="font-mono text-right">{blocker.action_href}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </details>
     </section>
   );
 }
@@ -90,50 +129,78 @@ export function PackageSourceTrustSection({
 }: {
   summary: SourceTrustSummary;
 }) {
+  const coverageItems = [
+    {
+      label: "Imported evidence",
+      values: summary.source_classes,
+    },
+    {
+      label: "Verified by automated checks",
+      values: summary.deterministic_pr_source_classes,
+    },
+    {
+      label: "Verified with live extraction checks",
+      values: summary.post_merge_llm_ocr_source_classes,
+    },
+    {
+      label: "Manual evidence",
+      values: summary.manual_trusted_source_classes,
+    },
+    {
+      label: "Missing or unsupported evidence",
+      values: summary.gap_source_classes,
+    },
+  ];
+
   return (
     <section id="package-source-trust" className="card p-5 mb-6" aria-label="Source trust summary">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Source Trust</h2>
+          <h2 className="font-semibold">Evidence Coverage</h2>
         </div>
         <span className="badge badge-muted">
-          {summary.source_classes.length} classes
+          {countLabel(summary.source_classes.length, "evidence class", "evidence classes")}
         </span>
       </div>
       <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-        <div>
-          <dt className="text-xs text-muted">Deterministic PR</dt>
-          <dd className="mt-1 font-mono text-xs">
-            {renderCsv(summary.deterministic_pr_source_classes)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">Post-merge LLM/OCR</dt>
-          <dd className="mt-1 font-mono text-xs">
-            {renderCsv(summary.post_merge_llm_ocr_source_classes)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">Manual Trusted</dt>
-          <dd className="mt-1 font-mono text-xs">
-            {renderCsv(summary.manual_trusted_source_classes)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">Trust Gaps</dt>
-          <dd className="mt-1 font-mono text-xs">
-            {renderCsv(summary.gap_source_classes)}
-          </dd>
-        </div>
+        {coverageItems.map((item) => (
+          <div key={item.label} className="rounded border border-[var(--border)] p-3">
+            <dt className="text-xs text-muted">{item.label}</dt>
+            <dd className="mt-1 font-medium">{renderSourceClasses(item.values)}</dd>
+          </div>
+        ))}
       </dl>
-      {summary.blocker_codes.length ? (
-        <div className="mt-4">
-          <p className="text-xs text-muted">Blocker Codes</p>
-          <p className="mt-1 font-mono text-xs">
-            {summary.blocker_codes.join(", ")}
-          </p>
-        </div>
-      ) : null}
+      <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+        <summary className="cursor-pointer font-medium">Evidence audit details</summary>
+        <dl className="mt-3 grid gap-3 md:grid-cols-2">
+          <div>
+            <dt className="text-xs text-muted">Source classes</dt>
+            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.source_classes)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Deterministic PR</dt>
+            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.deterministic_pr_source_classes)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Post-merge LLM/OCR</dt>
+            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.post_merge_llm_ocr_source_classes)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Manual Trusted</dt>
+            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.manual_trusted_source_classes)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Trust Gaps</dt>
+            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.gap_source_classes)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Blocker Codes</dt>
+            <dd className="mt-1 font-mono text-xs">
+              {summary.blocker_codes.join(", ") || "none"}
+            </dd>
+          </div>
+        </dl>
+      </details>
     </section>
   );
 }
@@ -143,30 +210,30 @@ export function PackageFrameworkPolicySection({
 }: {
   policy: FrameworkPolicyResult;
 }) {
+  const frameworkLabel = FRAMEWORK_LABELS[policy.framework_id] ?? humanizeIdentifier(policy.framework_id);
+
   return (
     <section id="package-framework-policy" className="card p-5 mb-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="font-semibold">Framework Policy</h2>
-          <p className="mt-2 max-w-3xl break-words font-mono text-xs text-muted">
-            {policy.result_id}
+          <h2 className="font-semibold">Reporting Basis</h2>
+          <p className="mt-2 text-sm text-muted">
+            {frameworkLabel} basis for the selected report period.
           </p>
         </div>
         <span className="badge badge-muted">
-          {policy.framework_id}
+          {frameworkLabel}
         </span>
       </div>
       <dl className="mt-5 grid md:grid-cols-4 gap-3 text-sm">
         <div>
-          <dt className="text-xs text-muted">Framework</dt>
-          <dd className="mt-1 font-mono text-xs">
-            {policy.framework_id}
-          </dd>
+          <dt className="text-xs text-muted">Reporting basis</dt>
+          <dd className="mt-1 font-semibold">{frameworkLabel}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Matrix Version</dt>
+          <dt className="text-xs text-muted">Required statements</dt>
           <dd className="mt-1 font-semibold">
-            {policy.matrix_version}
+            {policy.required_statements.length}
           </dd>
         </div>
         <div>
@@ -176,7 +243,7 @@ export function PackageFrameworkPolicySection({
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Gaps</dt>
+          <dt className="text-xs text-muted">Reporting gaps</dt>
           <dd className="mt-1 font-semibold">
             {policy.gaps.length}
           </dd>
@@ -186,52 +253,96 @@ export function PackageFrameworkPolicySection({
         {policy.decisions.map((decision) => (
           <article
             key={`${decision.domain}:${decision.line_mappings.balance_sheet ?? decision.presentation}`}
-            className="border border-[var(--border)] rounded p-3"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium">{decision.domain}</p>
-                <p className="mt-1 text-xs font-mono text-muted">
-                  {decision.review_state}
-                </p>
+              className="border border-[var(--border)] rounded p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{humanizeIdentifier(decision.domain)}</p>
+                  <p className="mt-1 text-sm text-muted">{decision.classification}</p>
+                </div>
+                <span className="badge badge-muted">
+                  Accepted
+                </span>
               </div>
-              <span className="badge badge-muted">
-                {decision.confidence_tier}
-              </span>
-            </div>
-            <dl className="mt-3 space-y-1 text-xs">
-              {Object.entries(decision.line_mappings).map(
-                ([section, line]) => (
-                  <div
-                    key={`${decision.domain}:${section}`}
-                    className="flex justify-between gap-3"
-                  >
-                    <dt className="text-muted">{section}</dt>
-                    <dd className="font-mono text-right">{line}</dd>
-                  </div>
-                ),
-              )}
-            </dl>
-          </article>
-        ))}
+              <p className="mt-3 text-sm text-muted">{decision.presentation}</p>
+            </article>
+          ))}
         {policy.gaps.map((gap) => (
           <article
             key={`${gap.code}:${gap.fact_id}`}
             className="border border-[var(--border)] rounded p-3"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium">{gap.code}</p>
-                <p className="mt-1 text-xs font-mono text-muted">
-                  {gap.fact_id}
-                </p>
-              </div>
-              <span className="badge badge-muted">{gap.instrument_type}</span>
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{humanizeIdentifier(gap.domain)}</p>
+                  <p className="mt-1 text-sm text-muted">{gap.reason}</p>
+                </div>
+              <span className="badge badge-warning">
+                {gap.blocker ? "Blocks trusted output" : "Needs review"}
+              </span>
             </div>
-            <p className="mt-3 text-sm text-muted">{gap.reason}</p>
+            {gap.remediation ? (
+              <p className="mt-3 text-sm text-muted">{gap.remediation}</p>
+            ) : null}
           </article>
         ))}
       </div>
+      <details className="mt-5 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+        <summary className="cursor-pointer font-medium">Reporting basis audit details</summary>
+        <dl className="mt-3 grid gap-3 md:grid-cols-2">
+          <div>
+            <dt className="text-xs text-muted">Framework</dt>
+            <dd className="mt-1 font-mono text-xs">{policy.framework_id}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Matrix Version</dt>
+            <dd className="mt-1 font-semibold">{policy.matrix_version}</dd>
+          </div>
+          <div className="md:col-span-2">
+            <dt className="text-xs text-muted">Framework Policy Result</dt>
+            <dd className="mt-1 break-words font-mono text-xs">{policy.result_id}</dd>
+          </div>
+        </dl>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {policy.decisions.map((decision) => (
+            <article
+              key={`audit:${decision.domain}:${decision.line_mappings.balance_sheet ?? decision.presentation}`}
+              className="rounded border border-[var(--border)] p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{decision.domain}</p>
+                  <p className="mt-1 text-xs font-mono text-muted">{decision.review_state}</p>
+                </div>
+                <span className="badge badge-muted">{decision.confidence_tier}</span>
+              </div>
+              <dl className="mt-3 space-y-1 text-xs">
+                {Object.entries(decision.line_mappings).map(([section, line]) => (
+                  <div key={`${decision.domain}:${section}`} className="flex justify-between gap-3">
+                    <dt className="text-muted">{section}</dt>
+                    <dd className="font-mono text-right">{line}</dd>
+                  </div>
+                ))}
+              </dl>
+            </article>
+          ))}
+          {policy.gaps.map((gap) => (
+            <article
+              key={`audit:${gap.code}:${gap.fact_id}`}
+              className="rounded border border-[var(--border)] p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{gap.code}</p>
+                  <p className="mt-1 text-xs font-mono text-muted">{gap.fact_id}</p>
+                </div>
+                <span className="badge badge-muted">{gap.instrument_type}</span>
+              </div>
+              <p className="mt-3 text-sm text-muted">{gap.reason}</p>
+            </article>
+          ))}
+        </div>
+      </details>
     </section>
   );
 }
