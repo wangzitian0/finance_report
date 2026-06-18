@@ -7,6 +7,7 @@ and invalid credential scenarios including token validation and session manageme
 from uuid import uuid4
 
 import pytest
+import structlog
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
@@ -69,6 +70,19 @@ async def test_get_current_user_id_direct(db, test_user):
     token = create_access_token(data={"sub": str(test_user.id)})
     user_id = await get_current_user_id(token=token, db=db)
     assert user_id == test_user.id
+
+
+async def test_AC10_11_1_get_current_user_id_binds_user_context(db, test_user):
+    """AC10.11.1: Auth dependency binds user_id into structured log context."""
+    from src.security import create_access_token
+
+    structlog.contextvars.clear_contextvars()
+    token = create_access_token(data={"sub": str(test_user.id)})
+
+    user_id = await get_current_user_id(token=token, db=db)
+
+    assert user_id == test_user.id
+    assert structlog.contextvars.get_contextvars()["user_id"] == str(test_user.id)
 
 
 async def test_get_current_user_id_invalid_user_db(db):

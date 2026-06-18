@@ -123,6 +123,7 @@ async def test_global_rate_limit_middleware_blocks_after_limit(public_client: As
         response = await public_client.post("/auth/login", json={"email": "x@x.com", "password": "x"})
         assert response.status_code == 429
         assert "Retry-After" in response.headers
+        assert response.headers["X-Request-ID"]
         data = response.json()
         assert "Rate limit exceeded" in data["detail"]
 

@@ -180,6 +180,14 @@ Enable production-grade log observability via SigNoz (OTLP), while keeping local
 | AC10.10.3 | DB pool and async parse in-flight gauges expose current saturation values | `test_AC10_10_3_saturation_gauges_observe_current_values()` | `infra/test_telemetry_metrics.py` | P0 |
 | AC10.10.4 | Business metric helpers cover parse, AI-provider, reconciliation, and confidence signals | `test_AC10_10_4_business_metric_helpers_record_outcomes()` | `infra/test_telemetry_metrics.py` | P0 |
 
+### AC10.11: Logging Content Hardening
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC10.11.1 | Authenticated requests bind `user_id` into structured log context and authentication/rate-limit failures emit warning events plus the rate-limit rejection metric without credentials | `test_AC10_11_1_get_current_user_id_binds_user_context()`, `test_AC10_11_1_security_warning_redacts_credentials()`, `test_AC10_11_1_rate_limit_rejections_record_alert_metric()` | `auth/test_auth.py`, `infra/test_observability_contract.py`, `infra/test_telemetry_metrics.py` | P0 |
+| AC10.11.2 | Financial mutations emit stable audit logs for journal post/void and reconciliation accept operations | `test_AC10_11_2_financial_mutation_audit_helpers_and_callsites()` | `infra/test_observability_contract.py` | P0 |
+| AC10.11.3 | Provider/error-body logging uses bounded safe summaries and rejects raw risky payload fields | `test_AC10_11_3_provider_error_body_logging_is_redacted()` | `infra/test_observability_contract.py` | P0 |
+
 ## 📏 Acceptance Criteria
 
 > ℹ️ **Non-contiguous AC numbering**: Gaps in `AC10.x.y` numbers reflect deprecated or merged ACs preserved through generated registry indexes plus explicit overrides. Do **not** renumber. New ACs append to the next available index in this EPIC.
