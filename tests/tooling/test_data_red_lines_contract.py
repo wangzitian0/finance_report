@@ -29,6 +29,17 @@ DATA_RED_LINES = {
 # SSOT (e.g. the Staging environment) cannot satisfy the assertion.
 DATA_SOURCES = ["empty", "staging", "anonymized prod snapshot"]
 
+DEPLOY_DRIFT_SCAN_ROOTS = [
+    "docs",
+    ".opencode/skills/domain",
+    "repo/docs",
+    "repo/tools",
+    "repo/libs/tests",
+    "repo/README.md",
+    "repo/finance_report",
+]
+TEXT_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".txt", ".toml"}
+
 
 def _subsection(md: str, header: str) -> str:
     """Text from ``header`` up to the next same-or-higher-level heading, lowercased."""
@@ -42,6 +53,19 @@ def _subsection(md: str, header: str) -> str:
         if capturing:
             out.append(line)
     return "\n".join(out).lower()
+
+
+def _scan_text_files():
+    for rel in DEPLOY_DRIFT_SCAN_ROOTS:
+        path = ROOT / rel
+        if path.is_file():
+            candidates = [path]
+        else:
+            candidates = [p for p in path.rglob("*") if p.is_file()]
+        for candidate in candidates:
+            if candidate.suffix not in TEXT_SUFFIXES:
+                continue
+            yield candidate.relative_to(ROOT), candidate.read_text(encoding="utf-8")
 
 
 def test_AC7_12_6_environments_define_data_axis_and_red_lines():
@@ -84,3 +108,43 @@ def test_AC7_12_6_deploy_v2_data_lane_is_derived_not_public_axis():
         "environments.md must describe data_lane as derived from deploy_v2, not as "
         "a public deploy coordinate."
     )
+
+
+def test_deploy_v2_drift_surfaces_do_not_republish_retired_data_axis():
+    """Deploy docs/tests/code must not drift back to the retired public data axis."""
+    retired_public_contract = "deploy(env, code, " + "data)"
+    banned_snippets = {
+        retired_public_contract: "retired public deploy tuple",
+        'parser.add_argument(\n        "--data"': "primitive data override CLI",
+        "invoke fr-app.setup": "old prefixed app setup deploy command",
+        "invoke fr-postgres.setup": "old prefixed postgres setup deploy command",
+        "invoke fr-redis.setup": "old prefixed redis setup deploy command",
+        "invoke finance_report.app.setup": "old namespaced app setup deploy command",
+        "invoke finance_report.postgres.setup": "old namespaced postgres setup deploy command",
+        "invoke finance_report.redis.setup": "old namespaced redis setup deploy command",
+        "invoke postgres.setup": "old platform postgres setup deploy command",
+        "invoke redis.setup": "old platform redis setup deploy command",
+        "invoke clickhouse.setup": "old platform clickhouse setup deploy command",
+        "invoke signoz.setup": "old platform signoz setup deploy command",
+        "invoke alerting.setup": "old platform alerting setup deploy command",
+        "invoke openpanel.setup": "old platform openpanel setup deploy command",
+        "invoke authentik.setup": "old platform authentik setup deploy command",
+        "invoke minio.setup": "old platform minio setup deploy command",
+        "invoke <service>.setup": "old generic service setup deploy command",
+        "data-axis side effects": "future data-axis wording",
+        "data axis lands": "future data-axis wording",
+        "platform services join when the deployer path is unified": "stale platform cutover wording",
+        "cutover 未做": "stale platform cutover wording",
+        "尚未接管": "stale platform cutover wording",
+    }
+
+    offenders = []
+    for rel, text in _scan_text_files():
+        lowered = text.lower()
+        for snippet, reason in banned_snippets.items():
+            haystack = lowered if snippet.isascii() else text
+            needle = snippet.lower() if snippet.isascii() else snippet
+            if needle in haystack:
+                offenders.append(f"{rel}: {reason}: {snippet!r}")
+
+    assert not offenders, "deploy_v2 drift found:\n" + "\n".join(offenders)
