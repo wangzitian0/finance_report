@@ -1298,11 +1298,18 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
 
     rollback_block = workflow.split(
         "- name: Roll back production after post-deploy failure", 1
+    )[1].split("- name: Warn when production rollback cannot run", 1)[0]
+    rollback_unavailable_block = workflow.split(
+        "- name: Warn when production rollback cannot run", 1
     )[1].split("- name: Write production deploy context", 1)[0]
+    probe_block = workflow.split("- name: Probe current production version", 1)[
+        1
+    ].split("- name: Deploy with deploy_v2", 1)[0]
 
     assert "id: production_rollback" in rollback_block
     assert "failure()" in rollback_block
     assert "steps.deploy_v2.outcome == 'success'" in rollback_block
+    assert "steps.production_before.outputs.rollback_ref != ''" in rollback_block
     for step_id in (
         "deploy_health",
         "production_infra_smoke",
@@ -1310,20 +1317,38 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
         "production_readonly_e2e",
     ):
         assert f"steps.{step_id}.outcome == 'failure'" in rollback_block
+    assert "rollback_ref" in probe_block
+    assert "health_version" in probe_block
+    assert "git_sha" in probe_block
     assert (
-        'previous_version="${{ steps.production_before.outputs.version }}"'
+        'rollback_ref="${{ steps.production_before.outputs.rollback_ref }}"'
         in rollback_block
     )
+    assert "pre-deploy version" not in rollback_block
+    assert "is not a release tag" not in rollback_block
     assert "python -m tools.deploy_v2" in rollback_block
     assert "--type prod" in rollback_block
-    assert '--version-ref "$previous_version"' in rollback_block
+    assert '--version-ref "$rollback_ref"' in rollback_block
     assert "--staging-validated" in rollback_block
     assert "--code-reviewed" in rollback_block
     assert "bash ../tools/health_check.sh" in rollback_block
-    assert '"$previous_version"' in rollback_block
+    assert '"$rollback_ref"' in rollback_block
+    assert (
+        "steps.production_before.outputs.rollback_ref == ''"
+        in rollback_unavailable_block
+    )
+    assert "deploy_v2/prod-compatible release tag" in rollback_unavailable_block
     assert "dokploy_deploy.sh" not in rollback_block
     assert (
         "production_rollback_outcome=${{ steps.production_rollback.outcome }}"
+        in workflow
+    )
+    assert (
+        "production_rollback_unavailable_outcome=${{ steps.production_rollback_unavailable.outcome }}"
+        in workflow
+    )
+    assert (
+        "production_before_rollback_ref=${{ steps.production_before.outputs.rollback_ref }}"
         in workflow
     )
     assert "Production release rollback uses deploy_v2" in ci_cd
@@ -2130,17 +2155,29 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
 
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
+        "  unified-coverage-baseline-pr:", 1
+    )[0]
+    baseline_job_block = workflow.split("  unified-coverage-baseline-pr:", 1)[1].split(
         "  ac-traceability:", 1
     )[0]
-    baseline_block = unified_coverage_block.split(
+    baseline_block = baseline_job_block.split(
         "- name: Open unified coverage baseline PR", 1
-    )[1].split("- name: Build line-only Coveralls LCOV", 1)[0]
+    )[1]
 
     assert "permissions:" in unified_coverage_block
-    assert "contents: write" in unified_coverage_block
-    assert "pull-requests: write" in unified_coverage_block
+    assert "contents: read" in unified_coverage_block
+    assert "contents: write" not in unified_coverage_block
+    assert "pull-requests: write" not in unified_coverage_block
+    assert "needs: [changes, unified-coverage]" in baseline_job_block
+    assert "contents: write" in baseline_job_block
+    assert "pull-requests: write" in baseline_job_block
     assert (
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'"
+        in baseline_job_block
+    )
+    assert "name: unified-coverage-context" in baseline_job_block
+    assert (
+        "cp coverage-context/unified-coverage.json unified-coverage.json"
         in baseline_block
     )
     assert "BASELINE_BRANCH: automation/unified-coverage-baseline" in baseline_block
@@ -2150,6 +2187,7 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     assert "gh pr edit" in baseline_block
     assert "HEAD:main" not in baseline_block
     assert "[skip ci]" not in baseline_block
+    assert "unified-coverage-baseline-pr" not in workflow.split("  finish:", 1)[1]
     assert "automatic baseline PR" in ci_cd
     assert "category: evidence_fan_in" in inventory
     assert "baseline_update_pr_on_main" in inventory

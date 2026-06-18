@@ -464,9 +464,10 @@ jobs:
               "https://report.zitian.party/api/health" \
               2>"$status_file" || true
           )"
-          current_version="$(
-            python3 - "$body_file" <<'PY'
+          metadata_file="$(mktemp)"
+          python3 - "$body_file" > "$metadata_file" <<'PY'
           import json
+          import re
           import sys
           from pathlib import Path
 
@@ -474,11 +475,25 @@ jobs:
               payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8") or "{}")
           except json.JSONDecodeError:
               payload = {}
-          print(payload.get("git_sha") or payload.get("version") or "")
+
+          def clean(value):
+              return str(value or "").strip().replace("\n", " ").replace("\r", " ")[:200]
+
+          health_version = clean(payload.get("version"))
+          git_sha = clean(payload.get("git_sha"))
+          rollback_ref = ""
+          for candidate in (health_version, git_sha):
+              if re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", candidate):
+                  rollback_ref = candidate
+                  break
+
+          print(f"version={git_sha or health_version}")
+          print(f"health_version={health_version}")
+          print(f"git_sha={git_sha}")
+          print(f"rollback_ref={rollback_ref}")
           PY
-          )"
+          cat "$metadata_file" >> "$GITHUB_OUTPUT"
           echo "http_status=${http_status:-000}" >> "$GITHUB_OUTPUT"
-          echo "version=${current_version}" >> "$GITHUB_OUTPUT"
           if [ -s "$status_file" ]; then
             probe_error="$(head -c 200 "$status_file" | tr '\n\r' '  ')"
             echo "probe_error=${probe_error}" >> "$GITHUB_OUTPUT"
@@ -545,23 +560,19 @@ jobs:
 
       - name: Roll back production after post-deploy failure
         id: production_rollback
-        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.version != '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
+        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.rollback_ref != '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
         working-directory: repo
         env:
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
         run: |
           set -euo pipefail
-          previous_version="${{ steps.production_before.outputs.version }}"
-          if ! printf '%s' "$previous_version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Cannot rollback production: pre-deploy version '$previous_version' is not a release tag."
-            exit 1
-          fi
+          rollback_ref="${{ steps.production_before.outputs.rollback_ref }}"
           iac_ref="$(git rev-parse HEAD)"
-          echo "Rolling back production via deploy_v2 to $previous_version with iac_ref=$iac_ref"
+          echo "Rolling back production via deploy_v2 to $rollback_ref with iac_ref=$iac_ref"
           python -m tools.deploy_v2 \
             --service finance_report/app \
             --type prod \
-            --version-ref "$previous_version" \
+            --version-ref "$rollback_ref" \
             --iac-ref "$iac_ref" \
             --domain zitian.party \
             --staging-validated \
@@ -572,7 +583,13 @@ jobs:
             "https://report.zitian.party/api/health" \
             "production-rollback" \
             24 \
-            "$previous_version"
+            "$rollback_ref"
+
+      - name: Warn when production rollback cannot run
+        id: production_rollback_unavailable
+        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.rollback_ref == '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
+        run: |
+          echo "::warning::Production rollback skipped: pre-deploy health did not expose a deploy_v2/prod-compatible release tag. health_version='${{ steps.production_before.outputs.health_version }}' git_sha='${{ steps.production_before.outputs.git_sha }}'"
 
       - name: Write production deploy context
         if: ${{ always() }}
@@ -644,6 +661,9 @@ jobs:
             echo "frontend_digest=${{ steps.verify_images.outputs.frontend_digest }}"
             echo "production_before_http_status=${{ steps.production_before.outputs.http_status }}"
             echo "production_before_version=${{ steps.production_before.outputs.version }}"
+            echo "production_before_health_version=${{ steps.production_before.outputs.health_version }}"
+            echo "production_before_git_sha=${{ steps.production_before.outputs.git_sha }}"
+            echo "production_before_rollback_ref=${{ steps.production_before.outputs.rollback_ref }}"
             echo "production_before_probe_error=${{ steps.production_before.outputs.probe_error }}"
             echo "verify_images_outcome=${{ steps.verify_images.outcome }}"
             echo "deploy_v2_outcome=${{ steps.deploy_v2.outcome }}"
@@ -652,6 +672,7 @@ jobs:
             echo "production_smoke_outcome=${{ steps.production_smoke.outcome }}"
             echo "production_readonly_e2e_outcome=${{ steps.production_readonly_e2e.outcome }}"
             echo "production_rollback_outcome=${{ steps.production_rollback.outcome }}"
+            echo "production_rollback_unavailable_outcome=${{ steps.production_rollback_unavailable.outcome }}"
             echo "failure_domain=${failure_domain}"
             echo "failed_step=${failed_step}"
             echo "failure_summary=${failure_summary}"

@@ -40,7 +40,7 @@ committed no-regression floors are generated facts. Read
 `unified-coverage.json`, CI artifacts, or Coveralls for current values; do not
 copy those numbers into prose docs.
 
-**Debug context ownership**: The `unified-coverage` CI job uploads a
+**Debug context ownership**: The read-only `unified-coverage` CI job uploads a
 `unified-coverage-context` coverage context artifact on every run, including
 failed coverage gates. That artifact is the authoritative diagnostic package
 for coverage count drift: it contains the merged component LCOV inputs, the
@@ -236,8 +236,11 @@ The CI workflow uses baseline comparison to prevent coverage regressions. There 
   source file and line input behind any coverage count difference.
 - **Baseline updates**: PR CI compares against the committed
   `unified-coverage.json`. Main CI may open or update an automatic baseline PR
-  when measured coverage rises, but it never pushes the baseline directly to
-  `main`; the reviewed PR remains the ownership boundary.
+  when measured coverage rises, but that write-scoped automation runs in the
+  separate main-only `unified-coverage-baseline-pr` job after downloading the
+  `unified-coverage-context` artifact. The PR coverage calculation job remains
+  read-only, and CI never pushes the baseline directly to `main`; the reviewed
+  PR remains the ownership boundary.
 - **Coveralls role**: Coveralls is not the merge gate. It is used for badges,
   trend analysis, and external reporting only; repository CI decides mergeability
   through deterministic local jobs.

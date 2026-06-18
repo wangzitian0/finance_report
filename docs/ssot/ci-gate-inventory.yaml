@@ -160,9 +160,22 @@ gates:
     required_by_finish: true
     blocks_workflow: true
     inputs: [backend_lcov, frontend_lcov, common_lcov, tools_lcov, unified-coverage.json]
-    outputs: [unified_coverage_decision, coveralls_lcov_on_main, baseline_update_pr_on_main]
+    outputs: [unified_coverage_decision, coveralls_lcov_on_main]
     artifacts: [unified-coverage-context]
-    failure_semantics: Coverage policy audit, no-regression calculation, or automatic baseline PR update failed after consuming producer artifacts.
+    failure_semantics: Coverage policy audit, no-regression calculation, artifact upload, or main-only Coveralls reporting failed after consuming producer artifacts.
+    action: keep
+  - id: ci.unified_coverage_baseline_pr
+    category: evidence_fan_in
+    workflow: .github/workflows/ci.yml
+    job: unified-coverage-baseline-pr
+    owner: unified-coverage.json
+    triggers: [push]
+    required_by_finish: false
+    blocks_workflow: true
+    inputs: [unified-coverage-context, unified-coverage.json]
+    outputs: [baseline_update_pr_on_main]
+    artifacts: []
+    failure_semantics: Main-only automatic baseline PR update failed after the read-only unified coverage job produced a changed baseline artifact.
     action: keep
   - id: ci.ac_traceability
     category: audit_artifact
