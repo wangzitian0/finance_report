@@ -543,6 +543,37 @@ jobs:
           mkdir -p test-results
           pytest tests/e2e/test_production_readonly_smoke.py -v -m "prod_safe" --junit-xml=test-results/production-readonly-e2e.xml
 
+      - name: Roll back production after post-deploy failure
+        id: production_rollback
+        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.version != '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
+        working-directory: repo
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+        run: |
+          set -euo pipefail
+          previous_version="${{ steps.production_before.outputs.version }}"
+          if ! printf '%s' "$previous_version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Cannot rollback production: pre-deploy version '$previous_version' is not a release tag."
+            exit 1
+          fi
+          iac_ref="$(git rev-parse HEAD)"
+          echo "Rolling back production via deploy_v2 to $previous_version with iac_ref=$iac_ref"
+          python -m tools.deploy_v2 \
+            --service finance_report/app \
+            --type prod \
+            --version-ref "$previous_version" \
+            --iac-ref "$iac_ref" \
+            --domain zitian.party \
+            --staging-validated \
+            --code-reviewed \
+            --timeout 600
+
+          bash ../tools/health_check.sh \
+            "https://report.zitian.party/api/health" \
+            "production-rollback" \
+            24 \
+            "$previous_version"
+
       - name: Write production deploy context
         if: ${{ always() }}
         run: |
@@ -620,6 +651,7 @@ jobs:
             echo "production_infra_smoke_outcome=${{ steps.production_infra_smoke.outcome }}"
             echo "production_smoke_outcome=${{ steps.production_smoke.outcome }}"
             echo "production_readonly_e2e_outcome=${{ steps.production_readonly_e2e.outcome }}"
+            echo "production_rollback_outcome=${{ steps.production_rollback.outcome }}"
             echo "failure_domain=${failure_domain}"
             echo "failed_step=${failed_step}"
             echo "failure_summary=${failure_summary}"

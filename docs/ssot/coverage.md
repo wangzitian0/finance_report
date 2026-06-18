@@ -234,6 +234,10 @@ The CI workflow uses baseline comparison to prevent coverage regressions. There 
   `coverage/tools.lcov`, `unified-coverage.json`, and
   `coverage/coverage-context.txt`. Use this artifact to identify the exact
   source file and line input behind any coverage count difference.
+- **Baseline updates**: PR CI compares against the committed
+  `unified-coverage.json`. Main CI may open or update an automatic baseline PR
+  when measured coverage rises, but it never pushes the baseline directly to
+  `main`; the reviewed PR remains the ownership boundary.
 - **Coveralls role**: Coveralls is not the merge gate. It is used for badges,
   trend analysis, and external reporting only; repository CI decides mergeability
   through deterministic local jobs.
@@ -242,6 +246,8 @@ The CI workflow uses baseline comparison to prevent coverage regressions. There 
 1. **Primary gate**: Baseline comparison (zero tolerance for drops)
    - Compares current coverage against `unified-coverage.json` baseline
    - Fails CI if ANY component drops below baseline
+   - Opens or updates a baseline PR on main when coverage rises and the measured
+     `unified-coverage.json` differs from the committed baseline
    - See [No-Regression Coverage Gate](./ci-cd.md#no-regression-coverage-gate) for details
 2. **Safety net**: Threshold check (optional)
    - `COVERAGE_THRESHOLD` defaults to `0` (disabled)

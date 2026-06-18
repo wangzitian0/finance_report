@@ -32,11 +32,11 @@ changes (Classify Changes) ──→ backend shards ───────┬→ 
 | **schema-migrations** | Run Alembic `upgrade head` followed by `alembic check` against an ephemeral Postgres service before merge | `needs: [changes]` |
 | **backend** (Shards 1-6) | Backend fast-path tests only: `-m "not slow and not e2e and not integration"` | `needs: [changes]` |
 | **backend-integration** | Backend integration stage (`-m "integration"`), deterministic service-backed behavior checks | `needs: [changes]` |
-| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override | `needs: [changes]` |
+| **backend-e2e-tier1** | Backend Tier-1 API E2E stage (`apps/backend/tests/e2e/test_core_journeys.py` with `-m e2e`), executed with explicit marker override. PR runs stay fail-fast; push/main runs report the full Tier-1 failure set. | `needs: [changes]` |
 | **frontend** | Frontend build + Vitest + Playwright tests when heavy CI is required | `needs: [changes]` |
 | **container-images** | Build backend and frontend staging images without pushing on PRs; push SHA-tagged images only on `main` | `needs: [changes]` |
 | **tooling-coverage** | Run root tooling tests with common/tools coverage and upload LCOV inputs | `needs: [changes]` |
-| **unified-coverage** | Merge backend, frontend, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, update Coveralls when heavy CI is required | `needs: [changes, backend, frontend, tooling-coverage]` |
+| **unified-coverage** | Merge backend, frontend, common, and tools LCOV inputs, audit source-tree/LCOV policy, calculate unified coverage, compare to baseline, open/update an automatic baseline PR on main when the baseline rises, and update Coveralls when heavy CI is required | `needs: [changes, backend, frontend, tooling-coverage]` |
 | **ac-traceability** | Verify generated AC registries, E2E EPIC ownership, the uploaded AC traceability audit, and the reconciliation audit for all PR/main changes, including docs-only changes | None |
 | **ac-behavioral-ratchet** | Aggregate JUnit AC evidence from backend/frontend test stages and enforce the persisted per-AC behavioral score floor | `needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend]` |
 | **finish** | Aggregate all required and skipped job results | `needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]` |
@@ -144,7 +144,7 @@ file.
 | Unit (fast/shard) | `backend` job, 6 shards immediately after change classification | `-m "not slow and not e2e and not integration"` | Feeds unified line coverage (backend component) | Keep as deterministic base and expand shards if needed |
 | Integration (backend marker) | `backend-integration` job (`-m "integration"`) | `apps/backend/tests/**/*` marker-scoped integration suites with service-backed env | Not part of unified line baseline yet | Add sharding when count growth justifies it; keep explicit marker gate in CI |
 | Tooling/common contracts | `tooling-coverage` job | `tests/tooling/` with `--cov=common --cov=tools` | Feeds unified line coverage (common/tools components) | Keep parallel to app tests so tooling failures and LCOV inputs are independently visible |
-| Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
+| Tier 1 API E2E | `backend-e2e-tier1` job (`apps/backend/tests/e2e/test_core_journeys.py` with `-m "e2e"`) | Serial backend contract/HTTP/DB/S3 API behavioral paths with Postgres and MinIO bucket readiness; PR runs use `--maxfail=1`, while push/main Tier-1 E2E runs without `--maxfail=1` so one JUnit artifact reports all failing journeys | Behavioral proof only; AC traceability-backed | Stabilize a deterministic API subset first, then scale by marker or folder |
 | Tier 2 HTTP E2E | PR/staging/prod HTTP command windows | Not in unified coverage baseline | Behavioral proof only | Introduce marker-pinned CI smoke before post-merge where network stability allows |
 | Frontend Playwright | `frontend` job | Provider-free browser UI specs under `apps/frontend/playwright` | Behavioral proof only; not in unified line coverage | Env-gated specs stay non-required until their env is provided in CI |
 | Tier 3 Browser E2E | Staging/PR preview/prod smoke jobs | Playwright/HTTP deployment suites (`smoke`, `e2e`, `llm` split) | Behavioral/prod-risk proof only | Keep provider-dependent `llm` in post-merge; split provider-free subset for PR preview |
@@ -213,8 +213,9 @@ The CI workflow enforces a **no-regression policy** for test coverage.
 ### How It Works
 
 1. **Baseline Storage**: `unified-coverage.json` at repo root.
-   - Updated manually through PR when the coverage policy or measured baseline changes
-   - Not auto-committed by CI because branch protection requires reviewed PRs
+   - PR CI reads the committed file as the no-regression floor.
+   - Main CI writes the current measured file after the local gate passes and opens or updates an automatic baseline PR when that file differs.
+   - CI never pushes directly to `main`; branch protection still requires the reviewed baseline PR to merge.
 
 2. **Comparison Logic**:
    - Reads `unified-coverage.json` before calculating final coverage
@@ -245,15 +246,17 @@ The CI workflow enforces a **no-regression policy** for test coverage.
    - `BASELINE_FILE`: Path to baseline JSON (default: `unified-coverage.json`)
    - `COVERAGE_THRESHOLD`: Safety net threshold (default: `0`; baseline comparison is primary gate)
 
-### Manual Baseline Reset
+### Baseline Reset / Raise
 
 ```bash
-# Option 1: Update baseline to current state
+# Option 1: Prefer the automatic baseline PR opened by main CI after coverage rises.
+
+# Option 2: Update baseline to current state manually when repairing automation
 git pull origin main
 # Make your changes, then:
 git add unified-coverage.json && git commit -m "chore: manually reset coverage baseline" && git push
 
-# Option 2: Remove baseline temporarily
+# Option 3: Remove baseline temporarily
 git rm unified-coverage.json && git commit -m "chore: remove coverage baseline for testing" && git push
 ```
 
@@ -464,7 +467,8 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Tag pushes promote versioned release images only through `.github/workflows/release-images.yml`. Manual dispatch with `dry_run=false` remains the production deploy path for an existing version.
 - Production backend release images are addressed by the release version tag, and deploy_v2 injects the release version tag as runtime `IMAGE_TAG` / `GIT_COMMIT_SHA` so `/api/health` can prove the deployed version even after a same-tag redeploy.
 - Production deploys run `tools/production_infra_smoke.py` after health check. That gate verifies the deployed version, `/api/health` dependency checks for database and S3, read-only `/api/ping`, frontend reachability, and the shared SigNoz health/version endpoints before production smoke and read-only E2E run.
-- Production deploy context records the pre-deploy health status and `production_before_version`, image verification outcome, deploy-health outcome, infrastructure smoke outcome, application smoke outcome, read-only E2E outcome, and a small failure-domain classification. Production still proves release integrity and health only; first-time business correctness remains owned by PR and staging gates.
+- Production release rollback uses deploy_v2: when deploy_v2 mutates production successfully but route health, infrastructure smoke, application smoke, or read-only E2E fails, the workflow deploys the recorded `production_before_version` back to prod and confirms `/api/health` reports that version.
+- Production deploy context records the pre-deploy health status and `production_before_version`, image verification outcome, deploy-health outcome, infrastructure smoke outcome, application smoke outcome, read-only E2E outcome, rollback outcome, and a small failure-domain classification. Production still proves release integrity and health only; first-time business correctness remains owned by PR and staging gates.
 
 The remaining higher-risk CI and post-merge optimization candidates are tracked
 in the delivery-engine recommendation note instead of being mixed into routine
