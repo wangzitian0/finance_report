@@ -396,11 +396,12 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
   gate passes it is GitHub-source: Dokploy clones the PR branch and runs
   `docker compose ... up -d --build` so the backend/frontend are
   **built from the PR source on the Dokploy host** — no GHCR image is pulled or
-  pushed. (That
-  host-build is the remaining D1; it becomes a pull of the published `:<sha>` image
-  when the deploy primitive lands in P2/#883.) The job is `continue-on-error` and
-  is not a required check, so a preview failure never blocks the PR; the in-runner
-  E2E is the merge authority. The persistent URL is `https://report-pr-<N>.<domain>`.
+  pushed. This app-side persistent PR preview path is not the infra2 `deploy_v2 preview/*` front door;
+  `deploy_v2 preview/branch` currently owns the
+  `report-branch-main`/canary style preview slots. The job is `continue-on-error`
+  and is not a required check, so a preview failure never blocks the PR; the
+  in-runner E2E is the merge authority. The persistent URL is
+  `https://report-pr-<N>.<domain>`.
 - `tools/pr_preview_lifecycle.py` is the single owner for preview deploy,
   cleanup, and scheduled reconciliation. The workflow does not hand-roll
   separate Dokploy shell blocks because deploy, cleanup, and reconciliation must

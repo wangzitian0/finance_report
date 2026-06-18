@@ -1828,6 +1828,7 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     assert "synchronously on `pull_request`" in ci_cd
     assert "does not push, preflight, pull, or delete PR preview images" in ci_cd
     assert "built from the PR source on the Dokploy host" in ci_cd
+    assert "not the infra2 `deploy_v2 preview/*` front door" in ci_cd
     assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
 
 

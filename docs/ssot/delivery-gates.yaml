@@ -42,7 +42,7 @@ gates:
     job: deploy-preview
     trigger: workflow_dispatch     # on-demand only (P1a-2, #879); never per-PR auto
     blocking: false
-    image_free: false             # builds PR source on the Dokploy host (D1, until P2/#883)
+    image_free: false             # manual app-side persistent preview builds PR source on Dokploy host
     description: >
       On-demand persistent Dokploy preview. Non-blocking; one click via Run workflow.
 
