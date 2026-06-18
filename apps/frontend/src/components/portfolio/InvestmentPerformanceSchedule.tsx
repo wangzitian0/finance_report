@@ -2,19 +2,13 @@
 
 import { FileText, Link2 } from "lucide-react";
 
-import { compareAmounts, formatCurrencyLocale, formatAmount } from "@/lib/money";
+import { compareAmounts, formatCurrencyLocale } from "@/lib/money";
 import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
+import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
 function formatPercent(value: string | null): string {
-    if (value === null) return "N/A";
-    try {
-        const comparison = compareAmounts(value, "0");
-        const sign = comparison > 0 ? "+" : "";
-        return `${sign}${formatAmount(value, 2)}%`;
-    } catch {
-        return "N/A";
-    }
+    return formatSignedPercentFromPercentValue(value);
 }
 
 function metricClass(value: string | null): string {

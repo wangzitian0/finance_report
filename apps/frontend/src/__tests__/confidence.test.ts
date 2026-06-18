@@ -27,13 +27,13 @@ function snapshot(
 
 describe("confidence helpers (#1003 / #1055 PR4)", () => {
   describe("parseProportion", () => {
-    it("returns null for null/undefined/blank/non-numeric and parses real values", () => {
+    it("returns null for null/undefined/blank/non-numeric/number and parses Decimal strings", () => {
       expect(parseProportion(null)).toBeNull();
       expect(parseProportion(undefined)).toBeNull();
       expect(parseProportion("  ")).toBeNull();
       expect(parseProportion("abc")).toBeNull();
       expect(parseProportion("0.25")).toBe(0.25);
-      expect(parseProportion(0.5)).toBe(0.5);
+      expect(parseProportion(0.5 as never)).toBeNull();
     });
   });
 

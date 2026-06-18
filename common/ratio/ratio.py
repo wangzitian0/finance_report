@@ -72,6 +72,10 @@ class Ratio:
     def zero(cls) -> Ratio:
         return cls(Decimal("0"))
 
+    def is_zero(self) -> bool:
+        """Return whether this typed ratio is exactly zero."""
+        return self.value.is_zero()
+
     @classmethod
     def from_percent(cls, percent: _RatioInput) -> Ratio:
         """Build a ratio from a percentage number (``12.5`` -> ``0.125``)."""

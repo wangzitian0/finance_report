@@ -12,17 +12,19 @@ import type {
   ConfidenceNorthStarResponse,
   CorrectionLoopReplayResponse,
 } from "@/lib/types";
+import {
+  formatPercentFromRatioValue,
+  percentNumberFromRatioValue,
+  ratioNumberFromRatioValue,
+} from "@/lib/ratio/format";
 
 /**
  * Parse a proportion to a finite number, or `null` for a missing/blank/non-finite
  * value. `Number("")` and `Number("  ")` coerce to 0, so blank strings must be
  * rejected explicitly rather than silently treated as 0.
  */
-export function parseProportion(value: string | number | null | undefined): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "string" && value.trim() === "") return null;
-  const proportion = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(proportion) ? proportion : null;
+export function parseProportion(value: string | null | undefined): number | null {
+  return ratioNumberFromRatioValue(value);
 }
 
 /**
@@ -31,10 +33,8 @@ export function parseProportion(value: string | number | null | undefined): numb
  * parse with Number only at the display boundary. A non-finite or missing
  * value renders as an em dash rather than "NaN%".
  */
-export function formatProportionPercent(value: string | number, decimals = 1): string {
-  const proportion = parseProportion(value);
-  if (proportion === null) return "—";
-  return `${(proportion * 100).toFixed(decimals)}%`;
+export function formatProportionPercent(value: string, decimals = 1): string {
+  return formatPercentFromRatioValue(value, { dp: decimals });
 }
 
 export type TrendDirection = "down" | "up" | "flat";
@@ -84,7 +84,7 @@ export function toSparklinePoints(
     }))
     // Drop blank/non-finite points so a missing value can't inject a bogus 0% datapoint.
     .filter((point): point is { label: string; proportion: number } => point.proportion !== null)
-    .map((point) => ({ label: point.label, value: point.proportion * 100 }));
+    .map((point) => ({ label: point.label, value: percentNumberFromRatioValue(String(point.proportion)) ?? 0 }));
 }
 
 export interface ReplaySummary {

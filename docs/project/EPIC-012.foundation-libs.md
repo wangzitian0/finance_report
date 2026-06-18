@@ -149,6 +149,7 @@ diverging across the codebase and across ends.
 |----|-----------|---------------|------|----------|
 | AC12.9.1 | `Ratio` rejects float, is Decimal-backed/immutable; `fraction(part, whole)` builds it (zero whole undefined → raises); percent display is the canonical 2 dp / ROUND_HALF_UP; dimensionless arithmetic | `test_AC12_9_1_ratio_rejects_float_and_is_decimal_backed` (+ siblings) | `tests/tooling/test_ratio_value_type.py`, `apps/backend/tests/accounting/test_ratio_backend.py` | P1 |
 | AC12.9.2 | Cross-language conformance: the Python reference, shipped backend `src.ratio`, and frontend `lib/ratio` reproduce the same `vectors.json` (to_percent / percent_of / from_percent) and export the same `shared_api` (identifier-parity guard) | `test_AC12_9_2_to_percent_matches_standard` (+ siblings) | `tests/tooling/test_ratio_conformance.py`, `tests/tooling/test_ratio_api_parity.py` | P1 |
+| AC12.9.3 | Ratio adoption: portfolio performance/P&L percentages, allocation shares, reconciliation match rate, and frontend confidence/portfolio percent formatting route through the Ratio narrow waist without changing API shapes | `test_AC12_9_3_backend_percentage_call_sites_route_through_ratio`, `test_AC12_9_3_ratio_format_helpers_use_canonical_percent_policy` (+ siblings) | `tests/tooling/test_ratio_adoption.py`, `apps/frontend/src/lib/ratio/format.test.ts` | P1 |
 
 ### AC12.10: Logging - Build Processors
 

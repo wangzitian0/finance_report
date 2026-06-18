@@ -43,6 +43,10 @@ export class Ratio {
     return new Ratio("0");
   }
 
+  isZero(): boolean {
+    return this.value.isZero();
+  }
+
   /** Build a ratio from a percentage number (`12.5` -> `0.125`). */
   static fromPercent(percent: RatioInput): Ratio {
     return new Ratio(coerce(percent, "percent").dividedBy(100));

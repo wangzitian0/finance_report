@@ -1,13 +1,12 @@
 "use client";
 
-import { compareAmounts, formatAmount, formatCurrencyLocale } from "@/lib/money";
+import { compareAmounts, formatCurrencyLocale } from "@/lib/money";
 import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
+import { formatSignedPercentFromPercentValue } from "@/lib/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
 
 function formatReturnPercent(value: string | null): string {
-    if (value === null) return "N/A";
-    const sign = compareAmounts(value, "0") > 0 ? "+" : "";
-    return `${sign}${formatAmount(value, 2)}%`;
+    return formatSignedPercentFromPercentValue(value);
 }
 
 function amountClass(value: string | null): string {

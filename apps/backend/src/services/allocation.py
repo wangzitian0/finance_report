@@ -13,6 +13,7 @@ from src.config import settings
 from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
+from src.ratio import Ratio
 from src.services import fx
 from src.services.performance import batch_latest_atomic_positions
 
@@ -92,12 +93,12 @@ def _build_allocation(
 
     breakdowns = []
     for category, value in category_values.items():
-        percentage = (value / total_value * Decimal("100")) if total_value > 0 else Decimal("0")
+        allocation_ratio = Ratio.fraction(value, total_value) if total_value > Decimal("0") else Ratio.zero()
         breakdowns.append(
             AllocationBreakdown(
                 category=category,
                 value=value,
-                percentage=percentage,
+                percentage=allocation_ratio.to_percent(),
                 count=category_counts[category],
             )
         )

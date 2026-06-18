@@ -14,6 +14,7 @@ from src.models import (
     ReconciliationMatch,
     ReconciliationStatus,
 )
+from src.ratio import Ratio
 
 logger = get_logger(__name__)
 
@@ -106,8 +107,10 @@ async def get_reconciliation_stats(
                 buckets["90-100"] += 1
         score_distribution = buckets
 
-    # Compute match rate with zero-division guard
-    match_rate = float(round((matched / total) * 100, 2)) if total else 0.0
+    # Compute match rate with zero-division guard. The API still exposes a JSON
+    # number, but the percent boundary is the shared Ratio policy.
+    match_rate_ratio = Ratio.fraction(matched, total) if total else Ratio.zero()
+    match_rate = float(match_rate_ratio.to_percent())
 
     return ReconciliationStats(
         total_transactions=total,

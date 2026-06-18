@@ -22,6 +22,7 @@ from src.models.portfolio import (
     PriceSource,
 )
 from src.money import to_money
+from src.ratio import Ratio
 from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,
@@ -34,6 +35,12 @@ from src.schemas.provenance import DataProvenance
 from src.services import fx
 
 logger = get_logger(__name__)
+
+
+def _ratio_or_zero(part: Decimal, whole: Decimal) -> Ratio:
+    if whole == Decimal("0"):
+        return Ratio.zero()
+    return Ratio.fraction(part, whole)
 
 
 def _derive_provenance(source_documents: object) -> DataProvenance | None:
@@ -175,10 +182,7 @@ class PortfolioService:
 
             # Calculate P&L (unrealized: market_value - cost_basis)
             unrealized_pnl = to_money(converted_value - converted_cost)
-            if converted_cost != Decimal("0"):
-                unrealized_pnl_percent = (unrealized_pnl / converted_cost) * Decimal("100")
-            else:
-                unrealized_pnl_percent = Decimal("0")
+            unrealized_pnl_ratio = _ratio_or_zero(unrealized_pnl, converted_cost)
 
             # Get asset classification from latest AtomicPosition (scoped by user_id)
             asset_type = None
@@ -202,7 +206,7 @@ class PortfolioService:
                 cost_basis=converted_cost,
                 market_value=converted_value,
                 unrealized_pnl=unrealized_pnl,
-                unrealized_pnl_percent=unrealized_pnl_percent.quantize(Decimal("0.01")),
+                unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
                 currency=currency,
                 acquisition_date=position.acquisition_date,
                 disposal_date=position.disposal_date,
@@ -312,10 +316,7 @@ class PortfolioService:
             converted_cost_basis = to_money(converted_cost_basis)
 
             unrealized_pnl = to_money(converted_market_value - converted_cost_basis)
-            if converted_cost_basis != Decimal("0"):
-                unrealized_pnl_percent = (unrealized_pnl / converted_cost_basis) * Decimal("100")
-            else:
-                unrealized_pnl_percent = Decimal("0")
+            unrealized_pnl_ratio = _ratio_or_zero(unrealized_pnl, converted_cost_basis)
 
             holdings.append(
                 HoldingResponse(
@@ -327,7 +328,7 @@ class PortfolioService:
                     cost_basis=converted_cost_basis,
                     market_value=converted_market_value,
                     unrealized_pnl=unrealized_pnl,
-                    unrealized_pnl_percent=unrealized_pnl_percent.quantize(Decimal("0.01")),
+                    unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
                     currency=currency,
                     acquisition_date=position.acquisition_date,
                     disposal_date=snapshot.snapshot_date if status == PositionStatus.DISPOSED else None,
@@ -464,10 +465,7 @@ class PortfolioService:
             # Calculate P&L based on cost basis method
             realized_pnl = converted_disposal - converted_cost
 
-            if converted_cost != Decimal("0"):
-                realized_pnl_percent = (realized_pnl / converted_cost) * Decimal("100")
-            else:
-                realized_pnl_percent = Decimal("0")
+            realized_pnl_ratio = _ratio_or_zero(realized_pnl, converted_cost)
 
             total_realized_pnl += realized_pnl
             total_converted_cost += converted_cost
@@ -481,24 +479,21 @@ class PortfolioService:
                     "cost_basis": converted_cost,
                     "disposal_value": converted_disposal,
                     "realized_pnl": realized_pnl,
-                    "realized_pnl_percent": realized_pnl_percent.quantize(Decimal("0.01")),
+                    "realized_pnl_percent": realized_pnl_ratio.to_percent(),
                     "currency": position.currency,
                     "cost_basis_method": position.cost_basis_method,
                 }
             )
 
         # Calculate overall percent using converted costs (not raw costs)
-        if total_converted_cost != Decimal("0"):
-            total_realized_pnl_percent = (total_realized_pnl / total_converted_cost) * Decimal("100")
-        else:
-            total_realized_pnl_percent = Decimal("0")
+        total_realized_pnl_ratio = _ratio_or_zero(total_realized_pnl, total_converted_cost)
 
         await db.flush()
         return RealizedPnLResponse(
             period_start=period_start,
             period_end=period_end,
             total_realized_pnl=to_money(total_realized_pnl),
-            total_realized_pnl_percent=total_realized_pnl_percent.quantize(Decimal("0.01")),
+            total_realized_pnl_percent=total_realized_pnl_ratio.to_percent(),
             positions_count=len(disposed_positions),
             details=details,
         )
@@ -582,6 +577,7 @@ class PortfolioService:
             total_cost_basis += converted_cost
             total_unrealized_pnl += unrealized_pnl
 
+            unrealized_pnl_ratio = _ratio_or_zero(unrealized_pnl, converted_cost)
             details.append(
                 {
                     "asset_identifier": position.asset_identifier,
@@ -590,26 +586,19 @@ class PortfolioService:
                     "market_value": converted_market,
                     "cost_basis": converted_cost,
                     "unrealized_pnl": unrealized_pnl,
-                    "unrealized_pnl_percent": (
-                        (unrealized_pnl / converted_cost * Decimal("100"))
-                        if converted_cost != Decimal("0")
-                        else Decimal("0")
-                    ).quantize(Decimal("0.01")),
+                    "unrealized_pnl_percent": unrealized_pnl_ratio.to_percent(),
                     "currency": currency,
                 }
             )
 
         # Calculate overall percent
-        if total_cost_basis != Decimal("0"):
-            total_unrealized_pnl_percent = (total_unrealized_pnl / total_cost_basis) * Decimal("100")
-        else:
-            total_unrealized_pnl_percent = Decimal("0")
+        total_unrealized_pnl_ratio = _ratio_or_zero(total_unrealized_pnl, total_cost_basis)
 
         await db.flush()
         return UnrealizedPnLResponse(
             as_of_date=eval_date,
             total_unrealized_pnl=to_money(total_unrealized_pnl),
-            total_unrealized_pnl_percent=total_unrealized_pnl_percent.quantize(Decimal("0.01")),
+            total_unrealized_pnl_percent=total_unrealized_pnl_ratio.to_percent(),
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
             holdings_count=len(positions),
@@ -728,20 +717,17 @@ class PortfolioService:
 
         # Calculate net P&L and percentages
         net_pnl = total_unrealized_pnl
-        if total_cost_basis != Decimal("0"):
-            net_pnl_percent = (net_pnl / total_cost_basis) * Decimal("100")
-        else:
-            net_pnl_percent = Decimal("0")
+        net_pnl_ratio = _ratio_or_zero(net_pnl, total_cost_basis)
 
         return PortfolioSummaryResponse(
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
             total_unrealized_pnl=to_money(total_unrealized_pnl),
-            total_unrealized_pnl_percent=net_pnl_percent.quantize(Decimal("0.01")),
+            total_unrealized_pnl_percent=net_pnl_ratio.to_percent(),
             total_realized_pnl=Decimal("0"),  # Phase 1 only
-            total_realized_pnl_percent=Decimal("0"),
+            total_realized_pnl_percent=Ratio.zero().to_percent(),
             net_pnl=to_money(net_pnl),
-            net_pnl_percent=net_pnl_percent.quantize(Decimal("0.01")),
+            net_pnl_percent=net_pnl_ratio.to_percent(),
             holdings_count=len(holdings),
             active_positions_count=active_positions_count,
             disposed_positions_count=disposed_positions_count,

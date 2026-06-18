@@ -12,6 +12,7 @@ from src.logger import get_logger
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.models.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.ratio import Ratio
 from src.services import fx
 
 logger = get_logger(__name__)
@@ -184,7 +185,8 @@ async def calculate_xirr(
     # XIRR formula: Sum of (cash_flow_i / (1 + xirr)^(days_i / 365)) = 0
     try:
         xirr = _xirr_newton(amounts, day_offsets, guess=Decimal("0.1"), max_iter=100, tolerance=Decimal("1e-6"))
-        return xirr * Decimal("100")  # Convert to percentage
+        xirr_ratio = Ratio(xirr)
+        return xirr_ratio.to_percent()
     except (ValueError, RuntimeError) as e:
         logger.error(f"XIRR calculation failed: {e}", cash_flows=cash_flows)
         raise XIRRCalculationError(f"XIRR calculation failed to converge: {e}") from e
@@ -342,15 +344,15 @@ async def calculate_time_weighted_return(
 
     if start_value == Decimal("0"):
         if end_value == Decimal("0"):
-            return Decimal("0")  # No change
+            twr_ratio = Ratio.zero()
+            return twr_ratio.to_percent()
         raise InsufficientDataError("Cannot calculate TWR with zero starting value and non-zero ending value")
 
     # TWR = (End_Value - Start_Value - Net_Cash_Flow) / Start_Value
     # Simplified for single period (no sub-periods)
     gain = end_value - start_value - net_cash_flow
-    twr = (gain / start_value) * Decimal("100")  # Convert to percentage
-
-    return twr
+    twr_ratio = Ratio.fraction(gain, start_value)
+    return twr_ratio.to_percent()
 
 
 async def calculate_money_weighted_return(
@@ -416,10 +418,12 @@ async def calculate_dividend_yield(
     current_value = await _get_portfolio_value(db, user_id, as_of_date)
     if current_value == Decimal("0"):
         if annual_dividends == Decimal("0"):
-            return Decimal("0")
+            dividend_yield_ratio = Ratio.zero()
+            return dividend_yield_ratio.to_percent()
         raise InsufficientDataError("Cannot calculate dividend yield with zero current portfolio value")
 
-    return (annual_dividends / current_value * Decimal("100")).quantize(Decimal("0.01"))
+    dividend_yield_ratio = Ratio.fraction(annual_dividends, current_value)
+    return dividend_yield_ratio.to_percent()
 
 
 async def _get_portfolio_value(

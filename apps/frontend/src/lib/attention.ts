@@ -12,6 +12,7 @@ import type {
   ProcessingPendingItem,
   ReconciliationStatsResponse,
 } from "@/lib/types";
+import { percentNumberFromPercentValue } from "@/lib/ratio/format";
 
 export type AttentionKind =
   | "statement_review"
@@ -49,8 +50,8 @@ export const PROCESSING_STALE_DAYS = 7;
 export const LOW_CONFIDENCE_THRESHOLD = 50;
 
 function clampConfidence(value: number): number {
-  // `value || 0` folds NaN/undefined to 0 without a separate branch.
-  return Math.max(0, Math.min(100, Math.round(value || 0)));
+  const percent = percentNumberFromPercentValue(String(value), { dp: 0, fallback: 0 }) ?? 0;
+  return Math.max(0, Math.min(100, percent));
 }
 
 /**
