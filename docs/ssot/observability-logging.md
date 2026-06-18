@@ -10,6 +10,9 @@
 - `apps/frontend/src/components/statements/StatementUploader.tsx` - Model selection and upload logging
 - `apps/backend/src/routers/statements.py` - Upload request and background task logging
 - `apps/backend/src/routers/reconciliation.py` - Reconciliation run audit checkpoints
+- `apps/backend/src/observability_events.py` - Shared audit/security event helpers and risky-field redaction
+- `apps/backend/src/auth.py` - Authenticated `user_id` log-context binding and auth failure warnings
+- `apps/backend/src/routers/journal.py` - Journal post/void mutation audit events
 - `apps/backend/src/services/statement_parsing.py` - Async parse progress and brokerage import checkpoints
 - `apps/backend/src/routers/llm.py` - LLM config + model catalog request/response logging (EPIC-023; replaced `routers/ai_models.py`)
 - `apps/backend/src/services/extraction.py` - Model selection and HTTP error logging
@@ -133,6 +136,19 @@ counts plus a non-zero failure marker for fast triage.
 | `reconciliation.run.started` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit` | Shows reconciliation was explicitly started |
 | `reconciliation.run.completed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit`, `matches_created`, `auto_accepted`, `pending_review`, `unmatched` | Shows reconciliation result counts |
 | `reconciliation.run.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit`, `error_type`, `safe_error_message` | Shows reconciliation failure without leaking transaction details |
+| `journal.entry.posted` | `request_id`, `user_id`, `action`, `resource_type`, `resource_id`, `status` | Audits a journal entry moving from draft to posted without logging entry lines or memo text |
+| `journal.entry.voided` | `request_id`, `user_id`, `action`, `resource_type`, `resource_id`, `reversal_entry_id`, `reason_length` | Audits a void operation without logging the free-text void reason |
+| `reconciliation.match.accepted` | `request_id`, `user_id`, `action`, `resource_type`, `resource_id`, `status` | Audits a single reconciliation match acceptance |
+| `reconciliation.match.batch_accepted` | `request_id`, `user_id`, `action`, `resource_type`, `resource_id`, `requested_count`, `accepted_count` | Audits batch acceptance without listing transaction descriptions |
+| `auth.failure` | `request_id`, `reason`, optional `user_id`, optional `client_ip` | Warns on authentication failures without logging credentials |
+| `rate_limit.rejected` | `request_id`, `reason`, `client_ip`, `retry_after`, optional `path` | Warns on auth/global rate-limit rejection without logging request bodies |
+
+#### Alert-Support Metrics
+
+`finance.rate_limit.rejected` is emitted when global or auth-route rate limiting
+rejects a request. It uses one low-cardinality label, `scope`, with values such
+as `global_api` and `auth_route`; raw IP addresses stay in warning logs and must
+not become metric labels.
 
 #### Progress Phases
 
@@ -156,6 +172,13 @@ file hashes, raw AI prompts/responses, provider API keys, session cookies,
 Vault/Dokploy/GitHub tokens, email addresses, or bank account numbers. File
 hashes are truncated to a prefix suitable for correlation, and error fields use
 safe summaries capped before emission.
+
+The backend helper `observability_events.safe_log_fields()` redacts risky field
+names (`authorization`, `cookie`, `token`, `api_key`, `prompt`, `raw_response`,
+`response_body`, `error_body`, `provider_body`, and `provider_response`) before
+new audit/security events are emitted. Provider failures must log status/model
+metadata and a bounded `safe_error_message`; raw provider bodies are not an
+allowed log field.
 
 #### Noise Control
 

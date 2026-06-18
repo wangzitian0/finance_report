@@ -6,6 +6,7 @@ import json
 import logging
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -13,6 +14,7 @@ from pydantic import ValidationError
 from src import (
     logger as logger_module,
     observability as observability_module,
+    observability_events,
     telemetry_metrics as telemetry_metrics_module,
 )
 from src.config import Settings
@@ -226,6 +228,91 @@ def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -
     assert fields["deployment_environment"] == "staging"
     assert fields["alert_rule_name"] == "FinanceReportBackendErrorLogs"
     assert "otel_exporter_otlp_endpoint" not in fields
+
+
+def test_AC10_11_1_security_warning_redacts_credentials() -> None:
+    """AC10.11.1: Security warning helper never emits raw credentials."""
+    mock_logger = Mock()
+
+    observability_events.log_security_warning(
+        mock_logger,
+        "auth.failure",
+        reason="invalid_token",
+        client_ip="203.0.113.10",
+        token="raw-token",
+        authorization="Bearer raw-token",
+    )
+
+    mock_logger.warning.assert_called_once()
+    (event,) = mock_logger.warning.call_args.args
+    fields = mock_logger.warning.call_args.kwargs
+    assert event == "auth.failure"
+    assert fields["audit_event"] == "auth.failure"
+    assert fields["reason"] == "invalid_token"
+    assert fields["client_ip"] == "203.0.113.10"
+    assert fields["token"] == "[REDACTED]"
+    assert fields["authorization"] == "[REDACTED]"
+
+
+def test_AC10_11_2_financial_mutation_audit_helpers_and_callsites() -> None:
+    """AC10.11.2: Financial mutation audit events are stable and wired."""
+    mock_logger = Mock()
+    user_id = uuid4()
+    entry_id = uuid4()
+
+    observability_events.log_financial_mutation(
+        mock_logger,
+        "journal.entry.posted",
+        user_id=user_id,
+        action="post",
+        resource_type="journal_entry",
+        resource_id=entry_id,
+        response_body="must not leak",
+    )
+
+    mock_logger.info.assert_called_once()
+    (event,) = mock_logger.info.call_args.args
+    fields = mock_logger.info.call_args.kwargs
+    assert event == "journal.entry.posted"
+    assert fields["audit_event"] == "journal.entry.posted"
+    assert fields["user_id"] == str(user_id)
+    assert fields["resource_id"] == str(entry_id)
+    assert fields["response_body"] == "[REDACTED]"
+
+    journal = _read(REPO_ROOT / "apps" / "backend" / "src" / "routers" / "journal.py")
+    reconciliation = _read(REPO_ROOT / "apps" / "backend" / "src" / "routers" / "reconciliation.py")
+    assert "journal.entry.posted" in journal
+    assert "journal.entry.voided" in journal
+    assert "reconciliation.match.accepted" in reconciliation
+    assert "log_financial_mutation" in journal
+    assert "log_financial_mutation" in reconciliation
+
+
+def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
+    """AC10.11.3: Raw provider bodies are redacted or summarized before logging."""
+    safe = observability_events.safe_log_fields(
+        {
+            "error_body": "provider raw response with prompt and account 123456789",
+            "nested": {"provider_response": "raw JSON"},
+        }
+    )
+    assert safe["error_body"] == "[REDACTED]"
+    assert safe["nested"]["provider_response"] == "[REDACTED]"
+
+    long_message = "x" * 500
+    assert observability_events.safe_error_message(long_message).endswith("...")
+    assert len(observability_events.safe_error_message(long_message)) <= 300
+
+    pii_message = observability_events.safe_error_message("provider failed for alice@example.com and account 123456789")
+    assert "alice@example.com" not in pii_message
+    assert "123456789" not in pii_message
+    assert "[EMAIL]" in pii_message
+    assert "[BANK_ACCOUNT]" in pii_message
+
+    extraction = _read(REPO_ROOT / "apps" / "backend" / "src" / "services" / "extraction.py")
+    assert "error_body=" not in extraction
+    assert "safe_error_message=" in extraction
+    assert "OCR layout parsing failed: HTTP {response.status_code}: {error_body}" not in extraction
 
 
 async def test_AC10_9_3_health_response_includes_redacted_observability_status(monkeypatch) -> None:

@@ -19,6 +19,7 @@ from src.models import (
     StatementSummary,
 )
 from src.models.layer2 import AtomicTransaction
+from src.observability_events import log_financial_mutation
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BatchAcceptRequest,
@@ -340,6 +341,15 @@ async def accept_match(
             raise_not_found("Match", cause=exc)
         raise_bad_request(str(exc), cause=exc)
     await db.refresh(match, ["atomic_transaction"])
+    log_financial_mutation(
+        logger,
+        "reconciliation.match.accepted",
+        user_id=user_id,
+        action="accept",
+        resource_type="reconciliation_match",
+        resource_id=match.id,
+        status=match.status.value,
+    )
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     return _build_match_response(
         match,
@@ -380,6 +390,16 @@ async def batch_accept(
 ) -> ReconciliationMatchListResponse:
     matches = await batch_accept_service(db, payload.match_ids, user_id=user_id)
     await db.commit()
+    log_financial_mutation(
+        logger,
+        "reconciliation.match.batch_accepted",
+        user_id=user_id,
+        action="batch_accept",
+        resource_type="reconciliation_match",
+        resource_id="batch",
+        requested_count=len(payload.match_ids),
+        accepted_count=len(matches),
+    )
     if not matches:
         return ReconciliationMatchListResponse(items=[], total=0)
 

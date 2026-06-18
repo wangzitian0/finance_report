@@ -141,6 +141,26 @@ def test_check_rate_limit_blocks_when_exceeded() -> None:
     assert "Retry-After" in exc_info.value.headers
 
 
+def test_check_rate_limit_logs_route_path(monkeypatch) -> None:
+    """Auth route rate-limit logs include the route path for triage."""
+    import src.routers.auth as auth_module
+
+    limiter = RateLimiter(RateLimitConfig(max_requests=1, window_seconds=60, block_seconds=300))
+    request = _mock_request("10.0.0.101")
+    calls: list[dict[str, object]] = []
+
+    def capture_warning(*args, **kwargs) -> None:
+        calls.append(kwargs)
+
+    monkeypatch.setattr(auth_module, "log_security_warning", capture_warning)
+
+    _check_rate_limit(request, limiter, "Rate limited")
+    with pytest.raises(HTTPException):
+        _check_rate_limit(request, limiter, "Rate limited")
+
+    assert calls[-1]["path"] == "/auth/test"
+
+
 async def test_successful_login_resets_rate_limit(db: AsyncSession) -> None:
     """Successful login should reset the rate limiter for that IP."""
     # Create user

@@ -12,9 +12,11 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.logger import get_logger
 from src.models import User
+from src.observability_events import bind_authenticated_user_context, log_security_warning
 from src.rate_limit import RateLimiter, auth_rate_limiter, register_rate_limiter
 from src.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
 from src.security import create_access_token
+from src.telemetry_metrics import record_rate_limit_rejected
 from src.utils import raise_bad_request, raise_not_found, raise_too_many_requests, raise_unauthorized
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -47,6 +49,15 @@ def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) ->
     client_ip = _get_client_ip(request)
     allowed, retry_after = limiter.is_allowed(client_ip)
     if not allowed:
+        record_rate_limit_rejected(scope="auth_route")
+        log_security_warning(
+            logger,
+            "rate_limit.rejected",
+            reason="auth_route_rate_limit",
+            client_ip=client_ip,
+            path=request.url.path,
+            retry_after=retry_after,
+        )
         raise_too_many_requests(error_msg, retry_after=retry_after)
 
 
@@ -152,12 +163,15 @@ async def login(
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(data.password, user.hashed_password):
-        logger.warning(
-            "Failed login attempt",
+        log_security_warning(
+            logger,
+            "auth.failure",
+            reason="invalid_login",
             client_ip=_get_client_ip(request),
         )
         raise_unauthorized("Invalid email or password")
 
+    bind_authenticated_user_context(user.id)
     logger.info(
         "Successful login",
         user_id=str(user.id),

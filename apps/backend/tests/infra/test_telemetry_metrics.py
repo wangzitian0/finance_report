@@ -345,3 +345,18 @@ def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
     ]
     assert meter.counters["finance.reconciliation.match.outcome"].add_calls == [(1, {"outcome": "accepted"})]
     assert meter.histograms["finance.confidence_north_star"].record_calls == [(0.98, {"source": "scheduled"})]
+
+
+def test_AC10_11_1_rate_limit_rejections_record_alert_metric(monkeypatch) -> None:
+    """AC10.11.1: rate-limit rejections emit the metric used by saturation alerts."""
+    meter = install_fake_otel(monkeypatch)
+    monkeypatch.setattr(
+        telemetry_metrics.settings,
+        "otel_exporter_otlp_endpoint",
+        "http://collector:4318",
+    )
+    telemetry_metrics.configure_otel_metrics()
+
+    telemetry_metrics.record_rate_limit_rejected(scope="global_api")
+
+    assert meter.counters["finance.rate_limit.rejected"].add_calls == [(1, {"scope": "global_api"})]

@@ -20,6 +20,7 @@ from src.models import DocumentType
 from src.models.layer2 import AtomicTransaction, TransactionDirection
 from src.models.statement_enums import BankStatementStatus, Stage1Status
 from src.models.statement_summary import StatementSummary
+from src.observability_events import safe_error_message
 from src.prompts import get_parsing_prompt
 from src.services.ai_streaming import (
     AIStreamError,
@@ -785,15 +786,15 @@ class ExtractionService:
             response = await client.post(layout_url, headers=headers, json=payload)
 
         if response.status_code != 200:
-            error_body = response.text[:500]
+            safe_summary = safe_error_message(response.text)
             logger.error(
                 "OCR layout parsing failed",
                 provider=settings.ai_provider,
                 model=self.ocr_model,
                 status_code=response.status_code,
-                error_body=error_body,
+                safe_error_message=safe_summary,
             )
-            raise ExtractionError(f"OCR layout parsing failed: HTTP {response.status_code}: {error_body}")
+            raise ExtractionError(f"OCR layout parsing failed: HTTP {response.status_code}: {safe_summary}")
 
         result = response.json()
         markdown = result.get("md_results")

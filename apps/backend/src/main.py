@@ -28,6 +28,7 @@ from src.observability import (
     log_observability_startup,
     mark_fastapi_instrumentation_active,
 )
+from src.observability_events import log_security_warning
 from src.rate_limit import api_rate_limiter
 from src.routers import (
     accounts,
@@ -67,6 +68,7 @@ from src.telemetry_metrics import (
     configure_otel_metrics,
     http_route_label_from_scope,
     record_http_request,
+    record_rate_limit_rejected,
 )
 from src.utils.exceptions import BaseAppException
 
@@ -251,10 +253,26 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
     client_ip = request.client.host if request.client else "unknown"
     allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
     if not allowed:
+        request_id = request.headers.get("X-Request-ID", str(uuid4()))
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(
+            request_id=request_id,
+            method=request.method,
+            path=path,
+        )
+        record_rate_limit_rejected(scope="global_api")
+        log_security_warning(
+            logger,
+            "rate_limit.rejected",
+            reason="global_api_rate_limit",
+            client_ip=client_ip,
+            path=path,
+            retry_after=retry_after,
+        )
         return JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded. Please try again later."},
-            headers={"Retry-After": str(retry_after)},
+            headers={"Retry-After": str(retry_after), "X-Request-ID": request_id},
         )
     return await call_next(request)
 

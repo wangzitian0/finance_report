@@ -6,7 +6,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from src.deps import CurrentUserId, DbSession
+from src.logger import get_logger
 from src.models import JournalEntry, JournalEntryStatus
+from src.observability_events import log_financial_mutation
 from src.schemas import (
     JournalEntryCreate,
     JournalEntryListResponse,
@@ -22,6 +24,7 @@ from src.services import (
 from src.utils import raise_bad_request, raise_not_found
 
 router = APIRouter(prefix="/journal-entries", tags=["journal-entries"])
+logger = get_logger(__name__)
 
 
 @router.post("", response_model=JournalEntryResponse, status_code=status.HTTP_201_CREATED)
@@ -118,6 +121,15 @@ async def post_entry(
         entry = await post_journal_entry(db, entry_id, user_id)
         await db.commit()
         await db.refresh(entry, ["lines"])
+        log_financial_mutation(
+            logger,
+            "journal.entry.posted",
+            user_id=user_id,
+            action="post",
+            resource_type="journal_entry",
+            resource_id=entry.id,
+            status=entry.status.value,
+        )
         return JournalEntryResponse.model_validate(entry)
     except ValidationError as e:
         raise_bad_request(str(e), cause=e)
@@ -133,6 +145,16 @@ async def void_entry(
     try:
         reversal_entry = await void_journal_entry(db, entry_id, void_request.reason, user_id)
         await db.commit()
+        log_financial_mutation(
+            logger,
+            "journal.entry.voided",
+            user_id=user_id,
+            action="void",
+            resource_type="journal_entry",
+            resource_id=entry_id,
+            reversal_entry_id=str(reversal_entry.id),
+            reason_length=len(void_request.reason or ""),
+        )
         return JournalEntryResponse.model_validate(reversal_entry)
     except ValidationError as e:
         raise_bad_request(str(e), cause=e)
