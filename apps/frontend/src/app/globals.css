@@ -105,6 +105,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.pwa-safe-area-shell {
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+@supports not (min-height: 100dvh) {
+  .pwa-safe-area-shell {
+    min-height: 100vh;
+  }
+}
+
 :where(a, button, input, select, textarea, summary):focus-visible,
 [tabindex]:focus-visible,
 [tabindex="-1"]:focus {

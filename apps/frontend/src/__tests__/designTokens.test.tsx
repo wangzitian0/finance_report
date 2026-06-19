@@ -132,6 +132,23 @@ describe("frontend design tokens", () => {
     expect(globals).toContain("box-shadow: var(--shadow-focus)")
   })
 
+  it("AC22.20.4 defines the mobile standalone safe-area baseline in SSOT and CSS", () => {
+    const ssot = readFileSync(
+      resolve(process.cwd(), "../../docs/ssot/frontend-patterns.md"),
+      "utf8",
+    )
+    const globals = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8")
+
+    expect(ssot).toContain("### Mobile Install Baseline")
+    expect(ssot).toContain("Add to Home Screen")
+    expect(ssot).toContain("business pages must not listen for `beforeinstallprompt`")
+
+    expect(globals).toContain(".pwa-safe-area-shell")
+    expect(globals).toContain("min-height: 100dvh")
+    expect(globals).toContain("env(safe-area-inset-top)")
+    expect(globals).toContain("env(safe-area-inset-bottom)")
+  })
+
   it("AC16.29.3 AC16.29.4 renders ConfidenceBadge variants through semantic token classes", () => {
     const tiers = ["TRUSTED", "HIGH", "MEDIUM", "LOW"] as const
 
