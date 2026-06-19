@@ -35,11 +35,6 @@ from src.services.performance import InsufficientDataError, PerformanceError
 from src.services.portfolio import AssetNotFoundError, PortfolioNotFoundError, portfolio_service
 
 
-def _money(value: Decimal) -> Decimal:
-    # Canonical money rounding (banker's / HALF_EVEN). See docs/ssot/accounting.md#decimal-rule.
-    return to_money(Decimal(value))
-
-
 def _percent(value: Decimal | None) -> Decimal | None:
     if value is None:
         return None
@@ -202,21 +197,23 @@ async def build_investment_performance_report_schedule(
     for holding in holdings:
         position = position_by_asset.get(holding.asset_identifier)
         if position is None:
-            cost_basis = _money(await _schedule_amount(holding.cost_basis, holding.currency, holding.acquisition_date))
+            cost_basis = to_money(
+                await _schedule_amount(holding.cost_basis, holding.currency, holding.acquisition_date)
+            )
         else:
-            cost_basis = _money(
+            cost_basis = to_money(
                 await _schedule_amount(position.cost_basis, position.currency, position.acquisition_date)
             )
-        market_value = _money(holding.market_value)
+        market_value = to_money(holding.market_value)
         holding_rows.append(
             InvestmentPerformanceHoldingRow(
                 asset_identifier=holding.asset_identifier,
                 quantity=holding.quantity,
                 cost_basis=cost_basis,
                 market_value=market_value,
-                unrealized_pnl=_money(market_value - cost_basis),
-                realized_pnl=_money(realized_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
-                dividend_income=_money(dividend_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
+                unrealized_pnl=to_money(market_value - cost_basis),
+                realized_pnl=to_money(realized_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
+                dividend_income=to_money(dividend_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
                 currency=holding.currency,
             )
         )
@@ -232,8 +229,8 @@ async def build_investment_performance_report_schedule(
                 InvestmentPerformanceAllocationRow(
                     dimension=dimension,
                     category=row.category,
-                    value=_money(row.value),
-                    percentage=_money(row.percentage),
+                    value=to_money(row.value),
+                    percentage=_percent(row.percentage),
                     count=row.count,
                 )
             )
@@ -257,7 +254,7 @@ async def build_investment_performance_report_schedule(
                     InvestmentPerformanceAllocationRow(
                         dimension=dimension,
                         category=category,
-                        value=_money(value),
+                        value=to_money(value),
                         percentage=allocation_ratio.to_percent(),
                         count=count,
                     )
@@ -370,9 +367,9 @@ async def build_investment_performance_report_schedule(
         xirr=_percent(xirr),
         time_weighted_return=_percent(twr),
         money_weighted_return=_percent(mwr),
-        realized_pnl=_money(sum(realized_by_asset.values(), Decimal("0.00"))),
-        unrealized_pnl=_money(sum((row.unrealized_pnl for row in holding_rows), Decimal("0.00"))),
-        dividend_income=_money(sum(dividend_by_asset.values(), Decimal("0.00"))),
+        realized_pnl=to_money(sum(realized_by_asset.values(), Decimal("0.00"))),
+        unrealized_pnl=to_money(sum((row.unrealized_pnl for row in holding_rows), Decimal("0.00"))),
+        dividend_income=to_money(sum(dividend_by_asset.values(), Decimal("0.00"))),
         dividend_yield=_percent(dividend_yield),
         holdings=holding_rows,
         allocation=allocation_rows,

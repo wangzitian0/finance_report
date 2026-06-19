@@ -6,9 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-
-def _money(value: object) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
+from common.testing import money_amount
 
 
 @dataclass(frozen=True)
@@ -65,14 +63,17 @@ class PortfolioAuditFixture:
 
     @property
     def report_package_market_value_sgd(self) -> Decimal:
-        return sum(
-            (
-                position.market_value
-                for position in self.report_package_positions
-                if position.currency == "SGD"
+        return money_amount(
+            sum(
+                (
+                    position.market_value
+                    for position in self.report_package_positions
+                    if position.currency == "SGD"
+                ),
+                Decimal("0.00"),
             ),
-            Decimal("0.00"),
-        ).quantize(Decimal("0.01"))
+            currency="SGD",
+        )
 
 
 _MARGIN_HISTORY_ROWS = (
@@ -216,10 +217,11 @@ PORTFOLIO_AUDIT_FIXTURE = PortfolioAuditFixture(
         dividend_income_sgd=Decimal("88.25"),
         fees_usd=Decimal("0.33"),
         market_value_by_currency=_MARKET_VALUE_BY_CURRENCY,
-        reporting_market_value_sgd=_money(
+        reporting_market_value_sgd=money_amount(
             _MARKET_VALUE_BY_CURRENCY["SGD"]
             + _MARKET_VALUE_BY_CURRENCY["USD"] * Decimal("1.35")
-            + _MARKET_VALUE_BY_CURRENCY["HKD"] * Decimal("0.17")
+            + _MARKET_VALUE_BY_CURRENCY["HKD"] * Decimal("0.17"),
+            currency="SGD",
         ),
     ),
 )

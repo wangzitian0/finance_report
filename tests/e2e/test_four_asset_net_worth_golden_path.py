@@ -23,6 +23,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page, expect
@@ -44,10 +45,6 @@ def _api_url(path: str) -> str:
 
 def _get_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}{path}"
-
-
-def _money(value: object) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
 def _dashboard_amount(amount: Decimal) -> str:
@@ -255,9 +252,9 @@ async def _create_manual_snapshot(
 
 
 def _line_total(lines: list[dict]) -> Decimal:
-    return sum(
-        (_money(line.get("amount", "0")) for line in lines), Decimal("0.00")
-    ).quantize(Decimal("0.01"))
+    return money_amount(
+        sum((money_amount(line.get("amount", "0")) for line in lines), Decimal("0.00"))
+    )
 
 
 def _lines_by_name(lines: list[dict], token: str) -> list[dict]:
@@ -415,9 +412,12 @@ async def test_four_asset_as_of_net_worth_golden_path(
         assert len(holdings) >= import_payload["parsed_positions"], (
             f"missing imported holdings: {holdings}"
         )
-        brokerage_value = sum(
-            (_money(item["market_value"]) for item in holdings), Decimal("0.00")
-        ).quantize(Decimal("0.01"))
+        brokerage_value = money_amount(
+            sum(
+                (money_amount(item["market_value"]) for item in holdings),
+                Decimal("0.00"),
+            )
+        )
         assert brokerage_value > Decimal("0.00"), (
             f"brokerage holdings have no market value: {holdings}"
         )
@@ -456,10 +456,10 @@ async def test_four_asset_as_of_net_worth_golden_path(
             f"valuation components check failed: {components_response.status_code} {components_response.text}"
         )
         components = components_response.json()
-        assert _money(components["total_assets"]) == PROPERTY_VALUE + ESOP_VALUE
-        assert _money(components["total_liabilities"]) == MORTGAGE_BALANCE
+        assert money_amount(components["total_assets"]) == PROPERTY_VALUE + ESOP_VALUE
+        assert money_amount(components["total_liabilities"]) == MORTGAGE_BALANCE
         assert (
-            _money(components["net_worth_delta"])
+            money_amount(components["net_worth_delta"])
             == PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
         )
 
@@ -483,16 +483,14 @@ async def test_four_asset_as_of_net_worth_golden_path(
         market_lines = _lines_by_name(asset_lines, "market valuation adjustment")
         market_total = _line_total(market_lines)
 
-        expected_assets = (
+        expected_assets = money_amount(
             BANK_CASH + brokerage_value + PROPERTY_VALUE + ESOP_VALUE
-        ).quantize(Decimal("0.01"))
-        expected_liabilities = MORTGAGE_BALANCE
-        expected_net_worth = (expected_assets - expected_liabilities).quantize(
-            Decimal("0.01")
         )
-        expected_net_worth_adjustment = (
+        expected_liabilities = MORTGAGE_BALANCE
+        expected_net_worth = money_amount(expected_assets - expected_liabilities)
+        expected_net_worth_adjustment = money_amount(
             brokerage_value + PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
-        ).quantize(Decimal("0.01"))
+        )
 
         assert _line_total_by_name(asset_lines, BANK_INSTITUTION) == BANK_CASH
         assert market_total == brokerage_value, (
@@ -505,18 +503,18 @@ async def test_four_asset_as_of_net_worth_golden_path(
             _line_total_by_name(liability_lines, "Four Asset Mortgage")
             == MORTGAGE_BALANCE
         )
-        assert _money(balance_sheet["total_assets"]) == expected_assets
-        assert _money(balance_sheet["total_liabilities"]) == expected_liabilities
+        assert money_amount(balance_sheet["total_assets"]) == expected_assets
+        assert money_amount(balance_sheet["total_liabilities"]) == expected_liabilities
         assert (
-            _money(balance_sheet["total_assets"])
-            - _money(balance_sheet["total_liabilities"])
+            money_amount(balance_sheet["total_assets"])
+            - money_amount(balance_sheet["total_liabilities"])
             == expected_net_worth
         )
         assert (
-            _money(balance_sheet["net_worth_adjustment_gain_loss"])
+            money_amount(balance_sheet["net_worth_adjustment_gain_loss"])
             == expected_net_worth_adjustment
         )
-        assert _money(balance_sheet["equation_delta"]) == Decimal("0.00")
+        assert money_amount(balance_sheet["equation_delta"]) == Decimal("0.00")
         assert balance_sheet["is_balanced"] is True
 
     await page.goto(_get_url("/dashboard"))
