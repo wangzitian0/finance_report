@@ -84,15 +84,23 @@ async function installSourceIntakeMocks(page: Page) {
         models: [
           {
             id: "qwen/qwen-2.5-vl-7b-instruct:free",
+            provider_id: "openrouter-env",
             is_free: true,
             modalities: ["image"],
+            supports_reasoning: false,
           },
         ],
       };
     } else if (path === "/api/workflow/status") {
       body = {
         primary_state: "needs_action",
-        next_action: { type: "upload_source", count: 1, href: "/upload" },
+        next_action: {
+          type: "upload",
+          count: 1,
+          href: "/upload",
+          label: "Upload source",
+          summary: "Upload source evidence before reading reports.",
+        },
         report_readiness: {
           state: "blocked",
           blocking_count: 1,
