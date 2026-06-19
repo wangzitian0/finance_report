@@ -46,7 +46,7 @@ describe("SourceIntakeChecklist", () => {
 
     expect(screen.getByRole("link", { name: "Upload bank statements" })).toHaveAttribute("href", "/upload")
     expect(screen.getByRole("link", { name: "Upload brokerage statements" })).toHaveAttribute("href", "/upload")
-    expect(screen.getByRole("link", { name: "Capture settlement notes" })).toHaveAttribute("href", "/upload")
+    expect(screen.getByRole("link", { name: "Upload brokerage evidence" })).toHaveAttribute("href", "/upload")
     expect(screen.getByRole("link", { name: "Add ESOP / RSU plans" })).toHaveAttribute(
       "href",
       "/portfolio/evidence?source_class=esop_rsu_plan",
@@ -61,6 +61,16 @@ describe("SourceIntakeChecklist", () => {
     )
     expect(screen.getByRole("link", { name: "Upload CSV exports" })).toHaveAttribute("href", "/upload")
     expect(screen.getByRole("link", { name: "Enter manual records" })).toHaveAttribute("href", "/journal")
+  })
+
+  it("AC19.15.2 keeps intake paths usable when readiness status is unavailable", () => {
+    render(<SourceIntakeChecklist readinessState="unavailable" />)
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Readiness status unavailable; showing intake paths.",
+    )
+    expect(screen.getByText("Readiness unavailable")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Upload brokerage evidence" })).toHaveAttribute("href", "/upload")
   })
 
   it("AC19.15.2 labels readiness gaps and manual-trusted source classes", () => {

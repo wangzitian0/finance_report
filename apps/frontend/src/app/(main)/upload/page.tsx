@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
-import { SourceIntakeChecklist } from "@/components/source-intake/SourceIntakeChecklist";
+import {
+    SourceIntakeChecklist,
+    type SourceIntakeReadinessState,
+} from "@/components/source-intake/SourceIntakeChecklist";
 import StatementUploader from "@/components/statements/StatementUploader";
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { InfoHint } from "@/components/ui/InfoHint";
@@ -61,6 +64,8 @@ export default function UploadPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
     const [sourceTrustSummary, setSourceTrustSummary] = useState<SourceTrustSummary | undefined>();
+    const [sourceTrustReadinessState, setSourceTrustReadinessState] =
+        useState<SourceIntakeReadinessState>("loading");
 
     const fetchStatements = useCallback(async () => {
         try {
@@ -90,10 +95,12 @@ export default function UploadPage() {
         )
             .then((readiness) => {
                 setSourceTrustSummary(readiness.source_trust_summary);
+                setSourceTrustReadinessState("loaded");
             })
             .catch((err) => {
                 if (!(err instanceof DOMException && err.name === "AbortError")) {
                     setSourceTrustSummary(undefined);
+                    setSourceTrustReadinessState("unavailable");
                 }
             });
 
@@ -151,7 +158,10 @@ export default function UploadPage() {
             </div>
 
             <div className="mb-6">
-                <SourceIntakeChecklist sourceTrustSummary={sourceTrustSummary} />
+                <SourceIntakeChecklist
+                    readinessState={sourceTrustReadinessState}
+                    sourceTrustSummary={sourceTrustSummary}
+                />
             </div>
 
             {/* Upload Section */}

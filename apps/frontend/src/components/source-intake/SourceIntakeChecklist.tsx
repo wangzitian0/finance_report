@@ -33,6 +33,8 @@ type SourceTrustSummary = NonNullable<
   PersonalReportPackageReadinessResponse["source_trust_summary"]
 >;
 
+export type SourceIntakeReadinessState = "loading" | "loaded" | "unavailable";
+
 interface SourceIntakeItem {
   id: ReportSourceClass;
   label: string;
@@ -68,9 +70,9 @@ const SOURCE_INTAKE_ITEMS: SourceIntakeItem[] = [
   {
     id: "settlement_note",
     label: "Settlement notes",
-    description: "Broker settlement evidence captured from the brokerage import flow.",
+    description: "Broker settlement evidence starts with brokerage uploads, then flows through import and review.",
     href: "/upload",
-    ctaLabel: "Capture settlement notes",
+    ctaLabel: "Upload brokerage evidence",
     defaultStatus: "Structured capture",
     defaultVariant: "info",
     icon: FileText,
@@ -150,10 +152,14 @@ function statusForSourceClass(
 }
 
 export function SourceIntakeChecklist({
+  readinessState = "loaded",
   sourceTrustSummary,
 }: {
+  readinessState?: SourceIntakeReadinessState;
   sourceTrustSummary?: SourceTrustSummary;
 }) {
+  const showUnavailable = readinessState === "unavailable";
+
   return (
     <section
       aria-label="Report source intake checklist"
@@ -166,8 +172,25 @@ export function SourceIntakeChecklist({
             Add the source classes that make report readiness trustworthy. Manual evidence stays labelled manual-trusted.
           </p>
         </div>
-        <Badge variant="muted">{SOURCE_INTAKE_ITEMS.length} source classes</Badge>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Badge variant="muted">{SOURCE_INTAKE_ITEMS.length} source classes</Badge>
+          {readinessState === "loading" ? (
+            <Badge variant="muted">Checking readiness</Badge>
+          ) : null}
+          {showUnavailable ? (
+            <Badge variant="warning">Readiness unavailable</Badge>
+          ) : null}
+        </div>
       </div>
+
+      {showUnavailable ? (
+        <p
+          role="status"
+          className="mt-3 rounded border border-[var(--border)] bg-[var(--background-muted)] px-3 py-2 text-sm text-muted"
+        >
+          Readiness status unavailable; showing intake paths.
+        </p>
+      ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {SOURCE_INTAKE_ITEMS.map((item) => {

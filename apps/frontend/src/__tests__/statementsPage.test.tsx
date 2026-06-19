@@ -172,6 +172,21 @@ describe("StatementsPage", () => {
     )
   })
 
+  it("AC19.15.2 keeps source intake paths usable when readiness is unavailable", async () => {
+    mockStatementsPageApi({
+      statements: [{ items: [] }],
+      readiness: new Error("readiness unavailable"),
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() =>
+      expect(screen.getByText("Readiness status unavailable; showing intake paths.")).toBeInTheDocument(),
+    )
+    expect(screen.getByText("Readiness unavailable")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Upload brokerage evidence" })).toHaveAttribute("href", "/upload")
+  })
+
   it("AC22.5.x surfaces a parsed statement as ready-to-review with a direct review deep-link", async () => {
     routerPushMock.mockClear()
     mockStatementsPageApi({
