@@ -66,17 +66,17 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     )
     for path in quantity_service_files:
         src = _read(path)
-        assert "from src.quantity import Quantity" in src, f"{path} must use Quantity"
+        assert "from src.quantity import" in src, f"{path} must use Quantity helpers"
         assert not naked_quantity_zero.search(src), (
             f"{path} has a naked Decimal quantity-zero comparison"
         )
 
     reporting = _read(Path("apps/backend/src/services/reporting.py"))
     assert "position.quantity * latest_price" not in reporting
-    assert "def _quantity_value(" in reporting
+    assert "quantized_quantity_value(position.quantity" in reporting
 
     investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
-    assert "trade_quantity = _quantized_quantity(quantity)" in investment
+    assert "trade_quantity = quantized_quantity_value(quantity" in investment
     assert "amount = _money(quantity * unit_price" not in investment
     assert "proceeds = _money(quantity * unit_price" not in investment
     assert "lot.remaining_quantity * lot.unit_cost" not in investment

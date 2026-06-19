@@ -23,7 +23,7 @@ from src.models.layer3 import (
     PositionStatus,
 )
 from src.money import to_money
-from src.quantity import Quantity
+from src.quantity import quantity_is_zero
 from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
@@ -60,14 +60,6 @@ class DepreciationResult:
     method: str
     useful_life_years: int
     salvage_value: Decimal
-
-
-def _quantity(value: Decimal) -> Quantity:
-    return Quantity(value, ASSET_QUANTITY_UNIT)
-
-
-def _quantity_is_zero(value: Decimal) -> bool:
-    return _quantity(value).quantize() == Quantity.zero(ASSET_QUANTITY_UNIT)
 
 
 @dataclass
@@ -573,7 +565,7 @@ class AssetService:
                         "latest_snapshot_date": snap.snapshot_date.isoformat(),
                     }
 
-                if _quantity_is_zero(quantity):
+                if quantity_is_zero(quantity, ASSET_QUANTITY_UNIT):
                     position.status = PositionStatus.DISPOSED
                     position.disposal_date = snap.snapshot_date
                     result.disposed += 1
@@ -585,7 +577,7 @@ class AssetService:
 
             else:
                 # Create position for non-zero quantities (positive or negative)
-                if not _quantity_is_zero(quantity):
+                if not quantity_is_zero(quantity, ASSET_QUANTITY_UNIT):
                     logger.info("Creating new managed position", asset=snap.asset_identifier)
                     position = ManagedPosition(
                         user_id=user_id,

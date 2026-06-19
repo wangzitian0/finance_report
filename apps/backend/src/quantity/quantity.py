@@ -101,3 +101,18 @@ class Quantity:
 
     def __str__(self) -> str:
         return f"{self.value} {self.unit.code}"
+
+
+def quantized_quantity_value(value: _QuantityInput, unit: Unit | str) -> Decimal:
+    """Return the canonical Decimal storage value for a quantity boundary."""
+    return Quantity(value, unit).quantize().value
+
+
+def quantity_is_zero(value: _QuantityInput, unit: Unit | str) -> bool:
+    """Check a quantity boundary value with the package's canonical quantum."""
+    return Quantity(value, unit).quantize().is_zero()
+
+
+def quantity_zero_value(unit: Unit | str) -> Decimal:
+    """Return the canonical Decimal storage value for zero in a quantity unit."""
+    return Quantity.zero(unit).quantize().value

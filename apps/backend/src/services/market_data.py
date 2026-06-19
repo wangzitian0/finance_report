@@ -25,7 +25,7 @@ from src.models.account import Account
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.quantity import Quantity
+from src.quantity import quantity_zero_value
 
 logger = get_logger(__name__)
 
@@ -46,10 +46,6 @@ _STOOQ_DAILY_URL = "https://stooq.com/q/d/l/"
 # which is not a ticker and would 404 against Yahoo on every lookup.
 _TICKER_MAX_LENGTH = 15
 _TICKER_PATTERN = re.compile(r"^\^?[A-Za-z0-9]+([.\-=][A-Za-z0-9]+)*$")
-
-
-def _quantity_zero() -> Decimal:
-    return Quantity.zero(MARKET_DATA_QUANTITY_UNIT).value
 
 
 @dataclass(frozen=True)
@@ -868,7 +864,7 @@ async def _active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[
     stmt = (
         select(ManagedPosition.asset_identifier)
         .where(ManagedPosition.status == PositionStatus.ACTIVE)
-        .where(ManagedPosition.quantity != _quantity_zero())
+        .where(ManagedPosition.quantity != quantity_zero_value(MARKET_DATA_QUANTITY_UNIT))
         .order_by(ManagedPosition.asset_identifier)
     )
     if user_id is not None:
