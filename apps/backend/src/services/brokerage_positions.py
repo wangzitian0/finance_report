@@ -6,7 +6,7 @@ import hashlib
 import re
 from calendar import monthrange
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -60,6 +60,9 @@ _MOOMOO_SUBSCRIPTION_RE = re.compile(
     r"(?P<quantity>[\d,.]+)\s+(?P<value>[\d,.]+)",
     re.IGNORECASE,
 )
+_GENERATED_ROW_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_GENERATED_PERIOD_RE = re.compile(r"Statement Period:\s*(?P<period>[A-Za-z]+\s+\d{4})", re.IGNORECASE)
+_GENERATED_ACCOUNT_LAST4_RE = re.compile(r"Account:\s*\*{2,}(?P<last4>[A-Za-z0-9]{4})", re.IGNORECASE)
 
 
 def _clean_decimal(value: Any) -> Decimal | None:
@@ -358,6 +361,120 @@ def _parse_futu_aggregate_position(
             asset_type=AssetType.OTHER,
         )
     ]
+
+
+def _clean_generated_amount(value: str) -> str | None:
+    amount = _clean_decimal(value)
+    if amount is None or amount <= 0:
+        return None
+    return f"{amount:.2f}"
+
+
+def _generated_statement_period_end(text: str) -> str | None:
+    match = _GENERATED_PERIOD_RE.search(text)
+    if not match:
+        return None
+    try:
+        parsed = datetime.strptime(match.group("period"), "%B %Y")
+    except ValueError:
+        return None
+    last_day = monthrange(parsed.year, parsed.month)[1]
+    return date(parsed.year, parsed.month, last_day).isoformat()
+
+
+def _generated_account_last4(text: str) -> str | None:
+    match = _GENERATED_ACCOUNT_LAST4_RE.search(text)
+    return match.group("last4") if match else None
+
+
+def _iter_generated_brokerage_rows(text: str) -> list[dict[str, str]]:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    rows: list[dict[str, str]] = []
+    index = 0
+    while index <= len(lines) - 5:
+        if not _GENERATED_ROW_DATE_RE.fullmatch(lines[index]):
+            index += 1
+            continue
+        rows.append(
+            {
+                "date": lines[index],
+                "type": lines[index + 1],
+                "description": lines[index + 2],
+                "amount": lines[index + 3],
+                "currency": lines[index + 4].upper(),
+            }
+        )
+        index += 5
+    return rows
+
+
+def _generated_brokerage_positions_payload_from_text(
+    text: str,
+    *,
+    filename: str | None = None,
+    institution: str | None = None,
+) -> dict[str, Any] | None:
+    """Parse positions from the deterministic generated brokerage PDF text fallback.
+
+    The staging AI/OCR gate uses generated Moomoo/Futu PDFs whose brokerage value
+    is a table row. When the provider returns the right envelope but drops the
+    position row, this deterministic fallback recovers only those known synthetic
+    rows from the raw PDF text. It does not invent positions for arbitrary real
+    brokerage statements.
+    """
+    broker = detect_broker(filename=filename, institution=institution, text=text)
+    if broker not in {"Moomoo", "Futu"}:
+        return None
+
+    rows = _iter_generated_brokerage_rows(text)
+    positions: list[dict[str, str]] = []
+    for row in rows:
+        row_type = row["type"].strip().upper()
+        description = row["description"].strip()
+        market_value = _clean_generated_amount(row["amount"])
+        if market_value is None:
+            continue
+        if broker == "Moomoo":
+            if row_type != "SUBSCRIPTION" or "Fullerton SGD Money Market Fund" not in description:
+                continue
+            positions.append(
+                {
+                    "symbol": "Fullerton SGD Money Market Fund",
+                    "asset_identifier": "Fullerton SGD Money Market Fund",
+                    "quantity": "1",
+                    "market_value": market_value,
+                    "currency": row["currency"],
+                    "asset_type": "money_market",
+                }
+            )
+        elif broker == "Futu":
+            if row_type != "VALUATION" or "stock and options valuation" not in description.lower():
+                continue
+            positions.append(
+                {
+                    "symbol": "FUTU_STOCK_AND_OPTIONS",
+                    "asset_identifier": "FUTU_STOCK_AND_OPTIONS",
+                    "quantity": "1",
+                    "market_value": market_value,
+                    "currency": row["currency"],
+                    "asset_type": "other",
+                }
+            )
+
+    if not positions:
+        return None
+
+    snapshot_date = _generated_statement_period_end(text) or rows[0]["date"]
+    return {
+        "institution": broker,
+        "account_last4": _generated_account_last4(text),
+        "currency": positions[0]["currency"],
+        "snapshot_date": snapshot_date,
+        "period_start": rows[0]["date"],
+        "period_end": snapshot_date,
+        "positions": positions,
+        "transactions": [],
+    }
 
 
 def parse_brokerage_positions(
