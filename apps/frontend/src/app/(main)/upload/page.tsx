@@ -94,8 +94,9 @@ export default function UploadPage() {
             { signal: controller.signal },
         )
             .then((readiness) => {
-                setSourceTrustSummary(readiness.source_trust_summary);
-                setSourceTrustReadinessState("loaded");
+                const trustSummary = readiness.source_trust_summary;
+                setSourceTrustSummary(trustSummary);
+                setSourceTrustReadinessState(trustSummary ? "loaded" : "unavailable");
             })
             .catch((err) => {
                 if (!(err instanceof DOMException && err.name === "AbortError")) {
