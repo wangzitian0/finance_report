@@ -37,6 +37,7 @@ DEPLOY_DRIFT_SCAN_ROOTS = [
     "repo/libs/tests",
     "repo/README.md",
     "repo/finance_report",
+    "repo/platform",
 ]
 TEXT_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".txt", ".toml"}
 
@@ -58,13 +59,14 @@ def _subsection(md: str, header: str) -> str:
 def _scan_text_files():
     for rel in DEPLOY_DRIFT_SCAN_ROOTS:
         path = ROOT / rel
+        assert path.exists(), f"deploy drift scan root is missing: {rel}"
         if path.is_file():
             candidates = [path]
         else:
             candidates = [p for p in path.rglob("*") if p.is_file()]
-        for candidate in candidates:
-            if candidate.suffix not in TEXT_SUFFIXES:
-                continue
+        text_candidates = [p for p in candidates if p.suffix in TEXT_SUFFIXES]
+        assert text_candidates, f"deploy drift scan root has no text files: {rel}"
+        for candidate in text_candidates:
             yield candidate.relative_to(ROOT), candidate.read_text(encoding="utf-8")
 
 
@@ -130,7 +132,12 @@ def test_deploy_v2_drift_surfaces_do_not_republish_retired_data_axis():
         "invoke openpanel.setup": "old platform openpanel setup deploy command",
         "invoke authentik.setup": "old platform authentik setup deploy command",
         "invoke minio.setup": "old platform minio setup deploy command",
+        "invoke portal.setup": "old platform portal setup deploy command",
+        "invoke prefect.setup": "old platform prefect setup deploy command",
+        "invoke activepieces.setup": "old platform activepieces setup deploy command",
         "invoke <service>.setup": "old generic service setup deploy command",
+        "v2 public input": "stale data-axis public-input wording",
+        "public input": "stale data-axis public-input wording",
         "data-axis side effects": "future data-axis wording",
         "data axis lands": "future data-axis wording",
         "platform services join when the deployer path is unified": "stale platform cutover wording",
