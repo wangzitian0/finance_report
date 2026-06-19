@@ -469,6 +469,10 @@ change backend source-trust decisions.
 | AC19.15.1 | The Upload page renders a source intake checklist covering bank statements, brokerage statements, settlement notes, ESOP/RSU plans, property statements, liability statements, CSV exports, and manual records, with each item linked to its existing intake path | `AC19.15.1 renders every required source class with intake links` | P1 |
 | AC19.15.2 | Source intake status labels treat readiness gaps as action-required, identify manual-trusted classes separately, and never claim manual evidence is imported automatically | `AC19.15.2 labels readiness gaps and manual-trusted source classes` | P1 |
 
+Traceability note: AC19.15 is tracked in this EPIC-local product UI table, and
+issue #1233 adds a tooling parity guard so the Upload checklist cannot drift from
+`docs/ssot/source-coverage-matrix.yaml` without failing CI.
+
 ## How To Build It
 
 ### Backend
