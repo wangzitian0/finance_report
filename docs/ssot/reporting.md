@@ -454,6 +454,13 @@ framework is selected, the page must show setup guidance and the contract-backed
 table of contents without loading framework-scoped output. While selected
 framework data is loading, the page must reserve the package layout with
 skeleton placeholders instead of a blank or text-only loading screen.
+The loaded package has two presentation layers: the default reader layer uses
+plain-language labels for evidence coverage, reporting basis, source coverage,
+and traceability summaries; explicit audit-details disclosures retain raw
+source-trust classes, blocker codes, framework policy result IDs, matrix
+versions, line IDs, confidence tiers, review states, and export column metadata.
+This is a presentation boundary only: the frontend must not drop or recompute
+the policy, source-trust, readiness, traceability, or export facts.
 
 Package readiness:
 

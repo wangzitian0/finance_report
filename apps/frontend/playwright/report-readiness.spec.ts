@@ -172,7 +172,7 @@ async function expectNoDocumentHorizontalScroll(page: Page) {
   expect(metrics.scrollX).toBe(0);
 }
 
-test.describe("AC19.8.7 AC19.8.8 AC22.8.4 report package smoke", () => {
+test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
   for (const scenario of [
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },
@@ -204,13 +204,33 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 report package smoke", () => {
       await expect(
         tableOfContents.getByRole("link", { name: "Balance Sheet" }),
       ).toHaveAttribute("href", "#package-section-balance_sheet");
+
+      const readinessSection = page.locator("#package-readiness");
       await expect(
-        page.getByText("processing_account_unresolved"),
+        readinessSection.getByText("Processing account unresolved"),
+      ).toBeVisible();
+      await expect(
+        readinessSection.getByText(
+          "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.",
+        ),
       ).toBeVisible();
       await expect(page.getByRole("link", { name: "Blocked" })).toHaveAttribute(
         "href",
         "/accounts/processing",
       );
+
+      const readinessAuditDetails = readinessSection.locator("details", {
+        hasText: "Readiness audit details",
+      });
+      const rawBlockerCode = readinessAuditDetails.getByText(
+        "processing_account_unresolved",
+      );
+      await expect(readinessAuditDetails).not.toHaveAttribute("open", "");
+      await expect(rawBlockerCode).toHaveCount(2);
+      await expect(rawBlockerCode.first()).toBeHidden();
+      await readinessAuditDetails.getByText("Readiness audit details").click();
+      await expect(rawBlockerCode.first()).toBeVisible();
+
       await expect(
         page.getByRole("heading", { name: "Balance Sheet" }),
       ).toBeVisible();
