@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export const PWA_INSTALL_DISMISSED_AT_KEY = "finance-report:pwa-install-dismissed-at";
-const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+export const PWA_INSTALL_DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 type BeforeInstallPromptOutcome = "accepted" | "dismissed";
 
@@ -40,7 +40,15 @@ function hasActiveDismissal() {
     const dismissedAt = readDismissedAt();
     if (!dismissedAt) return false;
 
-    return Date.now() - dismissedAt < DISMISS_COOLDOWN_MS;
+    return Date.now() - dismissedAt < PWA_INSTALL_DISMISS_COOLDOWN_MS;
+}
+
+function readDismissalRemainingMs() {
+    const dismissedAt = readDismissedAt();
+    if (!dismissedAt) return null;
+
+    const remainingMs = PWA_INSTALL_DISMISS_COOLDOWN_MS - (Date.now() - dismissedAt);
+    return remainingMs > 0 ? remainingMs : null;
 }
 
 export function isIosLikeNavigator() {
@@ -106,6 +114,19 @@ export function usePwaInstall(): PwaInstallState {
         };
     }, []);
 
+    useEffect(() => {
+        const remainingMs = readDismissalRemainingMs();
+        setIsDismissed(remainingMs !== null);
+
+        if (remainingMs === null) return;
+
+        const timeout = window.setTimeout(() => {
+            setIsDismissed(false);
+        }, remainingMs);
+
+        return () => window.clearTimeout(timeout);
+    }, [isDismissed]);
+
     const dismissPrompt = useCallback(() => {
         if (hasBrowserWindow()) {
             window.localStorage.setItem(PWA_INSTALL_DISMISSED_AT_KEY, String(Date.now()));
@@ -133,7 +154,7 @@ export function usePwaInstall(): PwaInstallState {
     }, [deferredPrompt, dismissPrompt]);
 
     const promptKind = useMemo<PwaInstallPromptKind>(() => {
-        if (isInstalled || isDismissed) return null;
+        if (isInstalled || (isDismissed && hasActiveDismissal())) return null;
         if (deferredPrompt) return "native";
         if (isIos) return "ios";
         return null;

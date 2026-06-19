@@ -10,6 +10,7 @@ import {
   type PwaInstallPromptViewState,
 } from "@/components/pwa/InstallAppPrompt"
 import {
+  PWA_INSTALL_DISMISS_COOLDOWN_MS,
   PWA_INSTALL_DISMISSED_AT_KEY,
   isIosLikeNavigator,
   isStandaloneDisplay,
@@ -170,6 +171,35 @@ describe("PWA install foundation", () => {
     expect(result.current.promptKind).toBeNull()
   })
 
+  it("AC22.20.2 re-enables the app-shell prompt when dismissal cooldown expires", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"))
+    Object.defineProperties(window.navigator, {
+      maxTouchPoints: { value: 1, configurable: true },
+      platform: { value: "iPhone", configurable: true },
+      userAgent: { value: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", configurable: true },
+    })
+    localStorage.setItem(
+      PWA_INSTALL_DISMISSED_AT_KEY,
+      String(Date.now() - PWA_INSTALL_DISMISS_COOLDOWN_MS + 1000),
+    )
+
+    try {
+      const { result } = renderHook(() => usePwaInstall())
+
+      expect(result.current.promptKind).toBeNull()
+
+      await act(async () => {
+        vi.advanceTimersByTime(1001)
+        await Promise.resolve()
+      })
+
+      expect(result.current.promptKind).toBe("ios")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("AC22.20.4 detects iOS and standalone launch states without page code", async () => {
     mockDisplayMode(false)
     Object.defineProperties(window.navigator, {
@@ -278,6 +308,6 @@ describe("PWA install foundation", () => {
       "utf8",
     )
     expect(appShellSource).toContain("pwa-safe-area-shell")
-    expect(appShellSource).toContain("<InstallAppPrompt />")
+    expect(appShellSource).toMatch(/<InstallAppPrompt\b[^>]*\/>/)
   })
 })
