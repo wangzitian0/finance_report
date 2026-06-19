@@ -2425,8 +2425,8 @@ def test_AC8_13_71_close_cleanup_checks_out_lifecycle_tool() -> None:
     workflow = (ROOT / ".github/workflows/pr-test.yml").read_text()
 
     cleanup_block = workflow.split("  cleanup:", 1)[1]
-    assert "uses: actions/checkout@v4" in cleanup_block
-    assert cleanup_block.index("uses: actions/checkout@v4") < cleanup_block.index(
+    assert "uses: actions/checkout@v7" in cleanup_block
+    assert cleanup_block.index("uses: actions/checkout@v7") < cleanup_block.index(
         "python tools/pr_preview_lifecycle.py"
     )
     assert "VPS_SSH_KEY" not in cleanup_block

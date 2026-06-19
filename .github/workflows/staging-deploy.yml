@@ -57,7 +57,7 @@ jobs:
     steps:
       - name: Checkout repository
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
@@ -183,14 +183,14 @@ jobs:
       - name: Install uv
         id: install_uv
         if: steps.gates.outputs.staging_required == 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
 
       - name: Set up Python
         id: setup_python
         if: steps.gates.outputs.staging_required == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -485,7 +485,7 @@ jobs:
 
       - name: Upload staging deploy test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: staging-deploy-test-context
           path: |
@@ -513,7 +513,7 @@ jobs:
       PROVIDER_CONNECTIVITY_BACKOFF_SECONDS: "10"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
 
@@ -604,7 +604,7 @@ jobs:
 
       - name: Upload provider gate test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: staging-provider-gate-test-context
           path: |
@@ -628,7 +628,7 @@ jobs:
       PARSING_TIMEOUT_MS: 480000
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
 
@@ -784,7 +784,7 @@ jobs:
 
       - name: Upload staging AI/OCR test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: staging-ai-ocr-test-context
           path: |
@@ -880,7 +880,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write post-merge timing summary
         continue-on-error: true

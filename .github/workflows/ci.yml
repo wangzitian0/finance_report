@@ -31,7 +31,7 @@ jobs:
       pr_required: ${{ steps.gates.outputs.pr_required }}
       pr_reason: ${{ steps.gates.outputs.pr_reason }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -80,7 +80,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -103,22 +103,22 @@ jobs:
       - name: Toolchain Contract Check
         run: python tools/check_toolchain_contract.py
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: apps/frontend/package-lock.json
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Cache Python venv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/backend/.venv
           key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
@@ -244,23 +244,23 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache Python venv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/backend/.venv
           key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
@@ -298,7 +298,7 @@ jobs:
 
       - name: Upload schema migration test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: schema-migration-test-context
           path: |
@@ -331,23 +331,23 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache Python venv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/backend/.venv
           key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
@@ -384,7 +384,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-backend-${{ matrix.shard }}
           path: apps/backend/coverage-backend-${{ matrix.shard }}.lcov
@@ -392,7 +392,7 @@ jobs:
 
       - name: Upload backend shard test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-shard-${{ matrix.shard }}-test-context
           path: |
@@ -422,23 +422,23 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache Python venv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/backend/.venv
           key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
@@ -467,7 +467,7 @@ jobs:
 
       - name: Upload backend integration test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-integration-test-context
           path: apps/backend/test-results/backend-integration.xml
@@ -505,23 +505,23 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache Python venv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/backend/.venv
           key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
@@ -576,7 +576,7 @@ jobs:
 
       - name: Upload backend Tier-1 E2E test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-tier1-e2e-test-context
           path: apps/backend/test-results/backend-tier1-e2e.xml
@@ -599,7 +599,7 @@ jobs:
     if: needs.changes.outputs.pr_required == 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -614,19 +614,19 @@ jobs:
           cd repo && git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: apps/frontend/package-lock.json
 
       - name: Cache Next.js
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: apps/frontend/.next/cache
           key: nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-${{ hashFiles('apps/frontend/**/*.ts', 'apps/frontend/**/*.tsx') }}
@@ -674,7 +674,7 @@ jobs:
 
       - name: Upload frontend coverage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-frontend
           path: apps/frontend/coverage/lcov.info
@@ -682,7 +682,7 @@ jobs:
 
       - name: Upload frontend test context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-test-context
           path: |
@@ -704,7 +704,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get Commit SHA
         id: get_sha
@@ -768,18 +768,18 @@ jobs:
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -798,7 +798,7 @@ jobs:
 
       - name: Upload tooling coverage context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-tooling
           path: |
@@ -815,18 +815,18 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -928,7 +928,7 @@ jobs:
 
       - name: Upload unified coverage context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unified-coverage-context
           path: |
@@ -965,7 +965,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -1030,18 +1030,18 @@ jobs:
     name: AC Traceability Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -1097,7 +1097,7 @@ jobs:
 
       - name: Upload AC traceability audit
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ac-test-traceability-audit
           path: |
@@ -1116,18 +1116,18 @@ jobs:
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -1154,112 +1154,112 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-    - name: Write Coverage-Effect Stage Summary
-      if: ${{ always() }}
-      run: |
-        cat << "EOF" >> "$GITHUB_STEP_SUMMARY"
-        ## CI Stage Coverage Effects
+      - name: Write Coverage-Effect Stage Summary
+        if: ${{ always() }}
+        run: |
+          cat << "EOF" >> "$GITHUB_STEP_SUMMARY"
+          ## CI Stage Coverage Effects
 
-        | Stage | Coverage Effect | Behavior Proof |
-        |---|---|---|
-        | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
-        | backend (6-way shard) | contributes to unified line coverage baseline | yes |
-        | backend-integration | not included in unified coverage | yes (marker 'integration') |
-        | backend-e2e-tier1 | not included in unified coverage | yes (marker 'e2e') |
-        | frontend | contributes to unified line coverage baseline | yes |
-        | tooling-coverage | contributes common/tools to unified line coverage baseline | yes (tooling contracts) |
-        EOF
+          | Stage | Coverage Effect | Behavior Proof |
+          |---|---|---|
+          | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
+          | backend (6-way shard) | contributes to unified line coverage baseline | yes |
+          | backend-integration | not included in unified coverage | yes (marker 'integration') |
+          | backend-e2e-tier1 | not included in unified coverage | yes (marker 'e2e') |
+          | frontend | contributes to unified line coverage baseline | yes |
+          | tooling-coverage | contributes common/tools to unified line coverage baseline | yes (tooling contracts) |
+          EOF
 
-    - name: Write CI timing summary
-      if: ${{ always() }}
-      continue-on-error: true
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        python tools/github_workflow_timing_summary.py \
-          --repo "${{ github.repository }}" \
-          --run-id "${{ github.run_id }}" \
-          --title "CI Timing Summary" \
-          --summary-path "$GITHUB_STEP_SUMMARY"
+      - name: Write CI timing summary
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/github_workflow_timing_summary.py \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --title "CI Timing Summary" \
+            --summary-path "$GITHUB_STEP_SUMMARY"
 
-    - name: Write coverage gate summary
-      if: ${{ always() }}
-      continue-on-error: true
-      run: |
-        {
-          echo "## Coverage Gate"
-          echo ""
-          echo "- Authoritative coverage gate: \`Calculate Unified Coverage\` plus \`finish\`."
-          echo "- Pull requests do not publish Coveralls status contexts; main pushes upload unified line coverage for badge/trend reporting only."
-          echo "- Merge readiness follows \`finish\` and the committed \`unified-coverage.json\` baseline."
-        } >> "$GITHUB_STEP_SUMMARY"
+      - name: Write coverage gate summary
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          {
+            echo "## Coverage Gate"
+            echo ""
+            echo "- Authoritative coverage gate: \`Calculate Unified Coverage\` plus \`finish\`."
+            echo "- Pull requests do not publish Coveralls status contexts; main pushes upload unified line coverage for badge/trend reporting only."
+            echo "- Merge readiness follows \`finish\` and the committed \`unified-coverage.json\` baseline."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-    - name: Check job status
-      run: |
-        echo "Change Classification: ${{ needs.changes.result }}"
-        echo "PR Env Required: ${{ needs.changes.outputs.pr_required }}"
-        echo "PR Env Reason: ${{ needs.changes.outputs.pr_reason }}"
-        echo "Schema Migrations: ${{ needs.schema-migrations.result }}"
-        echo "Backend: ${{ needs.backend.result }}"
-        echo "Frontend: ${{ needs.frontend.result }}"
-        echo "Staging Images: ${{ needs.container-images.result }}"
-        echo "Tooling/Common Coverage: ${{ needs.tooling-coverage.result }}"
-        echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
-        echo "Lint: ${{ needs.lint.result }}"
-        echo "AC Traceability: ${{ needs.ac-traceability.result }}"
-        echo "AC Behavioral Ratchet: ${{ needs.ac-behavioral-ratchet.result }}"
-        if [[ "${{ needs.changes.result }}" != "success" ]]; then
-          echo "::error::Change classification failed"
-          exit 1
-        fi
-        if [[ "${{ needs.lint.result }}" != "success" ]]; then
-          echo "::error::Lint failed"
-          exit 1
-        fi
-        if [[ "${{ needs.ac-traceability.result }}" != "success" ]]; then
-          echo "::error::AC traceability check failed"
-          exit 1
-        fi
-        if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then
-          if [[ "${{ needs.schema-migrations.result }}" != "success" ]]; then
-            echo "::error::Schema migration contract failed"
+      - name: Check job status
+        run: |
+          echo "Change Classification: ${{ needs.changes.result }}"
+          echo "PR Env Required: ${{ needs.changes.outputs.pr_required }}"
+          echo "PR Env Reason: ${{ needs.changes.outputs.pr_reason }}"
+          echo "Schema Migrations: ${{ needs.schema-migrations.result }}"
+          echo "Backend: ${{ needs.backend.result }}"
+          echo "Frontend: ${{ needs.frontend.result }}"
+          echo "Staging Images: ${{ needs.container-images.result }}"
+          echo "Tooling/Common Coverage: ${{ needs.tooling-coverage.result }}"
+          echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
+          echo "Lint: ${{ needs.lint.result }}"
+          echo "AC Traceability: ${{ needs.ac-traceability.result }}"
+          echo "AC Behavioral Ratchet: ${{ needs.ac-behavioral-ratchet.result }}"
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            echo "::error::Change classification failed"
             exit 1
           fi
-          if [[ "${{ needs.backend.result }}" != "success" ]]; then
-            echo "::error::Backend tests failed"
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "::error::Lint failed"
             exit 1
           fi
-          if [[ "${{ needs.backend-integration.result }}" != "success" ]]; then
-            echo "::error::Backend integration tests failed"
+          if [[ "${{ needs.ac-traceability.result }}" != "success" ]]; then
+            echo "::error::AC traceability check failed"
             exit 1
           fi
-          if [[ "${{ needs.backend-e2e-tier1.result }}" != "success" ]]; then
-            echo "::error::Backend Tier-1 API E2E tests failed"
-            exit 1
+          if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then
+            if [[ "${{ needs.schema-migrations.result }}" != "success" ]]; then
+              echo "::error::Schema migration contract failed"
+              exit 1
+            fi
+            if [[ "${{ needs.backend.result }}" != "success" ]]; then
+              echo "::error::Backend tests failed"
+              exit 1
+            fi
+            if [[ "${{ needs.backend-integration.result }}" != "success" ]]; then
+              echo "::error::Backend integration tests failed"
+              exit 1
+            fi
+            if [[ "${{ needs.backend-e2e-tier1.result }}" != "success" ]]; then
+              echo "::error::Backend Tier-1 API E2E tests failed"
+              exit 1
+            fi
+            if [[ "${{ needs.frontend.result }}" != "success" ]]; then
+              echo "::error::Frontend build/tests failed"
+              exit 1
+            fi
+            if [[ "${{ needs.tooling-coverage.result }}" != "success" ]]; then
+              echo "::error::Tooling/common coverage failed"
+              exit 1
+            fi
+            if [[ "${{ needs.unified-coverage.result }}" != "success" ]]; then
+              echo "::error::Unified coverage check failed"
+              exit 1
+            fi
+            if [[ "${{ needs.ac-behavioral-ratchet.result }}" != "success" ]]; then
+              echo "::error::AC behavioral-score ratchet failed"
+              exit 1
+            fi
+            if [[ "${{ needs.container-images.result }}" != "success" ]]; then
+              echo "::error::Container image validation failed"
+              exit 1
+            fi
+          else
+            echo "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
           fi
-          if [[ "${{ needs.frontend.result }}" != "success" ]]; then
-            echo "::error::Frontend build/tests failed"
-            exit 1
-          fi
-          if [[ "${{ needs.tooling-coverage.result }}" != "success" ]]; then
-            echo "::error::Tooling/common coverage failed"
-            exit 1
-          fi
-          if [[ "${{ needs.unified-coverage.result }}" != "success" ]]; then
-            echo "::error::Unified coverage check failed"
-            exit 1
-          fi
-          if [[ "${{ needs.ac-behavioral-ratchet.result }}" != "success" ]]; then
-            echo "::error::AC behavioral-score ratchet failed"
-            exit 1
-          fi
-          if [[ "${{ needs.container-images.result }}" != "success" ]]; then
-            echo "::error::Container image validation failed"
-            exit 1
-          fi
-        else
-          echo "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
-        fi
-        echo "✅ All checks passed!"
+          echo "✅ All checks passed!"

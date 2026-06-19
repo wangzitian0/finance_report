@@ -33,7 +33,7 @@ jobs:
     name: Cleanup stale PR previews
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Remove stale preview resources
         env:
@@ -193,7 +193,7 @@ jobs:
 
       - name: Upload scheduled preview cleanup context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-preview-scheduled-cleanup-context
           path: ci-context/

@@ -1060,7 +1060,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
         "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
         in workflow
     )
-    assert "uses: actions/setup-node@v4" in workflow
+    assert "uses: actions/setup-node@v6" in workflow
     assert "cache: npm" in workflow
     assert "cache-dependency-path: apps/frontend/package-lock.json" in workflow
     assert "run: npm ci" in workflow
@@ -1071,7 +1071,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
         "PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes"
         in ci_cd
     )
-    assert "Frontend dependency installation uses `actions/setup-node@v4`" in ci_cd
+    assert "Frontend dependency installation uses `actions/setup-node@v6`" in ci_cd
     assert (
         "Markdown outside the documented lightweight trees is treated as heavy" in ci_cd
     )
@@ -1942,7 +1942,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
         'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"'
         in workflow
     )
-    assert "uses: actions/upload-artifact@v4" in workflow
+    assert "uses: actions/upload-artifact@v7" in workflow
     assert "name: ac-test-traceability-audit" in workflow
     assert "tools/build_ac_traceability.py --check" not in workflow
     assert "CI uploads the generated audit as an artifact" in audit_builder
