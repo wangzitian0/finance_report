@@ -83,16 +83,18 @@ def test_AC13_10_4_retire_bank_statement_value_is_drift_tolerant():
 
     0040 (#896) removes 'bank_statement' from journal_source_type_enum. It must
     (a) re-run the defensive data collapse first so the type rebuild cannot fail
-    on a stray row, (b) only rebuild when the label is actually present, and
-    (c) never compare with a raw enum literal that would error if the label is
-    absent.
+    on a stray row, including uppercase/mixed-case legacy values, (b) only
+    rebuild when the label is actually present, and (c) never compare with a raw
+    enum literal that would error if the label is absent.
     """
     migration = SCRIPT_LOCATION / "versions" / "0040_retire_bank_stmt_source.py"
     source = migration.read_text()
 
     # Defensive, text-cast data collapse before any type surgery.
-    assert "UPDATE journal_entries SET source_type = 'auto_parsed'" in source
-    assert "WHERE source_type::text = 'bank_statement'" in source
+    assert "UPDATE journal_entries" in source
+    assert "SET source_type = 'auto_parsed'" in source
+    assert "WHERE lower(source_type::text) = 'bank_statement'" in source
+    assert "WHEN lower(source_type::text) = 'bank_statement' THEN 'auto_parsed'" in source
     # Rebuild is guarded on the label actually existing (no-op otherwise).
     assert "e.enumlabel = 'bank_statement'" in source
     # Reversible: the label can be re-added without assuming its absence.
