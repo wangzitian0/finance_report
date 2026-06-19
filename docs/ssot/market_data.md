@@ -155,9 +155,11 @@ CREATE INDEX idx_market_data_sync_state_lookup
 
 ```python
 # Conversion example
+from src.money import ExchangeRate, Money, convert
+
 amount_sgd = Decimal("1000.00")
 fx_rate = Decimal("0.741523")  # SGD/USD
-amount_usd = (amount_sgd * fx_rate).quantize(Decimal("0.01"))
+amount_usd = convert(Money(amount_sgd, "SGD"), ExchangeRate("SGD", "USD", fx_rate)).amount
 # Result: 741.52 USD
 ```
 
@@ -200,7 +202,8 @@ async def get_fx_rate_cached(base: str, quote: str, date: date) -> Decimal:
 
 ### ✅ Recommended Patterns
 - **Pattern A**: Always store source name with rate for auditability
-- **Pattern B**: Use Decimal(6) for rates, Decimal(2) for converted amounts
+- **Pattern B**: Store FX rates exactly, and convert amounts through `Money` +
+  `ExchangeRate` so 2 dp money rounding stays centralized
 - **Pattern C**: Prefer historical rates over real-time for reporting
 - **Pattern D**: Persist derived report-side rates with `source` values such as `derived:inverse:SGD/HKD`, `derived:bridge:USD`, or `yahoo_finance`.
 - **Pattern E**: Persist only positive FX rates and stock prices; invalid

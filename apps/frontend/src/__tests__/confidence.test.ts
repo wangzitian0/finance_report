@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatProportionPercent,
   hasNoSnapshots,
   parseProportion,
   summarizeReplay,
@@ -34,19 +33,6 @@ describe("confidence helpers (#1003 / #1055 PR4)", () => {
       expect(parseProportion("abc")).toBeNull();
       expect(parseProportion("0.25")).toBe(0.25);
       expect(parseProportion(0.5 as never)).toBeNull();
-    });
-  });
-
-  describe("formatProportionPercent", () => {
-    it("formats a Decimal-string proportion as a percentage", () => {
-      expect(formatProportionPercent("0.12500")).toBe("12.5%");
-      expect(formatProportionPercent("0")).toBe("0.0%");
-      expect(formatProportionPercent("1")).toBe("100.0%");
-    });
-
-    it("renders an em dash for non-finite/missing values rather than NaN%", () => {
-      expect(formatProportionPercent("")).toBe("—");
-      expect(formatProportionPercent("not-a-number")).toBe("—");
     });
   });
 

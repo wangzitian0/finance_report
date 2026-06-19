@@ -13,7 +13,6 @@ import { TrendingDown, TrendingUp, Minus, ShieldCheck } from "lucide-react";
 
 import { fetchConfidenceNorthStar, fetchCorrectionLoopReplay } from "@/lib/api";
 import {
-  formatProportionPercent,
   hasNoSnapshots,
   summarizeReplay,
   toSparklinePoints,
@@ -21,6 +20,7 @@ import {
   type TrendDirection,
 } from "@/lib/confidence";
 import { formatDateTimeDisplay } from "@/lib/date";
+import { formatPercentFromRatioValue } from "@/lib/ratio/format";
 import type {
   ConfidenceNorthStarResponse,
   CorrectionLoopReplayResponse,
@@ -129,7 +129,7 @@ function NorthStarCard({ data }: { data: ConfidenceNorthStarResponse }) {
         </div>
         <div className="text-right">
           <p className="text-4xl font-semibold tabular-nums">
-            {formatProportionPercent(current.low_confidence_proportion)}
+            {formatPercentFromRatioValue(current.low_confidence_proportion, { dp: 1 })}
           </p>
           {series.length >= 2 && (
             <p
