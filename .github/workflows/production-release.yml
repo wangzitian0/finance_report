@@ -154,9 +154,9 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --workflow staging-deploy.yml \
               --limit 50 \
-              --json databaseId,status,conclusion,displayTitle,url
+              --json databaseId,status,displayTitle,url
           )"
-          staging_run_id="$(
+          candidate_run_ids="$(
             RUNS_JSON="$runs_json" python - <<'PY'
           import json
           import os
@@ -167,19 +167,53 @@ jobs:
           for run in runs:
               if (
                   run.get("status") == "completed"
-                  and run.get("conclusion") == "success"
                   and run.get("displayTitle") == expected_title
               ):
                   print(run["databaseId"])
-                  break
           PY
           )"
+          if [ -z "$candidate_run_ids" ]; then
+            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
+            exit 1
+          fi
+          staging_run_id=""
+          for candidate_run_id in $candidate_run_ids; do
+            jobs_json="$(gh run view "$candidate_run_id" --repo "$GITHUB_REPOSITORY" --json jobs)"
+            if CANDIDATE_RUN_ID="$candidate_run_id" JOBS_JSON="$jobs_json" python - <<'PY'
+          import json
+          import os
+          import sys
+
+          candidate_run_id = os.environ["CANDIDATE_RUN_ID"]
+          required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}
+          optional_staging_jobs = {"Staging AI/OCR Gate"}
+          jobs = json.loads(os.environ["JOBS_JSON"])["jobs"]
+          by_name = {job.get("name"): job for job in jobs}
+          missing = sorted(required_staging_jobs - set(by_name))
+          failed = sorted(
+              name
+              for name in required_staging_jobs
+              if name in by_name and by_name[name].get("conclusion") != "success"
+          )
+          if missing or failed:
+              print(f"::notice::Skipping staging run {candidate_run_id}: release-critical jobs missing={missing} failed={failed}")
+              sys.exit(1)
+          for name in sorted(optional_staging_jobs):
+              job = by_name.get(name)
+              if job and job.get("conclusion") != "success":
+                  print(f"::warning::{name} concluded {job.get('conclusion')}; it does not block production release eligibility.")
+          PY
+            then
+              staging_run_id="$candidate_run_id"
+              break
+            fi
+          done
           if [ -z "$staging_run_id" ]; then
-            echo "::error::No successful Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
+            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG with successful release-critical jobs. Rerun staging-deploy.yml for this tag first."
             exit 1
           fi
           echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
-          echo "Using successful Deploy Staging run: $staging_run_id"
+          echo "Using release-critical Deploy Staging run: $staging_run_id"
 
       - name: Verify Release Codebase
         env:
@@ -381,9 +415,9 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --workflow staging-deploy.yml \
               --limit 50 \
-              --json databaseId,status,conclusion,displayTitle,url
+              --json databaseId,status,displayTitle,url
           )"
-          staging_run_id="$(
+          candidate_run_ids="$(
             RUNS_JSON="$runs_json" python - <<'PY'
           import json
           import os
@@ -394,19 +428,53 @@ jobs:
           for run in runs:
               if (
                   run.get("status") == "completed"
-                  and run.get("conclusion") == "success"
                   and run.get("displayTitle") == expected_title
               ):
                   print(run["databaseId"])
-                  break
           PY
           )"
+          if [ -z "$candidate_run_ids" ]; then
+            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
+            exit 1
+          fi
+          staging_run_id=""
+          for candidate_run_id in $candidate_run_ids; do
+            jobs_json="$(gh run view "$candidate_run_id" --repo "$GITHUB_REPOSITORY" --json jobs)"
+            if CANDIDATE_RUN_ID="$candidate_run_id" JOBS_JSON="$jobs_json" python - <<'PY'
+          import json
+          import os
+          import sys
+
+          candidate_run_id = os.environ["CANDIDATE_RUN_ID"]
+          required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}
+          optional_staging_jobs = {"Staging AI/OCR Gate"}
+          jobs = json.loads(os.environ["JOBS_JSON"])["jobs"]
+          by_name = {job.get("name"): job for job in jobs}
+          missing = sorted(required_staging_jobs - set(by_name))
+          failed = sorted(
+              name
+              for name in required_staging_jobs
+              if name in by_name and by_name[name].get("conclusion") != "success"
+          )
+          if missing or failed:
+              print(f"::notice::Skipping staging run {candidate_run_id}: release-critical jobs missing={missing} failed={failed}")
+              sys.exit(1)
+          for name in sorted(optional_staging_jobs):
+              job = by_name.get(name)
+              if job and job.get("conclusion") != "success":
+                  print(f"::warning::{name} concluded {job.get('conclusion')}; it does not block production release eligibility.")
+          PY
+            then
+              staging_run_id="$candidate_run_id"
+              break
+            fi
+          done
           if [ -z "$staging_run_id" ]; then
-            echo "::error::No successful Deploy Staging run found for $RELEASE_TAG. Run staging-deploy.yml for this tag first."
+            echo "::error::No completed Deploy Staging run found for $RELEASE_TAG with successful release-critical jobs. Rerun staging-deploy.yml for this tag first."
             exit 1
           fi
           echo "run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
-          echo "Using successful Deploy Staging run: $staging_run_id"
+          echo "Using release-critical Deploy Staging run: $staging_run_id"
 
       - name: Login to GHCR
         uses: docker/login-action@v3

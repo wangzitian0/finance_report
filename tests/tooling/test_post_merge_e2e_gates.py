@@ -877,6 +877,10 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         in workflow
     )
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
+    assert (
+        'ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"'
+        in workflow
+    )
     # The retired post-merge auto-deploy alert job is no longer a delivery input.
     assert "staging-deploy-alert" not in workflow
     assert "alert_result" not in workflow
@@ -891,12 +895,16 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     )
     assert 'delivery_status="skipped-no-staging-required"' in workflow
     assert (
-        '[ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]'
+        "passed-ai-ocr-regression-recorded"
         in workflow
     )
     assert 'failure_reason="build/deploy gate failed"' in workflow
     assert 'failure_reason="provider connectivity gate failed"' in workflow
-    assert 'failure_reason="staging AI/OCR gate failed"' in workflow
+    assert 'failure_reason="staging AI/OCR gate failed"' not in workflow
+    assert "Post-merge delivery failed: staging AI/OCR gate failed" not in workflow
+    assert "continue-on-error: true" in workflow.split("ai-ocr-gate:", 1)[1].split(
+        "post-merge-delivery:", 1
+    )[0]
     assert 'delivery_status="degraded-provider"' in workflow
     assert "## Post-merge Delivery" in workflow
     assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
@@ -914,6 +922,12 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     ) in workflow
     assert "dedicated `Post-merge Delivery` check" in ci_cd
     assert "A green `CI` workflow alone is not sufficient evidence" in ci_cd
+    assert "full AI/OCR report-package regression is right-shifted" in ci_cd
+    assert "Release gate reclassification" in ci_cd
+    assert "Left-shifted:" in ci_cd
+    assert "Strengthened:" in ci_cd
+    assert "Removed:" in ci_cd
+    assert "Right-shifted:" in ci_cd
     assert "AC8.13.103" in epic
 
 
@@ -1013,6 +1027,17 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
 
     assert 'expected_title = f"Deploy Staging {release_tag}"' in workflow
     assert workflow.count('run.get("displayTitle") == expected_title') == 2
+    assert 'run.get("status") == "completed"' in workflow
+    assert 'run.get("conclusion") == "success"' not in workflow
+    assert workflow.count('required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}') == 2
+    assert workflow.count('optional_staging_jobs = {"Staging AI/OCR Gate"}') == 2
+    assert workflow.count("candidate_run_ids") >= 4
+    assert workflow.count('for candidate_run_id in $candidate_run_ids; do') == 2
+    assert workflow.count('gh run view "$candidate_run_id"') == 2
+    assert workflow.count("Skipping staging run {candidate_run_id}") == 2
+    assert workflow.count("with successful release-critical jobs") == 2
+    assert "Staging AI/OCR Gate" in workflow
+    assert "does not block production release eligibility" in workflow
     assert 'release_tag in (run.get("displayTitle") or "")' not in workflow
 
 
