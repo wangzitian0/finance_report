@@ -95,7 +95,7 @@ Smoke:   ❌ Not run (unit tests only)
 
 ```yaml
 Trigger: Manual dispatch only (workflow_dispatch with a required `tag` input)
-Flow:    deploy release tag via deploy_v2 -> smoke/non-LLM E2E -> AI/OCR gate
+Flow:    deploy release tag via deploy_v2 -> smoke/non-LLM E2E -> AI/OCR regression record
 URL:     https://report-staging.zitian.party
 ```
 
@@ -105,7 +105,8 @@ never polls or waits for CI inside the job, and deploys only images that already
 exist under that release tag. `release-images.yml` must have promoted the
 main-CI SHA images to `:vX.Y.Z` before staging is dispatched. Provider-backed
 AI/OCR tests run after deploy health in the same serialized dispatch workflow
-unit, and can also be invoked on demand via `staging-ai-ocr-gate.yml`.
+unit as a right-shifted regression record, and can also be invoked on demand via
+`staging-ai-ocr-gate.yml` when the team wants a blocking diagnostic rerun.
 
 The release process keeps a promote-not-rebuild consistency ladder:
 `main CI (:<sha7>) -> release-images.yml (:vX.Y.Z) -> staging deploy_v2
@@ -128,6 +129,12 @@ a new Dokploy deployment record to reach a terminal-good status (`done`,
 has started; it does not prove Docker containers and Traefik routes have
 materialized the target tag. No terminal new deployment record means a platform
 rollout failure, not an application health timeout.
+
+Production release eligibility depends on the staging run's release-critical
+jobs: `Deploy Staging` and `Staging Provider Gate` must succeed for the exact
+`Deploy Staging <tag>` run. The automatic staging `Staging AI/OCR Gate` records
+full-provider regression evidence but does not block production after deploy
+health, non-LLM E2E, and provider connectivity have passed.
 
 ### production-release.yml
 

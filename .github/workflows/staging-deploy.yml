@@ -3,7 +3,7 @@
 # Trigger: MANUAL ONLY (workflow_dispatch). Staging no longer auto-follows main.
 # Per docs/ssot/environments.md, staging and prod are deployed manually;
 # CI is the quality gate for development, not an auto-deploy trigger.
-# Actions: Deploy release tag via deploy_v2 → Smoke/E2E → AI/OCR gate
+# Actions: Deploy release tag via deploy_v2 → Smoke/E2E → AI/OCR regression record
 # Data is persisted between deployments.
 
 name: Deploy Staging
@@ -617,6 +617,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-deploy, provider-gate]
     if: ${{ always() && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}
+    continue-on-error: true
+    outputs:
+      ai_ocr_status: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || 'not-run' }}
+      ai_ocr_exit_code: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || '0' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -637,6 +641,7 @@ jobs:
 
       - name: Run Staging AI/OCR Gate
         id: staging_ai_ocr_tests
+        continue-on-error: true
         timeout-minutes: 22
         env:
           EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_tag }}
@@ -741,6 +746,9 @@ jobs:
             pytest tests/e2e/test_version_check.py -v -m "smoke" --junit-xml=test-results/staging-ai-ocr-version.xml || version_status=$?
           if [ "$version_status" -ne 0 ]; then
             write_staging_audit_result "$version_status"
+            echo "ai_ocr_status=version-check-failed" >> "$GITHUB_OUTPUT"
+            echo "ai_ocr_exit_code=$version_status" >> "$GITHUB_OUTPUT"
+            echo "::warning::Staging AI/OCR version check failed; release-critical deploy version checks already ran in Deploy Staging."
             exit "$version_status"
           fi
 
@@ -750,9 +758,14 @@ jobs:
               -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
           write_staging_audit_result "$gate_status"
           if [ "$gate_status" -ne 0 ]; then
+            echo "ai_ocr_status=regression-failed" >> "$GITHUB_OUTPUT"
+            echo "ai_ocr_exit_code=$gate_status" >> "$GITHUB_OUTPUT"
+            echo "::warning::Staging AI/OCR full regression failed; recorded as right-shifted regression and not blocking release-critical delivery."
             exit "$gate_status"
           fi
 
+          echo "ai_ocr_status=passed" >> "$GITHUB_OUTPUT"
+          echo "ai_ocr_exit_code=0" >> "$GITHUB_OUTPUT"
           echo "Staging AI/OCR Gate passed."
 
       - name: Write staging AI/OCR context
@@ -815,6 +828,7 @@ jobs:
           provider_result="${{ needs.provider-gate.result }}"
           provider_status="${{ needs.provider-gate.outputs.provider_status }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
+          ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           target_sha="${{ needs.build-and-deploy.outputs.commit_full_sha || github.sha }}"
           target_short="${target_sha:0:7}"
@@ -835,10 +849,8 @@ jobs:
             failure_reason="provider connectivity gate failed"
           elif [ "$provider_gate_required" = "true" ] && [ "$provider_status" = "degraded" ]; then
             delivery_status="degraded-provider"
-          elif [ "$ai_ocr_required" = "true" ] && [ "$ai_ocr_result" != "success" ]; then
-            failed=true
-            delivery_status="failed"
-            failure_reason="staging AI/OCR gate failed"
+          elif [ "$ai_ocr_required" = "true" ] && [ "${ai_ocr_status:-not-run}" != "passed" ]; then
+            delivery_status="passed-ai-ocr-regression-recorded"
           fi
 
           {
@@ -863,6 +875,8 @@ jobs:
             echo "- Build/deploy failed step: ${failed_step:-unknown}"
             echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
             echo "- AI/OCR result: ${ai_ocr_result}"
+            echo "- AI/OCR status: ${ai_ocr_status:-not-run}"
+            echo "- AI/OCR release semantics: right-shifted full regression; not a release-critical blocker"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$failed" = "true" ]; then

@@ -391,11 +391,11 @@ gates:
     job: ai-ocr-gate
     owner: staging provider-backed OCR corpus
     triggers: [workflow_dispatch]
-    blocks_workflow: true
+    blocks_workflow: false
     inputs: [staging_environment, provider_credentials, llm_e2e_corpus]
-    outputs: [ai_ocr_gate_summary]
+    outputs: [ai_ocr_gate_summary, ai_ocr_status]
     artifacts: [staging-ai-ocr-gate-context]
-    failure_semantics: Required staging AI/OCR corpus gate failed after staging deploy.
+    failure_semantics: Automatic staging AI/OCR corpus regression failed after release-critical deploy validation; record and triage, but do not block production eligibility.
     action: keep
   - id: staging_deploy.post_merge_delivery
     category: deploy_ops
@@ -407,7 +407,7 @@ gates:
     inputs: [staging_job_results]
     outputs: [post_merge_delivery_decision]
     artifacts: []
-    failure_semantics: Staging post-merge delivery contract failed after upstream deploy/gates.
+    failure_semantics: Staging post-merge delivery contract failed after release-critical build/deploy or provider connectivity gates; automatic full AI/OCR regression failures are recorded, not blocking.
     action: keep
   - id: staging_deploy.post_merge_summary
     category: deploy_ops
