@@ -9,6 +9,15 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
+const searchParamsGet = vi.fn((key: string) => {
+  const params = new URLSearchParams(window.location.search)
+  return params.get(key)
+})
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => ({ get: searchParamsGet }),
+}))
+
 vi.mock("@/hooks/useCurrencies", () => ({
   useCurrencies: () => ({ currencies: ["SGD", "USD"] }),
 }))
@@ -26,6 +35,11 @@ describe("BalanceSheetPage", () => {
   beforeEach(() => {
     mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
+    searchParamsGet.mockImplementation((key: string) => {
+      const params = new URLSearchParams(window.location.search)
+      return params.get(key)
+    })
+    window.history.replaceState({}, "", "/reports/balance-sheet")
   })
 
   it("AC16.14.1 renders loading and error retry states", async () => {
@@ -86,6 +100,37 @@ describe("BalanceSheetPage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("as_of_date=2026-03-01")),
     )
+  })
+
+  it("AC8.13.42 honors include_restricted=true from the balance-sheet URL", async () => {
+    window.history.replaceState({}, "", "/reports/balance-sheet?include_restricted=true")
+    mockedApiFetch.mockResolvedValue({
+      as_of_date: "2026-02-01",
+      currency: "SGD",
+      assets: [
+        { account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: "1000", provenance: "imported" },
+        {
+          account_id: "restricted-root",
+          name: "Four Asset ESOP",
+          type: "ASSET",
+          parent_id: null,
+          amount: "42000",
+          provenance: "manual",
+        },
+      ],
+      liabilities: [],
+      equity: [],
+      total_assets: "43000",
+      total_liabilities: "0",
+      total_equity: "43000",
+      equation_delta: "0",
+      is_balanced: true,
+    })
+
+    render(<BalanceSheetPage />)
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("include_restricted=true")))
+    expect(await screen.findByLabelText("Include restricted holdings")).toBeChecked()
   })
 
   it("AC22.3.4 opens the source drill-down when an amount is clicked", async () => {

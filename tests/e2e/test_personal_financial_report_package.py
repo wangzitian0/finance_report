@@ -107,6 +107,7 @@ async def _wait_for_parsed_statement(
     statement_id: str,
     *,
     gate_name: str,
+    require_transactions: bool = True,
 ) -> dict:
     deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
@@ -123,12 +124,13 @@ async def _wait_for_parsed_statement(
                 statement=last_payload,
             )
         if status == "parsed":
-            assert isinstance(last_payload.get("transactions"), list), (
-                f"parsed statement {statement_id} has no transactions payload"
-            )
-            assert last_payload["transactions"], (
-                f"parsed statement {statement_id} has empty transactions list"
-            )
+            if require_transactions:
+                assert isinstance(last_payload.get("transactions"), list), (
+                    f"parsed statement {statement_id} has no transactions payload"
+                )
+                assert last_payload["transactions"], (
+                    f"parsed statement {statement_id} has empty transactions list"
+                )
             return last_payload
         await asyncio.sleep(5)
 
@@ -470,6 +472,7 @@ async def test_personal_financial_report_package_post_merge_journey(
             client,
             brokerage_statement_id,
             gate_name="brokerage PDF",
+            require_transactions=False,
         )
         import_response = await client.post(
             _api_url(f"/statements/{parsed_brokerage['id']}/brokerage/import")

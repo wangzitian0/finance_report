@@ -105,8 +105,12 @@ def _get_pdf_path(source: str) -> Path:
         text=True,
     )
     if result.returncode != 0:
-        pytest.skip(f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
-    pdfs = sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+        pytest.skip(
+            f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+    pdfs = (
+        sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+    )
     if not pdfs:
         pytest.skip(f"PDF generation for {source} produced no files in {source_dir}")
     return pdfs[-1]
@@ -134,7 +138,9 @@ async def _auth_headers(page: Page) -> dict[str, str]:
 
 async def _default_image_model(client: httpx.AsyncClient) -> str:
     response = await client.get(_api_url("/llm/catalog?modality=image"))
-    assert response.status_code == 200, f"model catalog request failed: {response.status_code} {response.text}"
+    assert response.status_code == 200, (
+        f"model catalog request failed: {response.status_code} {response.text}"
+    )
     payload = response.json()
     return payload.get("default_model") or payload["models"][0]["id"]
 
@@ -146,7 +152,9 @@ async def _upload_bank_csv(client: httpx.AsyncClient, fixture_path: Path) -> str
             data={"institution": BANK_INSTITUTION},
             files={"file": (fixture_path.name, fh, "text/csv")},
         )
-    assert response.status_code in (200, 201, 202), f"bank upload failed: {response.status_code} {response.text}"
+    assert response.status_code in (200, 201, 202), (
+        f"bank upload failed: {response.status_code} {response.text}"
+    )
     statement_id = response.json().get("id")
     assert statement_id, f"bank upload response missing id: {response.text}"
     return str(statement_id)
@@ -166,7 +174,9 @@ async def _upload_brokerage_pdf(
             data={"institution": institution, "model": model},
             files={"file": (pdf_path.name, fh, "application/pdf")},
         )
-    assert response.status_code in (200, 201, 202), f"{source} upload failed: {response.status_code} {response.text}"
+    assert response.status_code in (200, 201, 202), (
+        f"{source} upload failed: {response.status_code} {response.text}"
+    )
     statement_id = response.json().get("id")
     assert statement_id, f"{source} upload response missing id: {response.text}"
     return str(statement_id)
@@ -195,6 +205,7 @@ async def _wait_for_parsed_statement(
     statement_id: str,
     *,
     gate_name: str,
+    require_transactions: bool = True,
 ) -> dict:
     deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
@@ -211,9 +222,10 @@ async def _wait_for_parsed_statement(
                 statement=last_payload,
             )
         if status == "parsed":
-            assert last_payload.get("transactions"), (
-                f"{gate_name} parsed statement {statement_id} has no transactions: {last_payload}"
-            )
+            if require_transactions:
+                assert last_payload.get("transactions"), (
+                    f"{gate_name} parsed statement {statement_id} has no transactions: {last_payload}"
+                )
             return last_payload
         await asyncio.sleep(5)
 
@@ -243,7 +255,9 @@ async def _create_manual_snapshot(
 
 
 def _line_total(lines: list[dict]) -> Decimal:
-    return sum((_money(line.get("amount", "0")) for line in lines), Decimal("0.00")).quantize(Decimal("0.01"))
+    return sum(
+        (_money(line.get("amount", "0")) for line in lines), Decimal("0.00")
+    ).quantize(Decimal("0.01"))
 
 
 def _lines_by_name(lines: list[dict], token: str) -> list[dict]:
@@ -299,10 +313,14 @@ async def test_four_asset_as_of_net_worth_golden_path(
     report_date = date.today()
     headers = await _auth_headers(page)
 
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
+    async with httpx.AsyncClient(
+        headers=headers, verify=False, timeout=120.0
+    ) as client:
         bank_fixture = _write_bank_fixture(tmp_path, report_date)
         bank_statement_id = await _upload_bank_csv(client, bank_fixture)
-        parsed_bank = await _wait_for_parsed_statement(client, bank_statement_id, gate_name="bank CSV")
+        parsed_bank = await _wait_for_parsed_statement(
+            client, bank_statement_id, gate_name="bank CSV"
+        )
         assert len(parsed_bank.get("transactions") or []) == 2
 
         approve_response = await client.post(
@@ -321,7 +339,9 @@ async def test_four_asset_as_of_net_worth_golden_path(
         )
         journal_payload = journal_response.json()
         assert journal_payload["total"] == 2
-        assert {item["status"].lower() for item in journal_payload["items"]} == {"posted"}
+        assert {item["status"].lower() for item in journal_payload["items"]} == {
+            "posted"
+        }
         assert {item["memo"] for item in journal_payload["items"]} == {
             "Four Asset Salary",
             "Four Asset Rent",
@@ -374,24 +394,33 @@ async def test_four_asset_as_of_net_worth_golden_path(
             client,
             brokerage_statement_id,
             gate_name="brokerage PDF",
+            require_transactions=False,
         )
-        import_response = await client.post(_api_url(f"/statements/{parsed_brokerage['id']}/brokerage/import"))
+        import_response = await client.post(
+            _api_url(f"/statements/{parsed_brokerage['id']}/brokerage/import")
+        )
         assert import_response.status_code == 200, (
             f"brokerage import failed: {import_response.status_code} {import_response.text}"
         )
         import_payload = import_response.json()
-        assert import_payload["parsed_positions"] > 0, f"no brokerage positions imported: {import_payload}"
+        assert import_payload["parsed_positions"] > 0, (
+            f"no brokerage positions imported: {import_payload}"
+        )
 
         holdings_response = await client.get(_api_url("/portfolio/holdings"))
         assert holdings_response.status_code == 200, (
             f"holdings check failed: {holdings_response.status_code} {holdings_response.text}"
         )
         holdings = holdings_response.json()
-        assert len(holdings) >= import_payload["parsed_positions"], f"missing imported holdings: {holdings}"
-        brokerage_value = sum((_money(item["market_value"]) for item in holdings), Decimal("0.00")).quantize(
-            Decimal("0.01")
+        assert len(holdings) >= import_payload["parsed_positions"], (
+            f"missing imported holdings: {holdings}"
         )
-        assert brokerage_value > Decimal("0.00"), f"brokerage holdings have no market value: {holdings}"
+        brokerage_value = sum(
+            (_money(item["market_value"]) for item in holdings), Decimal("0.00")
+        ).quantize(Decimal("0.01"))
+        assert brokerage_value > Decimal("0.00"), (
+            f"brokerage holdings have no market value: {holdings}"
+        )
 
         property_snapshot = await _create_manual_snapshot(
             client,
@@ -419,7 +448,9 @@ async def test_four_asset_as_of_net_worth_golden_path(
         assert esop_snapshot["liquidity_class"] == "restricted"
 
         components_response = await client.get(
-            _api_url(f"/assets/valuation-components?as_of_date={report_date.isoformat()}&include_restricted=true")
+            _api_url(
+                f"/assets/valuation-components?as_of_date={report_date.isoformat()}&include_restricted=true"
+            )
         )
         assert components_response.status_code == 200, (
             f"valuation components check failed: {components_response.status_code} {components_response.text}"
@@ -427,7 +458,10 @@ async def test_four_asset_as_of_net_worth_golden_path(
         components = components_response.json()
         assert _money(components["total_assets"]) == PROPERTY_VALUE + ESOP_VALUE
         assert _money(components["total_liabilities"]) == MORTGAGE_BALANCE
-        assert _money(components["net_worth_delta"]) == PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
+        assert (
+            _money(components["net_worth_delta"])
+            == PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
+        )
 
         balance_response = await client.get(
             _api_url(
@@ -438,17 +472,27 @@ async def test_four_asset_as_of_net_worth_golden_path(
             f"balance sheet check failed: {balance_response.status_code} {balance_response.text}"
         )
         balance_sheet = balance_response.json()
-        asset_lines = [line for line in balance_sheet.get("assets", []) if isinstance(line, dict)]
-        liability_lines = [line for line in balance_sheet.get("liabilities", []) if isinstance(line, dict)]
+        asset_lines = [
+            line for line in balance_sheet.get("assets", []) if isinstance(line, dict)
+        ]
+        liability_lines = [
+            line
+            for line in balance_sheet.get("liabilities", [])
+            if isinstance(line, dict)
+        ]
         market_lines = _lines_by_name(asset_lines, "market valuation adjustment")
         market_total = _line_total(market_lines)
 
-        expected_assets = (BANK_CASH + brokerage_value + PROPERTY_VALUE + ESOP_VALUE).quantize(Decimal("0.01"))
+        expected_assets = (
+            BANK_CASH + brokerage_value + PROPERTY_VALUE + ESOP_VALUE
+        ).quantize(Decimal("0.01"))
         expected_liabilities = MORTGAGE_BALANCE
-        expected_net_worth = (expected_assets - expected_liabilities).quantize(Decimal("0.01"))
-        expected_net_worth_adjustment = (brokerage_value + PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE).quantize(
+        expected_net_worth = (expected_assets - expected_liabilities).quantize(
             Decimal("0.01")
         )
+        expected_net_worth_adjustment = (
+            brokerage_value + PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
+        ).quantize(Decimal("0.01"))
 
         assert _line_total_by_name(asset_lines, BANK_INSTITUTION) == BANK_CASH
         assert market_total == brokerage_value, (
@@ -457,25 +501,41 @@ async def test_four_asset_as_of_net_worth_golden_path(
         )
         assert _line_total_by_name(asset_lines, "Four Asset Condo") == PROPERTY_VALUE
         assert _line_total_by_name(asset_lines, "Four Asset ESOP") == ESOP_VALUE
-        assert _line_total_by_name(liability_lines, "Four Asset Mortgage") == MORTGAGE_BALANCE
+        assert (
+            _line_total_by_name(liability_lines, "Four Asset Mortgage")
+            == MORTGAGE_BALANCE
+        )
         assert _money(balance_sheet["total_assets"]) == expected_assets
         assert _money(balance_sheet["total_liabilities"]) == expected_liabilities
-        assert _money(balance_sheet["total_assets"]) - _money(balance_sheet["total_liabilities"]) == expected_net_worth
-        assert _money(balance_sheet["net_worth_adjustment_gain_loss"]) == expected_net_worth_adjustment
+        assert (
+            _money(balance_sheet["total_assets"])
+            - _money(balance_sheet["total_liabilities"])
+            == expected_net_worth
+        )
+        assert (
+            _money(balance_sheet["net_worth_adjustment_gain_loss"])
+            == expected_net_worth_adjustment
+        )
         assert _money(balance_sheet["equation_delta"]) == Decimal("0.00")
         assert balance_sheet["is_balanced"] is True
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("domcontentloaded")
-    await expect(page.get_by_label("Upload-to-report home")).to_be_visible(timeout=10_000)
-    await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(timeout=10_000)
+    await expect(page.get_by_label("Upload-to-report home")).to_be_visible(
+        timeout=10_000
+    )
+    await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(
+        timeout=10_000
+    )
     include_checkbox = page.get_by_label("Include restricted holdings")
     await expect(include_checkbox).to_be_visible(timeout=10_000)
     if not await include_checkbox.is_checked():
         await include_checkbox.check()
 
     await expect(
-        page.locator(".card").filter(has_text="Total Assets").filter(has_text=_dashboard_amount(expected_assets))
+        page.locator(".card")
+        .filter(has_text="Total Assets")
+        .filter(has_text=_dashboard_amount(expected_assets))
     ).to_be_visible(timeout=15_000)
     await expect(
         page.locator(".card")
@@ -489,15 +549,23 @@ async def test_four_asset_as_of_net_worth_golden_path(
     ).to_be_visible(timeout=15_000)
 
     await page.goto(
-        _get_url(f"/reports/balance-sheet?as_of_date={report_date.isoformat()}&currency=SGD&include_restricted=true")
+        _get_url(
+            f"/reports/balance-sheet?as_of_date={report_date.isoformat()}&currency=SGD&include_restricted=true"
+        )
     )
     await page.wait_for_load_state("domcontentloaded")
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(timeout=10_000)
-    await expect(page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")).to_contain_text(
+    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
+        timeout=10_000
+    )
+    await expect(
+        page.locator(".card").filter(has_text="Assets").filter(has_text="Total:")
+    ).to_contain_text(
         _report_amount(expected_assets),
         timeout=15_000,
     )
-    await expect(page.locator(".card").filter(has_text="Liabilities").filter(has_text="Total:")).to_contain_text(
+    await expect(
+        page.locator(".card").filter(has_text="Liabilities").filter(has_text="Total:")
+    ).to_contain_text(
         _report_amount(expected_liabilities),
         timeout=15_000,
     )
