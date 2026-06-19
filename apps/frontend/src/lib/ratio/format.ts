@@ -42,19 +42,30 @@ function ratioFromPercentValue(value: NullablePercentInput): Ratio | null {
   }
 }
 
-function formatRatioPercent(ratio: Ratio | null, dp: number, fallback: string, signed: boolean): string {
+function formatRatioPercent(
+  ratio: Ratio | null,
+  dp: number,
+  fallback: string,
+  signed: boolean,
+): string {
   if (ratio === null) return fallback;
   const percent = ratio.toPercent(dp);
   const sign = signed && percent.greaterThan(0) ? "+" : "";
   return `${sign}${percent.toFixed(dp)}%`;
 }
 
-export function formatPercentFromRatioValue(value: NullablePercentInput, options: PercentFormatOptions = {}): string {
+export function formatPercentFromRatioValue(
+  value: NullablePercentInput,
+  options: PercentFormatOptions = {},
+): string {
   const { dp = 2, fallback = "—" } = options;
   return formatRatioPercent(ratioFromRatioValue(value), dp, fallback, false);
 }
 
-export function formatPercentFromPercentValue(value: NullablePercentInput, options: PercentFormatOptions = {}): string {
+export function formatPercentFromPercentValue(
+  value: NullablePercentInput,
+  options: PercentFormatOptions = {},
+): string {
   const { dp = 2, fallback = "N/A" } = options;
   return formatRatioPercent(ratioFromPercentValue(value), dp, fallback, false);
 }
@@ -80,7 +91,22 @@ export function formatPercentValueFromParts(
   }
 }
 
-export function ratioNumberFromRatioValue(value: NullablePercentInput): number | null {
+export function percentNumberFromParts(
+  part: RatioInput,
+  whole: RatioInput,
+  options: PercentNumberOptions = {},
+): number | null {
+  const { dp = 2, fallback = null } = options;
+  try {
+    return Ratio.fraction(part, whole).toPercent(dp).toNumber();
+  } catch {
+    return fallback;
+  }
+}
+
+export function ratioNumberFromRatioValue(
+  value: NullablePercentInput,
+): number | null {
   const ratio = ratioFromRatioValue(value);
   return ratio === null ? null : ratio.value.toNumber();
 }
@@ -103,8 +129,11 @@ export function percentNumberFromPercentValue(
   return ratio === null ? fallback : ratio.toPercent(dp).toNumber();
 }
 
-export function clampPercentWidthFromPercentValue(value: NullablePercentInput): string {
-  const percent = percentNumberFromPercentValue(value, { dp: 2, fallback: 0 }) ?? 0;
+export function clampPercentWidthFromPercentValue(
+  value: NullablePercentInput,
+): string {
+  const percent =
+    percentNumberFromPercentValue(value, { dp: 2, fallback: 0 }) ?? 0;
   const bounded = Math.min(100, Math.max(0, Math.abs(percent)));
   return `${new Decimal(bounded).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString()}%`;
 }

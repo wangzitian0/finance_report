@@ -26,6 +26,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page, expect
@@ -70,10 +71,6 @@ def _api_url(path: str) -> str:
 
 def _get_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}{path}"
-
-
-def _money(value: object) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
 async def _auth_headers(page: Page) -> dict[str, str]:
@@ -196,7 +193,7 @@ def _assert_csv_total(content: str, section: str, expected: Decimal) -> None:
     rows = _parse_csv_rows(content)
     for row in rows:
         if row.get("section") == section:
-            assert _money(row["amount"]) == expected, (
+            assert money_amount(row["amount"]) == expected, (
                 f"CSV section {section} mismatch: expected {expected}, got {row['amount']}"
             )
             return
@@ -253,7 +250,7 @@ def _line_total(lines: list[dict], token: str | None = None) -> Decimal:
             line for line in lines if token.lower() in str(line.get("name", "")).lower()
         ]
     )
-    return sum((_money(line["amount"]) for line in filtered), Decimal("0.00"))
+    return sum((money_amount(line["amount"]) for line in filtered), Decimal("0.00"))
 
 
 async def _upload_bank_csv(
@@ -494,7 +491,7 @@ async def test_personal_financial_report_package_post_merge_journey(
             f"missing imported holdings: {holdings}"
         )
         brokerage_value = sum(
-            (_money(item["market_value"]) for item in holdings), Decimal("0.00")
+            (money_amount(item["market_value"]) for item in holdings), Decimal("0.00")
         )
         assert len(holdings) == expected.brokerage_position_count, (
             f"unexpected brokerage holdings: {holdings}"
@@ -535,7 +532,9 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert dividend_response.status_code == 201, (
             f"dividend create failed: {dividend_response.status_code} {dividend_response.text}"
         )
-        assert _money(dividend_response.json()["amount"]) == expected.dividend_income
+        assert (
+            money_amount(dividend_response.json()["amount"]) == expected.dividend_income
+        )
 
         schedule_response = await client.get(
             _api_url(
@@ -554,12 +553,12 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert schedule["as_of_date"] == fixture_period_end.isoformat()
         assert schedule["currency"] == "SGD"
         assert schedule["holdings"], f"investment schedule has no holdings: {schedule}"
-        assert _money(schedule["dividend_income"]) == expected.dividend_income
+        assert money_amount(schedule["dividend_income"]) == expected.dividend_income
         assert (
-            _money(schedule["holdings"][0]["dividend_income"])
+            money_amount(schedule["holdings"][0]["dividend_income"])
             == expected.dividend_income
         )
-        assert _money(schedule["unrealized_pnl"]) >= Decimal("0.00")
+        assert money_amount(schedule["unrealized_pnl"]) >= Decimal("0.00")
         assert "data_freshness" in schedule
         assert schedule["data_freshness"]["manual_override_basis"] == (
             f"{primary_holding['asset_identifier']}:{expected.market_price_date.isoformat()}"
@@ -642,7 +641,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         manual_components = manual_components_response.json()
 
         values_by_type_source = {
-            (item["component_type"], item["source"]): _money(item["value"])
+            (item["component_type"], item["source"]): money_amount(item["value"])
             for item in manual_components["items"]
         }
         assert (
@@ -706,14 +705,14 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert annualized["section_id"] == "annualized_income_long_term"
         assert annualized["as_of_date"] == fixture_period_end.isoformat()
         assert annualized["trailing_period_days"] == 365
-        assert _money(annualized["income"]["annualized_total"]) == _money(
+        assert money_amount(annualized["income"]["annualized_total"]) == money_amount(
             expected.income
         )
         assert annualized["income"]["currency"] == "SGD"
         assert annualized["income"]["calculation_basis"] == (
             "posted_or_reconciled_income_journal_lines_trailing_12_months"
         )
-        assert _money(annualized["restricted_fair_value_total"]) == (
+        assert money_amount(annualized["restricted_fair_value_total"]) == (
             ESOP_VALUE + RSU_VALUE + STOCK_OPTIONS_VALUE
         )
         assert annualized["net_worth_treatment"]["liquid_net_worth_default"] == (
@@ -812,10 +811,12 @@ async def test_personal_financial_report_package_post_merge_journey(
         expected_liabilities = expected.manual_liability_total
         expected_net_worth_adjustment = expected.net_worth_adjustment_gain_loss
 
-        assert _money(manual_components["total_assets"]) == expected_manual_assets
-        assert _money(manual_components["total_liabilities"]) == expected_liabilities
+        assert money_amount(manual_components["total_assets"]) == expected_manual_assets
         assert (
-            _money(manual_components["net_worth_delta"])
+            money_amount(manual_components["total_liabilities"]) == expected_liabilities
+        )
+        assert (
+            money_amount(manual_components["net_worth_delta"])
             == expected_manual_assets - expected_liabilities
         )
 
@@ -828,17 +829,20 @@ async def test_personal_financial_report_package_post_merge_journey(
             f"balance sheet failed: {balance_payload.status_code} {balance_payload.text}"
         )
         balance = balance_payload.json()
-        assert _money(balance["total_assets"]) == expected_assets
-        assert _money(balance["total_liabilities"]) == expected_liabilities
-        assert _money(balance["total_equity"]) == expected_assets - expected_liabilities
+        assert money_amount(balance["total_assets"]) == expected_assets
+        assert money_amount(balance["total_liabilities"]) == expected_liabilities
         assert (
-            _money(balance["net_worth_adjustment_gain_loss"])
+            money_amount(balance["total_equity"])
+            == expected_assets - expected_liabilities
+        )
+        assert (
+            money_amount(balance["net_worth_adjustment_gain_loss"])
             == expected_net_worth_adjustment
         )
-        assert _money(balance["equation_delta"]) == Decimal("0.00")
+        assert money_amount(balance["equation_delta"]) == Decimal("0.00")
         assert balance["is_balanced"] is True
-        assert _line_total(balance["assets"]) == _money(balance["total_assets"])
-        assert _line_total(balance["liabilities"]) == _money(
+        assert _line_total(balance["assets"]) == money_amount(balance["total_assets"])
+        assert _line_total(balance["liabilities"]) == money_amount(
             balance["total_liabilities"]
         )
 
@@ -851,9 +855,9 @@ async def test_personal_financial_report_package_post_merge_journey(
             f"income statement failed: {income_payload.status_code} {income_payload.text}"
         )
         income = income_payload.json()
-        assert _money(income["total_income"]) == expected.income
-        assert _money(income["total_expenses"]) == expected.expenses
-        assert _money(income["net_income"]) == expected.net_income
+        assert money_amount(income["total_income"]) == expected.income
+        assert money_amount(income["total_expenses"]) == expected.expenses
+        assert money_amount(income["net_income"]) == expected.net_income
 
         cash_flow_payload = await client.get(
             _api_url(
@@ -864,11 +868,13 @@ async def test_personal_financial_report_package_post_merge_journey(
             f"cash flow failed: {cash_flow_payload.status_code} {cash_flow_payload.text}"
         )
         cash_flow = cash_flow_payload.json()
-        assert _money(cash_flow["summary"]["net_cash_flow"]) == _money(
+        assert money_amount(cash_flow["summary"]["net_cash_flow"]) == money_amount(
             expected.net_income
         )
-        assert _money(cash_flow["summary"]["beginning_cash"]) == Decimal("0.00")
-        assert _money(cash_flow["summary"]["ending_cash"]) == _money(expected_bank_cash)
+        assert money_amount(cash_flow["summary"]["beginning_cash"]) == Decimal("0.00")
+        assert money_amount(cash_flow["summary"]["ending_cash"]) == money_amount(
+            expected_bank_cash
+        )
 
         bs_export = await client.get(
             _api_url("/reports/export"),
@@ -884,12 +890,12 @@ async def test_personal_financial_report_package_post_merge_journey(
         )
         assert "text/csv" in bs_export.headers["content-type"]
         _assert_csv_total(
-            bs_export.text, "Total Assets", _money(balance["total_assets"])
+            bs_export.text, "Total Assets", money_amount(balance["total_assets"])
         )
         _assert_csv_total(
             bs_export.text,
             "Total Liabilities",
-            _money(balance["total_liabilities"]),
+            money_amount(balance["total_liabilities"]),
         )
 
         income_export = await client.get(
@@ -907,13 +913,13 @@ async def test_personal_financial_report_package_post_merge_journey(
         )
         assert "text/csv" in income_export.headers["content-type"]
         _assert_csv_total(
-            income_export.text, "Total Income", _money(income["total_income"])
+            income_export.text, "Total Income", money_amount(income["total_income"])
         )
         _assert_csv_total(
-            income_export.text, "Total Expenses", _money(income["total_expenses"])
+            income_export.text, "Total Expenses", money_amount(income["total_expenses"])
         )
         _assert_csv_total(
-            income_export.text, "Net Income", _money(income["net_income"])
+            income_export.text, "Net Income", money_amount(income["net_income"])
         )
 
     await page.goto(_get_url("/dashboard"))

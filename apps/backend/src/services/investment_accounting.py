@@ -43,11 +43,6 @@ class InvestmentAccountingResult:
     position: ManagedPosition
 
 
-def _money(value: Decimal) -> Decimal:
-    # Canonical money rounding (banker's / HALF_EVEN). See docs/ssot/accounting.md#decimal-rule.
-    return to_money(value)
-
-
 def _quantized_quantity(value: Decimal) -> Decimal:
     return Quantity(value, INVESTMENT_QUANTITY_UNIT).quantize().value
 
@@ -90,7 +85,7 @@ class InvestmentAccountingService:
 
         cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
         investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
-        amount = _money(trade_quantity * unit_price + fees)
+        amount = to_money(trade_quantity * unit_price + fees)
         if amount <= Decimal("0"):
             raise InvestmentAccountingValidationError("buy amount must be positive")
 
@@ -145,7 +140,7 @@ class InvestmentAccountingService:
             quantity=trade_quantity,
             unit_price=_quantized_unit_rate(unit_price),
             gross_amount=amount,
-            fees=_money(fees),
+            fees=to_money(fees),
             currency=currency,
             cost_basis=amount,
             realized_pnl=Decimal("0.00"),
@@ -168,7 +163,7 @@ class InvestmentAccountingService:
         db.add(lot)
 
         position.quantity = _quantized_quantity(position.quantity + trade_quantity)
-        position.cost_basis = _money(position.cost_basis + amount)
+        position.cost_basis = to_money(position.cost_basis + amount)
         position.cost_basis_method = cost_basis_method
         position.status = PositionStatus.ACTIVE
         position.disposal_date = None
@@ -213,7 +208,7 @@ class InvestmentAccountingService:
             asset_identifier=asset_identifier,
         )
 
-        proceeds = _money(trade_quantity * unit_price - fees)
+        proceeds = to_money(trade_quantity * unit_price - fees)
         if proceeds <= Decimal("0"):
             raise InvestmentAccountingValidationError("sell proceeds must be positive")
         cost_basis = await self._consume_lots(
@@ -224,7 +219,7 @@ class InvestmentAccountingService:
             method=cost_basis_method,
             disposal_date=transaction_date,
         )
-        realized_pnl = _money(proceeds - cost_basis)
+        realized_pnl = to_money(proceeds - cost_basis)
 
         lines = [
             {
@@ -283,8 +278,8 @@ class InvestmentAccountingService:
         posted = await self._post_and_load(db, entry.id, user_id)
 
         position.quantity = _quantized_quantity(position.quantity - trade_quantity)
-        position.cost_basis = _money(position.cost_basis - cost_basis)
-        position.realized_pnl = _money((position.realized_pnl or Decimal("0.00")) + realized_pnl)
+        position.cost_basis = to_money(position.cost_basis - cost_basis)
+        position.realized_pnl = to_money((position.realized_pnl or Decimal("0.00")) + realized_pnl)
         position.cost_basis_method = cost_basis_method
         if _quantity_is_zero(position.quantity):
             position.status = PositionStatus.DISPOSED
@@ -301,7 +296,7 @@ class InvestmentAccountingService:
             quantity=trade_quantity,
             unit_price=_quantized_unit_rate(unit_price),
             gross_amount=proceeds,
-            fees=_money(fees),
+            fees=to_money(fees),
             currency=currency,
             cost_basis=cost_basis,
             realized_pnl=realized_pnl,
@@ -352,9 +347,9 @@ class InvestmentAccountingService:
             account_id=investment_account.id,
             asset_identifier=asset_identifier,
         )
-        gross = _money(gross_amount)
-        tax = _money(withholding_tax)
-        net_cash = _money(gross - tax)
+        gross = to_money(gross_amount)
+        tax = to_money(withholding_tax)
+        net_cash = to_money(gross - tax)
 
         lines = []
         if net_cash > Decimal("0"):
@@ -546,7 +541,7 @@ class InvestmentAccountingService:
             remaining_to_sell = _quantized_quantity(remaining_to_sell - consumed_quantity)
 
         await db.flush()
-        return _money(cost_basis)
+        return to_money(cost_basis)
 
     async def _open_lots(
         self,

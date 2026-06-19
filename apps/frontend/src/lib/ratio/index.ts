@@ -5,7 +5,12 @@
 // see ratio.conformance.test.ts. Identifier parity enforced by
 // tests/tooling/test_ratio_api_parity.py.
 
-export { RatioError, FloatNotAllowedError, InvalidRatioPayloadError, UndefinedRatioError } from "./errors";
+export {
+  RatioError,
+  FloatNotAllowedError,
+  InvalidRatioPayloadError,
+  UndefinedRatioError,
+} from "./errors";
 export {
   Ratio,
   PERCENT_DP,
@@ -21,6 +26,7 @@ export {
   formatPercentFromPercentValue,
   formatPercentFromRatioValue,
   formatSignedPercentFromPercentValue,
+  percentNumberFromParts,
   percentNumberFromPercentValue,
   percentNumberFromRatioValue,
   ratioNumberFromRatioValue,

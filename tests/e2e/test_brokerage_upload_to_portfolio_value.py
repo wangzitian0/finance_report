@@ -23,6 +23,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 from conftest import fail_or_skip_ai_ocr_gate
 from playwright.async_api import Page
@@ -161,10 +162,6 @@ def _statement_poll_failure_message(
     )
 
 
-def _money(value: object) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
-
-
 def _balance_sheet_asset_lines(balance_sheet: dict) -> list[dict]:
     assets = balance_sheet.get("assets")
     assert isinstance(assets, list), (
@@ -182,9 +179,9 @@ def _market_valuation_lines(balance_sheet: dict) -> list[dict]:
 
 
 def _line_total(lines: list[dict]) -> Decimal:
-    return sum(
-        (_money(line.get("amount", "0")) for line in lines), Decimal("0.00")
-    ).quantize(Decimal("0.01"))
+    return money_amount(
+        sum((money_amount(line.get("amount", "0")) for line in lines), Decimal("0.00"))
+    )
 
 
 def _portfolio_valuation_failure_message(
@@ -206,7 +203,8 @@ def _portfolio_valuation_failure_message(
             "amount": str(line.get("amount")),
         }
         for line in asset_lines
-        if line in valuation_lines or _money(line.get("amount", "0")) < Decimal("0.00")
+        if line in valuation_lines
+        or money_amount(line.get("amount", "0")) < Decimal("0.00")
     ]
 
     return (
@@ -228,9 +226,9 @@ def _assert_portfolio_market_valuation_covered(
     imported_positions: Decimal,
     balance_sheet: dict,
 ) -> None:
-    total_market_value = sum(
-        (_money(item["market_value"]) for item in holdings), Decimal("0.00")
-    ).quantize(Decimal("0.01"))
+    total_market_value = money_amount(
+        sum((money_amount(item["market_value"]) for item in holdings), Decimal("0.00"))
+    )
     assert total_market_value > Decimal("0.00"), (
         f"holdings have no market value: {holdings}"
     )
@@ -246,9 +244,9 @@ def _assert_portfolio_market_valuation_covered(
 
     assert valuation_lines, failure_message
     assert valuation_total >= total_market_value, failure_message
-    assert _money(balance_sheet["net_worth_adjustment_gain_loss"]) > Decimal("0.00"), (
-        failure_message
-    )
+    assert money_amount(balance_sheet["net_worth_adjustment_gain_loss"]) > Decimal(
+        "0.00"
+    ), failure_message
 
 
 async def _wait_for_parsed_statement(

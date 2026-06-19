@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 
 from conftest import AuthState
@@ -33,10 +34,6 @@ STALE_BROKERAGE_MARKET_VALUE = Decimal("20.00")
 
 def _api_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}/api{path}"
-
-
-def _money(value: object) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
 async def _market_data_status_by_scope(
@@ -147,7 +144,9 @@ async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
         )
         report = report_response.json()
         assert report["is_balanced"] is True
-        assert _money(report["total_assets"]) > STALE_BROKERAGE_MARKET_VALUE, report
+        assert money_amount(report["total_assets"]) > STALE_BROKERAGE_MARKET_VALUE, (
+            report
+        )
 
         after_status = await _market_data_status_by_scope(client, symbols=(symbol,))
         stock_status = after_status.get(("stock", symbol))
@@ -172,7 +171,10 @@ async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
             (item for item in holdings if item["asset_identifier"] == symbol), None
         )
         assert selected_holding is not None, f"{symbol} holding missing: {holdings}"
-        assert _money(selected_holding["market_value"]) > STALE_BROKERAGE_MARKET_VALUE, (
+        assert (
+            money_amount(selected_holding["market_value"])
+            > STALE_BROKERAGE_MARKET_VALUE
+        ), (
             f"synced stock price did not replace stale brokerage snapshot: {selected_holding}"
         )
 

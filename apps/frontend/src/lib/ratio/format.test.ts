@@ -6,6 +6,7 @@ import {
   formatPercentFromPercentValue,
   formatPercentFromRatioValue,
   formatSignedPercentFromPercentValue,
+  percentNumberFromParts,
   percentNumberFromPercentValue,
   percentNumberFromRatioValue,
 } from "./format";
@@ -20,6 +21,8 @@ describe("ratio percent formatting helpers (EPIC-012 AC12.9.3)", () => {
     expect(formatPercentValueFromParts("1", "8")).toBe("12.50");
     expect(formatPercentValueFromParts("1", "0")).toBeNull();
     expect(formatPercentValueFromParts("1", "0", { fallback: "—" })).toBe("—");
+    expect(percentNumberFromParts("4", "7", { dp: 0 })).toBe(57);
+    expect(percentNumberFromParts("4", "0", { dp: 0, fallback: 0 })).toBe(0);
   });
 
   it("test_AC12_9_3_ratio_format_helpers_guard_invalid_or_missing_inputs", () => {

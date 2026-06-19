@@ -8,13 +8,10 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from common.testing import money_amount
 from tools._lib.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
 
 ROOT = Path(__file__).resolve().parents[3]
-
-
-def _money(value: object) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
 @dataclass(frozen=True)
@@ -58,10 +55,12 @@ class ExpectedPackageOutputs:
     market_price_date: date
 
     def total_assets(self, brokerage_value: Decimal) -> Decimal:
-        return _money(brokerage_value + self.manual_asset_total + self.bank_cash)
+        return money_amount(brokerage_value + self.manual_asset_total + self.bank_cash)
 
     def total_equity(self, brokerage_value: Decimal) -> Decimal:
-        return _money(self.total_assets(brokerage_value) - self.manual_liability_total)
+        return money_amount(
+            self.total_assets(brokerage_value) - self.manual_liability_total
+        )
 
 
 @dataclass(frozen=True)
@@ -103,7 +102,7 @@ def _expected_outputs(
     csv_path: Path, manual_components: tuple[ManualComponentFixture, ...]
 ) -> ExpectedPackageOutputs:
     rows = _bank_rows(csv_path)
-    amounts = [_money(row["Amount"]) for row in rows]
+    amounts = [money_amount(row["Amount"]) for row in rows]
     income = sum((amount for amount in amounts if amount > 0), Decimal("0.00"))
     expenses = sum((-amount for amount in amounts if amount < 0), Decimal("0.00"))
     period_dates = sorted(date.fromisoformat(row["Date"]) for row in rows)
@@ -135,14 +134,14 @@ def _expected_outputs(
         transaction_count=len(rows),
         period_start=period_dates[0],
         period_end=period_dates[-1],
-        income=_money(income),
-        expenses=_money(expenses),
-        net_income=_money(income - expenses),
-        bank_cash=_money(income - expenses),
-        manual_asset_total=_money(manual_asset_total),
-        manual_liability_total=_money(manual_liability_total),
-        restricted_fair_value_total=_money(restricted_total),
-        net_worth_adjustment_gain_loss=_money(
+        income=money_amount(income),
+        expenses=money_amount(expenses),
+        net_income=money_amount(income - expenses),
+        bank_cash=money_amount(income - expenses),
+        manual_asset_total=money_amount(manual_asset_total),
+        manual_liability_total=money_amount(manual_liability_total),
+        restricted_fair_value_total=money_amount(restricted_total),
+        net_worth_adjustment_gain_loss=money_amount(
             manual_asset_total - manual_liability_total
         ),
         brokerage_market_value=PORTFOLIO_AUDIT_FIXTURE.report_package_market_value_sgd,
