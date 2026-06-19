@@ -164,14 +164,27 @@ Moomoo brokerage statement format:
 - Transaction types: DEPOSIT, WITHDRAWAL, BUY, SELL, DIVIDEND, FEE
 - Look for currency column (SGD/USD/HKD)
 - Amounts already signed (negative for outflows)
+- For generated Moomoo PDF fixtures, a Transaction Details row with Type
+  SUBSCRIPTION and Description "Fullerton SGD Money Market Fund" represents a
+  money-market holding; emit it as a position with asset_identifier/symbol
+  "Fullerton SGD Money Market Fund", quantity "1", market_value equal to the row
+  Amount, and currency equal to the row Currency. Do not return empty positions
+  when this row is present.
 """,
     "Futu": """
-Futu/富途 brokerage statement format (HKD account):
+Futu/富途 brokerage statement format:
 - Monthly statement PDF
 - Account number in header
-- Opening/Closing balance in HKD
+- Opening/Closing balance in the statement currency; do not assume HKD because
+  generated fixtures and some real statements may use SGD or USD rows.
 - Transactions may include: 股息 (dividends), 入金 (deposit), 出金 (withdrawal)
 - Return a SINGLE JSON object, not an array
+- For generated Futu PDF fixtures, a Transaction Details row with Type VALUATION
+  and Description "Stock and options valuation" represents the point-in-time
+  brokerage position; emit it as a position with asset_identifier/symbol
+  "FUTU_STOCK_AND_OPTIONS", quantity "1", market_value equal to the row Amount,
+  and currency equal to the row Currency. Do not return empty positions when this
+  row is present.
 """,
     "CMB": """
 China Merchants Bank (招商银行) statement:
