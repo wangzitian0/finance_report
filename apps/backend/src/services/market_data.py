@@ -25,7 +25,7 @@ from src.models.account import Account
 from src.models.journal import JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
-from src.quantity import quantity_zero_value
+from src.quantity import Quantity
 
 logger = get_logger(__name__)
 
@@ -864,7 +864,7 @@ async def _active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[
     stmt = (
         select(ManagedPosition.asset_identifier)
         .where(ManagedPosition.status == PositionStatus.ACTIVE)
-        .where(ManagedPosition.quantity != quantity_zero_value(MARKET_DATA_QUANTITY_UNIT))
+        .where(ManagedPosition.quantity != Quantity.zero(MARKET_DATA_QUANTITY_UNIT).quantize().value)
         .order_by(ManagedPosition.asset_identifier)
     )
     if user_id is not None:

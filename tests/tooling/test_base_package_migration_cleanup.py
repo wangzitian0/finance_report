@@ -182,19 +182,19 @@ def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
 
 
 @ac_proof(
-    proof_id="test_base_package_backend_quantity_adapter_cleanup",
+    proof_id="test_base_package_backend_quantity_value_type_cleanup",
     ac_ids=["AC12.31.7"],
     ci_tier="pr_ci",
 )
-def test_AC12_31_7_backend_quantity_adapters_are_centralized():
-    """AC12.31.7: backend services import package-owned Quantity adapters only."""
+def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
+    """AC12.31.7: backend services hold Quantity objects in business calculations."""
     quantity_api = _read(Path("apps/backend/src/quantity/__init__.py"))
     for helper in [
         "quantized_quantity_value",
         "quantity_is_zero",
         "quantity_zero_value",
     ]:
-        assert helper in quantity_api
+        assert helper not in quantity_api
 
     forbidden_local_adapters = [
         "def _quantity(",
@@ -205,50 +205,64 @@ def test_AC12_31_7_backend_quantity_adapters_are_centralized():
     ]
     for path in BACKEND_QUANTITY_ADAPTER_FILES:
         src = _read(path)
-        assert "from src.quantity import Quantity" not in src, (
-            f"{path} should import service adapters from src.quantity, not the raw type"
+        assert "from src.quantity import Quantity" in src, (
+            f"{path} must use the Quantity value type"
         )
         for needle in forbidden_local_adapters:
             assert needle not in src, (
                 f"{path} still defines local Quantity adapter {needle}"
             )
-        assert "Quantity.zero(" not in src, f"{path} still hand-rolls quantity zero"
+        for helper in [
+            "quantized_quantity_value",
+            "quantity_is_zero",
+            "quantity_zero_value",
+        ]:
+            assert helper not in src, (
+                f"{path} still calls package-level Decimal facade {helper}"
+            )
 
-    assert "from src.quantity import quantity_is_zero" in _read(
-        Path("apps/backend/src/services/assets.py")
+    investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
+    assert (
+        "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
+        in investment
     )
-    assert "quantized_quantity_value(" in _read(
-        Path("apps/backend/src/services/portfolio.py")
+    assert "trade_quantity.is_zero()" in investment
+    assert "quantity=trade_quantity.value" in investment
+    assert "trade_quantity.value * unit_price" in investment
+
+    portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
+    assert (
+        "position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()"
+        in portfolio
     )
-    assert "quantity_zero_value(" in _read(
-        Path("apps/backend/src/services/investment_accounting.py")
+    assert "snapshot_quantity.is_zero()" in portfolio
+
+    reporting = _read(Path("apps/backend/src/services/reporting.py"))
+    assert (
+        "position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()"
+        in reporting
     )
 
 
 @ac_proof(
-    proof_id="test_base_package_backend_quantity_storage_helpers",
+    proof_id="test_base_package_backend_quantity_value_type_storage_edges",
     ac_ids=["AC12.31.7"],
     ci_tier="pr_ci",
 )
-def test_AC12_31_7_backend_quantity_storage_helpers_quantize_and_guard_inputs():
-    """AC12.31.7: backend Quantity storage helpers preserve package semantics."""
+def test_AC12_31_7_backend_quantity_value_type_handles_storage_edges():
+    """AC12.31.7: Quantity itself owns storage-edge rounding and zero semantics."""
     _ensure_backend_src_importable()
 
-    from src.quantity import (
-        FloatNotAllowedError,
-        quantized_quantity_value,
-        quantity_is_zero,
-        quantity_zero_value,
-    )
+    from src.quantity import FloatNotAllowedError, Quantity
 
-    assert quantized_quantity_value(Decimal("1.2345675"), "units") == Decimal(
+    assert Quantity(Decimal("1.2345675"), "units").quantize().value == Decimal(
         "1.234568"
     )
-    assert quantized_quantity_value(1, "units") == Decimal("1.000000")
-    assert quantity_zero_value("units") == Decimal("0.000000")
-    assert quantity_is_zero(Decimal("0.0000004"), "units")
-    assert not quantity_is_zero(Decimal("0.0000005"), "units")
+    assert Quantity(1, "units").quantize().value == Decimal("1.000000")
+    assert Quantity.zero("units").quantize().value == Decimal("0.000000")
+    assert Quantity(Decimal("0.0000004"), "units").quantize().is_zero()
+    assert not Quantity(Decimal("0.0000005"), "units").quantize().is_zero()
     with pytest.raises(FloatNotAllowedError):
-        quantized_quantity_value(0.1, "units")
+        Quantity(0.1, "units")
     with pytest.raises(FloatNotAllowedError):
-        quantity_is_zero(True, "units")
+        Quantity(True, "units")

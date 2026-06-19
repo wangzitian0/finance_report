@@ -91,12 +91,13 @@ return exact `Decimal` storage fields plus their semantic key (`currency` or
 errors (`Invalid*PayloadError` or `FloatNotAllowedError`), giving application
 code one place to audit and translate failures.
 
-Runtime packages may add stack-local service adapters for repeated storage
-edges. For example, backend `src.quantity` owns `quantized_quantity_value`,
-`quantity_is_zero`, and `quantity_zero_value` so services do not each redefine
-local `_quantity*` wrappers around DB `Decimal` fields. These adapters are
-package-owned boundary helpers, not new business primitives and not necessarily
-part of the cross-language `shared_api`.
+Runtime service code should keep the owning value type alive once a raw storage
+field crosses into business logic. For example, backend services should turn a
+quantity DB `Decimal` into `Quantity(value, unit).quantize()`, call methods such
+as `quantity.is_zero()` during calculations, and only use `quantity.value` when
+writing ORM fields or SQL predicates. Moving service-local `_quantity*` wrappers
+into package-level Decimal-to-Decimal helpers is still drift: it hides the value
+type instead of making it the narrow waist.
 
 ### Forbidden raw Decimal zones
 
@@ -107,8 +108,8 @@ service/domain calculations and frontend application code. In those zones:
   `money.convert(Money, ExchangeRate)`;
 - percentage/proportion math must construct `Ratio`;
 - quantity comparisons and quantity arithmetic must construct `Quantity`;
-- repeated DB-field quantization/zero checks must call the package-owned
-  adapter instead of service-local `_quantity*` wrappers;
+- repeated DB-field quantization/zero checks must keep `Quantity` objects in
+  business code and use `.value` only at DB/model/SQL boundaries;
 - frontend app pages/components must not import `decimal.js` types directly;
   they should consume `lib/money`, `lib/ratio`, or `lib/quantity` helpers.
 

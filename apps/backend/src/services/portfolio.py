@@ -22,7 +22,7 @@ from src.models.portfolio import (
     PriceSource,
 )
 from src.money import to_money
-from src.quantity import quantity_is_zero, quantized_quantity_value
+from src.quantity import Quantity
 from src.ratio import Ratio
 from src.schemas.portfolio import (
     HoldingResponse,
@@ -154,7 +154,8 @@ class PortfolioService:
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
             # Calculate market value
-            market_value = quantized_quantity_value(position.quantity, PORTFOLIO_QUANTITY_UNIT) * latest_price
+            position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
+            market_value = position_quantity.value * latest_price
 
             # Convert to base currency if needed
             if position.currency != settings.base_currency:
@@ -262,11 +263,8 @@ class PortfolioService:
 
         holdings: list[HoldingResponse] = []
         for snapshot in snapshots:
-            status = (
-                PositionStatus.DISPOSED
-                if quantity_is_zero(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT)
-                else PositionStatus.ACTIVE
-            )
+            snapshot_quantity = Quantity(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
+            status = PositionStatus.DISPOSED if snapshot_quantity.is_zero() else PositionStatus.ACTIVE
             if status == PositionStatus.DISPOSED and not include_disposed:
                 continue
 
@@ -281,11 +279,8 @@ class PortfolioService:
                 continue
 
             synced_price = await self._get_latest_synced_stock_price(db, snapshot.asset_identifier, as_of_date)
-            if synced_price is not None and not quantity_is_zero(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT):
-                market_value = synced_price.price * quantized_quantity_value(
-                    snapshot.quantity,
-                    PORTFOLIO_QUANTITY_UNIT,
-                )
+            if synced_price is not None and not snapshot_quantity.is_zero():
+                market_value = synced_price.price * snapshot_quantity.value
                 market_value_currency = synced_price.currency
                 cost_basis = position.cost_basis
                 cost_basis_currency = position.currency
@@ -448,7 +443,8 @@ class PortfolioService:
             # disposal_date is guaranteed non-None by the isnot(None) filter above
             assert position.disposal_date is not None
             disposal_price = await self._get_latest_price(db, position, position.disposal_date, user_id)
-            disposal_value = quantized_quantity_value(position.quantity, PORTFOLIO_QUANTITY_UNIT) * disposal_price
+            position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
+            disposal_value = position_quantity.value * disposal_price
 
             # Convert to base currency if needed
             if position.currency != settings.base_currency:
@@ -555,7 +551,8 @@ class PortfolioService:
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
             # Calculate market value
-            market_value = quantized_quantity_value(position.quantity, PORTFOLIO_QUANTITY_UNIT) * latest_price
+            position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
+            market_value = position_quantity.value * latest_price
 
             # Convert to base currency if needed
             if position.currency != settings.base_currency:
@@ -809,11 +806,9 @@ class PortfolioService:
 
         if snapshot:
             # Return per-unit price (market_value is total position value)
-            if not quantity_is_zero(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT):
-                return snapshot.market_value / quantized_quantity_value(
-                    snapshot.quantity,
-                    PORTFOLIO_QUANTITY_UNIT,
-                )
+            snapshot_quantity = Quantity(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
+            if not snapshot_quantity.is_zero():
+                return snapshot.market_value / snapshot_quantity.value
             return snapshot.market_value
 
         # No price data available

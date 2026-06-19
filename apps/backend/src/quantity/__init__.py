@@ -14,9 +14,6 @@ from src.quantity.quantity import (
     QUANTITY_QUANTUM,
     QUANTITY_ROUNDING,
     Quantity,
-    quantity_is_zero,
-    quantity_zero_value,
-    quantized_quantity_value,
 )
 from src.quantity.unit import Unit
 from src.quantity.wire import (
@@ -39,9 +36,6 @@ __all__ = [
     "UnitMismatchError",
     "quantity_from_db_fields",
     "quantity_from_wire",
-    "quantity_is_zero",
     "quantity_to_db_fields",
     "quantity_to_wire",
-    "quantity_zero_value",
-    "quantized_quantity_value",
 ]

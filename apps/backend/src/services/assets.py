@@ -23,7 +23,7 @@ from src.models.layer3 import (
     PositionStatus,
 )
 from src.money import to_money
-from src.quantity import quantity_is_zero
+from src.quantity import Quantity
 from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
@@ -565,7 +565,7 @@ class AssetService:
                         "latest_snapshot_date": snap.snapshot_date.isoformat(),
                     }
 
-                if quantity_is_zero(quantity, ASSET_QUANTITY_UNIT):
+                if Quantity(quantity, ASSET_QUANTITY_UNIT).quantize().is_zero():
                     position.status = PositionStatus.DISPOSED
                     position.disposal_date = snap.snapshot_date
                     result.disposed += 1
@@ -577,7 +577,7 @@ class AssetService:
 
             else:
                 # Create position for non-zero quantities (positive or negative)
-                if not quantity_is_zero(quantity, ASSET_QUANTITY_UNIT):
+                if not Quantity(quantity, ASSET_QUANTITY_UNIT).quantize().is_zero():
                     logger.info("Creating new managed position", asset=snap.asset_identifier)
                     position = ManagedPosition(
                         user_id=user_id,
