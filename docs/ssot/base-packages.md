@@ -53,20 +53,43 @@ logic, code should use the MECE base element that owns the semantics:
 
 ### Allowed raw Decimal boundaries
 
-Raw `Decimal` is allowed only where the surrounding layer is explicitly a
-boundary or test fixture:
+Raw `Decimal` is allowed only as a physical substrate where the surrounding
+layer is explicitly a boundary or test fixture. Hand-written semantic conversion
+at those boundaries must route through the owning base-package codec/adapter,
+not through local `Decimal(str(...))` helpers.
 
 1. **Base packages** — `common/money`, `common/ratio`, `common/quantity` and the
    backend/frontend runtime copies may use `Decimal`/`decimal.js` internally.
 2. **DB models and migrations** — SQLAlchemy `Numeric` columns, Alembic
-   migrations, and repository/query predicates store exact numeric values.
+   migrations, and repository/query predicates store exact numeric values; code
+   that turns storage fields into business values must call the package DB
+   adapters such as `money_from_db_fields`, `ratio_from_db_value`, or
+   `quantity_from_db_fields`.
 3. **Schemas and API contracts** — Pydantic/TypeScript API shapes may expose
-   exact decimals as string-backed fields while preserving existing wire shapes.
+   exact decimals as string-backed fields while preserving existing wire shapes;
+   hand-authored JSON conversion must use the package wire codecs.
 4. **Parser and provider adapters** — OCR, CSV/PDF parsers, market-data
    providers, and import adapters may parse external numbers into raw
-   `Decimal` before handing them to domain services.
+   `Decimal` before handing them to domain services, then immediately cross the
+   boundary through the typed package.
 5. **Tests, fixtures, and generated code** — tests may build exact inputs and
    assert exact outputs; generated API types may mirror the wire contract.
+
+### Boundary codec surface
+
+Each base package owns the codecs that cross storage/wire boundaries:
+
+| Package | JSON / wire codec | DB adapter |
+|---------|-------------------|------------|
+| `money` | `money_to_wire` / `money_from_wire`; `exchange_rate_to_wire` / `exchange_rate_from_wire` | `money_to_db_fields` / `money_from_db_fields`; `exchange_rate_to_db_fields` / `exchange_rate_from_db_fields` |
+| `ratio` | `ratio_to_wire` / `ratio_from_wire` | `ratio_to_db_value` / `ratio_from_db_value` |
+| `quantity` | `quantity_to_wire` / `quantity_from_wire` | `quantity_to_db_fields` / `quantity_from_db_fields` |
+
+Wire codecs serialize decimals as JSON strings, never JSON numbers. DB adapters
+return exact `Decimal` storage fields plus their semantic key (`currency` or
+`unit`) where applicable. Malformed boundary payloads raise typed base-package
+errors (`Invalid*PayloadError` or `FloatNotAllowedError`), giving application
+code one place to audit and translate failures.
 
 ### Forbidden raw Decimal zones
 
@@ -98,7 +121,8 @@ hotspots require an AC/test update that explains the boundary.
    quantity: `Quantity / Quantity -> Ratio`).
 6. **Per-key container** (where applicable) — aggregation that makes cross-key
    summing structurally impossible (money: `CurrencyBalances`).
-7. **Serialization** — to/from the wire as **strings** (never JSON float).
+7. **Serialization + storage adapters** — to/from the wire as **strings**
+   (never JSON float) and to/from exact DB fields through package-owned helpers.
 8. **Typed error hierarchy** — base `XError` → `FloatNotAllowed` / `Invalid…` /
    `…Mismatch`.
 9. **The language-neutral standard** — `contract/<x>.contract.md` (interface) +

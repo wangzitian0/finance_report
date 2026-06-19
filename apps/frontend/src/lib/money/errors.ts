@@ -40,3 +40,11 @@ export class InvalidExchangeRateError extends MoneyError {
     this.name = "InvalidExchangeRateError";
   }
 }
+
+/** A serialized money or exchange-rate payload is missing or malformed. */
+export class InvalidMoneyPayloadError extends MoneyError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidMoneyPayloadError";
+  }
+}

@@ -23,3 +23,10 @@ export class UndefinedRatioError extends RatioError {
     this.name = "UndefinedRatioError";
   }
 }
+
+export class InvalidRatioPayloadError extends RatioError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidRatioPayloadError";
+  }
+}

@@ -10,14 +10,30 @@ Dependency-light (stdlib + Decimal). Contract: ``common/ratio/contract/ratio.con
 
 from __future__ import annotations
 
-from common.ratio.errors import FloatNotAllowedError, RatioError, UndefinedRatioError
+from common.ratio.errors import (
+    FloatNotAllowedError,
+    InvalidRatioPayloadError,
+    RatioError,
+    UndefinedRatioError,
+)
 from common.ratio.ratio import PERCENT_DP, PERCENT_ROUNDING, Ratio
+from common.ratio.wire import (
+    ratio_from_db_value,
+    ratio_from_wire,
+    ratio_to_db_value,
+    ratio_to_wire,
+)
 
 __all__ = [
     "PERCENT_DP",
     "PERCENT_ROUNDING",
     "FloatNotAllowedError",
+    "InvalidRatioPayloadError",
     "Ratio",
     "RatioError",
     "UndefinedRatioError",
+    "ratio_from_db_value",
+    "ratio_from_wire",
+    "ratio_to_db_value",
+    "ratio_to_wire",
 ]

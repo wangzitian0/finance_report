@@ -25,3 +25,10 @@ export class UnitMismatchError extends QuantityError {
     this.name = "UnitMismatchError";
   }
 }
+
+export class InvalidQuantityPayloadError extends QuantityError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidQuantityPayloadError";
+  }
+}

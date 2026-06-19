@@ -25,6 +25,8 @@
 | `compare` | same-unit only; cross-unit ⇒ typed error |
 | `neg` / `abs` / `* scalar` | keeps the same unit |
 | `ratio_to(whole)` / `Quantity / Quantity` | same-unit quantities derive a `Ratio`; zero whole is undefined through `Ratio.fraction` |
+| `quantity_to_wire` / `quantity_from_wire` | JSON boundary; value is a decimal string and unit is a string; JSON numbers are rejected |
+| `quantity_to_db_fields` / `quantity_from_db_fields` | DB boundary for Python/backend code; value is an exact `Decimal`, unit is a string |
 
 ## Invariants
 
@@ -33,6 +35,9 @@
    passed.
 3. **No cross-unit arithmetic** without an explicit future conversion table.
 4. **Quantity ratios are `Ratio`**, not naked Decimal division.
+5. **Boundary codecs are package-owned.** Wire payloads use decimal strings
+   (never JSON numbers); DB adapters expose exact `Decimal` values only at the
+   storage edge. Malformed payloads raise typed quantity errors.
 
 ## Shared API Surface
 
@@ -41,5 +46,6 @@
 `tests/tooling/test_quantity_api_parity.py`:
 
 `Quantity`, `Unit`, `QUANTITY_QUANTUM`, `QUANTITY_DP`, `QUANTITY_ROUNDING`,
-`QuantityError`, `FloatNotAllowedError`, `InvalidUnitError`,
-`UnitMismatchError`.
+`QuantityError`, `FloatNotAllowedError`, `InvalidQuantityPayloadError`,
+`InvalidUnitError`, `UnitMismatchError`, `quantity_to_wire`,
+`quantity_from_wire`.

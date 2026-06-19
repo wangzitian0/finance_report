@@ -13,7 +13,12 @@
     "FloatNotAllowedError",
     "InvalidCurrencyError",
     "InvalidExchangeRateError",
-    "CurrencyMismatchError"
+    "CurrencyMismatchError",
+    "InvalidMoneyPayloadError",
+    "money_to_wire",
+    "money_from_wire",
+    "exchange_rate_to_wire",
+    "exchange_rate_from_wire"
   ],
   "iso4217": [
     "AED",

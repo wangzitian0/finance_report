@@ -28,6 +28,10 @@ def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
         "Schemas and API contracts",
         "Parser and provider adapters",
         "Tests, fixtures, and generated code",
+        "Boundary codec surface",
+        "DB adapters",
+        "package wire codecs",
+        "Invalid*PayloadError",
         "service/domain calculations",
     ]:
         assert phrase in ssot

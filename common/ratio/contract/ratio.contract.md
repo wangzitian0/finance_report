@@ -21,6 +21,8 @@
 | `format_percent(dp=2)` | `"12.50%"` string |
 | `is_zero()` / `isZero()` | typed zero predicate; call-sites should not compare `Ratio` to naked numeric zero |
 | `add`/`sub`/`compare`/`neg`/`*scalar` | dimensionless arithmetic (ratios share one implicit unit) |
+| `ratio_to_wire` / `ratio_from_wire` | JSON boundary; value is a decimal string and JSON numbers are rejected |
+| `ratio_to_db_value` / `ratio_from_db_value` | DB boundary for Python/backend code; value is an exact `Decimal` |
 
 ## Invariants (every end)
 
@@ -31,10 +33,14 @@
 3. **Zero whole is undefined** — `fraction(x, 0)` raises, never silently 0.
 4. **Typed zero checks** — compare ratio values with `Ratio`/`is_zero`, not with
    `0`, `0.0`, or raw `Decimal("0")` at call-sites.
+5. **Boundary codecs are package-owned.** Wire payloads use decimal strings
+   (never JSON numbers); DB adapters expose exact `Decimal` values only at the
+   storage edge. Malformed payloads raise typed ratio errors.
 
 ## Shared API surface (identifier parity)
 
 `vectors.json["shared_api"]` — exported by **both** `apps/backend/src/ratio`
 (`__all__`) and `apps/frontend/src/lib/ratio` (`index.ts`), enforced by
 `tests/tooling/test_ratio_api_parity.py`:
-`Ratio`, `RatioError`, `FloatNotAllowedError`, `PERCENT_DP`, `PERCENT_ROUNDING`.
+`Ratio`, `RatioError`, `FloatNotAllowedError`, `InvalidRatioPayloadError`,
+`PERCENT_DP`, `PERCENT_ROUNDING`, `ratio_to_wire`, `ratio_from_wire`.

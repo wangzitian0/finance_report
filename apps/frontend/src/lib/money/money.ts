@@ -7,7 +7,12 @@
 import Decimal from "decimal.js";
 
 import { Currency } from "./currency";
-import { CurrencyMismatchError, FloatNotAllowedError, InvalidExchangeRateError } from "./errors";
+import {
+  CurrencyMismatchError,
+  FloatNotAllowedError,
+  InvalidExchangeRateError,
+  InvalidMoneyPayloadError,
+} from "./errors";
 
 export { CurrencyMismatchError };
 
@@ -26,6 +31,8 @@ export const DEFAULT_ROUNDING: RoundingName = "ROUND_HALF_EVEN";
 
 /** Amount input: a Decimal or a decimal STRING. Never a JS number (float). */
 export type AmountInput = Decimal | string;
+export type MoneyWire = { amount: string; currency: string };
+export type ExchangeRateWire = { base: string; quote: string; rate: string };
 
 function coerceDecimal(value: Decimal | string, what: string): Decimal {
   let d: Decimal;
@@ -43,6 +50,42 @@ function coerceDecimal(value: Decimal | string, what: string): Decimal {
 
 function coerceAmount(value: AmountInput): Decimal {
   return coerceDecimal(value, "Money amount");
+}
+
+function decimalToWire(value: Decimal): string {
+  return value.isZero() ? "0" : value.toString();
+}
+
+function recordFromWire(payload: unknown, what: string): Record<string, unknown> {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new InvalidMoneyPayloadError(`${what} payload must be an object`);
+  }
+  return payload as Record<string, unknown>;
+}
+
+function stringField(payload: Record<string, unknown>, key: string, what: string): string {
+  const value = payload[key];
+  if (typeof value !== "string") {
+    throw new InvalidMoneyPayloadError(`${what} payload field ${key} must be a string`);
+  }
+  return value;
+}
+
+function decimalStringFromWire(value: unknown, what: string): string {
+  if (typeof value === "number") {
+    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string, not a number`);
+  }
+  if (typeof value !== "string") {
+    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string`);
+  }
+  try {
+    const parsed = new Decimal(value);
+    if (!parsed.isFinite()) throw new FloatNotAllowedError(`${what} must be finite`);
+  } catch (error) {
+    if (error instanceof FloatNotAllowedError) throw error;
+    throw new InvalidMoneyPayloadError(`${what} is not a valid decimal string`);
+  }
+  return value;
 }
 
 /** An immutable amount in a single currency. */
@@ -148,4 +191,36 @@ export function convert(money: Money, rate: ExchangeRate, rounding: RoundingName
     throw new CurrencyMismatchError(`cannot convert ${money.currency.code} with ${rate.base.code}/${rate.quote.code} rate`);
   }
   return new Money(money.amount.times(rate.rate), rate.quote).quantize(rounding);
+}
+
+export function money_to_wire(money: Money): MoneyWire {
+  if (!(money instanceof Money)) {
+    throw new TypeError("money_to_wire expects Money");
+  }
+  return { amount: decimalToWire(money.amount), currency: money.currency.code };
+}
+
+export function money_from_wire(payload: unknown): Money {
+  const fields = recordFromWire(payload, "Money");
+  return new Money(decimalStringFromWire(fields.amount, "Money amount"), stringField(fields, "currency", "Money"));
+}
+
+export function exchange_rate_to_wire(rate: ExchangeRate): ExchangeRateWire {
+  if (!(rate instanceof ExchangeRate)) {
+    throw new TypeError("exchange_rate_to_wire expects ExchangeRate");
+  }
+  return {
+    base: rate.base.code,
+    quote: rate.quote.code,
+    rate: decimalToWire(rate.rate),
+  };
+}
+
+export function exchange_rate_from_wire(payload: unknown): ExchangeRate {
+  const fields = recordFromWire(payload, "ExchangeRate");
+  return new ExchangeRate(
+    stringField(fields, "base", "ExchangeRate"),
+    stringField(fields, "quote", "ExchangeRate"),
+    decimalStringFromWire(fields.rate, "FX rate"),
+  );
 }
