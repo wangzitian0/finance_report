@@ -24,7 +24,7 @@ function coerce(value: RatioInput, what = "ratio value"): Decimal {
 }
 
 function decimalToWire(value: Decimal): string {
-  return value.isZero() ? "0" : value.toString();
+  return value.isZero() ? "0" : value.toFixed().replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 }
 
 function decimalStringFromWire(value: unknown, what = "ratio value"): string {

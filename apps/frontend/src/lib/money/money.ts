@@ -53,7 +53,7 @@ function coerceAmount(value: AmountInput): Decimal {
 }
 
 function decimalToWire(value: Decimal): string {
-  return value.isZero() ? "0" : value.toString();
+  return value.isZero() ? "0" : value.toFixed().replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 }
 
 function recordFromWire(payload: unknown, what: string): Record<string, unknown> {

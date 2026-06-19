@@ -61,6 +61,15 @@ describe("base-package boundary codecs", () => {
     expect(() => quantity_from_wire({ value: "2.5" })).toThrow(InvalidQuantityPayloadError);
   });
 
+  it("test_AC12_31_4_frontend_boundary_codecs_emit_fixed_point_large_decimals", () => {
+    const large = "123456789012345678901234567890.125";
+
+    expect(money_to_wire(new Money(`${large}00`, "usd")).amount).toBe("123456789012345678901234567890.125");
+    expect(exchange_rate_to_wire(new ExchangeRate("usd", "sgd", large)).rate).toBe(large);
+    expect(ratio_to_wire(new Ratio(large))).toBe(large);
+    expect(quantity_to_wire(new Quantity(large, "shares")).value).toBe(large);
+  });
+
   it("test_AC12_31_4_frontend_boundary_codecs_reject_malformed_payloads", () => {
     expect(() => money_from_wire(null)).toThrow(InvalidMoneyPayloadError);
     expect(() => money_from_wire({ amount: true, currency: "USD" })).toThrow(MoneyFloatNotAllowedError);
