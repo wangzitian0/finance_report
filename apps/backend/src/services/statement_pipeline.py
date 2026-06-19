@@ -36,6 +36,14 @@ logger = get_logger(__name__)
 PARSE_DEPLOYMENT = "parse-statement/parse-statement"
 
 
+def _consume_background_task_exception(task: asyncio.Task[None]) -> None:
+    """Retrieve fallback task exceptions after structured telemetry logs them."""
+    try:
+        task.exception()
+    except asyncio.CancelledError:
+        return
+
+
 async def submit_parse_pipeline(
     *,
     statement_id: UUID,
@@ -89,7 +97,7 @@ async def submit_parse_pipeline(
         )
         return None
 
-    return asyncio.create_task(
+    task = asyncio.create_task(
         run_with_async_parse_tracking(
             parse_statement_background(
                 statement_id=statement_id,
@@ -103,6 +111,10 @@ async def submit_parse_pipeline(
                 model=model,
                 session_maker=create_session_maker_from_db(db),
                 request_id=request_id,
-            )
+            ),
+            statement_id=statement_id,
+            request_id=request_id,
         )
     )
+    task.add_done_callback(_consume_background_task_exception)
+    return task

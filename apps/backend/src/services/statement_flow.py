@@ -61,5 +61,7 @@ async def parse_statement_flow(
             model=model,
             session_maker=async_session_maker,
             request_id=request_id,
-        )
+        ),
+        statement_id=statement_id,
+        request_id=request_id,
     )
