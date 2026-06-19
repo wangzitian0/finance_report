@@ -592,3 +592,15 @@ an unknown value is rejected with 422 instead of silently returning an empty lis
 |----|-----------|---------------|------|----------|
 | AC5.36.1 | An unknown `report_type` returns 422 | `test_AC5_36_1_report_snapshots_unknown_type_returns_422` | `api/test_typed_contract_sweep.py` | P2 |
 | AC5.36.2 | A valid `report_type` returns a typed list | `test_AC5_36_2_report_snapshots_valid_type_returns_typed_list` | `api/test_typed_contract_sweep.py` | P2 |
+
+### AC5.37: Trust-First Reports Cockpit ([#1209](https://github.com/wangzitian0/finance_report/issues/1209))
+
+The Reports landing page must answer whether report output is currently
+trustworthy before it presents the report navigation cards. It consumes the
+existing package readiness/source-trust contract and does not duplicate
+readiness derivation or source-trust rules in the frontend.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC5.37.1 | The Reports cockpit renders package readiness state, blocker count, next action, and source-gap summary before report cards | `AC5.37.1 renders trust-first readiness before report cards` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 |
+| AC5.37.2 | If readiness loading fails, the Reports cockpit shows a contained unavailable state while preserving report navigation | `AC5.37.2 preserves report navigation when readiness is unavailable` | `frontend/src/__tests__/reportsCockpit.test.tsx` | P1 |

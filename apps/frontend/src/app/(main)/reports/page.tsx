@@ -6,8 +6,10 @@ import { BarChart2, TrendingUp, DollarSign, FileText, CalendarClock, ShieldCheck
 
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/money";
+import { Badge, type BadgeVariant } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
-import type { AnnualizedIncomeResponse, ReconciliationStatsResponse } from "@/lib/types";
+import { reportPeriodStart } from "@/hooks/usePersonalReportPackage";
+import type { AnnualizedIncomeResponse, PersonalReportPackageReadinessResponse, ReconciliationStatsResponse } from "@/lib/types";
 
 // The four reports an everyday user reads (EPIC-022 AC22.3.1). Everything else
 // lives behind "More" (AC22.3.2).
@@ -16,9 +18,69 @@ const MORE_REPORTS = [
     { id: "personal-package", title: "Personal Report Package", description: "Stable package contract for statements, schedules, notes, and traceability", icon: FileText, href: "/reports/package" },
 ];
 
+type ReadinessLoadState = "loading" | "loaded" | "error";
+
+const SOURCE_CLASS_LABELS: Record<string, string> = {
+    bank_statement: "Bank statements",
+    brokerage_statement: "Brokerage statements",
+    settlement_note: "Settlement notes",
+    esop_rsu_plan: "ESOP / RSU plans",
+    property_statement: "Property statements",
+    liability_statement: "Liability statements",
+    csv_export: "CSV exports",
+    manual_record: "Manual records",
+};
+
+function packageReadinessQuery(): string {
+    const reportDate = new Date().toISOString().slice(0, 10);
+    const params = new URLSearchParams({
+        start_date: reportPeriodStart(reportDate),
+        end_date: reportDate,
+        as_of_date: reportDate,
+    });
+    return `?${params.toString()}`;
+}
+
+function countLabel(count: number, singular: string, plural = `${singular}s`) {
+    return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function sourceClassLabel(sourceClass: string): string {
+    return SOURCE_CLASS_LABELS[sourceClass] ?? sourceClass.replaceAll("_", " ");
+}
+
+function readinessVariant(state?: PersonalReportPackageReadinessResponse["state"]): BadgeVariant {
+    switch (state) {
+        case "ready":
+        case "generated":
+            return "success";
+        case "blocked":
+        case "stale":
+            return "error";
+        case "processing":
+            return "warning";
+        case "draft":
+        default:
+            return "muted";
+    }
+}
+
+function isPackageReadiness(value: unknown): value is PersonalReportPackageReadinessResponse {
+    const candidate = value as Partial<PersonalReportPackageReadinessResponse> | null;
+    return Boolean(
+        candidate &&
+        typeof candidate.label === "string" &&
+        typeof candidate.action_href === "string" &&
+        typeof candidate.blocking_count === "number" &&
+        Array.isArray(candidate.blockers),
+    );
+}
+
 export default function ReportsPage() {
     const [annualized, setAnnualized] = useState<AnnualizedIncomeResponse | null>(null);
     const [stats, setStats] = useState<ReconciliationStatsResponse | null>(null);
+    const [readiness, setReadiness] = useState<PersonalReportPackageReadinessResponse | null>(null);
+    const [readinessState, setReadinessState] = useState<ReadinessLoadState>("loading");
     const [showMore, setShowMore] = useState(false);
 
     useEffect(() => {
@@ -29,6 +91,26 @@ export default function ReportsPage() {
         apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats")
             .then((data) => active && setStats(data))
             .catch(() => active && setStats(null));
+        apiFetch<PersonalReportPackageReadinessResponse>(`/api/reports/package/readiness${packageReadinessQuery()}`)
+            .then((data) => {
+                if (!isPackageReadiness(data)) {
+                    if (active) {
+                        setReadiness(null);
+                        setReadinessState("error");
+                    }
+                    return;
+                }
+                if (active) {
+                    setReadiness(data);
+                    setReadinessState("loaded");
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    setReadiness(null);
+                    setReadinessState("error");
+                }
+            });
         return () => {
             active = false;
         };
@@ -44,6 +126,8 @@ export default function ReportsPage() {
                 <h1 className="page-title">Reports</h1>
                 <p className="page-description">The four reports you read most. Open one to drill any amount down to its source transactions.</p>
             </div>
+
+            <ReportsReadinessCockpit readiness={readiness} loadState={readinessState} />
 
             <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
                 <ReportNavCard title="Balance Sheet" description="Assets, liabilities, and equity at a point in time" icon={BarChart2} href="/reports/balance-sheet" />
@@ -97,6 +181,127 @@ export default function ReportsPage() {
                 <p className="text-center text-xs text-muted mt-3">All financial reports maintain this fundamental balance</p>
             </div>
         </div>
+    );
+}
+
+function ReportsReadinessCockpit({
+    readiness,
+    loadState,
+}: {
+    readiness: PersonalReportPackageReadinessResponse | null;
+    loadState: ReadinessLoadState;
+}) {
+    const sourceTrust = readiness?.source_trust_summary;
+    const gapClasses = sourceTrust?.gap_source_classes ?? [];
+    const sourceClassCount = sourceTrust?.source_classes.length ?? 0;
+    const blockers = readiness?.blockers ?? [];
+
+    if (loadState === "error") {
+        return (
+            <section aria-label="Report readiness cockpit" className="card p-5 mb-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <h2 className="font-semibold">Report readiness</h2>
+                        <p className="mt-2 text-sm text-muted">
+                            Readiness unavailable. Report navigation stays available, but trust status should be checked before relying on output.
+                        </p>
+                    </div>
+                    <Badge variant="warning">Readiness unavailable</Badge>
+                </div>
+                <Link href="/reports/package" className="btn-secondary mt-4 inline-flex text-sm">
+                    Open report package
+                </Link>
+            </section>
+        );
+    }
+
+    if (loadState === "loading" || !readiness) {
+        return (
+            <section aria-label="Report readiness cockpit" className="card p-5 mb-6" aria-busy="true">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <h2 className="font-semibold">Report readiness</h2>
+                        <p className="mt-2 text-sm text-muted">Checking report readiness before showing trust status.</p>
+                    </div>
+                    <Badge variant="muted">Checking</Badge>
+                </div>
+            </section>
+        );
+    }
+
+    return (
+        <section aria-label="Report readiness cockpit" className="card p-5 mb-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <h2 className="font-semibold">Report readiness</h2>
+                    <p className="mt-2 text-sm text-muted">
+                        {readiness.state === "blocked"
+                            ? `${countLabel(readiness.blocking_count, "blocker")} must be resolved before reports are trusted.`
+                            : `Current package state is ${readiness.label.toLowerCase()}.`}
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={readinessVariant(readiness.state)}>{readiness.label}</Badge>
+                    <Link href={readiness.action_href} className="btn-secondary text-sm">
+                        {readiness.blocking_count > 0 ? "Resolve report blockers" : "Open readiness path"}
+                    </Link>
+                </div>
+            </div>
+
+            <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
+                <div>
+                    <dt className="text-xs text-muted">Readiness</dt>
+                    <dd className="mt-1 font-semibold">{readiness.label}</dd>
+                </div>
+                <div>
+                    <dt className="text-xs text-muted">Blockers</dt>
+                    <dd className="mt-1 font-semibold">{countLabel(readiness.blocking_count, "blocker")}</dd>
+                </div>
+                <div>
+                    <dt className="text-xs text-muted">Source classes</dt>
+                    <dd className="mt-1 font-semibold">{countLabel(sourceClassCount, "class", "classes")}</dd>
+                </div>
+                <div>
+                    <dt className="text-xs text-muted">Trust gaps</dt>
+                    <dd className="mt-1 font-semibold">{countLabel(gapClasses.length, "trust gap")}</dd>
+                </div>
+            </dl>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                <div className="rounded border border-[var(--border)] p-3">
+                    <h3 className="text-sm font-semibold">Source gaps</h3>
+                    {gapClasses.length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {gapClasses.map((sourceClass) => (
+                                <Badge key={sourceClass} variant="warning">
+                                    {sourceClassLabel(sourceClass)}
+                                </Badge>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="mt-2 text-sm text-muted">No source gaps reported.</p>
+                    )}
+                </div>
+                <div className="rounded border border-[var(--border)] p-3">
+                    <h3 className="text-sm font-semibold">Blocking actions</h3>
+                    {blockers.length ? (
+                        <ul className="mt-3 space-y-3">
+                            {blockers.slice(0, 2).map((blocker) => (
+                                <li key={blocker.code}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <p className="text-sm font-medium">{blocker.label}</p>
+                                        <Badge variant="muted">{blocker.count}</Badge>
+                                    </div>
+                                    <p className="mt-1 text-xs text-muted">{blocker.reason}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="mt-2 text-sm text-muted">No blockers reported.</p>
+                    )}
+                </div>
+            </div>
+        </section>
     );
 }
 
