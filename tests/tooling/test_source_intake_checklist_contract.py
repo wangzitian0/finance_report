@@ -52,9 +52,7 @@ def _extract_source_intake_item_ids(source: str) -> list[str]:
     return re.findall(r'\bid: "([^"]+)"', items_block.group(1))
 
 
-def test_AC19_15_1_AC19_15_2_issue_1233_source_intake_checklist_matches_source_coverage_matrix() -> (
-    None
-):
+def test_AC19_15_issue_1233_source_intake_matches_ssot_matrix() -> None:
     """AC19.15.1 AC19.15.2: Checklist classes must stay aligned with SSOT."""
     ssot_required = _source_coverage_required_classes()
     checklist_source = CHECKLIST.read_text(encoding="utf-8")
