@@ -96,7 +96,7 @@ describe("StatementsPage", () => {
       if (url.startsWith("/api/statements/") && options?.method === "DELETE") {
         return resolveQueued(deleteQueue, undefined)
       }
-      return Promise.resolve({})
+      return Promise.reject(new Error(`Unexpected apiFetch call: ${url}`))
     })
   }
 
@@ -166,7 +166,10 @@ describe("StatementsPage", () => {
       expect(within(screen.getByTestId("source-intake-manual_record")).getByText("Needs source")).toBeInTheDocument(),
     )
     expect(within(screen.getByTestId("source-intake-bank_statement")).getByText("Import supported")).toBeInTheDocument()
-    expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/reports/package/readiness?"))
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/reports/package/readiness?"),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
 
   it("AC22.5.x surfaces a parsed statement as ready-to-review with a direct review deep-link", async () => {

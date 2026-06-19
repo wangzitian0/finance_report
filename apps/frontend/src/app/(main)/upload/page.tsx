@@ -82,20 +82,23 @@ export default function UploadPage() {
     }, [fetchStatements]);
 
     useEffect(() => {
-        let active = true;
+        const controller = new AbortController();
 
         apiFetch<PersonalReportPackageReadinessResponse>(
             `/api/reports/package/readiness${packageReadinessQuery()}`,
+            { signal: controller.signal },
         )
             .then((readiness) => {
-                if (active) setSourceTrustSummary(readiness.source_trust_summary);
+                setSourceTrustSummary(readiness.source_trust_summary);
             })
-            .catch(() => {
-                if (active) setSourceTrustSummary(undefined);
+            .catch((err) => {
+                if (!(err instanceof DOMException && err.name === "AbortError")) {
+                    setSourceTrustSummary(undefined);
+                }
             });
 
         return () => {
-            active = false;
+            controller.abort();
         };
     }, []);
 
