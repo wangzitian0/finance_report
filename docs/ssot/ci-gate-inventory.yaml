@@ -258,12 +258,12 @@ gates:
     workflow: .github/workflows/notify-infra2-report-main.yml
     job: dispatch
     owner: .github/workflows/notify-infra2-report-main.yml#dispatch
-    triggers: [push, workflow_dispatch]
+    triggers: [workflow_run, workflow_dispatch]
     blocks_workflow: false
-    inputs: [main_sha]
+    inputs: [successful_main_ci_sha]
     outputs: [infra2_repository_dispatch]
     artifacts: []
-    failure_semantics: App main push could not notify infra2 to redeploy the report-branch-main preview (INFRA2_PAT missing/expired or repository_dispatch did not return HTTP 204).
+    failure_semantics: Successful app main CI could not notify infra2 to redeploy the report-branch-main preview guarded by the exact completed SHA (INFRA2_PAT missing/expired, stale CI completion skipped, or repository_dispatch did not return HTTP 204).
     action: keep
   - id: pr_test.setup
     category: classify

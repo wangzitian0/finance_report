@@ -418,6 +418,7 @@ job inventories or scenario counts into this EPIC.
 | AC8.13.143 | Main CI automatically opens or updates a reviewed baseline PR when `unified-coverage.json` rises, while PR CI keeps the committed no-regression gate and no new required status context is introduced | `test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
 | AC8.13.144 | Production release rolls back through deploy_v2 to the pre-deploy production version and confirms health when a post-deploy route, infrastructure, smoke, or read-only E2E gate fails after mutation | `test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 | AC8.13.145 | Backend Tier-1 API E2E keeps PR fail-fast for speed but push/main runs the full Tier-1 suite so the JUnit artifact reports every failing API journey in one run | `test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures` | `tests/tooling/test_post_merge_e2e_gates.py` | P1 |
+| AC8.13.146 | The report-branch-main auto preview dispatch runs only after successful main CI publishes SHA images, skips stale workflow_run completions, and infra2 deploy_v2 refuses to deploy branch-form `main` unless it resolves to the exact payload SHA | `test_AC8_13_146_report_main_dispatch_waits_for_ci_images` | `tests/tooling/test_post_merge_e2e_gates.py` | P0 |
 
 ### AC8.14: Product Trust Proof Mirrors
 

@@ -356,6 +356,13 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Staging checks out the dispatched release `tag` and deploys that exact tag. Staging is a pre-prod canary: approx prod, only slightly ahead.
 - Staging deploy context artifacts record run metadata, the release tag, the checked-out commit SHA, image names, pre-deploy staging version, and structured failure domain, failed step, and failure summary. Early failures are split between checkout/tag resolution, classification normalization, uv/Python/deploy_v2 dependency setup, deploy_v2 rollout/effective-config verification, public route health, E2E setup, and application smoke/E2E without manually scraping the raw job log first. The classifier fails closed: a failed classification step is never reported as `not-required`, and an unexpected failed step is reported as `unclassified-build-deploy-failure` rather than `none`.
 - Main CI builds SHA-tagged images. `release-images.yml` promotes main-CI SHA images to the immutable release tag (`:vX.Y.Z`) with `docker buildx imagetools create --prefer-index=false` and verifies promoted digests; staging deploy consumes the release tag without rebuilding, retagging, or moving a `staging` tag. The commit image tag is exactly the first 7 hex characters of the release commit (`sha7`); deployment workflows must not rely on Git's adaptive `--short` length.
+- The report-branch-main preview is the only automatic main-following preview.
+  Its app-side sender runs after successful `CI` `workflow_run`, not directly on
+  `push`, so backend/frontend SHA images have been published before infra2 is
+  notified. The infra2 receiver passes branch-form `main` to `deploy_v2` and
+  requires that resolution to match the exact completed CI SHA from the
+  `repository_dispatch` payload, preventing newer in-progress main pushes from
+  racing GHCR image publication.
 - Deploy health covers deploy_v2/Dokploy rollout, effective-config verification, `/api/health`, shell smoke checks, and core non-LLM E2E.
 - Runtime incident classification for route, dependency, observability, secrets, stale-version, and flapping failures is owned by [runtime-incident-response.md](./runtime-incident-response.md). This CI/CD SSOT owns where the gates run and what they block, not the shared incident playbooks.
 - The fixed staging/prod deploy path uses the infra2 Python Dokploy client. It reports method, endpoint, HTTP status, and reason phrase on API failures, but never raw response bodies, auth headers, or full environment payloads.
