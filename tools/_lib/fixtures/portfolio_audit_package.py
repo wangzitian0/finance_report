@@ -71,7 +71,8 @@ class PortfolioAuditFixture:
                     if position.currency == "SGD"
                 ),
                 Decimal("0.00"),
-            )
+            ),
+            currency="SGD",
         )
 
 
@@ -219,7 +220,8 @@ PORTFOLIO_AUDIT_FIXTURE = PortfolioAuditFixture(
         reporting_market_value_sgd=money_amount(
             _MARKET_VALUE_BY_CURRENCY["SGD"]
             + _MARKET_VALUE_BY_CURRENCY["USD"] * Decimal("1.35")
-            + _MARKET_VALUE_BY_CURRENCY["HKD"] * Decimal("0.17")
+            + _MARKET_VALUE_BY_CURRENCY["HKD"] * Decimal("0.17"),
+            currency="SGD",
         ),
     ),
 )

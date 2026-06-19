@@ -62,6 +62,16 @@ def test_AC12_31_5_money_fixture_helpers_route_through_base_package():
             f"{path} still hand-rolls money quantization"
         )
 
+    portfolio_audit_fixture = _read(
+        Path("tools/_lib/fixtures/portfolio_audit_package.py")
+    )
+    assert (
+        "report_package_market_value_sgd(self) -> Decimal:\n        return money_amount("
+        in portfolio_audit_fixture
+    )
+    assert "reporting_market_value_sgd=money_amount(" in portfolio_audit_fixture
+    assert portfolio_audit_fixture.count('currency="SGD"') >= 2
+
 
 @ac_proof(
     proof_id="test_base_package_frontend_percent_cleanup",
