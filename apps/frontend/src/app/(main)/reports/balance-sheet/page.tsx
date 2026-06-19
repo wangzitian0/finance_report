@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
@@ -37,7 +38,9 @@ export default function BalanceSheetPage() {
   const { asOfDate, setAsOfDate, currency, setCurrency } = useReportFilters({
     reportType: "balance-sheet",
   });
-  const [includeRestricted, setIncludeRestricted] = useState(false);
+  const searchParams = useSearchParams();
+  const includeRestrictedParam = searchParams.get("include_restricted");
+  const [includeRestricted, setIncludeRestricted] = useState(includeRestrictedParam === "true");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
@@ -74,6 +77,10 @@ export default function BalanceSheetPage() {
 
   const exportPath = `/api/reports/export?report_type=balance-sheet&format=csv&${queryString}`;
   const aiPrompt = useMemo(() => `Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`, [asOfDate, currency]);
+
+  useEffect(() => {
+    setIncludeRestricted(includeRestrictedParam === "true");
+  }, [includeRestrictedParam]);
 
   const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
