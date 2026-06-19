@@ -21,3 +21,7 @@ class FloatNotAllowedError(RatioError, TypeError):
 
 class UndefinedRatioError(RatioError, ZeroDivisionError):
     """A ratio was requested from a zero whole (``part / 0`` is undefined)."""
+
+
+class InvalidRatioPayloadError(RatioError, ValueError):
+    """A serialized ratio payload is missing or malformed."""

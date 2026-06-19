@@ -37,3 +37,7 @@ class CurrencyMismatchError(MoneyError, ValueError):
 
 class InvalidExchangeRateError(MoneyError, ValueError):
     """An exchange rate is zero, negative, non-finite, or otherwise invalid."""
+
+
+class InvalidMoneyPayloadError(MoneyError, ValueError):
+    """A serialized money or exchange-rate payload is missing or malformed."""

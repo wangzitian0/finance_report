@@ -5,7 +5,7 @@
 
 import Decimal from "decimal.js";
 
-import { FloatNotAllowedError, UndefinedRatioError } from "./errors";
+import { FloatNotAllowedError, InvalidRatioPayloadError, UndefinedRatioError } from "./errors";
 
 export const PERCENT_DP = 2;
 // Canonical percent-display rounding — finance convention, deliberately NOT
@@ -14,12 +14,34 @@ export const PERCENT_ROUNDING: Decimal.Rounding = Decimal.ROUND_HALF_UP;
 
 /** Ratio input: a Decimal or a decimal STRING. Never a JS number (float). */
 export type RatioInput = Decimal | string;
+export type RatioWire = string;
 
 function coerce(value: RatioInput, what = "ratio value"): Decimal {
   if (value instanceof Decimal) return value;
   if (typeof value === "string") return new Decimal(value);
   // Deliberately reject `number` (and anything else) — JS numbers are floats.
   throw new FloatNotAllowedError(`${what} must be a Decimal or decimal string, not a number`);
+}
+
+function decimalToWire(value: Decimal): string {
+  return value.isZero() ? "0" : value.toFixed().replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+}
+
+function decimalStringFromWire(value: unknown, what = "ratio value"): string {
+  if (typeof value === "number") {
+    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string, not a number`);
+  }
+  if (typeof value !== "string") {
+    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string`);
+  }
+  try {
+    const parsed = new Decimal(value);
+    if (!parsed.isFinite()) throw new FloatNotAllowedError(`${what} must be finite`);
+  } catch (error) {
+    if (error instanceof FloatNotAllowedError) throw error;
+    throw new InvalidRatioPayloadError(`${what} is not a valid decimal string`);
+  }
+  return value;
 }
 
 /** An immutable dimensionless ratio (`0.125` == 12.5%). */
@@ -81,4 +103,15 @@ export class Ratio {
   toString(): string {
     return this.formatPercent();
   }
+}
+
+export function ratio_to_wire(ratio: Ratio): RatioWire {
+  if (!(ratio instanceof Ratio)) {
+    throw new TypeError("ratio_to_wire expects Ratio");
+  }
+  return decimalToWire(ratio.value);
+}
+
+export function ratio_from_wire(value: unknown): Ratio {
+  return new Ratio(decimalStringFromWire(value));
 }

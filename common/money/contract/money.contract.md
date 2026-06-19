@@ -32,6 +32,10 @@
 | `equals` | cross-currency compares **unequal**, never an implicit collapse |
 | `quantize(rounding)` | 2 dp; default **banker's rounding** (`ROUND_HALF_EVEN`) |
 | `convert(money, exchange_rate, rounding)` | the **single** FX primitive; `exchange_rate.base` must equal `money.currency`; result currency is `exchange_rate.quote`; quantized at the 2-dp boundary |
+| `money_to_wire` / `money_from_wire` | JSON boundary; amount is a decimal string and currency is an ISO-4217 string; JSON numbers are rejected |
+| `exchange_rate_to_wire` / `exchange_rate_from_wire` | JSON boundary for directed FX rates; rate is a decimal string; JSON numbers are rejected |
+| `money_to_db_fields` / `money_from_db_fields` | DB boundary for Python/backend code; amount is an exact `Decimal`, currency is a string |
+| `exchange_rate_to_db_fields` / `exchange_rate_from_db_fields` | DB boundary for Python/backend code; rate is an exact `Decimal`, base/quote are strings |
 | per-currency balances | a container with **no scalar accessor** — a multi-currency balance cannot collapse onto one currency |
 
 ## Invariants that must hold on every end
@@ -43,6 +47,9 @@
 3. **No cross-currency arithmetic** without an explicit `convert` and typed
    `ExchangeRate`; a naked Decimal rate is not a conversion boundary.
 4. **Currencies are validated ISO-4217**, not bare strings.
+5. **Boundary codecs are package-owned.** Wire payloads use decimal strings
+   (never JSON numbers); DB adapters expose exact `Decimal` fields only at the
+   storage edge. Malformed payloads raise typed money errors.
 
 Conformance to 1–4 (for the deterministic cases) is enforced by the vectors; the
 construction-rejection laws are enforced by each stack's own unit tests against
@@ -58,9 +65,11 @@ be exported by **both** `apps/backend/src/money` (`__all__`) and
 
 `Money`, `Currency`, `ExchangeRate`, `convert`, `ISO_4217_CODES`,
 `MONEY_QUANTUM`, `MoneyError`, `FloatNotAllowedError`,
-`InvalidCurrencyError`, `InvalidExchangeRateError`, `CurrencyMismatchError`.
+`InvalidCurrencyError`, `InvalidExchangeRateError`, `CurrencyMismatchError`,
+`InvalidMoneyPayloadError`, `money_to_wire`, `money_from_wire`,
+`exchange_rate_to_wire`, `exchange_rate_from_wire`.
 
 Intentionally **per-end** (NOT part of the shared surface): backend-only
-`to_money`, `CurrencyBalance(s)`, the `adopt` helpers; frontend-only display
-formatters (`formatCurrencyLocale`, …) and the loose Decimal helpers
+`to_money`, `CurrencyBalance(s)`, DB field adapters, the `adopt` helpers;
+frontend-only display formatters (`formatCurrencyLocale`, …) and the loose Decimal helpers
 (`sumAmounts`, …) inherited from the former `lib/currency`.

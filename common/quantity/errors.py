@@ -17,3 +17,7 @@ class InvalidUnitError(QuantityError, ValueError):
 
 class UnitMismatchError(QuantityError, ValueError):
     """An operation combined quantities with different units."""
+
+
+class InvalidQuantityPayloadError(QuantityError, ValueError):
+    """A serialized quantity payload is missing or malformed."""

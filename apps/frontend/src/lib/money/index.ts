@@ -10,6 +10,7 @@ export {
   FloatNotAllowedError,
   InvalidCurrencyError,
   InvalidExchangeRateError,
+  InvalidMoneyPayloadError,
   CurrencyMismatchError,
 } from "./errors";
 export { Currency, normalizeCurrency } from "./currency";
@@ -21,7 +22,13 @@ export {
   MONEY_QUANTUM,
   MONEY_DP,
   DEFAULT_ROUNDING,
+  exchange_rate_from_wire,
+  exchange_rate_to_wire,
+  money_from_wire,
+  money_to_wire,
   type AmountInput,
+  type ExchangeRateWire,
+  type MoneyWire,
   type RoundingName,
 } from "./money";
 // Display/formatting + Decimal helpers (consolidated from the former lib/currency.ts,

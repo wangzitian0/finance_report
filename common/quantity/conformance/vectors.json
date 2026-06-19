@@ -12,7 +12,10 @@
     "QuantityError",
     "FloatNotAllowedError",
     "InvalidUnitError",
-    "UnitMismatchError"
+    "UnitMismatchError",
+    "InvalidQuantityPayloadError",
+    "quantity_to_wire",
+    "quantity_from_wire"
   ],
   "unit_normalize": [
     {"input": " shares ", "expected": "shares"},
