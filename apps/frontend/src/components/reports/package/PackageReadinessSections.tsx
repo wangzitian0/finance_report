@@ -153,7 +153,7 @@ export function PackageSourceTrustSection({
   ];
 
   return (
-    <section id="package-source-trust" className="card p-5 mb-6" aria-label="Source trust summary">
+    <section id="package-source-trust" className="card p-5 mb-6" aria-label="Evidence Coverage">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold">Evidence Coverage</h2>
@@ -261,7 +261,7 @@ export function PackageFrameworkPolicySection({
                   <p className="mt-1 text-sm text-muted">{decision.classification}</p>
                 </div>
                 <span className="badge badge-muted">
-                  Accepted
+                  {decision.review_state === "accepted" ? "Accepted" : humanizeIdentifier(decision.review_state)}
                 </span>
               </div>
               <p className="mt-3 text-sm text-muted">{decision.presentation}</p>

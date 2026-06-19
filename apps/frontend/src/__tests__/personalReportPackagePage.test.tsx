@@ -582,13 +582,20 @@ function expectPackageDates(path: string, reportDate: string, startDate: string)
 }
 
 function expectInsideClosedAuditDetails(text: string | RegExp) {
-  const node = screen.getAllByText(text)[0];
-  expect(node).toBeDefined();
-  const details = node.closest("details");
+  const details = screen
+    .getAllByText(text)
+    .map((node) => node.closest("details"))
+    .find((candidate): candidate is HTMLDetailsElement =>
+      candidate instanceof HTMLDetailsElement &&
+      Boolean(within(candidate).queryByText(/audit details/i)),
+    );
+  if (!details) {
+    throw new Error(`Expected ${String(text)} inside closed audit details.`);
+  }
   expect(details).not.toBeNull();
   expect(details).not.toHaveAttribute("open");
-  expect(within(details as HTMLElement).getByText(/audit details/i)).toBeInTheDocument();
-  return details as HTMLElement;
+  expect(within(details).getByText(/audit details/i)).toBeInTheDocument();
+  return details;
 }
 
 describe("PersonalReportPackagePage", () => {
@@ -1391,6 +1398,7 @@ describe("PersonalReportPackagePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
     expect(await screen.findByRole("heading", { name: "Evidence Coverage" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Evidence Coverage" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Traceability Summary" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Framework Policy" })).not.toBeInTheDocument();
@@ -1404,6 +1412,44 @@ describe("PersonalReportPackagePage", () => {
     expectInsideClosedAuditDetails("Framework Policy Result");
     expectInsideClosedAuditDetails("unsupported_policy_domain");
     expectInsideClosedAuditDetails("pending_review");
+  });
+
+  it("AC22.19.1 humanizes review states in the reader-first package layer", async () => {
+    mockPackageApi(readiness, {
+      ...frameworkPolicy,
+      decisions: [
+        {
+          ...frameworkPolicy.decisions[0],
+          domain: "manual_private_asset",
+          classification: "Private asset.",
+          presentation: "Private asset presentation.",
+          review_state: "pending_review",
+        },
+      ],
+    }, {
+      ...traceabilityAppendix,
+      status: "pending_review",
+    });
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    const policyLabel = await screen.findByText("Manual Private Asset");
+    const policyArticle = policyLabel.closest("article");
+    if (!(policyArticle instanceof HTMLElement)) {
+      throw new Error("Expected framework policy decision article.");
+    }
+    expect(within(policyArticle).getByText("Pending Review")).toBeInTheDocument();
+    expect(within(policyArticle).queryByText("pending_review")).not.toBeInTheDocument();
+
+    const traceabilityHeading = screen.getByRole("heading", { name: "Traceability Summary" });
+    const traceabilitySection = traceabilityHeading.closest("section");
+    if (!(traceabilitySection instanceof HTMLElement)) {
+      throw new Error("Expected traceability section.");
+    }
+    expect(within(traceabilitySection).getAllByText("Pending Review").length).toBeGreaterThanOrEqual(1);
+    expect(within(traceabilitySection).queryByText("pending_review")).not.toBeInTheDocument();
   });
 
   it("AC22.19.2 keeps proof and policy internals in keyboard-reachable audit details", async () => {

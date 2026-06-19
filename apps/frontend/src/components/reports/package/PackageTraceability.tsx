@@ -33,7 +33,7 @@ export function PackageTraceabilitySection({
           <h2 className="font-semibold">Traceability Summary</h2>
         </div>
         <span className="badge badge-muted">
-          {appendix.status}
+          {humanizeIdentifier(appendix.status)}
         </span>
       </div>
       <dl className="mt-5 grid gap-3 text-sm md:grid-cols-3">
