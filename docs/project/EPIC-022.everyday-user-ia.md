@@ -431,3 +431,21 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 | AC22.19.1 | The loaded report package uses reader-facing labels for evidence coverage, reporting basis, and traceability summary, with proof-system labels such as `Deterministic PR`, `Post-merge LLM/OCR`, `Framework Policy`, raw gap codes, raw blocker codes, and policy result IDs kept out of the primary visible layer | `personalReportPackagePage.test.tsx` | P1 |
 | AC22.19.2 | Explicit `Audit details` disclosures keep the same source-trust, framework-policy, traceability, blocker, matrix-version, line-id, confidence, review-state, and evidence-reference details keyboard reachable and screen-reader comprehensible | `personalReportPackagePage.test.tsx` | P1 |
 | AC22.19.3 | Print/save and export metadata default to the reader-first hierarchy; raw CSV columns, policy result IDs, matrix version, and evidence bundle references are available only in an explicit audit/export-details disclosure | `personalReportPackagePage.test.tsx` | P1 |
+
+### AC22.20 — Mobile Add To Home Screen Foundation
+
+> #1247 follow-up slice. The authenticated shell already advertises basic
+> install metadata, but mobile installation is not yet a product-owned
+> experience: Android/Chromium users get no app-level install entry, iOS users
+> need explicit Add to Home Screen guidance, and the manifest still launches via
+> the legacy `/dashboard` redirect. This slice centralizes the compatibility
+> handling in frontend infrastructure so business pages stay untouched. Offline
+> financial-data caching, push notifications, badging, background sync, and
+> native-app packaging remain out of scope.
+
+| AC ID | Description | Verification | Priority |
+|---|---|---|---|
+| AC22.20.1 | The install manifest uses the canonical `/` app launch route, stable app identity, standalone display, and required 192/512/apple icon metadata without relying on the legacy `/dashboard` redirect | `pwaInstall.test.tsx` | P1 |
+| AC22.20.2 | The shared install hook captures Android/Chromium `beforeinstallprompt`, suppresses the browser's automatic prompt until the app-level action, invokes `prompt()`, and records dismissals so business pages do not handle install events | `pwaInstall.test.tsx` | P1 |
+| AC22.20.3 | The global app-shell install prompt renders an Android install action when a deferred prompt is available and renders iOS Add to Home Screen guidance when the browser cannot provide a programmatic prompt | `pwaInstall.test.tsx` | P1 |
+| AC22.20.4 | Installed or standalone sessions hide the install prompt, and the app shell uses safe-area-aware standalone styling for home-screen launch without page-level changes | `pwaInstall.test.tsx`, `designTokens.test.tsx` | P1 |

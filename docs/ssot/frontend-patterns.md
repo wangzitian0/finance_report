@@ -199,6 +199,23 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
   the required Playwright smoke path for app shell, accounts, statements, and
   review surfaces.
 
+### Mobile Install Baseline
+
+- The authenticated app shell owns Add to Home Screen / install prompting through
+  `components/pwa/InstallAppPrompt.tsx` and `hooks/usePwaInstall.ts`; business pages must not listen for `beforeinstallprompt` or render page-local install prompts.
+- Android/Chromium installability uses the `beforeinstallprompt` event: the hook
+  prevents the browser's automatic prompt, stores the deferred event, and exposes
+  one app-level install action.
+- iOS and iPadOS do not expose a programmatic install prompt, so the app shell
+  renders Share -> Add to Home Screen guidance instead of trying to synthesize a
+  browser prompt.
+- Installed sessions, `display-mode: standalone`, and iOS `navigator.standalone`
+  must suppress install UI.
+- `public/site.webmanifest` must launch at `/`, not a redirected legacy route,
+  and must keep the 192x192, 512x512, and Apple touch icon metadata.
+- `app/globals.css` owns `.pwa-safe-area-shell` so home-screen launches use
+  `env(safe-area-inset-*)` padding without page-level layout changes.
+
 ### Applied In
 
 - `app/(main)/accounts/page.tsx`

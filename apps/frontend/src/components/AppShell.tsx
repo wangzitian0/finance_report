@@ -5,6 +5,7 @@ import { WorkspaceProvider, useWorkspace } from "@/hooks/useWorkspace";
 import { useSessionBootstrap } from "@/hooks/useSessionBootstrap";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
+import { InstallAppPrompt } from "@/components/pwa/InstallAppPrompt";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
 import { ToastProvider } from "@/components/ui/Toast";
 import { WorkflowNotificationCenter } from "@/components/workflow/WorkflowNotifications";
@@ -20,7 +21,7 @@ function AppShellContent({ children }: AppShellProps) {
     useSessionBootstrap();
 
     return (
-        <div className="min-h-screen">
+        <div className="pwa-safe-area-shell min-h-screen">
             <a
                 href="#main-content"
                 className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-toast focus:rounded-control focus:bg-surface-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-content focus:shadow-floating focus:outline-none focus:ring-2 focus:ring-accent"
@@ -43,6 +44,7 @@ function AppShellContent({ children }: AppShellProps) {
                     </div>
                     <WorkflowNotificationCenter />
                 </div>
+                <InstallAppPrompt />
 
                 <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-4rem)]">
                     {children}
