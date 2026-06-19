@@ -13,6 +13,7 @@ interface ConflictCandidate {
 }
 
 type ResolveAction = "confirm_distinct" | "link_transfer";
+type CandidateGroup = "duplicate" | "transfer";
 
 interface ConflictResolutionDialogProps {
     isOpen: boolean;
@@ -37,6 +38,9 @@ export function ConflictResolutionDialog({
     useFocusTrap(dialogRef, isOpen);
 
     if (!isOpen) return null;
+
+    const candidateKey = (group: CandidateGroup, candidate: ConflictCandidate, index: number) =>
+        `${group}-${candidate.id}-${index}`;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -78,8 +82,8 @@ export function ConflictResolutionDialog({
                                         Duplicate Candidates
                                     </h3>
                                     <div className="space-y-2">
-                                        {duplicateCandidates.map((c) => (
-                                            <div key={c.id} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
+                                        {duplicateCandidates.map((c, index) => (
+                                            <div key={candidateKey("duplicate", c, index)} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
                                                 <div className="text-sm">
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>
@@ -105,8 +109,8 @@ export function ConflictResolutionDialog({
                                         Transfer Pair Candidates
                                     </h3>
                                     <div className="space-y-2">
-                                        {transferPairCandidates.map((c) => (
-                                            <div key={c.id} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
+                                        {transferPairCandidates.map((c, index) => (
+                                            <div key={candidateKey("transfer", c, index)} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
                                                 <div className="text-sm">
                                                     <div className="font-medium">{c.description}</div>
                                                     <div className="text-xs text-muted">{c.txn_date} • {c.amount}</div>

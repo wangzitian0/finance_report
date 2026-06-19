@@ -264,6 +264,7 @@ class TestMain:
 
         with patch(
             "tools._lib.market_data.seed_fx_rates.seed_fx_rates",
+            new=MagicMock(return_value=object()),
         ):
             with patch("tools._lib.market_data.seed_fx_rates.asyncio.run") as mock_run:
                 seed_fx_rates.main()
@@ -276,11 +277,18 @@ class TestMain:
         """Given seed_fx_rates raises, should print error and sys.exit(1)."""
         monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "local"])
 
-        with patch("tools._lib.market_data.seed_fx_rates.asyncio.run", side_effect=RuntimeError("DB down")):
+        with (
+            patch(
+                "tools._lib.market_data.seed_fx_rates.seed_fx_rates",
+                new=MagicMock(return_value=object()),
+            ) as mock_seed,
+            patch("tools._lib.market_data.seed_fx_rates.asyncio.run", side_effect=RuntimeError("DB down")),
+        ):
             with pytest.raises(SystemExit) as exc:
                 seed_fx_rates.main()
 
         assert exc.value.code == 1
+        mock_seed.assert_called_once_with("local")
         captured = capsys.readouterr()
         assert "❌ Error seeding FX rates" in captured.out
 
@@ -288,7 +296,10 @@ class TestMain:
         """Given no --env flag, should default to 'local'."""
         monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py"])
         with (
-            patch("tools._lib.market_data.seed_fx_rates.seed_fx_rates") as mock_seed,
+            patch(
+                "tools._lib.market_data.seed_fx_rates.seed_fx_rates",
+                new=MagicMock(return_value=object()),
+            ) as mock_seed,
             patch("tools._lib.market_data.seed_fx_rates.asyncio.run") as mock_run,
         ):
             seed_fx_rates.main()
@@ -299,8 +310,16 @@ class TestMain:
         """Given --env staging, should pass 'staging' to seed_fx_rates."""
         monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "staging"])
 
-        with patch("tools._lib.market_data.seed_fx_rates.asyncio.run") as mock_run:
+        with (
+            patch(
+                "tools._lib.market_data.seed_fx_rates.seed_fx_rates",
+                new=MagicMock(return_value=object()),
+            ) as mock_seed,
+            patch("tools._lib.market_data.seed_fx_rates.asyncio.run") as mock_run,
+        ):
             seed_fx_rates.main()
 
+        mock_seed.assert_called_once_with("staging")
+        mock_run.assert_called_once()
         captured = capsys.readouterr()
         assert "staging" in captured.out

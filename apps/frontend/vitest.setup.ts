@@ -5,6 +5,39 @@ import * as matchers from '@testing-library/jest-dom/matchers'
 
 expect.extend(matchers)
 
+type HappyDomFetchInterceptor = {
+  beforeAsyncRequest?: (event: { request: Request; window: Window & typeof globalThis }) => Response | null | undefined | Promise<Response | null | undefined>
+}
+
+type HappyDomGlobal = Window & typeof globalThis & {
+  happyDOM?: {
+    settings: {
+      fetch: {
+        interceptor?: HappyDomFetchInterceptor
+      }
+    }
+  }
+}
+
+const happyDom = (window as HappyDomGlobal).happyDOM
+const existingFetchInterceptor = happyDom?.settings.fetch.interceptor
+
+if (happyDom) {
+  happyDom.settings.fetch.interceptor = {
+    ...(existingFetchInterceptor ?? {}),
+    async beforeAsyncRequest(event) {
+      if (event.request.url.startsWith("blob:")) {
+        return new event.window.Response("", {
+          status: 200,
+          headers: { "Content-Type": "application/pdf" },
+        })
+      }
+
+      return existingFetchInterceptor?.beforeAsyncRequest?.(event)
+    },
+  }
+}
+
 function createQueryClient() {
   return new QueryClient({
     defaultOptions: {

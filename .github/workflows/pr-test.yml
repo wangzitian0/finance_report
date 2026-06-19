@@ -73,7 +73,7 @@ jobs:
       pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}
       pr_preview_reason: ${{ steps.preview_gate.outputs.pr_preview_reason }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Determine params
         id: info
@@ -231,7 +231,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Deploy preview lifecycle (build from source on Dokploy host)
         id: deploy
@@ -259,7 +259,7 @@ jobs:
 
       - name: Upload preview deploy context
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-preview-deploy-context
           path: ci-context/
@@ -349,7 +349,7 @@ jobs:
       APP_URL: http://localhost:8080
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.setup.outputs.head_sha }}
           submodules: recursive
@@ -456,7 +456,7 @@ jobs:
 
       - name: Upload PR preview test context
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-preview-test-context
           path: |
@@ -544,7 +544,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Cleanup preview lifecycle
         id: cleanup
@@ -582,7 +582,7 @@ jobs:
 
       - name: Upload PR preview cleanup context
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-preview-cleanup-context
           path: ci-context/pr-preview-cleanup-context.txt
