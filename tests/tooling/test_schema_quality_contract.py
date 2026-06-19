@@ -78,7 +78,8 @@ def test_retire_bank_statement_migration_normalizes_uppercase_source_type_drift(
 
     source = read("apps/backend/migrations/versions/0040_retire_bank_stmt_source.py")
 
-    assert "WHEN source_type::text = 'bank_statement' THEN 'auto_parsed'" in source
+    assert "lower(source_type::text) = 'bank_statement'" in source
+    assert "WHEN lower(source_type::text) = 'bank_statement' THEN 'auto_parsed'" in source
     assert "ELSE lower(source_type::text)" in source
 
 
