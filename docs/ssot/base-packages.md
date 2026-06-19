@@ -40,7 +40,51 @@ Nothing else currently qualifies — see the per-domain verdicts in the #1167
 audit (date/period, confidence scoring, source-type, lineage, attention are app
 logic or presentation, not base packages).
 
-## 3. The canonical structure (every base package has these)
+## 3. Raw Decimal boundary policy
+
+`Decimal` is the storage/interchange substrate for exact numeric values; it is
+not, by itself, a business value type. Once a value crosses into service/domain
+logic, code should use the MECE base element that owns the semantics:
+
+- `Money` for currency amounts and same-currency arithmetic;
+- `ExchangeRate` inside `money` for directed cross-currency conversion;
+- `Ratio` for dimensionless proportions, percentages, and shares of a whole;
+- `Quantity` for shares, units, lots, contracts, and quantity comparisons.
+
+### Allowed raw Decimal boundaries
+
+Raw `Decimal` is allowed only where the surrounding layer is explicitly a
+boundary or test fixture:
+
+1. **Base packages** — `common/money`, `common/ratio`, `common/quantity` and the
+   backend/frontend runtime copies may use `Decimal`/`decimal.js` internally.
+2. **DB models and migrations** — SQLAlchemy `Numeric` columns, Alembic
+   migrations, and repository/query predicates store exact numeric values.
+3. **Schemas and API contracts** — Pydantic/TypeScript API shapes may expose
+   exact decimals as string-backed fields while preserving existing wire shapes.
+4. **Parser and provider adapters** — OCR, CSV/PDF parsers, market-data
+   providers, and import adapters may parse external numbers into raw
+   `Decimal` before handing them to domain services.
+5. **Tests, fixtures, and generated code** — tests may build exact inputs and
+   assert exact outputs; generated API types may mirror the wire contract.
+
+### Forbidden raw Decimal zones
+
+Raw `Decimal` is forbidden as naked business semantics in migrated
+service/domain calculations and frontend application code. In those zones:
+
+- money math must construct `Money`, and cross-currency conversion must call
+  `money.convert(Money, ExchangeRate)`;
+- percentage/proportion math must construct `Ratio`;
+- quantity comparisons and quantity arithmetic must construct `Quantity`;
+- frontend app pages/components must not import `decimal.js` types directly;
+  they should consume `lib/money`, `lib/ratio`, or `lib/quantity` helpers.
+
+Legacy code that has not yet crossed this boundary must be either migrated or
+kept behind a narrow, documented adapter. New raw-`Decimal` service/application
+hotspots require an AC/test update that explains the boundary.
+
+## 4. The canonical structure (every base package has these)
 
 1. **Value type** — immutable/frozen, Decimal-backed, carries its unit; **rejects
    `float`** at construction.
@@ -65,7 +109,7 @@ logic or presentation, not base packages).
 11. **Three guards** — no-`float` (the money narrow-waist guard), one conformance
     suite per stack, and identifier-parity (`test_<x>_api_parity.py`).
 
-## 4. Why per-end copies (not one shared runtime)
+## 5. Why per-end copies (not one shared runtime)
 
 The frontend is TypeScript and cannot import the Python package; the deployed
 images do not ship `common/`. So the **standard** (contract + conformance

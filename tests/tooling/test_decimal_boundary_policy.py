@@ -1,0 +1,86 @@
+"""Decimal boundary-policy guards (EPIC-012 AC12.31)."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from common.testing.ac_proof import ac_proof
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+def _read(path: Path) -> str:
+    return (REPO / path).read_text(encoding="utf-8")
+
+
+@ac_proof(
+    proof_id="test_decimal_boundary_policy", ac_ids=["AC12.31.1"], ci_tier="pr_ci"
+)
+def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
+    """AC12.31.1: raw Decimal is an explicit boundary, not domain semantics."""
+    ssot = _read(Path("docs/ssot/base-packages.md"))
+    for phrase in [
+        "Raw Decimal boundary policy",
+        "Allowed raw Decimal boundaries",
+        "Forbidden raw Decimal zones",
+        "DB models and migrations",
+        "Schemas and API contracts",
+        "Parser and provider adapters",
+        "Tests, fixtures, and generated code",
+        "service/domain calculations",
+    ]:
+        assert phrase in ssot
+
+    fx = _read(Path("apps/backend/src/services/fx.py"))
+    assert (
+        "from src.money import ExchangeRate, Money, MoneyError, convert as convert_money"
+        in fx
+    )
+    assert "ExchangeRate(source, target, rate)" in fx
+    assert "Money(amount, source)" in fx
+    assert "except MoneyError as exc:" in fx
+    assert "raise FxRateError(" in fx
+    assert "return amount * rate" not in fx
+
+
+@ac_proof(
+    proof_id="test_decimal_boundary_migrated_hotspots",
+    ac_ids=["AC12.31.3"],
+    ci_tier="pr_ci",
+)
+def test_AC12_31_3_migrated_hotspots_use_base_packages():
+    """AC12.31.3: migrated money/quantity/frontend hotspots stay behind base packages."""
+    quantity_service_files = [
+        Path("apps/backend/src/services/assets.py"),
+        Path("apps/backend/src/services/investment_accounting.py"),
+        Path("apps/backend/src/services/market_data.py"),
+        Path("apps/backend/src/services/reporting.py"),
+    ]
+    naked_quantity_zero = re.compile(
+        r"(?:quantity|remaining_quantity)\s*(?:==|!=|>|<|>=|<=)\s*Decimal\(\"0(?:\.0+)?\"\)"
+    )
+    for path in quantity_service_files:
+        src = _read(path)
+        assert "from src.quantity import Quantity" in src, f"{path} must use Quantity"
+        assert not naked_quantity_zero.search(src), (
+            f"{path} has a naked Decimal quantity-zero comparison"
+        )
+
+    reporting = _read(Path("apps/backend/src/services/reporting.py"))
+    assert "position.quantity * latest_price" not in reporting
+    assert "def _quantity_value(" in reporting
+
+    investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
+    assert "trade_quantity = _quantized_quantity(quantity)" in investment
+    assert "amount = _money(quantity * unit_price" not in investment
+    assert "proceeds = _money(quantity * unit_price" not in investment
+    assert "lot.remaining_quantity * lot.unit_cost" not in investment
+    assert "consumed_quantity" in investment
+
+    frontend_app_leaks: list[str] = []
+    for path in (REPO / "apps/frontend/src/app").rglob("*.[tj]sx"):
+        src = path.read_text(encoding="utf-8")
+        if 'import("decimal.js").Decimal' in src:
+            frontend_app_leaks.append(str(path.relative_to(REPO)))
+    assert frontend_app_leaks == []

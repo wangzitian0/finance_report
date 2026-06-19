@@ -32,6 +32,7 @@ from src.models.layer3 import (
 )
 from src.money import to_money
 from src.money.adopt import restate, restate_unrounded
+from src.quantity import Quantity
 from src.ratio import Ratio
 from src.schemas.provenance import DataProvenance
 from src.services import fx
@@ -75,12 +76,17 @@ from src.services.reporting_calc import (
 logger = get_logger(__name__)
 
 _REPORT_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
+REPORTING_QUANTITY_UNIT = "units"
 _ALLOCATION_METADATA_KEYS = {
     "source_currency",
     "allocation_asset_class",
     "allocation_liquidity_class",
     "allocation_source_type",
 }
+
+
+def _quantity_value(value: Decimal) -> Decimal:
+    return Quantity(value, REPORTING_QUANTITY_UNIT).quantize().value
 
 
 def _build_account_lines(
@@ -802,7 +808,7 @@ async def _portfolio_market_basis_by_account(
             )
             continue
 
-        market_value = position.quantity * latest_price
+        market_value = _quantity_value(position.quantity) * latest_price
         cost_basis = position.cost_basis
         source_currency = position.currency.upper()
         if source_currency != target_currency:
