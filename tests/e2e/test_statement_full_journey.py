@@ -30,6 +30,7 @@ APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS: int = int(os.getenv("PARSING_TIMEOUT_MS", "120000"))
 
 INSTITUTION_LABEL: str = "DBS E2E Full Journey"
+PARSED_STATUS_BADGE_RE = re.compile(r"^(Parsed|Ready to review)$", re.I)
 
 
 def _get_url(path: str) -> str:
@@ -38,6 +39,15 @@ def _get_url(path: str) -> str:
 
 def _statement_row(page: Page, institution: str):
     return page.locator(".relative.block").filter(has_text=institution).first
+
+
+def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label() -> None:
+    """EPIC-003 EPIC-004 EPIC-008 EPIC-009 EPIC-013 EPIC-016 EPIC-018.
+
+    Parsed upload rows may use the user-facing review label.
+    """
+    assert PARSED_STATUS_BADGE_RE.search("Parsed")
+    assert PARSED_STATUS_BADGE_RE.search("Ready to review")
 
 
 def _get_dbs_pdf_path() -> Path:
@@ -166,7 +176,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     statement_row = _statement_row(page, INSTITUTION_LABEL)
     await expect(statement_row).to_be_visible(timeout=15_000)
 
-    parsed_badge = statement_row.locator("span.badge", has_text=re.compile(r"^Parsed$", re.I))
+    parsed_badge = statement_row.locator("span.badge", has_text=PARSED_STATUS_BADGE_RE)
     rejected_badge = statement_row.locator("span.badge", has_text=re.compile(r"^Rejected$", re.I))
     # Poll the statement API by ID until parsed, but fail fast with the stored
     # validation error if the AI/OCR provider rejects parsing.

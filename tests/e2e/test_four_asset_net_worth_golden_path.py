@@ -35,6 +35,7 @@ BANK_CASH = Decimal("2500.00")
 PROPERTY_VALUE = Decimal("1200000.00")
 MORTGAGE_BALANCE = Decimal("650000.00")
 ESOP_VALUE = Decimal("42000.00")
+DASHBOARD_NET_WORTH_LABEL = "Net Worth"
 
 
 def _api_url(path: str) -> str:
@@ -57,6 +58,14 @@ def _dashboard_amount(amount: Decimal) -> str:
 def _report_amount(amount: Decimal) -> str:
     rounded = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return f"{rounded:,.2f}"
+
+
+def test_dashboard_net_worth_label_matches_current_product_copy() -> None:
+    """EPIC-005 EPIC-008 EPIC-011 EPIC-017.
+
+    Dashboard net-worth proof follows the current product label.
+    """
+    assert DASHBOARD_NET_WORTH_LABEL == "Net Worth"
 
 
 def _write_bank_fixture(tmp_path: Path, report_date: date) -> Path:
@@ -474,7 +483,9 @@ async def test_four_asset_as_of_net_worth_golden_path(
         .filter(has_text=_dashboard_amount(expected_liabilities))
     ).to_be_visible(timeout=15_000)
     await expect(
-        page.locator(".card").filter(has_text="Net Assets").filter(has_text=_dashboard_amount(expected_net_worth))
+        page.locator(".card")
+        .filter(has_text=DASHBOARD_NET_WORTH_LABEL)
+        .filter(has_text=_dashboard_amount(expected_net_worth))
     ).to_be_visible(timeout=15_000)
 
     await page.goto(

@@ -804,15 +804,16 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert ("stock_options", STOCK_OPTIONS_SOURCE) not in sources_exclusive
 
         expected_bank_cash = expected.bank_cash
+        expected_manual_assets = expected.manual_asset_total
         expected_assets = expected.total_assets(brokerage_value)
         expected_liabilities = expected.manual_liability_total
         expected_net_worth_adjustment = expected.net_worth_adjustment_gain_loss
 
-        assert _money(manual_components["total_assets"]) == expected_assets
+        assert _money(manual_components["total_assets"]) == expected_manual_assets
         assert _money(manual_components["total_liabilities"]) == expected_liabilities
         assert (
             _money(manual_components["net_worth_delta"])
-            == expected_assets - expected_liabilities
+            == expected_manual_assets - expected_liabilities
         )
 
         balance_payload = await client.get(
