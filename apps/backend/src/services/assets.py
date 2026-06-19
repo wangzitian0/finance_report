@@ -545,6 +545,7 @@ class AssetService:
             )
             pos_res = await db.execute(pos_query)
             position = pos_res.scalar_one_or_none()
+            snapshot_quantity = Quantity(quantity, ASSET_QUANTITY_UNIT).quantize()
 
             if position:
                 quantity_changed = position.quantity != quantity
@@ -565,7 +566,7 @@ class AssetService:
                         "latest_snapshot_date": snap.snapshot_date.isoformat(),
                     }
 
-                if Quantity(quantity, ASSET_QUANTITY_UNIT).quantize().is_zero():
+                if snapshot_quantity.is_zero():
                     position.status = PositionStatus.DISPOSED
                     position.disposal_date = snap.snapshot_date
                     result.disposed += 1
@@ -577,7 +578,7 @@ class AssetService:
 
             else:
                 # Create position for non-zero quantities (positive or negative)
-                if not Quantity(quantity, ASSET_QUANTITY_UNIT).quantize().is_zero():
+                if not snapshot_quantity.is_zero():
                     logger.info("Creating new managed position", asset=snap.asset_identifier)
                     position = ManagedPosition(
                         user_id=user_id,
