@@ -13,8 +13,9 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
 import type { BadgeVariant } from "@/components/ui";
+import { reportPeriodStart } from "@/hooks/usePersonalReportPackage";
 import { apiFetch } from "@/lib/api";
-import { BankStatement, BankStatementListResponse } from "@/lib/types";
+import { BankStatement, BankStatementListResponse, PersonalReportPackageReadinessResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/money";
 
 // Plain-language status for everyday users. "parsed" means the AI finished and
@@ -36,6 +37,20 @@ function statusDisplay(status: string): { label: string; variant: BadgeVariant }
     }
 }
 
+type SourceTrustSummary = NonNullable<
+    PersonalReportPackageReadinessResponse["source_trust_summary"]
+>;
+
+function packageReadinessQuery(): string {
+    const reportDate = new Date().toISOString().slice(0, 10);
+    const params = new URLSearchParams({
+        start_date: reportPeriodStart(reportDate),
+        end_date: reportDate,
+        as_of_date: reportDate,
+    });
+    return `?${params.toString()}`;
+}
+
 export default function UploadPage() {
     const { showToast } = useToast();
     const router = useRouter();
@@ -45,6 +60,7 @@ export default function UploadPage() {
     const [polling, setPolling] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
+    const [sourceTrustSummary, setSourceTrustSummary] = useState<SourceTrustSummary | undefined>();
 
     const fetchStatements = useCallback(async () => {
         try {
@@ -64,6 +80,27 @@ export default function UploadPage() {
     useEffect(() => {
         fetchStatements();
     }, [fetchStatements]);
+
+    useEffect(() => {
+        const controller = new AbortController();
+
+        apiFetch<PersonalReportPackageReadinessResponse>(
+            `/api/reports/package/readiness${packageReadinessQuery()}`,
+            { signal: controller.signal },
+        )
+            .then((readiness) => {
+                setSourceTrustSummary(readiness.source_trust_summary);
+            })
+            .catch((err) => {
+                if (!(err instanceof DOMException && err.name === "AbortError")) {
+                    setSourceTrustSummary(undefined);
+                }
+            });
+
+        return () => {
+            controller.abort();
+        };
+    }, []);
 
     useEffect(() => {
         if (!polling) return;
@@ -114,7 +151,7 @@ export default function UploadPage() {
             </div>
 
             <div className="mb-6">
-                <SourceIntakeChecklist />
+                <SourceIntakeChecklist sourceTrustSummary={sourceTrustSummary} />
             </div>
 
             {/* Upload Section */}
