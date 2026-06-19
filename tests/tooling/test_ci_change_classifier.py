@@ -197,7 +197,6 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
         "tools/_lib/dev/pr_preview_lifecycle.py",
-        "tools/_lib/dev/cleanup_pr_preview_resources.py",
     ):
         assert is_pr_preview_relevant(path) is True
 

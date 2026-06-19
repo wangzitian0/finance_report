@@ -1,29 +1,19 @@
-"""AC8.13.38 AC8.13.74: legacy cleanup no longer owns host hygiene."""
+"""AC8.13.38 AC8.13.74: legacy cleanup entrypoint is fully retired."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from tools._lib.dev import cleanup_pr_preview_resources as cleanup
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_AC8_13_38_legacy_cleanup_entrypoint_is_deprecated(
-    capsys,
-) -> None:
-    assert cleanup.main(["--host", "cloud.zitian.party", "--dry-run"]) == 2
-
-    err = capsys.readouterr().err
-    assert "tools/cleanup_pr_preview_resources.py is deprecated" in err
-    assert "tools/pr_preview_lifecycle.py --action reconcile" in err
-    assert "tools/vps_host_hygiene.py" in err
-    assert "--ensure-dokploy-schedule" in err
-    assert "no longer performs SSH cleanup" in err
+def test_AC8_13_38_legacy_cleanup_entrypoints_are_removed() -> None:
+    assert not (ROOT / "tools/cleanup_pr_preview_resources.py").exists()
+    assert not (ROOT / "tools/_lib/dev/cleanup_pr_preview_resources.py").exists()
 
 
-def test_AC8_13_38_legacy_cleanup_has_no_host_hygiene_commands() -> None:
-    module = (ROOT / "tools/_lib/dev/cleanup_pr_preview_resources.py").read_text()
+def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
+    module = (ROOT / "tools/_lib/dev/pr_preview_lifecycle.py").read_text()
 
     assert "docker builder prune" not in module
     assert "docker image prune" not in module

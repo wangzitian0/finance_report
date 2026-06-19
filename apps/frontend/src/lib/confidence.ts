@@ -27,16 +27,6 @@ export function parseProportion(value: string | null | undefined): number | null
   return ratioNumberFromRatioValue(value);
 }
 
-/**
- * Format a Decimal proportion string (e.g. "0.12500") as a percentage label
- * (e.g. "12.5%"). Proportions arrive as strings to preserve precision, so we
- * parse with Number only at the display boundary. A non-finite or missing
- * value renders as an em dash rather than "NaN%".
- */
-export function formatProportionPercent(value: string, decimals = 1): string {
-  return formatPercentFromRatioValue(value, { dp: decimals });
-}
-
 export type TrendDirection = "down" | "up" | "flat";
 
 export interface TrendDelta {
@@ -103,8 +93,8 @@ export interface ReplaySummary {
 export function summarizeReplay(replay: CorrectionLoopReplayResponse): ReplaySummary {
   return {
     reduced: replay.reduced,
-    before: formatProportionPercent(replay.proportion_before),
-    after: formatProportionPercent(replay.proportion_after),
+    before: formatPercentFromRatioValue(replay.proportion_before, { dp: 1 }),
+    after: formatPercentFromRatioValue(replay.proportion_after, { dp: 1 }),
     hasHoldout: replay.holdout_size > 0,
   };
 }

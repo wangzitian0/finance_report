@@ -717,11 +717,13 @@ Reports are generated in a single base currency (user configurable, default: SGD
   `net_worth_adjustment_gain_loss`, and `equation_delta`.
 
 ```python
+from src.money import ExchangeRate, Money, convert, to_money
+
 def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) -> Decimal:
     if currency == target:
-        return amount
+        return to_money(amount)
     rate = get_fx_rate(currency, target, date)
-    return (amount * rate).quantize(Decimal("0.01"))
+    return convert(Money(amount, currency), ExchangeRate(currency, target, rate)).amount
 ```
 
 ### Balance Sheet Net Worth Sources

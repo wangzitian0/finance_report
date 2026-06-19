@@ -121,3 +121,36 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
     performance_report = _read(Path("apps/backend/src/services/performance_report.py"))
     assert "percentage=_percent(row.percentage)" in performance_report
     assert "percentage=_money(row.percentage)" not in performance_report
+
+
+@ac_proof(
+    proof_id="test_base_package_confidence_percent_wrapper_retired",
+    ac_ids=["AC12.31.6"],
+    ci_tier="pr_ci",
+)
+def test_AC12_31_6_confidence_percent_wrapper_is_retired():
+    """AC12.31.6: confidence UI calls Ratio formatting directly, with no local percent facade."""
+    confidence = _read(Path("apps/frontend/src/lib/confidence.ts"))
+    confidence_test = _read(Path("apps/frontend/src/__tests__/confidence.test.ts"))
+    page = _read(Path("apps/frontend/src/app/(main)/confidence/page.tsx"))
+
+    assert "formatProportionPercent" not in confidence
+    assert "formatProportionPercent" not in confidence_test
+    assert "formatProportionPercent" not in page
+    assert "formatPercentFromRatioValue(replay.proportion_before, { dp: 1 })" in confidence
+    assert "formatPercentFromRatioValue(current.low_confidence_proportion, { dp: 1 })" in page
+
+
+@ac_proof(
+    proof_id="test_base_package_ssot_fx_examples_use_money_exchange_rate",
+    ac_ids=["AC12.31.6"],
+    ci_tier="pr_ci",
+)
+def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
+    """AC12.31.6: SSOT examples teach the base-package FX primitive, not Decimal math."""
+    for path in [Path("docs/ssot/market_data.md"), Path("docs/ssot/reporting.md")]:
+        src = _read(path)
+        assert "ExchangeRate(" in src, f"{path} must show typed FX rates"
+        assert "Money(" in src, f"{path} must show typed money conversion"
+        assert "amount * rate).quantize" not in src
+        assert "amount_sgd * fx_rate" not in src

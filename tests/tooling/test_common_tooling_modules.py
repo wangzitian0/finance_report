@@ -152,10 +152,6 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
         ("tools.sanitize_fixtures", "tools._lib.fixtures.sanitize_fixtures"),
         ("tools.seed_fx_rates", "tools._lib.market_data.seed_fx_rates"),
         ("tools.cleanup_orphaned_dbs", "tools._lib.dev.cleanup_orphaned_dbs"),
-        (
-            "tools.cleanup_pr_preview_resources",
-            "tools._lib.dev.cleanup_pr_preview_resources",
-        ),
         ("tools.pr_preview_lifecycle", "tools._lib.dev.pr_preview_lifecycle"),
         ("tools.vps_host_hygiene", "tools._lib.dev.vps_host_hygiene"),
         ("tools.cli", "tools._lib.dev.cli"),
