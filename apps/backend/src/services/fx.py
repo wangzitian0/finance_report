@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.logger import get_logger
 from src.models import FxRate
-from src.money import ExchangeRate, Money, convert as convert_money
+from src.money import ExchangeRate, Money, MoneyError, convert as convert_money
 
 logger = get_logger(__name__)
 
@@ -88,7 +88,10 @@ def _append_fx_warning(fx_warnings: list[FxWarning] | None, warning: FxWarning) 
 
 
 def _convert_money_amount(amount: Decimal, source: str, target: str, rate: Decimal) -> Decimal:
-    return convert_money(Money(amount, source), ExchangeRate(source, target, rate)).amount
+    try:
+        return convert_money(Money(amount, source), ExchangeRate(source, target, rate)).amount
+    except MoneyError as exc:
+        raise FxRateError(f"Invalid FX conversion boundary for {source}/{target}: {exc}") from exc
 
 
 async def get_exchange_rate(

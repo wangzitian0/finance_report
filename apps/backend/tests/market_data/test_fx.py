@@ -604,6 +604,19 @@ async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
     assert typed_rate == ExchangeRate("USD", "SGD", Decimal("1.200000"))
 
 
+@pytest.mark.no_db
+async def test_convert_amount_wraps_invalid_currency_as_fx_rate_error(monkeypatch: pytest.MonkeyPatch):
+    """Legacy/provider rate rows with non-ISO codes should not leak Money errors."""
+
+    async def fake_get_exchange_rate(*args, **kwargs) -> Decimal:
+        return Decimal("60000.000000")
+
+    monkeypatch.setattr(fx_service, "get_exchange_rate", fake_get_exchange_rate)
+
+    with pytest.raises(FxRateError, match="Invalid FX conversion boundary"):
+        await convert_amount(None, Decimal("0.50"), "BTC", "USD", date(2025, 1, 1))  # type: ignore[arg-type]
+
+
 async def test_get_exchange_rate_same_currency(db: AsyncSession):
     result = await get_exchange_rate(db, "usd", "USD", date(2025, 1, 1))
     assert result == Decimal("1")

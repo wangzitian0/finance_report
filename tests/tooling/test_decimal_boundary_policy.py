@@ -33,9 +33,14 @@ def test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced():
         assert phrase in ssot
 
     fx = _read(Path("apps/backend/src/services/fx.py"))
-    assert "from src.money import ExchangeRate, Money, convert as convert_money" in fx
+    assert (
+        "from src.money import ExchangeRate, Money, MoneyError, convert as convert_money"
+        in fx
+    )
     assert "ExchangeRate(source, target, rate)" in fx
     assert "Money(amount, source)" in fx
+    assert "except MoneyError as exc:" in fx
+    assert "raise FxRateError(" in fx
     assert "return amount * rate" not in fx
 
 
