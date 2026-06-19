@@ -62,14 +62,6 @@ class DepreciationResult:
     salvage_value: Decimal
 
 
-def _quantity(value: Decimal) -> Quantity:
-    return Quantity(value, ASSET_QUANTITY_UNIT)
-
-
-def _quantity_is_zero(value: Decimal) -> bool:
-    return _quantity(value).quantize() == Quantity.zero(ASSET_QUANTITY_UNIT)
-
-
 @dataclass
 class ValuationComponentItem:
     """Latest manual valuation component included in net worth views."""
@@ -553,6 +545,7 @@ class AssetService:
             )
             pos_res = await db.execute(pos_query)
             position = pos_res.scalar_one_or_none()
+            snapshot_quantity = Quantity(quantity, ASSET_QUANTITY_UNIT).quantize()
 
             if position:
                 quantity_changed = position.quantity != quantity
@@ -573,7 +566,7 @@ class AssetService:
                         "latest_snapshot_date": snap.snapshot_date.isoformat(),
                     }
 
-                if _quantity_is_zero(quantity):
+                if snapshot_quantity.is_zero():
                     position.status = PositionStatus.DISPOSED
                     position.disposal_date = snap.snapshot_date
                     result.disposed += 1
@@ -585,7 +578,7 @@ class AssetService:
 
             else:
                 # Create position for non-zero quantities (positive or negative)
-                if not _quantity_is_zero(quantity):
+                if not snapshot_quantity.is_zero():
                     logger.info("Creating new managed position", asset=snap.asset_identifier)
                     position = ManagedPosition(
                         user_id=user_id,

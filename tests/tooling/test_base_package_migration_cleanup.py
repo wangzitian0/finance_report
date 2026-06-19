@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import re
+import sys
+from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
@@ -36,9 +39,26 @@ BACKEND_MONEY_ADAPTER_FILES = [
     Path("apps/backend/src/services/performance_report.py"),
 ]
 
+BACKEND_QUANTITY_ADAPTER_FILES = [
+    Path("apps/backend/src/services/assets.py"),
+    Path("apps/backend/src/services/investment_accounting.py"),
+    Path("apps/backend/src/services/market_data.py"),
+    Path("apps/backend/src/services/portfolio.py"),
+    Path("apps/backend/src/services/reporting.py"),
+]
+
 
 def _read(path: Path) -> str:
     return (REPO / path).read_text(encoding="utf-8")
+
+
+def _ensure_backend_src_importable() -> None:
+    backend_path = str(REPO / "apps/backend")
+    if backend_path not in sys.path:
+        sys.path.insert(0, backend_path)
+    loaded_src = sys.modules.get("src")
+    if loaded_src is not None and not hasattr(loaded_src, "__path__"):
+        del sys.modules["src"]
 
 
 @ac_proof(
@@ -137,8 +157,13 @@ def test_AC12_31_6_confidence_percent_wrapper_is_retired():
     assert "formatProportionPercent" not in confidence
     assert "formatProportionPercent" not in confidence_test
     assert "formatProportionPercent" not in page
-    assert "formatPercentFromRatioValue(replay.proportion_before, { dp: 1 })" in confidence
-    assert "formatPercentFromRatioValue(current.low_confidence_proportion, { dp: 1 })" in page
+    assert (
+        "formatPercentFromRatioValue(replay.proportion_before, { dp: 1 })" in confidence
+    )
+    assert (
+        "formatPercentFromRatioValue(current.low_confidence_proportion, { dp: 1 })"
+        in page
+    )
 
 
 @ac_proof(
@@ -154,3 +179,90 @@ def test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate():
         assert "Money(" in src, f"{path} must show typed money conversion"
         assert "amount * rate).quantize" not in src
         assert "amount_sgd * fx_rate" not in src
+
+
+@ac_proof(
+    proof_id="test_base_package_backend_quantity_value_type_cleanup",
+    ac_ids=["AC12.31.7"],
+    ci_tier="pr_ci",
+)
+def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
+    """AC12.31.7: backend services hold Quantity objects in business calculations."""
+    quantity_api = _read(Path("apps/backend/src/quantity/__init__.py"))
+    for helper in [
+        "quantized_quantity_value",
+        "quantity_is_zero",
+        "quantity_zero_value",
+    ]:
+        assert helper not in quantity_api
+
+    forbidden_local_adapters = [
+        "def _quantity(",
+        "def _quantity_is_zero(",
+        "def _quantity_value(",
+        "def _quantized_quantity(",
+        "def _quantity_zero(",
+    ]
+    for path in BACKEND_QUANTITY_ADAPTER_FILES:
+        src = _read(path)
+        assert "from src.quantity import Quantity" in src, (
+            f"{path} must use the Quantity value type"
+        )
+        for needle in forbidden_local_adapters:
+            assert needle not in src, (
+                f"{path} still defines local Quantity adapter {needle}"
+            )
+        for helper in [
+            "quantized_quantity_value",
+            "quantity_is_zero",
+            "quantity_zero_value",
+        ]:
+            assert helper not in src, (
+                f"{path} still calls package-level Decimal facade {helper}"
+            )
+
+    investment = _read(Path("apps/backend/src/services/investment_accounting.py"))
+    assert (
+        "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
+        in investment
+    )
+    assert "trade_quantity.is_zero()" in investment
+    assert "quantity=trade_quantity.value" in investment
+    assert "trade_quantity.value * unit_price" in investment
+
+    portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
+    assert (
+        "position_quantity = Quantity(position.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()"
+        in portfolio
+    )
+    assert "snapshot_quantity.is_zero()" in portfolio
+
+    reporting = _read(Path("apps/backend/src/services/reporting.py"))
+    assert (
+        "position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()"
+        in reporting
+    )
+
+
+@ac_proof(
+    proof_id="test_base_package_backend_quantity_value_type_storage_edges",
+    ac_ids=["AC12.31.7"],
+    ci_tier="pr_ci",
+)
+def test_AC12_31_7_backend_quantity_value_type_handles_storage_edges():
+    """AC12.31.7: Quantity itself owns storage-edge rounding and zero semantics."""
+    _ensure_backend_src_importable()
+
+    from src.quantity import FloatNotAllowedError, Quantity
+
+    assert Quantity(Decimal("1.2345675"), "units").quantize().value == Decimal(
+        "1.234568"
+    )
+    assert Quantity(1, "units").quantize().value == Decimal("1.000000")
+    assert Quantity.zero("units").quantize().value == Decimal("0.000000")
+    assert Quantity(Decimal("0.0000004"), "units").quantize().is_zero()
+    assert not Quantity(Decimal("0.0000005"), "units").quantize().is_zero()
+    with pytest.raises(FloatNotAllowedError):
+        Quantity(0.1, "units")
+    with pytest.raises(FloatNotAllowedError):
+        Quantity(True, "units")

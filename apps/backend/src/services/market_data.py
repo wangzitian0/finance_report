@@ -48,10 +48,6 @@ _TICKER_MAX_LENGTH = 15
 _TICKER_PATTERN = re.compile(r"^\^?[A-Za-z0-9]+([.\-=][A-Za-z0-9]+)*$")
 
 
-def _quantity_zero() -> Decimal:
-    return Quantity.zero(MARKET_DATA_QUANTITY_UNIT).value
-
-
 @dataclass(frozen=True)
 class FxRateObservation:
     """Resolved FX rate observation from a provider or derivation path."""
@@ -868,7 +864,7 @@ async def _active_stock_symbols(db: AsyncSession, user_id: UUID | None) -> list[
     stmt = (
         select(ManagedPosition.asset_identifier)
         .where(ManagedPosition.status == PositionStatus.ACTIVE)
-        .where(ManagedPosition.quantity != _quantity_zero())
+        .where(ManagedPosition.quantity != Quantity.zero(MARKET_DATA_QUANTITY_UNIT).quantize().value)
         .order_by(ManagedPosition.asset_identifier)
     )
     if user_id is not None:

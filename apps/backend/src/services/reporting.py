@@ -85,10 +85,6 @@ _ALLOCATION_METADATA_KEYS = {
 }
 
 
-def _quantity_value(value: Decimal) -> Decimal:
-    return Quantity(value, REPORTING_QUANTITY_UNIT).quantize().value
-
-
 def _build_account_lines(
     accounts: Sequence[Account],
     balances: dict[UUID, Decimal],
@@ -808,7 +804,8 @@ async def _portfolio_market_basis_by_account(
             )
             continue
 
-        market_value = _quantity_value(position.quantity) * latest_price
+        position_quantity = Quantity(position.quantity, REPORTING_QUANTITY_UNIT).quantize()
+        market_value = position_quantity.value * latest_price
         cost_basis = position.cost_basis
         source_currency = position.currency.upper()
         if source_currency != target_currency:

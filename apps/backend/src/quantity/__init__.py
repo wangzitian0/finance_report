@@ -9,7 +9,12 @@ from src.quantity.errors import (
     QuantityError,
     UnitMismatchError,
 )
-from src.quantity.quantity import QUANTITY_DP, QUANTITY_QUANTUM, QUANTITY_ROUNDING, Quantity
+from src.quantity.quantity import (
+    QUANTITY_DP,
+    QUANTITY_QUANTUM,
+    QUANTITY_ROUNDING,
+    Quantity,
+)
 from src.quantity.unit import Unit
 from src.quantity.wire import (
     quantity_from_db_fields,
