@@ -218,7 +218,7 @@ This App doc does not enumerate those values.
 
 ---
 
-## Data Axis & Red Lines
+## Data Lane & Red Lines
 
 An environment still has a **code artifact** and a **data lane**, but data is
 not a public `deploy_v2` coordinate. The current deploy front door is

@@ -19,10 +19,17 @@ cd repo && uv run invoke --list
 
 ## Tool Priority
 
-1. **`invoke`** — Primary (type-safe, idempotent)
-2. **`tools/debug.py`** — Unified debugging
-3. **`libs` API** — For automation
-4. **SSH** — Emergency only (read-only)
+1. **`deploy_v2` front door** — Required for staging/prod deploys.
+   - GitHub workflow: `repo/.github/workflows/deploy.yml`
+   - Local/manual equivalent: `cd repo && python -m tools.deploy_v2 ...`
+2. **`invoke`** — Secrets, status, bootstrap, and targeted repair tasks.
+3. **`tools/debug.py`** — Unified debugging.
+4. **`libs` API** — Automation internals only.
+5. **SSH** — Emergency investigation only (read-only).
+
+Deploy identity is always `deploy_v2(service, type, version_ref, iac_ref)`.
+`data_lane` is derived from the target environment; never pass data as an
+operator input.
 
 ---
 
@@ -80,25 +87,54 @@ invoke env.set DATABASE_URL "postgresql://..." finance_report app production
 invoke env.list-all finance_report app production
 ```
 
+### Deploy Front Door
+
+```bash
+cd repo
+
+# App staging: pin both the app release and infra2 IaC ref.
+python -m tools.deploy_v2 \
+  --service finance_report/app \
+  --type staging \
+  --version-ref vX.Y.Z \
+  --iac-ref vX.Y.Z \
+  --domain zitian.party
+
+# App prod: promote the same release tag after staging proof and code review.
+python -m tools.deploy_v2 \
+  --service finance_report/app \
+  --type prod \
+  --version-ref vX.Y.Z \
+  --iac-ref vX.Y.Z \
+  --domain zitian.party \
+  --staging-validated \
+  --code-reviewed
+
+# Platform/backing service: artifact identity is the iac_ref-pinned stack.
+python -m tools.deploy_v2 \
+  --service platform/redis \
+  --type staging \
+  --iac-ref vX.Y.Z \
+  --domain zitian.party
+```
+
 ### Finance Report (`fr-*`)
 
 ```bash
-invoke fr-app.setup       # Deploy app
 invoke fr-app.status      # Check health
-invoke fr-postgres.setup  # Deploy PostgreSQL
-invoke fr-redis.setup     # Deploy Redis
+invoke fr-postgres.status # Check PostgreSQL
+invoke fr-redis.status    # Check Redis
 ```
+
+`fr-*.setup` tasks are lower-level bootstrap/repair tasks. They are not the
+staging/prod deploy front door.
 
 ### Platform Services
 
-```bash
-invoke postgres.setup              # Shared PostgreSQL
-invoke redis.setup                 # Shared Redis
-invoke vault.setup                 # Vault cluster
-invoke authentik.setup             # Authentik SSO
-invoke minio.setup                 # MinIO storage
-invoke signoz.setup                # SigNoz observability
-```
+Platform and backing services are `iac_pinned` deploy_v2 targets. Use
+`--service platform/<name>` with `--type staging|prod` and a pinned `--iac-ref`.
+Low-level setup tasks may still exist for bootstrap/repair internals, but they are
+not the staging/prod deploy front door.
 
 ---
 
@@ -125,18 +161,23 @@ client = get_dokploy()
 compose = client.get_compose("A6V-hbJlgHMwgPDoTDnhH")
 compose_id = compose["composeId"]  # Extract ID
 client.update_compose_env(compose_id, {"DEBUG": "true"})
-client.deploy_compose(compose_id)
 ```
+
+Do not trigger deploys through the Dokploy client directly; use `deploy_v2` so
+the coordinate, review/data red lines, rollout wait, and effective-config checks
+run in one place.
 
 ### Deployer (`libs/deployer.py`)
 
 ```python
-from libs.deployer import Deployer
-from libs.config import VPS
+from libs.service_registry import service_attrs
 
-deployer = Deployer(vps=VPS.MAIN)
-deployer.compose_up("finance_report", "production", "docker-compose.prod.yml")
+services = service_attrs()
 ```
+
+`Deployer` is an internal backend for platform sync and iac_runner. Operators
+should invoke platform deploys through `deploy_v2` / iac_runner, not by calling
+compose methods directly.
 
 ---
 
@@ -149,7 +190,7 @@ deployer.compose_up("finance_report", "production", "docker-compose.prod.yml")
 **Fix**:
 ```bash
 python tools/debug.py containers --env production
-invoke fr-app.setup
+# Re-run the relevant deploy_v2 workflow/command for the affected service.
 ```
 
 ### Env Var Missing
@@ -159,7 +200,7 @@ invoke fr-app.setup
 **Fix**:
 ```bash
 invoke env.set DATABASE_URL "postgresql://..." finance_report app production
-invoke fr-app.setup
+# Re-run the relevant deploy_v2 workflow/command so the service consumes the change.
 ```
 
 ### Deployment Failed
@@ -170,7 +211,7 @@ invoke fr-app.setup
 ```bash
 python tools/debug.py logs backend --tail 100
 # Fix issue, then:
-invoke fr-app.setup
+cd repo && python -m tools.deploy_v2 --service finance_report/app --type staging --version-ref vX.Y.Z --iac-ref vX.Y.Z --domain zitian.party
 ```
 
 ### DB Connection Failed
@@ -181,7 +222,7 @@ invoke fr-app.setup
 ```bash
 invoke fr-postgres.status
 # Verify DATABASE_URL container name matches environment
-invoke fr-app.setup
+# Re-run the relevant deploy_v2 workflow/command after fixing config.
 ```
 
 ### Secret Not Syncing
@@ -191,7 +232,7 @@ invoke fr-app.setup
 **Fix**:
 ```bash
 invoke env.get <KEY> finance_report app production
-invoke fr-app.setup
+# Re-run the relevant deploy_v2 workflow/command so the service consumes the secret.
 ```
 
 ---
@@ -205,11 +246,11 @@ invoke fr-app.setup
 invoke env.set DATABASE_URL "postgresql://..." myapp api production
 
 # 2. Dependencies
-invoke postgres.setup
-invoke redis.setup
+cd repo && python -m tools.deploy_v2 --service platform/postgres --type staging --iac-ref vX.Y.Z --domain zitian.party
+cd repo && python -m tools.deploy_v2 --service platform/redis --type staging --iac-ref vX.Y.Z --domain zitian.party
 
-# 3. Deploy
-invoke myapp.setup
+# 3. Register the service in IaC/service_registry, then deploy through deploy_v2.
+cd repo && python -m tools.deploy_v2 --service myapp/api --type staging --iac-ref vX.Y.Z --domain zitian.party
 
 # 4. Verify
 python tools/debug.py logs myapp --tail 50
@@ -220,7 +261,7 @@ curl https://myapp.zitian.party/health
 
 ```bash
 invoke env.set DEBUG false finance_report app production
-invoke fr-app.setup
+cd repo && python -m tools.deploy_v2 --service finance_report/app --type prod --version-ref vX.Y.Z --iac-ref vX.Y.Z --domain zitian.party --staging-validated --code-reviewed
 curl https://report.zitian.party/health
 ```
 
@@ -231,7 +272,7 @@ NEW_PASSWORD=$(openssl rand -base64 32)
 invoke env.set DB_PASSWORD "$NEW_PASSWORD" finance_report app production
 docker exec finance_report-postgres psql -U postgres -c "ALTER USER myuser PASSWORD '$NEW_PASSWORD';"
 invoke env.set DATABASE_URL "postgresql://myuser:$NEW_PASSWORD@finance_report-postgres:5432/finance_report" finance_report app production
-invoke fr-app.setup
+cd repo && python -m tools.deploy_v2 --service finance_report/app --type prod --version-ref vX.Y.Z --iac-ref vX.Y.Z --domain zitian.party --staging-validated --code-reviewed
 ```
 
 ---
@@ -244,7 +285,7 @@ invoke fr-app.setup
 ssh root@$VPS_HOST "uptime"
 ssh root@$VPS_HOST "docker ps"
 ssh root@$VPS_HOST "systemctl restart docker"  # If needed
-invoke fr-app.setup
+# Re-run the relevant deploy_v2 workflow/command after the host is stable.
 ```
 
 ### Database Corruption
@@ -256,7 +297,7 @@ scp root@$VPS_HOST:/tmp/backup.sql ./
 
 # Restore
 docker exec -i finance_report-postgres psql -U postgres < backup.sql
-invoke fr-app.setup
+# Re-run the relevant deploy_v2 workflow/command after restore validation.
 ```
 
 ### Vault Sealed
@@ -265,7 +306,7 @@ invoke fr-app.setup
 # Get keys from 1Password (bootstrap/vault)
 ssh root@$VPS_HOST
 docker exec -it vault vault operator unseal <KEY>  # Repeat 3x
-invoke fr-app.setup
+# Re-run the relevant deploy_v2 workflow/command after Vault is healthy.
 ```
 
 ---
@@ -348,9 +389,8 @@ invoke env.set DEBUG false finance_report app production
 invoke env.list-all finance_report app production
 
 # Deploy
-invoke fr-app.setup
-invoke fr-postgres.setup
-invoke fr-redis.setup
+cd repo && python -m tools.deploy_v2 --service finance_report/app --type staging --version-ref vX.Y.Z --iac-ref vX.Y.Z --domain zitian.party
+cd repo && python -m tools.deploy_v2 --service platform/redis --type staging --iac-ref vX.Y.Z --domain zitian.party
 
 # Health
 invoke fr-app.status

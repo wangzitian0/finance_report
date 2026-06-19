@@ -111,9 +111,9 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### Phase 6: Deployment & Verification
 
-- [x] Deploy postgres: `invoke finance_report.postgres.setup`
-- [x] Deploy redis: `invoke finance_report.redis.setup`
-- [x] Deploy app: `invoke finance_report.app.setup`
+- [x] Deploy postgres (historical initial provision; current deploy path is `deploy_v2`)
+- [x] Deploy redis (historical initial provision; current deploy path is `deploy_v2`)
+- [x] Deploy app (historical initial provision; current deploy path is `deploy_v2`)
 - [x] Verify health checks
 - [x] Test `https://report.${INTERNAL_DOMAIN}`
 
