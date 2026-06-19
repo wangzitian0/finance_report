@@ -1222,6 +1222,55 @@ def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -
     assert "category: runtime_test" in inventory
 
 
+def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
+    """AC8.13.146: report-branch-main deploys only successful CI SHA images."""
+    notify = read(".github/workflows/notify-infra2-report-main.yml")
+    notify_yaml = yaml.safe_load(notify)
+    notify_on = notify_yaml.get(True) or notify_yaml.get("on")
+
+    assert "push" not in notify_on
+    assert notify_on["workflow_run"]["workflows"] == ["CI"]
+    assert notify_on["workflow_run"]["types"] == ["completed"]
+    assert notify_on["workflow_run"]["branches"] == ["main"]
+    assert "workflow_dispatch" in notify_on
+
+    dispatch_job = notify_yaml["jobs"]["dispatch"]
+    assert "github.event.workflow_run.conclusion == 'success'" in dispatch_job["if"]
+    assert "github.event.workflow_run.head_branch == 'main'" in dispatch_job["if"]
+    dispatch_script = "\n".join(
+        step.get("run", "")
+        for step in dispatch_job["steps"]
+        if isinstance(step, dict)
+    )
+    assert "WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}" in notify
+    assert "/git/ref/heads/main" in dispatch_script
+    assert 'dispatch_sha="${WORKFLOW_RUN_SHA:-}"' in dispatch_script
+    assert 'dispatch_sha="$latest_main_sha"' in dispatch_script
+    assert "$GITHUB_SHA" not in dispatch_script
+    assert "Skipping stale CI completion" in dispatch_script
+    assert '--arg sha "$dispatch_sha"' in dispatch_script
+
+    receiver = read("repo/.github/workflows/deploy-report-main.yml")
+    receiver_yaml = yaml.safe_load(receiver)
+    receiver_env = receiver_yaml["jobs"]["deploy"]["env"]
+    assert receiver_env["DISPATCH_SHA"] == "${{ github.event.client_payload.sha }}"
+    receiver_script = "\n".join(
+        step.get("run", "")
+        for step in receiver_yaml["jobs"]["deploy"]["steps"]
+        if isinstance(step, dict)
+    )
+    assert '[[ "${GITHUB_EVENT_NAME}" == "repository_dispatch" && -z "${DISPATCH_SHA:-}" ]]' in receiver_script
+    assert "client_payload.sha" in receiver
+    assert "--version-ref main" in receiver_script
+    assert 'deploy_args+=(--expected-sha "$DISPATCH_SHA")' in receiver_script
+    assert "--expected-sha" in read("repo/tools/deploy_v2.py")
+
+    delivery_gates = yaml.safe_load(read("docs/ssot/delivery-gates.yaml"))["gates"]
+    report_gate = next(gate for gate in delivery_gates if gate["id"] == "report-main-preview")
+    assert report_gate["trigger"] == "workflow_run"
+    assert report_gate["blocking"] is False
+
+
 def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
     """AC8.13.68: CI gates product E2E tests and project EPIC ownership."""
     workflow = read(".github/workflows/ci.yml")
