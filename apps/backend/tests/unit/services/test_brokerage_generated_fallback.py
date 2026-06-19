@@ -1,4 +1,6 @@
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -134,3 +136,25 @@ async def test_parse_document_backfills_generated_brokerage_positions_from_pdf_t
             "asset_type": "money_market",
         }
     ]
+
+
+def test_pdf_text_fallback_closes_pymupdf_document(monkeypatch):
+    """AC8.13.10/AC17.4.12: Generated brokerage PDF fallback closes PyMuPDF documents."""
+    closed = False
+
+    class FakePage:
+        def get_text(self):
+            return "Moomoo generated fixture"
+
+    class FakeDocument:
+        def __iter__(self):
+            return iter([FakePage()])
+
+        def close(self):
+            nonlocal closed
+            closed = True
+
+    monkeypatch.setitem(sys.modules, "fitz", SimpleNamespace(open=lambda **_kwargs: FakeDocument()))
+
+    assert ExtractionService()._extract_pdf_text_for_brokerage_fallback(b"%PDF") == "Moomoo generated fixture"
+    assert closed is True

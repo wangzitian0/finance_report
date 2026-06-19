@@ -719,7 +719,6 @@ class ExtractionService:
             return None
         try:
             document = fitz.open(stream=file_content, filetype="pdf")
-            return "\n".join(page.get_text() or "" for page in document)
         except Exception as exc:
             logger.warning(
                 "Generated brokerage PDF text fallback could not read PDF",
@@ -727,6 +726,10 @@ class ExtractionService:
                 error=safe_error_message(str(exc)),
             )
             return None
+        try:
+            return "\n".join(page.get_text() or "" for page in document)
+        finally:
+            document.close()
 
     def _backfill_generated_brokerage_positions(
         self,
