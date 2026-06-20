@@ -23,9 +23,7 @@ def test_AC12_33_1_backend_money_predicates_sum_tolerance():
     assert Money.zero("USD").is_zero()
     assert Money(Decimal("0.01"), "USD").is_positive()
     assert Money(Decimal("-0.01"), "USD").is_negative()
-    assert Money.sum([Money(Decimal("1.00"), "USD"), Money(Decimal("2.00"), "USD")]) == Money(
-        Decimal("3.00"), "USD"
-    )
+    assert Money.sum([Money(Decimal("1.00"), "USD"), Money(Decimal("2.00"), "USD")]) == Money(Decimal("3.00"), "USD")
     with pytest.raises(CurrencyMismatchError):
         Money.sum([Money(Decimal("1"), "USD"), Money(Decimal("1"), "SGD")])
     tol = MoneyTolerance(Money(Decimal("0.01"), "USD"))
@@ -56,6 +54,4 @@ def test_AC12_33_2_backend_composite_matches_standard():
             == c["holds"]
         ), c
     for c in _RATIO["fraction_or_zero"]:
-        assert Ratio.fraction_or_zero(Decimal(c["part"]), Decimal(c["whole"])).value == Decimal(
-            c["expected"]
-        ), c
+        assert Ratio.fraction_or_zero(Decimal(c["part"]), Decimal(c["whole"])).value == Decimal(c["expected"]), c

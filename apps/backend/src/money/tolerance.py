@@ -23,6 +23,16 @@ class MoneyTolerance:
     absolute: Money
     relative: Ratio = field(default=Ratio.zero())
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.absolute, Money):
+            raise TypeError(f"absolute must be Money, got {type(self.absolute).__name__}")
+        if not isinstance(self.relative, Ratio):
+            raise TypeError(f"relative must be Ratio, got {type(self.relative).__name__}")
+        if self.absolute.is_negative():
+            raise ValueError("absolute tolerance must be non-negative")
+        if self.relative.value < 0:
+            raise ValueError("relative tolerance must be non-negative")
+
     def threshold_for(self, expected: Money) -> Money:
         """The allowed deviation around ``expected``: ``max(absolute, relative*|expected|)``."""
         relative_band = abs(expected) * self.relative.value
@@ -33,5 +43,9 @@ class MoneyTolerance:
         return abs(actual - expected) <= self.threshold_for(expected)
 
     def scaled(self, factor: _ScaleInput) -> MoneyTolerance:
-        """Widen (or narrow) the whole band by a dimensionless factor."""
+        """Widen (or narrow) the whole band by a non-negative dimensionless factor."""
+        if isinstance(factor, bool) or not isinstance(factor, (Decimal, int)):
+            raise TypeError("scale factor must be a Decimal or int")
+        if factor < 0:
+            raise ValueError("scale factor must be non-negative")
         return MoneyTolerance(self.absolute * factor, self.relative * factor)

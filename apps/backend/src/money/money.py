@@ -80,9 +80,7 @@ class Money:
                 raise ValueError("Money.sum of an empty iterable needs a currency")
             return cls.zero(currency)
         if currency is not None and total.currency != Currency.of(currency):
-            raise CurrencyMismatchError(
-                f"Money.sum got {total.currency.code} items but currency={currency!r}"
-            )
+            raise CurrencyMismatchError(f"Money.sum got {total.currency.code} items but currency={currency!r}")
         return total
 
     # ── predicates ──────────────────────────────────────────────────────
