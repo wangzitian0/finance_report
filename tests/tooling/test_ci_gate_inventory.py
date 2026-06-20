@@ -113,7 +113,7 @@ def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:
     )
     assert audit_cleanup["status"] == "removed"
     assert audit_cleanup["retained_owner"] == "ci.lint"
-    assert audit_cleanup["removed_from"] == ["ci.frontend"]
+    assert audit_cleanup["removed_from"] == ["ci.frontend_build"]
 
     workflow = _load_yaml(ROOT / ".github" / "workflows" / "ci.yml")
     assert "npm run audit:prod" in _job_run_commands(workflow, "lint")

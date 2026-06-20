@@ -467,7 +467,7 @@ resolved_duplicate_cleanups:
     gates: [ci.lint, ci.frontend_build]
     command: npm run audit:prod
     retained_owner: ci.lint
-    removed_from: [ci.frontend]
+    removed_from: [ci.frontend_build]
     final_state: The frontend production dependency audit runs once in the static contract lane and no longer repeats in frontend runtime jobs.
     same_owner: true
     same_input: true
