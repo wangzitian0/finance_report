@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -18,12 +18,12 @@ from src.models.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
 )
-from src.money import to_money
+from src.money import Money, to_money
 from src.quantity import Quantity
 from src.services.accounting import create_journal_entry, post_journal_entry
+from src.unit_price import UnitPrice
 
 INVESTMENT_QUANTITY_UNIT = "units"
-UNIT_RATE_QUANTUM = Decimal("0.000001")
 
 
 class InvestmentAccountingError(Exception):
@@ -41,10 +41,6 @@ class InvestmentAccountingResult:
     transaction: InvestmentTransaction
     journal_entry: JournalEntry
     position: ManagedPosition
-
-
-def _quantized_unit_rate(value: Decimal) -> Decimal:
-    return value.quantize(UNIT_RATE_QUANTUM, rounding=ROUND_HALF_UP)
 
 
 class InvestmentAccountingService:
@@ -77,7 +73,8 @@ class InvestmentAccountingService:
 
         cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
         investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
-        amount = to_money(trade_quantity.value * unit_price + fees)
+        buy_price = UnitPrice(unit_price, currency, INVESTMENT_QUANTITY_UNIT)
+        amount = (buy_price * trade_quantity + Money(fees, currency)).quantize().amount
         if amount <= Decimal("0"):
             raise InvestmentAccountingValidationError("buy amount must be positive")
 
@@ -130,7 +127,7 @@ class InvestmentAccountingService:
             transaction_type=InvestmentTransactionType.BUY,
             asset_identifier=asset_identifier,
             quantity=trade_quantity.value,
-            unit_price=_quantized_unit_rate(unit_price),
+            unit_price=buy_price.quantize().rate,
             gross_amount=amount,
             fees=to_money(fees),
             currency=currency,
@@ -149,7 +146,7 @@ class InvestmentAccountingService:
             acquisition_date=transaction_date,
             original_quantity=trade_quantity.value,
             remaining_quantity=trade_quantity.value,
-            unit_cost=_quantized_unit_rate(amount / trade_quantity.value),
+            unit_cost=UnitPrice.from_total(Money(amount, currency), trade_quantity).quantize().rate,
             currency=currency,
         )
         db.add(lot)
@@ -201,7 +198,8 @@ class InvestmentAccountingService:
             asset_identifier=asset_identifier,
         )
 
-        proceeds = to_money(trade_quantity.value * unit_price - fees)
+        sell_price = UnitPrice(unit_price, currency, INVESTMENT_QUANTITY_UNIT)
+        proceeds = (sell_price * trade_quantity - Money(fees, currency)).quantize().amount
         if proceeds <= Decimal("0"):
             raise InvestmentAccountingValidationError("sell proceeds must be positive")
         cost_basis = await self._consume_lots(
@@ -288,7 +286,7 @@ class InvestmentAccountingService:
             transaction_type=InvestmentTransactionType.SELL,
             asset_identifier=asset_identifier,
             quantity=trade_quantity.value,
-            unit_price=_quantized_unit_rate(unit_price),
+            unit_price=sell_price.quantize().rate,
             gross_amount=proceeds,
             fees=to_money(fees),
             currency=currency,
@@ -514,18 +512,19 @@ class InvestmentAccountingService:
             )
 
         if method == CostBasisMethod.AVGCOST:
-            avg_unit_cost = _quantized_unit_rate(
-                sum(
-                    (lot_quantity.value * lot.unit_cost for lot, lot_quantity in lot_quantities),
-                    Decimal("0.00"),
-                )
-                / total_available.value
+            total_cost = sum(
+                (
+                    UnitPrice(lot.unit_cost, position.currency, INVESTMENT_QUANTITY_UNIT) * lot_quantity
+                    for lot, lot_quantity in lot_quantities
+                ),
+                Money.zero(position.currency),
             )
+            avg_unit_cost = UnitPrice.from_total(total_cost, total_available).quantize().rate
             for lot in lots:
                 lot.unit_cost = avg_unit_cost
 
         remaining_to_sell = quantity
-        cost_basis = Decimal("0.00")
+        cost_basis = Money.zero(position.currency)
         for lot, lot_quantity in lot_quantities:
             if remaining_to_sell.is_zero():
                 break
@@ -533,7 +532,7 @@ class InvestmentAccountingService:
                 lot_quantity,
                 remaining_to_sell,
             )
-            cost_basis += consumed_quantity.value * lot.unit_cost
+            cost_basis += UnitPrice(lot.unit_cost, position.currency, INVESTMENT_QUANTITY_UNIT) * consumed_quantity
             lot_remaining = (lot_quantity - consumed_quantity).quantize()
             lot.remaining_quantity = lot_remaining.value
             if lot_remaining.is_zero():
@@ -541,7 +540,7 @@ class InvestmentAccountingService:
             remaining_to_sell = (remaining_to_sell - consumed_quantity).quantize()
 
         await db.flush()
-        return to_money(cost_basis)
+        return cost_basis.quantize().amount
 
     async def _open_lots(
         self,

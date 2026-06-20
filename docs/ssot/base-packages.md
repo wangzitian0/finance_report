@@ -30,12 +30,23 @@ A domain earns a base package only if it is **all** of:
 | `money` | `Money` (amount + `Currency`), plus typed `ExchangeRate` for conversion | 2 dp, **ROUND_HALF_EVEN** (banker's); FX rates positive Decimal | ✅ shipped (#1167, EPIC-012 AC12.30) |
 | `ratio` | `Ratio` (dimensionless) | percent 2 dp, **ROUND_HALF_UP** | ✅ shipped (#1167, EPIC-012 AC12.9) |
 | `quantity` | `Quantity` (shares/units/contracts) + `Unit` | 6 dp, **ROUND_HALF_UP** | ✅ shipped (EPIC-012 AC12.30) |
+| `unit_price` | `UnitPrice` (money-per-quantity: `rate` + `Currency` + `Unit`) | 6 dp, **ROUND_HALF_UP** (price/unit-rate quantum) | ✅ shipped (#1253, EPIC-012 AC12.32) |
 
 `Currency` lives **inside** `money` (not separate). `ExchangeRate` is also
 inside `money`: it is the typed parameter for the single cross-currency
-conversion primitive, not a fourth base package. `Price` / unit price is a
-derived composite (`Money / Quantity`) and remains outside the primitive family
-until portfolio/market-data migration proves a separate package is needed.
+conversion primitive, not a fourth base package.
+
+`UnitPrice` is the **composite** member: money-per-quantity (a share price, a
+unit cost, a per-contract rate). It was deliberately deferred until
+portfolio/market-data migration proved the need — that threshold is now met (the
+same `quantity.value * price` extension, `amount / quantity.value` rate, and a
+local 6-dp `quantize` helper were duplicated across `investment_accounting`,
+`market_data`, `portfolio`, and `reporting`). `UnitPrice` owns
+`unit_price * quantity -> Money`, `UnitPrice.from_total(money, quantity)`
+(`Money / Quantity`), and the price quantum, so that glue stops reappearing. It
+depends on `money` (for `Currency`) and `quantity` (for `Unit`); applying a price
+to a quantity yields `Money` only when the units agree.
+
 Nothing else currently qualifies — see the per-domain verdicts in the #1167
 audit (date/period, confidence scoring, source-type, lineage, attention are app
 logic or presentation, not base packages).
@@ -84,6 +95,7 @@ Each base package owns the codecs that cross storage/wire boundaries:
 | `money` | `money_to_wire` / `money_from_wire`; `exchange_rate_to_wire` / `exchange_rate_from_wire` | `money_to_db_fields` / `money_from_db_fields`; `exchange_rate_to_db_fields` / `exchange_rate_from_db_fields` |
 | `ratio` | `ratio_to_wire` / `ratio_from_wire` | `ratio_to_db_value` / `ratio_from_db_value` |
 | `quantity` | `quantity_to_wire` / `quantity_from_wire` | `quantity_to_db_fields` / `quantity_from_db_fields` |
+| `unit_price` | `unit_price_to_wire` / `unit_price_from_wire` | `unit_price_to_db_fields` / `unit_price_from_db_fields` |
 
 Wire codecs serialize decimals as JSON strings, never JSON numbers. DB adapters
 return exact `Decimal` storage fields plus their semantic key (`currency` or
@@ -156,3 +168,4 @@ the standard; it is dev/test-time only, never shipped into a runtime image.
 - `money`: [accounting.md#money-type](accounting.md), `common/money/`, `apps/backend/src/money/`, `apps/frontend/src/lib/money/`
 - `ratio`: [EPIC-012 AC12.9](../project/EPIC-012.foundation-libs.md), `common/ratio/`, `apps/backend/src/ratio/`, `apps/frontend/src/lib/ratio/`
 - `quantity`: [EPIC-012 AC12.30](../project/EPIC-012.foundation-libs.md), `common/quantity/`, `apps/backend/src/quantity/`, `apps/frontend/src/lib/quantity/`
+- `unit_price`: [EPIC-012 AC12.32](../project/EPIC-012.foundation-libs.md), `common/unit_price/`, `apps/backend/src/unit_price/` (frontend `apps/frontend/src/lib/unit_price/` is a P2 follow-up — no frontend call sites today; conformance vectors are already language-neutral so adoption is additive)
