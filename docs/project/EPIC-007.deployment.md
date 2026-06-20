@@ -282,6 +282,23 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 | AC7.15.2 | Issue templates use only labels that exist in the current repository taxonomy (stale `infra`/`feature` and any unknown label fail) | `test_AC7_15_2_stale_issue_template_label_fails`, `test_AC7_15_2_unknown_issue_template_label_fails` | `tests/tooling/test_workflow_contract.py` | P0 |
 | AC7.15.3 | The contract FAILS when a workflow job id, trigger, or issue-template label drifts from the documented standard (e.g. `classify-changes` prose, a `push` trigger re-added to staging-deploy, or a renamed classifier job) | `test_AC7_15_3_stale_ci_classifier_job_name_fails`, `test_AC7_15_3_stale_staging_push_trigger_prose_fails`, `test_AC7_15_3_staging_push_trigger_in_workflow_fails`, `test_AC7_15_3_renamed_classifier_job_in_workflow_fails`, `test_AC7_15_3_main_cli_returns_contract_result` | `tests/tooling/test_workflow_contract.py` | P0 |
 
+### AC7.16: Transient Toolchain-Download Retry in the Staging Deploy Path (#412)
+
+> The staging deploy path still runs shell steps that download tools over the
+> network (E2E test deps + Playwright browsers via the shared
+> `setup-e2e-tests` composite, and the deploy_v2 dependency install). These are
+> genuine transient-failure surfaces (timeout/504) with no bounded retry. They
+> must retry with bounded exponential backoff (mirroring the existing
+> "AI Provider Connectivity Smoke" idiom) and keep the original external error
+> visible on exhaustion. Application deploy/test execution steps stay
+> fail-fast — only the toolchain download commands are wrapped. `setup-uv` /
+> `setup-python` action steps already retry internally and are left untouched.
+
+| ID | Requirement | Test Function | File | Priority |
+|----|-------------|---------------|------|----------|
+| AC7.16.1 | The shared E2E toolchain-setup composite (`setup-e2e-tests`) retries transient dependency/browser download failures (`uv pip install`, `playwright install`) with bounded exponential backoff and keeps the original external error visible on exhaustion | `test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads`, `test_AC7_16_1_setup_e2e_composite_does_not_wrap_test_execution` | `tests/tooling/test_staging_toolchain_retry.py` | P0 |
+| AC7.16.2 | The staging deploy_v2 dependency install retries transient download failures with bounded exponential backoff; application deploy/test steps remain fail-fast (not wrapped in retry) | `test_AC7_16_2_staging_deploy_v2_dependency_install_retries`, `test_AC7_16_2_staging_deploy_and_e2e_steps_stay_fail_fast` | `tests/tooling/test_staging_toolchain_retry.py` | P0 |
+
 
 ## 📏 Acceptance Criteria
 
