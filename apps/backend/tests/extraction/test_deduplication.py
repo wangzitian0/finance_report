@@ -127,13 +127,60 @@ class TestDeduplicationService:
         assert _hash(occurrence_index=0) == service.calculate_transaction_hash(
             user_id, txn_date, amount, direction, description, reference=None
         )
-        # When a running balance is present it is the disambiguator; the ordinal is ignored.
-        assert _hash(occurrence_index=0, balance_after=Decimal("100.00")) == _hash(
+        # AC13.22.1: the running balance is part of the disambiguator, but it is no longer the
+        # *sole* key. The per-document occurrence ordinal is always folded in so two genuinely
+        # distinct rows that happen to share a running balance (a page-boundary carried-forward /
+        # brought-forward repeat) still hash differently.
+        assert _hash(occurrence_index=0, balance_after=Decimal("100.00")) != _hash(
             occurrence_index=7, balance_after=Decimal("100.00")
+        )
+        # Same balance AND same ordinal -> same hash (a genuine cross-document duplicate collapses).
+        assert _hash(occurrence_index=0, balance_after=Decimal("100.00")) == _hash(
+            occurrence_index=0, balance_after=Decimal("100.00")
         )
         assert service.calculate_transaction_hash(
             user_id, txn_date, Decimal("50"), direction, description
         ) == service.calculate_transaction_hash(user_id, txn_date, Decimal("50.00"), direction, description)
+
+    def test_AC13_22_1_same_balance_distinct_rows_do_not_collapse(self):
+        """AC13.22.1: two genuinely-distinct same-date/same-amount/same-direction deposits that
+        share one running ``balance_after`` (a page-boundary carried-forward / brought-forward
+        repeat) must hash differently within one document, while a re-uploaded identical row still
+        collapses across documents.
+
+        This is the dedup-collapse root cause of #1254: before the fix, ``balance_after`` was the
+        sole high-confidence disambiguator, so two real deposits printed against the same running
+        balance hashed identically and the second was silently dropped at upsert."""
+        service = DeduplicationService()
+        user_id = uuid4()
+        txn_date = date(2024, 3, 10)
+        amount = Decimal("250.00")
+        direction = TransactionDirection.IN
+        description = "Incoming Transfer"
+        balance = Decimal("1750.00")
+
+        def _hash(occurrence_index):
+            return service.calculate_transaction_hash(
+                user_id,
+                txn_date,
+                amount,
+                direction,
+                description,
+                reference=None,
+                balance_after=balance,
+                occurrence_index=occurrence_index,
+            )
+
+        # Within one parse: the two distinct deposits sit at ordinals 0 and 1 -> distinct hashes,
+        # so both survive instead of the second collapsing into the first.
+        first_deposit = _hash(occurrence_index=0)
+        second_deposit = _hash(occurrence_index=1)
+        assert first_deposit != second_deposit
+
+        # Across documents: a re-uploaded statement reproduces the same ordered rows, so each row
+        # keeps its (balance_after, occurrence_index) pair and the genuine duplicate still collapses.
+        assert first_deposit == _hash(occurrence_index=0)
+        assert second_deposit == _hash(occurrence_index=1)
 
     def test_calculate_position_hash(self):
         """GIVEN: Position details with broker

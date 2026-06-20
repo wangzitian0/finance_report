@@ -498,9 +498,12 @@ class ExtractionService:
 
             transactions: list[AtomicTransaction] = []
             net_transactions = Decimal("0.00")
-            # Per-document occurrence ordinal for balance-less rows: lets genuinely
-            # repeated identical rows (e.g. two same-day CSV coffees) stay distinct
-            # instead of collapsing in the dedup hash. Only used when balance_after is None.
+            # Per-document occurrence ordinal among rows that would otherwise hash
+            # identically (same date/amount/direction/description/reference/balance): lets
+            # genuinely repeated rows stay distinct instead of collapsing in the dedup hash —
+            # both balance-less repeats (two same-day CSV coffees) and same-balance repeats
+            # (#1254: two same-amount deposits printed against one carried-forward /
+            # brought-forward running balance across a page boundary).
             occurrence_counts: dict[tuple, int] = {}
             for txn in extracted.get("transactions", []):
                 if not txn.get("date") or txn.get("amount") is None:
@@ -569,22 +572,27 @@ class ExtractionService:
                 txn_description = txn.get("description", "Unknown")
                 txn_reference = txn.get("reference")
 
-                # Confidence-tiered dedup disambiguator (see calculate_transaction_hash):
-                # the running balance when present, else a per-document occurrence ordinal
-                # so balance-less repeats stay distinct (recall first). 🚨 The extracted
+                # Dedup disambiguator (see calculate_transaction_hash): the running balance
+                # (when present) paired with a per-document occurrence ordinal among rows that
+                # would otherwise hash identically. The ordinal is counted over the FULL hash
+                # key — including balance_after — so two genuinely-distinct same-date/same-amount
+                # rows that share one running balance (#1254: a deposit before a carried-forward
+                # row and an identical deposit after the brought-forward row across a page
+                # boundary) stay distinct instead of the second collapsing into the first. Rows
+                # with a different running balance get their own independent ordinal-0 counter, so
+                # this never merges rows that the balance already separates. 🚨 The extracted
                 # balance_after / occurrence_index are stashed on transient attributes that
                 # dual_write_layer2 reuses to keep its upsert hash identical.
-                occurrence_index = 0
-                if txn_balance_after is None:
-                    occ_key = (
-                        parsed_date,
-                        _decimal_key(amount),
-                        txn_direction.value,
-                        txn_description.strip().lower(),
-                        txn_reference or "",
-                    )
-                    occurrence_index = occurrence_counts.get(occ_key, 0)
-                    occurrence_counts[occ_key] = occurrence_index + 1
+                occ_key = (
+                    parsed_date,
+                    _decimal_key(amount),
+                    txn_direction.value,
+                    txn_description.strip().lower(),
+                    txn_reference or "",
+                    _decimal_key(txn_balance_after) if txn_balance_after is not None else "",
+                )
+                occurrence_index = occurrence_counts.get(occ_key, 0)
+                occurrence_counts[occ_key] = occurrence_index + 1
 
                 dedup_hash = self.deduplication_service.calculate_transaction_hash(
                     user_id,
