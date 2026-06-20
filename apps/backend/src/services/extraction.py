@@ -28,10 +28,13 @@ from src.services.ai_streaming import (
     stream_ai_json,
 )
 from src.services.brokerage_positions import (
+    UnsupportedBrokerageCsvError,
     _generated_brokerage_positions_payload_from_text,
     brokerage_currency_balances,
+    classify_brokerage_csv,
     looks_like_brokerage_document,
     looks_like_brokerage_payload,
+    parse_brokerage_csv_payload,
     parse_brokerage_positions,
 )
 from src.services.chain_repair import RegionReExtractor, repair_under_extraction
@@ -1427,6 +1430,34 @@ class ExtractionService:
         headers = list(reader.fieldnames or [])
         headers_lower = [h.lower().strip() for h in headers]
         institution_lower = institution.lower()
+
+        # Brokerage CSV routing (#1255): bank CSV parsing below only understands
+        # bank transaction schemas (date/description/amount/debit/credit/balance).
+        # Brokerage CSVs use different schemas, so detect them BEFORE bank parsing.
+        # The decisive signal is the header SHAPE (classify_brokerage_csv), not the
+        # broker name: a known broker can still export a bank-style transaction CSV,
+        # which must keep flowing through bank parsing. A positions/holdings CSV is
+        # mapped into a brokerage ``positions`` payload (flows into
+        # BrokeragePositionImportService via looks_like_brokerage_payload); a
+        # trade-history CSV is rejected with an actionable error rather than the
+        # misleading generic bank "No valid transactions found" failure.
+        if classify_brokerage_csv(headers):
+            try:
+                brokerage_payload = parse_brokerage_csv_payload(headers, rows, institution=institution)
+            except UnsupportedBrokerageCsvError as exc:
+                logger.warning(
+                    "Brokerage CSV rejected as unsupported",
+                    institution=institution,
+                    headers=headers,
+                    reason=str(exc),
+                )
+                raise ExtractionError(str(exc)) from exc
+            logger.info(
+                "Brokerage positions CSV parsed",
+                institution=institution,
+                positions_count=len(brokerage_payload.get("positions", [])),
+            )
+            return brokerage_payload
 
         transactions: list[dict[str, Any]] = []
         period_start: date | None = None

@@ -98,8 +98,18 @@ def _parse_date(value: Any) -> date | None:
         return None
 
 
+def _statement_dict(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the nested ``statement`` mapping, or an empty dict when absent.
+
+    Centralizes the ``isinstance(..., dict)`` narrowing so callers get a concrete
+    ``dict[str, Any]`` (not ``dict | Any | None``) for ``.get`` access.
+    """
+    statement = payload.get("statement")
+    return statement if isinstance(statement, dict) else {}
+
+
 def _statement_date(payload: dict[str, Any]) -> date:
-    statement = payload.get("statement") if isinstance(payload.get("statement"), dict) else {}
+    statement = _statement_dict(payload)
     for candidate in (
         payload.get("snapshot_date"),
         payload.get("as_of_date"),
@@ -115,7 +125,7 @@ def _statement_date(payload: dict[str, Any]) -> date:
 
 
 def _payload_currency(payload: dict[str, Any], default: str = "USD") -> str:
-    statement = payload.get("statement") if isinstance(payload.get("statement"), dict) else {}
+    statement = _statement_dict(payload)
     currency = payload.get("currency") or statement.get("currency") or default
     return str(currency).upper()
 
@@ -181,7 +191,7 @@ def looks_like_brokerage_payload(
     if any(key in payload for key in ("positions", "holdings", "securities")):
         return True
 
-    statement = payload.get("statement") if isinstance(payload.get("statement"), dict) else {}
+    statement = _statement_dict(payload)
     broker = detect_broker(
         filename=filename or str(payload.get("file") or ""),
         institution=institution or payload.get("institution") or statement.get("institution"),
@@ -477,6 +487,178 @@ def _generated_brokerage_positions_payload_from_text(
     }
 
 
+class UnsupportedBrokerageCsvError(Exception):
+    """A CSV matched a known brokerage schema we deliberately do not import yet.
+
+    Raised for brokerage CSV shapes that are detected (so they must NOT fall
+    through to the bank transaction parser and surface a misleading
+    "No valid transactions found" error) but are intentionally out of scope —
+    currently brokerage *trade-history* CSVs (side/symbol/fill-quantity/...),
+    which have no positions snapshot to import. The message is user-actionable.
+    """
+
+
+# Header keyword sets used to classify a brokerage CSV by its column names.
+# Matching is done on lower-cased, stripped headers using substring containment
+# so minor broker-specific wording variations ("Mkt Value" vs "Market Value")
+# still classify. Kept deliberately narrow: only schemas we can confidently
+# recognize are routed away from the bank parser.
+_BROKERAGE_POSITIONS_REQUIRED_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("symbol", "ticker", "instrument", "security"),
+    ("quantity", "qty", "shares", "position", "units"),
+    ("market value", "mkt value", "market val", "value", "marketvalue"),
+)
+_BROKERAGE_TRADE_HISTORY_REQUIRED_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("side", "action", "buy/sell", "b/s"),
+    ("symbol", "ticker", "instrument", "security"),
+    ("fill quantity", "fill qty", "filled quantity", "filled qty", "quantity", "qty"),
+    ("fill price", "filled price", "price", "trade price"),
+)
+
+
+def _header_group_matches(headers_lower: list[str], group: tuple[str, ...]) -> bool:
+    return any(any(keyword in header for keyword in group) for header in headers_lower)
+
+
+def _all_header_groups_match(headers_lower: list[str], groups: tuple[tuple[str, ...], ...]) -> bool:
+    return all(_header_group_matches(headers_lower, group) for group in groups)
+
+
+def classify_brokerage_csv(headers: list[str]) -> str | None:
+    """Classify a CSV by its header row into a known brokerage schema.
+
+    Returns ``"positions"`` for a brokerage positions/holdings export,
+    ``"trade_history"`` for a trade/fill export, or ``None`` when the headers do
+    not match any known brokerage schema (so bank CSV parsing proceeds).
+
+    Trade-history is checked first because it shares the symbol/quantity columns
+    of a positions export but adds a trade ``side``; a positions schema never
+    carries a side column, so this ordering keeps the two disjoint.
+    """
+    headers_lower = [h.lower().strip() for h in headers if h]
+    if not headers_lower:
+        return None
+    if _all_header_groups_match(headers_lower, _BROKERAGE_TRADE_HISTORY_REQUIRED_GROUPS):
+        return "trade_history"
+    if _all_header_groups_match(headers_lower, _BROKERAGE_POSITIONS_REQUIRED_GROUPS):
+        return "positions"
+    return None
+
+
+def _find_csv_column(headers: list[str], candidates: tuple[str, ...]) -> str | None:
+    """Return the original-cased header whose lower form contains any candidate."""
+    for header in headers:
+        if not header:
+            continue
+        low = header.lower().strip()
+        if any(keyword in low for keyword in candidates):
+            return header
+    return None
+
+
+def parse_brokerage_positions_csv_rows(
+    headers: list[str],
+    rows: list[dict[str, Any]],
+    *,
+    broker: str,
+    default_currency: str = "USD",
+) -> list[dict[str, Any]]:
+    """Map brokerage positions CSV rows into structured ``positions`` dicts.
+
+    Produces the same per-position shape (``asset_identifier``/``quantity``/
+    ``market_value``/``currency``...) consumed by ``_parse_structured_positions``
+    so the result flows through the existing brokerage import path. Rows missing
+    a symbol, quantity, or market value are skipped (a CSV can carry subtotal /
+    blank rows). Monetary and quantity fields are parsed as ``Decimal``.
+    """
+    symbol_col = _find_csv_column(headers, ("symbol", "ticker", "instrument", "security"))
+    quantity_col = _find_csv_column(headers, ("quantity", "qty", "shares", "position", "units"))
+    value_col = _find_csv_column(headers, ("market value", "mkt value", "market val", "marketvalue", "value"))
+    price_col = _find_csv_column(headers, ("current price", "price", "mark price", "last price"))
+    currency_col = _find_csv_column(headers, ("currency", "ccy"))
+    asset_type_col = _find_csv_column(headers, ("asset type", "asset class", "type", "category"))
+
+    positions: list[dict[str, Any]] = []
+    for row in rows:
+        identifier = str(row.get(symbol_col, "") or "").strip() if symbol_col else ""
+        quantity = _clean_decimal(row.get(quantity_col)) if quantity_col else None
+        market_value = _clean_decimal(row.get(value_col)) if value_col else None
+        if market_value is None and price_col and quantity is not None:
+            price = _clean_decimal(row.get(price_col))
+            if price is not None:
+                market_value = price * quantity
+        if not identifier or quantity is None or market_value is None:
+            continue
+        currency = str(row.get(currency_col, "") or "").strip().upper() if currency_col else ""
+        positions.append(
+            {
+                "symbol": identifier,
+                "asset_identifier": identifier,
+                "quantity": str(quantity),
+                "market_value": str(to_money(market_value)),
+                "currency": currency or default_currency.upper(),
+                "asset_type": (
+                    str(row.get(asset_type_col)).strip() if asset_type_col and row.get(asset_type_col) else None
+                ),
+                "broker": broker,
+            }
+        )
+    return positions
+
+
+def parse_brokerage_csv_payload(
+    headers: list[str],
+    rows: list[dict[str, Any]],
+    *,
+    institution: str,
+    filename: str | None = None,
+) -> dict[str, Any]:
+    """Build a brokerage positions payload from a CSV, or reject unsupported shapes.
+
+    Detects the brokerage CSV schema from ``headers`` and:
+
+    * positions/holdings → returns a ``{"institution", "positions", ...}`` payload
+      that satisfies ``looks_like_brokerage_payload`` and flows into the brokerage
+      position import path (AtomicPosition / reconciliation).
+    * trade-history → raises :class:`UnsupportedBrokerageCsvError` with an
+      actionable message (out of scope; never mapped into bank transactions).
+
+    Raises :class:`UnsupportedBrokerageCsvError` if the schema is brokerage but
+    yields zero importable positions, so the upload fails with a clear message
+    rather than the misleading generic bank "No valid transactions" error.
+    """
+    broker = detect_broker(filename=filename, institution=institution, text=None)
+    if broker == "Unknown Broker":
+        broker = institution
+
+    schema = classify_brokerage_csv(headers)
+    if schema == "trade_history":
+        raise UnsupportedBrokerageCsvError(
+            f"Brokerage trade-history CSV detected for {institution}. Trade-history import is not "
+            "supported yet — please upload a positions/holdings CSV (symbol, quantity, market value) "
+            "or the brokerage account statement (PDF) instead."
+        )
+    if schema != "positions":
+        raise UnsupportedBrokerageCsvError(
+            f"CSV for {institution} did not match a supported brokerage positions schema."
+        )
+
+    positions = parse_brokerage_positions_csv_rows(headers, rows, broker=broker)
+    if not positions:
+        raise UnsupportedBrokerageCsvError(
+            f"Brokerage positions CSV detected for {institution} but no importable positions were "
+            "found (need symbol, quantity, and market value columns with values)."
+        )
+    currency = positions[0]["currency"]
+    return {
+        "institution": broker,
+        "currency": currency,
+        "positions": positions,
+        "transactions": [],
+        "balance_source": "brokerage_positions_csv",
+    }
+
+
 def parse_brokerage_positions(
     payload: dict[str, Any],
     *,
@@ -484,7 +666,7 @@ def parse_brokerage_positions(
     institution: str | None = None,
 ) -> list[BrokeragePositionSnapshot]:
     """Parse brokerage position snapshots from structured or fallback payloads."""
-    statement = payload.get("statement") if isinstance(payload.get("statement"), dict) else {}
+    statement = _statement_dict(payload)
     broker = detect_broker(
         filename=filename or str(payload.get("file") or ""),
         institution=institution or payload.get("institution") or statement.get("institution"),
