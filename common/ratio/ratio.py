@@ -69,6 +69,23 @@ class Ratio:
         return cls(p / w)
 
     @classmethod
+    def fraction_or_zero(cls, part: _RatioInput, whole: _RatioInput) -> Ratio:
+        """``fraction(part, whole)`` but a zero whole yields :meth:`zero` instead
+        of raising — the canonical zero-denominator fallback (no naked
+        ``if whole == 0`` branching at call sites)."""
+        if _coerce(whole, "whole") == 0:
+            return cls.zero()
+        return cls.fraction(part, whole)
+
+    @classmethod
+    def fraction_or_none(cls, part: _RatioInput, whole: _RatioInput) -> Ratio | None:
+        """``fraction(part, whole)`` but a zero whole yields ``None`` — for call
+        sites that must distinguish "undefined" from "zero"."""
+        if _coerce(whole, "whole") == 0:
+            return None
+        return cls.fraction(part, whole)
+
+    @classmethod
     def zero(cls) -> Ratio:
         return cls(Decimal("0"))
 

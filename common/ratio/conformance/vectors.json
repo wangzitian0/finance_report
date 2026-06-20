@@ -33,5 +33,10 @@
   "from_percent": [
     {"percent": "12.5", "expected_percent_2dp": "12.50"},
     {"percent": "100", "expected_percent_2dp": "100.00"}
+  ],
+  "fraction_or_zero": [
+    {"part": "2", "whole": "8", "expected": "0.25"},
+    {"part": "5", "whole": "0", "expected": "0"},
+    {"part": "0", "whole": "0", "expected": "0"}
   ]
 }
