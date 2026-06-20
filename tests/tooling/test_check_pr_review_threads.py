@@ -18,6 +18,7 @@ no network call is made. Mirrors the pytest + ``common.*`` import convention of
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -223,6 +224,82 @@ class TestMain:
         payload = _payload(_thread(body="P0: bug", is_resolved=False))
         monkeypatch.setattr(gate, "fetch_threads", lambda pr_number, repo: payload)
         assert gate.main(["--repo", "o/r", "--pr-number", "1"]) == 1
+
+    def test_main_fails_closed_when_pr_present_but_repo_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A PR number with no resolvable repo is a misconfig — fail closed (1)."""
+        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+        called = False
+
+        def fetch(pr_number: int, repo: str) -> dict[str, Any]:
+            nonlocal called
+            called = True
+            return _payload()
+
+        monkeypatch.setattr(gate, "fetch_threads", fetch)
+        assert gate.main(["--pr-number", "1"]) == 1
+        # The gate must not silently pass: it fails before fetching.
+        assert called is False
+
+
+# ---------------------------------------------------------------------------
+# fetch_threads pagination — a PR with >100 review threads must not truncate.
+# ---------------------------------------------------------------------------
+
+
+def _page(nodes: list[dict[str, Any]], *, has_next: bool, cursor: str | None) -> Any:
+    """Build a subprocess.run result whose stdout is one GraphQL page."""
+
+    class _Result:
+        stdout = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": has_next,
+                                    "endCursor": cursor,
+                                },
+                                "nodes": nodes,
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+    return _Result()
+
+
+class TestFetchPagination:
+    def test_fetch_threads_follows_all_pages(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """fetch_threads concatenates every page until hasNextPage is false."""
+        pages = [
+            _page([_thread(body="t1")], has_next=True, cursor="c1"),
+            _page([_thread(body="t2")], has_next=True, cursor="c2"),
+            _page([_thread(body="t3")], has_next=False, cursor=None),
+        ]
+        calls: list[list[str]] = []
+
+        def fake_run(cmd: list[str], **kwargs: Any) -> Any:
+            calls.append(cmd)
+            return pages[len(calls) - 1]
+
+        monkeypatch.setattr(gate.subprocess, "run", fake_run)
+        merged = gate.fetch_threads(1, "o/r")
+        nodes = gate._thread_nodes(merged)
+        assert len(nodes) == 3
+        # Three page requests; pages 2 and 3 pass the prior endCursor.
+        assert len(calls) == 3
+        assert any("after=c1" in part for part in calls[1])
+        assert any("after=c2" in part for part in calls[2])
+
+    def test_fetch_threads_fails_closed_when_cursor_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """hasNextPage true but no endCursor must raise (never silently drop)."""
+        page = _page([_thread(body="t1")], has_next=True, cursor=None)
+        monkeypatch.setattr(gate.subprocess, "run", lambda cmd, **kw: page)
+        with pytest.raises(RuntimeError):
+            gate.fetch_threads(1, "o/r")
 
 
 # ---------------------------------------------------------------------------

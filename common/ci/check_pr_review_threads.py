@@ -19,6 +19,13 @@ printed (reported) but do NOT block. The gate is bootstrap-safe: a fresh PR
 with no unresolved P0/P1 passes, and a non-PR invocation (no PR number) skips
 cleanly with exit 0.
 
+Fail-closed semantics: :func:`fetch_threads` paginates until
+``pageInfo.hasNextPage`` is false (so a PR with >100 review threads cannot hide
+a blocking thread beyond the first page), and raises rather than silently
+truncating if a page is missing its cursor. When a PR number is supplied but
+the repo cannot be resolved (a likely CI misconfiguration), :func:`main`
+exits 1 instead of skipping, so the merge gate is never silently disabled.
+
 The GraphQL call is isolated behind the :func:`fetch_threads` seam so tests can
 inject canned JSON without any network access.
 """
@@ -58,10 +65,14 @@ LOWER_MARKER = re.compile(r"\b(P2|P3|nit)\b", re.IGNORECASE)
 FetchThreads = Callable[[int, str], dict[str, Any]]
 
 _GRAPHQL_QUERY = """
-query($owner: String!, $name: String!, $number: Int!) {
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      reviewThreads(first: 100) {
+      reviewThreads(first: 100, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes {
           isResolved
           isOutdated
@@ -78,6 +89,10 @@ query($owner: String!, $name: String!, $number: Int!) {
   }
 }
 """
+
+# Hard ceiling on pagination so a pathological PR cannot loop forever; 100
+# pages * 100 threads/page = 10k threads, far beyond any real PR.
+_MAX_PAGES = 100
 
 
 class Severity(enum.Enum):
@@ -119,39 +134,80 @@ def _thread_url(thread: dict[str, Any]) -> str:
     return _first_comment(thread).get("url") or "(no url)"
 
 
-def _thread_nodes(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract reviewThreads nodes from the GraphQL envelope, defensively."""
+def _review_threads(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the reviewThreads object from one GraphQL page, defensively."""
     repo = ((payload or {}).get("data") or {}).get("repository") or {}
     pr = repo.get("pullRequest") or {}
-    return (pr.get("reviewThreads") or {}).get("nodes") or []
+    return pr.get("reviewThreads") or {}
+
+
+def _thread_nodes(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract reviewThreads nodes from the GraphQL envelope, defensively."""
+    return _review_threads(payload).get("nodes") or []
+
+
+def _wrap_nodes(nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Wrap merged thread nodes back into the standard GraphQL envelope shape."""
+    return {
+        "data": {
+            "repository": {
+                "pullRequest": {"reviewThreads": {"nodes": nodes}},
+            }
+        }
+    }
+
+
+def _graphql_page(owner: str, name: str, pr_number: int, after: str | None) -> dict[str, Any]:
+    """Run one `gh api graphql` page request and return the parsed JSON."""
+    cmd = [
+        "gh",
+        "api",
+        "graphql",
+        "-f",
+        f"query={_GRAPHQL_QUERY}",
+        "-F",
+        f"owner={owner}",
+        "-F",
+        f"name={name}",
+        "-F",
+        f"number={pr_number}",
+    ]
+    if after:
+        cmd += ["-F", f"after={after}"]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return json.loads(result.stdout)
 
 
 def fetch_threads(pr_number: int, repo: str) -> dict[str, Any]:
-    """Fetch review threads via `gh api graphql` (the real, network seam).
+    """Fetch ALL review threads via `gh api graphql` (the real, network seam).
 
-    ``repo`` is ``owner/name``. Returns the parsed JSON envelope. This function
-    is patched/replaced in tests so no network call is made there.
+    Paginates through `reviewThreads` until `pageInfo.hasNextPage` is false, so
+    a PR with more than 100 review threads cannot let unresolved blocking
+    threads beyond the first page slip past the merge gate. Returns a single
+    merged JSON envelope. This function is patched/replaced in tests so no
+    network call is made there.
     """
     owner, _, name = repo.partition("/")
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            "graphql",
-            "-f",
-            f"query={_GRAPHQL_QUERY}",
-            "-F",
-            f"owner={owner}",
-            "-F",
-            f"name={name}",
-            "-F",
-            f"number={pr_number}",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
+    all_nodes: list[dict[str, Any]] = []
+    after: str | None = None
+    for _ in range(_MAX_PAGES):
+        payload = _graphql_page(owner, name, pr_number, after)
+        threads = _review_threads(payload)
+        all_nodes.extend(threads.get("nodes") or [])
+        page_info = threads.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            return _wrap_nodes(all_nodes)
+        after = page_info.get("endCursor")
+        if not after:
+            # hasNextPage is true but no cursor: cannot safely continue. Fail
+            # closed rather than silently dropping later pages.
+            raise RuntimeError(
+                "PR review thread gate: GraphQL reported more pages but no "
+                "endCursor; cannot guarantee all threads were read."
+            )
+    raise RuntimeError(
+        f"PR review thread gate: exceeded the page limit ({_MAX_PAGES}) while reading review threads; failing closed."
     )
-    return json.loads(result.stdout)
 
 
 def run(
@@ -256,11 +312,15 @@ def main(argv: list[str] | None = None) -> int:
     repo = _resolve_repo(args.repo)
 
     if pr_number is not None and not repo:
+        # A PR number is present but the repo cannot be resolved — almost
+        # certainly a CI misconfiguration (e.g. a typo'd env var). Fail closed
+        # rather than silently disabling a merge-blocking contract.
         print(
-            "PR review thread gate: a PR number was supplied but no repo (--repo / $GITHUB_REPOSITORY); skipping.",
+            "PR review thread gate: a PR number was supplied but the repo could "
+            "not be resolved (--repo / $GITHUB_REPOSITORY); failing closed.",
             file=sys.stderr,
         )
-        return 0
+        return 1
 
     # Bind through the module attribute so tests can monkeypatch fetch_threads.
     return run(pr_number, repo, fetch_threads=fetch_threads)

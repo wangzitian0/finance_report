@@ -79,6 +79,12 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Needed by the PR Review Thread Merge Gate step: `gh api graphql` reads
+      # the PR's review threads. The top-level `permissions:` block restricts
+      # GITHUB_TOKEN to actions/contents read, so grant pull-requests read here.
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
         with:
