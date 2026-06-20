@@ -80,12 +80,11 @@ class Quantity:
         return Quantity(abs(self.value), self.unit)
 
     def __mul__(self, factor: _QuantityInput) -> Quantity:
-        # Scale by a dimensionless Decimal/int factor. float/bool stay a hard red
-        # line (raise); any other type yields NotImplemented so a reflected
-        # operand can handle it — e.g. quantity * UnitPrice -> Money.
-        if isinstance(factor, (Decimal, int)) and not isinstance(factor, bool):
-            return Quantity(self.value * factor, self.unit)
-        if isinstance(factor, (bool, float)):
+        # Scale by a dimensionless factor, routed through _coerce so the value-type
+        # invariants hold (finiteness check; float/bool stay a hard red line).
+        # Any other operand type yields NotImplemented so a reflected op can handle
+        # it — e.g. quantity * UnitPrice -> Money.
+        if isinstance(factor, (Decimal, int, float)):  # bool is an int subclass
             return Quantity(self.value * _coerce(factor, "factor"), self.unit)
         return NotImplemented
 

@@ -39,6 +39,14 @@ def test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed():
     q = Quantity(Decimal("0.125"), "shares")
     with pytest.raises((AttributeError, TypeError)):
         q.value = Decimal("0.2")  # type: ignore[misc]
+    # scalar multiplication keeps the value-type invariants: float/bool and
+    # non-finite Decimal factors are rejected, never silently scaled.
+    with pytest.raises(FloatNotAllowedError):
+        q * 1.5
+    with pytest.raises(FloatNotAllowedError):
+        q * Decimal("NaN")
+    with pytest.raises(FloatNotAllowedError):
+        q * Decimal("Infinity")
 
 
 @ac_proof(
