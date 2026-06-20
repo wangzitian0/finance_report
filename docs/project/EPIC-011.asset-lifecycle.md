@@ -271,6 +271,25 @@ restricted compensation.
 | AC11.20.2 | Net-worth allocation groups retirement accounts, social-security personal balances, legacy CPF, and insurance cash value under the retirement-and-benefit asset class | `test_AC11_20_2_net_worth_allocation_groups_retirement_and_benefit_assets()` | `reporting/test_reporting_net_worth_components.py` | P1 |
 | AC11.20.3 | The assets page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value | `test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels()` | `apps/frontend/src/__tests__/assetsPage.test.tsx` | P1 |
 
+### AC11.21: Stable Valuation Taxonomy Contract (#1221)
+
+The durable L1/L2 valuation taxonomy that report generation, net worth,
+allocation, and framework-policy logic depend on. Jurisdiction-, scheme-, and
+vendor-specific names (CPF, 401k, MPF, SRS, IRA, social-security personal
+accounts, specific insurers/brokers) are extracted as metadata and mapped onto
+this small stable set — they are never stable taxonomy codes. Durable economic
+meaning lives in three report-stable dimensions (`economic_side`,
+`valuation_role`, `liquidity_class`) plus the L1/L2 class tree. This AC owns the
+contract language only; storage (#1222), adapter (#1223), LLM classification
+(#1224), and report consumption (#1225) build on it.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.21.1 | Stable L1 taxonomy defines the required durable classes (cash, marketable investment, retirement/benefit, restricted compensation, real estate, liability, and asset/non-asset fallbacks) | `test_l1_taxonomy_covers_required_stable_classes()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
+| AC11.21.2 | The contract exposes `economic_side`, `valuation_role`, and `liquidity_class` as report-stable dimensions, expressing insurance cash value (asset) vs coverage amount (non-asset) | `test_report_stable_dimensions_present()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
+| AC11.21.3 | A deterministic guard rejects jurisdiction-, scheme-, and vendor-specific tokens in stable taxonomy codes | `test_stable_codes_reject_vendor_jurisdiction_scheme_tokens()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
+| AC11.21.4 | Every L2 code maps to exactly one L1 parent with a default economic side | `test_l2_maps_to_single_l1_and_default_side()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or
