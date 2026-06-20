@@ -221,6 +221,17 @@ jobs:
       - name: Workflow Contract Check
         run: |
           uv run --with pyyaml python tools/check_workflow_contract.py
+      - name: PR Review Thread Merge Gate
+        # Issue #755 (scope 2a): block merge while an unresolved P0/P1 (or
+        # unresolved Copilot-authored) review thread is open. Skips cleanly on
+        # non-PR events because PR_NUMBER is empty (the checker exits 0).
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uv run python tools/check_pr_review_threads.py
 
   schema-migrations:
     name: Schema Migration Contract

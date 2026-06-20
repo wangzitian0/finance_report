@@ -524,6 +524,25 @@ regression.
 | AC8.19.1 | Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register" | `AC8.19.1 login register controls expose distinct test ids and accessible names` | `apps/frontend/src/__tests__/loginPage.test.tsx` | P1 |
 | AC8.19.2 | Registration E2E targets the mode-toggle register control by test id, switching into register mode without a strict-mode locator failure | `test_registration_api_path`, `test_full_registration_flow` | `tests/e2e/test_auth_flows.py` | P1 |
 
+### AC8.20: PR Review Thread Merge Gate
+
+A merge-time CI gate (issue #755 scope 2a) blocks a PR while a high-severity
+review thread is still open. It reads the PR's review threads through the GitHub
+GraphQL API (`gh api graphql`) and classifies each thread's severity from a
+documented marker rule: a thread is **blocking (P0/P1)** when its first comment
+body matches `\b(P0|P1)\b` (case-insensitive) or is Copilot-authored and not
+explicitly marked a lower severity (`P2`/`P3`/`nit`); everything else is lower
+severity. Only *unresolved* blocking threads fail the gate; resolved, outdated,
+and lower-severity unresolved threads are reported but never block. The gate is
+bootstrap-safe (a fresh PR with no unresolved P0/P1 passes) and skips cleanly on
+non-PR events. The classification rule is owned by [ci-cd.md](../ssot/ci-cd.md).
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.20.1 | The checker blocks (exit 1) when an unresolved P0/P1 (or unresolved Copilot) review thread exists | `test_AC8_20_1_unresolved_p0_blocks`, `test_AC8_20_1_unresolved_copilot_blocks`, `test_AC8_20_1_blocking_thread_url_is_printed` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
+| AC8.20.2 | Resolved/outdated threads and lower-severity (P2/P3/nit) unresolved threads do NOT block; they are reported | `test_AC8_20_2_resolved_p0_passes`, `test_AC8_20_2_outdated_p0_passes`, `test_AC8_20_2_unresolved_nit_passes_but_reported`, `test_AC8_20_2_empty_passes`, `test_AC8_20_2_mixed_blocks_only_on_active_p0` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
+| AC8.20.3 | The severity classification rule is documented in the CI/CD SSOT | `test_AC8_20_3_severity_rule_documented_in_ssot` | `tests/tooling/test_check_pr_review_threads.py` | P1 |
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI

@@ -238,6 +238,42 @@ Tier 1, Tier 2, and Tier 3 evidence.
 
 ---
 
+## PR Review Thread Merge Gate
+
+`tools/check_pr_review_threads.py` (logic in
+`common/ci/check_pr_review_threads.py`) is a merge-time gate that blocks a PR
+while a high-severity review thread is still open. It runs as a step in the
+`lint` job of `.github/workflows/ci.yml` on `pull_request` events, reading the
+PR's review threads through the GitHub GraphQL API (`gh api graphql`). It is
+bootstrap-safe and skips cleanly (exit 0) on non-PR events (no PR number).
+
+### Severity classification rule
+
+For each review thread the gate inspects the **first comment**:
+
+- A thread is **blocking (P0/P1)** when either:
+  - the first comment body matches the marker regex `\b(P0|P1)\b`
+    (case-insensitive), OR
+  - the first comment is **Copilot-authored** (`author.login` in
+    `copilot`, `github-copilot[bot]`,
+    `copilot-pull-request-reviewer[bot]`) AND the body is **not** explicitly
+    marked a lower severity (it does not contain `P2`, `P3`, or `nit`).
+- Every other thread is **lower severity**.
+
+### Decision
+
+- The gate **exits 1** (blocks merge) when any thread is **unresolved** AND
+  classified **blocking**.
+- **Resolved** and **outdated** threads never block, regardless of severity.
+- **Lower-severity unresolved** threads (e.g. `P2`/`P3`/`nit`) do **not** block;
+  they are printed in the summary so reviewers can still see them.
+
+The gate prints a summary with the thread counts and, when it blocks, the URLs
+of the offending threads. Resolve or mark the thread resolved on GitHub to clear
+the gate.
+
+---
+
 ## No-Regression Coverage Gate
 
 The CI workflow enforces a **no-regression policy** for test coverage.

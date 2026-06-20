@@ -496,6 +496,15 @@ concepts:
       - docs/ssot/coverage.md
       - .github/workflows/ci.yml
 
+  pr_review_thread_merge_gate:
+    owner: docs/ssot/ci-cd.md#pr-review-thread-merge-gate
+    description: Merge-time gate that blocks unresolved P0/P1 (and Copilot-authored) PR review threads, and the documented severity classification rule.
+    cross_refs:
+      - docs/project/EPIC-008.testing-strategy.md
+      - .github/workflows/ci.yml
+    proofs:
+      - tests/tooling/test_check_pr_review_threads.py
+
   ci_gate_inventory:
     owner: docs/ssot/ci-gate-inventory.yaml
     family: delivery
