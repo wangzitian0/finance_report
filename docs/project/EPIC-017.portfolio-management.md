@@ -437,3 +437,21 @@ visible in OpenAPI and the generated frontend client.
 |----|-----------|---------------|------|----------|
 | AC17.31.1 | `prices/update` returns the typed `{updated_count, results}` shape | `test_AC17_31_1_prices_update_returns_typed_batch_response` | `api/test_typed_contract_sweep.py` | P2 |
 | AC17.31.2 | `PATCH {ticker}` for an unknown holding returns a structured 404 | `test_AC17_31_2_patch_unknown_holding_returns_404` | `api/test_typed_contract_sweep.py` | P2 |
+
+### AC17.32: Brokerage CSV Routing ([#1255](https://github.com/wangzitian0/finance_report/issues/1255))
+
+CSV uploads previously routed every `.csv` through the bank transaction parser,
+so brokerage CSVs (positions/holdings or trade-history schemas) failed with a
+misleading generic "No valid transactions found" error and never reached
+`BrokeragePositionImportService`. A header-shape classifier now runs BEFORE bank
+CSV parsing: a brokerage **positions** CSV is mapped into a `positions` payload
+that flows into the brokerage import path, and a brokerage **trade-history** CSV
+(out of scope for mapping) is rejected with an actionable unsupported-document
+error instead of the misleading bank parse failure. Bank CSV parsing is
+unchanged for non-brokerage schemas.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC17.32.1 | Brokerage positions CSV is mapped into a `positions` payload (not a bank parse failure) so it reaches the brokerage import path | `test_AC17_32_1_brokerage_positions_csv_produces_positions_payload` | `extraction/test_brokerage_csv_routing.py` | P1 |
+| AC17.32.2 | Brokerage trade-history CSV raises an actionable unsupported-document error, not the generic bank "No valid transactions" failure | `test_AC17_32_2_brokerage_trade_history_csv_raises_actionable_error` | `extraction/test_brokerage_csv_routing.py` | P1 |
+| AC17.32.3 | Bank transaction CSV parsing is unaffected by brokerage CSV detection (no regression) | `test_AC17_32_3_bank_csv_unaffected_by_brokerage_detection` | `extraction/test_brokerage_csv_routing.py` | P1 |
