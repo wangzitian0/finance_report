@@ -329,6 +329,25 @@ adapter's `liquidity_class` is cross-checked against the live legacy
 | AC11.23.3 | A snapshot projects onto the stable read-model preserving source, as-of date, currency, value, and valuation basis | `test_adapt_snapshot_preserves_fact_fields_in_stable_view()` | `assets/test_valuation_adapter.py` | P0 |
 | AC11.23.4 | Legacy CPF/insurance cash value/RSU/mortgage fixtures classify to the expected stable L1/L2 (cash value is an asset, not coverage) | `test_legacy_fixtures_classify_to_expected_stable_codes()` | `assets/test_valuation_adapter.py` | P0 |
 
+### AC11.24: LLM Valuation Classification Contract + Review Gates (#1224)
+
+The bounded LLM output contract for classifying a raw valuation fact into the
+stable taxonomy (AC11.21), plus deterministic review gating. The model adapts
+provider/jurisdiction/plan specifics (CPF, 401k, MPF, social security, insurers)
+into stable codes; the taxonomy fields are bound to the contract enums so the
+model cannot invent new report classes. Low-confidence or ambiguous output is
+routed to review instead of trusted report use, and the prompt + model versions
+are persisted with each classification. Contract/gating only — no live LLM
+transport and no report switch-over (that is #1225).
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.24.1 | The bounded output schema accepts a valid classification and rejects out-of-contract codes, mismatched L1/L2, and out-of-range confidence | `test_llm_output_rejects_out_of_contract_codes()` | `assets/test_valuation_classification_contract.py` | P0 |
+| AC11.24.2 | Insurance cash value classifies as an asset that contributes to net worth; a coverage amount is a non-asset excluded from net worth | `test_cash_value_is_asset_coverage_amount_excluded_from_net_worth()` | `assets/test_valuation_classification_contract.py` | P0 |
+| AC11.24.3 | Low-confidence classifications route to review; confident ones are auto-approved for trusted use | `test_low_confidence_routes_to_review()` | `assets/test_valuation_classification_contract.py` | P0 |
+| AC11.24.4 | Deterministic fixtures (CPF/provident, 401k, China social-security personal account, insurance cash value, insurance coverage amount) classify to the expected stable codes | `test_deterministic_fixtures_classify_to_expected_codes()` | `assets/test_valuation_classification_contract.py` | P0 |
+| AC11.24.5 | Prompt version and model identifier are persisted with the classification output | `test_prompt_and_model_version_persisted()` | `assets/test_valuation_classification_contract.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

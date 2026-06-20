@@ -292,6 +292,17 @@ unchanged. The adapter's `liquidity_class` is pinned to the legacy
 `_DEFAULT_LIQUIDITY_CLASS` table by test, so report switch-over (#1225) is
 behaviour-preserving.
 
+**LLM classification contract (#1224).** The bounded model output that classifies
+a raw valuation fact into these stable codes is
+`apps/backend/src/schemas/valuation.py` (`ValuationClassificationLLMOutput`),
+with review gating in `apps/backend/src/services/valuation_classification.py`. The
+taxonomy fields are bound to the contract enums, so out-of-contract codes are
+rejected rather than accepted; a coverage amount must be `non_asset`
+/`coverage_amount` (excluded from net worth) while insurance cash value is an
+asset. Low-confidence output routes to review (`ValuationReviewStatus.PENDING`)
+instead of trusted report use, and the prompt + model versions are persisted with
+the classification.
+
 ---
 
 ## 7. Design Constraints
