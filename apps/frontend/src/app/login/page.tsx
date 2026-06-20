@@ -88,7 +88,9 @@ export default function LoginPage() {
                         // segmented toggle a distinct accessible name + test id so it is
                         // unambiguous for assistive tech and Playwright strict locators.
                         data-testid="auth-mode-toggle-register"
-                        aria-label="Switch to register"
+                        // WCAG 2.5.3 (Label in Name): the accessible name contains the
+                        // visible text "Register" and stays unique vs. the inline CTA.
+                        aria-label="Register (switch to register mode)"
                         className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${mode === "register"
                             ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
                             : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"

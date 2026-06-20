@@ -108,12 +108,14 @@ describe("LoginPage", () => {
     expect(toggleRegister).toHaveTextContent("Register")
     expect(ctaRegister).toHaveTextContent("Register")
 
-    // Accessible names are disambiguated so no two buttons share the same name.
-    expect(toggleRegister).toHaveAccessibleName("Switch to register")
+    // Accessible names are disambiguated (no two buttons share the same name)
+    // while still containing the visible "Register" text (WCAG 2.5.3 Label in Name).
+    expect(toggleRegister).toHaveAccessibleName("Register (switch to register mode)")
     expect(ctaRegister).toHaveAccessibleName("Register a new account")
 
-    // The previously ambiguous strict accessible name "Register" now matches no button.
-    expect(screen.queryAllByRole("button", { name: "Register" })).toHaveLength(0)
+    // The previously ambiguous EXACT accessible name "Register" now matches no
+    // button (anchored exact match so the assertion only targets that name).
+    expect(screen.queryAllByRole("button", { name: /^Register$/ })).toHaveLength(0)
   })
 
   it("AC22.18.3 tracks SIGNUP only on successful register, not on login", async () => {
