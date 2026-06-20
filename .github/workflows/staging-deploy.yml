@@ -197,7 +197,39 @@ jobs:
       - name: Install deploy_v2 dependencies
         id: install_deploy_v2
         if: steps.gates.outputs.staging_required == 'true'
-        run: python -m pip install httpx python-dotenv rich
+        env:
+          # Bounded retry for the transient deploy_v2 dependency download
+          # (timeout/504). Mirrors the "AI Provider Connectivity Smoke" idiom.
+          # The deploy itself (Deploy to Staging) stays fail-fast.
+          TOOLCHAIN_DOWNLOAD_RETRIES: "3"
+          TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS: "10"
+        run: |
+          set -uo pipefail
+          attempts="${TOOLCHAIN_DOWNLOAD_RETRIES:-3}"
+          delay="${TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS:-10}"
+          log="$(mktemp)"
+          rc=1
+          for n in $(seq 1 "$attempts"); do
+            echo "::group::Install deploy_v2 dependencies (attempt ${n}/${attempts})"
+            set +e
+            python -m pip install httpx python-dotenv rich 2>&1 | tee "$log"
+            rc="${PIPESTATUS[0]}"
+            set -e
+            echo "::endgroup::"
+            if [ "$rc" -eq 0 ]; then
+              break
+            fi
+            if [ "$n" -lt "$attempts" ]; then
+              echo "deploy_v2 dependency install attempt ${n} failed (rc=${rc}); retrying in ${delay}s..."
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::deploy_v2 dependency install failed after ${attempts} attempts (rc=${rc}). Original error:"
+            cat "$log"
+            exit "$rc"
+          fi
 
       - name: Deploy to Staging
         id: deploy_staging

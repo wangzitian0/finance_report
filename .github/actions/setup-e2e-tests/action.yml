@@ -34,12 +34,55 @@ runs:
 
     - name: Install Test Dependencies
       shell: bash
+      env:
+        # Bounded retry for transient toolchain downloads (timeout/504). Mirrors
+        # the staging "AI Provider Connectivity Smoke" idiom. App/test execution
+        # steps are NOT wrapped; only these network downloads are.
+        TOOLCHAIN_DOWNLOAD_RETRIES: "3"
+        TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS: "10"
       run: |
+        set -uo pipefail
+
+        # Retry a transient toolchain-download command with bounded exponential
+        # backoff. On exhaustion the original external error stays visible: every
+        # attempt is tee'd to a log and the last failing log is printed before we
+        # exit non-zero.
+        retry_download() {
+          local label="$1"
+          shift
+          local attempts="${TOOLCHAIN_DOWNLOAD_RETRIES:-3}"
+          local delay="${TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS:-10}"
+          local log
+          log="$(mktemp)"
+          local rc=1
+          local n
+          for n in $(seq 1 "$attempts"); do
+            echo "::group::${label} (attempt ${n}/${attempts})"
+            set +e
+            "$@" 2>&1 | tee "$log"
+            rc="${PIPESTATUS[0]}"
+            set -e
+            echo "::endgroup::"
+            if [ "$rc" -eq 0 ]; then
+              return 0
+            fi
+            if [ "$n" -lt "$attempts" ]; then
+              echo "${label} attempt ${n} failed (rc=${rc}); retrying in ${delay}s..."
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+          echo "::error::${label} failed after ${attempts} attempts (rc=${rc}). Original error:"
+          cat "$log"
+          return "$rc"
+        }
+
         # Reuse cached E2E dependencies when possible; uv only installs drift.
         if [ ! -x .venv/bin/python ]; then
           uv venv
         fi
-        uv pip install -r tests/e2e/requirements.txt
+        retry_download "uv pip install (E2E requirements)" \
+          uv pip install -r tests/e2e/requirements.txt
 
         # Add venv bin to PATH so subsequent steps can use 'pytest' and 'playwright' directly
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
@@ -50,4 +93,5 @@ runs:
 
         # Install playwright browsers
         # Note: We must use the venv's python/playwright explicitly if PATH update hasn't propagated to current shell
-        ./.venv/bin/playwright install chromium --with-deps
+        retry_download "playwright install chromium" \
+          ./.venv/bin/playwright install chromium --with-deps
