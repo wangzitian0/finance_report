@@ -337,6 +337,34 @@ rejecting asynchronously (AC13.21.6).
 | AC13.21.5 | The same balance-mismatch payload routes to the same `PARSED` status deterministically across N parses. | `test_routing_is_consistent_per_payload_class` | `extraction/test_extraction_determinism.py` | P0 |
 | AC13.21.6 | CSV upload with a missing institution fails synchronously with HTTP 400 and an actionable message. | `test_AC13_21_6_csv_missing_institution_rejected_sync` | `api/test_statements_router.py` | P0 |
 
+### AC13.22: Same-Amount Deposit Survives a Page-Boundary Balance Repeat (#1254)
+
+A single bank statement can contain two **genuinely distinct** same-date,
+same-amount incoming deposits whose extracted running `balance_after` is
+**identical** — this happens when a carried-forward balance row precedes the
+first deposit and a brought-forward balance row across a page boundary precedes
+the second, so the statement prints the same running balance against both rows.
+
+The confidence-tiered dedup disambiguator (AC11.16) used `balance_after` alone
+as the high-confidence key, applying the per-document `occurrence_index` only
+when `balance_after` was `null`. When the running balance repeated, the two real
+deposits hashed identically and the second collapsed into the first at upsert
+time, so only one deposit persisted and the deterministic running-balance chain
+diverged by exactly the missing amount (`balance_validated=false`).
+
+The fix folds the per-document `occurrence_index` into the disambiguator **even
+when `balance_after` is present**, so two distinct rows at distinct positions in
+one parse stay distinct. Recall of genuine cross-document duplicate suppression
+is preserved: a re-uploaded statement reproduces the same ordered rows, so each
+row keeps the same `(balance_after, occurrence_index)` pair and still collapses.
+The fix invents no rows — it only uses the visible per-row balance and position
+evidence already extracted.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC13.22.1 | Two distinct same-date/same-amount/same-direction rows sharing one running `balance_after` hash differently within one document (via `occurrence_index`), while a re-uploaded identical row still collapses across documents. | `test_AC13_22_1_same_balance_distinct_rows_do_not_collapse` | `extraction/test_deduplication.py` | P0 |
+| AC13.22.2 | A parsed statement with two same-date/same-amount deposits separated by a carried-forward/brought-forward balance repeat persists both deposits and the running-balance chain reconciles. | `test_AC13_22_2_page_boundary_duplicate_deposit_survives` | `extraction/test_dual_write_layer2.py` | P0 |
+
 ### AC13.16: Deterministic Decoding — Request Seed (issue #989)
 
 Complements AC13.13 (downstream determinism). AC13.13 pins everything *after* the

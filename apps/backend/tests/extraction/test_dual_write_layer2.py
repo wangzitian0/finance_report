@@ -418,3 +418,90 @@ class TestDualWriteLayer2:
 
         # Function should return None on IntegrityError
         assert result is None
+
+    async def test_AC13_22_2_page_boundary_duplicate_deposit_survives(self, db, test_user):
+        """AC13.22.2: a statement with two distinct same-date/same-amount deposits separated by a
+        carried-forward / brought-forward balance repeat across a page boundary persists BOTH
+        deposits, and the running-balance chain reconciles (#1254).
+
+        Synthetic, anonymized payload — no real bank names, amounts, or filenames. The two deposits
+        are both extracted with the SAME ``balance_after`` because the OCR/LLM reads the repeated
+        carried-forward / brought-forward running balance against each row. Before the fix the two
+        rows hashed identically (balance_after was the sole disambiguator) and the second collapsed,
+        dropping exactly one deposit and breaking the balance chain. The fix keeps both via the
+        per-document occurrence ordinal."""
+        service = ExtractionService()
+        file_content = b"SYNTHETIC-PAGE-BOUNDARY-STATEMENT"
+        file_hash = hashlib.sha256(file_content).hexdigest()
+
+        # opening 1000 -> +250 -> +250 -> -100 -> closing 1400. The two +250 deposits are genuinely
+        # distinct but both carry the SAME extracted balance_after (1250) because the OCR/LLM reads
+        # the repeated carried-forward / brought-forward running balance printed across the page
+        # boundary against each row. This is exactly the collapse condition: identical
+        # (date, amount, direction, description, balance_after) for two real rows.
+        page_boundary_response = {
+            "account_last4": "0001",
+            "currency": "SGD",
+            "period_start": "2024-04-01",
+            "period_end": "2024-04-30",
+            "opening_balance": "1000.00",
+            "closing_balance": "1400.00",
+            "transactions": [
+                {
+                    "date": "2024-04-12",
+                    "description": "Incoming Transfer",
+                    "amount": "250.00",
+                    "direction": "IN",
+                    "balance_after": "1250.00",
+                },
+                {
+                    "date": "2024-04-12",
+                    "description": "Incoming Transfer",
+                    "amount": "250.00",
+                    "direction": "IN",
+                    "balance_after": "1250.00",
+                },
+                {
+                    "date": "2024-04-13",
+                    "description": "Card Spend",
+                    "amount": "100.00",
+                    "direction": "OUT",
+                    "balance_after": "1400.00",
+                },
+            ],
+        }
+
+        with patch.object(service, "extract_financial_data", return_value=page_boundary_response):
+            statement, transactions = await service.parse_document(
+                file_path=Path("synthetic_statement.pdf"),
+                institution="SynthBank",
+                user_id=test_user.id,
+                file_content=file_content,
+                file_hash=file_hash,
+                original_filename="synthetic_statement.pdf",
+                db=db,
+            )
+
+        await db.commit()
+
+        # Both same-amount deposits survived extraction (the parser appends every row).
+        assert len(transactions) == 3
+
+        # Both deposits persisted to Layer 2 — the dedup layer must NOT collapse them.
+        atomic_txns = (
+            (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)))
+            .scalars()
+            .all()
+        )
+        deposits = [t for t in atomic_txns if t.direction == TransactionDirection.IN]
+        assert len(deposits) == 2, "both distinct same-amount deposits must persist (no dedup collapse)"
+        assert all(d.amount == Decimal("250.00") for d in deposits)
+        assert len(atomic_txns) == 3
+
+        # The deterministic running-balance chain reconciles: opening + ΣIN − ΣOUT == closing.
+        net = sum(
+            (t.amount if t.direction == TransactionDirection.IN else -t.amount for t in atomic_txns),
+            Decimal("0.00"),
+        )
+        assert statement.opening_balance + net == statement.closing_balance
+        assert statement.balance_validated is True

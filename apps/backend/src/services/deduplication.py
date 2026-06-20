@@ -49,25 +49,44 @@ class DeduplicationService:
 
         Hash = SHA256(user_id|date|amount|direction|description|reference|disambiguator)
 
-        The disambiguator is a confidence-tiered tail so that auto-dedup collapses only
-        when we are confident two rows are the SAME transaction, and preserves recall
-        otherwise:
+        The disambiguator pairs the statement running balance (when present) with a
+        per-document ``occurrence_index`` so auto-dedup collapses only when we are
+        confident two rows are the SAME transaction, while preserving recall for
+        genuinely-distinct rows:
 
-        - High confidence — ``balance_after`` present: the statement running balance pins
-          the ledger position. Different running balances ⇒ definitely different
-          transactions; genuine duplicate extractions share the running balance and
-          still collapse across documents.
-        - Lower confidence — no running balance (e.g. CSV): use a per-document
-          ``occurrence_index`` among otherwise-identical rows so genuinely-repeated rows
-          stay distinct (two $5 coffees on the same day are two transactions) instead of
-          silently collapsing into one. Cross-document duplicates of such rows are left
-          to the ``detect_duplicates`` consistency check for user review rather than
-          dropped here.
+        - ``balance_after`` present: the running balance normally pins the ledger
+          position, but it is **not** a unique key on its own. A statement can print the
+          *same* running balance against two genuinely-distinct same-date/same-amount
+          rows — e.g. a deposit immediately before a carried-forward balance row and an
+          identical deposit immediately after the brought-forward balance row across a
+          page boundary (#1254). The ``occurrence_index`` keeps those two real rows
+          distinct instead of silently dropping the second, while a re-uploaded statement
+          reproduces the same ordered rows (same balance + same ordinal per row) so the
+          genuine duplicate still collapses across documents.
+        - No running balance (e.g. CSV): the ``occurrence_index`` alone keeps
+          genuinely-repeated identical rows distinct (two $5 coffees on the same day are
+          two transactions). Cross-document duplicates of such rows are left to the
+          ``detect_duplicates`` consistency check for user review rather than dropped here.
+
+        Backward compatibility: the **first** occurrence (``occurrence_index == 0``) keeps
+        the legacy disambiguator byte-for-byte — ``"<balance>"`` when a balance is present
+        and ``"#0"`` when it is not — so every hash persisted under the previous scheme
+        still matches and cross-document dedup of already-stored rows is unaffected. Only
+        *subsequent* occurrences of an otherwise-identical row gain the ``"#<index>"``
+        tail (``"<balance>#1"``, ``"<balance>#2"`` …), which by definition never collided
+        with a stored hash before (the second row was being dropped). This delivers the
+        #1254 fix without changing any existing row's hash.
 
         Decimal amounts are canonicalized (``Decimal('50')`` and ``Decimal('50.00')``
         hash identically) so values that differ only in scale do not break dedup.
         """
-        disambiguator = _decimal_key(balance_after) if balance_after is not None else f"#{occurrence_index}"
+        balance_key = _decimal_key(balance_after) if balance_after is not None else ""
+        # occurrence_index == 0 -> legacy disambiguator (balance_key, or "#0" when balance-less),
+        # so previously-stored hashes are preserved. Only index >= 1 gains the distinguishing tail.
+        if occurrence_index == 0:
+            disambiguator = balance_key if balance_after is not None else "#0"
+        else:
+            disambiguator = f"{balance_key}#{occurrence_index}"
         components = [
             str(user_id),
             txn_date.isoformat(),
