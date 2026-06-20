@@ -246,6 +246,43 @@ readiness blocker rather than being rejected (see AC11.9.5).
   snapshot's source-anchor detail records its `valuation_basis` enum value
   (AC11.9.10).
 
+<a id="stable-valuation-taxonomy"></a>
+
+### Stable Valuation Taxonomy Contract (#1221)
+
+The stable valuation taxonomy is the small, durable vocabulary that report
+generation, net worth, allocation, and framework-policy logic depend on. It is
+defined in code at `apps/backend/src/constants/valuation_taxonomy.py` and pinned
+by `apps/backend/tests/assets/test_valuation_taxonomy_contract.py` (EPIC-011
+AC11.21). The legacy `ManualValuationComponentType` enum is **not** retired by
+this contract; it becomes a legacy input hint that later issues (#1223) map onto
+these stable classes.
+
+**Design rule.** Jurisdiction-, scheme-, and vendor-specific names (CPF, 401k,
+MPF, SRS, IRA, social-security personal accounts, specific insurers/brokers) are
+extracted as metadata and mapped onto the stable set — they are never stable
+taxonomy codes. A deterministic guard test rejects such tokens in any stable
+code. Durable economic meaning lives in three report-stable dimensions plus a
+small L1/L2 class tree:
+
+- **`economic_side`**: `asset` · `liability` · `non_asset`. The `non_asset` side
+  is the explicit exclusion class — e.g. an insurance *coverage* amount is a
+  protection figure, not owned value, so it never enters net worth.
+- **`valuation_role`**: `net_worth_component` · `coverage_amount` ·
+  `informational`. Insurance cash value is an asset net-worth component;
+  coverage amount carries the `coverage_amount` role on the `non_asset` side.
+- **`liquidity_class`**: `liquid` · `restricted` · `illiquid` · `liability`
+  (the existing presentation dimension).
+
+**L1 classes**: `cash`, `marketable_investment`, `retirement_and_benefit`,
+`restricted_compensation`, `real_estate`, `liability`, plus `other_asset` and
+`non_asset` fallbacks. **L2** is a limited, jurisdiction-agnostic subdivision
+(e.g. `mandatory_retirement`/`voluntary_retirement` under
+`retirement_and_benefit`, `equity_award` under `restricted_compensation`,
+`property` under `real_estate`). Every L2 code maps to exactly one L1 parent with
+a default `economic_side`. Field definitions and the full L2 set live in the
+contract module; this SSOT section owns the vocabulary, not the enum members.
+
 ---
 
 ## 7. Design Constraints
