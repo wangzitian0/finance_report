@@ -2,8 +2,8 @@ version: "1.0"
 owner: ci_workflow
 purpose: >
   MECE inventory of CI, delivery, and operational workflow gates. This file is
-  descriptive only: it classifies the current gates before any simplification
-  work, so cleanup PRs remove duplicate owners instead of adding another layer.
+  descriptive only: it classifies the current gates during simplification work,
+  so cleanup PRs remove duplicate owners instead of adding another layer.
 
 branch_required_status_contexts:
   - finish
@@ -111,19 +111,58 @@ gates:
     artifacts: [backend-tier1-e2e-test-context]
     failure_semantics: Tier-1 API E2E behavioral proof failed.
     action: observe
-  - id: ci.frontend
+  - id: ci.frontend_build
     category: runtime_test
     workflow: .github/workflows/ci.yml
-    job: frontend
+    job: frontend-build
     owner: apps/frontend
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true
-    inputs: [frontend_sources, frontend_tests, playwright_specs]
-    outputs: [frontend_lcov, frontend_junit, playwright_report]
-    artifacts: [coverage-frontend, frontend-test-context]
-    failure_semantics: Frontend typecheck, build, Vitest, or Playwright proof failed.
-    action: observe
+    inputs: [frontend_sources, frontend_dependencies]
+    outputs: [frontend_typecheck_status, frontend_build_status]
+    artifacts: []
+    failure_semantics: Frontend TypeScript typecheck or production build failed.
+    action: keep
+  - id: ci.frontend_vitest
+    category: runtime_test
+    workflow: .github/workflows/ci.yml
+    job: frontend-vitest
+    owner: apps/frontend
+    triggers: [push, pull_request, workflow_dispatch]
+    required_by_finish: true
+    blocks_workflow: true
+    inputs: [frontend_sources, frontend_tests]
+    outputs: [frontend_lcov, frontend_junit]
+    artifacts: [coverage-frontend, frontend-vitest-test-context]
+    failure_semantics: Frontend Vitest coverage failed or did not produce expected LCOV/JUnit evidence.
+    action: keep
+  - id: ci.frontend_playwright
+    category: runtime_test
+    workflow: .github/workflows/ci.yml
+    job: frontend-playwright
+    owner: apps/frontend/playwright
+    triggers: [push, pull_request, workflow_dispatch]
+    required_by_finish: true
+    blocks_workflow: true
+    inputs: [frontend_sources, playwright_specs]
+    outputs: [playwright_report]
+    artifacts: [frontend-playwright-test-context]
+    failure_semantics: Frontend provider-free browser UI proof failed.
+    action: keep
+  - id: ci.frontend_telemetry_e2e
+    category: runtime_test
+    workflow: .github/workflows/ci.yml
+    job: frontend-telemetry-e2e
+    owner: apps/frontend/playwright/telemetry-emission.spec.ts
+    triggers: [push, pull_request, workflow_dispatch]
+    required_by_finish: true
+    blocks_workflow: true
+    inputs: [frontend_sources, telemetry_playwright_spec]
+    outputs: [telemetry_playwright_report]
+    artifacts: [frontend-telemetry-test-context]
+    failure_semantics: Frontend telemetry-emission browser E2E proof failed.
+    action: keep
   - id: ci.container_images
     category: runtime_test
     workflow: .github/workflows/ci.yml
@@ -422,20 +461,20 @@ gates:
     failure_semantics: Staging summary could not be produced; upstream jobs still own deploy gate failures.
     action: keep
 
-duplicate_candidates:
+resolved_duplicate_cleanups:
   - id: frontend_prod_audit_duplicate
-    status: strict_duplicate_candidate
-    gates: [ci.lint, ci.frontend]
+    status: removed
+    gates: [ci.lint, ci.frontend_build]
     command: npm run audit:prod
-    proposed_owner: ci.lint
-    current_state: The same frontend production dependency audit runs in both static contracts and frontend runtime proof.
+    retained_owner: ci.lint
+    removed_from: [ci.frontend_build]
+    final_state: The frontend production dependency audit runs once in the static contract lane and no longer repeats in frontend runtime jobs.
     same_owner: true
     same_input: true
     same_command_family: true
     same_failure_semantics: true
     same_artifact_dependency: true
     same_trigger: true
-    next_action: remove_frontend_duplicate_in_followup
 
 deferred_candidates:
   - id: backend_pytest_parameters

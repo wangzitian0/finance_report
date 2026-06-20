@@ -32,7 +32,7 @@ def _workflow_jobs() -> set[tuple[str, str]]:
     jobs: set[tuple[str, str]] = set()
     for workflow in sorted(WORKFLOWS.glob("*.yml")):
         data = _load_yaml(workflow)
-        for job_id in (data.get("jobs") or {}):
+        for job_id in data.get("jobs") or {}:
             jobs.add((f".github/workflows/{workflow.name}", str(job_id)))
     return jobs
 
@@ -100,21 +100,27 @@ def test_AC8_13_142_finish_inventory_matches_ci_fan_in() -> None:
     assert inventory_finish_needs == finish_needs
 
 
-def test_AC8_13_142_duplicate_candidates_are_explicit_not_implicit() -> None:
-    """AC8.13.142: duplicate gate candidates are recorded before any deletion."""
+def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:
+    """AC8.13.142: duplicate gate cleanup stays recorded after deletion."""
 
     data = _load_yaml(INVENTORY)
-    candidates = data.get("duplicate_candidates")
-    assert isinstance(candidates, list)
-    assert candidates
+    cleanups = data.get("resolved_duplicate_cleanups")
+    assert isinstance(cleanups, list)
+    assert cleanups
 
-    audit_candidate = next(
-        item for item in candidates if item["id"] == "frontend_prod_audit_duplicate"
+    audit_cleanup = next(
+        item for item in cleanups if item["id"] == "frontend_prod_audit_duplicate"
     )
-    assert audit_candidate["status"] == "strict_duplicate_candidate"
-    assert audit_candidate["proposed_owner"] == "ci.lint"
-    assert audit_candidate["next_action"] == "remove_frontend_duplicate_in_followup"
+    assert audit_cleanup["status"] == "removed"
+    assert audit_cleanup["retained_owner"] == "ci.lint"
+    assert audit_cleanup["removed_from"] == ["ci.frontend_build"]
 
     workflow = _load_yaml(ROOT / ".github" / "workflows" / "ci.yml")
     assert "npm run audit:prod" in _job_run_commands(workflow, "lint")
-    assert "npm run audit:prod" in _job_run_commands(workflow, "frontend")
+    for job_id in (
+        "frontend-build",
+        "frontend-vitest",
+        "frontend-playwright",
+        "frontend-telemetry-e2e",
+    ):
+        assert "npm run audit:prod" not in _job_run_commands(workflow, job_id)

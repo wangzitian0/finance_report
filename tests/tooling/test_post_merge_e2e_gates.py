@@ -758,7 +758,9 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         "backend-shard-${{ matrix.shard }}-test-context",
         "backend-integration-test-context",
         "backend-tier1-e2e-test-context",
-        "frontend-test-context",
+        "frontend-vitest-test-context",
+        "frontend-playwright-test-context",
+        "frontend-telemetry-test-context",
         "AC-TRACEABILITY-CONTEXT.md",
     ):
         assert token in ci
@@ -877,10 +879,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         in workflow
     )
     assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
-    assert (
-        'ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"'
-        in workflow
-    )
+    assert 'ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"' in workflow
     # The retired post-merge auto-deploy alert job is no longer a delivery input.
     assert "staging-deploy-alert" not in workflow
     assert "alert_result" not in workflow
@@ -894,17 +893,15 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         in workflow
     )
     assert 'delivery_status="skipped-no-staging-required"' in workflow
-    assert (
-        "passed-ai-ocr-regression-recorded"
-        in workflow
-    )
+    assert "passed-ai-ocr-regression-recorded" in workflow
     assert 'failure_reason="build/deploy gate failed"' in workflow
     assert 'failure_reason="provider connectivity gate failed"' in workflow
     assert 'failure_reason="staging AI/OCR gate failed"' not in workflow
     assert "Post-merge delivery failed: staging AI/OCR gate failed" not in workflow
-    assert "continue-on-error: true" in workflow.split("ai-ocr-gate:", 1)[1].split(
-        "post-merge-delivery:", 1
-    )[0]
+    assert (
+        "continue-on-error: true"
+        in workflow.split("ai-ocr-gate:", 1)[1].split("post-merge-delivery:", 1)[0]
+    )
     assert 'delivery_status="degraded-provider"' in workflow
     assert "## Post-merge Delivery" in workflow
     assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
@@ -1029,10 +1026,15 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     assert workflow.count('run.get("displayTitle") == expected_title') == 2
     assert 'run.get("status") == "completed"' in workflow
     assert 'run.get("conclusion") == "success"' not in workflow
-    assert workflow.count('required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}') == 2
+    assert (
+        workflow.count(
+            'required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}'
+        )
+        == 2
+    )
     assert workflow.count('optional_staging_jobs = {"Staging AI/OCR Gate"}') == 2
     assert workflow.count("candidate_run_ids") >= 4
-    assert workflow.count('for candidate_run_id in $candidate_run_ids; do') == 2
+    assert workflow.count("for candidate_run_id in $candidate_run_ids; do") == 2
     assert workflow.count('gh run view "$candidate_run_id"') == 2
     assert workflow.count("Skipping staging run {candidate_run_id}") == 2
     assert workflow.count("with successful release-critical jobs") == 2
@@ -1077,7 +1079,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
         in workflow
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
@@ -1204,10 +1206,22 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
         1,
     )[0]
     tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
-        "  frontend:",
+        "  frontend-build:",
         1,
     )[0]
-    frontend_block = workflow.split("  frontend:", 1)[1].split(
+    frontend_build_block = workflow.split("  frontend-build:", 1)[1].split(
+        "  frontend-vitest:",
+        1,
+    )[0]
+    frontend_vitest_block = workflow.split("  frontend-vitest:", 1)[1].split(
+        "  frontend-playwright:",
+        1,
+    )[0]
+    frontend_playwright_block = workflow.split("  frontend-playwright:", 1)[1].split(
+        "  frontend-telemetry-e2e:",
+        1,
+    )[0]
+    frontend_telemetry_block = workflow.split("  frontend-telemetry-e2e:", 1)[1].split(
         "  container-images:",
         1,
     )[0]
@@ -1215,10 +1229,16 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     assert "moonrepo/setup-toolchain@v0" not in backend_block
     assert "moonrepo/setup-toolchain@v0" not in integration_block
     assert "moonrepo/setup-toolchain@v0" not in tier1_block
-    assert "moonrepo/setup-toolchain@v0" not in frontend_block
-    assert "name: Build Frontend" in frontend_block
-    assert "run: npm run build" in frontend_block
-    assert "working-directory: apps/frontend" in frontend_block
+    for frontend_block in (
+        frontend_build_block,
+        frontend_vitest_block,
+        frontend_playwright_block,
+        frontend_telemetry_block,
+    ):
+        assert "moonrepo/setup-toolchain@v0" not in frontend_block
+        assert "working-directory: apps/frontend" in frontend_block
+    assert "name: Build Frontend" in frontend_build_block
+    assert "run: npm run build" in frontend_build_block
     assert "PR CI avoids Moon bootstrap" in ci_cd
     assert "direct `pytest` and `npm` commands" in ci_cd
     assert (
@@ -1233,7 +1253,7 @@ def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -
     inventory = read("docs/ssot/ci-gate-inventory.yaml")
 
     tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
-        "  frontend:",
+        "  frontend-build:",
         1,
     )[0]
 
@@ -1245,6 +1265,85 @@ def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -
     assert "push/main Tier-1 E2E runs without `--maxfail=1`" in ci_cd
     assert "id: ci.backend_e2e_tier1" in inventory
     assert "category: runtime_test" in inventory
+
+
+def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
+    """AC8.13.147: frontend PR CI is split without dropping required proof."""
+    workflow_text = read(".github/workflows/ci.yml")
+    workflow = yaml.safe_load(workflow_text)
+    jobs = workflow["jobs"]
+
+    split_jobs = [
+        "frontend-build",
+        "frontend-vitest",
+        "frontend-playwright",
+        "frontend-telemetry-e2e",
+    ]
+
+    assert "frontend" not in jobs
+    for job_id in split_jobs:
+        assert jobs[job_id]["needs"] == ["changes"]
+        assert jobs[job_id]["if"] == "needs.changes.outputs.pr_required == 'true'"
+
+    assert jobs["unified-coverage"]["needs"] == [
+        "changes",
+        "backend",
+        "frontend-vitest",
+        "tooling-coverage",
+    ]
+    assert jobs["ac-behavioral-ratchet"]["needs"] == [
+        "changes",
+        "backend",
+        "backend-integration",
+        "backend-e2e-tier1",
+        "frontend-vitest",
+    ]
+    assert jobs["finish"]["needs"] == [
+        "changes",
+        "schema-migrations",
+        "backend",
+        "backend-integration",
+        "backend-e2e-tier1",
+        "frontend-build",
+        "frontend-vitest",
+        "frontend-playwright",
+        "frontend-telemetry-e2e",
+        "container-images",
+        "lint",
+        "tooling-coverage",
+        "unified-coverage",
+        "ac-traceability",
+        "ac-behavioral-ratchet",
+    ]
+
+    def job_run_commands(job_id: str) -> str:
+        return "\n".join(
+            str(step.get("run", ""))
+            for step in jobs[job_id].get("steps", [])
+            if isinstance(step, dict)
+        )
+
+    assert "npm run typecheck" in job_run_commands("frontend-build")
+    assert "npm run test:coverage" in job_run_commands("frontend-vitest")
+    assert "npm run test:e2e -- --reporter=line,html" in job_run_commands(
+        "frontend-playwright"
+    )
+    assert "npm run test:e2e:telemetry" in job_run_commands("frontend-telemetry-e2e")
+    for job_id in split_jobs:
+        assert "npm run audit:prod" not in job_run_commands(job_id)
+
+    playwright_commands = job_run_commands("frontend-playwright")
+    telemetry_commands = job_run_commands("frontend-telemetry-e2e")
+    assert playwright_commands.index("npm run build") < playwright_commands.index(
+        "npm run test:e2e"
+    )
+    assert telemetry_commands.index("npm run build") < telemetry_commands.index(
+        "npm run test:e2e:telemetry"
+    )
+    assert "coverage-frontend" in workflow_text
+    assert "frontend-vitest-test-context" in workflow_text
+    assert "frontend-playwright-test-context" in workflow_text
+    assert "frontend-telemetry-test-context" in workflow_text
 
 
 def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
@@ -1263,9 +1362,7 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     assert "github.event.workflow_run.conclusion == 'success'" in dispatch_job["if"]
     assert "github.event.workflow_run.head_branch == 'main'" in dispatch_job["if"]
     dispatch_script = "\n".join(
-        step.get("run", "")
-        for step in dispatch_job["steps"]
-        if isinstance(step, dict)
+        step.get("run", "") for step in dispatch_job["steps"] if isinstance(step, dict)
     )
     assert "WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}" in notify
     assert "/git/ref/heads/main" in dispatch_script
@@ -1284,14 +1381,19 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
         for step in receiver_yaml["jobs"]["deploy"]["steps"]
         if isinstance(step, dict)
     )
-    assert '[[ "${GITHUB_EVENT_NAME}" == "repository_dispatch" && -z "${DISPATCH_SHA:-}" ]]' in receiver_script
+    assert (
+        '[[ "${GITHUB_EVENT_NAME}" == "repository_dispatch" && -z "${DISPATCH_SHA:-}" ]]'
+        in receiver_script
+    )
     assert "client_payload.sha" in receiver
     assert "--version-ref main" in receiver_script
     assert 'deploy_args+=(--expected-sha "$DISPATCH_SHA")' in receiver_script
     assert "--expected-sha" in read("repo/tools/deploy_v2.py")
 
     delivery_gates = yaml.safe_load(read("docs/ssot/delivery-gates.yaml"))["gates"]
-    report_gate = next(gate for gate in delivery_gates if gate["id"] == "report-main-preview")
+    report_gate = next(
+        gate for gate in delivery_gates if gate["id"] == "report-main-preview"
+    )
     assert report_gate["trigger"] == "workflow_run"
     assert report_gate["blocking"] is False
 
@@ -1981,8 +2083,11 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    backend_block = workflow.split("  backend:", 1)[1].split("  frontend:", 1)[0]
-    frontend_block = workflow.split("  frontend:", 1)[1].split(
+    backend_block = workflow.split("  backend:", 1)[1].split(
+        "  frontend-build:",
+        1,
+    )[0]
+    frontend_block = workflow.split("  frontend-build:", 1)[1].split(
         "  container-images:", 1
     )[0]
     image_block = workflow.split("  container-images:", 1)[1].split(
@@ -2004,9 +2109,9 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert "needs: [lint]" not in traceability_block
     assert "needs:" not in traceability_block.split("steps:", 1)[0]
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend, "
-        "container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
-        in finish_block
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, "
+        "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, "
+        "unified-coverage, ac-traceability, ac-behavioral-ratchet]" in finish_block
     )
     assert "Standalone lint and AC traceability start immediately" in ci_cd
     assert (
@@ -2024,7 +2129,7 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     backend_block = workflow.split("  backend:", 1)[1].split(
         "  backend-integration:", 1
     )[0]
-    frontend_block = workflow.split("  frontend:", 1)[1].split(
+    frontend_block = workflow.split("  frontend-build:", 1)[1].split(
         "  container-images:", 1
     )[0]
     image_block = workflow.split("  container-images:", 1)[1].split(
@@ -2114,9 +2219,10 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
     pyproject = read("apps/backend/pyproject.toml")
     ci_cd = read("docs/ssot/ci-cd.md")
 
-    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split("  frontend:", 1)[
-        0
-    ]
+    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
+        "  frontend-build:",
+        1,
+    )[0]
 
     assert "tests/e2e/test_core_journeys.py" in tier1_block
     assert "tests/e2e/test_auth_flows.py" not in tier1_block
@@ -3107,7 +3213,10 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
         "backend:",
         "backend-integration:",
         "backend-e2e-tier1:",
-        "frontend:",
+        "frontend-build:",
+        "frontend-vitest:",
+        "frontend-playwright:",
+        "frontend-telemetry-e2e:",
         "tooling-coverage:",
         "unified-coverage:",
     ]:

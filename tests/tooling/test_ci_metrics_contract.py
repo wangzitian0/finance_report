@@ -155,7 +155,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
         in workflow
     )
     assert "--reporter=line,html" in workflow
-    assert "frontend-test-context" in workflow
+    assert "frontend-vitest-test-context" in workflow
+    assert "frontend-playwright-test-context" in workflow
+    assert "frontend-telemetry-test-context" in workflow
     assert "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md" in workflow
     assert "Gate Status" in workflow
     global_permissions = workflow.split("env:", 1)[0]
@@ -271,10 +273,7 @@ def test_AC8_13_26_repo_contract_reports_missing_tokens(tmp_path):
     assert any("AC traceability is a reference metric" in error for error in errors)
     assert any("README EPIC map drift" in error for error in errors)
     assert any("unclassified E2E-like assets" in error for error in errors)
-    assert any(
-        "Coveralls uploads are main-only reporting" in error
-        for error in errors
-    )
+    assert any("Coveralls uploads are main-only reporting" in error for error in errors)
     assert any("coverage gate summary" in error for error in errors)
     assert any("CI observability artifacts" in error for error in errors)
     assert any("New `apps/*/src`" in error for error in errors)
@@ -345,8 +344,7 @@ def test_AC8_13_68_repo_contract_requires_e2e_before_audit_artifact(tmp_path):
     errors = _validate_repo_contract_files(tmp_path)
 
     assert (
-        "E2E EPIC traceability gate must run before audit artifact generation"
-        in errors
+        "E2E EPIC traceability gate must run before audit artifact generation" in errors
     )
 
 
