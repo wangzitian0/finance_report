@@ -3127,8 +3127,10 @@ def test_AC7_17_1_deployment_ids_filters_non_dict_entries() -> None:
 
 
 def test_AC7_17_1_deployment_ids_skips_missing_or_none_deployment_id() -> None:
-    """AC7.17.1: deployment_ids() drops entries with a missing, None, or empty
-    deploymentId and coerces non-string ids to str."""
+    """AC7.17.1: deployment_ids() drops entries whose deploymentId is missing,
+    None, or otherwise falsy (empty string, 0) — matching the helper's
+    ``if deployment_id:`` guard — and coerces truthy non-string ids to str
+    (e.g. integer ``123`` -> ``"123"``)."""
     lifecycle = lifecycle_module()
 
     ids = lifecycle.deployment_ids(
