@@ -18,6 +18,7 @@ boundary).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import ROUND_HALF_EVEN, Decimal
 
@@ -66,6 +67,38 @@ class Money:
     @classmethod
     def zero(cls, currency: Currency | str) -> Money:
         return cls(Decimal("0"), currency)
+
+    @classmethod
+    def sum(cls, items: Iterable[Money], *, currency: Currency | str | None = None) -> Money:
+        """Add up same-currency ``Money`` values (replaces ``sum(xs, Decimal(0))``).
+
+        Cross-currency items raise via ``+``. An empty iterable needs an explicit
+        ``currency`` to know what zero to return.
+        """
+        total: Money | None = None
+        for item in items:
+            if not isinstance(item, Money):
+                raise TypeError(f"Money.sum expects Money items, got {type(item).__name__}")
+            total = item if total is None else total + item
+        if total is None:
+            if currency is None:
+                raise ValueError("Money.sum of an empty iterable needs a currency")
+            return cls.zero(currency)
+        if currency is not None and total.currency != Currency.of(currency):
+            raise CurrencyMismatchError(
+                f"Money.sum got {total.currency.code} items but currency={currency!r}"
+            )
+        return total
+
+    # ── predicates ──────────────────────────────────────────────────────
+    def is_zero(self) -> bool:
+        return self.amount.is_zero()
+
+    def is_positive(self) -> bool:
+        return self.amount > 0
+
+    def is_negative(self) -> bool:
+        return self.amount < 0
 
     # ── rounding ────────────────────────────────────────────────────────
     def quantize(self, rounding: str = ROUND_HALF_EVEN) -> Money:

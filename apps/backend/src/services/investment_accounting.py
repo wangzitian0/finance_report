@@ -74,9 +74,10 @@ class InvestmentAccountingService:
         cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
         investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
         buy_price = UnitPrice(unit_price, currency, INVESTMENT_QUANTITY_UNIT)
-        amount = (buy_price * trade_quantity + Money(fees, currency)).quantize().amount
-        if amount <= Decimal("0"):
+        gross = (buy_price * trade_quantity + Money(fees, currency)).quantize()
+        if not gross.is_positive():
             raise InvestmentAccountingValidationError("buy amount must be positive")
+        amount = gross.amount
 
         position = await self._get_or_create_position(
             db,
@@ -199,9 +200,10 @@ class InvestmentAccountingService:
         )
 
         sell_price = UnitPrice(unit_price, currency, INVESTMENT_QUANTITY_UNIT)
-        proceeds = (sell_price * trade_quantity - Money(fees, currency)).quantize().amount
-        if proceeds <= Decimal("0"):
+        net = (sell_price * trade_quantity - Money(fees, currency)).quantize()
+        if not net.is_positive():
             raise InvestmentAccountingValidationError("sell proceeds must be positive")
+        proceeds = net.amount
         cost_basis = await self._consume_lots(
             db,
             user_id=user_id,
@@ -512,12 +514,12 @@ class InvestmentAccountingService:
             )
 
         if method == CostBasisMethod.AVGCOST:
-            total_cost = sum(
+            total_cost = Money.sum(
                 (
                     UnitPrice(lot.unit_cost, position.currency, INVESTMENT_QUANTITY_UNIT) * lot_quantity
                     for lot, lot_quantity in lot_quantities
                 ),
-                Money.zero(position.currency),
+                currency=position.currency,
             )
             avg_unit_cost = UnitPrice.from_total(total_cost, total_available).quantize().rate
             for lot in lots:

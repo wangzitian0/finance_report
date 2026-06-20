@@ -109,7 +109,7 @@ async def get_reconciliation_stats(
 
     # Compute match rate with zero-division guard. The API still exposes a JSON
     # number, but the percent boundary is the shared Ratio policy.
-    match_rate_ratio = Ratio.fraction(matched, total) if total else Ratio.zero()
+    match_rate_ratio = Ratio.fraction_or_zero(matched, total)
     match_rate = float(match_rate_ratio.to_percent())
 
     return ReconciliationStats(

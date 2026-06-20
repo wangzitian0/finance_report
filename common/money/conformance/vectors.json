@@ -318,5 +318,19 @@
     "123",
     "",
     "U S"
+  ],
+  "predicates": [
+    {"amount": "0", "currency": "USD", "is_zero": true, "is_positive": false, "is_negative": false},
+    {"amount": "0.01", "currency": "USD", "is_zero": false, "is_positive": true, "is_negative": false},
+    {"amount": "-0.01", "currency": "USD", "is_zero": false, "is_positive": false, "is_negative": true}
+  ],
+  "sum": [
+    {"items": [["10.00", "USD"], ["5.50", "USD"], ["-2.00", "USD"]], "currency": "USD", "expected": "13.50"},
+    {"items": [], "currency": "SGD", "expected": "0"}
+  ],
+  "tolerance": [
+    {"absolute": "0.01", "relative_percent": "0", "currency": "USD", "actual": "100.00", "expected": "100.005", "holds": true},
+    {"absolute": "0.01", "relative_percent": "0", "currency": "USD", "actual": "100.00", "expected": "100.02", "holds": false},
+    {"absolute": "0.01", "relative_percent": "1", "currency": "USD", "actual": "100.00", "expected": "101.00", "holds": true}
   ]
 }

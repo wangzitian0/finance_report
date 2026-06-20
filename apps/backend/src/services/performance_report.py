@@ -247,9 +247,7 @@ async def build_investment_performance_report_schedule(
                 current_value, current_count = grouped.get(category, (Decimal("0.00"), 0))
                 grouped[category] = (current_value + row.market_value, current_count + 1)
             for category, (value, count) in grouped.items():
-                allocation_ratio = (
-                    Ratio.fraction(value, total_market_value) if total_market_value != Decimal("0.00") else Ratio.zero()
-                )
+                allocation_ratio = Ratio.fraction_or_zero(value, total_market_value)
                 allocation_rows.append(
                     InvestmentPerformanceAllocationRow(
                         dimension=dimension,
