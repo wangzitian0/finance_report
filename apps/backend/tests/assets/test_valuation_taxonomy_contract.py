@@ -39,8 +39,10 @@ def test_l1_taxonomy_covers_required_stable_classes():
 def test_report_stable_dimensions_present():
     """AC11.21.2: economic_side, valuation_role, liquidity_class are defined.
 
-    Insurance cash value vs coverage is expressible: an asset side plus a
-    coverage role, so a coverage amount can be excluded from net worth.
+    Insurance cash value vs coverage is expressible by side + role: cash value
+    is an asset-side net-worth component, whereas a coverage amount sits on the
+    non_asset side with the coverage_amount role, so it is excluded from net
+    worth.
     """
     assert {s.value for s in EconomicSide} == {"asset", "liability", "non_asset"}
     assert ValuationRole.COVERAGE_AMOUNT.value == "coverage_amount"

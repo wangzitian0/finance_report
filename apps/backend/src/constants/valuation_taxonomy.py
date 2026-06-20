@@ -100,7 +100,8 @@ class ValuationL2(str, Enum):
 
 
 # ---------------------------------------------------------------------------
-# L2 -> (L1 parent, default economic side). Every L2 code has exactly one row.
+# L2 -> L1 parent. Every L2 code has exactly one parent row. The default
+# economic side is derived from the parent via L1_DEFAULT_SIDE (below).
 # ---------------------------------------------------------------------------
 
 L2_PARENT: dict[ValuationL2, ValuationL1] = {
