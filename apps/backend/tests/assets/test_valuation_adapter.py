@@ -66,6 +66,19 @@ def test_adapt_snapshot_preserves_fact_fields_in_stable_view():
     assert view.codes.l1 is ValuationL1.RETIREMENT_AND_BENEFIT
     assert view.codes.l2 is ValuationL2.MANDATORY_RETIREMENT
 
+    # A snapshot with no basis normalizes to the "unspecified" sentinel (never
+    # None), matching the reporting/traceability convention.
+    no_basis = ManualValuationSnapshot(
+        component_type=Legacy.OTHER_ASSET,
+        liquidity_class=ManualValuationLiquidityClass.LIQUID,
+        as_of_date=date(2026, 3, 31),
+        value=Decimal("10.00"),
+        currency="USD",
+        source="manual",
+        valuation_basis=None,
+    )
+    assert adapt_snapshot(no_basis).valuation_basis == "unspecified"
+
 
 def test_legacy_fixtures_classify_to_expected_stable_codes():
     """AC11.23.4: CPF/insurance cash value/RSU/mortgage map to expected stable codes.

@@ -135,10 +135,13 @@ class StableValuationView:
     value: Decimal
     currency: str
     source: str
-    valuation_basis: str | None
+    # Normalized to the "unspecified" sentinel (never None) to match the
+    # reporting/traceability convention so consumers don't branch on None.
+    valuation_basis: str
     confidence: Decimal
     component_type: str | None
-    rationale: str
+    # Nullable to mirror ValuationClassification.rationale on the new model.
+    rationale: str | None
 
 
 def classify_legacy_component(component_type: Legacy) -> StableValuationCodes:
@@ -161,7 +164,7 @@ def adapt_snapshot(snapshot: ManualValuationSnapshot) -> StableValuationView:
         value=snapshot.value,
         currency=snapshot.currency,
         source=snapshot.source,
-        valuation_basis=(snapshot.valuation_basis.value if snapshot.valuation_basis else None),
+        valuation_basis=(snapshot.valuation_basis.value if snapshot.valuation_basis else "unspecified"),
         confidence=_LEGACY_CONFIDENCE,
         component_type=snapshot.component_type.value,
         rationale=f"Deterministic legacy mapping from {snapshot.component_type.value}.",
