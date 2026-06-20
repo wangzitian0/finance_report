@@ -310,6 +310,25 @@ auto-classified low risk); no legacy enum value is removed.
 | AC11.22.4 | Existing manual valuation model and enum values are unchanged by the storage addition (no legacy enum value removed) | `test_manual_valuation_model_is_unchanged_by_storage_addition()` | `assets/test_valuation_fact_storage.py` | P0 |
 | AC11.22.5 | A classification cannot reference a fact owned by a different user (same-owner composite FK) | `test_valuation_classification_rejects_cross_user_fact_reference()` | `assets/test_valuation_fact_storage.py` | P0 |
 
+### AC11.23: Legacy Manual Valuation Adapter (#1223)
+
+Read-only compatibility bridge from legacy `ManualValuationComponentType` to the
+stable taxonomy (AC11.21). It maps each legacy component deterministically onto
+stable codes and projects a `ManualValuationSnapshot` onto the same stable
+classification read-model that new valuation facts will use. The legacy enum
+becomes an input hint; it is not retired and no PostgreSQL enum value is removed.
+No new persistence, no LLM, and the existing snapshot read path is unchanged —
+reports keep current behaviour until #1225 switches consumption over. The
+adapter's `liquidity_class` is cross-checked against the live legacy
+`_DEFAULT_LIQUIDITY_CLASS` table so the bridge is provably behaviour-preserving.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.23.1 | Every legacy component type maps to stable codes (total + deterministic), with economic_side derived from the L1 default | `test_legacy_component_mapping_is_total_and_deterministic()` | `assets/test_valuation_adapter.py` | P0 |
+| AC11.23.2 | The adapter's stable `liquidity_class` matches the legacy default for every component (backward-compatible) | `test_adapter_preserves_legacy_liquidity_class()` | `assets/test_valuation_adapter.py` | P0 |
+| AC11.23.3 | A snapshot projects onto the stable read-model preserving source, as-of date, currency, value, and valuation basis | `test_adapt_snapshot_preserves_fact_fields_in_stable_view()` | `assets/test_valuation_adapter.py` | P0 |
+| AC11.23.4 | Legacy CPF/insurance cash value/RSU/mortgage fixtures classify to the expected stable L1/L2 (cash value is an asset, not coverage) | `test_legacy_fixtures_classify_to_expected_stable_codes()` | `assets/test_valuation_adapter.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or

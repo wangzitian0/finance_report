@@ -283,6 +283,15 @@ small L1/L2 class tree:
 a default `economic_side`. Field definitions and the full L2 set live in the
 contract module; this SSOT section owns the vocabulary, not the enum members.
 
+**Legacy bridge (#1223).** `apps/backend/src/services/valuation_adapter.py` is a
+read-only adapter mapping each legacy `ManualValuationComponentType` onto these
+stable codes and projecting a `ManualValuationSnapshot` onto the stable
+classification read-model. The legacy enum is an input hint, not retired; no
+PostgreSQL enum value is removed and the existing snapshot read path is
+unchanged. The adapter's `liquidity_class` is pinned to the legacy
+`_DEFAULT_LIQUIDITY_CLASS` table by test, so report switch-over (#1225) is
+behaviour-preserving.
+
 ---
 
 ## 7. Design Constraints
