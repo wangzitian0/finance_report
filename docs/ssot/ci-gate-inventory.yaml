@@ -82,7 +82,7 @@ gates:
     inputs: [backend_unit_tests, ephemeral_postgres, minio_service]
     outputs: [backend_lcov, backend_junit]
     artifacts: [coverage-backend-*, backend-shard-*-test-context]
-    matrix_legs: 6
+    matrix_legs: 8
     failure_semantics: Deterministic backend unit shard failed or did not produce expected coverage/JUnit evidence.
     action: observe
   - id: ci.backend_integration

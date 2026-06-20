@@ -323,14 +323,14 @@ jobs:
             apps/backend/ci-context/schema-migration-context.txt
           retention-days: 14
   backend:
-    name: Backend Tests (Shard ${{ matrix.shard }}/6)
+    name: Backend Tests (Shard ${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
 
     services:
       postgres:
@@ -376,7 +376,7 @@ jobs:
 
 
 
-      - name: Run Tests (Shard ${{ matrix.shard }}/6)
+      - name: Run Tests (Shard ${{ matrix.shard }}/8)
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
           S3_ACCESS_KEY: minio
@@ -389,8 +389,11 @@ jobs:
           mkdir -p test-results
           uv run pytest -n auto -v \
             -m "not slow and not e2e and not integration" \
-            --splits 6 \
+            --splits 8 \
             --group ${{ matrix.shard }} \
+            --splitting-algorithm=least_duration \
+            --store-durations \
+            --durations-path test-results/backend-shard-${{ matrix.shard }}-durations.json \
             --cov=src \
             --cov-report=lcov:coverage-backend-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
@@ -414,6 +417,7 @@ jobs:
           name: backend-shard-${{ matrix.shard }}-test-context
           path: |
             apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml
+            apps/backend/test-results/backend-shard-${{ matrix.shard }}-durations.json
             apps/backend/coverage-backend-${{ matrix.shard }}.lcov
           retention-days: 14
 
@@ -950,12 +954,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -984,7 +982,7 @@ jobs:
         run: |
           mkdir -p coverage
           if ls coverage-backend/*.lcov 1> /dev/null 2>&1; then
-            uv run python tools/merge_lcov.py coverage/backend.lcov coverage-backend/*.lcov
+            python tools/merge_lcov.py coverage/backend.lcov coverage-backend/*.lcov
           else
             echo "No backend coverage found"
           fi
@@ -1005,7 +1003,7 @@ jobs:
           fi
       - name: Audit coverage policy
         run: |
-          uv run python tools/check_coverage_policy.py
+          python tools/check_coverage_policy.py
 
       - name: Calculate unified coverage
         # Lenient by design: the merge step above deliberately tolerates a
@@ -1017,7 +1015,7 @@ jobs:
         # than hard-aborting this always-run gate. The no-regression check still
         # applies to whatever LCOV is present.
         run: |
-          uv run python tools/calculate_unified_coverage.py
+          python tools/calculate_unified_coverage.py
 
       - name: Write coverage debug context
         if: ${{ always() }}
@@ -1036,8 +1034,7 @@ jobs:
             echo "Toolchain"
             echo "---------"
             python --version
-            uv --version
-            uv run --with coverage --with pytest --with pytest-cov python -c "import coverage, pytest, pytest_cov; print(f'coverage=={coverage.__version__}'); print(f'pytest=={pytest.__version__}'); print(f'pytest-cov=={pytest_cov.__version__}')"
+            echo "fan_in_runtime=stdlib_python"
             echo ""
             echo "Coverage Inputs"
             echo "---------------"
@@ -1075,7 +1072,7 @@ jobs:
       - name: Build line-only Coveralls LCOV
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          uv run python tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches
+          python tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches
 
       - name: Upload main unified coverage to Coveralls
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -1251,21 +1248,34 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Download all test junit artifacts
+      - name: Download backend shard junit artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: backend-shard-*-test-context
           path: junit-artifacts
+
+      - name: Download backend integration junit artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-integration-test-context
+          path: junit-artifacts/backend-integration-test-context
+
+      - name: Download backend Tier-1 junit artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-tier1-e2e-test-context
+          path: junit-artifacts/backend-tier1-e2e-test-context
+
+      - name: Download frontend Vitest junit artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-vitest-test-context
+          path: junit-artifacts/frontend-vitest-test-context
 
       - name: Aggregate AC behavioral evidence and ratchet against baseline
         run: |
@@ -1276,9 +1286,9 @@ jobs:
             exit 1
           fi
           # shellcheck disable=SC2086
-          uv run --with pyyaml python tools/aggregate_ac_evidence.py $junit_files --output ac-evidence-current.json
+          python tools/aggregate_ac_evidence.py $junit_files --output ac-evidence-current.json
           # L2 (pass-required) + L3 (score ratchet) against the checked-in baseline.
-          uv run --with pyyaml python tools/check_ac_score_baseline.py ac-evidence-current.json
+          python tools/check_ac_score_baseline.py ac-evidence-current.json
 
   finish:
     needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
@@ -1296,7 +1306,7 @@ jobs:
           | Stage | Coverage Effect | Behavior Proof |
           |---|---|---|
           | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
-          | backend (6-way shard) | contributes to unified line coverage baseline | yes |
+          | backend (8-way shard) | contributes to unified line coverage baseline | yes |
           | backend-integration | not included in unified coverage | yes (marker 'integration') |
           | backend-e2e-tier1 | not included in unified coverage | yes (marker 'e2e') |
           | frontend-build | not included in unified coverage | yes (typecheck + production build) |

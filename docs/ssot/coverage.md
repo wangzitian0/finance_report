@@ -127,7 +127,7 @@ gate or Coveralls reporting percentage.
 
 - **Tool**: pytest + pytest-cov
 - **Config**: `apps/backend/pyproject.toml`
-- **Output**: `coverage-backend-{shard}.lcov` (6 shards, merged into `coverage/backend.lcov`)
+- **Output**: `coverage-backend-{shard}.lcov` (8 shards, merged into `coverage/backend.lcov`)
 - **Excluded**:
   - `tests/**`
   - `migrations/**`
@@ -175,7 +175,7 @@ gate or Coveralls reporting percentage.
 ```yaml
 jobs:
   backend:
-    # 6 shards → coverage-backend-{1..6}.lcov
+    # 8 shards → coverage-backend-{1..8}.lcov
 
   frontend:
     # vitest --coverage → lcov.info
