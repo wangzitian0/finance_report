@@ -59,28 +59,34 @@ class DeduplicationService:
           *same* running balance against two genuinely-distinct same-date/same-amount
           rows — e.g. a deposit immediately before a carried-forward balance row and an
           identical deposit immediately after the brought-forward balance row across a
-          page boundary (#1254). Folding the per-document ``occurrence_index`` in keeps
-          those two real rows distinct instead of silently dropping the second, while a
-          re-uploaded statement reproduces the same ordered rows (same balance + same
-          ordinal per row) so the genuine duplicate still collapses across documents.
+          page boundary (#1254). The ``occurrence_index`` keeps those two real rows
+          distinct instead of silently dropping the second, while a re-uploaded statement
+          reproduces the same ordered rows (same balance + same ordinal per row) so the
+          genuine duplicate still collapses across documents.
         - No running balance (e.g. CSV): the ``occurrence_index`` alone keeps
           genuinely-repeated identical rows distinct (two $5 coffees on the same day are
           two transactions). Cross-document duplicates of such rows are left to the
           ``detect_duplicates`` consistency check for user review rather than dropped here.
 
+        Backward compatibility: the **first** occurrence (``occurrence_index == 0``) keeps
+        the legacy disambiguator byte-for-byte — ``"<balance>"`` when a balance is present
+        and ``"#0"`` when it is not — so every hash persisted under the previous scheme
+        still matches and cross-document dedup of already-stored rows is unaffected. Only
+        *subsequent* occurrences of an otherwise-identical row gain the ``"#<index>"``
+        tail (``"<balance>#1"``, ``"<balance>#2"`` …), which by definition never collided
+        with a stored hash before (the second row was being dropped). This delivers the
+        #1254 fix without changing any existing row's hash.
+
         Decimal amounts are canonicalized (``Decimal('50')`` and ``Decimal('50.00')``
-        hash identically) so values that differ only in scale do not break dedup. The
-        no-balance disambiguator (``"#<index>"``) is unchanged, so existing balance-less
-        hashes are preserved. The balance-present disambiguator deliberately gains the
-        ``"#<index>"`` tail (``"<balance>"`` -> ``"<balance>#<index>"``), so a
-        balance-present row first parsed *before* this change has a stale stored hash:
-        re-uploading that statement may insert a second Layer-2 row instead of appending
-        a source document. That is an accepted trade-off (the page-boundary drop it fixes
-        is more severe), and any such residual duplicate is surfaced for review by the
-        ``detect_duplicates`` consistency check rather than corrupting balances.
+        hash identically) so values that differ only in scale do not break dedup.
         """
         balance_key = _decimal_key(balance_after) if balance_after is not None else ""
-        disambiguator = f"{balance_key}#{occurrence_index}"
+        # occurrence_index == 0 -> legacy disambiguator (balance_key, or "#0" when balance-less),
+        # so previously-stored hashes are preserved. Only index >= 1 gains the distinguishing tail.
+        if occurrence_index == 0:
+            disambiguator = balance_key if balance_after is not None else "#0"
+        else:
+            disambiguator = f"{balance_key}#{occurrence_index}"
         components = [
             str(user_id),
             txn_date.isoformat(),
