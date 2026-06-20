@@ -130,7 +130,7 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
     """AC12.31.5: backend services use the shared Money rounding adapter directly."""
     for path in BACKEND_MONEY_ADAPTER_FILES:
         src = _read(path)
-        assert "from src.money import to_money" in src, (
+        assert re.search(r"from src\.money import [^\n]*to_money", src), (
             f"{path} must import the backend Money adapter"
         )
         assert "def _money(" not in src, f"{path} still defines a local money adapter"
@@ -228,7 +228,9 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
     )
     assert "trade_quantity.is_zero()" in investment
     assert "quantity=trade_quantity.value" in investment
-    assert "trade_quantity.value * unit_price" in investment
+    # unit price now flows through the UnitPrice value type (#1253 / AC12.32),
+    # keeping trade_quantity a Quantity object in the money calculation.
+    assert "buy_price * trade_quantity" in investment
 
     portfolio = _read(Path("apps/backend/src/services/portfolio.py"))
     assert (

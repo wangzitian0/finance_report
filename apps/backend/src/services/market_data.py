@@ -26,12 +26,14 @@ from src.models.journal import JournalEntry, JournalLine
 from src.models.layer2 import AtomicPosition
 from src.models.layer3 import ManagedPosition, PositionStatus
 from src.quantity import Quantity
+from src.unit_price import UNIT_PRICE_QUANTUM
 
 logger = get_logger(__name__)
 
 MARKET_DATA_QUANTITY_UNIT = "units"
 _RATE_QUANT = Decimal("0.000001")
-_PRICE_QUANT = Decimal("0.000001")
+# Security prices share the canonical unit-price quantum (6 dp, ROUND_HALF_UP).
+_PRICE_QUANT = UNIT_PRICE_QUANTUM
 _DEFAULT_INCREMENTAL_LOOKBACK_DAYS = 7
 _PROVIDER_DISAGREEMENT_THRESHOLD = Decimal("0.02")
 _FRESHNESS_THRESHOLD = timedelta(hours=24)

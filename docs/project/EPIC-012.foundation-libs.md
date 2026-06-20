@@ -490,6 +490,22 @@ explicit boundary or use the typed value package.
 | AC12.31.6 | Post-merge cleanup retires remaining base-package drift: confidence percent display calls Ratio helpers directly and SSOT FX examples use `Money`/`ExchangeRate` instead of hand-rolled Decimal conversion | `test_AC12_31_6_confidence_percent_wrapper_is_retired`, `test_AC12_31_6_ssot_fx_examples_use_money_exchange_rate` | `tests/tooling/test_base_package_migration_cleanup.py` | P1 |
 | AC12.31.7 | Backend Quantity migration cleanup keeps `Quantity` objects in service calculations, removes service-local and package-level Decimal-to-Decimal quantity facades, and permits raw `Decimal` only at DB/model/SQL boundaries | `test_AC12_31_7_backend_quantity_business_code_uses_value_type`, `test_AC12_31_7_backend_quantity_value_type_handles_storage_edges` | `tests/tooling/test_base_package_migration_cleanup.py` | P1 |
 
+### AC12.32: UnitPrice — money-per-quantity composite value type ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+
+The composite base element after `money`/`ratio`/`quantity` (see
+[base-packages.md](../ssot/base-packages.md)): a `UnitPrice` (rate + `Currency` +
+`Unit`) that owns money-per-quantity semantics — `unit_price * quantity -> Money`,
+`UnitPrice.from_total(money, quantity)` (`Money / Quantity`), and the 6-dp
+price/unit-rate quantum — so portfolio/market-data services stop re-deriving the
+`quantity.value * price` extension, the `amount / quantity.value` rate, and a
+duplicated local `quantize` helper as raw `Decimal` glue.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC12.32.1 | `UnitPrice(rate, currency, unit)` rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, applies to a same-unit `Quantity` to yield `Money` (unit/currency mismatch raises), and derives from `Money / Quantity` via `from_total` (zero quantity undefined → raises) | `test_AC12_32_1_unit_price_rejects_float_and_is_decimal_backed` (+ siblings) | `tests/tooling/test_unit_price_value_type.py`, `apps/backend/tests/accounting/test_unit_price_backend.py` | P1 |
+| AC12.32.2 | Cross-language conformance: the Python reference (`common/unit_price`) and shipped backend (`src.unit_price`) reproduce the same `vectors.json` (quantize / product / from_total) and export the same `shared_api` (identifier-parity guard). Frontend is a P2 follow-up | `test_AC12_32_2_unit_price_quantize_matches_standard` (+ siblings), `test_AC12_32_2_backend_exposes_shared_unit_price_api` | `tests/tooling/test_unit_price_conformance.py`, `tests/tooling/test_unit_price_api_parity.py`, `apps/backend/tests/accounting/test_unit_price_backend.py` | P1 |
+| AC12.32.3 | UnitPrice adoption: investment accounting prices buys/sells and lot/avg-cost through `UnitPrice` (removing the local `_quantized_unit_rate` helper and `UNIT_RATE_QUANTUM` literal), and market-data single-sources the price quantum from `UNIT_PRICE_QUANTUM` | `test_AC12_32_3_investment_accounting_uses_unit_price`, `test_AC12_32_3_market_data_price_quantum_is_single_sourced` | `tests/tooling/test_unit_price_adoption.py` | P1 |
+
 ---
 
 *Planning snapshot captured: January 2026*

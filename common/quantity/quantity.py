@@ -80,7 +80,14 @@ class Quantity:
         return Quantity(abs(self.value), self.unit)
 
     def __mul__(self, factor: _QuantityInput) -> Quantity:
-        return Quantity(self.value * _coerce(factor, "factor"), self.unit)
+        # Scale by a dimensionless Decimal/int factor. float/bool stay a hard red
+        # line (raise); any other type yields NotImplemented so a reflected
+        # operand can handle it — e.g. quantity * UnitPrice -> Money.
+        if isinstance(factor, (Decimal, int)) and not isinstance(factor, bool):
+            return Quantity(self.value * factor, self.unit)
+        if isinstance(factor, (bool, float)):
+            return Quantity(self.value * _coerce(factor, "factor"), self.unit)
+        return NotImplemented
 
     __rmul__ = __mul__
 
