@@ -59,3 +59,11 @@ body:
         - [ ] ...
     validations:
       required: false
+  - type: checkboxes
+    id: data_hygiene
+    attributes:
+      label: "Data hygiene"
+      description: "See the financial-data red line in [red-lines.md](../../docs/agents/red-lines.md)."
+      options:
+        - label: "No real financial data — amounts, balances, account numbers, holder names, local paths, or real statement filenames are redacted or generated/anonymized."
+          required: true

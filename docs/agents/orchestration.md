@@ -91,7 +91,10 @@ Use this cascade **before processing any task**:
      through `docs/infra_registry.yaml`
    - Historical, deprecated, or non-derived metadata is explicit in
      `docs/ac_registry_overrides.yaml`
-3. **Test**: Write failing tests that reference the AC IDs (red phase)
+3. **Test**: Write failing tests that reference the AC IDs (red phase).
+   Regression fixtures and test data MUST be generated/anonymized, never
+   derived from real user uploads or real statements — see the financial-data
+   red line in [red-lines.md](./red-lines.md).
 4. **Code**: Write minimal code to make the tests pass (green phase)
 5. **Doc**: Update SSOT docs and README
 
