@@ -290,6 +290,26 @@ contract language only; storage (#1222), adapter (#1223), LLM classification
 | AC11.21.3 | A deterministic guard rejects jurisdiction-, scheme-, and vendor-specific tokens in stable taxonomy codes | `test_stable_codes_reject_vendor_jurisdiction_scheme_tokens()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
 | AC11.21.4 | Every L2 code maps to exactly one L1 parent with a default economic side | `test_l2_maps_to_single_l1_and_default_side()` | `assets/test_valuation_taxonomy_contract.py` | P0 |
 
+### AC11.22: Atomic Valuation Fact + Classification Storage (#1222)
+
+Persistence for raw extracted valuation facts (`atomic_valuation_facts`) and
+their versionable stable classification (`valuation_classifications`), bound to
+the AC11.21 taxonomy contract. Storage only: no LLM, no legacy bridge, and no
+report/UI behaviour change. Jurisdiction/issuer/scheme are raw metadata on the
+fact; the classification columns are bound to the stable contract enums so codes
+outside the contract are rejected at persistence. Reclassification appends a
+version and supersedes the prior head, so prior model output is never destroyed.
+Tables are additive (Alembic revision `0046_valuation_fact_storage`,
+auto-classified low risk); no legacy enum value is removed.
+
+| ID | Test Case | Test Function | File | Priority |
+|----|-----------|---------------|------|----------|
+| AC11.22.1 | `AtomicValuationFact` persists a point-in-time fact (Decimal amount, currency, as-of, raw label, issuer, jurisdiction, scheme, anchors, payload, evidence spans) with a per-user-unique dedup hash | `test_atomic_valuation_fact_persists_and_dedup_hash_is_unique_per_user()` | `assets/test_valuation_fact_storage.py` | P0 |
+| AC11.22.2 | `ValuationClassification` persists stable taxonomy fields bound to the contract (L1/L2, economic_side, valuation_role, liquidity_class, confidence, review status, model/prompt version, rationale) and rejects codes outside the contract | `test_valuation_classification_persists_stable_fields_and_rejects_out_of_contract_codes()` | `assets/test_valuation_fact_storage.py` | P0 |
+| AC11.22.3 | Classification is append-only/versionable: at most one current head per fact, superseded history preserved | `test_valuation_classification_is_append_only_per_fact()` | `assets/test_valuation_fact_storage.py` | P0 |
+| AC11.22.4 | Existing manual valuation model and enum values are unchanged by the storage addition (no legacy enum value removed) | `test_manual_valuation_model_is_unchanged_by_storage_addition()` | `assets/test_valuation_fact_storage.py` | P0 |
+| AC11.22.5 | A classification cannot reference a fact owned by a different user (same-owner composite FK) | `test_valuation_classification_rejects_cross_user_fact_reference()` | `assets/test_valuation_fact_storage.py` | P0 |
+
 ## Implementation Pattern Ownership
 
 Do not copy reusable code patterns, router examples, migration guardrails, or
