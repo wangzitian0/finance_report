@@ -131,7 +131,7 @@ async def delete_user(
     )
     if in_flight_parse is not None:
         raise_conflict(
-            "Cannot delete this account while a statement is still being parsed. "
+            "Cannot delete this user account while a statement is still being parsed. "
             "Wait for the parse to finish (or fail) and try again."
         )
 
@@ -143,6 +143,6 @@ async def delete_user(
         # deleted) blocks the cascade. Surface it as a clear 409 instead of leaking a 500.
         await db.rollback()
         raise_conflict(
-            "Cannot delete this account while it has posted or reconciled ledger entries. Void those entries first.",
+            "Cannot delete this user account while it has posted or reconciled ledger entries. Void those entries first.",
             cause=exc,
         )
