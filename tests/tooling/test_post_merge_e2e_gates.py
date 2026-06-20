@@ -1346,6 +1346,86 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
     assert "frontend-telemetry-test-context" in workflow_text
 
 
+def test_AC8_13_148_backend_shards_use_balanced_8_way_split() -> None:
+    """AC8.13.148: backend shards use an 8-way least-duration split."""
+    workflow_text = read(".github/workflows/ci.yml")
+    workflow = yaml.safe_load(workflow_text)
+    backend_job = workflow["jobs"]["backend"]
+    inventory = read("docs/ssot/ci-gate-inventory.yaml")
+    ci_cd = read("docs/ssot/ci-cd.md")
+
+    assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/8)"
+    assert backend_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4, 5, 6, 7, 8]
+
+    backend_commands = "\n".join(
+        str(step.get("run", ""))
+        for step in backend_job.get("steps", [])
+        if isinstance(step, dict)
+    )
+    assert "--splits 8" in backend_commands
+    assert "--group ${{ matrix.shard }}" in backend_commands
+    assert "--splitting-algorithm=least_duration" in backend_commands
+    assert "--store-durations" in backend_commands
+    assert (
+        "--durations-path test-results/backend-shard-${{ matrix.shard }}-durations.json"
+        in backend_commands
+    )
+
+    upload_context = workflow_text.split("Upload backend shard test context", 1)[1]
+    assert "apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml" in upload_context
+    assert (
+        "apps/backend/test-results/backend-shard-${{ matrix.shard }}-durations.json"
+        in upload_context
+    )
+    assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/8)`" in ci_cd
+    assert "8-way parallel test sharding via `pytest-split`" in ci_cd
+    assert "matrix_legs: 8" in inventory
+
+
+def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
+    """AC8.13.149: coverage and ratchet fan-in stays scoped and stdlib-fast."""
+    workflow_text = read(".github/workflows/ci.yml")
+    workflow = yaml.safe_load(workflow_text)
+    jobs = workflow["jobs"]
+
+    unified_block = workflow_text.split("  unified-coverage:", 1)[1].split(
+        "  unified-coverage-baseline-pr:", 1
+    )[0]
+    ratchet_block = workflow_text.split("  ac-behavioral-ratchet:", 1)[1].split(
+        "  finish:", 1
+    )[0]
+
+    assert jobs["unified-coverage"]["needs"] == [
+        "changes",
+        "backend",
+        "frontend-vitest",
+        "tooling-coverage",
+    ]
+    assert "Install uv" not in unified_block
+    assert "uv run python tools/merge_lcov.py" not in unified_block
+    assert "uv run python tools/check_coverage_policy.py" not in unified_block
+    assert "uv run python tools/calculate_unified_coverage.py" not in unified_block
+    assert "python tools/merge_lcov.py coverage/backend.lcov" in unified_block
+    assert "python tools/check_coverage_policy.py" in unified_block
+    assert "python tools/calculate_unified_coverage.py" in unified_block
+
+    assert jobs["ac-behavioral-ratchet"]["needs"] == [
+        "changes",
+        "backend",
+        "backend-integration",
+        "backend-e2e-tier1",
+        "frontend-vitest",
+    ]
+    assert "Download all test junit artifacts" not in ratchet_block
+    assert "pattern: backend-shard-*-test-context" in ratchet_block
+    assert "name: backend-integration-test-context" in ratchet_block
+    assert "name: backend-tier1-e2e-test-context" in ratchet_block
+    assert "name: frontend-vitest-test-context" in ratchet_block
+    assert "uv run --with pyyaml python tools/aggregate_ac_evidence.py" not in ratchet_block
+    assert "python tools/aggregate_ac_evidence.py" in ratchet_block
+    assert "python tools/check_ac_score_baseline.py" in ratchet_block
+
+
 def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     """AC8.13.146: report-branch-main deploys only successful CI SHA images."""
     notify = read(".github/workflows/notify-infra2-report-main.yml")
