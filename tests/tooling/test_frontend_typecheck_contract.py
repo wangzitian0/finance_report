@@ -19,8 +19,18 @@ def test_AC8_13_99_frontend_typecheck_is_a_required_gate() -> None:
     assert 'run(["npm", "run", "typecheck"], cwd=FRONTEND_DIR)' in cli
 
     workflow = read(".github/workflows/ci.yml")
-    frontend_block = workflow.split("  frontend:", 1)[1].split(
-        "  container-images:", 1
+    frontend_block = workflow.split("  frontend-build:", 1)[1].split(
+        "  frontend-vitest:",
+        1,
     )[0]
     assert "Run Frontend Type Check" in frontend_block
     assert "npm run typecheck" in frontend_block
+    assert "Build Frontend" in frontend_block
+    assert "npm run build" in frontend_block
+
+    assert (
+        workflow.split("  frontend-vitest:", 1)[1]
+        .split("  container-images:", 1)[0]
+        .count("npm run typecheck")
+        == 0
+    )
