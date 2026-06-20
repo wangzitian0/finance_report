@@ -569,7 +569,10 @@ def parse_brokerage_positions_csv_rows(
     ``market_value``/``currency``...) consumed by ``_parse_structured_positions``
     so the result flows through the existing brokerage import path. Rows missing
     a symbol, quantity, or market value are skipped (a CSV can carry subtotal /
-    blank rows). Monetary and quantity fields are parsed as ``Decimal``.
+    blank rows). Quantity and monetary fields are parsed as ``Decimal`` for
+    precision, then serialized back to ``str`` in the returned dict (JSON-safe
+    payload contract); the importer re-parses them via ``_clean_decimal`` in
+    ``_parse_structured_positions``.
     """
     symbol_col = _find_csv_column(headers, ("symbol", "ticker", "instrument", "security"))
     quantity_col = _find_csv_column(headers, ("quantity", "qty", "shares", "position", "units"))
