@@ -8,6 +8,8 @@ from sqlalchemy.exc import IntegrityError
 
 from src.deps import CurrentUserId, DbSession
 from src.models import User
+from src.models.statement_enums import BankStatementStatus
+from src.models.statement_summary import StatementSummary
 from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 from src.utils import raise_bad_request, raise_conflict, raise_not_found
 
@@ -114,6 +116,25 @@ async def delete_user(
     if not user:
         raise_not_found("User")
 
+    # Lifecycle coordination (#1256, AC13.23.1): the user-owned cascade
+    # (UserOwnedMixin FK, ON DELETE CASCADE) would remove statement rows out from
+    # under a still-running background parse. That parse captured user_id/statement_id
+    # and would later write uploaded-document lineage for the now-deleted user,
+    # which PostgreSQL rejects with a FK IntegrityError (and the original error gets
+    # masked). The in-flight parse is queryable as StatementSummary.status == PARSING,
+    # so refuse the delete with an actionable 409 rather than racing the parse.
+    in_flight_parse = await db.scalar(
+        select(StatementSummary.id)
+        .where(StatementSummary.user_id == user_id)
+        .where(StatementSummary.status == BankStatementStatus.PARSING)
+        .limit(1)
+    )
+    if in_flight_parse is not None:
+        raise_conflict(
+            "Cannot delete this user account while a statement is still being parsed. "
+            "Wait for the parse to finish (or fail) and try again."
+        )
+
     await db.delete(user)
     try:
         await db.commit()
@@ -122,6 +143,6 @@ async def delete_user(
         # deleted) blocks the cascade. Surface it as a clear 409 instead of leaking a 500.
         await db.rollback()
         raise_conflict(
-            "Cannot delete this account while it has posted or reconciled ledger entries. Void those entries first.",
+            "Cannot delete this user account while it has posted or reconciled ledger entries. Void those entries first.",
             cause=exc,
         )
