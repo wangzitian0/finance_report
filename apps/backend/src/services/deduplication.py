@@ -71,7 +71,13 @@ class DeduplicationService:
         Decimal amounts are canonicalized (``Decimal('50')`` and ``Decimal('50.00')``
         hash identically) so values that differ only in scale do not break dedup. The
         no-balance disambiguator (``"#<index>"``) is unchanged, so existing balance-less
-        hashes are preserved.
+        hashes are preserved. The balance-present disambiguator deliberately gains the
+        ``"#<index>"`` tail (``"<balance>"`` -> ``"<balance>#<index>"``), so a
+        balance-present row first parsed *before* this change has a stale stored hash:
+        re-uploading that statement may insert a second Layer-2 row instead of appending
+        a source document. That is an accepted trade-off (the page-boundary drop it fixes
+        is more severe), and any such residual duplicate is surfaced for review by the
+        ``detect_duplicates`` consistency check rather than corrupting balances.
         """
         balance_key = _decimal_key(balance_after) if balance_after is not None else ""
         disambiguator = f"{balance_key}#{occurrence_index}"
