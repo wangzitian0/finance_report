@@ -498,6 +498,9 @@ concepts:
 
   pr_review_thread_merge_gate:
     owner: docs/ssot/ci-cd.md#pr-review-thread-merge-gate
+    family: delivery
+    kind: concept
+    authority: documented_contract
     description: Merge-time gate that blocks unresolved P0/P1 (and Copilot-authored) PR review threads, and the documented severity classification rule.
     cross_refs:
       - docs/project/EPIC-008.testing-strategy.md
