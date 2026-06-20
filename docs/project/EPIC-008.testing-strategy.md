@@ -508,6 +508,21 @@ not-run/env-gated advisory report is never proof eligible.
 | AC8.18.2 | Tier 2 reports carry `proof_tier=tier2_http`; advisory/env-gated not-run output is marked `proof_eligible=false`, while passing reports require concrete HTTP checks | `test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible`, `test_AC8_18_2_tier2_http_success_report_requires_real_http_checks`, `test_AC8_18_2_tier2_http_handles_non_object_health_json`, `test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
 | AC8.18.3 | Staging runs Tier 2 after shell smoke and before Tier 3/browser E2E, and the execution matrix names `deployment_tier2_http_e2e` separately | `test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e`, `test_AC8_18_3_test_execution_matrix_names_tier2_http_stage` | `tests/tooling/test_tier2_http_e2e.py` | P0 |
 
+### AC8.19: Login Auth-Control Accessibility Disambiguation
+
+The login page exposes two controls that switch the form into register mode: a
+segmented mode-toggle button and an inline call-to-action under the form. Both
+read "Register" to users, which previously produced two buttons with the same
+accessible name and broke Playwright strict-mode `get_by_role` locators. These
+ACs require each control to carry a distinct, stable test hook and require the
+registration E2E to target the mode toggle unambiguously, with no visible-copy
+regression.
+
+| AC ID | Test Case | Test Function | File | Priority |
+|---|---|---|---|---|
+| AC8.19.1 | Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register" | `AC8.19.1 login register controls expose distinct test ids and accessible names` | `apps/frontend/src/__tests__/loginPage.test.tsx` | P1 |
+| AC8.19.2 | Registration E2E targets the mode-toggle register control by test id, switching into register mode without a strict-mode locator failure | `test_registration_api_path`, `test_full_registration_flow` | `tests/e2e/test_auth_flows.py` | P1 |
+
 ## 5. E2E Suite Ownership
 
 Current test counts and coverage percentages belong to generated reports and CI

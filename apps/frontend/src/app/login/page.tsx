@@ -83,6 +83,14 @@ export default function LoginPage() {
                     <button
                         type="button"
                         onClick={() => setMode("register")}
+                        // a11y (#1257): two controls switch into register mode and both
+                        // read "Register" to users. Keep the visible copy, but give the
+                        // segmented toggle a distinct accessible name + test id so it is
+                        // unambiguous for assistive tech and Playwright strict locators.
+                        data-testid="auth-mode-toggle-register"
+                        // WCAG 2.5.3 (Label in Name): the accessible name contains the
+                        // visible text "Register" and stays unique vs. the inline CTA.
+                        aria-label="Register (switch to register mode)"
                         className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${mode === "register"
                             ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
                             : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
@@ -187,6 +195,11 @@ export default function LoginPage() {
                             <button
                                 type="button"
                                 onClick={() => setMode("register")}
+                                // a11y (#1257): inline CTA mirrors the toggle. Distinct
+                                // test id + accessible name disambiguate it from the
+                                // segmented toggle while keeping the visible "Register" copy.
+                                data-testid="login-register-cta"
+                                aria-label="Register a new account"
                                 className="text-[var(--accent)] hover:underline font-medium"
                             >
                                 Register
